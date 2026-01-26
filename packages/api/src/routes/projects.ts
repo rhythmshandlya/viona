@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts } from '../db/index.js';
 import { config } from '../config.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getObjectStat } from '../services/minio.js';
@@ -82,8 +82,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const trackIds = projectTracks.map(t => t.id);
     const items = trackIds.length > 0
       ? await db.select().from(timelineItems).where(
-          // Get items for all tracks
-          eq(timelineItems.trackId, trackIds[0]) // Simplified, should use inArray
+          inArray(timelineItems.trackId, trackIds)
         )
       : [];
 
