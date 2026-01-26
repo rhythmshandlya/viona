@@ -49,3 +49,11 @@ export async function objectExists(bucket: string, key: string): Promise<boolean
     return false;
   }
 }
+
+export async function getObjectStream(bucket: string, key: string) {
+  return minioClient.getObject(bucket, key);
+}
+
+export async function getObjectStat(bucket: string, key: string) {
+  return minioClient.statObject(bucket, key);
+}

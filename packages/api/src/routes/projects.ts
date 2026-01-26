@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import { eq } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts } from '../db/index.js';
 import { config } from '../config.js';
-import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists } from '../services/minio.js';
+import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getObjectStat } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob } from '../services/queue.js';
 import type { ProjectStatus } from '@reelify/shared';
 
@@ -97,6 +97,77 @@ export async function projectRoutes(fastify: FastifyInstance) {
       items,
       transcript,
     };
+  });
+
+  // Stream video file
+  fastify.get('/projects/:id/video', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!project.videoKey) {
+      return reply.status(400).send({ error: 'No video uploaded' });
+    }
+
+    // Check if video exists
+    const exists = await objectExists(config.minio.buckets.uploads, project.videoKey);
+    if (!exists) {
+      return reply.status(404).send({ error: 'Video not found in storage' });
+    }
+
+    try {
+      // Get object metadata for content-type and size
+      const stat = await getObjectStat(config.minio.buckets.uploads, project.videoKey);
+
+      // Determine content type from file extension
+      const ext = project.videoKey.split('.').pop()?.toLowerCase();
+      const contentTypes: Record<string, string> = {
+        mp4: 'video/mp4',
+        mov: 'video/quicktime',
+        webm: 'video/webm',
+      };
+      const contentType = contentTypes[ext || ''] || 'application/octet-stream';
+
+      // Handle range requests for video seeking
+      const range = request.headers.range;
+
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const chunkSize = end - start + 1;
+
+        // For range requests, we need to get a partial stream
+        // MinIO getObject with offset and length
+        const stream = await getObjectStream(config.minio.buckets.uploads, project.videoKey);
+
+        reply.status(206);
+        reply.header('Content-Range', `bytes ${start}-${end}/${stat.size}`);
+        reply.header('Accept-Ranges', 'bytes');
+        reply.header('Content-Length', chunkSize);
+        reply.header('Content-Type', contentType);
+
+        return reply.send(stream);
+      }
+
+      // Full file request
+      const stream = await getObjectStream(config.minio.buckets.uploads, project.videoKey);
+
+      reply.header('Content-Type', contentType);
+      reply.header('Content-Length', stat.size);
+      reply.header('Accept-Ranges', 'bytes');
+
+      return reply.send(stream);
+    } catch (err) {
+      fastify.log.error(err, 'Failed to stream video');
+      return reply.status(500).send({ error: 'Failed to stream video' });
+    }
   });
 
   // Update a project

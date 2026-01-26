@@ -24,5 +24,6 @@ export const config = {
   whisper: {
     model: process.env.WHISPER_MODEL || 'medium.en',
     path: process.env.WHISPER_PATH || './whisper.cpp',
+    version: process.env.WHISPER_CPP_VERSION || '1.5.5',
   },
 } as const;

@@ -1,37 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import Editor from "@/features/editor";
-import { api, Project } from "@/lib/api";
+import { useReelifyStore } from "@/store/use-reelify-store";
+import ReelifyEditor from "@/features/reelify-editor";
 
 export default function ProjectPage() {
   const params = useParams();
   const projectId = params.id as string;
 
-  const [project, setProject] = useState<Project | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { project, isLoading, error, loadProject, designComboData } = useReelifyStore();
 
   useEffect(() => {
-    async function loadProject() {
-      try {
-        const data = await api.getProject(projectId);
-        setProject(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load project");
-      } finally {
-        setLoading(false);
-      }
-    }
+    loadProject(projectId);
+  }, [projectId, loadProject]);
 
-    loadProject();
-  }, [projectId]);
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex items-center gap-3">
           <Loader2 className="w-6 h-6 animate-spin" />
           <span>Loading project...</span>
@@ -42,7 +29,7 @@ export default function ProjectPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <p className="text-destructive">{error}</p>
           <a href="/upload" className="text-primary underline">
@@ -53,7 +40,16 @@ export default function ProjectPage() {
     );
   }
 
-  // For now, render the editor directly
-  // TODO: Pass project data to editor when we integrate
-  return <Editor />;
+  if (!project || !designComboData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span>Preparing editor...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return <ReelifyEditor projectId={projectId} initialData={designComboData} />;
 }

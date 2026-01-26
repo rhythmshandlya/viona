@@ -147,6 +147,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     const whisperOutput = await transcribe({
       inputPath: audioPath,
       whisperPath: config.whisper.path,
+      whisperCppVersion: config.whisper.version,
       model: config.whisper.model as any,
       tokenLevelTimestamps: true,
       onProgress: (progress) => {

@@ -4,12 +4,11 @@ import { mkdir, rm } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
-import { bundle } from '@remotion/bundler';
-import { renderMedia, selectComposition } from '@remotion/renderer';
 import { db, projects, tracks, timelineItems, jobs } from '../db/index.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
+import { renderVideo, SubtitleItem, SubtitleStyle } from '@reelify/renderer';
 
 export interface RenderJobData {
   projectId: string;
@@ -59,21 +58,59 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
     await publishJobProgress(jobId, 20, 'Preparing render...');
 
-    // For now, we'll create a placeholder output
-    // In a full implementation, we would:
-    // 1. Bundle the Remotion composition
-    // 2. Render with the project data
-    // 3. Use FFmpeg to composite subtitles if needed
-
-    // TODO: Implement full Remotion rendering
-    // This is a placeholder that copies the input to output
+    // Convert timeline items to subtitle format
+    const subtitles = convertToSubtitles(allItems);
     const outputPath = join(workDir, 'output.mp4');
 
-    // For MVP, we'll use FFmpeg to burn subtitles directly
-    // This is simpler than full Remotion rendering
-    await renderSubtitlesWithFFmpeg(videoPath, outputPath, allItems, project);
+    // Check if we have subtitles to render
+    if (subtitles.length === 0) {
+      // No subtitles, just copy the video using FFmpeg
+      await publishJobProgress(jobId, 30, 'Copying video (no subtitles)...');
+      await copyVideo(videoPath, outputPath);
+    } else {
+      // Render with Remotion for animated subtitles
+      await publishJobProgress(jobId, 30, 'Rendering with animated subtitles...');
 
-    await publishJobProgress(jobId, 80, 'Uploading result...');
+      const durationMs = project.durationMs || 60000; // Default 60s if not set
+      const width = project.width || 1920;
+      const height = project.height || 1080;
+      const fps = project.fps || 30;
+
+      // Default subtitle style
+      const defaultSubtitleStyle: SubtitleStyle = {
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: Math.round(height / 22), // Scale font to video size
+        fontWeight: 700,
+        color: '#ffffff',
+        activeColor: '#ffff00',
+        position: 'bottom',
+        animation: 'highlight',
+      };
+
+      try {
+        await renderVideo({
+          videoUrl: `file://${videoPath}`,
+          subtitles,
+          outputPath,
+          width,
+          height,
+          fps,
+          durationMs,
+          defaultSubtitleStyle,
+          onProgress: async (progress) => {
+            // Map Remotion progress (0-100) to our progress range (30-80)
+            const mappedProgress = 30 + Math.round(progress * 0.5);
+            await publishJobProgress(jobId, mappedProgress, `Rendering... ${progress}%`);
+          },
+        });
+      } catch (renderError) {
+        console.error('Remotion render failed, falling back to FFmpeg:', renderError);
+        // Fallback to FFmpeg subtitle burning
+        await renderSubtitlesWithFFmpeg(videoPath, outputPath, allItems, project);
+      }
+    }
+
+    await publishJobProgress(jobId, 85, 'Uploading result...');
 
     // Upload output
     const outputKey = `${nanoid()}/output.mp4`;
@@ -122,8 +159,36 @@ export async function processRenderJob(job: Job<RenderJobData>) {
   }
 }
 
-// Simplified subtitle rendering using FFmpeg
-// For MVP - later we'll use full Remotion rendering for animations
+function convertToSubtitles(items: any[]): SubtitleItem[] {
+  return items
+    .filter(item => item.type === 'subtitle')
+    .map(item => {
+      const data = item.data as any;
+      return {
+        id: item.id,
+        startMs: item.startMs,
+        endMs: item.endMs,
+        text: data.text || '',
+        words: data.words || [{ text: data.text || '', startMs: item.startMs, endMs: item.endMs }],
+        style: data.style,
+      };
+    });
+}
+
+async function copyVideo(inputPath: string, outputPath: string): Promise<void> {
+  const ffmpeg = (await import('fluent-ffmpeg')).default;
+
+  return new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .outputOptions(['-c', 'copy'])
+      .output(outputPath)
+      .on('end', () => resolve())
+      .on('error', (err) => reject(err))
+      .run();
+  });
+}
+
+// Fallback: FFmpeg subtitle burning for when Remotion fails
 async function renderSubtitlesWithFFmpeg(
   inputPath: string,
   outputPath: string,

@@ -75,7 +75,7 @@ export async function setupWebSocket(fastify: FastifyInstance) {
     console.log(`WebSocket connected for project: ${projectId}`);
 
     // Handle incoming messages
-    socket.on('message', (rawMessage) => {
+    socket.on('message', (rawMessage: Buffer) => {
       try {
         const message = JSON.parse(rawMessage.toString());
 
@@ -98,7 +98,7 @@ export async function setupWebSocket(fastify: FastifyInstance) {
       console.log(`WebSocket disconnected for project: ${projectId}`);
     });
 
-    socket.on('error', (err) => {
+    socket.on('error', (err: Error) => {
       console.error('WebSocket error:', err);
       connections.delete(socket);
     });
