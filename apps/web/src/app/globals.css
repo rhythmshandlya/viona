@@ -548,3 +548,129 @@ input[type="number"]::-webkit-outer-spin-button {
 [data-slot="scroll-area-viewport"] > * {
   display: block !important;
 }
+
+/* ============================================
+   Editor Theme - Linear/Figma-inspired
+   ============================================ */
+
+.editor-theme {
+  /* Background layers */
+  --editor-bg-base: #0A0A0A;
+  --editor-bg-surface: #111111;
+  --editor-bg-elevated: #191919;
+  --editor-bg-hover: #1F1F1F;
+
+  /* Borders */
+  --editor-border-subtle: #1F1F1F;
+  --editor-border-default: #2A2A2A;
+  --editor-border-focus: #10B981;
+
+  /* Text */
+  --editor-text-primary: #FAFAFA;
+  --editor-text-secondary: #A1A1A1;
+  --editor-text-muted: #525252;
+
+  /* Accent (Green) */
+  --editor-accent: #10B981;
+  --editor-accent-hover: #059669;
+  --editor-accent-muted: rgba(16, 185, 129, 0.125);
+
+  /* Timeline specific */
+  --editor-track-bg: #161616;
+  --editor-track-item: #2A2A2A;
+  --editor-track-item-hover: #333333;
+  --editor-playhead: #10B981;
+
+  /* Transitions */
+  --editor-transition-fast: 150ms ease-out;
+  --editor-transition-normal: 200ms ease-out;
+}
+
+/* Editor utility classes */
+.editor-theme .bg-editor-base { background-color: var(--editor-bg-base); }
+.editor-theme .bg-editor-surface { background-color: var(--editor-bg-surface); }
+.editor-theme .bg-editor-elevated { background-color: var(--editor-bg-elevated); }
+.editor-theme .bg-editor-hover { background-color: var(--editor-bg-hover); }
+
+.editor-theme .border-editor-subtle { border-color: var(--editor-border-subtle); }
+.editor-theme .border-editor-default { border-color: var(--editor-border-default); }
+.editor-theme .border-editor-focus { border-color: var(--editor-border-focus); }
+
+.editor-theme .text-editor-primary { color: var(--editor-text-primary); }
+.editor-theme .text-editor-secondary { color: var(--editor-text-secondary); }
+.editor-theme .text-editor-muted { color: var(--editor-text-muted); }
+
+.editor-theme .bg-editor-accent { background-color: var(--editor-accent); }
+.editor-theme .bg-editor-accent-hover:hover { background-color: var(--editor-accent-hover); }
+.editor-theme .bg-editor-accent-muted { background-color: var(--editor-accent-muted); }
+.editor-theme .text-editor-accent { color: var(--editor-accent); }
+
+/* Editor-specific component styles */
+.editor-theme button.editor-btn-primary {
+  background-color: var(--editor-accent);
+  color: var(--editor-bg-base);
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: background-color var(--editor-transition-fast);
+}
+
+.editor-theme button.editor-btn-primary:hover {
+  background-color: var(--editor-accent-hover);
+}
+
+.editor-theme button.editor-btn-ghost {
+  background-color: transparent;
+  color: var(--editor-text-secondary);
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: all var(--editor-transition-fast);
+}
+
+.editor-theme button.editor-btn-ghost:hover {
+  background-color: var(--editor-bg-hover);
+  color: var(--editor-text-primary);
+}
+
+/* Panel slide-in animation */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.editor-panel-enter {
+  animation: slide-in-right var(--editor-transition-normal) forwards;
+}
+
+.editor-panel-exit {
+  animation: slide-out-right var(--editor-transition-fast) forwards;
+}
+
+/* Command palette backdrop */
+.editor-command-backdrop {
+  background-color: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+/* Focus ring for editor elements */
+.editor-theme *:focus-visible {
+  outline: 2px solid var(--editor-border-focus);
+  outline-offset: 2px;
+}
