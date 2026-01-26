@@ -1,0 +1,35 @@
+{
+  "name": "reelify",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm run --parallel dev:*",
+    "dev:web": "pnpm --filter web dev",
+    "dev:api": "pnpm --filter @reelify/api dev",
+    "dev:worker": "pnpm --filter @reelify/worker dev",
+    "build": "pnpm run --parallel build:*",
+    "build:web": "pnpm --filter web build",
+    "build:api": "pnpm --filter @reelify/api build",
+    "build:worker": "pnpm --filter @reelify/worker build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "db:migrate": "pnpm --filter @reelify/api db:migrate",
+    "db:seed": "pnpm --filter @reelify/api db:seed",
+    "whisper:install": "pnpm --filter @reelify/worker whisper:install",
+    "setup": "pnpm install && pnpm docker:up && pnpm db:migrate",
+    "lint": "pnpm run --parallel lint",
+    "typecheck": "pnpm run --parallel typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}
