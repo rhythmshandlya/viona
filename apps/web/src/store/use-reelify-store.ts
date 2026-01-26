@@ -50,6 +50,12 @@ export const useReelifyStore = create<ReelifyStore>((set, get) => ({
     try {
       // Load project from API
       const project = await api.getProject(projectId);
+      console.log('[ReelifyStore] Project loaded:', {
+        id: project.id,
+        status: project.status,
+        itemCount: project.items?.length,
+        items: project.items?.map((i: any) => ({ type: i.type, startMs: i.startMs })),
+      });
 
       // Construct video URL (MinIO presigned URL via API proxy or direct)
       // For local dev, we'll construct a direct MinIO URL

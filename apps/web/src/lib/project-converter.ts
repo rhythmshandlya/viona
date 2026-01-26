@@ -245,10 +245,12 @@ export function projectToDesignComboFormat(
     captionItemIds.push(captionId);
 
     // Convert words to DesignCombo format
+    // Word times must be RELATIVE to caption start (not absolute)
+    const captionStartMs = item.startMs;
     const words: DesignComboCaptionWord[] = (data.words || []).map((w) => ({
       word: w.text,
-      start: w.startMs,
-      end: w.endMs,
+      start: w.startMs - captionStartMs,
+      end: w.endMs - captionStartMs,
       confidence: 1,
       is_keyword: false,
     }));

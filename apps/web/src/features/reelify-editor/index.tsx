@@ -70,6 +70,13 @@ const ReelifyEditor = ({ projectId, initialData }: ReelifyEditorProps) => {
   // Load initial data
   useEffect(() => {
     if (initialData) {
+      console.log('[ReelifyEditor] Loading design data:', {
+        id: initialData.id,
+        size: initialData.size,
+        trackCount: initialData.tracks?.length,
+        trackItemCount: initialData.trackItemIds?.length,
+        tracks: initialData.tracks?.map((t: any) => ({ type: t.type, items: t.items?.length })),
+      });
       dispatch(DESIGN_LOAD, { payload: initialData });
     }
   }, [initialData]);
