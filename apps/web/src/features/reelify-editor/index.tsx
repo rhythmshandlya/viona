@@ -68,7 +68,7 @@ const ReelifyEditor = ({ projectId, initialData }: ReelifyEditorProps) => {
   const { setCompactFonts, setFonts } = useDataState();
   const { saveProject, startRender, isRendering, renderProgress, setRenderProgress, setRenderComplete, project } = useReelifyStore();
 
-  // Load initial data
+  // Load initial data - delay slightly to ensure StateManager subscriptions are ready
   useEffect(() => {
     if (initialData) {
       console.log('[ReelifyEditor] Loading design data:', {
@@ -78,7 +78,11 @@ const ReelifyEditor = ({ projectId, initialData }: ReelifyEditorProps) => {
         trackItemCount: initialData.trackItemIds?.length,
         tracks: initialData.tracks?.map((t: any) => ({ type: t.type, items: t.items?.length })),
       });
-      dispatch(DESIGN_LOAD, { payload: initialData });
+      // Small delay to ensure useStateManagerEvents has subscribed
+      const timer = setTimeout(() => {
+        dispatch(DESIGN_LOAD, { payload: initialData });
+      }, 50);
+      return () => clearTimeout(timer);
     }
   }, [initialData]);
 
