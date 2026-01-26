@@ -1,6 +1,20 @@
 "use client";
-import Editor from "@/features/editor";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2 } from "lucide-react";
 
 export default function Home() {
-  return <Editor />;
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect to upload page
+    router.push("/upload");
+  }, [router]);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <Loader2 className="w-6 h-6 animate-spin" />
+    </div>
+  );
 }
