@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { WebSocket } from '@fastify/websocket';
+import { WebSocket } from 'ws';
 import { redisSub, CHANNELS } from '../services/redis.js';
 
 interface WSConnection {

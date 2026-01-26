@@ -345,6 +345,9 @@ importers:
       pg:
         specifier: ^8.11.3
         version: 8.17.2
+      ws:
+        specifier: ^8.16.0
+        version: 8.19.0
       zod:
         specifier: ^3.22.4
         version: 3.25.76
@@ -355,6 +358,9 @@ importers:
       '@types/pg':
         specifier: ^8.10.9
         version: 8.16.0
+      '@types/ws':
+        specifier: ^8.5.10
+        version: 8.18.1
       drizzle-kit:
         specifier: ^0.20.10
         version: 0.20.18
@@ -2864,6 +2870,9 @@ packages:
 
   '@types/webxr@0.5.24':
     resolution: {integrity: sha512-h8fgEd/DpoS9CBrjEQXR+dIDraopAEfu4wYVNY2tEPwk60stPWhvZMf4Foo5FakuQ7HFZoa8WceaWFervK2Ovg==}
+
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
 
   '@types/yauzl@2.10.3':
     resolution: {integrity: sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q==}
@@ -8480,6 +8489,10 @@ snapshots:
   '@types/unist@3.0.3': {}
 
   '@types/webxr@0.5.24': {}
+
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 20.19.30
 
   '@types/yauzl@2.10.3':
     dependencies:
