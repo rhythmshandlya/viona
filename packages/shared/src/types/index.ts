@@ -27,10 +27,13 @@ export interface SubtitleStyle {
   fontSize: number;
   fontWeight: number;
   color: string;
+  activeColor?: string;
   backgroundColor?: string;
+  activeBackgroundColor?: string;
   position: SubtitlePosition;
   animation: SubtitleAnimation;
   highlightColor?: string;
+  presetId?: string;
 }
 
 export interface SubtitleData {
@@ -243,14 +246,17 @@ export interface JobErrorPayload {
 // ============================================
 
 export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
-  fontFamily: 'Inter',
-  fontSize: 48,
-  fontWeight: 600,
-  color: '#FFFFFF',
+  fontFamily: 'Inter, system-ui, sans-serif',
+  fontSize: 56,
+  fontWeight: 800,
+  color: '#ffffff',
+  activeColor: '#ffff00',
   backgroundColor: undefined,
+  activeBackgroundColor: undefined,
   position: 'bottom',
   animation: 'highlight-word',
-  highlightColor: '#FFD700',
+  highlightColor: '#ffff00',
+  presetId: 'bold-pop',
 };
 
 export const DEFAULT_FPS = 30;

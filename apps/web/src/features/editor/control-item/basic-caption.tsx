@@ -17,6 +17,7 @@ import { ICompactFont, IFont } from "../interfaces/editor";
 import { DEFAULT_FONT } from "../constants/font";
 import { PresetCaption } from "./common/preset-caption";
 import AnimationCaption from "./common/animation-caption";
+import { ReelifyStylePicker } from "./common/reelify-style-picker";
 
 interface ITextControlProps {
   color: string;
@@ -400,6 +401,15 @@ const BasicCaption = ({
   );
 
   const components = [
+    {
+      key: "reelifyStyle",
+      component: (
+        <ReelifyStylePicker
+          trackItemId={trackItem.id}
+          currentPresetId={(trackItem.details as any)?.reelifyPreset}
+        />
+      )
+    },
     {
       key: "captionPreset",
       component: <PresetCaption trackItem={trackItem} properties={properties} />
