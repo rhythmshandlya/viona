@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Timeline from "../editor/timeline";
 import useStore from "../editor/store/use-store";
 import useTimelineEvents from "../editor/hooks/use-timeline-events";
+import { useStateManagerEvents } from "../editor/hooks/use-state-manager-events";
 import Scene from "../editor/scene";
 import { SceneRef } from "../editor/scene/scene.types";
 import StateManager, { DESIGN_LOAD } from "@designcombo/state";
@@ -105,6 +106,9 @@ const ReelifyEditor = ({ projectId, initialData }: ReelifyEditorProps) => {
   }, [projectId, setRenderProgress, setRenderComplete]);
 
   useTimelineEvents();
+
+  // Connect StateManager to zustand store - MUST be called before DESIGN_LOAD
+  useStateManagerEvents(stateManager);
 
   useEffect(() => {
     setCompactFonts(getCompactFontData(FONTS));
