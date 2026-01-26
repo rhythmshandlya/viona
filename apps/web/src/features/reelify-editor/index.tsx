@@ -40,13 +40,18 @@ interface ReelifyEditorProps {
   initialData: any; // DesignCombo format data
 }
 
+// Create StateManager at module level (singleton pattern like original editor)
+let globalStateManager: StateManager | null = null;
+
+const getStateManager = (size: { width: number; height: number }) => {
+  if (!globalStateManager) {
+    globalStateManager = new StateManager({ size });
+  }
+  return globalStateManager;
+};
+
 const ReelifyEditor = ({ projectId, initialData }: ReelifyEditorProps) => {
-  const [stateManager] = useState(
-    () =>
-      new StateManager({
-        size: initialData.size || { width: 1080, height: 1920 },
-      })
-  );
+  const stateManager = getStateManager(initialData.size || { width: 1080, height: 1920 });
 
   const { scene } = useSceneStore();
   const timelinePanelRef = useRef<ImperativePanelHandle>(null);
@@ -68,7 +73,7 @@ const ReelifyEditor = ({ projectId, initialData }: ReelifyEditorProps) => {
   const { setCompactFonts, setFonts } = useDataState();
   const { saveProject, startRender, isRendering, renderProgress, setRenderProgress, setRenderComplete, project } = useReelifyStore();
 
-  // Load initial data - delay slightly to ensure StateManager subscriptions are ready
+  // Load initial data
   useEffect(() => {
     if (initialData) {
       console.log('[ReelifyEditor] Loading design data:', {
@@ -76,13 +81,11 @@ const ReelifyEditor = ({ projectId, initialData }: ReelifyEditorProps) => {
         size: initialData.size,
         trackCount: initialData.tracks?.length,
         trackItemCount: initialData.trackItemIds?.length,
-        tracks: initialData.tracks?.map((t: any) => ({ type: t.type, items: t.items?.length })),
       });
-      // Small delay to ensure useStateManagerEvents has subscribed
-      const timer = setTimeout(() => {
+      // Dispatch after a frame to ensure subscriptions are ready
+      requestAnimationFrame(() => {
         dispatch(DESIGN_LOAD, { payload: initialData });
-      }, 50);
-      return () => clearTimeout(timer);
+      });
     }
   }, [initialData]);
 
