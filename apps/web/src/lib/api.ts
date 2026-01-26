@@ -120,6 +120,7 @@ class ApiClient {
   async processProject(projectId: string): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/process`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
@@ -136,6 +137,7 @@ class ApiClient {
   async renderProject(projectId: string): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
