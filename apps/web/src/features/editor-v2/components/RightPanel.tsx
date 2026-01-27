@@ -82,16 +82,13 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`px-4 h-full text-xs font-medium transition-colors relative ${
+      className={`px-4 h-full text-xs transition-colors ${
         isActive
-          ? 'text-[var(--editor-text-primary)]'
-          : 'text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]'
+          ? 'text-[var(--editor-text-primary)] font-semibold'
+          : 'text-[var(--editor-text-muted)] font-medium hover:text-[var(--editor-text-secondary)]'
       }`}
     >
       {label}
-      {isActive && (
-        <div className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--editor-accent)] rounded-full" />
-      )}
     </button>
   );
 }

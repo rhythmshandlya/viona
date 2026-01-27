@@ -87,7 +87,8 @@
       "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"\nimport shutil, pathlib\n# Clean broken model_repo from site-packages \\(left by failed git clone\\)\nsp = pathlib.Path\\(r''C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\lib\\\\site-packages\\\\resemble_enhance\\\\model_repo''\\)\nif sp.exists\\(\\):\n    shutil.rmtree\\(sp, ignore_errors=True\\)\n    print\\(''cleaned site-packages model_repo''\\)\nelse:\n    print\\(''no site-packages model_repo to clean''\\)\n\")",
       "Bash(pnpm db:migrate:*)",
       "Bash(git checkout:*)",
-      "Bash(del \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\api\\\\drizzle\\\\0001_add_project_audio_keys.sql\")"
+      "Bash(del \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\api\\\\drizzle\\\\0001_add_project_audio_keys.sql\")",
+      "Bash(grep:*)"
     ]
   }
 }
