@@ -16,30 +16,31 @@ interface SceneProps {
   className?: string;
   activePlatform: SocialPlatform | null;
   overlayMode: OverlayMode;
+  padding?: number;
 }
 
-export function Scene({ className, activePlatform, overlayMode }: SceneProps) {
+export function Scene({ className, activePlatform, overlayMode, padding = 64 }: SceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const project = useProject();
   const [scale, setScale] = useState(1);
 
-  // Calculate scale to fit player in container with generous padding
+  // Calculate scale to fit player in container
   const calculateScale = useCallback(() => {
     if (!containerRef.current || !project) return;
 
     const container = containerRef.current;
-    const containerWidth = container.clientWidth - 64;
-    const containerHeight = container.clientHeight - 64;
+    const containerWidth = container.clientWidth - padding;
+    const containerHeight = container.clientHeight - padding;
+
+    if (containerWidth <= 0 || containerHeight <= 0) return;
 
     const videoWidth = project.videoSettings.canvasWidth;
     const videoHeight = project.videoSettings.canvasHeight;
 
     const scaleX = containerWidth / videoWidth;
     const scaleY = containerHeight / videoHeight;
-    const newScale = Math.min(scaleX, scaleY, 1);
-
-    setScale(newScale);
-  }, [project]);
+    setScale(Math.min(scaleX, scaleY));
+  }, [project, padding]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -66,27 +67,35 @@ export function Scene({ className, activePlatform, overlayMode }: SceneProps) {
       ref={containerRef}
       className={`relative flex items-center justify-center bg-[var(--editor-bg-base)] overflow-hidden ${className || ''}`}
     >
-      {/* Player container with scale */}
+      {/* Outer wrapper with actual display dimensions */}
       <div
         className="relative rounded-lg overflow-hidden shadow-2xl"
         style={{
-          width: videoWidth,
-          height: videoHeight,
-          transform: `scale(${scale})`,
-          transformOrigin: 'center center',
+          width: Math.round(videoWidth * scale),
+          height: Math.round(videoHeight * scale),
         }}
       >
-        <Player />
+        {/* Inner container at native resolution, scaled with CSS transform */}
+        <div
+          style={{
+            width: videoWidth,
+            height: videoHeight,
+            transform: `scale(${scale})`,
+            transformOrigin: 'top left',
+          }}
+        >
+          <Player />
 
-        {/* Social preview overlay - inside scaled container so it matches video exactly */}
-        {activePlatform && (
-          <SocialPreviewOverlay
-            platform={activePlatform}
-            mode={overlayMode}
-            width={videoWidth}
-            height={videoHeight}
-          />
-        )}
+          {/* Social preview overlay */}
+          {activePlatform && (
+            <SocialPreviewOverlay
+              platform={activePlatform}
+              mode={overlayMode}
+              width={videoWidth}
+              height={videoHeight}
+            />
+          )}
+        </div>
       </div>
     </div>
   );

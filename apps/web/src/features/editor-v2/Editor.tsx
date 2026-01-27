@@ -37,7 +37,7 @@ export function Editor({ projectId }: EditorProps) {
   type EditorLayout = 'stacked' | 'side-by-side';
   const [layout, setLayout] = useState<EditorLayout>(() => {
     if (typeof window !== 'undefined') {
-      return (localStorage.getItem('editor-layout') as EditorLayout) || 'stacked';
+      return (localStorage.getItem('editor-layout') as EditorLayout) || 'side-by-side';
     }
     return 'stacked';
   });
@@ -50,6 +50,12 @@ export function Editor({ projectId }: EditorProps) {
   const [timelineHeight, setTimelineHeight] = useState(220);
   const resizeRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
+
+  // Side-by-side: compute left column width from available height + video aspect ratio
+  const sideBySideRowRef = useRef<HTMLDivElement>(null);
+  const [sideColWidth, setSideColWidth] = useState(400);
+  const isColDraggingRef = useRef(false);
+  const userResizedColRef = useRef(false);
 
   // Command palette
   const commandPalette = useCommandPalette();
@@ -89,6 +95,54 @@ export function Editor({ projectId }: EditorProps) {
 
   // State
   const project = useProject();
+
+  // Compute side-by-side column width from row height + video aspect ratio
+  useEffect(() => {
+    if (layout !== 'side-by-side' || !project) return;
+    userResizedColRef.current = false;
+    const el = sideBySideRowRef.current;
+    if (!el) return;
+    const update = () => {
+      if (userResizedColRef.current) return;
+      const rowHeight = el.clientHeight;
+      const sceneHeight = rowHeight - 40; // subtract PlaybackBar (h-10 = 40px)
+      const ar = project.videoSettings.canvasWidth / project.videoSettings.canvasHeight;
+      const idealWidth = Math.round(sceneHeight * ar);
+      const maxWidth = Math.round(el.clientWidth * 0.6);
+      setSideColWidth(Math.max(280, Math.min(idealWidth, maxWidth)));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [layout, project]);
+
+  // Handle column resize (horizontal drag)
+  const handleColumnResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isColDraggingRef.current = true;
+    userResizedColRef.current = true;
+    const startX = e.clientX;
+    const startWidth = sideColWidth;
+    const rowEl = sideBySideRowRef.current;
+    const maxWidth = rowEl ? Math.round(rowEl.clientWidth * 0.6) : 800;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isColDraggingRef.current) return;
+      const deltaX = e.clientX - startX;
+      const newWidth = Math.max(280, Math.min(maxWidth, startWidth + deltaX));
+      setSideColWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      isColDraggingRef.current = false;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [sideColWidth]);
   const isLoading = useIsLoading();
   const error = useError();
   const selectedIds = useSelectedIds();
@@ -338,17 +392,26 @@ export function Editor({ projectId }: EditorProps) {
           </div>
         </div>
       ) : (
-        <div className="flex-1 flex flex-row overflow-hidden">
+        <div ref={sideBySideRowRef} className="flex-1 flex flex-row overflow-hidden">
           {/* Left: Scene + PlaybackBar */}
-          <div className="flex flex-col" style={{ width: '40%', minWidth: 280, maxWidth: 480 }}>
+          <div className="flex flex-col shrink-0" style={{ width: sideColWidth }}>
             <div className="flex-1 relative min-w-0 overflow-hidden">
-              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} />
+              <div className="absolute inset-0">
+                <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={16} />
+              </div>
             </div>
             <PlaybackBar />
           </div>
 
+          {/* Vertical resize handle */}
+          <div
+            onMouseDown={handleColumnResizeStart}
+            className="w-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
+                       cursor-ew-resize transition-colors flex-shrink-0"
+          />
+
           {/* Right: Panel + SceneToolbar + Timeline */}
-          <div className="flex-1 flex flex-col min-w-0 border-l border-[var(--editor-border-subtle)]">
+          <div className="flex-1 flex flex-col min-w-0">
             <div className="flex-1 overflow-hidden min-h-0">
               <RightPanel
                 isOpen={true}
