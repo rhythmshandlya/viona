@@ -305,6 +305,10 @@ export interface EditorState {
 
   // Caption style toggle
   applyStyleToAll: boolean;
+
+  // Clipboard and split mode
+  clipboard: TimelineItem[] | null;
+  splitMode: boolean;
 }
 
 // ============================================
@@ -375,6 +379,24 @@ export interface EditorActions {
   separateAudio: (videoItemId: string) => Promise<void>;
   toggleEnhancement: (audioItemId: string) => void;
   updateEnhancementStatus: (audioItemId: string, status: AudioItemData['enhancementStatus'], progress?: number, enhancedSrc?: string) => void;
+
+  // Split
+  splitItem: (itemId: string, atMs: number) => void;
+  setSplitMode: (active: boolean) => void;
+
+  // Clipboard
+  copyItems: (ids: string[]) => void;
+  pasteItems: (atMs: number) => void;
+  duplicateItems: (ids: string[]) => void;
+
+  // Nudge & Trim
+  nudgeItems: (ids: string[], deltaMs: number) => void;
+  trimItems: (ids: string[], edge: 'start' | 'end', deltaMs: number) => void;
+
+  // Subtitle-specific
+  splitCaption: (captionId: string, wordIndex: number) => void;
+  mergeCaptions: (captionId1: string, captionId2: string) => void;
+  updateCaptionText: (captionId: string, newText: string) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;

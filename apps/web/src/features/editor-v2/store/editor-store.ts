@@ -19,10 +19,12 @@ import {
   DEFAULT_VIDEO_SETTINGS,
   DEFAULT_CAPTION_STYLE,
   CaptionItemData,
+  CaptionWord,
   VideoItemData,
   AudioItemData,
   VideoSettings,
   CaptionStyle,
+  WordStyleOverrides,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -43,6 +45,7 @@ const initialState: EditorState = {
 
   // Selection
   selectedIds: [],
+  lastSelectedId: null,
   selectionBox: null,
 
   // Playback
@@ -65,7 +68,32 @@ const initialState: EditorState = {
 
   // UI state
   isSaving: false,
+
+  // Caption style toggle
+  applyStyleToAll: false,
+
+  // Clipboard and split mode
+  clipboard: null,
+  splitMode: false,
 };
+
+/**
+ * Migrate legacy animation string (e.g. 'pop') to V2 AnimationConfig object.
+ * Mirrors the logic in packages/renderer/src/animations/migrate.ts.
+ */
+function migrateAnimationLegacy(legacy: string): { in: string; active: string; out: string; easing: string } {
+  switch (legacy) {
+    case 'pop':
+      return { in: 'elastic-pop', active: 'none', out: 'none', easing: 'spring' };
+    case 'fade':
+      return { in: 'fade-rise', active: 'none', out: 'fade-rise', easing: 'ease-out' };
+    case 'highlight':
+      return { in: 'soft-scale', active: 'none', out: 'none', easing: 'ease-out' };
+    case 'none':
+    default:
+      return { in: 'none', active: 'none', out: 'none', easing: 'linear' };
+  }
+}
 
 /**
  * Convert API project to editor format
@@ -185,6 +213,11 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         ...DEFAULT_CAPTION_STYLE,
         ...(apiCaptionStyle as Partial<CaptionStyle>),
       };
+
+      // Migrate legacy animation string to V2 AnimationConfig
+      if (typeof captionStyle.animation === 'string') {
+        captionStyle.animation = migrateAnimationLegacy(captionStyle.animation);
+      }
 
       const captionItem: TimelineItem = {
         id: item.id,
@@ -861,6 +894,374 @@ export const useEditorStore = create<EditorStore>()(
           data.isEnhanced = true;
         }
       });
+    },
+
+    // ========================================
+    // Split Actions
+    // ========================================
+
+    splitItem: (itemId: string, atMs: number) => {
+      const item = get().items[itemId];
+      if (!item) return;
+
+      const splitRelativeMs = atMs - item.startMs;
+      const duration = item.endMs - item.startMs;
+
+      if (splitRelativeMs <= 100 || splitRelativeMs >= duration - 100) return;
+
+      set((state) => {
+        const original = state.items[itemId];
+        if (!original) return;
+
+        const leftId = nanoid(10);
+        const rightId = nanoid(10);
+
+        if (original.type === 'caption') {
+          const data = original.data as CaptionItemData;
+          const leftWords: CaptionWord[] = [];
+          const rightWords: CaptionWord[] = [];
+
+          for (const word of data.words) {
+            if (word.endMs <= splitRelativeMs) {
+              leftWords.push({ ...word });
+            } else {
+              rightWords.push({
+                ...word,
+                startMs: word.startMs - splitRelativeMs,
+                endMs: word.endMs - splitRelativeMs,
+              });
+            }
+          }
+
+          const leftText = leftWords.map((w) => w.text).join(' ');
+          const rightText = rightWords.map((w) => w.text).join(' ');
+
+          const leftItem: TimelineItem = {
+            id: leftId,
+            type: 'caption',
+            trackId: original.trackId,
+            startMs: original.startMs,
+            endMs: atMs,
+            data: {
+              text: leftText,
+              words: leftWords,
+              style: { ...data.style },
+            } as CaptionItemData,
+          };
+
+          const rightItem: TimelineItem = {
+            id: rightId,
+            type: 'caption',
+            trackId: original.trackId,
+            startMs: atMs,
+            endMs: original.endMs,
+            data: {
+              text: rightText,
+              words: rightWords,
+              style: { ...data.style },
+            } as CaptionItemData,
+          };
+
+          state.items[leftId] = leftItem;
+          state.items[rightId] = rightItem;
+          state.itemIds.push(leftId, rightId);
+        } else {
+          const leftItem: TimelineItem = {
+            id: leftId,
+            type: original.type,
+            trackId: original.trackId,
+            startMs: original.startMs,
+            endMs: atMs,
+            data: JSON.parse(JSON.stringify(original.data)),
+          };
+          if (original.trim) {
+            leftItem.trim = {
+              startMs: original.trim.startMs,
+              endMs: original.trim.startMs + splitRelativeMs,
+            };
+          }
+
+          const rightItem: TimelineItem = {
+            id: rightId,
+            type: original.type,
+            trackId: original.trackId,
+            startMs: atMs,
+            endMs: original.endMs,
+            data: JSON.parse(JSON.stringify(original.data)),
+          };
+          if (original.trim) {
+            rightItem.trim = {
+              startMs: original.trim.startMs + splitRelativeMs,
+              endMs: original.trim.endMs,
+            };
+          }
+
+          state.items[leftId] = leftItem;
+          state.items[rightId] = rightItem;
+          state.itemIds.push(leftId, rightId);
+        }
+
+        delete state.items[itemId];
+        state.itemIds = state.itemIds.filter((id) => id !== itemId);
+        state.selectedIds = state.selectedIds.filter((id) => id !== itemId);
+        state.selectedIds.push(rightId);
+      });
+
+      get().pushHistory();
+    },
+
+    setSplitMode: (active: boolean) => {
+      set((state) => {
+        state.splitMode = active;
+      });
+    },
+
+    // ========================================
+    // Clipboard Actions
+    // ========================================
+
+    copyItems: (ids: string[]) => {
+      set((state) => {
+        const itemsToCopy = ids
+          .map((id) => state.items[id])
+          .filter(Boolean);
+        state.clipboard = JSON.parse(JSON.stringify(itemsToCopy));
+      });
+    },
+
+    pasteItems: (atMs: number) => {
+      const { clipboard } = get();
+      if (!clipboard || clipboard.length === 0) return;
+
+      set((state) => {
+        const cloned: TimelineItem[] = JSON.parse(JSON.stringify(clipboard));
+        const earliest = Math.min(...cloned.map((item) => item.startMs));
+        const offset = atMs - earliest;
+
+        const newIds: string[] = [];
+        for (const item of cloned) {
+          const newId = nanoid(10);
+          item.id = newId;
+          item.startMs += offset;
+          item.endMs += offset;
+          state.items[newId] = item;
+          state.itemIds.push(newId);
+          newIds.push(newId);
+        }
+
+        state.selectedIds = newIds;
+      });
+
+      get().pushHistory();
+    },
+
+    duplicateItems: (ids: string[]) => {
+      set((state) => {
+        const newIds: string[] = [];
+
+        for (const id of ids) {
+          const original = state.items[id];
+          if (!original) continue;
+
+          const cloned: TimelineItem = JSON.parse(JSON.stringify(original));
+          const duration = original.endMs - original.startMs;
+          const newId = nanoid(10);
+
+          cloned.id = newId;
+          cloned.startMs = original.endMs;
+          cloned.endMs = original.endMs + duration;
+
+          state.items[newId] = cloned;
+          state.itemIds.push(newId);
+          newIds.push(newId);
+        }
+
+        state.selectedIds = newIds;
+      });
+
+      get().pushHistory();
+    },
+
+    // ========================================
+    // Nudge & Trim Actions
+    // ========================================
+
+    nudgeItems: (ids: string[], deltaMs: number) => {
+      set((state) => {
+        for (const id of ids) {
+          const item = state.items[id];
+          if (!item) continue;
+
+          const duration = item.endMs - item.startMs;
+          let newStartMs = item.startMs + deltaMs;
+
+          if (newStartMs < 0) {
+            newStartMs = 0;
+          }
+
+          item.startMs = newStartMs;
+          item.endMs = newStartMs + duration;
+        }
+      });
+
+      get().pushHistory();
+    },
+
+    trimItems: (ids: string[], edge: 'start' | 'end', deltaMs: number) => {
+      set((state) => {
+        for (const id of ids) {
+          const item = state.items[id];
+          if (!item) continue;
+
+          if (edge === 'start') {
+            const newStartMs = item.startMs + deltaMs;
+            item.startMs = Math.min(newStartMs, item.endMs - 100);
+          } else {
+            const newEndMs = item.endMs + deltaMs;
+            item.endMs = Math.max(newEndMs, item.startMs + 100);
+          }
+        }
+      });
+
+      get().pushHistory();
+    },
+
+    // ========================================
+    // Subtitle-Specific Actions
+    // ========================================
+
+    splitCaption: (captionId: string, wordIndex: number) => {
+      const item = get().items[captionId];
+      if (!item || item.type !== 'caption') return;
+
+      const data = item.data as CaptionItemData;
+      if (wordIndex <= 0 || wordIndex >= data.words.length) return;
+
+      set((state) => {
+        const original = state.items[captionId];
+        if (!original) return;
+
+        const captionData = original.data as CaptionItemData;
+        const leftWords = captionData.words.slice(0, wordIndex);
+        const rightWords = captionData.words.slice(wordIndex);
+
+        const leftEndMs = leftWords[leftWords.length - 1].endMs + original.startMs;
+        const rightStartMs = rightWords[0].startMs + original.startMs;
+
+        const adjustedRightWords: CaptionWord[] = rightWords.map((w) => ({
+          ...w,
+          startMs: w.startMs - rightWords[0].startMs,
+          endMs: w.endMs - rightWords[0].startMs,
+        }));
+
+        const leftId = nanoid(10);
+        const rightId = nanoid(10);
+
+        const leftItem: TimelineItem = {
+          id: leftId,
+          type: 'caption',
+          trackId: original.trackId,
+          startMs: original.startMs,
+          endMs: leftEndMs,
+          data: {
+            text: leftWords.map((w) => w.text).join(' '),
+            words: leftWords.map((w) => ({ ...w })),
+            style: { ...captionData.style },
+          } as CaptionItemData,
+        };
+
+        const rightItem: TimelineItem = {
+          id: rightId,
+          type: 'caption',
+          trackId: original.trackId,
+          startMs: rightStartMs,
+          endMs: original.endMs,
+          data: {
+            text: adjustedRightWords.map((w) => w.text).join(' '),
+            words: adjustedRightWords,
+            style: { ...captionData.style },
+          } as CaptionItemData,
+        };
+
+        state.items[leftId] = leftItem;
+        state.items[rightId] = rightItem;
+        state.itemIds.push(leftId, rightId);
+
+        delete state.items[captionId];
+        state.itemIds = state.itemIds.filter((id) => id !== captionId);
+        state.selectedIds = state.selectedIds.filter((id) => id !== captionId);
+      });
+
+      get().pushHistory();
+    },
+
+    mergeCaptions: (captionId1: string, captionId2: string) => {
+      const items = get().items;
+      const item1 = items[captionId1];
+      const item2 = items[captionId2];
+
+      if (!item1 || !item2) return;
+      if (item1.type !== 'caption' || item2.type !== 'caption') return;
+      if (item1.trackId !== item2.trackId) return;
+
+      const [first, second] = item1.startMs <= item2.startMs
+        ? [item1, item2]
+        : [item2, item1];
+
+      set((state) => {
+        const firstData = (state.items[first.id]!.data as CaptionItemData);
+        const secondData = (state.items[second.id]!.data as CaptionItemData);
+
+        const offset = second.startMs - first.startMs;
+        const adjustedSecondWords: CaptionWord[] = secondData.words.map((w) => ({
+          ...w,
+          startMs: w.startMs + offset,
+          endMs: w.endMs + offset,
+        }));
+
+        const mergedWords = [...firstData.words, ...adjustedSecondWords];
+        const mergedText = mergedWords.map((w) => w.text).join(' ');
+
+        const mergedId = nanoid(10);
+        const mergedItem: TimelineItem = {
+          id: mergedId,
+          type: 'caption',
+          trackId: first.trackId,
+          startMs: first.startMs,
+          endMs: second.endMs,
+          data: {
+            text: mergedText,
+            words: mergedWords,
+            style: { ...firstData.style },
+          } as CaptionItemData,
+        };
+
+        state.items[mergedId] = mergedItem;
+        state.itemIds.push(mergedId);
+
+        delete state.items[first.id];
+        delete state.items[second.id];
+        state.itemIds = state.itemIds.filter(
+          (id) => id !== first.id && id !== second.id
+        );
+        state.selectedIds = state.selectedIds.filter(
+          (id) => id !== first.id && id !== second.id
+        );
+      });
+
+      get().pushHistory();
+    },
+
+    updateCaptionText: (captionId: string, newText: string) => {
+      set((state) => {
+        const item = state.items[captionId];
+        if (!item || item.type !== 'caption') return;
+
+        const data = item.data as CaptionItemData;
+        data.text = newText;
+      });
+
+      get().pushHistory();
     },
   }))
 );

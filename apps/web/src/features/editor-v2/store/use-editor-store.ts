@@ -207,6 +207,13 @@ export function useCanRedo() {
 }
 
 // ============================================
+// Clipboard & Split Mode Selectors
+// ============================================
+
+export const useClipboard = () => useEditorStore((s) => s.clipboard);
+export const useSplitMode = () => useEditorStore((s) => s.splitMode);
+
+// ============================================
 // Action Hooks
 // ============================================
 
@@ -271,6 +278,24 @@ export function useEditorActions() {
       separateAudio: state.separateAudio,
       toggleEnhancement: state.toggleEnhancement,
       updateEnhancementStatus: state.updateEnhancementStatus,
+
+      // Split
+      splitItem: state.splitItem,
+      setSplitMode: state.setSplitMode,
+
+      // Clipboard
+      copyItems: state.copyItems,
+      pasteItems: state.pasteItems,
+      duplicateItems: state.duplicateItems,
+
+      // Nudge & Trim
+      nudgeItems: state.nudgeItems,
+      trimItems: state.trimItems,
+
+      // Subtitle-specific
+      splitCaption: state.splitCaption,
+      mergeCaptions: state.mergeCaptions,
+      updateCaptionText: state.updateCaptionText,
     }))
   );
 }
