@@ -10,6 +10,8 @@ import {
   SelectionBox,
   DragState,
   CaptionItemData,
+  AudioItemData,
+  VideoItemData,
   SnapTarget,
 } from '../../store/types';
 import { DragPreview } from '../interactions/DragManager';
@@ -323,6 +325,14 @@ export class CanvasRenderer {
     if (width > 80) {
       ctx.fillText('Video', x + padding + iconSize + 4, y + height / 2);
     }
+
+    // Muted indicator
+    const videoData = item.data as VideoItemData;
+    if (videoData.muted && width > 120) {
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.font = '10px system-ui, sans-serif';
+      ctx.fillText('Muted', x + padding + iconSize + 50, y + height / 2);
+    }
   }
 
   private drawAudioItem(
@@ -333,6 +343,7 @@ export class CanvasRenderer {
     height: number
   ): void {
     const { ctx, options } = this;
+    const data = item.data as AudioItemData;
 
     // Draw simple waveform visualization
     ctx.strokeStyle = options.textColor;
@@ -353,6 +364,39 @@ export class CanvasRenderer {
       }
     }
     ctx.stroke();
+
+    // Draw enhancement badge or processing indicator
+    if (data.enhancementStatus === 'processing') {
+      // Pulsing indicator
+      const badgeX = x + width - 70;
+      const badgeY = y + 4;
+      if (width > 80) {
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
+        this.roundRect(badgeX, badgeY, 62, 18, 4);
+        ctx.fill();
+        ctx.fillStyle = '#22c55e';
+        ctx.font = '10px system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Enhancing...', badgeX + 4, badgeY + 9);
+      }
+    } else if (data.isEnhanced && data.enhancementStatus === 'complete') {
+      // Green "Enhanced" badge
+      const badgeX = x + width - 68;
+      const badgeY = y + 4;
+      if (width > 80) {
+        ctx.fillStyle = 'rgba(34, 197, 94, 0.2)';
+        this.roundRect(badgeX, badgeY, 60, 18, 4);
+        ctx.fill();
+        ctx.strokeStyle = '#22c55e';
+        ctx.lineWidth = 1;
+        this.roundRect(badgeX, badgeY, 60, 18, 4);
+        ctx.stroke();
+        ctx.fillStyle = '#22c55e';
+        ctx.font = 'bold 10px system-ui, sans-serif';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('Enhanced', badgeX + 6, badgeY + 9);
+      }
+    }
   }
 
   private drawCaptionItem(
