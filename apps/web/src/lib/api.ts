@@ -77,6 +77,12 @@ export interface DownloadResponse {
   expiresAt: string;
 }
 
+export interface SeparateAudioResponse {
+  jobId: string;
+  trackId: string;
+  itemId: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -138,6 +144,13 @@ class ApiClient {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
       body: JSON.stringify({}),
+    });
+  }
+
+  async separateAudio(projectId: string, videoItemId: string): Promise<SeparateAudioResponse> {
+    return this.request(`/api/projects/${projectId}/separate-audio`, {
+      method: 'POST',
+      body: JSON.stringify({ videoItemId }),
     });
   }
 
