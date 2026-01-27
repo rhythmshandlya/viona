@@ -88,7 +88,11 @@
       "Bash(pnpm db:migrate:*)",
       "Bash(git checkout:*)",
       "Bash(del \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\api\\\\drizzle\\\\0001_add_project_audio_keys.sql\")",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(.venvScriptspip.exe install clearvoice)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\pip.exe\" install clearvoice)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"from clearvoice import ClearVoice; print\\(''import ok''\\)\")",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\pip.exe\" install nara-wpe)"
     ]
   }
 }
