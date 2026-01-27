@@ -10,42 +10,18 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { Player } from '../player/Player';
 import { useProject } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
-import { SceneToolbar } from './SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
 
 interface SceneProps {
   className?: string;
+  activePlatform: SocialPlatform | null;
+  overlayMode: OverlayMode;
 }
 
-export function Scene({ className }: SceneProps) {
+export function Scene({ className, activePlatform, overlayMode }: SceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const project = useProject();
   const [scale, setScale] = useState(1);
-
-  // Social preview state
-  const [activePlatform, setActivePlatform] = useState<SocialPlatform | null>(null);
-  const [overlayMode, setOverlayMode] = useState<OverlayMode>('mockup');
-  const lastPlatformRef = useRef<SocialPlatform>('instagram');
-
-  // Track last-used platform for keyboard toggle
-  const handlePlatformChange = useCallback((platform: SocialPlatform | null) => {
-    if (platform) lastPlatformRef.current = platform;
-    setActivePlatform(platform);
-  }, []);
-
-  // Keyboard shortcut: P toggles overlay
-  useEffect(() => {
-    const handleKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
-      if (e.code === 'KeyP' && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        setActivePlatform((prev) => (prev ? null : lastPlatformRef.current));
-      }
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, []);
 
   // Calculate scale to fit player in container with generous padding
   const calculateScale = useCallback(() => {
@@ -86,7 +62,6 @@ export function Scene({ className }: SceneProps) {
 
   const videoWidth = project.videoSettings.canvasWidth;
   const videoHeight = project.videoSettings.canvasHeight;
-  const scalePercent = Math.round(scale * 100);
 
   return (
     <div
@@ -115,15 +90,6 @@ export function Scene({ className }: SceneProps) {
           />
         )}
       </div>
-
-      {/* Scene toolbar - replaces old scale indicator */}
-      <SceneToolbar
-        activePlatform={activePlatform}
-        overlayMode={overlayMode}
-        scalePercent={scalePercent}
-        onPlatformChange={handlePlatformChange}
-        onModeChange={setOverlayMode}
-      />
     </div>
   );
 }

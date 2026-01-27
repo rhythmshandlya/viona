@@ -5,7 +5,6 @@ import { type SocialPlatform, type OverlayMode, PLATFORM_LIST } from './social-p
 interface SceneToolbarProps {
   activePlatform: SocialPlatform | null;
   overlayMode: OverlayMode;
-  scalePercent: number;
   onPlatformChange: (platform: SocialPlatform | null) => void;
   onModeChange: (mode: OverlayMode) => void;
 }
@@ -59,17 +58,11 @@ const PLATFORM_LABELS: Record<SocialPlatform, string> = {
 export function SceneToolbar({
   activePlatform,
   overlayMode,
-  scalePercent,
   onPlatformChange,
   onModeChange,
 }: SceneToolbarProps) {
   return (
-    <div
-      className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-0
-                 bg-[var(--editor-bg-surface)]/80 backdrop-blur-sm
-                 border border-[var(--editor-border-subtle)]
-                 rounded-lg px-2 py-1"
-    >
+    <div className="flex items-center gap-0">
       {/* Platform icon buttons */}
       <div className="flex items-center">
         {PLATFORM_LIST.map((platform) => {
@@ -128,14 +121,6 @@ export function SceneToolbar({
           </div>
         </>
       )}
-
-      {/* Separator before scale */}
-      <div className="w-px h-4 bg-[var(--editor-border-subtle)] mx-1" />
-
-      {/* Scale percentage */}
-      <span className="text-[10px] text-[var(--editor-text-muted)] font-mono tabular-nums px-1">
-        {scalePercent}%
-      </span>
     </div>
   );
 }

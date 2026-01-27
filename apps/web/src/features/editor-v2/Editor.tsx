@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -14,6 +14,8 @@ import { PlaybackBar } from './components/PlaybackBar';
 import { ContextPanel } from './components/ContextPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { Scene } from './scene/Scene';
+import { SceneToolbar } from './scene/SceneToolbar';
+import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
 import { Timeline } from './timeline/Timeline';
 import { TranscriptPanel } from './panels/TranscriptPanel';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
@@ -40,6 +42,30 @@ export function Editor({ projectId }: EditorProps) {
 
   // Command palette
   const commandPalette = useCommandPalette();
+
+  // Social preview state
+  const [activePlatform, setActivePlatform] = useState<SocialPlatform | null>(null);
+  const [overlayMode, setOverlayMode] = useState<OverlayMode>('mockup');
+  const lastPlatformRef = useRef<SocialPlatform>('instagram');
+
+  const handlePlatformChange = useCallback((platform: SocialPlatform | null) => {
+    if (platform) lastPlatformRef.current = platform;
+    setActivePlatform(platform);
+  }, []);
+
+  // Keyboard shortcut: P toggles overlay
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      if (e.code === 'KeyP' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setActivePlatform((prev) => (prev ? null : lastPlatformRef.current));
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, []);
 
   // State
   const project = useProject();
@@ -216,7 +242,7 @@ export function Editor({ projectId }: EditorProps) {
 
           {/* Scene */}
           <div className="flex-1 relative">
-            <Scene className="w-full h-full" />
+            <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} />
             {showContextPanel && selectedIds.length > 0 && (
               <ContextPanel onClose={handleCloseContextPanel} />
             )}
@@ -226,13 +252,21 @@ export function Editor({ projectId }: EditorProps) {
         {/* Playback Bar */}
         <PlaybackBar />
 
-        {/* Resize handle */}
+        {/* Resize handle + toolbar above timeline */}
         <div
           ref={resizeRef}
           onMouseDown={handleResizeStart}
           className="h-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
                      cursor-ns-resize transition-colors"
         />
+        <div className="flex-shrink-0 flex items-center px-2 py-1 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
+          <SceneToolbar
+            activePlatform={activePlatform}
+            overlayMode={overlayMode}
+            onPlatformChange={handlePlatformChange}
+            onModeChange={setOverlayMode}
+          />
+        </div>
 
         {/* Timeline */}
         <div style={{ height: timelineHeight }} className="flex-shrink-0">
