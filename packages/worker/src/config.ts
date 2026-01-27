@@ -21,9 +21,13 @@ export const config = {
     },
   },
 
-  whisper: {
-    model: process.env.WHISPER_MODEL || 'medium.en',
-    path: process.env.WHISPER_PATH || './whisper.cpp',
-    version: process.env.WHISPER_CPP_VERSION || '1.5.5',
+  whisperx: {
+    pythonPath: process.env.PYTHON_PATH || 'python',
+    scriptPath: process.env.WHISPERX_SCRIPT_PATH || './scripts/whisperx_transcribe.py',
+    model: process.env.WHISPER_MODEL || 'large-v2',
+    language: process.env.WHISPER_LANGUAGE || 'en',
+    device: process.env.WHISPER_DEVICE || 'auto',
+    computeType: process.env.WHISPER_COMPUTE_TYPE || 'float16',
+    batchSize: parseInt(process.env.WHISPER_BATCH_SIZE || '16', 10),
   },
 } as const;

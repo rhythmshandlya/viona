@@ -437,9 +437,6 @@ importers:
       '@remotion/cli':
         specifier: ^4.0.0
         version: 4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
-      '@remotion/install-whisper-cpp':
-        specifier: ^4.0.0
-        version: 4.0.409
       '@remotion/renderer':
         specifier: ^4.0.0
         version: 4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -2428,9 +2425,6 @@ packages:
     resolution: {integrity: sha512-74gj/vgMJ1Bkp7eZLQ5Hy+Bwae5FksfzgmtuRGWS/cT5683NfUN7PdOejAZvTzYgKitR+pVd5QL8eQo4ZY5yRA==}
     cpu: [x64]
     os: [win32]
-
-  '@remotion/install-whisper-cpp@4.0.409':
-    resolution: {integrity: sha512-CtS3LEVytfr28fgsFFh0t3kP3kRuyXngaT8tBLFeZG4XNih7VNPHo6ELicuOa8YcKwzDnGCpKpgZgIxSexEV3g==}
 
   '@remotion/licensing@4.0.409':
     resolution: {integrity: sha512-lo9S78ngigQzuZnEtyLrUz7DDxDYXoaDQK+4bUVl9PKBdxJXrAyrzaEb+qv/ooKY8GaoOLU409yKyJYfAiUBDg==}
@@ -8109,10 +8103,6 @@ snapshots:
   '@remotion/compositor-win32-x64-msvc@4.0.409':
     optional: true
 
-  '@remotion/install-whisper-cpp@4.0.409':
-    dependencies:
-      '@remotion/captions': 4.0.409
-
   '@remotion/licensing@4.0.409': {}
 
   '@remotion/media-parser@4.0.409': {}
@@ -12106,7 +12096,7 @@ snapshots:
       yallist: 4.0.0
     optional: true
 
-  terser-webpack-plugin@5.3.16(esbuild@0.25.0)(webpack@5.96.1(esbuild@0.27.2)):
+  terser-webpack-plugin@5.3.16(esbuild@0.25.0)(webpack@5.96.1(esbuild@0.25.0)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
@@ -12461,7 +12451,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 3.3.0
       tapable: 2.3.0
-      terser-webpack-plugin: 5.3.16(esbuild@0.25.0)(webpack@5.96.1(esbuild@0.27.2))
+      terser-webpack-plugin: 5.3.16(esbuild@0.25.0)(webpack@5.96.1(esbuild@0.25.0))
       watchpack: 2.5.1
       webpack-sources: 3.3.3
     transitivePeerDependencies:

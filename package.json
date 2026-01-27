@@ -15,7 +15,6 @@
     "docker:logs": "docker-compose logs -f",
     "db:migrate": "pnpm --filter @reelify/api db:migrate",
     "db:seed": "pnpm --filter @reelify/api db:seed",
-    "whisper:install": "pnpm --filter @reelify/worker whisper:install",
     "setup": "pnpm install && pnpm docker:up && pnpm db:migrate",
     "lint": "pnpm run --parallel lint",
     "typecheck": "pnpm run --parallel typecheck"

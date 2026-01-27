@@ -1,17 +1,11 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm } from 'fs/promises';
-import { join } from 'path';
+import { mkdir, rm, readFile } from 'fs/promises';
+import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
+import { spawn } from 'child_process';
 import ffmpeg from 'fluent-ffmpeg';
-import {
-  installWhisperCpp,
-  downloadWhisperModel,
-  transcribe,
-  toCaptions,
-} from '@remotion/install-whisper-cpp';
-import { createTikTokStyleCaptions } from '@remotion/captions';
 import { db, projects, tracks, timelineItems, transcripts, jobs } from '../db/index.js';
 import { downloadFile } from '../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
@@ -24,13 +18,32 @@ export interface TranscribeJobData {
   videoKey: string;
 }
 
+interface WhisperXWord {
+  text: string;
+  startMs: number;
+  endMs: number;
+  confidence: number;
+}
+
+interface WhisperXSegment {
+  text: string;
+  startMs: number;
+  endMs: number;
+}
+
+interface WhisperXOutput {
+  words: WhisperXWord[];
+  segments: WhisperXSegment[];
+  language: string;
+}
+
 async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
     ffmpeg(videoPath)
       .outputOptions([
         '-vn',           // No video
         '-acodec', 'pcm_s16le',  // 16-bit PCM
-        '-ar', '16000',  // 16kHz sample rate (required by Whisper)
+        '-ar', '16000',  // 16kHz sample rate
         '-ac', '1',      // Mono
       ])
       .output(audioPath)
@@ -82,6 +95,117 @@ async function getVideoMetadata(videoPath: string): Promise<{ width: number; hei
   });
 }
 
+async function runWhisperX(
+  audioPath: string,
+  jobId: string,
+): Promise<WhisperXOutput> {
+  const { pythonPath, scriptPath, model, language, device, computeType, batchSize } = config.whisperx;
+  const resolvedScript = resolve(scriptPath);
+
+  return new Promise((resolve, reject) => {
+    const args = [
+      resolvedScript,
+      '--input', audioPath,
+      '--model', model,
+      '--language', language,
+      '--device', device,
+      '--compute-type', computeType,
+      '--batch-size', String(batchSize),
+    ];
+
+    const proc = spawn(pythonPath, args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString();
+    });
+
+    proc.stderr.on('data', (data: Buffer) => {
+      const text = data.toString();
+      stderr += text;
+
+      // Parse progress lines: PROGRESS:<percent>%:<message>
+      for (const line of text.split('\n')) {
+        const match = line.match(/^PROGRESS:(\d+)%:(.+)$/);
+        if (match) {
+          const percent = parseInt(match[1], 10);
+          const message = match[2];
+          // Map WhisperX 0-100% to our 25-70% range
+          const mappedProgress = 25 + Math.round((percent / 100) * 45);
+          publishJobProgress(jobId, mappedProgress, message);
+        }
+      }
+    });
+
+    proc.on('close', (code) => {
+      if (code !== 0) {
+        // Extract error message from stderr
+        const errorMatch = stderr.match(/ERROR:(.+)/);
+        const errorMsg = errorMatch ? errorMatch[1].trim() : `WhisperX exited with code ${code}`;
+        reject(new Error(errorMsg));
+        return;
+      }
+
+      try {
+        const result = JSON.parse(stdout.trim());
+        resolve(result as WhisperXOutput);
+      } catch {
+        reject(new Error(`Failed to parse WhisperX output: ${stdout.slice(0, 200)}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to spawn WhisperX: ${err.message}`));
+    });
+  });
+}
+
+/**
+ * Group words into caption pages (TikTok-style).
+ * Groups words that are within `gapMs` of each other, up to `maxWords` per page.
+ */
+function groupWordsIntoPages(
+  words: WhisperXWord[],
+  { gapMs = 800, maxWords = 8 }: { gapMs?: number; maxWords?: number } = {},
+) {
+  const pages: { text: string; startMs: number; endMs: number; words: WhisperXWord[] }[] = [];
+  let currentPage: WhisperXWord[] = [];
+
+  for (const word of words) {
+    const lastWord = currentPage[currentPage.length - 1];
+    const gap = lastWord ? word.startMs - lastWord.endMs : 0;
+
+    if (currentPage.length > 0 && (gap > gapMs || currentPage.length >= maxWords)) {
+      // Flush current page
+      pages.push({
+        text: currentPage.map(w => w.text).join(' '),
+        startMs: currentPage[0].startMs,
+        endMs: currentPage[currentPage.length - 1].endMs,
+        words: [...currentPage],
+      });
+      currentPage = [];
+    }
+
+    currentPage.push(word);
+  }
+
+  // Flush remaining
+  if (currentPage.length > 0) {
+    pages.push({
+      text: currentPage.map(w => w.text).join(' '),
+      startMs: currentPage[0].startMs,
+      endMs: currentPage[currentPage.length - 1].endMs,
+      words: [...currentPage],
+    });
+  }
+
+  return pages;
+}
+
 export async function processTranscribeJob(job: Job<TranscribeJobData>) {
   const { projectId, jobId, videoKey } = job.data;
   const workDir = join(tmpdir(), `reelify-${nanoid()}`);
@@ -124,73 +248,30 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     await extractAudio(videoPath, audioPath);
     await publishJobProgress(jobId, 20, 'Audio extracted');
 
-    // Step 4: Ensure Whisper is installed (25%)
-    await publishJobProgress(jobId, 22, 'Checking Whisper installation...');
-
-    // Install Whisper.cpp if needed
-    await installWhisperCpp({
-      to: config.whisper.path,
-      version: '1.5.5',
-    });
-
-    // Download model if needed
-    await downloadWhisperModel({
-      model: config.whisper.model as any,
-      folder: config.whisper.path,
-    });
-
-    await publishJobProgress(jobId, 25, 'Whisper ready');
-
-    // Step 5: Transcribe (25% - 70%)
-    await publishJobProgress(jobId, 30, 'Transcribing audio...');
-
-    const whisperOutput = await transcribe({
-      inputPath: audioPath,
-      whisperPath: config.whisper.path,
-      whisperCppVersion: config.whisper.version,
-      model: config.whisper.model as any,
-      tokenLevelTimestamps: true,
-      onProgress: (progress) => {
-        const mappedProgress = 30 + Math.round(progress * 40); // 30-70%
-        publishJobProgress(jobId, mappedProgress, 'Transcribing...');
-      },
-    });
-
+    // Step 4: Run WhisperX (25% - 70%)
+    await publishJobProgress(jobId, 25, 'Starting WhisperX transcription...');
+    const whisperxOutput = await runWhisperX(audioPath, jobId);
     await publishJobProgress(jobId, 70, 'Transcription complete');
 
-    // Step 6: Convert to captions (75%)
+    // Step 5: Process captions (75%)
     await publishJobProgress(jobId, 72, 'Processing captions...');
 
-    const { captions } = toCaptions({ whisperCppOutput: whisperOutput });
-
-    // Create TikTok-style caption pages
-    const { pages } = createTikTokStyleCaptions({
-      captions,
-      combineTokensWithinMilliseconds: 800, // Group words within 800ms
-    });
+    const pages = groupWordsIntoPages(whisperxOutput.words);
 
     await publishJobProgress(jobId, 75, 'Captions processed');
 
-    // Step 7: Save transcript to database (80%)
+    // Step 6: Save transcript to database (80%)
     await publishJobProgress(jobId, 78, 'Saving transcript...');
-
-    // Convert captions to our word format
-    const words = captions.map(c => ({
-      text: c.text,
-      startMs: c.startMs,
-      endMs: c.endMs,
-      confidence: c.confidence || 1,
-    }));
 
     await db.insert(transcripts).values({
       projectId,
-      rawOutput: whisperOutput as any,
-      words: words as any,
+      rawOutput: whisperxOutput as any,
+      words: whisperxOutput.words as any,
     });
 
     await publishJobProgress(jobId, 80, 'Transcript saved');
 
-    // Step 8: Create subtitle track and items (90%)
+    // Step 7: Create subtitle track and items (90%)
     await publishJobProgress(jobId, 82, 'Creating subtitle track...');
 
     // Create subtitle track
@@ -206,13 +287,13 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       trackId: subtitleTrack.id,
       type: 'subtitle' as const,
       startMs: page.startMs,
-      endMs: page.startMs + (page.tokens[page.tokens.length - 1]?.toMs || 0) - page.tokens[0]?.fromMs || 2000,
+      endMs: page.endMs,
       data: {
         text: page.text,
-        words: page.tokens.map(t => ({
-          text: t.text,
-          startMs: page.startMs + t.fromMs,
-          endMs: page.startMs + t.toMs,
+        words: page.words.map(w => ({
+          text: w.text,
+          startMs: w.startMs,
+          endMs: w.endMs,
         })),
         style: DEFAULT_SUBTITLE_STYLE,
       },
@@ -224,7 +305,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
 
     await publishJobProgress(jobId, 90, 'Subtitle track created');
 
-    // Step 9: Update project status (100%)
+    // Step 8: Update project status (100%)
     await db.update(projects)
       .set({ status: 'ready', updatedAt: new Date() })
       .where(eq(projects.id, projectId));
