@@ -43,29 +43,59 @@ export interface CaptionItemData {
   text: string;
   words: CaptionWord[];
   style: CaptionStyle;
+  styleOverrides?: Partial<CaptionStyle>;
+}
+
+export interface WordStyleOverrides {
+  color?: string;
+  fontWeight?: number;
+  scale?: number;
+  emphasisBg?: string;
 }
 
 export interface CaptionWord {
   text: string;
   startMs: number; // Relative to caption start
   endMs: number;   // Relative to caption start
+  styleOverrides?: WordStyleOverrides;
 }
 
 export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
-export type CaptionAnimation = 'none' | 'pop' | 'fade' | 'highlight';
+
+// Legacy animation type kept for backward compat
+export type CaptionAnimationLegacy = 'none' | 'pop' | 'fade' | 'highlight';
+
+// V2 animation types
+export type AnimationType =
+  | 'none'
+  | 'elastic-pop' | 'bounce-up' | 'shake' | 'color-wipe'
+  | '3d-flip' | 'punch'
+  | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
+  | 'underline-wipe';
+
+export type EasingType = 'linear' | 'ease-out' | 'spring' | 'elastic' | 'bounce';
+
+export interface AnimationConfig {
+  in: AnimationType;
+  active: AnimationType;
+  out: AnimationType;
+  easing: EasingType;
+}
 
 export interface CaptionStyle {
   // Display mode
   displayMode: CaptionDisplayMode;
   wordsPerPhrase: number;
 
-  // Animation
-  animation: CaptionAnimation;
+  // Animation — V2 config or legacy string
+  animation: AnimationConfig | CaptionAnimationLegacy;
 
   // Typography
   fontFamily: string;
   fontSize: number;
   fontWeight: number;
+  letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase';
 
   // Colors
   color: string;
@@ -77,10 +107,17 @@ export interface CaptionStyle {
   textStroke?: string;
   textShadow?: string;
 
+  // Background box
+  backgroundPadding?: { x: number; y: number };
+  backgroundRadius?: number;
+
   // Position
   position: 'top' | 'center' | 'bottom';
   offsetY: number;
   textAlign: 'left' | 'center' | 'right';
+
+  // Preset reference
+  presetId?: string;
 }
 
 export interface TextItemData {
@@ -238,6 +275,7 @@ export interface EditorState {
 
   // Selection
   selectedIds: string[];
+  lastSelectedId: string | null;
   selectionBox: SelectionBox | null;
 
   // Playback
@@ -256,6 +294,9 @@ export interface EditorState {
 
   // UI state
   isSaving: boolean;
+
+  // Caption style toggle
+  applyStyleToAll: boolean;
 }
 
 // ============================================
@@ -271,8 +312,12 @@ export interface EditorActions {
   // Video settings actions
   updateVideoSettings: (settings: Partial<VideoSettings>) => void;
 
-  // Caption style actions (applies to all captions)
+  // Caption style actions
   updateAllCaptionStyles: (style: Partial<CaptionStyle>) => void;
+  updateSelectedCaptionStyles: (ids: string[], style: Partial<CaptionStyle>) => void;
+  updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => void;
+  setApplyStyleToAll: (value: boolean) => void;
+  selectAllCaptionsOnTrack: (trackId: string) => void;
 
   // Item actions
   addItem: (trackId: string, item: Partial<TimelineItem>) => string;
@@ -284,6 +329,7 @@ export interface EditorActions {
 
   // Selection actions
   select: (ids: string[], mode?: SelectionMode) => void;
+  selectRange: (anchorId: string, targetId: string) => void;
   selectAll: () => void;
   clearSelection: () => void;
   setSelectionBox: (box: SelectionBox | null) => void;
@@ -337,31 +383,37 @@ export const DEFAULT_VIDEO_SETTINGS: VideoSettings = {
 };
 
 export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
-  // Display
   displayMode: 'phrase',
   wordsPerPhrase: 5,
 
-  // Animation
-  animation: 'highlight',
+  animation: {
+    in: 'elastic-pop',
+    active: 'none',
+    out: 'none',
+    easing: 'spring',
+  },
 
-  // Typography
   fontFamily: 'Inter, system-ui, sans-serif',
   fontSize: 56,
   fontWeight: 800,
+  letterSpacing: 0,
+  textTransform: 'none',
 
-  // Colors
   color: '#ffffff',
   activeColor: '#ffff00',
   backgroundColor: 'transparent',
   activeBackgroundColor: 'transparent',
 
-  // Effects
   textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',
 
-  // Position
+  backgroundPadding: { x: 4, y: 2 },
+  backgroundRadius: 8,
+
   position: 'bottom',
   offsetY: 0,
   textAlign: 'center',
+
+  presetId: 'mrbeast-bold',
 };
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {

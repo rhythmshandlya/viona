@@ -11,13 +11,15 @@ import { Slider } from '@/components/ui/slider';
 import {
   useSelectedIds,
   useItem,
-  useFirstCaptionStyle,
+  useItems,
+  useActiveCaptionStyle,
+  useApplyStyleToAll,
   useVideoSettings,
   useEditorActions,
 } from '../store/use-editor-store';
 import {
   CaptionDisplayMode,
-  CaptionAnimation,
+  CaptionAnimationLegacy,
   CaptionStyle,
 } from '../store/types';
 import { SUBTITLE_PRESETS, PRESET_ORDER } from '@/lib/subtitle-presets';
@@ -28,6 +30,7 @@ interface ContextPanelProps {
 
 export function ContextPanel({ onClose }: ContextPanelProps) {
   const selectedIds = useSelectedIds();
+  const items = useItems();
   const firstSelectedItem = useItem(selectedIds[0] || '');
   const [isAnimating, setIsAnimating] = useState(true);
 
@@ -49,9 +52,18 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
 
   if (!firstSelectedItem) return null;
 
-  const panelTitle = firstSelectedItem.type === 'caption' ? 'Caption Style' :
-                     firstSelectedItem.type === 'video' ? 'Video Position' :
-                     'Properties';
+  // Build panel title with multi-selection count
+  let panelTitle: string;
+  if (selectedIds.length > 1) {
+    const allCaptions = selectedIds.every((id) => items[id]?.type === 'caption');
+    panelTitle = allCaptions
+      ? `${selectedIds.length} captions selected`
+      : `${selectedIds.length} items selected`;
+  } else {
+    panelTitle = firstSelectedItem.type === 'caption' ? 'Caption Style' :
+                 firstSelectedItem.type === 'video' ? 'Video Position' :
+                 'Properties';
+  }
 
   return (
     <div
@@ -87,17 +99,50 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
 // ============================================
 
 function CaptionStylePanel() {
-  const style = useFirstCaptionStyle();
-  const { updateAllCaptionStyles } = useEditorActions();
+  const style = useActiveCaptionStyle();
+  const applyToAll = useApplyStyleToAll();
+  const selectedIds = useSelectedIds();
+  const { updateAllCaptionStyles, updateSelectedCaptionStyles, setApplyStyleToAll } = useEditorActions();
+
+  // Default: apply-to-all when single selection, per-selection when multi
+  useEffect(() => {
+    setApplyStyleToAll(selectedIds.length <= 1);
+  }, [selectedIds.length, setApplyStyleToAll]);
 
   if (!style) return null;
 
   const updateStyle = (updates: Partial<CaptionStyle>) => {
-    updateAllCaptionStyles(updates);
+    if (applyToAll) {
+      updateAllCaptionStyles(updates);
+    } else {
+      updateSelectedCaptionStyles(selectedIds, updates);
+    }
   };
 
   return (
     <div className="p-4 space-y-6">
+      {/* Apply to All Toggle */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+          Apply to all
+        </span>
+        <button
+          onClick={() => setApplyStyleToAll(!applyToAll)}
+          className={`relative w-9 h-5 rounded-full transition-colors ${
+            applyToAll ? 'bg-[var(--editor-accent)]' : 'bg-[var(--editor-bg-elevated)]'
+          }`}
+          aria-label="Toggle apply to all captions"
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+              applyToAll ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+
+      <Divider />
+
       {/* Display Mode */}
       <Section label="Display Mode">
         <SegmentedControl
@@ -121,7 +166,7 @@ function CaptionStylePanel() {
             { value: 'highlight', label: 'Glow' },
           ]}
           value={style.animation}
-          onChange={(value) => updateStyle({ animation: value as CaptionAnimation })}
+          onChange={(value) => updateStyle({ animation: value as CaptionAnimationLegacy })}
         />
       </Section>
 

@@ -2,19 +2,23 @@
 
 import { Slider } from '@/components/ui/slider';
 import {
-  useFirstCaptionStyle,
+  useActiveCaptionStyle,
+  useApplyStyleToAll,
+  useSelectedIds,
   useEditorActions,
 } from '../store/use-editor-store';
 import {
   CaptionDisplayMode,
-  CaptionAnimation,
+  CaptionAnimationLegacy,
   CaptionStyle,
 } from '../store/types';
 import { SUBTITLE_PRESETS, PRESET_ORDER } from '@/lib/subtitle-presets';
 
 export function StylePanel() {
-  const style = useFirstCaptionStyle();
-  const { updateAllCaptionStyles } = useEditorActions();
+  const style = useActiveCaptionStyle();
+  const applyToAll = useApplyStyleToAll();
+  const selectedIds = useSelectedIds();
+  const { updateAllCaptionStyles, updateSelectedCaptionStyles, setApplyStyleToAll } = useEditorActions();
 
   if (!style) {
     return (
@@ -25,11 +29,33 @@ export function StylePanel() {
   }
 
   const updateStyle = (updates: Partial<CaptionStyle>) => {
-    updateAllCaptionStyles(updates);
+    if (applyToAll) {
+      updateAllCaptionStyles(updates);
+    } else {
+      updateSelectedCaptionStyles(selectedIds, updates);
+    }
   };
 
   return (
     <div className="p-4 space-y-6">
+      {/* Apply to All Toggle */}
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-zinc-400 font-medium">Apply to all</span>
+        <button
+          onClick={() => setApplyStyleToAll(!applyToAll)}
+          className={`relative w-9 h-5 rounded-full transition-colors ${
+            applyToAll ? 'bg-blue-600' : 'bg-zinc-600'
+          }`}
+          aria-label="Toggle apply to all captions"
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+              applyToAll ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+
       {/* Display Mode */}
       <div className="space-y-2">
         <label className="text-sm text-zinc-400 font-medium">Display Mode</label>
@@ -56,7 +82,7 @@ export function StylePanel() {
       <div className="space-y-2">
         <label className="text-sm text-zinc-400 font-medium">Animation</label>
         <div className="flex gap-1">
-          {(['none', 'pop', 'fade', 'highlight'] as CaptionAnimation[]).map(
+          {(['none', 'pop', 'fade', 'highlight'] as CaptionAnimationLegacy[]).map(
             (anim) => (
               <button
                 key={anim}
