@@ -287,52 +287,12 @@ function VideoPanel() {
   const selectedIds = useSelectedIds();
   const videoItem = useItem(selectedIds[0] || '');
   const videoSettings = useVideoSettings();
-  const { updateVideoSettings, separateAudio } = useEditorActions();
-  const [isSeparating, setIsSeparating] = useState(false);
+  const { updateVideoSettings } = useEditorActions();
 
   if (!videoSettings || !videoItem) return null;
 
-  const videoData = videoItem.data as VideoItemData;
-  const isAudioSeparated = !!videoData.muted;
-
-  const handleSeparateAudio = async () => {
-    setIsSeparating(true);
-    await separateAudio(videoItem.id);
-    setIsSeparating(false);
-  };
-
   return (
     <div className="p-4 space-y-6">
-      {/* Audio Separation */}
-      {!isAudioSeparated && (
-        <Section label="Audio">
-          <button
-            onClick={handleSeparateAudio}
-            disabled={isSeparating}
-            className="w-full py-2 px-3 text-sm font-medium rounded-md
-                       bg-[var(--editor-accent)] text-white
-                       hover:opacity-90 transition-opacity
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isSeparating ? 'Separating...' : 'Separate Audio'}
-          </button>
-          <p className="text-xs text-[var(--editor-text-muted)]">
-            Extract audio into its own track with automatic enhancement
-          </p>
-        </Section>
-      )}
-
-      {isAudioSeparated && (
-        <Section label="Audio">
-          <div className="flex items-center gap-2 py-1 px-2 rounded bg-[var(--editor-bg-elevated)]">
-            <span className="text-xs text-[var(--editor-text-muted)]">
-              Audio separated — video is muted
-            </span>
-          </div>
-        </Section>
-      )}
-
-      <Divider />
 
       {/* Horizontal Position */}
       <Section label="Horizontal Pan">
