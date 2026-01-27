@@ -49,3 +49,24 @@ export async function queueRenderJob(data: RenderJobData) {
     },
   });
 }
+
+export interface EnhanceAudioJobData {
+  projectId: string;
+  jobId: string;
+  videoKey: string;
+  audioTrackId: string;
+  audioItemId: string;
+  videoItemId: string;
+}
+
+export const enhanceAudioQueue = new Queue('enhance-audio', { connection });
+
+export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
+  return enhanceAudioQueue.add('enhance-audio', data, {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
+  });
+}
