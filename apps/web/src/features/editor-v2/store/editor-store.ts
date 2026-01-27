@@ -398,6 +398,66 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
     },
 
+    updateSelectedCaptionStyles: (ids: string[], styleUpdates: Partial<CaptionStyle>) => {
+      set((state) => {
+        for (const id of ids) {
+          const item = state.items[id];
+          if (item?.type === 'caption') {
+            const captionData = item.data as CaptionItemData;
+            captionData.style = {
+              ...captionData.style,
+              ...styleUpdates,
+            };
+          }
+        }
+      });
+      get().pushHistory();
+    },
+
+    updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {
+      set((state) => {
+        const item = state.items[captionId];
+        if (!item || item.type !== 'caption') return;
+
+        const data = item.data as CaptionItemData;
+        const word = data.words[wordIndex];
+        if (!word) return;
+
+        if (overrides === null) {
+          // Clear all overrides
+          word.styleOverrides = undefined;
+        } else {
+          // Merge overrides, removing undefined values
+          const merged = { ...word.styleOverrides, ...overrides };
+          // Clean out undefined values
+          const cleaned: WordStyleOverrides = {};
+          if (merged.color !== undefined) cleaned.color = merged.color;
+          if (merged.fontWeight !== undefined) cleaned.fontWeight = merged.fontWeight;
+          if (merged.scale !== undefined) cleaned.scale = merged.scale;
+          if (merged.emphasisBg !== undefined) cleaned.emphasisBg = merged.emphasisBg;
+
+          word.styleOverrides = Object.keys(cleaned).length > 0 ? cleaned : undefined;
+        }
+      });
+      get().pushHistory();
+    },
+
+    setApplyStyleToAll: (value: boolean) => {
+      set((state) => {
+        state.applyStyleToAll = value;
+      });
+    },
+
+    selectAllCaptionsOnTrack: (trackId: string) => {
+      set((state) => {
+        const captionIds = state.itemIds.filter((id) => {
+          const item = state.items[id];
+          return item?.type === 'caption' && item.trackId === trackId;
+        });
+        state.selectedIds = captionIds;
+      });
+    },
+
     // ========================================
     // Item Actions
     // ========================================

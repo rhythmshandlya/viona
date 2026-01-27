@@ -8,3 +8,4 @@ export { roundRect, truncateText, drawPill } from './canvasUtils';
 export { BaseRenderer } from './BaseRenderer';
 export { CaptionRenderer } from './CaptionRenderer';
 export { AudioRenderer } from './AudioRenderer';
+export { VideoRenderer } from './VideoRenderer';
