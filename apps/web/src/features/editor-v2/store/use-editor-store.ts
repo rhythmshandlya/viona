@@ -266,6 +266,11 @@ export function useEditorActions() {
       updateTrack: state.updateTrack,
       deleteTrack: state.deleteTrack,
       reorderTracks: state.reorderTracks,
+
+      // Audio Separation
+      separateAudio: state.separateAudio,
+      toggleEnhancement: state.toggleEnhancement,
+      updateEnhancementStatus: state.updateEnhancementStatus,
     }))
   );
 }
