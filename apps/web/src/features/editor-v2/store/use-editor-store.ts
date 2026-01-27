@@ -230,6 +230,10 @@ export function useEditorActions() {
 
       // Caption Styles
       updateAllCaptionStyles: state.updateAllCaptionStyles,
+      updateSelectedCaptionStyles: state.updateSelectedCaptionStyles,
+      updateWordStyleOverrides: state.updateWordStyleOverrides,
+      setApplyStyleToAll: state.setApplyStyleToAll,
+      selectAllCaptionsOnTrack: state.selectAllCaptionsOnTrack,
 
       // Items
       addItem: state.addItem,
