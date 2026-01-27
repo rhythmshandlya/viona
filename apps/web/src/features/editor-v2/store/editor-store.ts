@@ -20,6 +20,7 @@ import {
   DEFAULT_CAPTION_STYLE,
   CaptionItemData,
   VideoItemData,
+  AudioItemData,
   VideoSettings,
   CaptionStyle,
 } from './types';
@@ -721,6 +722,113 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+    },
+
+    // ========================================
+    // Audio Separation Actions
+    // ========================================
+
+    separateAudio: async (videoItemId: string) => {
+      const { project, items } = get();
+      if (!project) return;
+
+      const videoItem = items[videoItemId];
+      if (!videoItem || videoItem.type !== 'video') return;
+
+      try {
+        // Call API to start separation
+        const response = await api.separateAudio(project.id, videoItemId);
+
+        // Optimistically add audio track and item
+        const audioTrackId = response.trackId;
+        const audioItemId = response.itemId;
+
+        set((state) => {
+          // Add audio track
+          const newTrack: Track = {
+            id: audioTrackId,
+            type: 'audio',
+            name: 'Audio',
+            position: state.tracks.length,
+            locked: false,
+            visible: true,
+            height: DEFAULT_TRACK_HEIGHT,
+            collapsed: false,
+          };
+          state.tracks.push(newTrack);
+          state.tracks.sort((a, b) => a.position - b.position);
+
+          // Add audio item (processing state)
+          const audioItem: TimelineItem = {
+            id: audioItemId,
+            type: 'audio',
+            trackId: audioTrackId,
+            startMs: videoItem.startMs,
+            endMs: videoItem.endMs,
+            data: {
+              src: '',
+              originalSrc: '',
+              isEnhanced: false,
+              sourceVideoItemId: videoItemId,
+              volume: 1,
+              enhancementStatus: 'processing',
+              enhancementProgress: 0,
+            } as AudioItemData,
+          };
+          state.items[audioItemId] = audioItem;
+          state.itemIds.push(audioItemId);
+
+          // Mute the video item
+          const vid = state.items[videoItemId];
+          if (vid) {
+            (vid.data as VideoItemData).muted = true;
+            (vid.data as VideoItemData).separatedAudioItemId = audioItemId;
+          }
+        });
+
+        get().pushHistory();
+      } catch (err) {
+        set((state) => {
+          state.error = err instanceof Error ? err.message : 'Failed to separate audio';
+        });
+      }
+    },
+
+    toggleEnhancement: (audioItemId: string) => {
+      set((state) => {
+        const item = state.items[audioItemId];
+        if (!item || item.type !== 'audio') return;
+
+        const data = item.data as AudioItemData;
+        if (!data.enhancedSrc || !data.originalSrc) return;
+
+        // Toggle between enhanced and original
+        data.isEnhanced = !data.isEnhanced;
+        data.src = data.isEnhanced ? data.enhancedSrc : data.originalSrc;
+      });
+
+      get().pushHistory();
+    },
+
+    updateEnhancementStatus: (
+      audioItemId: string,
+      status: AudioItemData['enhancementStatus'],
+      progress?: number,
+      enhancedSrc?: string
+    ) => {
+      set((state) => {
+        const item = state.items[audioItemId];
+        if (!item || item.type !== 'audio') return;
+
+        const data = item.data as AudioItemData;
+        data.enhancementStatus = status;
+        if (progress !== undefined) data.enhancementProgress = progress;
+        if (enhancedSrc) {
+          data.enhancedSrc = enhancedSrc;
+          data.src = enhancedSrc;
+          data.isEnhanced = true;
+        }
+      });
     },
   }))
 );
