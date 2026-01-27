@@ -8,6 +8,12 @@
 import React from 'react';
 import { AbsoluteFill, Sequence, Video, Audio, useCurrentFrame } from 'remotion';
 import {
+  resolveAnimation,
+  isAnimationConfig,
+  migrateAnimation,
+} from '@reelify/renderer/animations';
+import type { AnimationConfig } from '@reelify/renderer/animations';
+import {
   useItems,
   useItemIds,
   useFps,
@@ -102,8 +108,27 @@ export function Composition() {
       {/* Video layer with crop/pan transform */}
       {videoItems.map((item) => {
         const data = item.data as VideoItemData;
+        if (!data.src) return null;
         const fromFrame = Math.round((item.startMs / 1000) * fps);
-        const durationInFrames = Math.round(((item.endMs - item.startMs) / 1000) * fps);
+        // Subtract 3 frames (~100 ms @ 30 fps) to avoid seeking past the
+        // media file's actual end.  Probe/container-level durations can
+        // overstate the real decodable length by several frames.
+        const durationInFrames = Math.max(
+          1,
+          Math.floor(((item.endMs - item.startMs) / 1000) * fps) - 2,
+        );
+
+        // If the item has trim data, tell Remotion where inside the source
+        // media to start and stop so we never exceed the actual content.
+        const trimStartFrame = item.trim
+          ? Math.round((item.trim.startMs / 1000) * fps)
+          : undefined;
+        const trimEndFrame = item.trim
+          ? Math.max(
+              (trimStartFrame ?? 0) + 1,
+              Math.floor((item.trim.endMs / 1000) * fps) - 2,
+            )
+          : undefined;
 
         return (
           <Sequence
@@ -129,9 +154,8 @@ export function Composition() {
                   }}
                   volume={data.volume}
                   playbackRate={data.playbackRate || 1}
-                  onError={(e) => {
-                    console.warn('Video playback error:', e?.message || e);
-                  }}
+                  startFrom={trimStartFrame}
+                  endAt={trimEndFrame}
                 />
               </div>
             </AbsoluteFill>
@@ -142,8 +166,12 @@ export function Composition() {
       {/* Audio layer */}
       {audioItems.map((item) => {
         const data = item.data as AudioItemData;
+        if (!data.src) return null;
         const fromFrame = Math.round((item.startMs / 1000) * fps);
-        const durationInFrames = Math.round(((item.endMs - item.startMs) / 1000) * fps);
+        const durationInFrames = Math.max(
+          1,
+          Math.floor(((item.endMs - item.startMs) / 1000) * fps) - 2,
+        );
 
         return (
           <Sequence
@@ -201,6 +229,11 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     (word) => relativeTimeMs >= word.startMs && relativeTimeMs < word.endMs
   );
 
+  // Resolve animation config (handle legacy strings via migrateAnimation)
+  const animConfig: AnimationConfig = isAnimationConfig(style.animation)
+    ? style.animation
+    : migrateAnimation(style.animation as string);
+
   // Position based on style
   const offsetY = style.offsetY || 0;
   const positionStyles: React.CSSProperties = {
@@ -222,21 +255,34 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
   if (style.displayMode === 'word-by-word') {
     if (activeWordIndex < 0 || !hasWordTimings) return null;
     const activeWord = words[activeWordIndex];
+    const overrides = activeWord.styleOverrides;
+
+    // Resolve animation for the active word
+    const elapsedMs = relativeTimeMs - activeWord.startMs;
+    const wordDurationMs = activeWord.endMs - activeWord.startMs;
+    const { style: animStyle } = resolveAnimation(animConfig, {
+      elapsedMs: Math.max(0, elapsedMs),
+      wordDurationMs,
+      isActive: true,
+      hasAppeared: false,
+      isFuture: false,
+    });
 
     return (
       <div style={positionStyles}>
         <span
           style={{
             fontFamily: style.fontFamily,
-            fontSize: style.fontSize,
-            fontWeight: style.fontWeight,
-            color: style.activeColor,
-            backgroundColor: style.activeBackgroundColor || 'transparent',
+            fontSize: (overrides?.scale || 1) * style.fontSize,
+            fontWeight: overrides?.fontWeight || style.fontWeight,
+            color: overrides?.color || style.activeColor,
+            backgroundColor: overrides?.emphasisBg || style.activeBackgroundColor || 'transparent',
             textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
             padding: '4px 12px',
             borderRadius: '8px',
             display: 'inline-block',
             whiteSpace: 'nowrap',
+            ...animStyle,
           }}
         >
           {activeWord.text}
@@ -245,21 +291,33 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     );
   }
 
-  // Karaoke mode: progressive fill
+  // Karaoke mode: progressive fill with V2 animation engine
   if (style.displayMode === 'karaoke') {
     return (
       <div style={positionStyles}>
         {words.map((word, index) => {
-          const hasAppeared = relativeTimeMs >= word.startMs;
           const isActive = index === activeWordIndex;
+          const hasAppeared = relativeTimeMs >= word.startMs;
+          const overrides = word.styleOverrides;
 
+          // Resolve animation for this word
+          const elapsedMs = relativeTimeMs - word.startMs;
+          const wordDurationMs = word.endMs - word.startMs;
+          const { style: animStyle } = resolveAnimation(animConfig, {
+            elapsedMs: Math.max(0, elapsedMs),
+            wordDurationMs,
+            isActive,
+            hasAppeared: hasAppeared && !isActive,
+            isFuture: !hasAppeared,
+          });
+
+          // Progressive fill calculation
           let fillPercent = 0;
           if (hasAppeared && !isActive) {
             fillPercent = 100;
           } else if (isActive) {
-            const wordDuration = word.endMs - word.startMs;
             const elapsed = relativeTimeMs - word.startMs;
-            fillPercent = Math.min((elapsed / wordDuration) * 100, 100);
+            fillPercent = Math.min((elapsed / wordDurationMs) * 100, 100);
           }
 
           return (
@@ -267,20 +325,20 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
               key={index}
               style={{
                 fontFamily: style.fontFamily,
-                fontSize: style.fontSize,
-                fontWeight: style.fontWeight,
+                fontSize: (overrides?.scale || 1) * style.fontSize,
+                fontWeight: overrides?.fontWeight || style.fontWeight,
                 padding: '4px 12px',
                 borderRadius: '8px',
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
                 background: hasAppeared
-                  ? `linear-gradient(90deg, ${style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
+                  ? `linear-gradient(90deg, ${overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
                   : style.color,
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
-                filter: hasAppeared ? 'none' : 'brightness(0.5)',
                 textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
+                ...animStyle,
               }}
             >
               {word.text}
@@ -291,38 +349,46 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     );
   }
 
-  // Default phrase mode: show all words, highlight active
+  // Default phrase mode: show all words, highlight active via V2 animation engine
   return (
     <div style={positionStyles}>
       {hasWordTimings ? (
         words.map((word, index) => {
           const isActive = index === activeWordIndex;
           const hasAppeared = relativeTimeMs >= word.startMs;
+          const overrides = word.styleOverrides;
 
-          // Animation effects
-          let scale = 1;
-          if (style.animation === 'pop' && isActive) scale = 1.1;
-          if (style.animation === 'highlight' && isActive) scale = 1.05;
+          // Resolve animation via V2 engine
+          const elapsedMs = relativeTimeMs - word.startMs;
+          const wordDurationMs = word.endMs - word.startMs;
+          const { style: animStyle } = resolveAnimation(animConfig, {
+            elapsedMs: Math.max(0, elapsedMs),
+            wordDurationMs,
+            isActive,
+            hasAppeared: hasAppeared && !isActive,
+            isFuture: !hasAppeared,
+          });
 
           return (
             <span
               key={index}
               style={{
                 fontFamily: style.fontFamily,
-                fontSize: style.fontSize,
-                fontWeight: style.fontWeight,
-                color: isActive ? style.activeColor : style.color,
-                backgroundColor: isActive
-                  ? style.activeBackgroundColor || 'transparent'
-                  : style.backgroundColor || 'transparent',
+                fontSize: (overrides?.scale || 1) * style.fontSize,
+                fontWeight: overrides?.fontWeight || style.fontWeight,
+                color: isActive
+                  ? (overrides?.color || style.activeColor)
+                  : (overrides?.color || style.color),
+                backgroundColor: overrides?.emphasisBg
+                  || (isActive
+                    ? style.activeBackgroundColor || 'transparent'
+                    : style.backgroundColor || 'transparent'),
                 textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
                 padding: '4px 12px',
                 borderRadius: '8px',
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
-                transform: `scale(${scale})`,
-                transition: 'transform 0.1s ease-out, color 0.1s ease-out',
-                opacity: style.animation === 'fade' && !hasAppeared ? 0.3 : 1,
+                ...animStyle,
               }}
             >
               {word.text}

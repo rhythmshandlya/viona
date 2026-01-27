@@ -8,6 +8,7 @@ import { db, projects, tracks, timelineItems, jobs } from '../db/index.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
+import { logger } from '../logger.js';
 import { renderVideo, SubtitleItem, SubtitleStyle } from '@reelify/renderer';
 
 export interface RenderJobData {
@@ -72,8 +73,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       await publishJobProgress(jobId, 30, 'Rendering with animated subtitles...');
 
       const durationMs = project.durationMs || 60000; // Default 60s if not set
-      const width = project.width || 1920;
-      const height = project.height || 1080;
+      const width = project.sourceWidth || 1920;
+      const height = project.sourceHeight || 1080;
       const fps = project.fps || 30;
 
       // Default subtitle style
@@ -104,7 +105,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           },
         });
       } catch (renderError) {
-        console.error('Remotion render failed, falling back to FFmpeg:', renderError);
+        logger.error({ err: renderError }, 'Remotion render failed, falling back to FFmpeg');
         // Fallback to FFmpeg subtitle burning
         await renderSubtitlesWithFFmpeg(videoPath, outputPath, allItems, project);
       }
@@ -132,10 +133,10 @@ export async function processRenderJob(job: Job<RenderJobData>) {
     await publishJobProgress(jobId, 100, 'Complete');
     await publishJobComplete(jobId, projectId);
 
-    console.log(`Render complete for project ${projectId}`);
+    logger.info({ projectId }, 'Render complete');
 
   } catch (error) {
-    console.error(`Render failed for project ${projectId}:`, error);
+    logger.error({ projectId, err: error }, 'Render failed');
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
@@ -234,8 +235,8 @@ async function renderSubtitlesWithFFmpeg(
 }
 
 function generateASSSubtitles(subtitles: any[], project: any): string {
-  const width = project.width || 1920;
-  const height = project.height || 1080;
+  const width = project.sourceWidth || 1920;
+  const height = project.sourceHeight || 1080;
 
   // ASS header
   let ass = `[Script Info]

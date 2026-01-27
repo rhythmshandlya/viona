@@ -8,6 +8,7 @@ import { spawn } from 'child_process';
 import ffmpeg from 'fluent-ffmpeg';
 import { db, projects, tracks, timelineItems, transcripts, jobs } from '../db/index.js';
 import { downloadFile } from '../services/minio.js';
+import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
 import { DEFAULT_SUBTITLE_STYLE } from '@reelify/shared';
@@ -99,7 +100,7 @@ async function runWhisperX(
   audioPath: string,
   jobId: string,
 ): Promise<WhisperXOutput> {
-  const { pythonPath, scriptPath, model, language, device, computeType, batchSize } = config.whisperx;
+  const { scriptPath, model, language, device, computeType, batchSize } = config.whisperx;
   const resolvedScript = resolve(scriptPath);
 
   return new Promise((resolve, reject) => {
@@ -113,8 +114,13 @@ async function runWhisperX(
       '--batch-size', String(batchSize),
     ];
 
-    const proc = spawn(pythonPath, args, {
+    const proc = spawn(config.pythonPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        // PyTorch 2.6+ defaults weights_only=True which breaks pyannote model loading
+        TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD: '1',
+      },
     });
 
     let stdout = '';
@@ -145,16 +151,25 @@ async function runWhisperX(
       if (code !== 0) {
         // Extract error message from stderr
         const errorMatch = stderr.match(/ERROR:(.+)/);
-        const errorMsg = errorMatch ? errorMatch[1].trim() : `WhisperX exited with code ${code}`;
+        const lastLines = stderr.trim().split('\n').slice(-3).join(' | ');
+        const errorMsg = errorMatch ? errorMatch[1].trim() : `WhisperX exited with code ${code}: ${lastLines}`;
         reject(new Error(errorMsg));
         return;
       }
 
       try {
-        const result = JSON.parse(stdout.trim());
+        // Extract the last line that looks like JSON — libraries may leak
+        // log messages to stdout despite our stderr redirects.
+        const lines = stdout.trim().split('\n');
+        const jsonLine = lines.reverse().find(l => l.startsWith('{'));
+        if (!jsonLine) {
+          reject(new Error(`No JSON found in WhisperX output: ${stdout.slice(0, 500)}`));
+          return;
+        }
+        const result = JSON.parse(jsonLine);
         resolve(result as WhisperXOutput);
       } catch {
-        reject(new Error(`Failed to parse WhisperX output: ${stdout.slice(0, 200)}`));
+        reject(new Error(`Failed to parse WhisperX output: ${stdout.slice(0, 500)}`));
       }
     });
 
@@ -238,8 +253,8 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       .set({
         durationMs,
         fps: metadata.fps,
-        width: metadata.width,
-        height: metadata.height,
+        sourceWidth: metadata.width,
+        sourceHeight: metadata.height,
       })
       .where(eq(projects.id, projectId));
 
@@ -317,10 +332,10 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     await publishJobProgress(jobId, 100, 'Complete');
     await publishJobComplete(jobId, projectId);
 
-    console.log(`Transcription complete for project ${projectId}`);
+    logger.info({ projectId }, 'Transcription complete');
 
   } catch (error) {
-    console.error(`Transcription failed for project ${projectId}:`, error);
+    logger.error({ projectId, err: error }, 'Transcription failed');
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 

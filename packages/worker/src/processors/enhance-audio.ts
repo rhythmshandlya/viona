@@ -1,13 +1,14 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { mkdir, rm } from 'fs/promises';
-import { join } from 'path';
+import { join, resolve as resolve_ } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { spawn } from 'child_process';
 import ffmpeg from 'fluent-ffmpeg';
 import { db, jobs, timelineItems } from '../db/index.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
+import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
 
@@ -66,8 +67,8 @@ function runEnhancementScript(
   onProgress: (percent: number, message: string) => void
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const scriptPath = join(process.cwd(), 'scripts', 'enhance_audio.py');
-    const proc = spawn('python', [
+    const scriptPath = resolve_(config.enhance.scriptPath);
+    const proc = spawn(config.pythonPath, [
       scriptPath,
       '--input', inputPath,
       '--output', outputPath,
@@ -188,10 +189,10 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
     await publishJobProgress(jobId, 100, 'Complete');
     await publishJobComplete(jobId, projectId);
 
-    console.log(`Audio enhancement complete for project ${projectId}`);
+    logger.info({ projectId }, 'Audio enhancement complete');
 
   } catch (error) {
-    console.error(`Audio enhancement failed for project ${projectId}:`, error);
+    logger.error({ projectId, err: error }, 'Audio enhancement failed');
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 

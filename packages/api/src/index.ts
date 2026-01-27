@@ -8,7 +8,12 @@ import { setupWebSocket } from './ws/handler.js';
 
 async function main() {
   const fastify = Fastify({
-    logger: true,
+    logger: {
+      transport:
+        process.env.NODE_ENV !== 'production'
+          ? { target: 'pino-pretty', options: { colorize: true } }
+          : undefined,
+    },
   });
 
   // Register plugins
@@ -31,16 +36,16 @@ async function main() {
   // Ensure MinIO buckets exist
   try {
     await ensureBuckets();
-    console.log('MinIO buckets ready');
+    fastify.log.info('MinIO buckets ready');
   } catch (err) {
-    console.error('Failed to ensure MinIO buckets:', err);
+    fastify.log.error(err, 'Failed to ensure MinIO buckets');
     // Continue anyway, buckets might already exist
   }
 
   // Start server
   try {
     await fastify.listen({ port: config.port, host: '0.0.0.0' });
-    console.log(`Server running at http://localhost:${config.port}`);
+    fastify.log.info(`Server running at http://localhost:${config.port}`);
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

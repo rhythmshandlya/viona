@@ -1,5 +1,6 @@
 import { Worker } from 'bullmq';
 import { config } from './config.js';
+import { logger } from './logger.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
 import { processRenderJob, RenderJobData } from './processors/render.js';
 import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhance-audio.js';
@@ -17,13 +18,13 @@ function parseRedisUrl(url: string) {
 const connection = parseRedisUrl(config.redis.url);
 
 async function main() {
-  console.log('Starting Reelify worker...');
+  logger.info('Starting Reelify worker...');
 
   // Transcribe worker
   const transcribeWorker = new Worker<TranscribeJobData>(
     'transcribe',
     async (job) => {
-      console.log(`Processing transcribe job ${job.id} for project ${job.data.projectId}`);
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing transcribe job');
       await processTranscribeJob(job);
     },
     {
@@ -33,18 +34,18 @@ async function main() {
   );
 
   transcribeWorker.on('completed', (job) => {
-    console.log(`Transcribe job ${job.id} completed`);
+    logger.info({ jobId: job.id }, 'Transcribe job completed');
   });
 
   transcribeWorker.on('failed', (job, err) => {
-    console.error(`Transcribe job ${job?.id} failed:`, err);
+    logger.error({ jobId: job?.id, err }, 'Transcribe job failed');
   });
 
   // Render worker
   const renderWorker = new Worker<RenderJobData>(
     'render',
     async (job) => {
-      console.log(`Processing render job ${job.id} for project ${job.data.projectId}`);
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing render job');
       await processRenderJob(job);
     },
     {
@@ -54,18 +55,18 @@ async function main() {
   );
 
   renderWorker.on('completed', (job) => {
-    console.log(`Render job ${job.id} completed`);
+    logger.info({ jobId: job.id }, 'Render job completed');
   });
 
   renderWorker.on('failed', (job, err) => {
-    console.error(`Render job ${job?.id} failed:`, err);
+    logger.error({ jobId: job?.id, err }, 'Render job failed');
   });
 
   // Enhance audio worker
   const enhanceAudioWorker = new Worker<EnhanceAudioJobData>(
     'enhance-audio',
     async (job) => {
-      console.log(`Processing enhance-audio job ${job.id} for project ${job.data.projectId}`);
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing enhance-audio job');
       await processEnhanceAudioJob(job);
     },
     {
@@ -75,18 +76,18 @@ async function main() {
   );
 
   enhanceAudioWorker.on('completed', (job) => {
-    console.log(`Enhance-audio job ${job.id} completed`);
+    logger.info({ jobId: job.id }, 'Enhance-audio job completed');
   });
 
   enhanceAudioWorker.on('failed', (job, err) => {
-    console.error(`Enhance-audio job ${job?.id} failed:`, err);
+    logger.error({ jobId: job?.id, err }, 'Enhance-audio job failed');
   });
 
-  console.log('Worker started, waiting for jobs...');
+  logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown
   const shutdown = async () => {
-    console.log('Shutting down worker...');
+    logger.info('Shutting down worker...');
     await transcribeWorker.close();
     await renderWorker.close();
     await enhanceAudioWorker.close();
@@ -98,6 +99,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Worker failed to start:', err);
+  logger.error({ err }, 'Worker failed to start');
   process.exit(1);
 });
