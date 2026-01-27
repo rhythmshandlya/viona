@@ -418,6 +418,19 @@ export const useEditorStore = create<EditorStore>()(
     deleteItems: (ids) => {
       set((state) => {
         for (const id of ids) {
+          // If deleting an audio item, unmute linked video
+          const item = state.items[id];
+          if (item?.type === 'audio') {
+            const audioData = item.data as AudioItemData;
+            if (audioData.sourceVideoItemId) {
+              const videoItem = state.items[audioData.sourceVideoItemId];
+              if (videoItem) {
+                (videoItem.data as VideoItemData).muted = false;
+                (videoItem.data as VideoItemData).separatedAudioItemId = undefined;
+              }
+            }
+          }
+
           delete state.items[id];
           state.itemIds = state.itemIds.filter((itemId) => itemId !== id);
           state.selectedIds = state.selectedIds.filter((selectedId) => selectedId !== id);
@@ -689,6 +702,25 @@ export const useEditorStore = create<EditorStore>()(
 
     deleteTrack: (id) => {
       set((state) => {
+        // Find items on this track that might be linked audio
+        const itemsOnTrack = state.itemIds
+          .map((itemId) => state.items[itemId])
+          .filter((item) => item?.trackId === id);
+
+        // If any are audio items linked to video, unmute the video
+        for (const item of itemsOnTrack) {
+          if (item?.type === 'audio') {
+            const audioData = item.data as AudioItemData;
+            if (audioData.sourceVideoItemId) {
+              const videoItem = state.items[audioData.sourceVideoItemId];
+              if (videoItem) {
+                (videoItem.data as VideoItemData).muted = false;
+                (videoItem.data as VideoItemData).separatedAudioItemId = undefined;
+              }
+            }
+          }
+        }
+
         // Delete all items on this track
         const itemsToDelete = state.itemIds.filter(
           (itemId) => state.items[itemId]?.trackId === id
