@@ -47,3 +47,6 @@ whisper.cpp/
 
 # Remotion
 remotion-*.zip
+
+# Worktrees
+.worktrees/
