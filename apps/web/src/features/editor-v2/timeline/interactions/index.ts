@@ -10,3 +10,5 @@ export { DragManager, getDragManager } from './DragManager';
 export type { DragPreview, DragOperation, DragManagerState } from './DragManager';
 
 export { ClipboardManager, getClipboardManager } from './ClipboardManager';
+
+export { SplitTool, getSplitTool } from './SplitTool';

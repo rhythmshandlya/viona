@@ -14,6 +14,7 @@
 	},
 	"dependencies": {
 		"@reelify/shared": "workspace:*",
+		"@reelify/renderer": "workspace:*",
 		"@designcombo/animations": "^5.4.2",
 		"@designcombo/events": "^1.0.2",
 		"@designcombo/frames": "^0.0.3",

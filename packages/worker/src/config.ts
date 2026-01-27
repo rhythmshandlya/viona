@@ -21,13 +21,18 @@ export const config = {
     },
   },
 
+  pythonPath: process.env.PYTHON_PATH || 'python',
+
   whisperx: {
-    pythonPath: process.env.PYTHON_PATH || 'python',
     scriptPath: process.env.WHISPERX_SCRIPT_PATH || './scripts/whisperx_transcribe.py',
-    model: process.env.WHISPER_MODEL || 'large-v2',
+    model: process.env.WHISPER_MODEL || 'base',
     language: process.env.WHISPER_LANGUAGE || 'en',
     device: process.env.WHISPER_DEVICE || 'auto',
     computeType: process.env.WHISPER_COMPUTE_TYPE || 'float16',
     batchSize: parseInt(process.env.WHISPER_BATCH_SIZE || '16', 10),
+  },
+
+  enhance: {
+    scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
   },
 } as const;

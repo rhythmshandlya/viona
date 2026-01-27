@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -15,6 +15,7 @@ import { ContextPanel } from './components/ContextPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { Scene } from './scene/Scene';
 import { Timeline } from './timeline/Timeline';
+import { TranscriptPanel } from './panels/TranscriptPanel';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import {
   useProject,
@@ -24,6 +25,7 @@ import {
   useSelectedIds,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
+import { api } from '@/lib/api';
 
 interface EditorProps {
   projectId: string;
@@ -31,7 +33,8 @@ interface EditorProps {
 
 export function Editor({ projectId }: EditorProps) {
   const [showContextPanel, setShowContextPanel] = useState(false);
-  const [timelineHeight, setTimelineHeight] = useState(120);
+  const [showTranscript, setShowTranscript] = useState(false);
+  const [timelineHeight, setTimelineHeight] = useState(220);
   const resizeRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
@@ -47,8 +50,11 @@ export function Editor({ projectId }: EditorProps) {
   // Actions
   const { loadProject, clearSelection, updateEnhancementStatus } = useEditorActions();
 
+  // Toggle transcript panel
+  const handleToggleTranscript = () => setShowTranscript((prev) => !prev);
+
   // Initialize keyboard shortcuts
-  useKeyboardShortcuts();
+  useKeyboardShortcuts({ onToggleTranscript: handleToggleTranscript });
 
   // Load project on mount
   useEffect(() => {
@@ -136,9 +142,15 @@ export function Editor({ projectId }: EditorProps) {
   };
 
   // Handle export
-  const handleExport = () => {
-    // TODO: Implement export
-    console.log('Export clicked');
+  const handleExport = async () => {
+    if (!project) return;
+    try {
+      const { jobId } = await api.renderProject(project.id);
+      // Show notification or progress indicator
+      console.log('Render started:', jobId);
+    } catch (err) {
+      console.error('Export failed:', err);
+    }
   };
 
   // Loading state
@@ -188,18 +200,27 @@ export function Editor({ projectId }: EditorProps) {
       <Header
         onOpenCommandPalette={commandPalette.open}
         onExport={handleExport}
+        onToggleTranscript={handleToggleTranscript}
       />
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* Scene/Preview - takes all available space */}
-        <div className="flex-1 relative">
-          <Scene className="w-full h-full" />
-
-          {/* Context Panel - slides in from right */}
-          {showContextPanel && selectedIds.length > 0 && (
-            <ContextPanel onClose={handleCloseContextPanel} />
+        {/* Scene/Preview with optional transcript panel */}
+        <div className="flex-1 flex relative overflow-hidden">
+          {/* Transcript Panel */}
+          {showTranscript && (
+            <div className="w-80 flex-shrink-0 border-r border-[var(--editor-border-subtle)] overflow-hidden">
+              <TranscriptPanel />
+            </div>
           )}
+
+          {/* Scene */}
+          <div className="flex-1 relative">
+            <Scene className="w-full h-full" />
+            {showContextPanel && selectedIds.length > 0 && (
+              <ContextPanel onClose={handleCloseContextPanel} />
+            )}
+          </div>
         </div>
 
         {/* Playback Bar */}

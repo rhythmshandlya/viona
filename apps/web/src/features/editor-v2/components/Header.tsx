@@ -5,9 +5,9 @@
 
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Command, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, Command, MessageSquare, MoreHorizontal } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,13 +16,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useProject, useEditorActions, useIsSaving } from '../store/use-editor-store';
+import { api } from '@/lib/api';
 
 interface HeaderProps {
   onOpenCommandPalette?: () => void;
   onExport?: () => void;
+  onToggleTranscript?: () => void;
 }
 
-export function Header({ onOpenCommandPalette, onExport }: HeaderProps) {
+export function Header({ onOpenCommandPalette, onExport, onToggleTranscript }: HeaderProps) {
   const router = useRouter();
   const project = useProject();
   const { saveProject } = useEditorActions();
@@ -45,7 +47,11 @@ export function Header({ onOpenCommandPalette, onExport }: HeaderProps) {
 
   const handleTitleBlur = () => {
     setIsEditingTitle(false);
-    // TODO: Save title to project
+    if (project && title.trim()) {
+      api.updateProject(project.id, { title: title.trim() }).catch(() => {
+        // Silently fail — title is cosmetic
+      });
+    }
   };
 
   const handleTitleKeyDown = (e: React.KeyboardEvent) => {
@@ -101,8 +107,17 @@ export function Header({ onOpenCommandPalette, onExport }: HeaderProps) {
         )}
       </div>
 
-      {/* Right section: Command palette hint + Export + Menu */}
+      {/* Right section: Transcript toggle + Command palette hint + Export + Menu */}
       <div className="flex items-center gap-2">
+        {/* Transcript toggle */}
+        <button
+          onClick={() => onToggleTranscript?.()}
+          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+          title="Toggle Transcript (T)"
+        >
+          <MessageSquare className="w-4 h-4 text-[var(--editor-text-secondary)]" />
+        </button>
+
         {/* Command palette hint */}
         <button
           onClick={onOpenCommandPalette}

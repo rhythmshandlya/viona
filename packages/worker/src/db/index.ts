@@ -21,8 +21,9 @@ export const projects = pgTable('projects', {
   outputKey: varchar('output_key', { length: 255 }),
   durationMs: integer('duration_ms'),
   fps: integer('fps').default(30),
-  width: integer('width').default(1920),
-  height: integer('height').default(1080),
+  sourceWidth: integer('source_width').default(1920),
+  sourceHeight: integer('source_height').default(1080),
+  videoSettings: jsonb('video_settings'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

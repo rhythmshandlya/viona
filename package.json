@@ -2,7 +2,7 @@
   "name": "reelify",
   "private": true,
   "scripts": {
-    "dev": "pnpm run --parallel dev:*",
+    "dev": "pnpm run /^dev:/",
     "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter @reelify/api dev",
     "dev:worker": "pnpm --filter @reelify/worker dev",

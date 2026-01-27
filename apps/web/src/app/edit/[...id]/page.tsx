@@ -1,4 +1,4 @@
-import Editor from "@/features/editor";
+import { Editor } from "@/features/editor-v2";
 
 export default async function Page({
   params
@@ -6,7 +6,7 @@ export default async function Page({
   params: Promise<{ id: string[] }>;
 }) {
   const { id } = await params;
-  const [sceneId] = id; // Get the first ID from the array
+  const [projectId] = id;
 
-  return <Editor id={sceneId} />;
+  return <Editor projectId={projectId} />;
 }

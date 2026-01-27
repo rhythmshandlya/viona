@@ -80,8 +80,12 @@ class WebSocketClient {
       }
     };
 
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
+    this.ws.onerror = () => {
+      // Logged as warn — onerror provides no useful detail (the Event
+      // object is opaque) and the onclose handler already triggers
+      // reconnection.  Using console.error would cause Next.js dev
+      // overlay to surface this as a visible error.
+      console.warn('WebSocket connection error — will reconnect on close');
     };
   }
 

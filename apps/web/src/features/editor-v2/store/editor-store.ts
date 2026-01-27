@@ -24,6 +24,7 @@ import {
   AudioItemData,
   VideoSettings,
   CaptionStyle,
+  AnimationConfig,
   WordStyleOverrides,
 } from './types';
 
@@ -81,7 +82,7 @@ const initialState: EditorState = {
  * Migrate legacy animation string (e.g. 'pop') to V2 AnimationConfig object.
  * Mirrors the logic in packages/renderer/src/animations/migrate.ts.
  */
-function migrateAnimationLegacy(legacy: string): { in: string; active: string; out: string; easing: string } {
+function migrateAnimationLegacy(legacy: string): AnimationConfig {
   switch (legacy) {
     case 'pop':
       return { in: 'elastic-pop', active: 'none', out: 'none', easing: 'spring' };
@@ -94,6 +95,17 @@ function migrateAnimationLegacy(legacy: string): { in: string; active: string; o
       return { in: 'none', active: 'none', out: 'none', easing: 'linear' };
   }
 }
+
+/**
+ * Track heights per type — taller for video/audio, compact for text-based tracks
+ */
+const TRACK_HEIGHTS: Record<string, number> = {
+  video: 64,
+  audio: 48,
+  caption: 36,
+  text: 36,
+  overlay: 36,
+};
 
 /**
  * Convert API project to editor format
@@ -124,17 +136,21 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
     videoSettings,
   };
 
-  // Convert tracks
-  const tracks: Track[] = apiProject.tracks.map((t) => ({
-    id: t.id,
-    type: t.type as Track['type'],
-    name: t.name,
-    position: t.position,
-    locked: t.locked,
-    visible: t.visible,
-    height: DEFAULT_TRACK_HEIGHT,
-    collapsed: false,
-  }));
+  // Convert tracks (normalize 'subtitle' → 'caption')
+  const tracks: Track[] = apiProject.tracks
+    .map((t) => {
+      const type = t.type === 'subtitle' ? 'caption' : t.type as Track['type'];
+      return {
+        id: t.id,
+        type,
+        name: type === 'caption' ? 'Captions' : t.name,
+        position: t.position,
+        locked: t.locked,
+        visible: t.visible,
+        height: TRACK_HEIGHTS[type as string] || DEFAULT_TRACK_HEIGHT,
+        collapsed: false,
+      };
+    });
 
   // Ensure we have a video track
   const hasVideoTrack = tracks.some((t) => t.type === 'video');
@@ -146,7 +162,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
       position: 0,
       locked: false,
       visible: true,
-      height: DEFAULT_TRACK_HEIGHT,
+      height: TRACK_HEIGHTS.video,
       collapsed: false,
     });
   }
@@ -161,7 +177,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
       position: 1,
       locked: false,
       visible: true,
-      height: DEFAULT_TRACK_HEIGHT,
+      height: TRACK_HEIGHTS.caption,
       collapsed: false,
     });
   }
@@ -586,6 +602,31 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
+    selectRange: (anchorId: string, targetId: string) => {
+      set((state) => {
+        // Find positions of both items within the same track
+        const anchorItem = state.items[anchorId];
+        const targetItem = state.items[targetId];
+        if (!anchorItem || !targetItem) return;
+
+        // Get all items on the same track, sorted by start time
+        const trackId = anchorItem.trackId;
+        const trackItems = state.itemIds
+          .map((id) => state.items[id])
+          .filter((item) => item && item.trackId === trackId)
+          .sort((a, b) => a.startMs - b.startMs);
+
+        const anchorIndex = trackItems.findIndex((item) => item.id === anchorId);
+        const targetIndex = trackItems.findIndex((item) => item.id === targetId);
+        if (anchorIndex === -1 || targetIndex === -1) return;
+
+        const start = Math.min(anchorIndex, targetIndex);
+        const end = Math.max(anchorIndex, targetIndex);
+
+        state.selectedIds = trackItems.slice(start, end + 1).map((item) => item.id);
+      });
+    },
+
     selectAll: () => {
       set((state) => {
         state.selectedIds = [...state.itemIds];
@@ -877,7 +918,7 @@ export const useEditorStore = create<EditorStore>()(
             position: state.tracks.length,
             locked: false,
             visible: true,
-            height: DEFAULT_TRACK_HEIGHT,
+            height: TRACK_HEIGHTS.audio || DEFAULT_TRACK_HEIGHT,
             collapsed: false,
           };
           state.tracks.push(newTrack);

@@ -12,10 +12,36 @@ Usage:
     [--device auto] [--compute-type float16] [--batch-size 16]
 """
 
+import os
 import sys
 import json
+import logging
 import argparse
+import warnings
+
+# Force ALL logging and warnings to stderr so stdout stays clean for JSON output.
+logging.basicConfig(stream=sys.stderr, level=logging.WARNING)
+warnings.showwarning = lambda msg, cat, *a, **kw: print(f"{cat.__name__}: {msg}", file=sys.stderr)
+
+# PyTorch 2.6+ defaults weights_only=True which breaks pyannote/whisperx model loading.
+# Set env var before importing torch — this is the most reliable fix.
+os.environ["TORCH_FORCE_NO_WEIGHTS_ONLY_LOAD"] = "1"
+
 import torch
+
+# Belt-and-suspenders: also monkey-patch torch.load for code paths that
+# call the function directly without respecting the env var.
+_real_torch_load = torch.load.__wrapped__ if hasattr(torch.load, "__wrapped__") else torch.load
+def _safe_load(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _real_torch_load(*args, **kwargs)
+torch.load = _safe_load
+
+import lightning_fabric.utilities.cloud_io as _cio
+def _patched_cio_load(path_or_url, map_location=None, **kwargs):
+    return torch.load(str(path_or_url), map_location=map_location)
+_cio._load = _patched_cio_load
+
 import whisperx
 
 

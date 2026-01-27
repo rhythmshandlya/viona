@@ -24,14 +24,6 @@ export function Playhead({ rulerHeight = 24, className }: PlayheadProps) {
   const duration = useDuration();
   const { setCurrentTime, startDrag, updateDrag, endDrag } = useEditorActions();
 
-  // Calculate position
-  const x = currentTimeMs * viewport.zoom - viewport.scrollX;
-
-  // Don't render if off screen
-  if (x < 0 || x > 10000) {
-    return null;
-  }
-
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       e.stopPropagation();
@@ -70,6 +62,14 @@ export function Playhead({ rulerHeight = 24, className }: PlayheadProps) {
     },
     [endDrag]
   );
+
+  // Calculate position
+  const x = currentTimeMs * viewport.zoom - viewport.scrollX;
+
+  // Don't render if off screen (after all hooks)
+  if (x < 0 || x > 10000) {
+    return null;
+  }
 
   return (
     <div

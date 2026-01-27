@@ -15,6 +15,8 @@ import {
   SnapTarget,
 } from '../../store/types';
 import { DragPreview } from '../interactions/DragManager';
+import { getRenderer } from './renderers/registry';
+import { ItemRect, RenderItemState } from './renderers/types';
 
 export interface RenderState {
   tracks: Track[];
@@ -29,6 +31,9 @@ export interface RenderState {
   // Phase 2: Drag previews and snap lines
   dragPreviews?: DragPreview[];
   snapLines?: { position: number; type: SnapTarget['type'] }[];
+  // Split tool state
+  splitMode?: boolean;
+  splitCursorTimeMs?: number;
 }
 
 export interface CanvasRendererOptions {
@@ -110,6 +115,7 @@ export class CanvasRenderer {
   }
 
   public resize(): void {
+    this.dpr = window.devicePixelRatio || 1;
     this.setupCanvas();
   }
 
@@ -156,6 +162,11 @@ export class CanvasRenderer {
 
     // Draw resize handles on selected items
     this.drawResizeHandles(state);
+
+    // Draw split line indicator when split mode is active
+    if (state.splitMode && state.splitCursorTimeMs !== undefined) {
+      this.drawSplitLine(state);
+    }
 
     // Draw playhead
     this.drawPlayhead(state);
@@ -263,6 +274,23 @@ export class CanvasRenderer {
     if (x + width < 0 || x > this.getWidth()) {
       return;
     }
+
+    // Try the renderer registry first
+    const renderer = getRenderer(item.type);
+    if (renderer) {
+      const rect: ItemRect = { x, y, width, height };
+      const renderState: RenderItemState = {
+        isSelected,
+        isHovered: false,
+        isDragPreview: false,
+        isInvalid: false,
+        zoom: viewport.zoom,
+      };
+      renderer.draw(ctx, item, rect, renderState);
+      return; // Skip fallback
+    }
+
+    // --- Fallback: legacy inline drawing ---
 
     // Item background
     const color = options.itemColors[item.type] || options.itemColors.text;
@@ -450,6 +478,37 @@ export class CanvasRenderer {
     if (width > 40) {
       ctx.fillText(item.type, x + padding, y + height / 2);
     }
+  }
+
+  /**
+   * Draw split line indicator — vertical dashed red/orange line at cursor time position
+   */
+  private drawSplitLine(state: RenderState): void {
+    const { ctx } = this;
+    const { viewport, splitCursorTimeMs } = state;
+    const height = this.getHeight();
+
+    if (splitCursorTimeMs === undefined) return;
+
+    // Calculate x position from time
+    const x = splitCursorTimeMs * viewport.zoom - viewport.scrollX;
+
+    // Skip if off screen
+    if (x < 0 || x > this.getWidth()) {
+      return;
+    }
+
+    // Draw vertical dashed line in red/orange
+    ctx.save();
+    ctx.strokeStyle = '#f97316'; // orange-500
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
   }
 
   private drawPlayhead(state: RenderState): void {

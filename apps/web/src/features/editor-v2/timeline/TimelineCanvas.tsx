@@ -9,6 +9,12 @@ import React, { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import { CanvasRenderer, RenderState } from './canvas/CanvasRenderer';
 import { HitTester } from './canvas/HitTester';
 import { getDragManager, DragPreview } from './interactions/DragManager';
+import { getSplitTool } from './interactions/SplitTool';
+import { registerRenderer } from './canvas/renderers/registry';
+import { VideoRenderer } from './canvas/renderers/VideoRenderer';
+import { AudioRenderer } from './canvas/renderers/AudioRenderer';
+import { CaptionRenderer } from './canvas/renderers/CaptionRenderer';
+import { BaseRenderer } from './canvas/renderers/BaseRenderer';
 import {
   useTracks,
   useItems,
@@ -19,9 +25,11 @@ import {
   useViewport,
   useSelectionBox,
   useDragState,
+  useSplitMode,
   useEditorActions,
 } from '../store/use-editor-store';
 import { DragState, SnapTarget } from '../store/types';
+import { useContextMenu, ContextMenu } from './context-menu';
 
 interface TimelineCanvasProps {
   className?: string;
@@ -32,11 +40,16 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   const rendererRef = useRef<CanvasRenderer | null>(null);
   const hitTesterRef = useRef<HitTester>(new HitTester());
   const dragManagerRef = useRef(getDragManager());
+  const splitToolRef = useRef(getSplitTool());
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Context menu
+  const contextMenu = useContextMenu();
 
   // Local state for drag previews and snap lines
   const [dragPreviews, setDragPreviews] = useState<DragPreview[]>([]);
   const [snapLines, setSnapLines] = useState<{ position: number; type: SnapTarget['type'] }[]>([]);
+  const [splitCursorTimeMs, setSplitCursorTimeMs] = useState<number>(0);
 
   // State
   const tracks = useTracks();
@@ -48,6 +61,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   const viewport = useViewport();
   const selectionBox = useSelectionBox();
   const dragState = useDragState();
+  const splitMode = useSplitMode();
 
   // Actions
   const {
@@ -60,6 +74,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     endDrag,
     moveItem,
     resizeItem,
+    splitItem,
   } = useEditorActions();
 
   // Build render state
@@ -76,9 +91,15 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       dragState,
       dragPreviews,
       snapLines,
+      splitMode,
+      splitCursorTimeMs,
     }),
-    [tracks, items, itemIds, selectedIds, currentTimeMs, duration, viewport, selectionBox, dragState, dragPreviews, snapLines]
+    [tracks, items, itemIds, selectedIds, currentTimeMs, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs]
   );
+
+  // Keep render state in a ref so the ResizeObserver callback always has the latest
+  const renderStateRef = useRef<RenderState>(renderState);
+  renderStateRef.current = renderState;
 
   // Initialize renderer
   useEffect(() => {
@@ -92,24 +113,39 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     };
   }, []);
 
-  // Handle resize
+  // Register item renderers on mount
   useEffect(() => {
-    const handleResize = () => {
+    const requestRedraw = () => {
       if (rendererRef.current) {
-        rendererRef.current.resize();
-        rendererRef.current.render(renderState);
+        rendererRef.current.requestRender(renderStateRef.current);
       }
     };
+    registerRenderer('video', new VideoRenderer(requestRedraw));
+    registerRenderer('audio', new AudioRenderer(requestRedraw));
+    registerRenderer('caption', new CaptionRenderer());
+    registerRenderer('text', new BaseRenderer());
+    registerRenderer('image', new BaseRenderer());
+  }, []);
 
-    window.addEventListener('resize', handleResize);
+  // Handle resize via ResizeObserver — detects both window resize AND container size changes
+  // (e.g. when user drags the timeline resize handle)
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-    // Initial render
-    handleResize();
+    const observer = new ResizeObserver(() => {
+      if (rendererRef.current) {
+        rendererRef.current.resize();
+        rendererRef.current.render(renderStateRef.current);
+      }
+    });
+
+    observer.observe(container);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      observer.disconnect();
     };
-  }, [renderState]);
+  }, []);
 
   // Render on state change
   useEffect(() => {
@@ -134,6 +170,27 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       const { x, y } = getCanvasCoords(e);
       const hitTester = hitTesterRef.current;
       const dragManager = dragManagerRef.current;
+
+      // Split mode: find item under cursor and split it
+      if (splitMode) {
+        const timeMs = hitTester.xToTime(x, viewport);
+        const track = hitTester.getTrackAtY(y, {
+          tracks,
+          items,
+          itemIds,
+          viewport,
+          currentTimeMs,
+        });
+
+        if (track) {
+          const splitTool = splitToolRef.current;
+          const itemId = splitTool.findItemAtPosition(timeMs, track.id, items, itemIds);
+          if (itemId) {
+            splitItem(itemId, timeMs);
+          }
+        }
+        return; // Don't start drags in split mode
+      }
 
       const hit = hitTester.hitTest(x, y, {
         tracks,
@@ -202,9 +259,11 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       viewport,
       currentTimeMs,
       selectedIds,
+      splitMode,
       select,
       clearSelection,
       startDrag,
+      splitItem,
     ]
   );
 
@@ -214,6 +273,18 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       const { x, y } = getCanvasCoords(e);
       const hitTester = hitTesterRef.current;
       const dragManager = dragManagerRef.current;
+
+      // Split mode: show crosshair cursor and update split cursor time
+      if (splitMode) {
+        if (canvasRef.current) {
+          canvasRef.current.style.cursor = 'crosshair';
+        }
+        const timeMs = hitTester.xToTime(x, viewport);
+        const splitTool = splitToolRef.current;
+        splitTool.setCursorTime(timeMs);
+        setSplitCursorTimeMs(timeMs);
+        return;
+      }
 
       // Update cursor based on what's under the pointer
       if (!dragState) {
@@ -303,6 +374,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     [
       getCanvasCoords,
       dragState,
+      splitMode,
       tracks,
       items,
       itemIds,
@@ -399,6 +471,38 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     [getCanvasCoords, viewport, duration, setCurrentTime]
   );
 
+  // Handle right-click context menu
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      e.preventDefault();
+
+      if (!canvasRef.current) return;
+
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const hitTester = hitTesterRef.current;
+
+      const hit = hitTester.hitTest(x, y, {
+        tracks,
+        items,
+        itemIds,
+        viewport,
+        currentTimeMs,
+      });
+
+      const timeMs = hitTester.xToTime(x, viewport);
+
+      contextMenu.open(e, {
+        type: hit.type === 'playhead' ? 'empty' : hit.type,
+        itemId: hit.itemId,
+        trackId: hit.trackId,
+        timeMs,
+      });
+    },
+    [tracks, items, itemIds, viewport, currentTimeMs, contextMenu]
+  );
+
   return (
     <div ref={containerRef} className={`relative w-full h-full ${className || ''}`}>
       <canvas
@@ -409,7 +513,9 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerLeave}
         onDoubleClick={handleDoubleClick}
+        onContextMenu={handleContextMenu}
       />
+      <ContextMenu state={contextMenu.state} onClose={contextMenu.close} />
     </div>
   );
 }

@@ -23,10 +23,11 @@ export class VideoRenderer extends BaseRenderer {
 
     const data = item.data as VideoItemData;
     const { x, y, width, height } = rect;
-    const thumbHeight = height - 8;
-    const thumbAspect = (data.width && data.height) ? data.width / data.height : 16 / 9;
-    const thumbWidth = Math.round(thumbHeight * thumbAspect);
-    const thumbCount = Math.max(1, Math.ceil(width / thumbWidth));
+    const drawHeight = height - 8;
+    const drawY = y + 4;
+    // Use a fixed square tile so spacing is consistent regardless of video aspect
+    const tileWidth = drawHeight;
+    const thumbCount = Math.max(1, Math.ceil(width / tileWidth));
     const durationMs = item.endMs - item.startMs;
     const cache = getThumbnailCache();
 
@@ -36,20 +37,32 @@ export class VideoRenderer extends BaseRenderer {
     ctx.clip();
 
     for (let i = 0; i < thumbCount; i++) {
-      const thumbX = x + (i / thumbCount) * width;
-      const slotWidth = width / thumbCount;
-      const timeMs = item.startMs + (i / thumbCount) * durationMs;
+      const tileX = x + i * tileWidth;
+      const timeMs = item.startMs + (tileX - x) / width * durationMs;
       const bitmap = cache.getThumbnail(data.src, Math.round(timeMs));
 
       if (bitmap) {
-        ctx.drawImage(bitmap, thumbX, y + 4, slotWidth, thumbHeight);
+        // Letterbox: scale full frame to fit tile, center with dark bars
+        const bw = bitmap.width;
+        const bh = bitmap.height;
+        const scale = Math.min(tileWidth / bw, drawHeight / bh);
+        const dw = Math.round(bw * scale);
+        const dh = Math.round(bh * scale);
+        const dx = tileX + Math.round((tileWidth - dw) / 2);
+        const dy = drawY + Math.round((drawHeight - dh) / 2);
+
+        // Dark background behind letterbox bars
+        ctx.fillStyle = '#111';
+        ctx.fillRect(tileX, drawY, tileWidth, drawHeight);
+
+        ctx.drawImage(bitmap, dx, dy, dw, dh);
       } else {
         // Gradient placeholder
-        const grad = ctx.createLinearGradient(thumbX, y + 4, thumbX + slotWidth, y + 4 + thumbHeight);
+        const grad = ctx.createLinearGradient(tileX, drawY, tileX + tileWidth, drawY + drawHeight);
         grad.addColorStop(0, 'rgba(59, 130, 246, 0.3)');
         grad.addColorStop(1, 'rgba(59, 130, 246, 0.15)');
         ctx.fillStyle = grad;
-        ctx.fillRect(thumbX, y + 4, slotWidth, thumbHeight);
+        ctx.fillRect(tileX, drawY, tileWidth, drawHeight);
         // Request async extraction
         cache.requestThumbnail(data.src, Math.round(timeMs), this.requestRedraw);
       }

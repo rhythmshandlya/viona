@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import {
@@ -169,7 +169,7 @@ function CaptionStylePanel() {
             { value: 'fade', label: 'Fade' },
             { value: 'highlight', label: 'Glow' },
           ]}
-          value={style.animation}
+          value={typeof style.animation === 'string' ? style.animation : 'none'}
           onChange={(value) => updateStyle({ animation: value as CaptionAnimationLegacy })}
         />
       </Section>

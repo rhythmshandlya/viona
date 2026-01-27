@@ -212,6 +212,30 @@ export function useCanRedo() {
 
 export const useClipboard = () => useEditorStore((s) => s.clipboard);
 export const useSplitMode = () => useEditorStore((s) => s.splitMode);
+export const useApplyStyleToAll = () => useEditorStore((s) => s.applyStyleToAll);
+
+/**
+ * Get the caption style for the first selected caption item.
+ * Falls back to the first caption in the project if nothing is selected.
+ */
+export function useActiveCaptionStyle(): CaptionStyle | null {
+  return useEditorStore(
+    useShallow((state) => {
+      // Try selected items first
+      for (const id of state.selectedIds) {
+        const item = state.items[id];
+        if (item?.type === 'caption') {
+          return (item.data as CaptionItemData)?.style || null;
+        }
+      }
+      // Fall back to first caption in project
+      const captionId = state.itemIds.find((id) => state.items[id]?.type === 'caption');
+      if (!captionId) return null;
+      const caption = state.items[captionId];
+      return (caption?.data as CaptionItemData)?.style || null;
+    })
+  );
+}
 
 // ============================================
 // Action Hooks
@@ -245,6 +269,7 @@ export function useEditorActions() {
 
       // Selection
       select: state.select,
+      selectRange: state.selectRange,
       selectAll: state.selectAll,
       clearSelection: state.clearSelection,
       setSelectionBox: state.setSelectionBox,

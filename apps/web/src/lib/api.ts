@@ -132,7 +132,7 @@ class ApiClient {
 
   async updateProject(
     projectId: string,
-    updates: { tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[] }
+    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[] }
   ): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}`, {
       method: 'PATCH',

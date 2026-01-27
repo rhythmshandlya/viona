@@ -4,6 +4,17 @@
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./src/index.ts"
+    },
+    "./animations": {
+      "import": "./dist/animations/index.js",
+      "types": "./src/animations/index.ts"
+    }
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",

@@ -2,7 +2,7 @@ import { BaseRenderer } from './BaseRenderer';
 import { ItemRect, RenderItemState } from './types';
 import { TimelineItem, AudioItemData } from '../../../store/types';
 import { getWaveformCache } from '../WaveformCache';
-import { roundRect, drawPill } from './canvasUtils';
+import { drawPill } from './canvasUtils';
 
 export class AudioRenderer extends BaseRenderer {
   private requestRedraw: () => void;
@@ -90,7 +90,7 @@ export class AudioRenderer extends BaseRenderer {
   private drawEnhancementBadge(
     ctx: CanvasRenderingContext2D,
     data: AudioItemData,
-    x: number, y: number, width: number, height: number
+    x: number, y: number, width: number, _height: number
   ): void {
     if (width < 80) return;
 

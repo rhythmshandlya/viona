@@ -1,5 +1,5 @@
-import Editor from "@/features/editor";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <Editor />;
+  redirect("/upload");
 }

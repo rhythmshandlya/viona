@@ -1,6 +1,7 @@
 /**
  * Timeline Component
- * Minimal timeline with thin tracks - Linear/Figma inspired
+ * Two-column layout: track headers (left) + canvas area (right)
+ * Linear/Figma inspired
  */
 
 'use client';
@@ -9,9 +10,12 @@ import { useRef, useEffect, useCallback } from 'react';
 import { TimelineCanvas } from './TimelineCanvas';
 import { TimelineRuler } from './TimelineRuler';
 import { Playhead } from './Playhead';
+import { TrackHeaders } from './track-headers';
+import { getAutoScroll } from './interactions/AutoScroll';
 import {
   useViewport,
-  useDuration,
+  useCurrentTimeMs,
+  useIsPlaying,
   useEditorActions,
 } from '../store/use-editor-store';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
@@ -28,10 +32,19 @@ export function Timeline({ className }: TimelineProps) {
 
   // State
   const viewport = useViewport();
-  const duration = useDuration();
+  const currentTimeMs = useCurrentTimeMs();
+  const isPlaying = useIsPlaying();
 
   // Actions
   const { setZoom, setScrollX, setScrollY, zoomToFit } = useEditorActions();
+
+  // AutoScroll: keep playhead visible during playback
+  useEffect(() => {
+    if (!isPlaying) return;
+    const autoScroll = getAutoScroll();
+    const canvasWidth = scrollContainerRef.current?.getBoundingClientRect().width || 0;
+    autoScroll.update(currentTimeMs, isPlaying, viewport, canvasWidth, setScrollX);
+  }, [currentTimeMs, isPlaying, viewport, setScrollX]);
 
   // Handle horizontal scroll
   const handleWheel = useCallback(
@@ -76,10 +89,13 @@ export function Timeline({ className }: TimelineProps) {
   return (
     <div
       ref={containerRef}
-      className={`flex flex-col bg-[var(--editor-bg-surface)] ${className || ''}`}
+      className={`flex flex-row bg-[var(--editor-bg-surface)] ${className || ''}`}
     >
-      {/* Timeline area with ruler */}
-      <div className="relative flex-1 overflow-hidden" ref={scrollContainerRef}>
+      {/* Track headers - fixed width left column */}
+      <TrackHeaders rulerHeight={RULER_HEIGHT} />
+
+      {/* Canvas area - flexible right column */}
+      <div ref={scrollContainerRef} className="flex-1 relative overflow-hidden">
         {/* Ruler */}
         <div className="absolute top-0 left-0 right-0 z-10">
           <TimelineRuler height={RULER_HEIGHT} />

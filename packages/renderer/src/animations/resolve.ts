@@ -45,10 +45,8 @@ export function resolveAnimation(
       progress = easing((ctx.elapsedMs - inDuration - activeDuration) / Math.max(outDuration, 1));
     }
 
-    const animFn = getAnimation(
-      config[phase === 'idle' ? 'in' : phase],
-      phase === 'idle' ? 'in' : phase
-    );
+    const animPhase = phase as 'in' | 'active' | 'out';
+    const animFn = getAnimation(config[animPhase], animPhase);
     const animStyle = animFn(Math.max(0, Math.min(1, progress)));
 
     return { style: animStyle, phase };

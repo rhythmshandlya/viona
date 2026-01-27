@@ -38,6 +38,9 @@ tmp/
 temp/
 *.tmp
 
+# Python virtual environments
+.venv/
+
 # Whisper models (large files)
 whisper.cpp/
 *.bin
