@@ -9,7 +9,9 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
-    "whisper:install": "tsx src/scripts/install-whisper.ts"
+    "whisper:install": "tsx src/scripts/install-whisper.ts",
+    "enhance:setup": "bash ./scripts/setup-enhance.sh",
+    "enhance:setup:win": ".\\scripts\\setup-enhance.bat"
   },
   "dependencies": {
     "@reelify/renderer": "workspace:*",
