@@ -5,7 +5,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts } from '../db/index.js';
 import { config } from '../config.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getObjectStat } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob } from '../services/queue.js';
+import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob } from '../services/queue.js';
 import type { ProjectStatus } from '@reelify/shared';
 
 // Validation schemas
@@ -296,6 +296,74 @@ export async function projectRoutes(fastify: FastifyInstance) {
     });
 
     return { jobId: job.id };
+  });
+
+  // Separate audio from video and enhance
+  fastify.post('/projects/:id/separate-audio', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      videoItemId: z.string(),
+    }).parse(request.body);
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!project.videoKey) {
+      return reply.status(400).send({ error: 'No video uploaded' });
+    }
+
+    // Create audio track
+    const [audioTrack] = await db.insert(tracks).values({
+      projectId: id,
+      type: 'audio',
+      name: 'Audio',
+      position: 2,
+    }).returning();
+
+    // Create audio timeline item (spans full video duration)
+    const [audioItem] = await db.insert(timelineItems).values({
+      trackId: audioTrack.id,
+      type: 'audio',
+      startMs: 0,
+      endMs: project.durationMs || 0,
+      data: {
+        src: '',
+        originalSrc: '',
+        isEnhanced: false,
+        sourceVideoItemId: body.videoItemId,
+        volume: 1,
+        enhancementStatus: 'processing',
+        enhancementProgress: 0,
+      },
+    }).returning();
+
+    // Create job record
+    const [job] = await db.insert(jobs).values({
+      projectId: id,
+      type: 'enhance-audio',
+      status: 'pending',
+    }).returning();
+
+    // Queue the enhancement job
+    await queueEnhanceAudioJob({
+      projectId: id,
+      jobId: job.id,
+      videoKey: project.videoKey,
+      audioTrackId: audioTrack.id,
+      audioItemId: audioItem.id,
+      videoItemId: body.videoItemId,
+    });
+
+    return {
+      jobId: job.id,
+      trackId: audioTrack.id,
+      itemId: audioItem.id,
+    };
   });
 
   // Get download URL
