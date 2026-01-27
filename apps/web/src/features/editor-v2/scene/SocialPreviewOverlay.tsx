@@ -55,7 +55,7 @@ function SafeZoneOverlay({ platform, width, height }: ZoneProps) {
 
   return (
     <div
-      className="absolute inset-0"
+      className="absolute inset-0 z-10"
       style={{ pointerEvents: 'none', width, height }}
     >
       {/* Top zone */}
@@ -109,14 +109,24 @@ function SafeZoneOverlay({ platform, width, height }: ZoneProps) {
 function MockupOverlay({ platform, width, height }: ZoneProps) {
   const s = width / 1080;
 
-  switch (platform) {
-    case 'instagram':
-      return <InstagramMockup width={width} height={height} s={s} />;
-    case 'tiktok':
-      return <TikTokMockup width={width} height={height} s={s} />;
-    case 'youtube':
-      return <YouTubeMockup width={width} height={height} s={s} />;
-  }
+  return (
+    <div className="absolute inset-0 pointer-events-none z-10" style={{ fontSize: 14 * s }}>
+      {(() => {
+        switch (platform) {
+          case 'instagram':
+            return <InstagramMockup width={width} height={height} s={s} />;
+          case 'tiktok':
+            return <TikTokMockup width={width} height={height} s={s} />;
+          case 'youtube':
+            return <YouTubeMockup width={width} height={height} s={s} />;
+          default: {
+            const _exhaustive: never = platform;
+            return null;
+          }
+        }
+      })()}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -175,7 +185,7 @@ function InstagramMockup({ width, height, s }: MockupProps) {
   const navH = 44 * s;
 
   return (
-    <div className="absolute inset-0" style={{ pointerEvents: 'none', width, height }}>
+    <>
       {/* Right-side action icons */}
       <div
         className="absolute flex flex-col items-center"
@@ -246,7 +256,7 @@ function InstagramMockup({ width, height, s }: MockupProps) {
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -256,7 +266,7 @@ function TikTokMockup({ width, height, s }: MockupProps) {
   const iconSize = 28 * s;
 
   return (
-    <div className="absolute inset-0" style={{ pointerEvents: 'none', width, height }}>
+    <>
       {/* Right-side: profile + action icons + spinning disc */}
       <div
         className="absolute flex flex-col items-center"
@@ -324,7 +334,7 @@ function TikTokMockup({ width, height, s }: MockupProps) {
           </span>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -335,7 +345,7 @@ function YouTubeMockup({ width, height, s }: MockupProps) {
   const navH = 44 * s;
 
   return (
-    <div className="absolute inset-0" style={{ pointerEvents: 'none', width, height }}>
+    <>
       {/* Right-side action icons */}
       <div
         className="absolute flex flex-col items-center"
@@ -416,6 +426,6 @@ function YouTubeMockup({ width, height, s }: MockupProps) {
           </div>
         ))}
       </div>
-    </div>
+    </>
   );
 }
