@@ -7,3 +7,4 @@ export { registerRenderer, getRenderer } from './registry';
 export { roundRect, truncateText, drawPill } from './canvasUtils';
 export { BaseRenderer } from './BaseRenderer';
 export { CaptionRenderer } from './CaptionRenderer';
+export { AudioRenderer } from './AudioRenderer';

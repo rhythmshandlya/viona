@@ -1,0 +1,111 @@
+import { BaseRenderer } from './BaseRenderer';
+import { ItemRect, RenderItemState } from './types';
+import { TimelineItem, AudioItemData } from '../../../store/types';
+import { getWaveformCache } from '../WaveformCache';
+import { roundRect, drawPill } from './canvasUtils';
+
+export class AudioRenderer extends BaseRenderer {
+  private requestRedraw: () => void;
+
+  constructor(requestRedraw: () => void) {
+    super();
+    this.requestRedraw = requestRedraw;
+  }
+
+  draw(
+    ctx: CanvasRenderingContext2D,
+    item: TimelineItem,
+    rect: ItemRect,
+    state: RenderItemState
+  ): void {
+    super.draw(ctx, item, rect, state);
+
+    const data = item.data as AudioItemData;
+    const { x, y, width, height } = rect;
+    const cache = getWaveformCache();
+
+    // Draw waveform
+    const waveform = data.waveformData
+      ? new Float32Array(data.waveformData)
+      : cache.getWaveform(data.src);
+
+    if (waveform && waveform.length > 0) {
+      this.drawWaveform(ctx, waveform, x, y, width, height);
+    } else {
+      this.drawFakeWaveform(ctx, x, y, width, height);
+      if (data.src) {
+        cache.requestWaveform(data.src, this.requestRedraw);
+      }
+    }
+
+    // Enhancement badge
+    this.drawEnhancementBadge(ctx, data, x, y, width, height);
+  }
+
+  private drawWaveform(
+    ctx: CanvasRenderingContext2D,
+    peaks: Float32Array,
+    x: number, y: number, width: number, height: number
+  ): void {
+    const centerY = y + height / 2;
+    const maxAmplitude = (height - 16) / 2; // Leave padding
+    const barWidth = Math.max(1, width / peaks.length);
+
+    ctx.fillStyle = '#4ade80'; // green-400
+
+    for (let i = 0; i < peaks.length; i++) {
+      const barX = x + (i / peaks.length) * width;
+      if (barX < x || barX > x + width) continue;
+
+      const peakHeight = peaks[i] * maxAmplitude;
+      // Draw mirrored bar
+      ctx.fillRect(barX, centerY - peakHeight, Math.max(1, barWidth - 0.5), peakHeight * 2);
+    }
+  }
+
+  private drawFakeWaveform(
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number, width: number, height: number
+  ): void {
+    const centerY = y + height / 2;
+    const waveHeight = height * 0.6;
+    const steps = Math.min(width / 3, 50);
+
+    ctx.strokeStyle = 'rgba(74, 222, 128, 0.5)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+
+    for (let i = 0; i < steps; i++) {
+      const xPos = x + (i / steps) * width;
+      const amplitude = Math.sin(i * 0.5) * (waveHeight / 2) * 0.7;
+      if (i === 0) {
+        ctx.moveTo(xPos, centerY + amplitude);
+      } else {
+        ctx.lineTo(xPos, centerY + amplitude);
+      }
+    }
+    ctx.stroke();
+  }
+
+  private drawEnhancementBadge(
+    ctx: CanvasRenderingContext2D,
+    data: AudioItemData,
+    x: number, y: number, width: number, height: number
+  ): void {
+    if (width < 80) return;
+
+    if (data.enhancementStatus === 'processing') {
+      drawPill(ctx, x + width - 78, y + 4, 'Enhancing...', {
+        bg: 'rgba(34, 197, 94, 0.3)',
+        textColor: '#22c55e',
+        fontSize: 10,
+      });
+    } else if (data.isEnhanced && data.enhancementStatus === 'complete') {
+      drawPill(ctx, x + width - 72, y + 4, 'Enhanced', {
+        bg: 'rgba(34, 197, 94, 0.2)',
+        textColor: '#22c55e',
+        fontSize: 10,
+      });
+    }
+  }
+}
