@@ -136,7 +136,11 @@ export interface VisualData {
 // ============================================
 
 export interface AudioData {
-  audioKey: string;
+  src: string;              // current playback URL (original or enhanced)
+  originalSrc: string;      // always points to original audio file
+  enhancedSrc?: string;     // points to enhanced audio file (once processed)
+  isEnhanced: boolean;      // toggle state
+  sourceVideoItemId: string; // links back to the parent video item
   volume: number;
   fadeIn?: number;
   fadeOut?: number;
@@ -251,7 +255,7 @@ export interface Transcript {
 // Job Types
 // ============================================
 
-export type JobType = 'transcribe' | 'analyze' | 'generate-visual' | 'render';
+export type JobType = 'transcribe' | 'analyze' | 'generate-visual' | 'render' | 'enhance-audio';
 
 export type JobStatus = 'pending' | 'processing' | 'complete' | 'failed';
 
