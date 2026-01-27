@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import { config } from './config.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
 import { processRenderJob, RenderJobData } from './processors/render.js';
+import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhance-audio.js';
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {
@@ -60,6 +61,27 @@ async function main() {
     console.error(`Render job ${job?.id} failed:`, err);
   });
 
+  // Enhance audio worker
+  const enhanceAudioWorker = new Worker<EnhanceAudioJobData>(
+    'enhance-audio',
+    async (job) => {
+      console.log(`Processing enhance-audio job ${job.id} for project ${job.data.projectId}`);
+      await processEnhanceAudioJob(job);
+    },
+    {
+      connection,
+      concurrency: 1,
+    }
+  );
+
+  enhanceAudioWorker.on('completed', (job) => {
+    console.log(`Enhance-audio job ${job.id} completed`);
+  });
+
+  enhanceAudioWorker.on('failed', (job, err) => {
+    console.error(`Enhance-audio job ${job?.id} failed:`, err);
+  });
+
   console.log('Worker started, waiting for jobs...');
 
   // Graceful shutdown
@@ -67,6 +89,7 @@ async function main() {
     console.log('Shutting down worker...');
     await transcribeWorker.close();
     await renderWorker.close();
+    await enhanceAudioWorker.close();
     process.exit(0);
   };
 
