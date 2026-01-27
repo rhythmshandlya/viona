@@ -21,6 +21,8 @@ import {
   CaptionDisplayMode,
   CaptionAnimationLegacy,
   CaptionStyle,
+  AudioItemData,
+  VideoItemData,
 } from '../store/types';
 import { SUBTITLE_PRESETS, PRESET_ORDER } from '@/lib/subtitle-presets';
 
@@ -61,7 +63,8 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
       : `${selectedIds.length} items selected`;
   } else {
     panelTitle = firstSelectedItem.type === 'caption' ? 'Caption Style' :
-                 firstSelectedItem.type === 'video' ? 'Video Position' :
+                 firstSelectedItem.type === 'video' ? 'Video' :
+                 firstSelectedItem.type === 'audio' ? 'Audio' :
                  'Properties';
   }
 
@@ -88,7 +91,8 @@ export function ContextPanel({ onClose }: ContextPanelProps) {
       {/* Content */}
       <div className="overflow-y-auto h-[calc(100%-48px)]">
         {firstSelectedItem.type === 'caption' && <CaptionStylePanel />}
-        {firstSelectedItem.type === 'video' && <VideoPositionPanel />}
+        {firstSelectedItem.type === 'video' && <VideoPanel />}
+        {firstSelectedItem.type === 'audio' && <AudioPanel />}
       </div>
     </div>
   );
@@ -276,17 +280,60 @@ function CaptionStylePanel() {
 }
 
 // ============================================
-// Video Position Panel
+// Video Panel (position + audio separation)
 // ============================================
 
-function VideoPositionPanel() {
+function VideoPanel() {
+  const selectedIds = useSelectedIds();
+  const videoItem = useItem(selectedIds[0] || '');
   const videoSettings = useVideoSettings();
-  const { updateVideoSettings } = useEditorActions();
+  const { updateVideoSettings, separateAudio } = useEditorActions();
+  const [isSeparating, setIsSeparating] = useState(false);
 
-  if (!videoSettings) return null;
+  if (!videoSettings || !videoItem) return null;
+
+  const videoData = videoItem.data as VideoItemData;
+  const isAudioSeparated = !!videoData.muted;
+
+  const handleSeparateAudio = async () => {
+    setIsSeparating(true);
+    await separateAudio(videoItem.id);
+    setIsSeparating(false);
+  };
 
   return (
     <div className="p-4 space-y-6">
+      {/* Audio Separation */}
+      {!isAudioSeparated && (
+        <Section label="Audio">
+          <button
+            onClick={handleSeparateAudio}
+            disabled={isSeparating}
+            className="w-full py-2 px-3 text-sm font-medium rounded-md
+                       bg-[var(--editor-accent)] text-white
+                       hover:opacity-90 transition-opacity
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSeparating ? 'Separating...' : 'Separate Audio'}
+          </button>
+          <p className="text-xs text-[var(--editor-text-muted)]">
+            Extract audio into its own track with automatic enhancement
+          </p>
+        </Section>
+      )}
+
+      {isAudioSeparated && (
+        <Section label="Audio">
+          <div className="flex items-center gap-2 py-1 px-2 rounded bg-[var(--editor-bg-elevated)]">
+            <span className="text-xs text-[var(--editor-text-muted)]">
+              Audio separated — video is muted
+            </span>
+          </div>
+        </Section>
+      )}
+
+      <Divider />
+
       {/* Horizontal Position */}
       <Section label="Horizontal Pan">
         <div className="flex items-center gap-3">
@@ -349,6 +396,85 @@ function VideoPositionPanel() {
       >
         Reset to center
       </button>
+    </div>
+  );
+}
+
+// ============================================
+// Audio Panel
+// ============================================
+
+function AudioPanel() {
+  const selectedIds = useSelectedIds();
+  const audioItem = useItem(selectedIds[0] || '');
+  const { toggleEnhancement, updateItemData } = useEditorActions();
+
+  if (!audioItem || audioItem.type !== 'audio') return null;
+
+  const data = audioItem.data as AudioItemData;
+  const isProcessing = data.enhancementStatus === 'processing';
+  const isComplete = data.enhancementStatus === 'complete';
+  const isError = data.enhancementStatus === 'error';
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* Enhancement Status */}
+      <Section label="Enhancement">
+        {isProcessing && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-[var(--editor-accent)] animate-pulse" />
+              <span className="text-xs text-[var(--editor-text-secondary)]">
+                Enhancing audio... {data.enhancementProgress || 0}%
+              </span>
+            </div>
+            <div className="w-full h-1 bg-[var(--editor-bg-elevated)] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[var(--editor-accent)] transition-all duration-300"
+                style={{ width: `${data.enhancementProgress || 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {isComplete && (
+          <button
+            onClick={() => toggleEnhancement(audioItem.id)}
+            className={`w-full py-2 px-3 text-sm font-medium rounded-md transition-all ${
+              data.isEnhanced
+                ? 'bg-[var(--editor-accent)] text-white'
+                : 'bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] border border-[var(--editor-border-default)]'
+            }`}
+          >
+            {data.isEnhanced ? 'Enhanced' : 'Use Original'}
+          </button>
+        )}
+
+        {isError && (
+          <div className="py-2 px-3 text-xs text-red-400 bg-red-900/20 rounded-md">
+            Enhancement failed. Using original audio.
+          </div>
+        )}
+      </Section>
+
+      <Divider />
+
+      {/* Volume */}
+      <Section label="Volume">
+        <div className="flex items-center gap-3">
+          <Slider
+            value={[data.volume * 100]}
+            min={0}
+            max={200}
+            step={1}
+            onValueChange={([vol]) => updateItemData(audioItem.id, { volume: vol / 100 })}
+            className="flex-1"
+          />
+          <span className="text-xs text-[var(--editor-text-secondary)] w-10 text-right">
+            {Math.round(data.volume * 100)}%
+          </span>
+        </div>
+      </Section>
     </div>
   );
 }
