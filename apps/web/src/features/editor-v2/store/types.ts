@@ -31,12 +31,20 @@ export interface VideoItemData {
   volume: number;
   playbackRate: number;
   previewUrl?: string;
+  muted?: boolean;
+  separatedAudioItemId?: string;
 }
 
 export interface AudioItemData {
   src: string;
+  originalSrc: string;
+  enhancedSrc?: string;
+  isEnhanced: boolean;
+  sourceVideoItemId: string;
   volume: number;
   waveformData?: number[];
+  enhancementStatus?: 'idle' | 'processing' | 'complete' | 'error';
+  enhancementProgress?: number;
 }
 
 export interface CaptionItemData {
@@ -362,6 +370,11 @@ export interface EditorActions {
   updateTrack: (id: string, updates: Partial<Track>) => void;
   deleteTrack: (id: string) => void;
   reorderTracks: (trackIds: string[]) => void;
+
+  // Audio separation actions
+  separateAudio: (videoItemId: string) => Promise<void>;
+  toggleEnhancement: (audioItemId: string) => void;
+  updateEnhancementStatus: (audioItemId: string, status: AudioItemData['enhancementStatus'], progress?: number, enhancedSrc?: string) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;
