@@ -23,6 +23,7 @@ import {
   useEditorActions,
   useSelectedIds,
 } from './store/use-editor-store';
+import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 
 interface EditorProps {
   projectId: string;
@@ -44,7 +45,7 @@ export function Editor({ projectId }: EditorProps) {
   const selectedIds = useSelectedIds();
 
   // Actions
-  const { loadProject, clearSelection } = useEditorActions();
+  const { loadProject, clearSelection, updateEnhancementStatus } = useEditorActions();
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts();
@@ -53,6 +54,48 @@ export function Editor({ projectId }: EditorProps) {
   useEffect(() => {
     loadProject(projectId);
   }, [projectId, loadProject]);
+
+  // WebSocket: listen for enhancement job progress
+  useEffect(() => {
+    if (!project?.id) return;
+
+    wsClient.connect(project.id);
+
+    const removeHandler = wsClient.addHandler((message: WSMessage) => {
+      if (message.type === 'job:progress') {
+        const payload = message.payload as JobProgressPayload & { audioItemId?: string };
+        if (payload.audioItemId) {
+          updateEnhancementStatus(
+            payload.audioItemId,
+            'processing',
+            payload.progress,
+          );
+        }
+      } else if (message.type === 'job:complete') {
+        const payload = message.payload as JobCompletePayload & {
+          audioItemId?: string;
+          enhancedSrc?: string;
+        };
+        if (payload.audioItemId) {
+          updateEnhancementStatus(
+            payload.audioItemId,
+            'complete',
+            100,
+            payload.enhancedSrc,
+          );
+        }
+      } else if (message.type === 'job:error') {
+        const payload = message.payload as { audioItemId?: string };
+        if (payload.audioItemId) {
+          updateEnhancementStatus(payload.audioItemId, 'error');
+        }
+      }
+    });
+
+    return () => {
+      removeHandler();
+    };
+  }, [project?.id, updateEnhancementStatus]);
 
   // Show context panel when item is selected
   useEffect(() => {
