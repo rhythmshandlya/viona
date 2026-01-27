@@ -217,7 +217,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     return { success: true };
   });
 
-  // Start processing (transcription)
+  // Start processing (transcription + audio enhancement in parallel)
   fastify.post('/projects/:id/process', async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -239,10 +239,40 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'Video not found in storage' });
     }
 
-    // Create job record
-    const [job] = await db.insert(jobs).values({
+    // Create transcription job
+    const [transcribeJob] = await db.insert(jobs).values({
       projectId: id,
       type: 'transcribe',
+      status: 'pending',
+    }).returning();
+
+    // Create audio track, timeline item, and enhancement job
+    const [audioTrack] = await db.insert(tracks).values({
+      projectId: id,
+      type: 'audio',
+      name: 'Audio',
+      position: 2,
+    }).returning();
+
+    const [audioItem] = await db.insert(timelineItems).values({
+      trackId: audioTrack.id,
+      type: 'audio',
+      startMs: 0,
+      endMs: project.durationMs || 0, // Updated by worker after probing
+      data: {
+        src: '',
+        originalSrc: '',
+        isEnhanced: false,
+        sourceVideoItemId: '',
+        volume: 1,
+        enhancementStatus: 'processing',
+        enhancementProgress: 0,
+      },
+    }).returning();
+
+    const [enhanceJob] = await db.insert(jobs).values({
+      projectId: id,
+      type: 'enhance-audio',
       status: 'pending',
     }).returning();
 
@@ -251,14 +281,28 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'processing' })
       .where(eq(projects.id, id));
 
-    // Queue the job
-    await queueTranscribeJob({
-      projectId: id,
-      jobId: job.id,
-      videoKey: project.videoKey,
-    });
+    // Queue both jobs in parallel
+    await Promise.all([
+      queueTranscribeJob({
+        projectId: id,
+        jobId: transcribeJob.id,
+        videoKey: project.videoKey,
+      }),
+      queueEnhanceAudioJob({
+        projectId: id,
+        jobId: enhanceJob.id,
+        videoKey: project.videoKey,
+        audioTrackId: audioTrack.id,
+        audioItemId: audioItem.id,
+        videoItemId: '',
+      }),
+    ]);
 
-    return { jobId: job.id };
+    return {
+      jobId: transcribeJob.id,
+      transcribeJobId: transcribeJob.id,
+      enhanceJobId: enhanceJob.id,
+    };
   });
 
   // Start rendering
@@ -390,6 +434,45 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour
 
     return { url, expiresAt };
+  });
+
+  // Stream a media file from MinIO (used for enhanced/original audio)
+  fastify.get('/media/:bucket/*', async (request, reply) => {
+    const { bucket } = request.params as { bucket: string };
+    const key = (request.params as Record<string, string>)['*'];
+
+    if (!key) {
+      return reply.status(400).send({ error: 'Missing key' });
+    }
+
+    // Only allow known buckets
+    const allowedBuckets = [config.minio.buckets.uploads, config.minio.buckets.outputs];
+    if (!allowedBuckets.includes(bucket)) {
+      return reply.status(403).send({ error: 'Bucket not allowed' });
+    }
+
+    const exists = await objectExists(bucket, key);
+    if (!exists) {
+      return reply.status(404).send({ error: 'File not found' });
+    }
+
+    const stat = await getObjectStat(bucket, key);
+    const ext = key.split('.').pop()?.toLowerCase();
+    const contentTypes: Record<string, string> = {
+      m4a: 'audio/mp4',
+      mp4: 'video/mp4',
+      wav: 'audio/wav',
+      mp3: 'audio/mpeg',
+      mov: 'video/quicktime',
+      webm: 'video/webm',
+    };
+    const contentType = contentTypes[ext || ''] || 'application/octet-stream';
+
+    const stream = await getObjectStream(bucket, key);
+    reply.header('Content-Type', contentType);
+    reply.header('Content-Length', stat.size);
+    reply.header('Accept-Ranges', 'bytes');
+    return reply.send(stream);
   });
 
   // Get job status

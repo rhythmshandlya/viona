@@ -81,6 +81,12 @@ export function Composition() {
     .map((id) => items[id])
     .filter((item): item is TimelineItem => item?.type === 'audio');
 
+  // When a separate audio item exists with a valid src, mute the video
+  // to avoid playing the audio twice (original in video + enhanced in audio).
+  const hasSeparateAudio = audioItems.some(
+    (item) => (item.data as AudioItemData).src,
+  );
+
   // Calculate video transform for crop/pan
   // Ensure we have valid dimensions to avoid NaN
   const hasValidDimensions =
@@ -152,7 +158,8 @@ export function Composition() {
                     width: data.width,
                     height: data.height,
                   }}
-                  volume={data.volume}
+                  muted={hasSeparateAudio}
+                  volume={hasSeparateAudio ? undefined : data.volume}
                   playbackRate={data.playbackRate || 1}
                   startFrom={trimStartFrame}
                   endAt={trimEndFrame}

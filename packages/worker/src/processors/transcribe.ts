@@ -99,6 +99,7 @@ async function getVideoMetadata(videoPath: string): Promise<{ width: number; hei
 async function runWhisperX(
   audioPath: string,
   jobId: string,
+  projectId: string,
 ): Promise<WhisperXOutput> {
   const { scriptPath, model, language, device, computeType, batchSize } = config.whisperx;
   const resolvedScript = resolve(scriptPath);
@@ -142,7 +143,7 @@ async function runWhisperX(
           const message = match[2];
           // Map WhisperX 0-100% to our 25-70% range
           const mappedProgress = 25 + Math.round((percent / 100) * 45);
-          publishJobProgress(jobId, mappedProgress, message);
+          publishJobProgress(jobId, mappedProgress, message, { projectId });
         }
       }
     });
@@ -237,10 +238,12 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       .set({ status: 'processing', progress: 0 })
       .where(eq(jobs.id, jobId));
 
+    const pubExtras = { projectId };
+
     // Step 1: Download video (10%)
-    await publishJobProgress(jobId, 5, 'Downloading video...');
+    await publishJobProgress(jobId, 5, 'Downloading video...', pubExtras);
     await downloadFile(config.minio.buckets.uploads, videoKey, videoPath);
-    await publishJobProgress(jobId, 10, 'Video downloaded');
+    await publishJobProgress(jobId, 10, 'Video downloaded', pubExtras);
 
     // Step 2: Get video metadata
     const [durationMs, metadata] = await Promise.all([
@@ -259,24 +262,24 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       .where(eq(projects.id, projectId));
 
     // Step 3: Extract audio (20%)
-    await publishJobProgress(jobId, 15, 'Extracting audio...');
+    await publishJobProgress(jobId, 15, 'Extracting audio...', pubExtras);
     await extractAudio(videoPath, audioPath);
-    await publishJobProgress(jobId, 20, 'Audio extracted');
+    await publishJobProgress(jobId, 20, 'Audio extracted', pubExtras);
 
     // Step 4: Run WhisperX (25% - 70%)
-    await publishJobProgress(jobId, 25, 'Starting WhisperX transcription...');
-    const whisperxOutput = await runWhisperX(audioPath, jobId);
-    await publishJobProgress(jobId, 70, 'Transcription complete');
+    await publishJobProgress(jobId, 25, 'Starting WhisperX transcription...', pubExtras);
+    const whisperxOutput = await runWhisperX(audioPath, jobId, projectId);
+    await publishJobProgress(jobId, 70, 'Transcription complete', pubExtras);
 
     // Step 5: Process captions (75%)
-    await publishJobProgress(jobId, 72, 'Processing captions...');
+    await publishJobProgress(jobId, 72, 'Processing captions...', pubExtras);
 
     const pages = groupWordsIntoPages(whisperxOutput.words);
 
-    await publishJobProgress(jobId, 75, 'Captions processed');
+    await publishJobProgress(jobId, 75, 'Captions processed', pubExtras);
 
     // Step 6: Save transcript to database (80%)
-    await publishJobProgress(jobId, 78, 'Saving transcript...');
+    await publishJobProgress(jobId, 78, 'Saving transcript...', pubExtras);
 
     await db.insert(transcripts).values({
       projectId,
@@ -284,10 +287,10 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       words: whisperxOutput.words as any,
     });
 
-    await publishJobProgress(jobId, 80, 'Transcript saved');
+    await publishJobProgress(jobId, 80, 'Transcript saved', pubExtras);
 
     // Step 7: Create subtitle track and items (90%)
-    await publishJobProgress(jobId, 82, 'Creating subtitle track...');
+    await publishJobProgress(jobId, 82, 'Creating subtitle track...', pubExtras);
 
     // Create subtitle track
     const [subtitleTrack] = await db.insert(tracks).values({
@@ -318,7 +321,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       await db.insert(timelineItems).values(subtitleItems);
     }
 
-    await publishJobProgress(jobId, 90, 'Subtitle track created');
+    await publishJobProgress(jobId, 90, 'Subtitle track created', pubExtras);
 
     // Step 8: Update project status (100%)
     await db.update(projects)
@@ -329,7 +332,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       .set({ status: 'complete', progress: 100, completedAt: new Date() })
       .where(eq(jobs.id, jobId));
 
-    await publishJobProgress(jobId, 100, 'Complete');
+    await publishJobProgress(jobId, 100, 'Complete', pubExtras);
     await publishJobComplete(jobId, projectId);
 
     logger.info({ projectId }, 'Transcription complete');

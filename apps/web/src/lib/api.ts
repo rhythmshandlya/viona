@@ -7,6 +7,8 @@ export interface CreateProjectResponse {
 
 export interface ProcessProjectResponse {
   jobId: string;
+  transcribeJobId: string;
+  enhanceJobId: string;
 }
 
 export interface Project {

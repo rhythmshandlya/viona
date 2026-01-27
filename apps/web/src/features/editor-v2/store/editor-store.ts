@@ -255,6 +255,42 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
       items[item.id] = captionItem;
       itemIds.push(item.id);
     }
+
+    // Convert audio items — use enhanced audio by default when available
+    if (item.type === 'audio') {
+      const audioTrack = tracks.find((t) => t.type === 'audio');
+      if (audioTrack) {
+        const raw = item.data as Record<string, unknown>;
+        const isComplete = raw.enhancementStatus === 'complete';
+        const enhancedKey = raw.enhancedSrc as string | undefined;
+        const originalKey = raw.originalSrc as string | undefined;
+
+        // Resolve MinIO keys to streaming URLs
+        const resolveUrl = (key: string | undefined) =>
+          key ? `${API_URL}/api/media/outputs/${key}` : '';
+
+        const audioItem: TimelineItem = {
+          id: item.id,
+          type: 'audio',
+          trackId: audioTrack.id,
+          startMs: item.startMs,
+          endMs: item.endMs,
+          data: {
+            src: isComplete ? resolveUrl(enhancedKey) : resolveUrl(originalKey),
+            originalSrc: resolveUrl(originalKey),
+            enhancedSrc: resolveUrl(enhancedKey),
+            isEnhanced: isComplete,
+            sourceVideoItemId: (raw.sourceVideoItemId as string) || '',
+            volume: (raw.volume as number) ?? 1,
+            enhancementStatus: (raw.enhancementStatus as AudioItemData['enhancementStatus']) || 'idle',
+            enhancementProgress: (raw.enhancementProgress as number) ?? 0,
+          } as AudioItemData,
+        };
+
+        items[item.id] = audioItem;
+        itemIds.push(item.id);
+      }
+    }
   }
 
   return {

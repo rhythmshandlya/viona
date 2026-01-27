@@ -33,28 +33,30 @@ def dc_offset_and_normalize(audio: np.ndarray) -> np.ndarray:
     return audio
 
 
-def run_deepfilternet(input_path: str, output_path: str):
-    """Run DeepFilterNet3 noise removal."""
+def run_deepfilternet(input_path: str, output_path: str, atten_lim_db: float = 12.0):
+    """Run DeepFilterNet3 noise removal with limited attenuation to preserve voice character."""
     from df.enhance import enhance, init_df, load_audio, save_audio
 
     model, df_state, _ = init_df()
     audio, _ = load_audio(input_path, sr=df_state.sr())
-    enhanced = enhance(model, df_state, audio)
+    enhanced = enhance(model, df_state, audio, atten_lim_db=atten_lim_db)
     save_audio(output_path, enhanced, sr=df_state.sr())
 
 
 def run_eq_chain(input_path: str, output_path: str):
-    """Run FFmpeg EQ, compression, and limiting."""
+    """Run FFmpeg gentle cleanup: highpass/lowpass only, light compression, safe limiter."""
     cmd = [
         "ffmpeg", "-y", "-i", input_path, "-af",
         ",".join([
+            # Cleanup: rumble and hiss removal only — no presence boosts
             "highpass=f=80",
-            "lowpass=f=12000",
-            "equalizer=f=200:t=q:w=1.5:g=-2",
-            "equalizer=f=3000:t=q:w=2:g=2",
-            "equalizer=f=5000:t=q:w=2:g=1",
-            "acompressor=threshold=0.1:ratio=4:attack=5:release=50:makeup=2:knee=4",
-            "alimiter=limit=0.89",
+            "lowpass=f=14000",
+            # Gentle de-esser: tame 4-8kHz sibilance that DeepFilterNet can expose
+            "equalizer=f=6000:t=q:w=2:g=-1.5",
+            # Light compression: preserve dynamics, just even out quiet/loud passages
+            "acompressor=threshold=0.25:ratio=2:attack=20:release=100:makeup=1:knee=6",
+            # Safe limiter with headroom
+            "alimiter=limit=0.79",
         ]),
         "-ar", "48000", output_path,
     ]
@@ -62,7 +64,7 @@ def run_eq_chain(input_path: str, output_path: str):
 
 
 def loudness_normalize(input_path: str, output_path: str, target_lufs: float = -14.0):
-    """Normalize loudness to target LUFS and clamp true peak to -1 dBTP."""
+    """Normalize loudness to target LUFS and clamp true peak to -2 dBTP."""
     data, rate = sf.read(input_path)
     meter = pyln.Meter(rate)
     loudness = meter.integrated_loudness(data)
@@ -70,10 +72,11 @@ def loudness_normalize(input_path: str, output_path: str, target_lufs: float = -
     # Normalize to target LUFS
     normalized = pyln.normalize.loudness(data, loudness, target_lufs)
 
-    # Clamp true peak to -1 dBTP (0.891 linear)
+    # Clamp true peak to -2 dBTP (0.794 linear) — extra headroom avoids
+    # inter-sample clipping on lossy codecs (AAC, etc.)
     peak = np.max(np.abs(normalized))
-    if peak > 0.891:
-        normalized = normalized / peak * 0.891
+    if peak > 0.794:
+        normalized = normalized / peak * 0.794
 
     sf.write(output_path, normalized, rate)
 

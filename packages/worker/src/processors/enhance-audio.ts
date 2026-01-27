@@ -124,50 +124,68 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
     const originalM4aPath = join(workDir, 'original.m4a');
     const enhancedM4aPath = join(workDir, 'enhanced.m4a');
 
+    const pubExtras = { projectId, audioItemId };
+
     // Update job status
     await db.update(jobs)
       .set({ status: 'processing', progress: 0 })
       .where(eq(jobs.id, jobId));
 
     // Step 1: Download video (0-10%)
-    await publishJobProgress(jobId, 2, 'Downloading video...');
+    await publishJobProgress(jobId, 2, 'Downloading video...', pubExtras);
     await downloadFile(config.minio.buckets.uploads, videoKey, videoPath);
-    await publishJobProgress(jobId, 10, 'Video downloaded');
+    await publishJobProgress(jobId, 10, 'Video downloaded', pubExtras);
 
     // Step 2: Extract audio as 48kHz WAV (10-15%)
-    await publishJobProgress(jobId, 12, 'Extracting audio...');
+    await publishJobProgress(jobId, 12, 'Extracting audio...', pubExtras);
     await extractAudio48k(videoPath, rawAudioPath);
-    await publishJobProgress(jobId, 15, 'Audio extracted');
+
+    // Probe actual video duration so the audio item gets the correct endMs
+    const durationMs: number = await new Promise((res, rej) => {
+      ffmpeg.ffprobe(videoPath, (err, meta) => {
+        if (err) return rej(err);
+        res(Math.round((meta.format.duration || 0) * 1000));
+      });
+    });
+
+    if (durationMs > 0) {
+      await db.update(timelineItems)
+        .set({ endMs: durationMs })
+        .where(eq(timelineItems.id, audioItemId));
+    }
+
+    await publishJobProgress(jobId, 15, 'Audio extracted', pubExtras);
 
     // Step 3: Run Python enhancement pipeline (15-75%)
     await runEnhancementScript(rawAudioPath, enhancedWavPath, (percent, message) => {
       const mappedProgress = 15 + Math.round(percent * 0.6); // 15-75%
-      publishJobProgress(jobId, mappedProgress, message);
+      publishJobProgress(jobId, mappedProgress, message, pubExtras);
     });
-    await publishJobProgress(jobId, 75, 'Enhancement complete');
+    await publishJobProgress(jobId, 75, 'Enhancement complete', pubExtras);
 
     // Step 4: Transcode to AAC (75-85%)
-    await publishJobProgress(jobId, 77, 'Transcoding original to AAC...');
+    await publishJobProgress(jobId, 77, 'Transcoding original to AAC...', pubExtras);
     await transcodeToAac(rawAudioPath, originalM4aPath);
-    await publishJobProgress(jobId, 80, 'Transcoding enhanced to AAC...');
+    await publishJobProgress(jobId, 80, 'Transcoding enhanced to AAC...', pubExtras);
     await transcodeToAac(enhancedWavPath, enhancedM4aPath);
-    await publishJobProgress(jobId, 85, 'Transcoding complete');
+    await publishJobProgress(jobId, 85, 'Transcoding complete', pubExtras);
 
     // Step 5: Upload to MinIO (85-95%)
     const originalKey = `${projectId}/audio/original-${nanoid(8)}.m4a`;
     const enhancedKey = `${projectId}/audio/enhanced-${nanoid(8)}.m4a`;
 
-    await publishJobProgress(jobId, 87, 'Uploading original audio...');
+    await publishJobProgress(jobId, 87, 'Uploading original audio...', pubExtras);
     await uploadFile(config.minio.buckets.outputs, originalKey, originalM4aPath);
-    await publishJobProgress(jobId, 90, 'Uploading enhanced audio...');
+    await publishJobProgress(jobId, 90, 'Uploading enhanced audio...', pubExtras);
     await uploadFile(config.minio.buckets.outputs, enhancedKey, enhancedM4aPath);
-    await publishJobProgress(jobId, 95, 'Upload complete');
+    await publishJobProgress(jobId, 95, 'Upload complete', pubExtras);
 
     // Step 6: Update database (95-100%)
-    await publishJobProgress(jobId, 97, 'Updating project...');
+    await publishJobProgress(jobId, 97, 'Updating project...', pubExtras);
 
     await db.update(timelineItems)
       .set({
+        endMs: durationMs > 0 ? durationMs : undefined,
         data: {
           src: enhancedKey,
           originalSrc: originalKey,
@@ -186,7 +204,7 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
       .set({ status: 'complete', progress: 100, completedAt: new Date() })
       .where(eq(jobs.id, jobId));
 
-    await publishJobProgress(jobId, 100, 'Complete');
+    await publishJobProgress(jobId, 100, 'Complete', pubExtras);
     await publishJobComplete(jobId, projectId);
 
     logger.info({ projectId }, 'Audio enhancement complete');
@@ -214,7 +232,7 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
       .set({ status: 'failed', error: errorMessage })
       .where(eq(jobs.id, jobId));
 
-    await publishJobError(jobId, errorMessage);
+    await publishJobError(jobId, errorMessage, { projectId });
 
     throw error;
   } finally {

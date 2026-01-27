@@ -64,7 +64,11 @@
       "Bash(pnpm --filter @reelify/worker add:*)",
       "Skill(superpowers:systematic-debugging)",
       "Bash(python -c:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "WebFetch(domain:postplanify.com)",
+      "WebFetch(domain:zeely.ai)",
+      "Bash(cd:*)",
+      "Bash(git status:*)"
     ]
   }
 }

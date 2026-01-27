@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
 import { Upload, FileVideo, Loader2, CheckCircle, AlertCircle } from "lucide-react";
@@ -24,6 +24,9 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+  // Track per-job progress so we can average them
+  const jobProgressRef = useRef<Record<string, number>>({});
+
   const handleUpload = useCallback(async (file: File) => {
     setSelectedFile(file);
     setState("uploading");
@@ -41,32 +44,48 @@ export default function UploadPage() {
         setProgress(uploadProgress);
       });
 
-      setStatusMessage("Starting transcription...");
+      setStatusMessage("Processing video...");
       setState("processing");
       setProgress(0);
 
       // Step 3: Connect WebSocket and start processing
       wsClient.connect(projectId);
 
+      // Track which jobs have completed
+      const completedJobs = new Set<string>();
+      let totalJobs = 2; // transcription + enhancement
+
       // Set up message handler
       const removeHandler = wsClient.addHandler((message: WSMessage) => {
         if (message.type === "job:progress") {
           const payload = message.payload as JobProgressPayload;
-          setProgress(payload.progress);
+          // Track per-job progress and show average
+          jobProgressRef.current[payload.jobId] = payload.progress;
+          const values = Object.values(jobProgressRef.current);
+          const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
+          setProgress(avg);
           if (payload.message) {
             setStatusMessage(payload.message);
           }
         } else if (message.type === "job:complete") {
           const payload = message.payload as JobCompletePayload;
-          setState("complete");
-          setStatusMessage("Processing complete!");
-          setProgress(100);
-          removeHandler();
+          completedJobs.add(payload.jobId);
+          jobProgressRef.current[payload.jobId] = 100;
 
-          // Redirect to editor after short delay
-          setTimeout(() => {
-            router.push(`/project/${payload.projectId}`);
-          }, 1500);
+          if (completedJobs.size >= totalJobs) {
+            // All jobs done
+            setState("complete");
+            setStatusMessage("Processing complete!");
+            setProgress(100);
+            removeHandler();
+
+            // Redirect to editor after short delay
+            setTimeout(() => {
+              router.push(`/project/${payload.projectId}`);
+            }, 1500);
+          } else {
+            setStatusMessage("Finishing up...");
+          }
         } else if (message.type === "job:error") {
           const payload = message.payload as JobErrorPayload;
           setState("error");
@@ -75,9 +94,10 @@ export default function UploadPage() {
         }
       });
 
-      // Step 4: Start processing
-      const { jobId } = await api.processProject(projectId);
-      wsClient.subscribeToJob(jobId);
+      // Step 4: Start processing (both transcription and audio enhancement)
+      const { transcribeJobId, enhanceJobId } = await api.processProject(projectId);
+      wsClient.subscribeToJob(transcribeJobId);
+      wsClient.subscribeToJob(enhanceJobId);
 
     } catch (err) {
       setState("error");
