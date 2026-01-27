@@ -1,17 +1,15 @@
 /**
- * ContextPanel Component
- * Sliding panel for editing selected item properties (captions, video position)
+ * PropertiesContent Component
+ * Plain scrollable content for editing selected item properties (captions, video position)
  */
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import React, { useEffect } from 'react';
 import { Slider } from '@/components/ui/slider';
 import {
   useSelectedIds,
   useItem,
-  useItems,
   useActiveCaptionStyle,
   useApplyStyleToAll,
   useVideoSettings,
@@ -22,78 +20,26 @@ import {
   CaptionAnimationLegacy,
   CaptionStyle,
   AudioItemData,
-  VideoItemData,
 } from '../store/types';
 import { SUBTITLE_PRESETS, PRESET_ORDER } from '@/lib/subtitle-presets';
 
-interface ContextPanelProps {
-  onClose: () => void;
-}
-
-export function ContextPanel({ onClose }: ContextPanelProps) {
+export function PropertiesContent() {
   const selectedIds = useSelectedIds();
-  const items = useItems();
   const firstSelectedItem = useItem(selectedIds[0] || '');
-  const [isAnimating, setIsAnimating] = useState(true);
 
-  useEffect(() => {
-    // Trigger entrance animation
-    setIsAnimating(true);
-    const timer = setTimeout(() => setIsAnimating(false), 200);
-    return () => clearTimeout(timer);
-  }, [selectedIds[0]]);
-
-  // Close on Escape
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
-
-  if (!firstSelectedItem) return null;
-
-  // Build panel title with multi-selection count
-  let panelTitle: string;
-  if (selectedIds.length > 1) {
-    const allCaptions = selectedIds.every((id) => items[id]?.type === 'caption');
-    panelTitle = allCaptions
-      ? `${selectedIds.length} captions selected`
-      : `${selectedIds.length} items selected`;
-  } else {
-    panelTitle = firstSelectedItem.type === 'caption' ? 'Caption Style' :
-                 firstSelectedItem.type === 'video' ? 'Video' :
-                 firstSelectedItem.type === 'audio' ? 'Audio' :
-                 'Properties';
+  if (!firstSelectedItem) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <p className="text-sm text-[var(--editor-text-muted)]">Select an item to edit its properties</p>
+      </div>
+    );
   }
 
   return (
-    <div
-      className={`absolute right-0 top-0 h-full w-80 bg-[var(--editor-bg-surface)]
-                  border-l border-[var(--editor-border-subtle)] z-50
-                  ${isAnimating ? 'editor-panel-enter' : ''}`}
-    >
-      {/* Header */}
-      <div className="h-12 flex items-center justify-between px-4 border-b border-[var(--editor-border-subtle)]">
-        <h2 className="text-sm font-medium text-[var(--editor-text-primary)]">
-          {panelTitle}
-        </h2>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
-          aria-label="Close panel"
-        >
-          <X className="w-4 h-4 text-[var(--editor-text-secondary)]" />
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="overflow-y-auto h-[calc(100%-48px)]">
-        {firstSelectedItem.type === 'caption' && <CaptionStylePanel />}
-        {firstSelectedItem.type === 'video' && <VideoPanel />}
-        {firstSelectedItem.type === 'audio' && <AudioPanel />}
-      </div>
+    <div className="overflow-y-auto h-full">
+      {firstSelectedItem.type === 'caption' && <CaptionStylePanel />}
+      {firstSelectedItem.type === 'video' && <VideoPanel />}
+      {firstSelectedItem.type === 'audio' && <AudioPanel />}
     </div>
   );
 }

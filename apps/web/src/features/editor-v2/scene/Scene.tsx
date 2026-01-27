@@ -42,15 +42,13 @@ export function Scene({ className, activePlatform, overlayMode }: SceneProps) {
   }, [project]);
 
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
     calculateScale();
-    const handleResize = () => calculateScale();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const ro = new ResizeObserver(() => calculateScale());
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [calculateScale]);
-
-  useEffect(() => {
-    calculateScale();
-  }, [project, calculateScale]);
 
   if (!project) {
     return (

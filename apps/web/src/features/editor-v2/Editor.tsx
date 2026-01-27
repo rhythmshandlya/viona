@@ -11,13 +11,12 @@ import Link from 'next/link';
 
 import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
-import { ContextPanel } from './components/ContextPanel';
+import { RightPanel, type RightPanelTab } from './components/RightPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
 import { Timeline } from './timeline/Timeline';
-import { TranscriptPanel } from './panels/TranscriptPanel';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import {
   useProject,
@@ -34,8 +33,11 @@ interface EditorProps {
 }
 
 export function Editor({ projectId }: EditorProps) {
-  const [showContextPanel, setShowContextPanel] = useState(false);
-  const [showTranscript, setShowTranscript] = useState(false);
+  // Right panel state
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<RightPanelTab>('properties');
+  const userRequestedTabRef = useRef<RightPanelTab | null>(null);
+
   const [timelineHeight, setTimelineHeight] = useState(220);
   const resizeRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -77,10 +79,41 @@ export function Editor({ projectId }: EditorProps) {
   const { loadProject, clearSelection, updateEnhancementStatus } = useEditorActions();
 
   // Toggle transcript panel
-  const handleToggleTranscript = () => setShowTranscript((prev) => !prev);
+  const handleToggleTranscript = useCallback(() => {
+    if (panelOpen && activeTab === 'transcript') {
+      // Already showing transcript — close panel
+      setPanelOpen(false);
+      userRequestedTabRef.current = null;
+    } else {
+      // Open to transcript tab
+      setPanelOpen(true);
+      setActiveTab('transcript');
+      userRequestedTabRef.current = 'transcript';
+    }
+  }, [panelOpen, activeTab]);
+
+  // Handle tab change from panel header
+  const handleTabChange = useCallback((tab: RightPanelTab) => {
+    setActiveTab(tab);
+    if (tab === 'transcript') {
+      userRequestedTabRef.current = 'transcript';
+    }
+  }, []);
+
+  // Handle closing the panel
+  const handleClosePanel = useCallback(() => {
+    setPanelOpen(false);
+    userRequestedTabRef.current = null;
+    if (activeTab === 'properties') {
+      clearSelection();
+    }
+  }, [activeTab, clearSelection]);
 
   // Initialize keyboard shortcuts
-  useKeyboardShortcuts({ onToggleTranscript: handleToggleTranscript });
+  useKeyboardShortcuts({
+    onToggleTranscript: handleToggleTranscript,
+    onClosePanel: handleClosePanel,
+  });
 
   // Load project on mount
   useEffect(() => {
@@ -129,18 +162,20 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Show context panel when item is selected
+  // Auto-open properties when item is selected; restore transcript or close on deselect
   useEffect(() => {
     if (selectedIds.length > 0) {
-      setShowContextPanel(true);
+      setPanelOpen(true);
+      setActiveTab('properties');
+    } else {
+      // Deselected — restore transcript if user had it open, otherwise close
+      if (userRequestedTabRef.current === 'transcript') {
+        setActiveTab('transcript');
+      } else {
+        setPanelOpen(false);
+      }
     }
   }, [selectedIds]);
-
-  // Handle closing context panel
-  const handleCloseContextPanel = () => {
-    setShowContextPanel(false);
-    clearSelection();
-  };
 
   // Handle timeline resize
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -227,26 +262,25 @@ export function Editor({ projectId }: EditorProps) {
         onOpenCommandPalette={commandPalette.open}
         onExport={handleExport}
         onToggleTranscript={handleToggleTranscript}
+        isTranscriptActive={panelOpen && activeTab === 'transcript'}
       />
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* Scene/Preview with optional transcript panel */}
-        <div className="flex-1 flex relative overflow-hidden">
-          {/* Transcript Panel */}
-          {showTranscript && (
-            <div className="w-80 flex-shrink-0 border-r border-[var(--editor-border-subtle)] overflow-hidden">
-              <TranscriptPanel />
-            </div>
-          )}
-
+        {/* Scene/Preview with collapsible right panel */}
+        <div className="flex-1 flex overflow-hidden">
           {/* Scene */}
-          <div className="flex-1 relative">
+          <div className="flex-1 relative min-w-0">
             <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} />
-            {showContextPanel && selectedIds.length > 0 && (
-              <ContextPanel onClose={handleCloseContextPanel} />
-            )}
           </div>
+
+          {/* Right Panel */}
+          <RightPanel
+            isOpen={panelOpen}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            onClose={handleClosePanel}
+          />
         </div>
 
         {/* Playback Bar */}

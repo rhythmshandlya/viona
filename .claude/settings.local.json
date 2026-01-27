@@ -68,7 +68,26 @@
       "WebFetch(domain:postplanify.com)",
       "WebFetch(domain:zeely.ai)",
       "Bash(cd:*)",
-      "Bash(git status:*)"
+      "Bash(git status:*)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\pip.exe\" install demucs)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import demucs; print\\(''demucs'', demucs.__version__\\); import torchaudio; print\\(''torchaudio OK''\\)\")",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"\nimport torch\nimport torchaudio\nfrom demucs.pretrained import get_model\nfrom demucs.apply import apply_model\nprint\\(''demucs imports OK''\\)\nprint\\(''CUDA available:'', torch.cuda.is_available\\(\\)\\)\n\nfrom df.enhance import enhance, init_df, load_audio, save_audio\nprint\\(''deepfilternet imports OK''\\)\n\nimport soundfile as sf\nimport pyloudnorm as pyln\nprint\\(''all imports OK''\\)\n\")",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\test_enhance.py\" --input \"C:\\\\Users\\\\armaa\\\\Downloads\\\\WhatsApp Video 2026-01-27 at 11.14.52 PM.mp4\")",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\pip.exe\" install resemble-enhance)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\pip.exe\" install --timeout 120 resemble-enhance)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\pip.exe\" install --timeout 120 --no-deps resemble-enhance)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"\ntry:\n    from resemble_enhance.enhancer.inference import denoise, enhance\n    print\\(''inference imports OK''\\)\nexcept ImportError as e:\n    print\\(f''Missing: {e}''\\)\nexcept Exception as e:\n    print\\(f''Error: {e}''\\)\n\")",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"\nimport resemble_enhance\nimport os\nprint\\(os.path.dirname\\(resemble_enhance.__file__\\)\\)\n\")",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\pip.exe\" install --timeout 120 librosa)",
+      "Bash(if exist \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\lib\\\\site-packages\\\\resemble_enhance\\\\model_repo\" rmdir /s /q \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\lib\\\\site-packages\\\\resemble_enhance\\\\model_repo\")",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import shutil; shutil.rmtree\\(r''C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\lib\\\\site-packages\\\\resemble_enhance\\\\model_repo'', ignore_errors=True\\); print\\(''cleaned''\\)\")",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"\nimport shutil\nshutil.rmtree\\(r''C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\lib\\\\site-packages\\\\resemble_enhance\\\\model_repo'', ignore_errors=True\\)\nprint\\(''cleaned model_repo''\\)\n\")",
+      "Bash(git lfs version:*)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\pip.exe\" install --timeout 120 huggingface_hub)",
+      "Bash(\"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\Scripts\\\\python.exe\" -c \"\nimport shutil, pathlib\n# Clean broken model_repo from site-packages \\(left by failed git clone\\)\nsp = pathlib.Path\\(r''C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\scripts\\\\.venv\\\\lib\\\\site-packages\\\\resemble_enhance\\\\model_repo''\\)\nif sp.exists\\(\\):\n    shutil.rmtree\\(sp, ignore_errors=True\\)\n    print\\(''cleaned site-packages model_repo''\\)\nelse:\n    print\\(''no site-packages model_repo to clean''\\)\n\")",
+      "Bash(pnpm db:migrate:*)",
+      "Bash(git checkout:*)",
+      "Bash(del \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\api\\\\drizzle\\\\0001_add_project_audio_keys.sql\")"
     ]
   }
 }

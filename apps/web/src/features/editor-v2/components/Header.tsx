@@ -22,9 +22,10 @@ interface HeaderProps {
   onOpenCommandPalette?: () => void;
   onExport?: () => void;
   onToggleTranscript?: () => void;
+  isTranscriptActive?: boolean;
 }
 
-export function Header({ onOpenCommandPalette, onExport, onToggleTranscript }: HeaderProps) {
+export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive }: HeaderProps) {
   const router = useRouter();
   const project = useProject();
   const { saveProject } = useEditorActions();
@@ -112,10 +113,18 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript }: H
         {/* Transcript toggle */}
         <button
           onClick={() => onToggleTranscript?.()}
-          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+          className={`p-2 rounded-md transition-colors ${
+            isTranscriptActive
+              ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)]'
+              : 'hover:bg-[var(--editor-bg-hover)]'
+          }`}
           title="Toggle Transcript (T)"
         >
-          <MessageSquare className="w-4 h-4 text-[var(--editor-text-secondary)]" />
+          <MessageSquare className={`w-4 h-4 ${
+            isTranscriptActive
+              ? 'text-[var(--editor-accent)]'
+              : 'text-[var(--editor-text-secondary)]'
+          }`} />
         </button>
 
         {/* Command palette hint */}

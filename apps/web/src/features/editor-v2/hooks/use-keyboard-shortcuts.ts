@@ -42,10 +42,12 @@ import type { CaptionDisplayMode } from '../store/types';
 export interface KeyboardShortcutOptions {
   /** Callback invoked when the T key is pressed to toggle the transcript panel. */
   onToggleTranscript?: () => void;
+  /** Callback invoked when Escape is pressed (after split mode check) to close the right panel. */
+  onClosePanel?: () => void;
 }
 
 export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
-  const { onToggleTranscript } = options;
+  const { onToggleTranscript, onClosePanel } = options;
 
   const {
     togglePlayback,
@@ -114,13 +116,13 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         return;
       }
 
-      // Escape: Exit split mode first, then clear selection
+      // Escape: Exit split mode first, then close panel
       if (e.code === 'Escape') {
         e.preventDefault();
         if (splitMode) {
           setSplitMode(false);
         } else {
-          clearSelection();
+          onClosePanel?.();
         }
         return;
       }
@@ -283,6 +285,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
       trimItems,
       updateAllCaptionStyles,
       onToggleTranscript,
+      onClosePanel,
     ]
   );
 
