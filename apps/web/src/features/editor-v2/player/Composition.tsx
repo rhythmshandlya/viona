@@ -81,11 +81,12 @@ export function Composition() {
     .map((id) => items[id])
     .filter((item): item is TimelineItem => item?.type === 'audio');
 
-  // When a separate audio item exists with a valid src, mute the video
-  // to avoid playing the audio twice (original in video + enhanced in audio).
-  const hasSeparateAudio = audioItems.some(
-    (item) => (item.data as AudioItemData).src,
-  );
+  // When a separate audio item exists, mute the video to avoid playing
+  // the audio twice (original in video + enhanced in audio).  We check
+  // for the item's *existence* rather than a truthy `src` because the
+  // enhancement job may still be in progress (src === ''), and the
+  // video's audio track can trigger browser decode errors if not muted.
+  const hasSeparateAudio = audioItems.length > 0;
 
   // Calculate video transform for crop/pan
   // Ensure we have valid dimensions to avoid NaN
@@ -163,6 +164,9 @@ export function Composition() {
                   playbackRate={data.playbackRate || 1}
                   startFrom={trimStartFrame}
                   endAt={trimEndFrame}
+                  onError={(e) => {
+                    console.warn('Video playback error (suppressed):', e?.message);
+                  }}
                 />
               </div>
             </AbsoluteFill>
@@ -186,7 +190,13 @@ export function Composition() {
             from={fromFrame}
             durationInFrames={durationInFrames}
           >
-            <Audio src={data.src} volume={data.volume} />
+            <Audio
+              src={data.src}
+              volume={data.volume}
+              onError={(e) => {
+                console.warn('Audio playback error (suppressed):', e?.message);
+              }}
+            />
           </Sequence>
         );
       })}

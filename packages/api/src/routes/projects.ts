@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import { eq, inArray } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts } from '../db/index.js';
 import { config } from '../config.js';
-import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getObjectStat } from '../services/minio.js';
+import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob } from '../services/queue.js';
 import type { ProjectStatus } from '@reelify/shared';
 
@@ -142,9 +142,12 @@ export async function projectRoutes(fastify: FastifyInstance) {
         const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
         const chunkSize = end - start + 1;
 
-        // For range requests, we need to get a partial stream
-        // MinIO getObject with offset and length
-        const stream = await getObjectStream(config.minio.buckets.uploads, project.videoKey);
+        const stream = await getPartialObjectStream(
+          config.minio.buckets.uploads,
+          project.videoKey,
+          start,
+          chunkSize,
+        );
 
         reply.status(206);
         reply.header('Content-Range', `bytes ${start}-${end}/${stat.size}`);
@@ -457,6 +460,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }
 
     const stat = await getObjectStat(bucket, key);
+    const totalSize = stat.size;
     const ext = key.split('.').pop()?.toLowerCase();
     const contentTypes: Record<string, string> = {
       m4a: 'audio/mp4',
@@ -468,9 +472,29 @@ export async function projectRoutes(fastify: FastifyInstance) {
     };
     const contentType = contentTypes[ext || ''] || 'application/octet-stream';
 
+    // Handle Range requests for media seeking/switching
+    const rangeHeader = request.headers.range;
+    if (rangeHeader) {
+      const match = rangeHeader.match(/^bytes=(\d+)-(\d*)$/);
+      if (match) {
+        const start = parseInt(match[1], 10);
+        const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
+        const chunkSize = end - start + 1;
+
+        const stream = await getPartialObjectStream(bucket, key, start, chunkSize);
+        reply.status(206);
+        reply.header('Content-Type', contentType);
+        reply.header('Content-Length', chunkSize);
+        reply.header('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+        reply.header('Accept-Ranges', 'bytes');
+        return reply.send(stream);
+      }
+    }
+
+    // Full file response
     const stream = await getObjectStream(bucket, key);
     reply.header('Content-Type', contentType);
-    reply.header('Content-Length', stat.size);
+    reply.header('Content-Length', totalSize);
     reply.header('Accept-Ranges', 'bytes');
     return reply.send(stream);
   });

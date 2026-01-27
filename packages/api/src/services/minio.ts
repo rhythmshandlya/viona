@@ -54,6 +54,17 @@ export async function getObjectStream(bucket: string, key: string) {
   return minioClient.getObject(bucket, key);
 }
 
+export async function getPartialObjectStream(
+  bucket: string,
+  key: string,
+  offset: number,
+  length?: number,
+) {
+  return length !== undefined
+    ? minioClient.getPartialObject(bucket, key, offset, length)
+    : minioClient.getPartialObject(bucket, key, offset);
+}
+
 export async function getObjectStat(bucket: string, key: string) {
   return minioClient.statObject(bucket, key);
 }
