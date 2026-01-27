@@ -57,7 +57,7 @@ This establishes the foundation for Phase 2 (semantic visual generation).
 │  Transcribe Job:                                                    │
 │  1. Download video from MinIO                                       │
 │  2. Extract audio (FFmpeg → 16kHz WAV)                             │
-│  3. Transcribe (@remotion/install-whisper-cpp)                     │
+│  3. Transcribe (WhisperX via Python subprocess)                    │
 │  4. toCaptions() → createTikTokStyleCaptions()                     │
 │  5. Create subtitle track + timeline items                          │
 │  6. Publish "complete" via Redis Pub/Sub                           │
@@ -90,7 +90,7 @@ This establishes the foundation for Phase 2 (semantic visual generation).
 | API | Node.js + Fastify | HTTP endpoints, WebSocket |
 | Job Queue | BullMQ + Redis | Background job management |
 | Worker | Node.js + Remotion | Transcription, rendering |
-| Transcription | @remotion/install-whisper-cpp | Word-level timestamps |
+| Transcription | WhisperX (Python)              | Word-level timestamps |
 | Database | PostgreSQL | Projects, tracks, items |
 | Storage | MinIO (S3-compatible) | Videos, outputs |
 
@@ -128,7 +128,7 @@ reelify/
 │   ├── worker/                 # BullMQ worker
 │   │   ├── src/
 │   │   │   ├── processors/
-│   │   │   │   ├── transcribe.ts   # Whisper transcription
+│   │   │   │   ├── transcribe.ts   # WhisperX transcription
 │   │   │   │   └── render.ts       # Remotion rendering
 │   │   │   └── index.ts
 │   │   └── package.json
@@ -450,7 +450,7 @@ WHISPER_MODEL=medium.en
 ```bash
 pnpm install          # Install dependencies
 pnpm docker:up        # Start Redis, MinIO, Postgres
-pnpm whisper:install  # Download Whisper model (~1.5GB)
+pnpm --filter worker whisperx:setup  # Set up WhisperX Python environment
 pnpm db:migrate       # Run migrations
 pnpm dev              # Start all services
 ```
@@ -476,7 +476,7 @@ pnpm dev              # Start all services
 ### Milestone 3: Transcription Worker
 - Worker: BullMQ setup + job processor
 - Worker: FFmpeg audio extraction
-- Worker: Whisper transcription (word-level)
+- Worker: WhisperX transcription (word-level)
 - Worker: Convert to captions format
 - API: WebSocket for progress updates
 - DB: Transcripts + timeline_items tables
@@ -523,5 +523,5 @@ This design ensures we can add semantic visual generation without refactoring:
 
 1. **State management:** Zustand vs Redux vs designcombo's existing solution
 2. **Remotion version:** Pin to specific version used by designcombo
-3. **Whisper model:** Start with `medium.en`, may need `large` for accuracy
+3. **WhisperX model:** Start with `base`, configurable via `WHISPER_MODEL` env var
 4. **Subtitle animation library:** Build custom vs use existing Remotion templates

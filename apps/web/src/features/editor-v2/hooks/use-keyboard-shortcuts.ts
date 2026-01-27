@@ -44,10 +44,12 @@ export interface KeyboardShortcutOptions {
   onToggleTranscript?: () => void;
   /** Callback invoked when Escape is pressed (after split mode check) to close the right panel. */
   onClosePanel?: () => void;
+  /** Callback invoked when the L key is pressed to toggle the editor layout. */
+  onToggleLayout?: () => void;
 }
 
 export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
-  const { onToggleTranscript, onClosePanel } = options;
+  const { onToggleTranscript, onClosePanel, onToggleLayout } = options;
 
   const {
     togglePlayback,
@@ -203,6 +205,13 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         return;
       }
 
+      // L: Toggle layout
+      if (e.code === 'KeyL' && !cmdOrCtrl && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        onToggleLayout?.();
+        return;
+      }
+
       // 1 / 2 / 3: Switch caption display mode
       if (!cmdOrCtrl && !e.shiftKey && !e.altKey) {
         const displayModeMap: Record<string, CaptionDisplayMode> = {
@@ -286,6 +295,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
       updateAllCaptionStyles,
       onToggleTranscript,
       onClosePanel,
+      onToggleLayout,
     ]
   );
 

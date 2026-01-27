@@ -33,6 +33,15 @@ interface EditorProps {
 }
 
 export function Editor({ projectId }: EditorProps) {
+  // Layout state
+  type EditorLayout = 'stacked' | 'side-by-side';
+  const [layout, setLayout] = useState<EditorLayout>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('editor-layout') as EditorLayout) || 'stacked';
+    }
+    return 'stacked';
+  });
+
   // Right panel state
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<RightPanelTab>('properties');
@@ -69,6 +78,15 @@ export function Editor({ projectId }: EditorProps) {
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
+  // Persist layout preference
+  useEffect(() => {
+    localStorage.setItem('editor-layout', layout);
+  }, [layout]);
+
+  const handleToggleLayout = useCallback(() => {
+    setLayout(p => p === 'stacked' ? 'side-by-side' : 'stacked');
+  }, []);
+
   // State
   const project = useProject();
   const isLoading = useIsLoading();
@@ -80,17 +98,22 @@ export function Editor({ projectId }: EditorProps) {
 
   // Toggle transcript panel
   const handleToggleTranscript = useCallback(() => {
-    if (panelOpen && activeTab === 'transcript') {
-      // Already showing transcript — close panel
-      setPanelOpen(false);
-      userRequestedTabRef.current = null;
+    if (layout === 'side-by-side') {
+      setActiveTab(prev => prev === 'transcript' ? 'properties' : 'transcript');
+      userRequestedTabRef.current = activeTab === 'transcript' ? null : 'transcript';
     } else {
-      // Open to transcript tab
-      setPanelOpen(true);
-      setActiveTab('transcript');
-      userRequestedTabRef.current = 'transcript';
+      if (panelOpen && activeTab === 'transcript') {
+        // Already showing transcript — close panel
+        setPanelOpen(false);
+        userRequestedTabRef.current = null;
+      } else {
+        // Open to transcript tab
+        setPanelOpen(true);
+        setActiveTab('transcript');
+        userRequestedTabRef.current = 'transcript';
+      }
     }
-  }, [panelOpen, activeTab]);
+  }, [layout, panelOpen, activeTab]);
 
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
@@ -102,17 +125,20 @@ export function Editor({ projectId }: EditorProps) {
 
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
-    setPanelOpen(false);
-    userRequestedTabRef.current = null;
+    if (layout === 'stacked') {
+      setPanelOpen(false);
+      userRequestedTabRef.current = null;
+    }
     if (activeTab === 'properties') {
       clearSelection();
     }
-  }, [activeTab, clearSelection]);
+  }, [layout, activeTab, clearSelection]);
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
     onToggleTranscript: handleToggleTranscript,
     onClosePanel: handleClosePanel,
+    onToggleLayout: handleToggleLayout,
   });
 
   // Load project on mount
@@ -263,50 +289,95 @@ export function Editor({ projectId }: EditorProps) {
         onExport={handleExport}
         onToggleTranscript={handleToggleTranscript}
         isTranscriptActive={panelOpen && activeTab === 'transcript'}
+        layout={layout}
+        onToggleLayout={handleToggleLayout}
       />
 
       {/* Main content area */}
-      <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* Scene/Preview with collapsible right panel */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* Scene */}
-          <div className="flex-1 relative min-w-0">
-            <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} />
+      {layout === 'stacked' ? (
+        <div className="flex-1 flex flex-col relative overflow-hidden">
+          {/* Scene/Preview with collapsible right panel */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Scene */}
+            <div className="flex-1 relative min-w-0">
+              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} />
+            </div>
+
+            {/* Right Panel */}
+            <RightPanel
+              isOpen={panelOpen}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              onClose={handleClosePanel}
+              layout="stacked"
+            />
           </div>
 
-          {/* Right Panel */}
-          <RightPanel
-            isOpen={panelOpen}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            onClose={handleClosePanel}
+          {/* Playback Bar */}
+          <PlaybackBar />
+
+          {/* Resize handle + toolbar above timeline */}
+          <div
+            ref={resizeRef}
+            onMouseDown={handleResizeStart}
+            className="h-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
+                       cursor-ns-resize transition-colors"
           />
-        </div>
+          <div className="flex-shrink-0 flex items-center px-2 py-1 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
+            <SceneToolbar
+              activePlatform={activePlatform}
+              overlayMode={overlayMode}
+              onPlatformChange={handlePlatformChange}
+              onModeChange={setOverlayMode}
+            />
+          </div>
 
-        {/* Playback Bar */}
-        <PlaybackBar />
-
-        {/* Resize handle + toolbar above timeline */}
-        <div
-          ref={resizeRef}
-          onMouseDown={handleResizeStart}
-          className="h-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
-                     cursor-ns-resize transition-colors"
-        />
-        <div className="flex-shrink-0 flex items-center px-2 py-1 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
-          <SceneToolbar
-            activePlatform={activePlatform}
-            overlayMode={overlayMode}
-            onPlatformChange={handlePlatformChange}
-            onModeChange={setOverlayMode}
-          />
+          {/* Timeline */}
+          <div style={{ height: timelineHeight }} className="flex-shrink-0">
+            <Timeline className="h-full" />
+          </div>
         </div>
+      ) : (
+        <div className="flex-1 flex flex-row overflow-hidden">
+          {/* Left: Scene + PlaybackBar */}
+          <div className="flex flex-col" style={{ width: '40%', minWidth: 280, maxWidth: 480 }}>
+            <div className="flex-1 relative min-w-0 overflow-hidden">
+              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} />
+            </div>
+            <PlaybackBar />
+          </div>
 
-        {/* Timeline */}
-        <div style={{ height: timelineHeight }} className="flex-shrink-0">
-          <Timeline className="h-full" />
+          {/* Right: Panel + SceneToolbar + Timeline */}
+          <div className="flex-1 flex flex-col min-w-0 border-l border-[var(--editor-border-subtle)]">
+            <div className="flex-1 overflow-hidden min-h-0">
+              <RightPanel
+                isOpen={true}
+                activeTab={activeTab}
+                onTabChange={handleTabChange}
+                onClose={handleClosePanel}
+                layout="side-by-side"
+              />
+            </div>
+            <div className="flex-shrink-0 flex items-center px-2 py-1 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
+              <SceneToolbar
+                activePlatform={activePlatform}
+                overlayMode={overlayMode}
+                onPlatformChange={handlePlatformChange}
+                onModeChange={setOverlayMode}
+              />
+            </div>
+            <div
+              ref={resizeRef}
+              onMouseDown={handleResizeStart}
+              className="h-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
+                         cursor-ns-resize transition-colors"
+            />
+            <div style={{ height: timelineHeight }} className="flex-shrink-0">
+              <Timeline className="h-full" />
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Command Palette */}
       <CommandPalette

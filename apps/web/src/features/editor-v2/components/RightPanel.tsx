@@ -17,19 +17,25 @@ interface RightPanelProps {
   activeTab: RightPanelTab;
   onTabChange: (tab: RightPanelTab) => void;
   onClose: () => void;
+  layout?: 'stacked' | 'side-by-side';
 }
 
-export function RightPanel({ isOpen, activeTab, onTabChange, onClose }: RightPanelProps) {
+export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked' }: RightPanelProps) {
+  const isSideBySide = layout === 'side-by-side';
+
   return (
     <div
-      className="flex-shrink-0 border-l border-[var(--editor-border-subtle)] overflow-hidden bg-[var(--editor-bg-surface)]"
-      style={{
+      className={isSideBySide
+        ? "w-full h-full overflow-hidden bg-[var(--editor-bg-surface)]"
+        : "flex-shrink-0 border-l border-[var(--editor-border-subtle)] overflow-hidden bg-[var(--editor-bg-surface)]"
+      }
+      style={isSideBySide ? undefined : {
         width: isOpen ? 320 : 0,
         transition: 'width 150ms ease-out',
       }}
     >
-      {/* Inner wrapper with fixed width so content doesn't reflow during transition */}
-      <div className="w-80 h-full flex flex-col">
+      {/* Inner wrapper */}
+      <div className={isSideBySide ? "w-full h-full flex flex-col" : "w-80 h-full flex flex-col"}>
         {/* Tab header */}
         <div className="h-10 flex items-center border-b border-[var(--editor-border-subtle)] flex-shrink-0">
           <div className="flex-1 flex">
@@ -44,13 +50,15 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose }: RightPan
               onClick={() => onTabChange('properties')}
             />
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 mr-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
-            aria-label="Close panel"
-          >
-            <X className="w-3.5 h-3.5 text-[var(--editor-text-secondary)]" />
-          </button>
+          {!isSideBySide && (
+            <button
+              onClick={onClose}
+              className="p-1.5 mr-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
+              aria-label="Close panel"
+            >
+              <X className="w-3.5 h-3.5 text-[var(--editor-text-secondary)]" />
+            </button>
+          )}
         </div>
 
         {/* Content */}

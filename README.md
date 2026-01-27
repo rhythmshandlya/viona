@@ -60,13 +60,17 @@ This starts:
 pnpm db:migrate
 ```
 
-### 5. Install Whisper (one-time)
+### 5. Install WhisperX (one-time)
 
 ```bash
-pnpm whisper:install
+# Linux/macOS
+pnpm --filter worker whisperx:setup
+
+# Windows
+pnpm --filter worker whisperx:setup:win
 ```
 
-This downloads whisper.cpp and the medium.en model (~1.5GB).
+This sets up a Python virtual environment with WhisperX for transcription.
 
 ### 6. Start development servers
 
@@ -96,7 +100,7 @@ See [docs/plans/2026-01-26-phase1-subtitle-pipeline-design.md](docs/plans/2026-0
 
 1. User uploads video → stored in MinIO
 2. API queues transcription job
-3. Worker: Downloads video → Extracts audio → Whisper transcription
+3. Worker: Downloads video → Extracts audio → WhisperX transcription
 4. Worker: Creates subtitle track with word-level timestamps
 5. User edits subtitles in video editor
 6. User exports → Worker renders final video with subtitles
@@ -105,7 +109,7 @@ See [docs/plans/2026-01-26-phase1-subtitle-pipeline-design.md](docs/plans/2026-0
 
 - **Frontend**: Next.js + React + shadcn/ui (DesignCombo fork)
 - **API**: Node.js + Fastify + BullMQ
-- **Worker**: Node.js + Remotion + Whisper
+- **Worker**: Node.js + Remotion + WhisperX
 - **Database**: PostgreSQL + Drizzle ORM
 - **Queue**: Redis + BullMQ
 - **Storage**: MinIO (S3-compatible)
@@ -119,7 +123,7 @@ See [docs/plans/2026-01-26-phase1-subtitle-pipeline-design.md](docs/plans/2026-0
 | `pnpm docker:up` | Start Docker services |
 | `pnpm docker:down` | Stop Docker services |
 | `pnpm db:migrate` | Run database migrations |
-| `pnpm whisper:install` | Install Whisper.cpp and model |
+| `pnpm --filter worker whisperx:setup` | Set up WhisperX Python environment |
 | `pnpm lint` | Run ESLint |
 | `pnpm typecheck` | Run TypeScript type checking |
 

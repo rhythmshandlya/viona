@@ -7,7 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Command, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, Columns2, Command, MessageSquare, MoreHorizontal } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,9 +23,11 @@ interface HeaderProps {
   onExport?: () => void;
   onToggleTranscript?: () => void;
   isTranscriptActive?: boolean;
+  layout?: 'stacked' | 'side-by-side';
+  onToggleLayout?: () => void;
 }
 
-export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive }: HeaderProps) {
+export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive, layout, onToggleLayout }: HeaderProps) {
   const router = useRouter();
   const project = useProject();
   const { saveProject } = useEditorActions();
@@ -122,6 +124,23 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
         >
           <MessageSquare className={`w-4 h-4 ${
             isTranscriptActive
+              ? 'text-[var(--editor-accent)]'
+              : 'text-[var(--editor-text-secondary)]'
+          }`} />
+        </button>
+
+        {/* Layout toggle */}
+        <button
+          onClick={() => onToggleLayout?.()}
+          title="Toggle side-by-side layout (L)"
+          className={`p-2 rounded-md transition-colors ${
+            layout === 'side-by-side'
+              ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)]'
+              : 'hover:bg-[var(--editor-bg-hover)]'
+          }`}
+        >
+          <Columns2 className={`w-4 h-4 ${
+            layout === 'side-by-side'
               ? 'text-[var(--editor-accent)]'
               : 'text-[var(--editor-text-secondary)]'
           }`} />

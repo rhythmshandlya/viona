@@ -42,7 +42,6 @@ temp/
 .venv/
 
 # Whisper models (large files)
-whisper.cpp/
 *.bin
 
 # MinIO local data (if not using Docker volumes)
