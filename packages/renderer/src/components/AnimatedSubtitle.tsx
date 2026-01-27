@@ -1,5 +1,7 @@
 import React from 'react';
-import { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig } from 'remotion';
+import { resolveAnimation, isAnimationConfig, migrateAnimation } from '../animations';
+import type { AnimationConfig } from '../animations';
 
 export interface SubtitleWord {
   text: string;
@@ -16,7 +18,8 @@ export interface SubtitleStyle {
   backgroundColor?: string;
   activeBackgroundColor?: string;
   position?: 'top' | 'center' | 'bottom';
-  animation?: 'none' | 'pop' | 'fade' | 'highlight' | 'karaoke';
+  animation?: string | AnimationConfig;
+  textShadow?: string;
 }
 
 export interface AnimatedSubtitleProps {
@@ -76,8 +79,6 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
           word={word}
           style={style}
           currentTimeMs={currentTimeMs}
-          globalStartMs={startMs}
-          fps={fps}
         />
       ))}
     </div>
@@ -88,92 +89,67 @@ interface WordProps {
   word: SubtitleWord;
   style: SubtitleStyle;
   currentTimeMs: number;
-  globalStartMs: number;
-  fps: number;
 }
 
 const Word: React.FC<WordProps> = ({
   word,
   style,
   currentTimeMs,
-  globalStartMs,
-  fps,
 }) => {
-  // Calculate if this word is currently active
-  const wordStartMs = word.startMs;
-  const wordEndMs = word.endMs;
+  // 1. Resolve animation config (handle legacy strings via migrateAnimation)
+  const animConfig: AnimationConfig = isAnimationConfig(style.animation)
+    ? style.animation
+    : migrateAnimation(style.animation as string);
 
-  const isActive = currentTimeMs >= wordStartMs && currentTimeMs < wordEndMs;
-  const hasAppeared = currentTimeMs >= wordStartMs;
-  const progress = hasAppeared
-    ? Math.min((currentTimeMs - wordStartMs) / (wordEndMs - wordStartMs), 1)
-    : 0;
+  // 2. Calculate timing context
+  const isActive = currentTimeMs >= word.startMs && currentTimeMs < word.endMs;
+  const hasAppeared = currentTimeMs >= word.startMs;
+  const elapsedMs = currentTimeMs - word.startMs;
+  const wordDurationMs = word.endMs - word.startMs;
 
-  // Animation calculations
-  let scale = 1;
-  let opacity = 1;
-  let backgroundColor = style.backgroundColor;
-  let color = style.color;
+  // 3. Call resolveAnimation
+  const { style: animStyle } = resolveAnimation(animConfig, {
+    elapsedMs: Math.max(0, elapsedMs),
+    wordDurationMs,
+    isActive,
+    hasAppeared: hasAppeared && !isActive,
+    isFuture: !hasAppeared,
+  });
 
-  switch (style.animation) {
-    case 'pop':
-      if (isActive) {
-        // Pop in effect
-        const popProgress = Math.min(progress * 3, 1);
-        scale = interpolate(popProgress, [0, 0.5, 1], [0.8, 1.1, 1]);
-      }
-      color = isActive ? style.activeColor : (hasAppeared ? style.color : style.color);
-      break;
+  // 4. Apply per-word style overrides if present
+  const overrides = (word as any).styleOverrides as
+    | { color?: string; fontWeight?: number; scale?: number; emphasisBg?: string }
+    | undefined;
 
-    case 'fade':
-      opacity = hasAppeared ? 1 : 0.3;
-      color = isActive ? style.activeColor : (hasAppeared ? style.color : '#666666');
-      break;
-
-    case 'highlight':
-      color = isActive ? style.activeColor : (hasAppeared ? style.color : style.color);
-      backgroundColor = isActive ? style.activeBackgroundColor : style.backgroundColor;
-      if (isActive) {
-        scale = 1.05;
-      }
-      break;
-
-    case 'karaoke':
-      // Karaoke style - fill from left to right
-      color = style.color;
-      break;
-
-    case 'none':
-    default:
-      // No animation
-      break;
-  }
-
-  const wordStyle: React.CSSProperties = {
+  // 5. Build final CSS
+  const wordCss: React.CSSProperties = {
     fontFamily: style.fontFamily,
-    fontSize: style.fontSize,
-    fontWeight: style.fontWeight,
-    color: color,
-    backgroundColor: backgroundColor,
+    fontSize: (overrides?.scale || 1) * (style.fontSize || 48),
+    fontWeight: overrides?.fontWeight || style.fontWeight,
+    color: isActive
+      ? (overrides?.color || style.activeColor)
+      : (overrides?.color || style.color),
+    backgroundColor: overrides?.emphasisBg
+      || (isActive ? style.activeBackgroundColor : style.backgroundColor),
     padding: '4px 8px',
     borderRadius: '8px',
-    transform: `scale(${scale})`,
-    opacity,
-    transition: 'transform 0.1s ease-out',
-    textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',
+    textShadow: style.textShadow || '2px 2px 4px rgba(0, 0, 0, 0.8)',
     display: 'inline-block',
+    ...animStyle,
   };
 
-  // For karaoke effect, use a gradient mask
+  // 6. Karaoke gradient effect for 'karaoke' legacy or 'color-wipe' animation
   if (style.animation === 'karaoke' && hasAppeared) {
-    const fillPercent = isActive ? progress * 100 : (hasAppeared ? 100 : 0);
-    wordStyle.background = `linear-gradient(90deg, ${style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`;
-    wordStyle.WebkitBackgroundClip = 'text';
-    wordStyle.WebkitTextFillColor = 'transparent';
-    wordStyle.backgroundClip = 'text';
+    const fillPercent = isActive
+      ? ((currentTimeMs - word.startMs) / (word.endMs - word.startMs)) * 100
+      : (hasAppeared ? 100 : 0);
+    wordCss.background = `linear-gradient(90deg, ${style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`;
+    wordCss.WebkitBackgroundClip = 'text';
+    wordCss.WebkitTextFillColor = 'transparent';
+    wordCss.backgroundClip = 'text';
   }
 
-  return <span style={wordStyle}>{word.text}</span>;
+  return <span style={wordCss}>{word.text}</span>;
 };
 
 export default AnimatedSubtitle;
