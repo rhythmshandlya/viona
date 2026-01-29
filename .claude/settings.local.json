@@ -139,7 +139,11 @@
       "Bash(npm run build:*)",
       "Bash(node -e:*)",
       "Bash(opencode --help:*)",
-      "Bash(npx opencode --help:*)"
+      "Bash(npx opencode --help:*)",
+      "Bash(curl:*)",
+      "Bash(claude skills install @markmdev/prompt-writing)",
+      "Bash(claude skills:*)",
+      "Bash(npx @anthropic-ai/claude-code skills install:*)"
     ]
   }
 }

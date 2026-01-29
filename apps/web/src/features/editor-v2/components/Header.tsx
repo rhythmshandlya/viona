@@ -7,7 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Columns2, Command, MessageSquare, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, Columns2, Command, MessageSquare, MoreHorizontal, Sparkles, Terminal } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,9 +25,15 @@ interface HeaderProps {
   isTranscriptActive?: boolean;
   layout?: 'stacked' | 'side-by-side';
   onToggleLayout?: () => void;
+  onGenerateVisuals?: () => void;
+  isGeneratingVisuals?: boolean;
+  hasTranscript?: boolean;
+  onToggleLogs?: () => void;
+  isLogsActive?: boolean;
+  hasActiveJob?: boolean;
 }
 
-export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive, layout, onToggleLayout }: HeaderProps) {
+export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive, layout, onToggleLayout, onGenerateVisuals, isGeneratingVisuals, hasTranscript, onToggleLogs, isLogsActive, hasActiveJob }: HeaderProps) {
   const router = useRouter();
   const project = useProject();
   const { saveProject } = useEditorActions();
@@ -146,6 +152,28 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
           }`} />
         </button>
 
+        {/* Logs toggle - only show when there's an active job or logs are open */}
+        {(hasActiveJob || isLogsActive) && (
+          <button
+            onClick={() => onToggleLogs?.()}
+            title="Toggle Agent Logs"
+            className={`relative p-2 rounded-md transition-colors ${
+              isLogsActive
+                ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)]'
+                : 'hover:bg-[var(--editor-bg-hover)]'
+            }`}
+          >
+            <Terminal className={`w-4 h-4 ${
+              isLogsActive
+                ? 'text-[var(--editor-accent)]'
+                : 'text-[var(--editor-text-secondary)]'
+            }`} />
+            {hasActiveJob && !isLogsActive && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            )}
+          </button>
+        )}
+
         {/* Command palette hint */}
         <button
           onClick={onOpenCommandPalette}
@@ -157,6 +185,31 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
           <Command className="w-3 h-3" />
           <span>K</span>
         </button>
+
+        {/* Generate Visuals button - only show when transcript exists */}
+        {hasTranscript && (
+          <button
+            onClick={onGenerateVisuals}
+            disabled={isGeneratingVisuals}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium
+                       bg-gradient-to-r from-purple-500 to-cyan-500 text-white
+                       hover:from-purple-600 hover:to-cyan-600 transition-all
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Generate AI Visuals"
+          >
+            {isGeneratingVisuals ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Generating...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-4 h-4" />
+                <span>AI Visuals</span>
+              </>
+            )}
+          </button>
+        )}
 
         {/* Export button */}
         <button

@@ -1,0 +1,3 @@
+# Public folder for static assets
+# Place images, fonts, and other static files here
+# Access them using: staticFile('filename.png')

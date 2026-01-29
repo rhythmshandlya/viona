@@ -48,6 +48,7 @@ export interface CanvasRendererOptions {
     caption: string;
     text: string;
     image: string;
+    visual: string;
   };
   selectedBorderColor: string;
   playheadColor: string;
@@ -74,6 +75,7 @@ const DEFAULT_OPTIONS: CanvasRendererOptions = {
     caption: '#a855f7', // purple-500
     text: '#f59e0b', // amber-500
     image: '#ec4899', // pink-500
+    visual: '#06b6d4', // cyan-500
   },
   selectedBorderColor: '#ffffff',
   playheadColor: '#ef4444', // red-500

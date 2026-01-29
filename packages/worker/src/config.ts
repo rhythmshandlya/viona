@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { join } from 'path';
 
 export const config = {
   database: {
@@ -34,5 +35,23 @@ export const config = {
 
   enhance: {
     scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
+  },
+
+  remotion: {
+    projectDir: process.env.REMOTION_PROJECT_DIR || 'C:/Users/armaa/test',
+    // IMPORTANT: This must match the API's bundles.dir config (set BUNDLE_OUTPUT_DIR in .env)
+    bundleOutputDir: process.env.BUNDLE_OUTPUT_DIR || 'C:/Users/armaa/Documents/cllipify/bundles',
+  },
+
+  openHands: {
+    // Python path for OpenHands (requires Python 3.12+)
+    pythonPath: process.env.OPENHANDS_PYTHON_PATH || 'python',
+    // Use Docker sandbox for isolation (recommended for production)
+    useDocker: process.env.OPENHANDS_USE_DOCKER === 'true',
+    // Docker image with Python, Node.js, Chromium, Remotion
+    dockerImage: process.env.OPENHANDS_DOCKER_IMAGE || 'clipify-remotion-sandbox:latest',
+    // Container resource limits
+    memoryLimit: process.env.OPENHANDS_MEMORY_LIMIT || '4g',
+    cpuLimit: process.env.OPENHANDS_CPU_LIMIT || '2',
   },
 } as const;

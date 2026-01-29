@@ -5,5 +5,6 @@
 
 export { Header } from './Header';
 export { PlaybackBar } from './PlaybackBar';
-export { ContextPanel } from './ContextPanel';
+export { PropertiesContent as ContextPanel } from './ContextPanel';
 export { CommandPalette, useCommandPalette } from './CommandPalette';
+export { JobLogsPanel } from './JobLogsPanel';

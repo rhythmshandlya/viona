@@ -1,4 +1,5 @@
 import { Queue } from 'bullmq';
+import Redis from 'ioredis';
 import { config } from '../config.js';
 
 // Parse Redis URL for BullMQ connection
@@ -69,4 +70,30 @@ export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
       delay: 5000,
     },
   });
+}
+
+export interface GenerateVisualsJobData {
+  projectId: string;
+  jobId: string;
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  qualityTier?: 'fast' | 'balanced' | 'quality';
+}
+
+export const generateVisualsQueue = new Queue('generate-visuals', { connection });
+
+export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
+  return generateVisualsQueue.add('generate-visuals', data, {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+  });
+}
+
+// Redis publisher for job cancellation
+const redisPublisher = new Redis(config.redis.url);
+
+export async function publishJobCancel(jobId: string): Promise<void> {
+  await redisPublisher.publish('job:cancel', JSON.stringify({ jobId }));
 }

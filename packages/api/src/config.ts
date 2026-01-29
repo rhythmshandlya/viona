@@ -22,4 +22,9 @@ export const config = {
       outputs: process.env.MINIO_BUCKET_OUTPUTS || 'outputs',
     },
   },
+
+  bundles: {
+    // IMPORTANT: This must match the worker's remotion.bundleOutputDir config (set BUNDLE_OUTPUT_DIR in .env)
+    dir: process.env.BUNDLE_OUTPUT_DIR || 'C:/Users/armaa/Documents/cllipify/bundles',
+  },
 } as const;

@@ -1,0 +1,30 @@
+{
+  "name": "clipify-remotion-workspace",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "remotion studio",
+    "build": "remotion bundle src/index.tsx --out-dir=out",
+    "render": "remotion render src/index.tsx",
+    "still": "remotion still src/index.tsx"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "@remotion/transitions": "^4.0.0",
+    "@remotion/shapes": "^4.0.0",
+    "@remotion/paths": "^4.0.0",
+    "@remotion/noise": "^4.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "^4.0.0",
+    "zod": "3.22.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.0.0"
+  }
+}

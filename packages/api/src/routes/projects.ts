@@ -5,7 +5,7 @@ import { eq, inArray } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts } from '../db/index.js';
 import { config } from '../config.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob } from '../services/queue.js';
+import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, publishJobCancel } from '../services/queue.js';
 import type { ProjectStatus } from '@reelify/shared';
 
 // Validation schemas
@@ -345,6 +345,54 @@ export async function projectRoutes(fastify: FastifyInstance) {
     return { jobId: job.id };
   });
 
+  // Generate AI visuals
+  fastify.post('/projects/:id/generate-visuals', async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic']),
+      qualityTier: z.enum(['fast', 'balanced', 'quality']).default('balanced'),
+    }).parse(request.body);
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check for transcript
+    const transcript = await db.query.transcripts.findFirst({
+      where: eq(transcripts.projectId, id),
+    });
+
+    if (!transcript || !transcript.words) {
+      return reply.status(400).send({ error: 'Project has no transcript. Run processing first.' });
+    }
+
+    // Create job record
+    const [job] = await db.insert(jobs).values({
+      projectId: id,
+      type: 'generate-visuals',
+      status: 'pending',
+    }).returning();
+
+    // Update project status
+    await db.update(projects)
+      .set({ status: 'generating' })
+      .where(eq(projects.id, id));
+
+    // Queue the job
+    await queueGenerateVisualsJob({
+      projectId: id,
+      jobId: job.id,
+      stylePreset: body.stylePreset,
+      qualityTier: body.qualityTier,
+    });
+
+    return { jobId: job.id };
+  });
+
   // Separate audio from video and enhance
   fastify.post('/projects/:id/separate-audio', async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -512,5 +560,37 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }
 
     return job;
+  });
+
+  // Cancel a job
+  fastify.post('/jobs/:id/cancel', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const job = await db.query.jobs.findFirst({
+      where: eq(jobs.id, id),
+    });
+
+    if (!job) {
+      return reply.status(404).send({ error: 'Job not found' });
+    }
+
+    if (job.status !== 'processing' && job.status !== 'pending') {
+      return reply.status(400).send({ error: 'Job cannot be cancelled' });
+    }
+
+    // Publish cancel command to worker
+    await publishJobCancel(id);
+
+    // Update job status
+    await db.update(jobs)
+      .set({ status: 'cancelled', error: 'Cancelled by user' })
+      .where(eq(jobs.id, id));
+
+    // Reset project status
+    await db.update(projects)
+      .set({ status: 'ready' })
+      .where(eq(projects.id, job.projectId));
+
+    return { success: true, message: 'Job cancellation requested' };
   });
 }

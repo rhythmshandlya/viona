@@ -63,6 +63,16 @@ export interface TranscriptWord {
   confidence: number;
 }
 
+export interface JobMetrics {
+  inputTokens?: number;
+  outputTokens?: number;
+  estimatedCostUsd?: number;
+  durationMs?: number;
+  llmModel?: string;
+  filesWritten?: number;
+  screenshotsTaken?: number;
+}
+
 export interface Job {
   id: string;
   projectId: string;
@@ -70,6 +80,8 @@ export interface Job {
   status: string;
   progress: number;
   error: string | null;
+  metrics?: JobMetrics | null;
+  logs?: string[] | null;
   createdAt: string;
   completedAt: string | null;
 }
@@ -83,6 +95,13 @@ export interface SeparateAudioResponse {
   jobId: string;
   trackId: string;
   itemId: string;
+}
+
+export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+export type QualityTier = 'fast' | 'balanced' | 'quality';
+
+export interface GenerateVisualsResponse {
+  jobId: string;
 }
 
 class ApiClient {
@@ -156,6 +175,13 @@ class ApiClient {
     });
   }
 
+  async generateVisuals(projectId: string, stylePreset: StylePreset, qualityTier: QualityTier = 'balanced'): Promise<GenerateVisualsResponse> {
+    return this.request(`/api/projects/${projectId}/generate-visuals`, {
+      method: 'POST',
+      body: JSON.stringify({ stylePreset, qualityTier }),
+    });
+  }
+
   async getDownloadUrl(projectId: string): Promise<DownloadResponse> {
     return this.request(`/api/projects/${projectId}/download`);
   }
@@ -163,6 +189,12 @@ class ApiClient {
   // Jobs
   async getJob(jobId: string): Promise<Job> {
     return this.request(`/api/jobs/${jobId}`);
+  }
+
+  async cancelJob(jobId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/jobs/${jobId}/cancel`, {
+      method: 'POST',
+    });
   }
 
   // Upload helper

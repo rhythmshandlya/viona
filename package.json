@@ -13,6 +13,8 @@
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:logs": "docker-compose logs -f",
+    "docker:build-sandbox": "docker build -t clipify-openhands-sandbox:latest ./docker/openhands-sandbox",
+    "docker:test-sandbox": "docker run --rm --entrypoint python clipify-openhands-sandbox:latest /opt/openhands/tests/test_sdk_imports.py",
     "db:migrate": "pnpm --filter @reelify/api db:migrate",
     "db:seed": "pnpm --filter @reelify/api db:seed",
     "setup": "pnpm install && pnpm docker:up && pnpm db:migrate",

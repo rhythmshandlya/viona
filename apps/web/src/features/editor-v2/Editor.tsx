@@ -13,20 +13,24 @@ import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
+import { StyleSelectionModal } from './components/StyleSelectionModal';
+import { JobLogsPanel } from './components/JobLogsPanel';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
 import { Timeline } from './timeline/Timeline';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
+import { useJobWebSocket } from './hooks/use-job-websocket';
 import {
   useProject,
   useIsLoading,
   useError,
   useEditorActions,
   useSelectedIds,
+  useCaptionItems,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
-import { api } from '@/lib/api';
+import { api, StylePreset, QualityTier, JobMetrics } from '@/lib/api';
 
 interface EditorProps {
   projectId: string;
@@ -64,6 +68,11 @@ export function Editor({ projectId }: EditorProps) {
   const [activePlatform, setActivePlatform] = useState<SocialPlatform | null>(null);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('mockup');
   const lastPlatformRef = useRef<SocialPlatform>('instagram');
+
+  // AI Visuals generation state
+  const [showStyleModal, setShowStyleModal] = useState(false);
+  const [isGeneratingVisuals, setIsGeneratingVisuals] = useState(false);
+  const [showLogsPanel, setShowLogsPanel] = useState(false);
 
   const handlePlatformChange = useCallback((platform: SocialPlatform | null) => {
     if (platform) lastPlatformRef.current = platform;
@@ -146,6 +155,8 @@ export function Editor({ projectId }: EditorProps) {
   const isLoading = useIsLoading();
   const error = useError();
   const selectedIds = useSelectedIds();
+  const captionItems = useCaptionItems();
+  const hasTranscript = captionItems.length > 0;
 
   // Actions
   const { loadProject, clearSelection, updateEnhancementStatus } = useEditorActions();
@@ -294,6 +305,170 @@ export function Editor({ projectId }: EditorProps) {
     }
   };
 
+  // Generate visuals state
+  const [visualsJobId, setVisualsJobId] = useState<string | null>(null);
+  const [visualsProgress, setVisualsProgress] = useState(0);
+  const [visualsStatus, setVisualsStatus] = useState<string>('');
+  const [visualsError, setVisualsError] = useState<string | null>(null);
+  const [visualsComplete, setVisualsComplete] = useState(false);
+  const [visualsMetrics, setVisualsMetrics] = useState<JobMetrics | null>(null);
+  const [visualsPreviewUrl, setVisualsPreviewUrl] = useState<string | null>(null);
+
+  // Handle generate visuals
+  const handleOpenStyleModal = () => {
+    setShowStyleModal(true);
+  };
+
+  const handleGenerateVisuals = async (stylePreset: StylePreset, qualityTier: QualityTier) => {
+    if (!project) return;
+    setIsGeneratingVisuals(true);
+    setVisualsProgress(0);
+    setVisualsStatus('Starting...');
+    setVisualsError(null); // Clear any previous error
+    setVisualsComplete(false); // Reset completion state
+    setVisualsMetrics(null);
+    setVisualsPreviewUrl(null);
+    try {
+      const { jobId } = await api.generateVisuals(project.id, stylePreset, qualityTier);
+      console.log('Visual generation started:', jobId, 'quality:', qualityTier);
+      setVisualsJobId(jobId);
+      setShowLogsPanel(true); // Auto-open logs panel
+      setShowStyleModal(false); // Close modal - progress shown in logs panel
+    } catch (err) {
+      console.error('Visual generation failed:', err);
+      setIsGeneratingVisuals(false);
+      setShowStyleModal(false);
+    }
+  };
+
+  // WebSocket for real-time job updates
+  const { isConnected: wsConnected, subscribeToJob, unsubscribeFromJob } = useJobWebSocket(
+    project?.id ?? null,
+    {
+      onProgress: (data) => {
+        if (data.jobId === visualsJobId) {
+          setVisualsProgress(data.progress || 0);
+          if (data.message) {
+            setVisualsStatus(data.message);
+          }
+        }
+      },
+      onComplete: async (data) => {
+        if (data.jobId === visualsJobId) {
+          setVisualsStatus('Complete!');
+          setIsGeneratingVisuals(false);
+          setVisualsComplete(true);
+
+          // Fetch job to get metrics
+          try {
+            const job = await api.getJob(data.jobId);
+            if (job.metrics) {
+              setVisualsMetrics(job.metrics);
+            }
+          } catch (err) {
+            console.error('Failed to fetch job metrics:', err);
+          }
+
+          setVisualsJobId(null);
+          setShowStyleModal(true); // Re-open modal to show completion
+        }
+      },
+      onError: (data) => {
+        if (data.jobId === visualsJobId) {
+          setVisualsStatus('Failed');
+          setVisualsError(data.error || 'Unknown error occurred');
+          setIsGeneratingVisuals(false);
+          setVisualsJobId(null);
+          setShowStyleModal(true); // Re-open modal to show error
+        }
+      },
+    }
+  );
+
+  // Subscribe to job when it starts
+  useEffect(() => {
+    if (visualsJobId && wsConnected) {
+      subscribeToJob(visualsJobId);
+      return () => unsubscribeFromJob(visualsJobId);
+    }
+  }, [visualsJobId, wsConnected, subscribeToJob, unsubscribeFromJob]);
+
+  // Fallback polling when WebSocket is not connected
+  useEffect(() => {
+    if (!visualsJobId || !isGeneratingVisuals) return;
+    // If WebSocket is connected, skip polling
+    if (wsConnected) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        const job = await api.getJob(visualsJobId);
+        setVisualsProgress(job.progress || 0);
+
+        if (job.status === 'complete') {
+          setVisualsStatus('Complete!');
+          setIsGeneratingVisuals(false);
+          setVisualsComplete(true);
+
+          // Set metrics from job
+          if (job.metrics) {
+            setVisualsMetrics(job.metrics);
+          }
+
+          setVisualsJobId(null);
+          setShowStyleModal(true); // Re-open modal to show completion
+        } else if (job.status === 'failed' || job.status === 'cancelled') {
+          const errorMsg = job.status === 'cancelled'
+            ? 'Generation was cancelled'
+            : (job.error || 'Unknown error occurred');
+          setVisualsStatus(job.status === 'cancelled' ? 'Cancelled' : 'Failed');
+          setVisualsError(errorMsg);
+          setIsGeneratingVisuals(false);
+          setVisualsJobId(null);
+          setShowStyleModal(true); // Re-open modal to show error
+        } else if (job.status === 'processing') {
+          setVisualsStatus('Generating visuals with AI...');
+        }
+      } catch (err) {
+        console.error('Failed to poll job status:', err);
+      }
+    }, 2000); // Poll every 2 seconds
+
+    return () => clearInterval(pollInterval);
+  }, [visualsJobId, isGeneratingVisuals, project, loadProject, wsConnected]);
+
+  // Cancel visual generation
+  const handleCancelVisuals = async () => {
+    if (!visualsJobId) return;
+    try {
+      await api.cancelJob(visualsJobId);
+      setVisualsStatus('Cancelling...');
+    } catch (err) {
+      console.error('Failed to cancel job:', err);
+    }
+  };
+
+  // Confirm adding visuals to timeline
+  const handleConfirmAddVisuals = () => {
+    // Reload project to get the new visual items
+    loadProject(project!.id);
+    // Reset all states and close modal
+    setShowStyleModal(false);
+    setVisualsComplete(false);
+    setVisualsMetrics(null);
+    setVisualsPreviewUrl(null);
+  };
+
+  // Discard generated visuals (close modal without adding)
+  const handleDiscardVisuals = () => {
+    // TODO: Could call an API to delete the generated visuals if needed
+    // For now, just close the modal - the visuals stay but aren't in timeline
+    setShowStyleModal(false);
+    setVisualsComplete(false);
+    setVisualsMetrics(null);
+    setVisualsPreviewUrl(null);
+    setVisualsError(null);
+  };
+
   // Loading state
   if (isLoading) {
     return (
@@ -345,6 +520,12 @@ export function Editor({ projectId }: EditorProps) {
         isTranscriptActive={panelOpen && activeTab === 'transcript'}
         layout={layout}
         onToggleLayout={handleToggleLayout}
+        onGenerateVisuals={handleOpenStyleModal}
+        isGeneratingVisuals={isGeneratingVisuals}
+        hasTranscript={hasTranscript}
+        onToggleLogs={() => setShowLogsPanel(!showLogsPanel)}
+        isLogsActive={showLogsPanel}
+        hasActiveJob={!!visualsJobId}
       />
 
       {/* Main content area */}
@@ -385,6 +566,20 @@ export function Editor({ projectId }: EditorProps) {
               onModeChange={setOverlayMode}
             />
           </div>
+
+          {/* Agent Logs Panel */}
+          <JobLogsPanel
+            projectId={project.id}
+            jobId={visualsJobId}
+            isOpen={showLogsPanel}
+            onClose={() => setShowLogsPanel(false)}
+            isGenerating={isGeneratingVisuals}
+            progress={visualsProgress}
+            status={visualsStatus}
+            error={visualsError}
+            isComplete={visualsComplete}
+            onCancel={handleCancelVisuals}
+          />
 
           {/* Timeline */}
           <div style={{ height: timelineHeight }} className="flex-shrink-0">
@@ -435,6 +630,19 @@ export function Editor({ projectId }: EditorProps) {
               className="h-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
                          cursor-ns-resize transition-colors"
             />
+            {/* Agent Logs Panel */}
+            <JobLogsPanel
+              projectId={project.id}
+              jobId={visualsJobId}
+              isOpen={showLogsPanel}
+              onClose={() => setShowLogsPanel(false)}
+              isGenerating={isGeneratingVisuals}
+              progress={visualsProgress}
+              status={visualsStatus}
+              error={visualsError}
+              isComplete={visualsComplete}
+              onCancel={handleCancelVisuals}
+            />
             <div style={{ height: timelineHeight }} className="flex-shrink-0">
               <Timeline className="h-full" />
             </div>
@@ -446,6 +654,28 @@ export function Editor({ projectId }: EditorProps) {
       <CommandPalette
         isOpen={commandPalette.isOpen}
         onClose={commandPalette.close}
+      />
+
+      {/* Style Selection Modal for AI Visuals */}
+      <StyleSelectionModal
+        open={showStyleModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleDiscardVisuals();
+          } else {
+            setShowStyleModal(open);
+          }
+        }}
+        onSelect={handleGenerateVisuals}
+        onCancel={handleCancelVisuals}
+        onConfirmAdd={handleConfirmAddVisuals}
+        isLoading={isGeneratingVisuals}
+        progress={visualsProgress}
+        status={visualsStatus}
+        error={visualsError}
+        isComplete={visualsComplete}
+        metrics={visualsMetrics}
+        previewUrl={visualsPreviewUrl}
       />
     </div>
   );

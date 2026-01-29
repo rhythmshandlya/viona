@@ -7,7 +7,7 @@
 // Timeline Item Types
 // ============================================
 
-export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image';
+export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual';
 
 export interface TimelineItem {
   id: string;
@@ -21,7 +21,7 @@ export interface TimelineItem {
     endMs: number;
   };
   // Type-specific data
-  data: VideoItemData | AudioItemData | CaptionItemData | TextItemData | ImageItemData;
+  data: VideoItemData | AudioItemData | CaptionItemData | TextItemData | ImageItemData | VisualItemData;
 }
 
 export interface VideoItemData {
@@ -150,6 +150,18 @@ export interface ImageItemData {
   height: number;
   position: { x: number; y: number };
   opacity: number;
+}
+
+export interface VisualItemData {
+  visualId: string;
+  compositionId: string;
+  bundleUrl: string;
+  videoUrl?: string; // Rendered video URL for playback
+  type: string; // 'process' | 'chart' | 'diagram' etc.
+  description: string;
+  width: number;
+  height: number;
+  fps: number;
 }
 
 // ============================================

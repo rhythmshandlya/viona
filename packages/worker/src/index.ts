@@ -4,6 +4,7 @@ import { logger } from './logger.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
 import { processRenderJob, RenderJobData } from './processors/render.js';
 import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhance-audio.js';
+import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {
@@ -19,6 +20,14 @@ const connection = parseRedisUrl(config.redis.url);
 
 async function main() {
   logger.info('Starting Reelify worker...');
+
+  // Validate environment for visual generation (Python + OpenHands)
+  const envCheck = await validateEnvironment();
+  if (!envCheck.valid) {
+    logger.warn({ error: envCheck.error }, 'Visual generation environment not configured - generate-visuals jobs will fail');
+  } else {
+    logger.info('Visual generation environment validated');
+  }
 
   // Transcribe worker
   const transcribeWorker = new Worker<TranscribeJobData>(
@@ -83,6 +92,27 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Enhance-audio job failed');
   });
 
+  // Generate visuals worker
+  const generateVisualsWorker = new Worker<GenerateVisualsJobData>(
+    'generate-visuals',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing generate-visuals job');
+      await processGenerateVisualsJob(job);
+    },
+    {
+      connection,
+      concurrency: 1, // One at a time (AI + render intensive)
+    }
+  );
+
+  generateVisualsWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Generate-visuals job completed');
+  });
+
+  generateVisualsWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Generate-visuals job failed');
+  });
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown
@@ -91,6 +121,7 @@ async function main() {
     await transcribeWorker.close();
     await renderWorker.close();
     await enhanceAudioWorker.close();
+    await generateVisualsWorker.close();
     process.exit(0);
   };
 

@@ -25,7 +25,9 @@ import {
   VideoItemData,
   AudioItemData,
   CaptionItemData,
+  VisualItemData,
 } from '../store/types';
+import { DynamicVisualLoader } from './DynamicVisualLoader';
 
 // Calculate video transform for crop/pan
 function calculateVideoTransform(
@@ -81,6 +83,13 @@ export function Composition() {
     .map((id) => items[id])
     .filter((item): item is TimelineItem => item?.type === 'audio');
 
+  const visualItems = itemIds
+    .map((id) => items[id])
+    .filter((item): item is TimelineItem => item?.type === 'visual');
+
+  // Check if we need split layout (when visuals exist)
+  const hasSplitLayout = visualItems.length > 0;
+
   // When a separate audio item exists, mute the video to avoid playing
   // the audio twice (original in video + enhanced in audio).  We check
   // for the item's *existence* rather than a truthy `src` because the
@@ -110,10 +119,26 @@ export function Composition() {
       )
     : { scale: 1, translateX: 0, translateY: 0 };
 
+  // Split layout container style
+  const videoContainerStyle: React.CSSProperties = hasSplitLayout
+    ? { position: 'absolute', left: 0, top: 0, width: '50%', height: '100%', overflow: 'hidden' }
+    : { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', overflow: 'hidden' };
+
+  const visualContainerStyle: React.CSSProperties = {
+    position: 'absolute',
+    right: 0,
+    top: 0,
+    width: '50%',
+    height: '100%',
+    overflow: 'hidden',
+  };
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
-      {/* Video layer with crop/pan transform */}
-      {videoItems.map((item) => {
+      {/* Video container (full width or left half in split mode) */}
+      <div style={videoContainerStyle}>
+        {/* Video layer with crop/pan transform */}
+        {videoItems.map((item) => {
         const data = item.data as VideoItemData;
         if (!data.src) return null;
         const fromFrame = Math.round((item.startMs / 1000) * fps);
@@ -173,6 +198,54 @@ export function Composition() {
           </Sequence>
         );
       })}
+      </div>
+
+      {/* Visual container (right half in split mode) */}
+      {hasSplitLayout && (
+        <div style={visualContainerStyle}>
+          {visualItems.map((item) => {
+            const data = item.data as VisualItemData;
+            const fromFrame = Math.round((item.startMs / 1000) * fps);
+            const durationInFrames = Math.round(((item.endMs - item.startMs) / 1000) * fps);
+
+            // Prefer rendered video URL for playback
+            const videoSrc = data.videoUrl
+              ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${data.videoUrl}`
+              : null;
+
+            return (
+              <Sequence
+                key={item.id}
+                from={fromFrame}
+                durationInFrames={durationInFrames}
+              >
+                <AbsoluteFill>
+                  {videoSrc ? (
+                    // Use pre-rendered video for smooth playback
+                    <Video
+                      src={videoSrc}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain',
+                      }}
+                      onError={(e) => {
+                        console.warn('Visual video playback error:', e?.message);
+                      }}
+                    />
+                  ) : (
+                    // Fallback to dynamic loader if no video URL
+                    <DynamicVisualLoader
+                      bundleUrl={data.bundleUrl}
+                      compositionId={data.compositionId}
+                    />
+                  )}
+                </AbsoluteFill>
+              </Sequence>
+            );
+          })}
+        </div>
+      )}
 
       {/* Audio layer */}
       {audioItems.map((item) => {

@@ -5,6 +5,7 @@ export type WSMessageType =
   | 'job:progress'
   | 'job:complete'
   | 'job:error'
+  | 'job:logs'
   | 'project:updated';
 
 export interface WSMessage<T = unknown> {
@@ -26,6 +27,39 @@ export interface JobCompletePayload {
 export interface JobErrorPayload {
   jobId: string;
   error: string;
+}
+
+export type LogLevel = 'error' | 'progress' | 'tool' | 'debug';
+
+export interface ToolCallDetails {
+  tool: string;
+  input?: Record<string, unknown>;
+  output?: string;
+  durationMs?: number;
+  success?: boolean;
+  error?: string;
+  filePath?: string;
+  contentPreview?: string;
+  command?: string;
+  exitCode?: number;
+  scoreBreakdown?: Record<string, number>;
+  issues?: string[];
+  suggestion?: string;
+}
+
+export interface LogEntry {
+  level: LogLevel;
+  message: string;
+  timestamp: string;
+  data?: Record<string, unknown>;
+  toolCall?: ToolCallDetails;
+  errorContext?: ToolCallDetails[];
+}
+
+export interface JobLogsPayload {
+  jobId: string;
+  logs: LogEntry[];
+  timestamp: string;
 }
 
 type MessageHandler = (message: WSMessage) => void;

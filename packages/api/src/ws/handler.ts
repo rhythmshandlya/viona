@@ -27,6 +27,8 @@ export async function setupWebSocket(fastify: FastifyInstance) {
         type = 'job:complete';
       } else if (channel.includes(':error')) {
         type = 'job:error';
+      } else if (channel.includes(':logs')) {
+        type = 'job:logs';
       } else if (channel.includes(':updated')) {
         type = 'project:updated';
       } else {

@@ -2,7 +2,11 @@ import Redis from 'ioredis';
 import { config } from '../config.js';
 
 export const redis = new Redis(config.redis.url);
-export const redisSub = new Redis(config.redis.url);
+
+// Subscriber client - disable ready check to avoid "Connection in subscriber mode" error
+export const redisSub = new Redis(config.redis.url, {
+  enableReadyCheck: false,
+});
 
 // Pub/Sub channels
 export const CHANNELS = {

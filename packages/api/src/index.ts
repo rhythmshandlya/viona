@@ -1,6 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
+import fastifyStatic from '@fastify/static';
+import { mkdir } from 'fs/promises';
 import { config } from './config.js';
 import { ensureBuckets } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
@@ -23,6 +25,14 @@ async function main() {
   });
 
   await fastify.register(websocket);
+
+  // Ensure bundles directory exists and serve static files
+  await mkdir(config.bundles.dir, { recursive: true });
+  await fastify.register(fastifyStatic, {
+    root: config.bundles.dir,
+    prefix: '/bundles/',
+    decorateReply: false, // Don't conflict with other static plugins
+  });
 
   // Health check
   fastify.get('/health', async () => ({ status: 'ok' }));
