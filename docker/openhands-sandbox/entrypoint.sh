@@ -10,8 +10,12 @@ echo "=== Clipify Visual Generation Sandbox ==="
 # - No copying needed - everything runs on Docker's internal filesystem
 #
 # MOUNTS:
-# - /output: For exporting final bundle (mounted from host)
-# - /tmp/prompt.json: Input prompt file (read-only mount)
+# - /output: For exporting source files (mounted from host)
+# - /bundles: For exporting compiled bundle (mounted from host)
+# - /tmp/prompt.txt: Input prompt file (read-only mount)
+#
+# END GOAL: Agent must produce a working bundle before exiting.
+# The bundle is created inside the container and exported to /bundles.
 # =============================================================================
 
 WORKSPACE="/opt/remotion-template"

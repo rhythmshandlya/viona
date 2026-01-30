@@ -43,7 +43,7 @@ class RemotionRenderStillAction(Action):
     """Action to render a still frame from a Remotion composition."""
 
     composition_id: str = Field(
-        description="The composition ID to render"
+        description="The composition ID to render. This is the ID string from your Composition component (e.g., 'proj-1131d09e' or 'MyAnimation'), NOT a file path. Do NOT use file paths like './src/index.tsx' here."
     )
     frame: int = Field(
         default=0,
@@ -51,7 +51,7 @@ class RemotionRenderStillAction(Action):
     )
     entry_point: str = Field(
         default="src/index.ts",
-        description="Entry point file for the Remotion project"
+        description="Entry point file (usually leave as default). The tool handles this automatically."
     )
     output_path: Optional[str] = Field(
         default=None,
@@ -255,10 +255,16 @@ The rendered image is returned as base64-encoded PNG data that you can visually 
 Best practice: Render frames at 0% (start), 50% (middle), and 100% (near end) of the
 composition to verify the entire video looks correct.
 
-Parameters:
-- composition_id: The ID of the composition to render (must match an exported composition)
+IMPORTANT - Parameters:
+- composition_id: The ID string from your <Composition id="..."> component.
+  Examples: "proj-1131d09e-3e38-437d-9680-36e02088237b", "MyAnimation", "ExampleTest"
+  NOT a file path! Do NOT use paths like "./src/index.tsx" or "src/proj_xxx/index.tsx"
 - frame: Frame number to render (0-indexed, based on fps)
 - width/height: Output dimensions (default 1920x1080)
+
+Example usage:
+  composition_id: "proj-1131d09e-3e38-437d-9680-36e02088237b"  (correct - ID string)
+  composition_id: "./src/index.tsx"  (WRONG - this is a file path, not composition ID)
 """
 
 

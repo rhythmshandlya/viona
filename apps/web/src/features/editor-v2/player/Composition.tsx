@@ -119,17 +119,17 @@ export function Composition() {
       )
     : { scale: 1, translateX: 0, translateY: 0 };
 
-  // Split layout container style
+  // Split layout container style (horizontal: top/bottom)
   const videoContainerStyle: React.CSSProperties = hasSplitLayout
-    ? { position: 'absolute', left: 0, top: 0, width: '50%', height: '100%', overflow: 'hidden' }
+    ? { position: 'absolute', left: 0, bottom: 0, width: '100%', height: '50%', overflow: 'hidden' }
     : { position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', overflow: 'hidden' };
 
   const visualContainerStyle: React.CSSProperties = {
     position: 'absolute',
-    right: 0,
+    left: 0,
     top: 0,
-    width: '50%',
-    height: '100%',
+    width: '100%',
+    height: '50%',
     overflow: 'hidden',
   };
 
@@ -200,7 +200,7 @@ export function Composition() {
       })}
       </div>
 
-      {/* Visual container (right half in split mode) */}
+      {/* Visual container (top half in split mode) */}
       {hasSplitLayout && (
         <div style={visualContainerStyle}>
           {visualItems.map((item) => {
@@ -213,6 +213,14 @@ export function Composition() {
               ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${data.videoUrl}`
               : null;
 
+            // Debug: log visual item data
+            console.log('[Visual] Item data:', {
+              videoUrl: data.videoUrl,
+              videoSrc,
+              bundleUrl: data.bundleUrl,
+              compositionId: data.compositionId,
+            });
+
             return (
               <Sequence
                 key={item.id}
@@ -222,8 +230,10 @@ export function Composition() {
                 <AbsoluteFill>
                   {videoSrc ? (
                     // Use pre-rendered video for smooth playback
+                    // startFrom syncs the video to the timeline position
                     <Video
                       src={videoSrc}
+                      startFrom={fromFrame}
                       style={{
                         width: '100%',
                         height: '100%',

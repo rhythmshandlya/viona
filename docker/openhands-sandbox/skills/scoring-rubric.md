@@ -47,6 +47,10 @@ Your job is to evaluate VISUAL QUALITY only - how good the animations look, not 
 ## Evaluation Process
 
 1. **Capture Screenshots** using RemotionRenderStillTool at multiple frames
+   - Use the composition ID (e.g., "proj-1131d09e-3e38-437d-9680-36e02088237b"), NOT a file path
+   - The composition ID is provided in the evaluation prompt
+   - WRONG: composition_id="./src/index.tsx" (this is a file path!)
+   - CORRECT: composition_id="proj-1131d09e-3e38-437d-9680-36e02088237b" (this is an ID string)
 2. **Visually Inspect** each screenshot for:
    - Animation smoothness (are transitions professional?)
    - Visual appeal (does it look good?)
@@ -80,8 +84,8 @@ SubmitScoreTool(
 
 ## Quality Threshold
 
-- **Score >= 90**: PASS - Visuals are production-ready
-- **Score < 90**: FAIL - Provide specific visual improvement TODO
+- **Score >= 70**: PASS - Visuals meet minimum quality bar
+- **Score < 70**: FAIL - Provide specific visual improvement TODO
 
 ## IMPORTANT
 

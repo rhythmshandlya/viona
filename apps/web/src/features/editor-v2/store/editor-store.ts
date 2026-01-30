@@ -22,6 +22,7 @@ import {
   CaptionWord,
   VideoItemData,
   AudioItemData,
+  VisualItemData,
   VideoSettings,
   CaptionStyle,
   AnimationConfig,
@@ -105,6 +106,7 @@ const TRACK_HEIGHTS: Record<string, number> = {
   caption: 36,
   text: 36,
   overlay: 36,
+  visual: 64, // Visual tracks are taller to show content
 };
 
 /**
@@ -178,6 +180,22 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
       locked: false,
       visible: true,
       height: TRACK_HEIGHTS.caption,
+      collapsed: false,
+    });
+  }
+
+  // Ensure we have a visual track if there are visual items
+  const hasVisualItems = apiProject.items?.some((i: { type: string }) => i.type === 'visual');
+  const hasVisualTrack = tracks.some((t) => t.type === 'visual');
+  if (hasVisualItems && !hasVisualTrack) {
+    tracks.push({
+      id: `visual-track-${nanoid(8)}`,
+      type: 'visual',
+      name: 'Visuals',
+      position: tracks.length,
+      locked: false,
+      visible: true,
+      height: TRACK_HEIGHTS.visual,
       collapsed: false,
     });
   }
@@ -288,6 +306,36 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         };
 
         items[item.id] = audioItem;
+        itemIds.push(item.id);
+      }
+    }
+
+    // Convert visual items
+    if (item.type === 'visual') {
+      const visualTrack = tracks.find((t) => t.type === 'visual');
+      if (visualTrack) {
+        const raw = item.data as Record<string, unknown>;
+
+        const visualItem: TimelineItem = {
+          id: item.id,
+          type: 'visual',
+          trackId: visualTrack.id,
+          startMs: item.startMs,
+          endMs: item.endMs,
+          data: {
+            visualId: (raw.visualId as string) || '',
+            compositionId: (raw.compositionId as string) || '',
+            bundleUrl: (raw.bundleUrl as string) || '',
+            videoUrl: (raw.videoUrl as string) || undefined,
+            type: (raw.type as string) || 'visual',
+            description: (raw.description as string) || '',
+            width: (raw.width as number) || 1920,
+            height: (raw.height as number) || 1080,
+            fps: (raw.fps as number) || 30,
+          } as VisualItemData,
+        };
+
+        items[item.id] = visualItem;
         itemIds.push(item.id);
       }
     }

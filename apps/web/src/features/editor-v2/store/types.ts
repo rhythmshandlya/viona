@@ -168,7 +168,7 @@ export interface VisualItemData {
 // Track Types
 // ============================================
 
-export type TrackType = 'video' | 'audio' | 'caption' | 'text' | 'overlay';
+export type TrackType = 'video' | 'audio' | 'caption' | 'text' | 'overlay' | 'visual';
 
 export interface Track {
   id: string;

@@ -154,7 +154,9 @@
       "Bash(tee:*)",
       "Bash(find:*)",
       "WebFetch(domain:docs.litellm.ai)",
-      "WebFetch(domain:openrouter.ai)"
+      "WebFetch(domain:openrouter.ai)",
+      "Bash(npx remotion render:*)",
+      "Bash(PGPASSWORD=reelify123 psql:*)"
     ]
   }
 }

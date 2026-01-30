@@ -1,11 +1,11 @@
 /**
  * DynamicVisualLoader Component
- * Loads and renders dynamically bundled Remotion compositions
+ * Loads Remotion bundles via iframe for preview
  */
 
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { AbsoluteFill } from 'remotion';
 
 interface DynamicVisualLoaderProps {
@@ -19,63 +19,34 @@ export function DynamicVisualLoader({
   compositionId,
   className,
 }: DynamicVisualLoaderProps) {
-  const [Component, setComponent] = useState<React.ComponentType | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const loadedRef = useRef<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Skip if already loaded this bundle
-    const cacheKey = `${bundleUrl}:${compositionId}`;
-    if (loadedRef.current === cacheKey && Component) {
-      return;
-    }
+  // Build the full URL to the bundle's index.html
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const iframeSrc = `${apiUrl}${bundleUrl}`;
 
-    async function loadBundle() {
-      setLoading(true);
-      setError(null);
+  const handleLoad = () => {
+    setLoading(false);
+  };
 
-      try {
-        // Dynamic import of the bundle
-        // The bundle should export the composition component
-        const module = await import(/* webpackIgnore: true */ bundleUrl);
+  const handleError = () => {
+    setError('Failed to load visual bundle');
+    setLoading(false);
+  };
 
-        // Try to find the component by compositionId or use default
-        const comp = module[compositionId] || module.default;
-
-        if (!comp) {
-          throw new Error(`Composition "${compositionId}" not found in bundle`);
-        }
-
-        setComponent(() => comp);
-        loadedRef.current = cacheKey;
-      } catch (err) {
-        console.error('Failed to load visual bundle:', err);
-        setError(err instanceof Error ? err.message : 'Failed to load visual');
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadBundle();
-  }, [bundleUrl, compositionId, Component]);
-
-  if (loading) {
-    return (
-      <AbsoluteFill className={className}>
-        <div className="flex items-center justify-center h-full bg-zinc-900/50">
+  return (
+    <AbsoluteFill className={className}>
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/50 z-10">
           <div className="flex flex-col items-center gap-2">
-            <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-zinc-400 text-sm">Loading visual...</span>
           </div>
         </div>
-      </AbsoluteFill>
-    );
-  }
+      )}
 
-  if (error) {
-    return (
-      <AbsoluteFill className={className}>
+      {error ? (
         <div className="flex items-center justify-center h-full bg-red-900/20">
           <div className="flex flex-col items-center gap-2 text-center px-4">
             <svg
@@ -94,13 +65,21 @@ export function DynamicVisualLoader({
             <span className="text-red-400 text-sm">{error}</span>
           </div>
         </div>
-      </AbsoluteFill>
-    );
-  }
-
-  if (!Component) {
-    return null;
-  }
-
-  return <Component />;
+      ) : (
+        <iframe
+          src={iframeSrc}
+          onLoad={handleLoad}
+          onError={handleError}
+          style={{
+            width: '100%',
+            height: '100%',
+            border: 'none',
+            backgroundColor: 'transparent',
+          }}
+          allow="autoplay"
+          title={`Visual: ${compositionId}`}
+        />
+      )}
+    </AbsoluteFill>
+  );
 }

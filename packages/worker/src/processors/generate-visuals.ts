@@ -5,8 +5,9 @@ import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
-import { bundle } from '@remotion/bundler';
-import { renderMedia, selectComposition } from '@remotion/renderer';
+// Bundling now happens inside Docker container - these imports removed:
+// import { bundle } from '@remotion/bundler';
+// import { renderMedia, selectComposition } from '@remotion/renderer';
 import { db, projects, tracks, timelineItems, transcripts, jobs, visuals } from '../db/index.js';
 import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler } from '../services/redis.js';
 import { createLogStreamer, LogStreamer } from '../services/log-streamer.js';
@@ -17,14 +18,14 @@ import { buildGenerateVisualsPrompt, STYLE_GUIDELINES } from '../prompts/generat
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// LLM model configuration - using OpenRouter with Gemini 2.5 Flash Preview
+// LLM model configuration - using OpenRouter with Gemini 3 Flash Preview
 const LLM_CONFIG = {
-  model: 'openrouter/google/gemini-2.5-flash-preview-09-2025',
+  model: 'openrouter/google/gemini-3-flash-preview',
   provider: 'openrouter',
   apiKeyEnv: 'OPENROUTER_API_KEY',
   // Cost per 1M tokens (USD) - approximate
-  inputCostPer1M: 0.15,
-  outputCostPer1M: 0.60,
+  inputCostPer1M: 0.10,
+  outputCostPer1M: 0.40,
 } as const;
 
 // Timeout configuration (in milliseconds)
@@ -176,6 +177,8 @@ interface AgentEvent {
   error?: string;
   error_type?: string;
   stack_trace?: string;
+  // Video rendering result
+  video_url?: string;
   // Tool result details
   success?: boolean;
   exit_code?: number;
@@ -372,58 +375,31 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       };
     }
 
-    await publishJobProgress(jobId, 70, 'Bundling Remotion project...');
+    await publishJobProgress(jobId, 70, 'Verifying bundle...');
 
-    // Bundle the Remotion project
-    const entryPoint = join(config.remotion.projectDir, 'src/index.ts');
-    const bundleDir = join(config.remotion.bundleOutputDir, compositionId);
+    // Bundle is created inside Docker container - verify it exists
+    // The composition ID uses dashes (container converts underscores to dashes)
+    const bundleCompositionId = compositionId.replace(/_/g, '-');
+    const bundleDir = join(config.remotion.bundleOutputDir, bundleCompositionId);
+    const bundleIndex = join(bundleDir, 'index.html');
 
-    await mkdir(bundleDir, { recursive: true });
-
-    const bundleLocation = await bundle({
-      entryPoint,
-      outDir: bundleDir,
-    });
-
-    // Bundle URL for frontend (kept for backwards compatibility)
-    const bundleUrl = `/bundles/${compositionId}/index.js`;
-
-    await publishJobProgress(jobId, 75, 'Rendering visual to video...');
-
-    // Render the visual to a video file for playback
-    let videoUrl: string | null = null;
+    // Check if bundle was created by the container
     try {
-      // Get composition details from the bundle
-      const composition = await selectComposition({
-        serveUrl: bundleLocation,
-        id: compositionId,
-      });
+      await readFile(bundleIndex);
+      logger.info({ projectId, bundleDir, bundleCompositionId }, 'Bundle verified - created by container');
+    } catch (err) {
+      throw new Error(`Bundle not found at ${bundleDir}. The container may have failed to create it.`);
+    }
 
-      // Output video path
-      const videoFileName = `${compositionId}.webm`;
-      const videoOutputPath = join(bundleDir, videoFileName);
+    // Bundle URL for frontend
+    const bundleUrl = `/bundles/${bundleCompositionId}/index.html`;
 
-      // Render to video
-      await renderMedia({
-        composition,
-        serveUrl: bundleLocation,
-        codec: 'vp8', // WebM for web compatibility
-        outputLocation: videoOutputPath,
-        chromiumOptions: {
-          enableMultiProcessOnLinux: true,
-        },
-        onProgress: ({ progress }) => {
-          // Map render progress (0-1) to job progress (75-85)
-          const jobProgress = 75 + Math.round(progress * 10);
-          publishJobProgress(jobId, jobProgress, `Rendering: ${Math.round(progress * 100)}%`);
-        },
-      });
-
-      videoUrl = `/bundles/${compositionId}/${videoFileName}`;
-      logger.info({ projectId, compositionId, videoUrl }, 'Visual rendered to video');
-    } catch (renderError) {
-      // Log but don't fail - video rendering is optional, bundle still works for export
-      logger.warn({ projectId, compositionId, error: renderError }, 'Failed to render visual to video, falling back to bundle');
+    // Video URL from agent (rendered video for playback)
+    const videoUrl: string | null = agentResult.videoUrl;
+    if (videoUrl) {
+      logger.info({ projectId, videoUrl }, 'Video rendered by agent');
+    } else {
+      logger.warn({ projectId }, 'No video URL from agent - visual will use bundle fallback');
     }
 
     await publishJobProgress(jobId, 85, 'Registering visual...');
@@ -579,6 +555,8 @@ interface AgentResult {
   finalScore: number;
   totalIterations: number;
   status: string;
+  // Rendered video URL
+  videoUrl: string | null;
 }
 
 async function runOpenHandsAgent(
@@ -622,9 +600,13 @@ async function runOpenHandsAgent(
       const outputDir = join(workspace, 'src');
       await mkdir(outputDir, { recursive: true });
 
-      // Docker run command with minimal mounts
+      // Create bundle output directory
+      const bundleOutputDir = config.remotion.bundleOutputDir;
+      await mkdir(bundleOutputDir, { recursive: true });
+
+      // Docker run command with mounts for source and bundle output
       // Workspace is internal to Docker (/opt/remotion-template) with pre-installed node_modules
-      // Only mount: prompt file (input), output directory (results)
+      // Mounts: prompt file (input), output directory (source), bundle directory (bundle)
       subprocess = spawn('docker', [
         'run',
         '--rm',
@@ -634,8 +616,10 @@ async function runOpenHandsAgent(
         '--cpus', config.openHands.cpuLimit,
         // Mount prompt file (read-only input)
         '-v', `${promptPath}:/tmp/prompt.txt:ro`,
-        // Mount output directory (for exporting generated project)
+        // Mount output directory (for exporting source files)
         '-v', `${outputDir}:/output`,
+        // Mount bundle directory (for exporting compiled bundle)
+        '-v', `${bundleOutputDir}:/bundles`,
         // Environment variables
         '-e', `LLM_API_KEY=${process.env[apiKeyEnv] || ''}`,
         '-e', `GEMINI_API_KEY=${process.env.GEMINI_API_KEY || ''}`,
@@ -650,10 +634,11 @@ async function runOpenHandsAgent(
         '--prompt-file', '/tmp/prompt.txt',
         '--api-key-env', 'LLM_API_KEY',
         '--output-dir', '/output',
+        '--bundle-dir', '/bundles',
         '--duration-frames', String(options.durationFrames),
         '--fps', String(options.fps),
         '--max-iterations', '3',
-        '--quality-threshold', '90',
+        '--quality-threshold', '70',
       ], {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -672,7 +657,7 @@ async function runOpenHandsAgent(
         '--duration-frames', String(options.durationFrames),
         '--fps', String(options.fps),
         '--max-iterations', '3',
-        '--quality-threshold', '90',
+        '--quality-threshold', '70',
       ], {
         env: {
           ...process.env,
@@ -706,6 +691,7 @@ async function runOpenHandsAgent(
     let finalScore = 0;
     let totalIterations = 0;
     let agentStatus = 'running';
+    let videoUrl: string | null = null;
     const startTime = Date.now();
     const logEntries: string[] = [];
 
@@ -804,8 +790,12 @@ async function runOpenHandsAgent(
               finalScore = event.final_score || 0;
               totalIterations = event.total_iterations || totalIterations;
               agentStatus = event.status || 'completed';
+              videoUrl = event.video_url || null;
               lastStatus = `Agent ${agentStatus} (score: ${finalScore}/100, ${totalIterations} iterations)`;
               addLog(`Completed: ${agentStatus}, score ${finalScore}/100, ${totalIterations} iterations, ${filesWritten} files`);
+              if (videoUrl) {
+                addLog(`Video rendered: ${videoUrl}`);
+              }
               break;
 
             case 'error':
@@ -969,6 +959,7 @@ async function runOpenHandsAgent(
       finalScore,
       totalIterations,
       status: agentStatus,
+      videoUrl,
     };
 
   } catch (error) {

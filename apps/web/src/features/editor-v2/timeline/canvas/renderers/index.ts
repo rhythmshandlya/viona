@@ -9,3 +9,4 @@ export { BaseRenderer } from './BaseRenderer';
 export { CaptionRenderer } from './CaptionRenderer';
 export { AudioRenderer } from './AudioRenderer';
 export { VideoRenderer } from './VideoRenderer';
+export { VisualRenderer } from './VisualRenderer';

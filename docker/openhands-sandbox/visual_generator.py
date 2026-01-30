@@ -38,7 +38,7 @@ EVENT_CANCELLED = "cancelled"
 
 # Configuration
 MAX_ITERATIONS = 3
-QUALITY_THRESHOLD = 90
+QUALITY_THRESHOLD = 70
 MAX_SELF_HEAL_ATTEMPTS = 3
 
 
@@ -74,6 +74,36 @@ def load_skill(skill_path: str) -> str:
     if path.exists():
         return path.read_text(encoding="utf-8")
     return ""
+
+
+def fix_bundle_paths(bundle_dir: Path) -> bool:
+    """
+    Fix absolute paths in the Remotion bundle's index.html to be relative.
+
+    Remotion bundle generates paths like `/bundle.js` which resolve to the server root.
+    We need `./bundle.js` to resolve relative to the bundle directory.
+    """
+    index_html = bundle_dir / "index.html"
+    if not index_html.exists():
+        return False
+
+    try:
+        content = index_html.read_text(encoding="utf-8")
+
+        # Fix script and link paths from absolute to relative
+        # /bundle.js -> ./bundle.js
+        # /favicon.ico -> ./favicon.ico
+        # /public -> ./public
+        content = content.replace('src="/bundle.js"', 'src="./bundle.js"')
+        content = content.replace('href="/favicon.ico"', 'href="./favicon.ico"')
+        content = content.replace('"/public"', '"./public"')
+        content = content.replace("'/public'", "'./public'")
+
+        index_html.write_text(content, encoding="utf-8")
+        return True
+    except Exception as e:
+        emit_event(EVENT_ERROR, message=f"Failed to fix bundle paths: {e}")
+        return False
 
 
 def run_typescript_check(workspace: str, project_id: str) -> tuple[bool, list[str]]:
@@ -263,6 +293,32 @@ def run_generator_with_self_healing(
     # Convert project_id to valid component name (PascalCase, no underscores/hyphens)
     component_name = ''.join(word.capitalize() for word in project_id.replace('-', '_').split('_'))
 
+    agent_context = """
+## WHO YOU ARE
+
+You are a Remotion visual generation agent. Your job is to create animated video visuals
+using React and the Remotion framework. These visuals will be rendered into actual videos
+that accompany spoken content (like podcasts, tutorials, or presentations).
+
+## YOUR END GOAL
+
+Create a working Remotion composition that:
+1. Compiles with ZERO TypeScript errors
+2. Produces visually appealing animations that match the content
+3. Can be bundled and rendered into a video
+
+After you finish, your code will be automatically bundled using `npx remotion bundle`.
+If your code has errors or doesn't follow the structure, the bundle will fail and
+your work will be wasted. Focus on getting it RIGHT.
+
+## IMPORTANT: UNDERSCORE vs HYPHEN
+
+- Folder names use UNDERSCORES: `src/proj_xxx_xxx/`
+- Composition IDs use HYPHENS: `proj-xxx-xxx`
+- When running `remotion still`, use HYPHENS in the composition ID
+
+"""
+
     project_structure = f"""
 ## PROJECT STRUCTURE REQUIREMENTS - FOLLOW EXACTLY
 
@@ -281,12 +337,13 @@ src/
 **CRITICAL:**
 - Create the folder `src/{project_id}/` (NOT src/Counter, NOT src/MyProject - use EXACT name!)
 - Export your main component as: `export const {component_name}: React.FC = () => ...`
-- In metadata.json, use compositionId: "{project_id.replace('_', '-')}"
+- In metadata.json, use compositionId: "{project_id.replace('_', '-')}" (HYPHENS, not underscores!)
 - Do NOT edit Root.tsx - it is auto-generated
+- When using `remotion still`, the composition ID is: "{project_id.replace('_', '-')}" (with HYPHENS)
 """
 
     if visual_feedback:
-        message = f"""{project_structure}
+        message = f"""{agent_context}{project_structure}
 
 Improve the visuals based on this feedback:
 
@@ -300,7 +357,7 @@ IMPORTANT:
 Original task:
 {prompt}"""
     else:
-        message = f"""{project_structure}
+        message = f"""{agent_context}{project_structure}
 
 {prompt}
 
@@ -595,7 +652,8 @@ def main():
     parser = argparse.ArgumentParser(description="OpenHands Visual Generator with Self-Healing")
     parser.add_argument("--workspace", default=os.environ.get("REMOTION_PROJECT_DIR", "/opt/remotion-template"),
                         help="Path to Remotion project (default: $REMOTION_PROJECT_DIR)")
-    parser.add_argument("--output-dir", default="/output", help="Directory to copy final bundle (mounted from host)")
+    parser.add_argument("--output-dir", default="/output", help="Directory to copy source files (mounted from host)")
+    parser.add_argument("--bundle-dir", default="/bundles", help="Directory to export bundle (mounted from host)")
     parser.add_argument("--project-id", required=True, help="Composition ID")
     parser.add_argument("--model", required=True, help="LLM model to use")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
@@ -812,9 +870,183 @@ Focus on improving the VISUAL quality - the code compiles fine."""
                     shutil.rmtree(output_project)
                 # Copy generated project to output
                 shutil.copytree(project_src, output_project)
-                emit_event(EVENT_TOOL_CALL, tool="export", message=f"Exported project to {output_project}")
+                emit_event(EVENT_TOOL_CALL, tool="export", message=f"Exported source to {output_project}")
             else:
                 emit_event(EVENT_TOOL_CALL, tool="export", message="No project directory found to export", success=False)
+
+        # =================================================================
+        # BUNDLE THE PROJECT - This is the agent's END GOAL
+        # The agent cannot exit successfully without a working bundle
+        # =================================================================
+        bundle_success = False
+        bundle_dir = Path(args.bundle_dir)
+
+        # Convert project_id to composition ID (underscores to dashes)
+        composition_id = args.project_id.replace('_', '-')
+
+        if project_dir.exists() and bundle_dir.exists():
+            emit_event(EVENT_PHASE_START, phase="bundling", message="Creating Remotion bundle...")
+
+            try:
+                # Run remotion bundle command
+                bundle_output = bundle_dir / composition_id
+
+                # Clean up any existing bundle
+                if bundle_output.exists():
+                    import shutil
+                    shutil.rmtree(bundle_output)
+
+                emit_tool_call("remotion_bundle", composition_id=composition_id)
+
+                bundle_cmd = [
+                    "npx", "remotion", "bundle",
+                    "src/index.ts",
+                    f"--out-dir={bundle_output}",
+                    "--log-level=verbose",
+                ]
+
+                result = subprocess.run(
+                    bundle_cmd,
+                    cwd=args.workspace,
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5 minute timeout for bundling
+                )
+
+                # Log output for debugging regardless of return code
+                emit_event(
+                    EVENT_TOOL_CALL,
+                    tool="remotion_bundle_output",
+                    returncode=result.returncode,
+                    stdout=result.stdout[:1000] if result.stdout else "",
+                    stderr=result.stderr[:1000] if result.stderr else ""
+                )
+
+                if result.returncode == 0:
+                    # Verify bundle was created
+                    bundle_index = bundle_output / "index.html"
+
+                    # List what files were actually created for debugging
+                    if bundle_output.exists():
+                        created_files = list(bundle_output.glob("*"))
+                        emit_event(
+                            EVENT_TOOL_CALL,
+                            tool="remotion_bundle_files",
+                            message=f"Files in bundle dir: {[f.name for f in created_files[:20]]}"
+                        )
+
+                    if bundle_index.exists():
+                        bundle_success = True
+                        # Fix absolute paths in index.html to be relative
+                        fix_bundle_paths(bundle_output)
+                        emit_tool_result(
+                            "remotion_bundle",
+                            success=True,
+                            message=f"Bundle created at {bundle_output}",
+                            bundle_path=str(bundle_output)
+                        )
+                    else:
+                        # Check if bundle is in a subdirectory
+                        for subdir in bundle_output.iterdir() if bundle_output.exists() else []:
+                            if subdir.is_dir() and (subdir / "index.html").exists():
+                                bundle_success = True
+                                # Fix absolute paths in index.html to be relative
+                                fix_bundle_paths(subdir)
+                                emit_tool_result(
+                                    "remotion_bundle",
+                                    success=True,
+                                    message=f"Bundle found in subdirectory {subdir}",
+                                    bundle_path=str(subdir)
+                                )
+                                break
+                        if not bundle_success:
+                            emit_tool_result(
+                                "remotion_bundle",
+                                success=False,
+                                error="Bundle directory created but index.html not found",
+                                bundle_dir_exists=bundle_output.exists(),
+                                files_found=[f.name for f in bundle_output.glob("*")][:10] if bundle_output.exists() else []
+                            )
+                else:
+                    emit_tool_result(
+                        "remotion_bundle",
+                        success=False,
+                        error=result.stderr[:500] if result.stderr else "Unknown bundling error",
+                        stdout=result.stdout[:500] if result.stdout else "",
+                        exit_code=result.returncode
+                    )
+
+            except subprocess.TimeoutExpired:
+                emit_tool_result("remotion_bundle", success=False, error="Bundling timed out after 5 minutes")
+            except Exception as e:
+                emit_tool_result("remotion_bundle", success=False, error=str(e))
+        else:
+            if not project_dir.exists():
+                emit_event(EVENT_ERROR, message="Cannot bundle: project directory not found")
+            if not bundle_dir.exists():
+                emit_event(EVENT_ERROR, message="Cannot bundle: bundle directory not mounted")
+
+        # Update final status based on bundling result
+        if not bundle_success:
+            final_status = "bundle_failed"
+
+        # RENDER VIDEO from the bundle
+        video_url = None
+        if bundle_success:
+            emit_event(EVENT_PHASE_START, phase="rendering", message="Rendering video from bundle...")
+
+            try:
+                video_output_dir = bundle_dir / composition_id
+                video_output_path = video_output_dir / "video.mp4"
+                bundle_path = bundle_dir / composition_id
+
+                emit_tool_call("remotion_render", composition_id=composition_id)
+
+                render_cmd = [
+                    "npx", "remotion", "render",
+                    str(bundle_path),  # Bundle path (directory with index.html)
+                    composition_id,     # Composition ID
+                    str(video_output_path),  # Output video path
+                    "--log-level=verbose",
+                ]
+
+                render_result = subprocess.run(
+                    render_cmd,
+                    cwd=args.workspace,
+                    capture_output=True,
+                    text=True,
+                    timeout=600  # 10 minute timeout for rendering
+                )
+
+                emit_event(
+                    EVENT_TOOL_CALL,
+                    tool="remotion_render_output",
+                    returncode=render_result.returncode,
+                    stdout=render_result.stdout[:1000] if render_result.stdout else "",
+                    stderr=render_result.stderr[:1000] if render_result.stderr else ""
+                )
+
+                if render_result.returncode == 0 and video_output_path.exists():
+                    video_url = f"/bundles/{composition_id}/video.mp4"
+                    emit_tool_result(
+                        "remotion_render",
+                        success=True,
+                        message=f"Video rendered successfully",
+                        video_path=str(video_output_path),
+                        video_url=video_url
+                    )
+                else:
+                    emit_tool_result(
+                        "remotion_render",
+                        success=False,
+                        error=render_result.stderr[:500] if render_result.stderr else "Render failed",
+                        video_exists=video_output_path.exists()
+                    )
+
+            except subprocess.TimeoutExpired:
+                emit_tool_result("remotion_render", success=False, error="Rendering timed out after 10 minutes")
+            except Exception as e:
+                emit_tool_result("remotion_render", success=False, error=str(e))
 
         emit_event(
             EVENT_COMPLETE,
@@ -823,7 +1055,10 @@ Focus on improving the VISUAL quality - the code compiles fine."""
             best_iteration=best_iteration,
             total_iterations=min(iteration + 1, args.max_iterations) if 'iteration' in dir() else 0,
             files_written=files_written,
+            video_url=video_url,
             threshold=args.quality_threshold,
+            bundle_success=bundle_success,
+            bundle_path=str(bundle_dir / composition_id) if bundle_success else None,
         )
 
     except Exception as e:

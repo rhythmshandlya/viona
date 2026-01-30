@@ -15,6 +15,7 @@ import { VideoRenderer } from './canvas/renderers/VideoRenderer';
 import { AudioRenderer } from './canvas/renderers/AudioRenderer';
 import { CaptionRenderer } from './canvas/renderers/CaptionRenderer';
 import { BaseRenderer } from './canvas/renderers/BaseRenderer';
+import { VisualRenderer } from './canvas/renderers/VisualRenderer';
 import {
   useTracks,
   useItems,
@@ -125,6 +126,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     registerRenderer('caption', new CaptionRenderer());
     registerRenderer('text', new BaseRenderer());
     registerRenderer('image', new BaseRenderer());
+    registerRenderer('visual', new VisualRenderer());
   }, []);
 
   // Handle resize via ResizeObserver — detects both window resize AND container size changes
