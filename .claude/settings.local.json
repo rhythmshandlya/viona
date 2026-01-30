@@ -159,7 +159,8 @@
       "Bash(PGPASSWORD=reelify123 psql:*)",
       "Bash(npx esbuild:*)",
       "Bash(npx vitest:*)",
-      "Bash(git remote:*)"
+      "Bash(git remote:*)",
+      "Bash(gh repo view:*)"
     ]
   }
 }
