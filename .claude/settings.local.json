@@ -164,7 +164,9 @@
       "Bash(source:*)",
       "Bash(set -a)",
       "Bash(. ./.env)",
-      "Bash(set +a)"
+      "Bash(set +a)",
+      "Bash(npm run migrate:*)",
+      "Bash(npm run db:migrate:*)"
     ]
   }
 }

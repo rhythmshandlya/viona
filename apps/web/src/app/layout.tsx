@@ -46,6 +46,7 @@ export default async function RootLayout({
     <html lang="en">
       <body
         className={`${geistMono.variable} ${geist.variable} ${outfit.variable} antialiased dark font-sans bg-muted`}
+        suppressHydrationWarning
       >
         <QueryProvider>
           {children}

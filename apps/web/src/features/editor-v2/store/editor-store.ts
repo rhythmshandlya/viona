@@ -142,6 +142,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
     status: apiProject.status,
     videoKey: apiProject.videoKey,
     videoUrl,
+    outputKey: apiProject.outputKey || null,
     durationMs: apiProject.durationMs || 0,
     fps: apiProject.fps || DEFAULT_FPS,
     sourceWidth: (apiProject as any).sourceWidth || apiProject.width || 1920,
@@ -619,7 +620,19 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
     },
 
-    deleteItems: (ids) => {
+    deleteItems: async (ids) => {
+      const { project, items } = get();
+
+      // Check if any items are visual items - if so, we need to delete visuals from backend
+      let hasVisualItems = false;
+      for (const id of ids) {
+        const item = items[id];
+        if (item?.type === 'visual') {
+          hasVisualItems = true;
+          break;
+        }
+      }
+
       set((state) => {
         for (const id of ids) {
           // If deleting an audio item, unmute linked video
@@ -642,6 +655,18 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+
+      // If visual items were deleted, delete visuals from backend
+      if (hasVisualItems && project) {
+        try {
+          await api.deleteVisuals(project.id);
+        } catch (err) {
+          console.error('Failed to delete visuals from backend:', err);
+        }
+      }
+
+      // Persist the deletion to the backend
+      await get().saveProject();
     },
 
     moveItem: (id, trackId, startMs) => {

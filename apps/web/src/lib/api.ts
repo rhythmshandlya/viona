@@ -198,6 +198,12 @@ class ApiClient {
     return this.request(`/api/projects/${projectId}/download`);
   }
 
+  async deleteVisuals(projectId: string): Promise<{ message: string; deleted: number }> {
+    return this.request(`/api/projects/${projectId}/visuals`, {
+      method: 'DELETE',
+    });
+  }
+
   // Jobs
   async getJob(jobId: string): Promise<Job> {
     return this.request(`/api/jobs/${jobId}`);

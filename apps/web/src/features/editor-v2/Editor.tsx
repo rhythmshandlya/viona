@@ -15,6 +15,7 @@ import { RightPanel, type RightPanelTab } from './components/RightPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { StyleSelectionModal } from './components/StyleSelectionModal';
 import { JobLogsPanel } from './components/JobLogsPanel';
+import { ExportModal } from './components/ExportModal';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
@@ -73,6 +74,9 @@ export function Editor({ projectId }: EditorProps) {
   const [showStyleModal, setShowStyleModal] = useState(false);
   const [isGeneratingVisuals, setIsGeneratingVisuals] = useState(false);
   const [showLogsPanel, setShowLogsPanel] = useState(false);
+
+  // Export modal state
+  const [showExportModal, setShowExportModal] = useState(false);
 
   const handlePlatformChange = useCallback((platform: SocialPlatform | null) => {
     if (platform) lastPlatformRef.current = platform;
@@ -294,15 +298,9 @@ export function Editor({ projectId }: EditorProps) {
   };
 
   // Handle export
-  const handleExport = async () => {
+  const handleExport = () => {
     if (!project) return;
-    try {
-      const { jobId } = await api.renderProject(project.id);
-      // Show notification or progress indicator
-      console.log('Render started:', jobId);
-    } catch (err) {
-      console.error('Export failed:', err);
-    }
+    setShowExportModal(true);
   };
 
   // Generate visuals state
@@ -458,10 +456,20 @@ export function Editor({ projectId }: EditorProps) {
     setVisualsPreviewUrl(null);
   };
 
-  // Discard generated visuals (close modal without adding)
-  const handleDiscardVisuals = () => {
-    // TODO: Could call an API to delete the generated visuals if needed
-    // For now, just close the modal - the visuals stay but aren't in timeline
+  // Discard generated visuals (delete from database and close modal)
+  const handleDiscardVisuals = async () => {
+    if (!project) return;
+
+    // If visuals were generated, delete them from the database
+    if (visualsComplete) {
+      try {
+        await api.deleteVisuals(project.id);
+        console.log('Visuals deleted successfully');
+      } catch (err) {
+        console.error('Failed to delete visuals:', err);
+      }
+    }
+
     setShowStyleModal(false);
     setVisualsComplete(false);
     setVisualsMetrics(null);
@@ -678,6 +686,15 @@ export function Editor({ projectId }: EditorProps) {
         previewUrl={visualsPreviewUrl}
         canvasWidth={project?.videoSettings?.canvasWidth || 1080}
         canvasHeight={project?.videoSettings?.canvasHeight || 1920}
+      />
+
+      {/* Export Modal */}
+      <ExportModal
+        open={showExportModal}
+        onOpenChange={setShowExportModal}
+        projectId={project.id}
+        projectStatus={project.status}
+        hasOutputKey={!!project.outputKey}
       />
     </div>
   );

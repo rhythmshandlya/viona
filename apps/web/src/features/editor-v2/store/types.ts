@@ -202,6 +202,7 @@ export interface Project {
   status: string;
   videoKey: string | null;
   videoUrl: string | null;
+  outputKey: string | null;
   durationMs: number;
   fps: number;
 
@@ -351,7 +352,7 @@ export interface EditorActions {
   addItem: (trackId: string, item: Partial<TimelineItem>) => string;
   updateItem: (id: string, updates: Partial<TimelineItem>) => void;
   updateItemData: <T extends TimelineItem['data']>(id: string, dataUpdates: Partial<T>) => void;
-  deleteItems: (ids: string[]) => void;
+  deleteItems: (ids: string[]) => Promise<void>;
   moveItem: (id: string, trackId: string, startMs: number) => void;
   resizeItem: (id: string, startMs: number, endMs: number) => void;
 

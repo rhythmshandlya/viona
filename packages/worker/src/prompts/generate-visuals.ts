@@ -47,6 +47,14 @@ Style: Modern (Vibrant & Dynamic)
 - Soft glows on key elements
 - Gradient backgrounds
 
+**LAYOUT (CRITICAL - avoid overlapping):**
+- Stack elements vertically with clear separation
+- Title/heading at TOP (first 15% of height)
+- Main visual in MIDDLE (next 60% of height)
+- Labels/captions at BOTTOM (last 25% of height)
+- Use flexbox with RESPONSIVE gap: display: 'flex', flexDirection: 'column', gap: minDim * 0.03
+- NEVER place text directly on top of diagrams
+
 **ANIMATION:**
 - Use spring({ damping: 12, stiffness: 80 }) - bouncy, satisfying
 - Stagger elements by 15 frames
@@ -111,7 +119,7 @@ Style: Classic (Trustworthy & Educational)
 **ANIMATION:**
 - Use spring({ damping: 25, stiffness: 50 }) - dignified, no bounce
 - Smooth fades over 30 frames
-- Smooth fades, professional transitions, no gimmicks`
+- Smooth fades, professional transitions, no gimmicks
 - Understated motion, nothing flashy`,
 };
 
@@ -167,10 +175,32 @@ ${styleGuidelines}
 
 ## 📐 Video Specifications
 
-- **Resolution: ${width}x${height}** (${width < height ? 'VERTICAL/Portrait' : 'Horizontal'})
+- **Resolution: ${width}x${height}** (${width < height ? 'VERTICAL/Portrait' : width > height ? 'HORIZONTAL/Landscape' : 'SQUARE'})
 - **Duration:** ${durationMs}ms (${durationInFrames} frames at ${fps} FPS)
 - **Layout:** ${layoutContext}
 - **Composition ID:** \`${projectId}\`
+
+### ⚠️ CRITICAL: Dimension Requirements
+
+**Your composition MUST render at exactly ${width}x${height} pixels.**
+
+1. **metadata.json MUST have:**
+   \`\`\`json
+   { "width": ${width}, "height": ${height} }
+   \`\`\`
+
+2. **In ALL components, use useVideoConfig() for dimensions:**
+   \`\`\`tsx
+   const { width, height, fps } = useVideoConfig();
+   // Then calculate sizes relative to these:
+   const fontSize = height * 0.04;
+   const padding = Math.min(width, height) * 0.05;
+   \`\`\`
+
+3. **NEVER hardcode pixel values like:**
+   - ❌ \`width: 1080\` or \`height: 1920\`
+   - ❌ \`fontSize: 48\` (use \`height * 0.025\` instead)
+   - ❌ \`padding: 50\` (use \`width * 0.05\` instead)
 
 ---
 
@@ -192,12 +222,15 @@ You are creating:
 - Simple text overlays
 
 **Visual Polish Checklist:**
-- [ ] Every key element has a subtle glow (boxShadow)
+- [ ] **ALL values are RESPONSIVE** - no hardcoded pixels (use width/height multipliers)
+- [ ] Every key element has a subtle glow: \`boxShadow: \`0 0 \${minDim * 0.02}px rgba(...)\`\`
 - [ ] Background uses gradient, not flat color
 - [ ] Elements stagger in with 15-20 frame delays
 - [ ] Spring animations have satisfying bounce (damping: 12)
 - [ ] Colors follow the style preset exactly
-- [ ] Typography uses the specified font families
+- [ ] **NO TEXT OVERLAPPING VISUALS** - text and diagrams in separate regions
+- [ ] **TEXT OVERFLOW HANDLED** - ellipsis for single-line, word-wrap for multi-line
+- [ ] Clear vertical layout: title → visual → labels (stacked, not overlapping)
 
 ---
 
@@ -233,17 +266,79 @@ src/${projectId}/
 - \`useVideoConfig()\` to get fps AND dimensions - NEVER hardcode!
 - \`interpolate()\` with \`extrapolateRight: 'clamp'\`
 - \`spring({ frame, fps, config })\` - fps is REQUIRED
-- Font sizes: \`height * 0.04\` for titles, \`height * 0.025\` for body
-- **ALWAYS add \`key\` prop when using .map()**: \`{items.map((item, i) => <div key={i}>...</div>)}\`
+
+**⚠️ CRITICAL: React key prop (WILL CAUSE ERRORS IF MISSING):**
+- EVERY .map() call MUST have a key prop on the returned element
+- Pattern: \`{items.map((item, i) => <div key={i}>...</div>)}\`
+- Pattern: \`{items.map((item, i) => <React.Fragment key={i}>...</React.Fragment>)}\`
+- This applies to ALL mapped elements: divs, spans, components, fragments
+
+**Responsive Value Pattern (MANDATORY):**
+\`\`\`tsx
+const { width, height, fps } = useVideoConfig();
+const minDim = Math.min(width, height);
+
+// Font sizes - relative to height
+const fontSize = {
+  sm: height * 0.022,
+  md: height * 0.032,
+  lg: height * 0.045,
+};
+
+// Spacing - relative to minDim
+const padding = minDim * 0.05;
+const gap = minDim * 0.03;
+const borderRadius = minDim * 0.02;
+const glow = minDim * 0.025;
+const borderWidth = Math.max(2, minDim * 0.003);
+\`\`\`
 
 **⛔ FORBIDDEN (Will break rendering):**
 - ❌ CSS transitions or @keyframes
 - ❌ setTimeout/setInterval
 - ❌ useState for animation values
 - ❌ Hardcoded pixel dimensions (use useVideoConfig)
-- ❌ Missing key props in .map() loops
+- ❌ Missing key props in .map() loops - ALWAYS use: \`items.map((item, i) => <Element key={i} />)\`
 
 **WHY:** Remotion renders each frame independently. Animation values must be pure functions of frame number.
+
+**REACT KEY PROP EXAMPLES (MANDATORY):**
+\`\`\`tsx
+// ✅ CORRECT - key on every mapped element
+{steps.map((step, i) => (
+  <div key={i}>{step}</div>
+))}
+
+// ✅ CORRECT - key on Fragment when returning multiple elements
+{items.map((item, i) => (
+  <React.Fragment key={i}>
+    <Arrow />
+    <Node label={item} />
+  </React.Fragment>
+))}
+
+// ❌ WRONG - missing key (causes React warnings)
+{steps.map((step) => (
+  <div>{step}</div>
+))}
+\`\`\`
+
+**📐 RESPONSIVE LAYOUT RULES (Prevent text overlapping visuals):**
+- Use flexbox with RESPONSIVE values:
+  \`\`\`tsx
+  const minDim = Math.min(width, height);
+  display: 'flex',
+  flexDirection: 'column',
+  gap: minDim * 0.03,
+  padding: minDim * 0.05,
+  \`\`\`
+- Title/heading region: top 15% (flex: '0 0 15%')
+- Visual/diagram region: middle (flex: 1)
+- Labels/caption region: bottom (flex: '0 0 auto')
+- NEVER position text absolutely on top of diagram elements
+- Text overflow handling:
+  - Single-line: \`whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'\`
+  - Multi-line: \`wordWrap: 'break-word', overflowWrap: 'break-word'\`
 
 ---
 

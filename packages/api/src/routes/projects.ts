@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { eq, inArray } from 'drizzle-orm';
-import { db, projects, tracks, timelineItems, jobs, transcripts } from '../db/index.js';
+import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
 import { config } from '../config.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, publishJobCancel } from '../services/queue.js';
@@ -396,6 +396,61 @@ export async function projectRoutes(fastify: FastifyInstance) {
     });
 
     return { jobId: job.id };
+  });
+
+  // Delete generated visuals for a project (for re-testing)
+  fastify.delete('/projects/:id/visuals', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    try {
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, id),
+      });
+
+      if (!project) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      // Get all visuals for this project
+      const projectVisuals = await db.query.visuals.findMany({
+        where: eq(visuals.projectId, id),
+      });
+
+      if (projectVisuals.length === 0) {
+        return { message: 'No visuals to delete', deleted: 0 };
+      }
+
+      // Delete visual timeline items from all tracks
+      const trackList = await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      });
+
+      for (const track of trackList) {
+        if (track.type === 'visual') {
+          // Delete all items on visual tracks
+          await db.delete(timelineItems).where(eq(timelineItems.trackId, track.id));
+          // Delete the visual track itself
+          await db.delete(tracks).where(eq(tracks.id, track.id));
+        }
+      }
+
+      // Delete visuals from database
+      await db.delete(visuals).where(eq(visuals.projectId, id));
+
+      // Reset project status to allow re-generation
+      await db.update(projects)
+        .set({ status: 'ready' as ProjectStatus })
+        .where(eq(projects.id, id));
+
+      return {
+        message: 'Visuals deleted successfully',
+        deleted: projectVisuals.length,
+        bundleUrls: projectVisuals.map(v => v.bundleUrl),
+      };
+    } catch (err) {
+      fastify.log.error(err, 'Failed to delete visuals');
+      return reply.status(500).send({ error: 'Failed to delete visuals', details: String(err) });
+    }
   });
 
   // Separate audio from video and enhance
