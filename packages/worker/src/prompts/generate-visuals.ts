@@ -1,57 +1,59 @@
 export const STYLE_GUIDELINES: Record<string, string> = {
   minimal: `
 Style: Minimal (Clean & Professional)
-- Clean lines, generous whitespace
-- Monochrome with single bold accent color for emphasis
-- Simple geometric shapes, no clutter
-- Quick fade/slide animations (0.3s duration)
-- Sans-serif fonts: Inter or SF Pro (LARGE sizes for mobile!)
-- Colors: #1a1a1a background, #ffffff text, one bright accent
-- Perfect for: Business tips, productivity content, professional advice
-- Social media tip: Let the speaker be the star, visuals just highlight key points`,
+- Clean geometric shapes, generous whitespace
+- Monochrome diagrams with single accent color for highlights
+- Thin lines, subtle shadows, elegant simplicity
+- Smooth fade/slide animations, nothing flashy
+- Icons: Line-style, single weight, consistent sizing
+- Colors: #1a1a1a background, #ffffff elements, #3b82f6 accent
+- Diagram style: Clean flowcharts, simple node connections, understated
+- Animation style: Elements fade in smoothly, subtle position shifts
+- Best for: Business processes, professional workflows, corporate content`,
 
   modern: `
-Style: Modern (Trendy & Eye-catching)
-- Vibrant gradients and rounded corners (very TikTok/Instagram native)
-- High saturation colors that pop on mobile screens
+Style: Modern (Vibrant & Dynamic)
+- Gradient-filled shapes, rounded corners on everything
+- Vibrant colors that pop, glass morphism effects
 - Smooth spring animations with slight overshoot
-- Glass morphism / frosted glass effects for overlays
-- Sans-serif fonts: Poppins, Plus Jakarta Sans (bold weights)
-- Colors: Purple-blue gradients, cyan accents, dark backgrounds
-- Perfect for: Tech content, tutorials, explainers
-- Social media tip: Gradient backgrounds grab attention in feeds`,
+- Icons: Filled style, colorful, modern flat design
+- Colors: Purple #8b5cf6 to Blue #3b82f6 gradients, Cyan #06b6d4 accents
+- Diagram style: Colorful nodes, gradient connections, depth with shadows
+- Animation style: Spring physics, elements bounce in, satisfying motion
+- Best for: Tech tutorials, SaaS explainers, startup content`,
 
   playful: `
-Style: Playful (Fun & Engaging)
-- Bright, saturated candy colors
-- Bouncy animations with elastic overshoot (spring config: stiffness 200, damping 10)
-- Rounded shapes, emoji-style icons welcome
-- Handwritten or rounded fonts (Comic Neue, Nunito)
+Style: Playful (Fun & Energetic)
+- Bright saturated colors, rounded bubbly shapes
+- Bouncy animations with elastic overshoot (spring: stiffness 200, damping 10)
+- Hand-drawn style elements, imperfect circles, wobbly lines
+- Icons: Emoji-style, illustrated, character-based
 - Colors: Orange #f97316, Yellow #eab308, Pink #ec4899, Green #22c55e
-- Perfect for: Lifestyle, entertainment, casual education
-- Social media tip: Energy matches the fast-paced scroll, very shareable`,
+- Diagram style: Cartoon-like, characters pointing at things, fun illustrations
+- Animation style: Bouncy entrances, wiggle effects, playful transitions
+- Best for: Educational content for younger audiences, lifestyle, entertainment`,
 
   bold: `
-Style: Bold (High Impact)
-- Maximum contrast: pure black and white with ONE accent color
-- LARGE typography that fills the frame - impossible to miss
-- Dramatic scale animations (start at 0, spring to 100%)
-- Minimal decoration, every element has purpose
-- Heavy weight fonts: Anton, Bebas Neue, Impact
-- Colors: #000000, #ffffff, one neon accent (red, yellow, or cyan)
-- Perfect for: Hot takes, controversial opinions, strong statements
-- Social media tip: This style STOPS the scroll - use for hooks`,
+Style: Bold (High Contrast & Impactful)
+- Maximum contrast: black/white with ONE neon accent
+- Large, chunky shapes that command attention
+- Dramatic scale animations (0 to 100% spring)
+- Icons: Solid, heavy weight, impossible to miss
+- Colors: #000000, #ffffff, accent: #ef4444 (red) or #eab308 (yellow)
+- Diagram style: Thick borders, heavy arrows, stark contrasts
+- Animation style: Dramatic reveals, scale from zero, powerful presence
+- Best for: Strong statements, key concepts, memorable moments`,
 
   classic: `
 Style: Classic (Trustworthy & Educational)
-- Traditional layouts, clean data visualization
-- Serif fonts for authority (Playfair Display, Georgia)
-- Muted, professional tones that feel credible
-- Smooth, dignified animations (no bounce)
-- Chart styles: clean bars, simple line graphs
+- Traditional diagram layouts, clean data visualization
+- Muted, professional color palette
+- Smooth, dignified animations without bounce
+- Icons: Traditional, professional, outline or subtle fill
 - Colors: Navy #1e3a5f, Gold #d4af37, Cream #f5f5dc, Charcoal #374151
-- Perfect for: Finance, history, academic content, news-style
-- Social media tip: Builds trust, great for expert positioning`,
+- Diagram style: Academic charts, clean axes, proper labels, traditional graphs
+- Animation style: Smooth fades, professional transitions, no gimmicks
+- Best for: Finance, science, history, academic explanations, data-heavy content`,
 };
 
 interface TranscriptWord {
@@ -91,36 +93,48 @@ You are generating animated visuals for a SHORT-FORM SOCIAL MEDIA video using Re
 ## 🎬 VIDEO CONTEXT - READ THIS FIRST
 
 **Platform:** Instagram Reels, TikTok, YouTube Shorts
-**Format:** Talking head video with visual overlays
-**Audience:** Social media users with short attention spans (3-5 second hooks needed)
+**Format:** Talking head video with animated visual explanations
+**Purpose:** Create RICH, COMPLEX animated visuals that explain concepts visually
 
 **The Setup:**
 - A person is speaking directly to camera (the "talking head")
 - Your visuals will appear ${layoutMode === 'pip' ? 'BEHIND the speaker (who appears as a small PiP overlay)' : layoutMode === 'split-horizontal' ? 'ABOVE the speaker (split screen)' : 'BESIDE the speaker (split screen)'}
-- The speaker is explaining concepts - your visuals SUPPORT their message
-- Viewers are scrolling fast - visuals must grab attention INSTANTLY
+- **SUBTITLES ARE SEPARATE** - text/captions are handled elsewhere, you create VISUALS
+- The speaker explains concepts verbally - your job is to VISUALIZE those concepts
+- Think of yourself as creating animated infographics, diagrams, and illustrations
 
-**Design Principles for Short-Form Content:**
-1. **BOLD & CLEAR** - Text must be readable on a phone screen (no tiny fonts!)
-2. **FAST ANIMATIONS** - Quick entrances (0.3-0.5s), don't make viewers wait
-3. **HIGH CONTRAST** - Visuals must pop against any background
-4. **COMPLEMENT, DON'T COMPETE** - Support the speaker, don't distract from them
-5. **MOBILE-FIRST** - ${width < height ? 'This is VERTICAL video - perfect for mobile!' : 'Design for thumb-stopping impact'}
-6. **HOOK EARLY** - First 3 seconds need something visually interesting
+**Your Goal: Complex Animated Visualizations**
+You are NOT creating text overlays or captions. You are creating:
+- Animated diagrams that build up step by step
+- Flowcharts with elements appearing in sequence
+- Data visualizations (charts, graphs) that animate in
+- Process illustrations showing how things work
+- Concept maps and relationship diagrams
+- Visual metaphors and illustrations
+- Animated icons and symbols representing ideas
 
-**What Works on Social Media:**
-- Animated text that appears with the speaker's key points
-- Simple diagrams that build up piece by piece
-- Progress bars, counters, checkmarks for lists
-- Bold headlines that reinforce what's being said
-- Subtle motion (not static, but not overwhelming)
+**Design Principles:**
+1. **VISUAL, NOT TEXTUAL** - Minimize text! Use shapes, icons, diagrams, illustrations
+2. **ANIMATE PROGRESSIVELY** - Build complexity over time, reveal piece by piece
+3. **SYNC WITH SPEECH** - When speaker mentions Step 1, show Step 1 animating in
+4. **EDUCATIONAL VALUE** - Visuals should help viewers UNDERSTAND the concept
+5. **PROFESSIONAL QUALITY** - Smooth animations, consistent style, polished look
+6. **MOBILE-OPTIMIZED** - ${width < height ? 'Vertical format - stack elements, use full height' : 'Design for mobile viewing'}
 
-**What to AVOID:**
-- Walls of text (max 5-7 words per text element)
-- Slow, subtle animations (they'll scroll past)
-- Complex diagrams that need time to understand
-- Anything that requires reading while listening
-- Visuals that fight for attention with the speaker
+**What to Create:**
+- Flowcharts that animate node by node
+- Diagrams that build up as concepts are explained
+- Charts/graphs with animated data points
+- Process visualizations (arrows, steps, cycles)
+- Comparison graphics (vs, before/after)
+- Icon-based illustrations
+- Animated infographics
+
+**What NOT to Create:**
+- Text captions or subtitles (handled separately)
+- Simple text overlays (not your job)
+- Static images (everything should animate)
+- Overly simple visuals (aim for rich, educational content)
 
 ## Project Setup
 The workspace is a pre-configured Remotion project with all dependencies installed.
@@ -182,26 +196,33 @@ ${styleGuidelines}
 
 ## Your Task
 
-1. **Analyze the transcript** for visual opportunities (BEST for talking head videos):
+1. **Analyze the transcript** for visualization opportunities:
 
-   **HIGH IMPACT visuals (use these!):**
-   - Key phrases/quotes → Big animated text that appears AS the speaker says it
-   - Numbers/statistics → Animated counters, bold stat cards ("3X faster!")
-   - Lists (3-5 items) → Checkmarks/bullets that appear one by one
-   - Before/After → Simple two-panel comparison
-   - Steps/Process → Numbered steps (1, 2, 3) appearing sequentially
+   **PROCESSES & WORKFLOWS:**
+   - Steps being explained → Animated flowchart building node by node
+   - Sequences → Timeline with milestones appearing in order
+   - Cycles → Circular diagram with rotating/highlighting sections
+   - Cause & effect → Animated arrows showing relationships
 
-   **MEDIUM IMPACT visuals:**
-   - Frameworks → Simple diagram that builds up (max 4-5 elements)
-   - Comparisons → VS graphics, simple side-by-side
-   - Timelines → Horizontal progress with milestones
+   **DATA & COMPARISONS:**
+   - Statistics mentioned → Animated bar/line charts, pie charts
+   - Numbers → Animated counters, gauge meters, progress rings
+   - Comparisons → Side-by-side graphics, VS animations
+   - Rankings → Podium graphics, leaderboard animations
 
-   **USE SPARINGLY (can distract from speaker):**
-   - Complex flowcharts (too much to process)
-   - Detailed data visualizations (need focus to read)
-   - Anything with lots of small text
+   **CONCEPTS & FRAMEWORKS:**
+   - Mental models → Animated diagrams (pyramids, matrices, Venn diagrams)
+   - Hierarchies → Org charts, tree structures that expand
+   - Categories → Icon grids, grouped elements
+   - Relationships → Mind maps, connection lines animating between nodes
 
-   **GOLDEN RULE:** If someone can't understand the visual in 2 seconds, simplify it!
+   **VISUAL METAPHORS:**
+   - Abstract concepts → Illustrative animations (growth = plant growing, speed = rocket)
+   - Transformations → Before/after morphing animations
+   - Journeys → Path animations, roadmaps
+
+   **IMPORTANT:** Analyze what the speaker is EXPLAINING, then create visuals that SHOW it.
+   Don't just put text on screen - CREATE A VISUAL REPRESENTATION of the concept.
 
 2. **Create Remotion components** in src/${projectId}/:
    - index.tsx - Main composition with Sequences for each visual
@@ -270,13 +291,13 @@ Before finishing, you MUST verify TypeScript compiles with ZERO errors:
 - [ ] TypeScript compiles with ZERO errors (REQUIRED)
 - [ ] **metadata.json has width: ${width}, height: ${height}** (REQUIRED)
 - [ ] **Design fits ${width}x${height} - no hardcoded 1920x1080!** (REQUIRED)
-- [ ] Animations are FAST (0.3-0.5s entrances) - no slow fades!
-- [ ] Text is LARGE and readable on mobile (min ${Math.round(height * 0.025)}px)
-- [ ] High contrast - visuals pop against any background
-- [ ] Timing syncs with speaker's words in transcript
-- [ ] First 3 seconds have something visually interesting (hook!)
-- [ ] No text element has more than 7 words
-- [ ] Visuals SUPPORT the speaker, don't compete for attention
+- [ ] Visuals are ANIMATED (not static images) - elements build progressively
+- [ ] Animations are smooth with proper easing (use spring() or interpolate())
+- [ ] Timing syncs with transcript - visuals appear when speaker mentions concepts
+- [ ] Minimal text - diagrams and shapes convey meaning, not words
+- [ ] Visual complexity matches the concept being explained
+- [ ] Professional polish - consistent colors, aligned elements, clean design
+- [ ] Educational value - viewer learns from watching the visual
 
 ## Example Component Structure
 

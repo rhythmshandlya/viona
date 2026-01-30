@@ -224,10 +224,11 @@ describe('STYLE_GUIDELINES', () => {
     });
   });
 
-  it('includes social media tips in each style', () => {
+  it('includes diagram and animation style in each style', () => {
     Object.values(STYLE_GUIDELINES).forEach((guideline) => {
-      expect(guideline).toContain('Social media tip:');
-      expect(guideline).toContain('Perfect for:');
+      expect(guideline).toContain('Diagram style:');
+      expect(guideline).toContain('Animation style:');
+      expect(guideline).toContain('Best for:');
     });
   });
 });
@@ -261,22 +262,22 @@ describe('short-form social media context', () => {
     expect(prompt).toContain('person is speaking directly to camera');
   });
 
-  it('includes design principles for short-form content', () => {
+  it('emphasizes visual content over text', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain('BOLD & CLEAR');
-    expect(prompt).toContain('FAST ANIMATIONS');
-    expect(prompt).toContain('HIGH CONTRAST');
-    expect(prompt).toContain('MOBILE-FIRST');
-    expect(prompt).toContain('HOOK EARLY');
+    expect(prompt).toContain('SUBTITLES ARE SEPARATE');
+    expect(prompt).toContain('VISUAL, NOT TEXTUAL');
+    expect(prompt).toContain('Minimize text');
+    expect(prompt).toContain('shapes, icons, diagrams, illustrations');
   });
 
-  it('explains what to avoid', () => {
+  it('explains complex visualization goals', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain('What to AVOID');
-    expect(prompt).toContain('Walls of text');
-    expect(prompt).toContain('Slow, subtle animations');
+    expect(prompt).toContain('RICH, COMPLEX animated visuals');
+    expect(prompt).toContain('animated infographics');
+    expect(prompt).toContain('Flowcharts with elements appearing in sequence');
+    expect(prompt).toContain('Data visualizations');
   });
 
   it('provides correct speaker position based on layout mode', () => {
@@ -290,26 +291,30 @@ describe('short-form social media context', () => {
     expect(splitVPrompt).toContain('BESIDE the speaker (split screen)');
   });
 
-  it('includes high impact visual recommendations', () => {
+  it('includes visualization categories', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain('HIGH IMPACT');
-    expect(prompt).toContain('Big animated text');
-    expect(prompt).toContain('Animated counters');
+    expect(prompt).toContain('PROCESSES & WORKFLOWS');
+    expect(prompt).toContain('DATA & COMPARISONS');
+    expect(prompt).toContain('CONCEPTS & FRAMEWORKS');
+    expect(prompt).toContain('VISUAL METAPHORS');
   });
 
-  it('includes the 2-second rule for simplicity', () => {
+  it('explains what NOT to create', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain("can't understand the visual in 2 seconds, simplify");
+    expect(prompt).toContain('What NOT to Create');
+    expect(prompt).toContain('Text captions or subtitles');
+    expect(prompt).toContain('Simple text overlays');
+    expect(prompt).toContain('Static images');
   });
 
-  it('includes social media specific quality checks', () => {
+  it('includes quality checks for animated visualizations', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain('FAST (0.3-0.5s entrances)');
-    expect(prompt).toContain('First 3 seconds');
-    expect(prompt).toContain('No text element has more than 7 words');
-    expect(prompt).toContain("don't compete for attention");
+    expect(prompt).toContain('ANIMATED (not static images)');
+    expect(prompt).toContain('elements build progressively');
+    expect(prompt).toContain('Minimal text - diagrams and shapes convey meaning');
+    expect(prompt).toContain('Educational value');
   });
 });
