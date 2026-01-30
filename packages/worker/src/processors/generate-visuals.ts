@@ -17,34 +17,15 @@ import { buildGenerateVisualsPrompt, STYLE_GUIDELINES } from '../prompts/generat
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// LLM model configuration by quality tier
-// Using OpenRouter for access to multiple providers
-const LLM_MODELS = {
-  fast: {
-    model: 'openrouter/google/gemini-3-flash-preview',
-    provider: 'openrouter',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
-    // Cost per 1M tokens (USD) - approximate
-    inputCostPer1M: 0.10,
-    outputCostPer1M: 0.40,
-  },
-  balanced: {
-    model: 'openrouter/google/gemini-3-flash-preview',
-    provider: 'openrouter',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
-    inputCostPer1M: 0.10,
-    outputCostPer1M: 0.40,
-  },
-  quality: {
-    model: 'openrouter/google/gemini-3-flash-preview',
-    provider: 'openrouter',
-    apiKeyEnv: 'OPENROUTER_API_KEY',
-    inputCostPer1M: 0.15,
-    outputCostPer1M: 0.60,
-  },
+// LLM model configuration - using OpenRouter with Gemini 3 Flash Preview
+const LLM_CONFIG = {
+  model: 'openrouter/google/gemini-3-flash-preview',
+  provider: 'openrouter',
+  apiKeyEnv: 'OPENROUTER_API_KEY',
+  // Cost per 1M tokens (USD) - approximate
+  inputCostPer1M: 0.10,
+  outputCostPer1M: 0.40,
 } as const;
-
-type QualityTier = keyof typeof LLM_MODELS;
 
 // Timeout configuration (in milliseconds)
 const AGENT_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes max per job
@@ -144,7 +125,6 @@ export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
-  qualityTier?: QualityTier;
   /** Enable verbose logging for debugging */
   verbose?: boolean;
 }
@@ -221,7 +201,7 @@ interface JobMetrics {
 }
 
 export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>) {
-  const { projectId, jobId, stylePreset, qualityTier = 'balanced' } = job.data;
+  const { projectId, jobId, stylePreset } = job.data;
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
   const projectDir = join(config.remotion.projectDir, 'src', compositionId);
 
@@ -288,9 +268,6 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       fps: project.fps || 30,
     });
 
-    // Get LLM configuration
-    const llmConfig = LLM_MODELS[qualityTier];
-
     // Calculate duration in frames
     const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
 
@@ -299,10 +276,10 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       workspace: config.remotion.projectDir,
       projectId: compositionId,
       jobId,
-      model: llmConfig.model,
-      apiKeyEnv: llmConfig.apiKeyEnv,
-      inputCostPer1M: llmConfig.inputCostPer1M,
-      outputCostPer1M: llmConfig.outputCostPer1M,
+      model: LLM_CONFIG.model,
+      apiKeyEnv: LLM_CONFIG.apiKeyEnv,
+      inputCostPer1M: LLM_CONFIG.inputCostPer1M,
+      outputCostPer1M: LLM_CONFIG.outputCostPer1M,
       durationFrames,
       fps: project.fps || 30,
       verbose: job.data.verbose,
@@ -310,8 +287,8 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
 
     // Calculate estimated cost
     const estimatedCostUsd =
-      (agentResult.inputTokens / 1_000_000) * llmConfig.inputCostPer1M +
-      (agentResult.outputTokens / 1_000_000) * llmConfig.outputCostPer1M;
+      (agentResult.inputTokens / 1_000_000) * LLM_CONFIG.inputCostPer1M +
+      (agentResult.outputTokens / 1_000_000) * LLM_CONFIG.outputCostPer1M;
 
     // Store metrics in job
     const jobMetrics: JobMetrics = {
@@ -556,7 +533,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     await publishJobProgress(jobId, 100, 'Complete');
     await publishJobComplete(jobId, projectId);
 
-    logger.info({ projectId, compositionId, qualityTier }, 'Visual generation complete');
+    logger.info({ projectId, compositionId, model: LLM_CONFIG.model }, 'Visual generation complete');
 
   } catch (error) {
     logger.error({ projectId, err: error }, 'Visual generation failed');

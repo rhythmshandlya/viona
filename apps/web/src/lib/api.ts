@@ -98,7 +98,6 @@ export interface SeparateAudioResponse {
 }
 
 export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
-export type QualityTier = 'fast' | 'balanced' | 'quality';
 
 export interface GenerateVisualsResponse {
   jobId: string;
@@ -175,10 +174,10 @@ class ApiClient {
     });
   }
 
-  async generateVisuals(projectId: string, stylePreset: StylePreset, qualityTier: QualityTier = 'balanced'): Promise<GenerateVisualsResponse> {
+  async generateVisuals(projectId: string, stylePreset: StylePreset): Promise<GenerateVisualsResponse> {
     return this.request(`/api/projects/${projectId}/generate-visuals`, {
       method: 'POST',
-      body: JSON.stringify({ stylePreset, qualityTier }),
+      body: JSON.stringify({ stylePreset }),
     });
   }
 

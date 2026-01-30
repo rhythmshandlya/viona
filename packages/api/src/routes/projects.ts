@@ -350,7 +350,6 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = z.object({
       stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic']),
-      qualityTier: z.enum(['fast', 'balanced', 'quality']).default('balanced'),
     }).parse(request.body);
 
     const project = await db.query.projects.findFirst({
@@ -387,7 +386,6 @@ export async function projectRoutes(fastify: FastifyInstance) {
       projectId: id,
       jobId: job.id,
       stylePreset: body.stylePreset,
-      qualityTier: body.qualityTier,
     });
 
     return { jobId: job.id };

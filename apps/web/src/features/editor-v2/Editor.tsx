@@ -30,7 +30,7 @@ import {
   useCaptionItems,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
-import { api, StylePreset, QualityTier, JobMetrics } from '@/lib/api';
+import { api, StylePreset, JobMetrics } from '@/lib/api';
 
 interface EditorProps {
   projectId: string;
@@ -319,7 +319,7 @@ export function Editor({ projectId }: EditorProps) {
     setShowStyleModal(true);
   };
 
-  const handleGenerateVisuals = async (stylePreset: StylePreset, qualityTier: QualityTier) => {
+  const handleGenerateVisuals = async (stylePreset: StylePreset) => {
     if (!project) return;
     setIsGeneratingVisuals(true);
     setVisualsProgress(0);
@@ -329,8 +329,8 @@ export function Editor({ projectId }: EditorProps) {
     setVisualsMetrics(null);
     setVisualsPreviewUrl(null);
     try {
-      const { jobId } = await api.generateVisuals(project.id, stylePreset, qualityTier);
-      console.log('Visual generation started:', jobId, 'quality:', qualityTier);
+      const { jobId } = await api.generateVisuals(project.id, stylePreset);
+      console.log('Visual generation started:', jobId);
       setVisualsJobId(jobId);
       setShowLogsPanel(true); // Auto-open logs panel
       setShowStyleModal(false); // Close modal - progress shown in logs panel

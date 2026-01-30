@@ -16,8 +16,8 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { StylePreset, QualityTier } from '@/lib/api';
-import { X, Zap, Scale, Sparkles, AlertTriangle } from 'lucide-react';
+import type { StylePreset } from '@/lib/api';
+import { Sparkles, AlertTriangle } from 'lucide-react';
 
 interface StyleOption {
   id: StylePreset;
@@ -26,38 +26,6 @@ interface StyleOption {
   colors: string[];
   preview: React.ReactNode;
 }
-
-interface QualityOption {
-  id: QualityTier;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-  model: string;
-}
-
-const QUALITY_OPTIONS: QualityOption[] = [
-  {
-    id: 'fast',
-    name: 'Fast',
-    description: 'Quick generation, good for testing',
-    icon: <Zap className="w-4 h-4" />,
-    model: 'Gemini 2.0 Flash',
-  },
-  {
-    id: 'balanced',
-    name: 'Balanced',
-    description: 'Best quality/speed tradeoff',
-    icon: <Scale className="w-4 h-4" />,
-    model: 'Gemini 2.0 Flash',
-  },
-  {
-    id: 'quality',
-    name: 'Quality',
-    description: 'Highest quality, slower',
-    icon: <Sparkles className="w-4 h-4" />,
-    model: 'Gemini 1.5 Pro',
-  },
-];
 
 const STYLE_OPTIONS: StyleOption[] = [
   {
@@ -135,7 +103,7 @@ interface JobMetrics {
 interface StyleSelectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (stylePreset: StylePreset, qualityTier: QualityTier) => void;
+  onSelect: (stylePreset: StylePreset) => void;
   onCancel?: () => void;
   onConfirmAdd?: () => void; // Called when user confirms adding to timeline
   isLoading?: boolean;
@@ -162,10 +130,9 @@ export function StyleSelectionModal({
   previewUrl = null,
 }: StyleSelectionModalProps) {
   const [selectedStyle, setSelectedStyle] = useState<StylePreset>('modern');
-  const [selectedQuality, setSelectedQuality] = useState<QualityTier>('balanced');
 
   const handleGenerate = () => {
-    onSelect(selectedStyle, selectedQuality);
+    onSelect(selectedStyle);
   };
 
   // Don't show modal during loading - progress is shown in JobLogsPanel
@@ -292,26 +259,7 @@ export function StyleSelectionModal({
 
             {/* Retry options */}
             <div className="border-t border-zinc-800 pt-4">
-              <p className="text-sm text-zinc-400 mb-3">Try again with different settings:</p>
-
-              {/* Compact quality selector */}
-              <div className="flex gap-2 mb-3">
-                {QUALITY_OPTIONS.map((quality) => (
-                  <button
-                    key={quality.id}
-                    onClick={() => setSelectedQuality(quality.id)}
-                    className={cn(
-                      'flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-md border transition-all text-sm',
-                      selectedQuality === quality.id
-                        ? 'border-purple-500 bg-purple-500/10 text-purple-400'
-                        : 'border-zinc-700 bg-zinc-800/50 text-zinc-300 hover:border-zinc-600'
-                    )}
-                  >
-                    {quality.icon}
-                    <span>{quality.name}</span>
-                  </button>
-                ))}
-              </div>
+              <p className="text-sm text-zinc-400 mb-3">Try again with a different style:</p>
 
               {/* Compact style selector */}
               <div className="grid grid-cols-5 gap-2">
@@ -419,42 +367,6 @@ export function StyleSelectionModal({
               </p>
             </button>
           ))}
-        </div>
-
-        {/* Quality Tier Selection */}
-        <div className="border-t border-zinc-800 pt-4">
-          <h4 className="text-sm font-medium text-zinc-300 mb-3">Quality Tier</h4>
-          <div className="grid grid-cols-3 gap-3">
-            {QUALITY_OPTIONS.map((quality) => (
-              <button
-                key={quality.id}
-                onClick={() => setSelectedQuality(quality.id)}
-                disabled={isLoading}
-                className={cn(
-                  'flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all',
-                  'hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500',
-                  selectedQuality === quality.id
-                    ? 'border-purple-500 bg-purple-500/10'
-                    : 'border-zinc-700 bg-zinc-800/50',
-                  isLoading && 'opacity-50 cursor-not-allowed'
-                )}
-              >
-                <div className={cn(
-                  'p-2 rounded-full',
-                  selectedQuality === quality.id ? 'bg-purple-500/20 text-purple-400' : 'bg-zinc-800 text-zinc-400'
-                )}>
-                  {quality.icon}
-                </div>
-                <span className={cn(
-                  'font-medium text-sm',
-                  selectedQuality === quality.id ? 'text-purple-400' : 'text-white'
-                )}>
-                  {quality.name}
-                </span>
-                <span className="text-xs text-zinc-500">{quality.model}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
         <DialogFooter>

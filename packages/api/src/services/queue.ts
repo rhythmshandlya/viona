@@ -76,7 +76,6 @@ export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
-  qualityTier?: 'fast' | 'balanced' | 'quality';
 }
 
 export const generateVisualsQueue = new Queue('generate-visuals', { connection });
