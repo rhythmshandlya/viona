@@ -15,9 +15,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import type { StylePreset } from '@/lib/api';
-import { Sparkles, AlertTriangle } from 'lucide-react';
+import type { StylePreset, GenerateVisualsOptions, VisualsLayoutMode } from '@/lib/api';
+import { Sparkles, AlertTriangle, Rows, PictureInPicture } from 'lucide-react';
 
 interface StyleOption {
   id: StylePreset;
@@ -103,7 +104,7 @@ interface JobMetrics {
 interface StyleSelectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (stylePreset: StylePreset) => void;
+  onSelect: (options: GenerateVisualsOptions) => void;
   onCancel?: () => void;
   onConfirmAdd?: () => void; // Called when user confirms adding to timeline
   isLoading?: boolean;
@@ -113,6 +114,29 @@ interface StyleSelectionModalProps {
   isComplete?: boolean; // Show preview/confirmation view
   metrics?: JobMetrics | null;
   previewUrl?: string | null; // URL to preview image if available
+  canvasWidth?: number;  // From project settings
+  canvasHeight?: number; // From project settings
+}
+
+// Calculate visuals dimensions based on layout
+function calculateVisualsDimensions(
+  canvasWidth: number,
+  canvasHeight: number,
+  layoutMode: VisualsLayoutMode,
+  splitRatio: number
+): { width: number; height: number } {
+  if (layoutMode === 'pip') {
+    // PiP: visuals take full canvas
+    return { width: canvasWidth, height: canvasHeight };
+  } else if (layoutMode === 'split-horizontal') {
+    // Horizontal split: visuals get top portion based on ratio
+    const visualsHeight = Math.round(canvasHeight * (splitRatio / 100));
+    return { width: canvasWidth, height: visualsHeight };
+  } else {
+    // Vertical split: visuals get left portion based on ratio
+    const visualsWidth = Math.round(canvasWidth * (splitRatio / 100));
+    return { width: visualsWidth, height: canvasHeight };
+  }
 }
 
 export function StyleSelectionModal({
@@ -128,11 +152,21 @@ export function StyleSelectionModal({
   isComplete = false,
   metrics = null,
   previewUrl = null,
+  canvasWidth = 1080,
+  canvasHeight = 1920,
 }: StyleSelectionModalProps) {
   const [selectedStyle, setSelectedStyle] = useState<StylePreset>('modern');
+  const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('pip');
+  const [splitRatio, setSplitRatio] = useState(50); // Percentage for visuals
+
+  const dimensions = calculateVisualsDimensions(canvasWidth, canvasHeight, layoutMode, splitRatio);
 
   const handleGenerate = () => {
-    onSelect(selectedStyle);
+    onSelect({
+      stylePreset: selectedStyle,
+      layoutMode,
+      dimensions,
+    });
   };
 
   // Don't show modal during loading - progress is shown in JobLogsPanel
@@ -316,57 +350,138 @@ export function StyleSelectionModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl bg-zinc-900 border-zinc-800">
         <DialogHeader>
-          <DialogTitle className="text-white">Choose Visual Style</DialogTitle>
+          <DialogTitle className="text-white">Generate AI Visuals</DialogTitle>
           <DialogDescription className="text-zinc-400">
-            Select a style preset for the AI-generated visuals
+            Choose how visuals will appear with your video
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 py-4">
-          {STYLE_OPTIONS.map((style) => (
+        {/* Layout Selection */}
+        <div className="space-y-3 py-2">
+          <label className="text-sm font-medium text-zinc-300">Layout Mode</label>
+          <div className="grid grid-cols-2 gap-3">
             <button
-              key={style.id}
-              onClick={() => setSelectedStyle(style.id)}
+              onClick={() => setLayoutMode('pip')}
               disabled={isLoading}
               className={cn(
-                'flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all',
-                'hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500',
-                selectedStyle === style.id
-                  ? 'border-blue-500 bg-blue-500/10'
-                  : 'border-zinc-700 bg-zinc-800/50',
+                'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
+                layoutMode === 'pip'
+                  ? 'border-purple-500 bg-purple-500/10'
+                  : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600',
                 isLoading && 'opacity-50 cursor-not-allowed'
               )}
             >
-              {/* Preview thumbnail */}
-              <div className="w-full aspect-video rounded-md overflow-hidden border border-zinc-700">
-                {style.preview}
+              <PictureInPicture className={cn(
+                'w-6 h-6',
+                layoutMode === 'pip' ? 'text-purple-400' : 'text-zinc-400'
+              )} />
+              <div className="text-left">
+                <p className={cn(
+                  'font-medium text-sm',
+                  layoutMode === 'pip' ? 'text-purple-300' : 'text-white'
+                )}>
+                  Picture-in-Picture
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Full-screen visuals, video overlay
+                </p>
               </div>
-
-              {/* Style name */}
-              <span className={cn(
-                'font-medium text-sm',
-                selectedStyle === style.id ? 'text-blue-400' : 'text-white'
-              )}>
-                {style.name}
-              </span>
-
-              {/* Color swatches */}
-              <div className="flex gap-1">
-                {style.colors.map((color, i) => (
-                  <div
-                    key={i}
-                    className="w-4 h-4 rounded-full border border-zinc-600"
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </div>
-
-              {/* Description */}
-              <p className="text-xs text-zinc-500 text-center line-clamp-2">
-                {style.description}
-              </p>
             </button>
-          ))}
+            <button
+              onClick={() => setLayoutMode('split-horizontal')}
+              disabled={isLoading}
+              className={cn(
+                'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
+                layoutMode === 'split-horizontal'
+                  ? 'border-purple-500 bg-purple-500/10'
+                  : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600',
+                isLoading && 'opacity-50 cursor-not-allowed'
+              )}
+            >
+              <Rows className={cn(
+                'w-6 h-6',
+                layoutMode === 'split-horizontal' ? 'text-purple-400' : 'text-zinc-400'
+              )} />
+              <div className="text-left">
+                <p className={cn(
+                  'font-medium text-sm',
+                  layoutMode === 'split-horizontal' ? 'text-purple-300' : 'text-white'
+                )}>
+                  Split Screen
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Visuals top, video bottom
+                </p>
+              </div>
+            </button>
+          </div>
+
+          {/* Split ratio slider - only show for split mode */}
+          {layoutMode === 'split-horizontal' && (
+            <div className="space-y-2 pt-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-zinc-400">Split Ratio</span>
+                <span className="text-zinc-300">{splitRatio}% visuals / {100 - splitRatio}% video</span>
+              </div>
+              <Slider
+                value={[splitRatio]}
+                min={30}
+                max={70}
+                step={10}
+                onValueChange={([v]) => setSplitRatio(v)}
+                disabled={isLoading}
+              />
+              <p className="text-xs text-zinc-500">
+                Visuals: {dimensions.width}x{dimensions.height}px
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Style Selection */}
+        <div className="space-y-3 py-2 border-t border-zinc-800">
+          <label className="text-sm font-medium text-zinc-300">Visual Style</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {STYLE_OPTIONS.map((style) => (
+              <button
+                key={style.id}
+                onClick={() => setSelectedStyle(style.id)}
+                disabled={isLoading}
+                className={cn(
+                  'flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all',
+                  'hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500',
+                  selectedStyle === style.id
+                    ? 'border-purple-500 bg-purple-500/10'
+                    : 'border-zinc-700 bg-zinc-800/50',
+                  isLoading && 'opacity-50 cursor-not-allowed'
+                )}
+              >
+                {/* Preview thumbnail */}
+                <div className="w-full aspect-video rounded-md overflow-hidden border border-zinc-700">
+                  {style.preview}
+                </div>
+
+                {/* Style name */}
+                <span className={cn(
+                  'font-medium text-sm',
+                  selectedStyle === style.id ? 'text-purple-400' : 'text-white'
+                )}>
+                  {style.name}
+                </span>
+
+                {/* Color swatches */}
+                <div className="flex gap-1">
+                  {style.colors.map((color, i) => (
+                    <div
+                      key={i}
+                      className="w-4 h-4 rounded-full border border-zinc-600"
+                      style={{ backgroundColor: color }}
+                    />
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         <DialogFooter>

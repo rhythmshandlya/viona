@@ -7,10 +7,10 @@
 
 import React from 'react';
 import { X } from 'lucide-react';
-import { TranscriptPanel } from '../panels/TranscriptPanel';
+import { TranscriptPanel, PiPControlPanel } from '../panels';
 import { PropertiesContent } from './ContextPanel';
 
-export type RightPanelTab = 'properties' | 'transcript';
+export type RightPanelTab = 'properties' | 'transcript' | 'layout';
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -49,6 +49,11 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
               isActive={activeTab === 'properties'}
               onClick={() => onTabChange('properties')}
             />
+            <TabButton
+              label="Layout"
+              isActive={activeTab === 'layout'}
+              onClick={() => onTabChange('layout')}
+            />
           </div>
           {!isSideBySide && (
             <button
@@ -62,8 +67,10 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden">
-          {activeTab === 'transcript' ? <TranscriptPanel /> : <PropertiesContent />}
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'transcript' && <TranscriptPanel />}
+          {activeTab === 'properties' && <PropertiesContent />}
+          {activeTab === 'layout' && <PiPControlPanel />}
         </div>
       </div>
     </div>

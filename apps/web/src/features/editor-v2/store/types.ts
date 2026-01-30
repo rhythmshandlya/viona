@@ -321,6 +321,10 @@ export interface EditorState {
   // Clipboard and split mode
   clipboard: TimelineItem[] | null;
   splitMode: boolean;
+
+  // Layout settings (video + visuals arrangement)
+  layoutSettings: LayoutSettings;
+  layoutPresetId: LayoutPresetId;
 }
 
 // ============================================
@@ -409,6 +413,13 @@ export interface EditorActions {
   splitCaption: (captionId: string, wordIndex: number) => void;
   mergeCaptions: (captionId1: string, captionId2: string) => void;
   updateCaptionText: (captionId: string, newText: string) => void;
+
+  // Layout actions
+  updateLayoutSettings: (settings: Partial<LayoutSettings>) => void;
+  updatePiPSettings: (settings: Partial<PiPSettings>) => void;
+  updateSplitSettings: (settings: Partial<SplitSettings>) => void;
+  setLayoutPreset: (presetId: LayoutPresetId) => void;
+  setLayoutMode: (mode: LayoutMode) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;
@@ -470,4 +481,243 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   color: '#ffffff',
   backgroundColor: undefined,
   textAlign: 'center',
+};
+
+// ============================================
+// Layout Settings Types (Video + Visuals arrangement)
+// ============================================
+
+// Layout modes for arranging video and visuals
+export type LayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+
+// Split position (which content is on top/left)
+export type SplitPosition = 'visuals-first' | 'video-first';
+
+// PiP position options
+export type PiPPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+export type PiPSize = 'small' | 'medium' | 'large' | 'custom';
+export type PiPShape = 'square' | 'circle' | 'rounded';
+
+export interface PiPSettings {
+  // Position
+  position: PiPPosition;
+  offsetX: number;
+  offsetY: number;
+
+  // Size
+  size: PiPSize;
+  customSize: number;  // Percentage of canvas width (5-50%)
+
+  // Shape
+  shape: PiPShape;
+  borderRadius: number;
+
+  // Styling
+  borderWidth: number;
+  borderColor: string;
+  shadowEnabled: boolean;
+  shadowColor: string;
+  shadowBlur: number;
+  opacity: number;
+}
+
+export interface SplitSettings {
+  // Which content appears first (top for horizontal, left for vertical)
+  position: SplitPosition;
+  // Ratio: percentage for visuals (0-100), video gets the rest
+  ratio: number;
+  // Gap between sections
+  gap: number;
+}
+
+export interface LayoutSettings {
+  // Current layout mode
+  mode: LayoutMode;
+  // PiP-specific settings (used when mode === 'pip')
+  pip: PiPSettings;
+  // Split-specific settings (used when mode === 'split-*')
+  split: SplitSettings;
+}
+
+// Pre-designed layout presets
+export type LayoutPresetId = 'pip-tutorial' | 'pip-podcast' | 'pip-minimal' | 'pip-gaming' | 'split-equal' | 'split-visuals-large' | 'split-video-large' | 'custom';
+
+export interface LayoutPreset {
+  id: LayoutPresetId;
+  name: string;
+  description: string;
+  settings: LayoutSettings;
+}
+
+export const DEFAULT_PIP_SETTINGS: PiPSettings = {
+  position: 'bottom-right',
+  offsetX: 16,
+  offsetY: 16,
+  size: 'medium',
+  customSize: 25,
+  shape: 'rounded',
+  borderRadius: 12,
+  borderWidth: 2,
+  borderColor: 'rgba(255, 255, 255, 0.2)',
+  shadowEnabled: true,
+  shadowColor: 'rgba(0, 0, 0, 0.5)',
+  shadowBlur: 20,
+  opacity: 1,
+};
+
+export const DEFAULT_SPLIT_SETTINGS: SplitSettings = {
+  position: 'visuals-first',
+  ratio: 50,
+  gap: 0,
+};
+
+export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
+  mode: 'pip',
+  pip: DEFAULT_PIP_SETTINGS,
+  split: DEFAULT_SPLIT_SETTINGS,
+};
+
+export const LAYOUT_PRESETS: LayoutPreset[] = [
+  // Split presets
+  {
+    id: 'split-equal',
+    name: '50/50 Split',
+    description: 'Equal split between visuals and video',
+    settings: {
+      mode: 'split-horizontal',
+      pip: DEFAULT_PIP_SETTINGS,
+      split: { position: 'visuals-first', ratio: 50, gap: 0 },
+    },
+  },
+  {
+    id: 'split-visuals-large',
+    name: '70/30 Visuals',
+    description: 'Visuals dominant, small video',
+    settings: {
+      mode: 'split-horizontal',
+      pip: DEFAULT_PIP_SETTINGS,
+      split: { position: 'visuals-first', ratio: 70, gap: 0 },
+    },
+  },
+  {
+    id: 'split-video-large',
+    name: '30/70 Video',
+    description: 'Video dominant, small visuals',
+    settings: {
+      mode: 'split-horizontal',
+      pip: DEFAULT_PIP_SETTINGS,
+      split: { position: 'video-first', ratio: 30, gap: 0 },
+    },
+  },
+  // PiP presets
+  {
+    id: 'pip-tutorial',
+    name: 'PiP Tutorial',
+    description: 'Medium rounded PiP, bottom-right',
+    settings: {
+      mode: 'pip',
+      pip: {
+        position: 'bottom-right',
+        offsetX: 16,
+        offsetY: 16,
+        size: 'medium',
+        customSize: 25,
+        shape: 'rounded',
+        borderRadius: 12,
+        borderWidth: 2,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        shadowEnabled: true,
+        shadowColor: 'rgba(0, 0, 0, 0.5)',
+        shadowBlur: 20,
+        opacity: 1,
+      },
+      split: DEFAULT_SPLIT_SETTINGS,
+    },
+  },
+  {
+    id: 'pip-podcast',
+    name: 'PiP Podcast',
+    description: 'Large circular talking head',
+    settings: {
+      mode: 'pip',
+      pip: {
+        position: 'bottom-right',
+        offsetX: 24,
+        offsetY: 24,
+        size: 'large',
+        customSize: 35,
+        shape: 'circle',
+        borderRadius: 9999,
+        borderWidth: 4,
+        borderColor: 'rgba(255, 255, 255, 0.3)',
+        shadowEnabled: true,
+        shadowColor: 'rgba(0, 0, 0, 0.6)',
+        shadowBlur: 30,
+        opacity: 1,
+      },
+      split: DEFAULT_SPLIT_SETTINGS,
+    },
+  },
+  {
+    id: 'pip-minimal',
+    name: 'PiP Minimal',
+    description: 'Small subtle circular PiP',
+    settings: {
+      mode: 'pip',
+      pip: {
+        position: 'bottom-right',
+        offsetX: 12,
+        offsetY: 12,
+        size: 'small',
+        customSize: 18,
+        shape: 'circle',
+        borderRadius: 9999,
+        borderWidth: 0,
+        borderColor: 'transparent',
+        shadowEnabled: true,
+        shadowColor: 'rgba(0, 0, 0, 0.3)',
+        shadowBlur: 10,
+        opacity: 0.95,
+      },
+      split: DEFAULT_SPLIT_SETTINGS,
+    },
+  },
+  {
+    id: 'pip-gaming',
+    name: 'PiP Gaming',
+    description: 'Top-left with bold purple border',
+    settings: {
+      mode: 'pip',
+      pip: {
+        position: 'top-left',
+        offsetX: 16,
+        offsetY: 16,
+        size: 'medium',
+        customSize: 22,
+        shape: 'rounded',
+        borderRadius: 8,
+        borderWidth: 3,
+        borderColor: '#a855f7',
+        shadowEnabled: true,
+        shadowColor: 'rgba(168, 85, 247, 0.4)',
+        shadowBlur: 15,
+        opacity: 1,
+      },
+      split: DEFAULT_SPLIT_SETTINGS,
+    },
+  },
+  {
+    id: 'custom',
+    name: 'Custom',
+    description: 'Your custom settings',
+    settings: DEFAULT_LAYOUT_SETTINGS,
+  },
+];
+
+// Size mapping (percentage of canvas width)
+export const PIP_SIZE_MAP: Record<PiPSize, number> = {
+  small: 18,
+  medium: 25,
+  large: 35,
+  custom: 25,
 };

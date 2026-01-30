@@ -18,6 +18,8 @@ import {
   DEFAULT_FPS,
   DEFAULT_VIDEO_SETTINGS,
   DEFAULT_CAPTION_STYLE,
+  DEFAULT_LAYOUT_SETTINGS,
+  LAYOUT_PRESETS,
   CaptionItemData,
   CaptionWord,
   VideoItemData,
@@ -27,6 +29,11 @@ import {
   CaptionStyle,
   AnimationConfig,
   WordStyleOverrides,
+  LayoutSettings,
+  LayoutPresetId,
+  LayoutMode,
+  PiPSettings,
+  SplitSettings,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -77,6 +84,10 @@ const initialState: EditorState = {
   // Clipboard and split mode
   clipboard: null,
   splitMode: false,
+
+  // Layout settings
+  layoutSettings: DEFAULT_LAYOUT_SETTINGS,
+  layoutPresetId: 'pip-tutorial' as LayoutPresetId,
 };
 
 /**
@@ -1447,6 +1458,57 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+    },
+
+    // ========================================
+    // Layout Actions
+    // ========================================
+
+    updateLayoutSettings: (settings: Partial<LayoutSettings>) => {
+      set((state) => {
+        state.layoutSettings = {
+          ...state.layoutSettings,
+          ...settings,
+        };
+        state.layoutPresetId = 'custom';
+      });
+    },
+
+    updatePiPSettings: (settings: Partial<PiPSettings>) => {
+      set((state) => {
+        state.layoutSettings.pip = {
+          ...state.layoutSettings.pip,
+          ...settings,
+        };
+        state.layoutPresetId = 'custom';
+      });
+    },
+
+    updateSplitSettings: (settings: Partial<SplitSettings>) => {
+      set((state) => {
+        state.layoutSettings.split = {
+          ...state.layoutSettings.split,
+          ...settings,
+        };
+        state.layoutPresetId = 'custom';
+      });
+    },
+
+    setLayoutPreset: (presetId: LayoutPresetId) => {
+      const preset = LAYOUT_PRESETS.find((p) => p.id === presetId);
+      if (!preset) return;
+
+      set((state) => {
+        state.layoutPresetId = presetId;
+        state.layoutSettings = JSON.parse(JSON.stringify(preset.settings));
+      });
+    },
+
+    setLayoutMode: (mode: LayoutMode) => {
+      set((state) => {
+        state.layoutSettings.mode = mode;
+        state.layoutPresetId = 'custom';
+      });
     },
   }))
 );

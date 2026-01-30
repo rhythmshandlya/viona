@@ -122,10 +122,19 @@ export function getRunningJobs(): string[] {
   return Array.from(runningProcesses.keys());
 }
 
+export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+
+export interface VisualsDimensions {
+  width: number;
+  height: number;
+}
+
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  layoutMode: VisualsLayoutMode;
+  dimensions: VisualsDimensions;
   /** Enable verbose logging for debugging */
   verbose?: boolean;
 }
@@ -204,7 +213,7 @@ interface JobMetrics {
 }
 
 export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>) {
-  const { projectId, jobId, stylePreset } = job.data;
+  const { projectId, jobId, stylePreset, layoutMode, dimensions } = job.data;
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
   const projectDir = join(config.remotion.projectDir, 'src', compositionId);
 
@@ -269,6 +278,9 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       styleGuidelines: STYLE_GUIDELINES[stylePreset],
       durationMs: project.durationMs || 60000,
       fps: project.fps || 30,
+      width: dimensions?.width || 1080,
+      height: dimensions?.height || 1920,
+      layoutMode: layoutMode || 'pip',
     });
 
     // Calculate duration in frames
@@ -285,6 +297,8 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       outputCostPer1M: LLM_CONFIG.outputCostPer1M,
       durationFrames,
       fps: project.fps || 30,
+      width: dimensions?.width || 1080,
+      height: dimensions?.height || 1920,
       verbose: job.data.verbose,
     });
 
@@ -472,26 +486,29 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       visualsTrack = newTrack;
     }
 
-    // Create timeline items for each visual
-    for (const visual of metadata.visuals) {
-      await db.insert(timelineItems).values({
-        trackId: visualsTrack.id,
-        type: 'visual',
-        startMs: visual.startMs,
-        endMs: visual.endMs,
-        data: {
-          visualId,
-          compositionId: metadata.compositionId,
-          bundleUrl,
-          videoUrl, // Rendered video for playback
-          type: visual.type,
-          description: visual.description,
-          width: metadata.width,
-          height: metadata.height,
-          fps: metadata.fps,
-        },
-      });
-    }
+    // Create ONE timeline item for the full composition
+    // The composition handles its own internal timing with Sequence components
+    const fullDurationMs = Math.round((metadata.durationInFrames / metadata.fps) * 1000);
+    const visualTypes = metadata.visuals.map(v => v.type).filter(Boolean).join(', ');
+    const visualDescriptions = metadata.visuals.map(v => v.description).filter(Boolean).join('; ');
+
+    await db.insert(timelineItems).values({
+      trackId: visualsTrack.id,
+      type: 'visual',
+      startMs: 0,
+      endMs: fullDurationMs,
+      data: {
+        visualId,
+        compositionId: metadata.compositionId,
+        bundleUrl,
+        videoUrl, // Rendered video for playback
+        type: visualTypes || 'visual',
+        description: visualDescriptions || 'AI-generated visual',
+        width: metadata.width,
+        height: metadata.height,
+        fps: metadata.fps,
+      },
+    });
 
     // Update job and project status
     await db.update(jobs)
@@ -540,6 +557,8 @@ interface OpenHandsOptions {
   outputCostPer1M: number;
   durationFrames: number;
   fps: number;
+  width: number;
+  height: number;
   verbose?: boolean;
 }
 
@@ -637,6 +656,8 @@ async function runOpenHandsAgent(
         '--bundle-dir', '/bundles',
         '--duration-frames', String(options.durationFrames),
         '--fps', String(options.fps),
+        '--width', String(options.width || 1080),
+        '--height', String(options.height || 1920),
         '--max-iterations', '3',
         '--quality-threshold', '70',
       ], {
@@ -656,6 +677,8 @@ async function runOpenHandsAgent(
         '--api-key-env', apiKeyEnv,
         '--duration-frames', String(options.durationFrames),
         '--fps', String(options.fps),
+        '--width', String(options.width || 1080),
+        '--height', String(options.height || 1920),
         '--max-iterations', '3',
         '--quality-threshold', '70',
       ], {

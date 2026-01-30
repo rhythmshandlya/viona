@@ -72,10 +72,19 @@ export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
   });
 }
 
+export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+
+export interface VisualsDimensions {
+  width: number;
+  height: number;
+}
+
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  layoutMode: VisualsLayoutMode;
+  dimensions: VisualsDimensions;
 }
 
 export const generateVisualsQueue = new Queue('generate-visuals', { connection });

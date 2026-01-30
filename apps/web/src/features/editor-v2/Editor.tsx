@@ -30,7 +30,7 @@ import {
   useCaptionItems,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
-import { api, StylePreset, JobMetrics } from '@/lib/api';
+import { api, GenerateVisualsOptions, JobMetrics } from '@/lib/api';
 
 interface EditorProps {
   projectId: string;
@@ -319,7 +319,7 @@ export function Editor({ projectId }: EditorProps) {
     setShowStyleModal(true);
   };
 
-  const handleGenerateVisuals = async (stylePreset: StylePreset) => {
+  const handleGenerateVisuals = async (options: GenerateVisualsOptions) => {
     if (!project) return;
     setIsGeneratingVisuals(true);
     setVisualsProgress(0);
@@ -329,8 +329,8 @@ export function Editor({ projectId }: EditorProps) {
     setVisualsMetrics(null);
     setVisualsPreviewUrl(null);
     try {
-      const { jobId } = await api.generateVisuals(project.id, stylePreset);
-      console.log('Visual generation started:', jobId);
+      const { jobId } = await api.generateVisuals(project.id, options);
+      console.log('Visual generation started:', jobId, options);
       setVisualsJobId(jobId);
       setShowLogsPanel(true); // Auto-open logs panel
       setShowStyleModal(false); // Close modal - progress shown in logs panel
@@ -676,6 +676,8 @@ export function Editor({ projectId }: EditorProps) {
         isComplete={visualsComplete}
         metrics={visualsMetrics}
         previewUrl={visualsPreviewUrl}
+        canvasWidth={project?.videoSettings?.canvasWidth || 1080}
+        canvasHeight={project?.videoSettings?.canvasHeight || 1920}
       />
     </div>
   );

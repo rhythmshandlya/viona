@@ -5,7 +5,7 @@
 
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
-import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData } from './types';
+import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode } from './types';
 
 // ============================================
 // Direct Store Access
@@ -214,6 +214,34 @@ export const useClipboard = () => useEditorStore((s) => s.clipboard);
 export const useSplitMode = () => useEditorStore((s) => s.splitMode);
 export const useApplyStyleToAll = () => useEditorStore((s) => s.applyStyleToAll);
 
+// ============================================
+// Layout Selectors
+// ============================================
+
+export function useLayoutSettings(): LayoutSettings {
+  return useEditorStore((state) => state.layoutSettings);
+}
+
+export function useLayoutPresetId(): LayoutPresetId {
+  return useEditorStore((state) => state.layoutPresetId);
+}
+
+export function useLayoutMode(): LayoutMode {
+  return useEditorStore((state) => state.layoutSettings.mode);
+}
+
+export function useLayoutActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      updateLayoutSettings: state.updateLayoutSettings,
+      updatePiPSettings: state.updatePiPSettings,
+      updateSplitSettings: state.updateSplitSettings,
+      setLayoutPreset: state.setLayoutPreset,
+      setLayoutMode: state.setLayoutMode,
+    }))
+  );
+}
+
 /**
  * Get the caption style for the first selected caption item.
  * Falls back to the first caption in the project if nothing is selected.
@@ -325,6 +353,13 @@ export function useEditorActions() {
       splitCaption: state.splitCaption,
       mergeCaptions: state.mergeCaptions,
       updateCaptionText: state.updateCaptionText,
+
+      // Layout
+      updateLayoutSettings: state.updateLayoutSettings,
+      updatePiPSettings: state.updatePiPSettings,
+      updateSplitSettings: state.updateSplitSettings,
+      setLayoutPreset: state.setLayoutPreset,
+      setLayoutMode: state.setLayoutMode,
     }))
   );
 }

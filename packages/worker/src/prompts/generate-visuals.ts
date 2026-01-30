@@ -58,13 +58,23 @@ interface PromptOptions {
   styleGuidelines: string;
   durationMs: number;
   fps: number;
+  width: number;
+  height: number;
+  layoutMode: 'pip' | 'split-horizontal' | 'split-vertical';
 }
 
 export function buildGenerateVisualsPrompt(options: PromptOptions): string {
-  const { transcript, projectId, stylePreset, styleGuidelines, durationMs, fps } = options;
+  const { transcript, projectId, stylePreset, styleGuidelines, durationMs, fps, width, height, layoutMode } = options;
 
   const transcriptText = formatTranscript(transcript);
   const durationInFrames = Math.ceil((durationMs / 1000) * fps);
+
+  // Layout context for the agent
+  const layoutContext = layoutMode === 'pip'
+    ? 'Full-screen visuals (video will be overlaid as a small picture-in-picture window)'
+    : layoutMode === 'split-horizontal'
+      ? 'Top portion of split screen (video will appear below)'
+      : 'Left portion of split screen (video will appear on the right)';
 
   return `
 You are generating animated visuals for an educational video using Remotion.
@@ -99,7 +109,27 @@ The workspace is a pre-configured Remotion project with all dependencies install
 ## Video Properties
 - Duration: ${durationMs}ms (${durationInFrames} frames)
 - FPS: ${fps}
-- Resolution: 1920x1080
+- **Resolution: ${width}x${height}** (THIS IS CRITICAL - see below)
+- Layout: ${layoutContext}
+
+## ⚠️ CRITICAL: Dimension Requirements
+**Your visuals MUST be designed for ${width}x${height} pixels.**
+
+This is ${width < height ? 'a VERTICAL (portrait) format' : width > height ? 'a HORIZONTAL (landscape) format' : 'a SQUARE format'}.
+${layoutMode !== 'pip' ? `The user chose a SPLIT layout, so these dimensions are for the visuals portion only (not full screen).` : ''}
+
+**Design Rules for ${width}x${height}:**
+- Use \`useVideoConfig()\` to get width/height dynamically - NEVER hardcode dimensions
+- Font sizes should be proportional: titles ~${Math.round(height * 0.04)}px, body ~${Math.round(height * 0.025)}px
+- Margins/padding: ~${Math.round(Math.min(width, height) * 0.05)}px
+- ${width < height ? 'Stack elements VERTICALLY - this is portrait mode!' : 'Arrange elements HORIZONTALLY for landscape'}
+- Center important content - don't let it get cut off at edges
+
+**In metadata.json, you MUST use exactly:**
+\`\`\`json
+"width": ${width},
+"height": ${height}
+\`\`\`
 
 ## Transcript
 ${transcriptText}
@@ -151,8 +181,8 @@ ${styleGuidelines}
   "compositionId": "${projectId}",
   "durationInFrames": ${durationInFrames},
   "fps": ${fps},
-  "width": 1920,
-  "height": 1080,
+  "width": ${width},
+  "height": ${height},
   "visuals": [
     {
       "startMs": 5000,
@@ -182,24 +212,32 @@ Before finishing, you MUST verify TypeScript compiles with ZERO errors:
 
 ## Quality Checklist
 - [ ] TypeScript compiles with ZERO errors (REQUIRED)
+- [ ] **metadata.json has width: ${width}, height: ${height}** (REQUIRED)
+- [ ] **Design fits ${width}x${height} - no hardcoded 1920x1080!** (REQUIRED)
 - [ ] Animations are smooth, not jarring
 - [ ] Text is readable (good contrast, appropriate size)
 - [ ] Timing matches speech in transcript
 - [ ] Visual supports comprehension, not just decoration
-- [ ] metadata.json is created with accurate timestamps
 
 ## Example Component Structure
 
 \`\`\`tsx
 // src/${projectId}/index.tsx
 import React from 'react';
-import { AbsoluteFill, Sequence } from 'remotion';
+import { AbsoluteFill, Sequence, useVideoConfig } from 'remotion';
 import { COLORS, TIMING } from './constants';
 import { ProcessDiagram } from './components/ProcessDiagram';
 
 export const ${projectId}: React.FC = () => {
+  // ALWAYS use useVideoConfig() to get dimensions - NEVER hardcode!
+  const { width, height } = useVideoConfig();
+
+  // Calculate responsive sizes based on actual dimensions
+  const padding = Math.min(width, height) * 0.05;
+  const titleSize = height * 0.04;
+
   return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
+    <AbsoluteFill style={{ backgroundColor: COLORS.background, padding }}>
       <Sequence from={TIMING.processStart} durationInFrames={TIMING.processDuration}>
         <ProcessDiagram steps={['Step 1', 'Step 2', 'Step 3']} />
       </Sequence>
@@ -207,25 +245,39 @@ export const ${projectId}: React.FC = () => {
   );
 };
 
-// src/${projectId}/components/ProcessDiagram.tsx - Example with spring()
+// src/${projectId}/components/ProcessDiagram.tsx - Example with responsive sizing
 import React from 'react';
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
 
 export const ProcessDiagram: React.FC<{ steps: string[] }> = ({ steps }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();  // REQUIRED for spring()
+  // Get BOTH fps AND dimensions from useVideoConfig()
+  const { fps, width, height } = useVideoConfig();
+
+  // Responsive layout: stack vertically for portrait, horizontally for landscape
+  const isPortrait = height > width;
+  const gap = Math.min(width, height) * 0.02;
+  const fontSize = height * 0.03;
 
   return (
-    <div style={{ display: 'flex', gap: 20 }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: isPortrait ? 'column' : 'row',
+      gap,
+      justifyContent: 'center',
+      alignItems: 'center',
+    }}>
       {steps.map((step, i) => {
-        // spring() REQUIRES fps parameter
         const scale = spring({
           frame: frame - i * 10,
           fps,  // REQUIRED!
           config: { damping: 10, stiffness: 100 },
         });
         return (
-          <div key={i} style={{ transform: \`scale(\${scale})\` }}>
+          <div key={i} style={{
+            transform: \`scale(\${scale})\`,
+            fontSize,
+          }}>
             {step}
           </div>
         );

@@ -99,6 +99,19 @@ export interface SeparateAudioResponse {
 
 export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
 
+export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+
+export interface VisualsDimensions {
+  width: number;
+  height: number;
+}
+
+export interface GenerateVisualsOptions {
+  stylePreset: StylePreset;
+  layoutMode: VisualsLayoutMode;
+  dimensions: VisualsDimensions;
+}
+
 export interface GenerateVisualsResponse {
   jobId: string;
 }
@@ -174,10 +187,10 @@ class ApiClient {
     });
   }
 
-  async generateVisuals(projectId: string, stylePreset: StylePreset): Promise<GenerateVisualsResponse> {
+  async generateVisuals(projectId: string, options: GenerateVisualsOptions): Promise<GenerateVisualsResponse> {
     return this.request(`/api/projects/${projectId}/generate-visuals`, {
       method: 'POST',
-      body: JSON.stringify({ stylePreset }),
+      body: JSON.stringify(options),
     });
   }
 

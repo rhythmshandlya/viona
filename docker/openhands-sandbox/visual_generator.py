@@ -76,6 +76,71 @@ def load_skill(skill_path: str) -> str:
     return ""
 
 
+def compile_to_cjs(workspace: str, project_id: str, bundle_dir: Path) -> bool:
+    """
+    Compile source TSX to CommonJS for browser dynamic loading.
+
+    The DynamicVisualLoader expects composition.cjs.js (CommonJS format)
+    for dynamic execution with a custom require(). This compiles the source
+    TSX directly to CommonJS using esbuild.
+    """
+    src_dir = Path(workspace) / "src" / project_id
+    entry_file = src_dir / "index.tsx"
+    cjs_file = bundle_dir / "composition.cjs.js"
+
+    emit_tool_call("cjs_compilation", entry_file=str(entry_file), output=str(cjs_file))
+
+    if not entry_file.exists():
+        emit_tool_result(
+            "cjs_compilation",
+            success=False,
+            error=f"Entry file not found: {entry_file}"
+        )
+        return False
+
+    try:
+        result = subprocess.run(
+            [
+                "npx", "esbuild",
+                str(entry_file),
+                "--bundle",
+                "--format=cjs",
+                "--platform=browser",
+                "--external:react",
+                "--external:remotion",
+                f"--outfile={cjs_file}"
+            ],
+            capture_output=True,
+            text=True,
+            cwd=workspace,
+            timeout=60
+        )
+
+        if result.returncode == 0:
+            emit_tool_result(
+                "cjs_compilation",
+                success=True,
+                message=f"CJS compilation successful: {cjs_file}",
+                output_path=str(cjs_file)
+            )
+            return True
+        else:
+            emit_tool_result(
+                "cjs_compilation",
+                success=False,
+                error=result.stderr[:500] if result.stderr else "Unknown esbuild error",
+                stdout=result.stdout[:500] if result.stdout else ""
+            )
+            return False
+
+    except subprocess.TimeoutExpired:
+        emit_tool_result("cjs_compilation", success=False, error="CJS compilation timed out")
+        return False
+    except Exception as e:
+        emit_tool_result("cjs_compilation", success=False, error=str(e))
+        return False
+
+
 def fix_bundle_paths(bundle_dir: Path) -> bool:
     """
     Fix absolute paths in the Remotion bundle's index.html to be relative.
@@ -660,6 +725,8 @@ def main():
     parser.add_argument("--api-key-env", default="LLM_API_KEY", help="Env var for API key")
     parser.add_argument("--duration-frames", type=int, default=900, help="Video duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Video FPS")
+    parser.add_argument("--width", type=int, default=1080, help="Visual width in pixels")
+    parser.add_argument("--height", type=int, default=1920, help="Visual height in pixels")
     parser.add_argument("--max-iterations", type=int, default=MAX_ITERATIONS, help="Max visual improvement iterations")
     parser.add_argument("--quality-threshold", type=int, default=QUALITY_THRESHOLD, help="Quality score threshold")
     args = parser.parse_args()
@@ -719,7 +786,7 @@ def main():
         emit_event(EVENT_ERROR, message=f"Failed to import OpenHands: {e}")
         sys.exit(1)
 
-    emit_event(EVENT_STARTED, model=args.model, workspace=args.workspace, max_iterations=args.max_iterations)
+    emit_event(EVENT_STARTED, model=args.model, workspace=args.workspace, max_iterations=args.max_iterations, width=args.width, height=args.height)
 
     # Cancellation handling
     cancelled = False
@@ -854,6 +921,42 @@ Focus on improving the VISUAL quality - the code compiles fine."""
         if project_dir.exists():
             files_written = len([f for f in project_dir.glob("**/*") if f.is_file()])
 
+        # ===== DIMENSION VALIDATION =====
+        # Ensure metadata.json has correct dimensions (agent might have ignored them)
+        metadata_path = project_dir / "metadata.json"
+        if metadata_path.exists():
+            try:
+                import json
+                metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+                expected_width = args.width
+                expected_height = args.height
+                actual_width = metadata.get('width', 0)
+                actual_height = metadata.get('height', 0)
+
+                if actual_width != expected_width or actual_height != expected_height:
+                    emit_event(
+                        EVENT_TOOL_CALL,
+                        tool="dimension_correction",
+                        message=f"Correcting dimensions: {actual_width}x{actual_height} -> {expected_width}x{expected_height}",
+                        original_width=actual_width,
+                        original_height=actual_height,
+                        corrected_width=expected_width,
+                        corrected_height=expected_height
+                    )
+                    # Auto-correct the dimensions
+                    metadata['width'] = expected_width
+                    metadata['height'] = expected_height
+                    metadata_path.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+                else:
+                    emit_event(
+                        EVENT_TOOL_CALL,
+                        tool="dimension_validation",
+                        message=f"Dimensions correct: {expected_width}x{expected_height}",
+                        success=True
+                    )
+            except Exception as e:
+                emit_event(EVENT_ERROR, message=f"Failed to validate dimensions: {e}")
+
         if final_status != "passed" and best_score > 0:
             final_status = "completed_with_warnings"
 
@@ -939,6 +1042,8 @@ Focus on improving the VISUAL quality - the code compiles fine."""
                         bundle_success = True
                         # Fix absolute paths in index.html to be relative
                         fix_bundle_paths(bundle_output)
+                        # Compile source TSX to CJS for browser dynamic loading
+                        compile_to_cjs(args.workspace, args.project_id, bundle_output)
                         emit_tool_result(
                             "remotion_bundle",
                             success=True,
@@ -952,6 +1057,8 @@ Focus on improving the VISUAL quality - the code compiles fine."""
                                 bundle_success = True
                                 # Fix absolute paths in index.html to be relative
                                 fix_bundle_paths(subdir)
+                                # Compile source TSX to CJS for browser dynamic loading
+                                compile_to_cjs(args.workspace, args.project_id, subdir)
                                 emit_tool_result(
                                     "remotion_bundle",
                                     success=True,
