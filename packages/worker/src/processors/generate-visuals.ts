@@ -23,6 +23,9 @@ const LLM_CONFIG = {
   model: 'openrouter/google/gemini-3-flash-preview',
   provider: 'openrouter',
   apiKeyEnv: 'OPENROUTER_API_KEY',
+  // CRITICAL: Gemini 3.x requires temperature=1.0
+  // Google docs warn that lower temperatures cause "unexpected behavior, looping issues"
+  temperature: 1.0,
   // Cost per 1M tokens (USD) - approximate
   inputCostPer1M: 0.10,
   outputCostPer1M: 0.40,
@@ -293,6 +296,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       jobId,
       model: LLM_CONFIG.model,
       apiKeyEnv: LLM_CONFIG.apiKeyEnv,
+      temperature: LLM_CONFIG.temperature,
       inputCostPer1M: LLM_CONFIG.inputCostPer1M,
       outputCostPer1M: LLM_CONFIG.outputCostPer1M,
       durationFrames,
@@ -553,6 +557,7 @@ interface OpenHandsOptions {
   jobId: string;
   model: string;
   apiKeyEnv: string;
+  temperature: number;
   inputCostPer1M: number;
   outputCostPer1M: number;
   durationFrames: number;
@@ -658,6 +663,7 @@ async function runOpenHandsAgent(
         '--fps', String(options.fps),
         '--width', String(options.width || 1080),
         '--height', String(options.height || 1920),
+        '--temperature', String(options.temperature),
         '--max-iterations', '3',
         '--quality-threshold', '70',
       ], {
@@ -679,6 +685,7 @@ async function runOpenHandsAgent(
         '--fps', String(options.fps),
         '--width', String(options.width || 1080),
         '--height', String(options.height || 1920),
+        '--temperature', String(options.temperature),
         '--max-iterations', '3',
         '--quality-threshold', '70',
       ], {

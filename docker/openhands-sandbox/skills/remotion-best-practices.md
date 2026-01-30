@@ -1,5 +1,40 @@
 # Remotion Best Practices
 
+## ⛔ FORBIDDEN - These BREAK Remotion Rendering
+
+**NEVER use these - they cause flickering, non-deterministic output, or render failures:**
+
+```tsx
+// ❌ CSS transitions - FORBIDDEN
+style={{ transition: 'all 0.3s ease' }}
+
+// ❌ CSS animations - FORBIDDEN
+@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+
+// ❌ setTimeout/setInterval - FORBIDDEN
+setTimeout(() => setVisible(true), 1000);
+
+// ❌ useState for animation values - FORBIDDEN
+const [position, setPosition] = useState(0);
+
+// ❌ Relative to previous frame - FORBIDDEN
+position = previousPosition + velocity;
+```
+
+**WHY?** Remotion renders each frame independently and in any order. Frame 50 might render
+before frame 10. CSS animations and React state don't work because they depend on time
+passing or previous renders. Every value MUST be a pure function of the frame number.
+
+**ALWAYS calculate animation values like this:**
+```tsx
+// ✅ CORRECT - Pure function of frame
+const frame = useCurrentFrame();
+const opacity = interpolate(frame, [0, 30], [0, 1]);
+const position = frame * 2; // position at frame 50 = 100, always!
+```
+
+---
+
 ## CRITICAL - Common Errors to Avoid
 
 1. **spring() REQUIRES fps** - Always get fps from `useVideoConfig()`:
@@ -50,19 +85,24 @@ const MyComponent = () => {
 ### interpolate()
 Maps a value from one range to another. Essential for animations.
 
+**ALWAYS use `extrapolateRight: 'clamp'`** to prevent values from continuing to change after the animation ends!
+
 ```tsx
 import { interpolate } from 'remotion';
 
 // Fade in over first 30 frames
 const opacity = interpolate(frame, [0, 30], [0, 1], {
   extrapolateLeft: 'clamp',
-  extrapolateRight: 'clamp',
+  extrapolateRight: 'clamp',  // REQUIRED! Stops at 1, doesn't go to 2, 3, etc.
 });
 
 // Move from left to center
 const translateX = interpolate(frame, [0, 60], [-100, 0], {
-  extrapolateRight: 'clamp',
+  extrapolateRight: 'clamp',  // REQUIRED! Stops at 0, doesn't go to 100, 200, etc.
 });
+
+// ❌ BAD - without clamp, values extrapolate forever:
+// At frame 120: interpolate(120, [0, 60], [0, 100]) = 200 (not 100!)
 ```
 
 ### spring()

@@ -1,0 +1,106 @@
+# OpenHands LLM Configuration for Visual Generation
+# This file configures LLM behavior for the Remotion visual generation agent.
+#
+# IMPORTANT: Gemini 3.x models require temperature=1.0
+# Google docs warn that lower temperatures cause "unexpected behavior, looping issues"
+
+[llm]
+# Default model - can be overridden via CLI --model flag
+model = "openrouter/google/gemini-3-flash-preview"
+
+# CRITICAL: Keep at 1.0 for Gemini 3.x models
+# For Gemini 2.x, use 0.0-0.3 for deterministic code output
+temperature = 1.0
+
+# Token limits
+max_output_tokens = 8192
+# max_input_tokens = 1000000  # 1M context for Gemini Flash
+
+# Retry configuration for rate limits
+num_retries = 8
+retry_min_wait = 5
+retry_max_wait = 60
+
+# Cost tracking (USD per 1M tokens)
+input_cost_per_1m = 0.10
+output_cost_per_1m = 0.40
+
+# Disable vision to reduce token costs (we use screenshots separately)
+disable_vision = false
+
+# Enable prompt caching if supported by provider
+caching_prompt = true
+
+[llm.gemini-flash]
+# Gemini 3 Flash Preview - fast and capable
+model = "openrouter/google/gemini-3-flash-preview"
+temperature = 1.0
+max_output_tokens = 8192
+input_cost_per_1m = 0.10
+output_cost_per_1m = 0.40
+
+[llm.gemini-pro]
+# Gemini Pro - for complex tasks requiring higher quality
+model = "openrouter/google/gemini-2.5-pro"
+temperature = 0.7
+max_output_tokens = 8192
+input_cost_per_1m = 1.25
+output_cost_per_1m = 5.00
+
+[llm.claude]
+# Claude 3.5 Sonnet - alternative for comparison
+model = "anthropic/claude-3-5-sonnet-20241022"
+temperature = 0.3
+max_output_tokens = 8192
+input_cost_per_1m = 3.00
+output_cost_per_1m = 15.00
+
+[agent]
+# Agent behavior configuration
+max_iterations = 3
+quality_threshold = 70
+
+# Timeout in seconds
+timeout = 900  # 15 minutes
+
+# Enable self-healing TypeScript validation
+enable_typescript_validation = true
+
+# Enable visual evaluation with screenshots
+enable_visual_evaluation = true
+
+[agent.generator]
+# Generator agent - creates the Remotion components
+llm_config = "gemini-flash"
+enable_prompt_extensions = true
+
+[agent.evaluator]
+# Evaluator agent - scores visual quality
+llm_config = "gemini-flash"
+enable_prompt_extensions = true
+
+[skills]
+# Skills (microagents) to load automatically
+auto_load = [
+    "remotion-best-practices",
+    "visual-design",
+    "file-editing-guide",
+]
+
+# Skill for visual evaluation
+evaluator_skills = [
+    "scoring-rubric",
+]
+
+[remotion]
+# Remotion project configuration
+fps = 30
+default_width = 1080
+default_height = 1920
+
+# Bundle output settings
+bundle_log_level = "verbose"
+bundle_timeout = 300  # 5 minutes
+
+# Render settings
+render_timeout = 600  # 10 minutes

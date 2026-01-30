@@ -232,11 +232,24 @@ ${styleGuidelines}
 
 3. **Use Remotion best practices**:
    - useCurrentFrame() for animation timing
-   - useVideoConfig() to get fps for spring animations
-   - interpolate() for smooth value transitions
-   - spring({ frame, fps, config: {...} }) - fps is REQUIRED
+   - useVideoConfig() to get fps AND dimensions
+   - interpolate() for smooth value transitions - ALWAYS use \`extrapolateRight: 'clamp'\`
+   - spring({ frame, fps, config: {...} }) - fps is REQUIRED, never omit it!
    - Sequence components for timed sections
    - AbsoluteFill for layout
+   - All animation values must be PURE FUNCTIONS of frame - no state!
+
+4. **⛔ FORBIDDEN PATTERNS - These will break rendering:**
+   - ❌ CSS transitions (transition: all 0.3s) - causes flickering
+   - ❌ CSS animations (@keyframes) - not frame-accurate
+   - ❌ CSS transform with transition - use Remotion's interpolate instead
+   - ❌ setTimeout/setInterval - breaks deterministic rendering
+   - ❌ useState for animation values - use useCurrentFrame instead
+   - ❌ Relative animations (previous frame + delta) - must be absolute from frame 0
+
+   **WHY:** Remotion renders each frame independently. CSS animations and state
+   don't work because each frame must produce the SAME output given the SAME frame number.
+   Always calculate animation values as: \`f(frame) = value\`
 
 4. **SELF-HEALING: Validate and fix TypeScript errors**:
    - After writing each file, run TypeScriptValidatorTool

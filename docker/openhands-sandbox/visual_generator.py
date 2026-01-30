@@ -36,10 +36,42 @@ EVENT_COMPLETE = "complete"
 EVENT_ERROR = "error"
 EVENT_CANCELLED = "cancelled"
 
-# Configuration
+# Default Configuration (can be overridden by config.toml or CLI args)
 MAX_ITERATIONS = 3
 QUALITY_THRESHOLD = 70
 MAX_SELF_HEAL_ATTEMPTS = 3
+DEFAULT_TEMPERATURE = 1.0  # CRITICAL: Gemini 3.x requires 1.0
+
+
+def load_config() -> dict:
+    """
+    Load configuration from config.toml if available.
+    Returns empty dict if file not found or invalid.
+    """
+    config_path = Path(__file__).parent / "config.toml"
+    if not config_path.exists():
+        return {}
+
+    try:
+        # Try to import tomllib (Python 3.11+) or toml package
+        try:
+            import tomllib
+            with open(config_path, "rb") as f:
+                return tomllib.load(f)
+        except ImportError:
+            try:
+                import toml
+                return toml.load(config_path)
+            except ImportError:
+                # No TOML parser available, use defaults
+                return {}
+    except Exception as e:
+        emit_event(EVENT_ERROR, message=f"Failed to load config.toml: {e}")
+        return {}
+
+
+# Load config at module level
+CONFIG = load_config()
 
 
 def emit_event(event_type: str, **kwargs):
@@ -727,6 +759,7 @@ def main():
     parser.add_argument("--fps", type=int, default=30, help="Video FPS")
     parser.add_argument("--width", type=int, default=1080, help="Visual width in pixels")
     parser.add_argument("--height", type=int, default=1920, help="Visual height in pixels")
+    parser.add_argument("--temperature", type=float, default=1.0, help="LLM temperature (1.0 required for Gemini 3.x)")
     parser.add_argument("--max-iterations", type=int, default=MAX_ITERATIONS, help="Max visual improvement iterations")
     parser.add_argument("--quality-threshold", type=int, default=QUALITY_THRESHOLD, help="Quality score threshold")
     args = parser.parse_args()
@@ -786,7 +819,7 @@ def main():
         emit_event(EVENT_ERROR, message=f"Failed to import OpenHands: {e}")
         sys.exit(1)
 
-    emit_event(EVENT_STARTED, model=args.model, workspace=args.workspace, max_iterations=args.max_iterations, width=args.width, height=args.height)
+    emit_event(EVENT_STARTED, model=args.model, workspace=args.workspace, max_iterations=args.max_iterations, width=args.width, height=args.height, temperature=args.temperature)
 
     # Cancellation handling
     cancelled = False
@@ -815,9 +848,12 @@ def main():
         else:
             model_name = args.model
 
+        # CRITICAL: Gemini 3.x requires temperature=1.0
+        # Google docs warn that lower temperatures cause "unexpected behavior, looping issues"
         llm = LLM(
             model=model_name,
             api_key=SecretStr(api_key),
+            temperature=args.temperature,
         )
 
         # Load skills
