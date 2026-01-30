@@ -17,14 +17,14 @@ import { buildGenerateVisualsPrompt, STYLE_GUIDELINES } from '../prompts/generat
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// LLM model configuration - using OpenRouter with Gemini 3 Flash Preview
+// LLM model configuration - using OpenRouter with Gemini 2.5 Flash Preview
 const LLM_CONFIG = {
-  model: 'openrouter/google/gemini-3-flash-preview',
+  model: 'openrouter/google/gemini-2.5-flash-preview-09-2025',
   provider: 'openrouter',
   apiKeyEnv: 'OPENROUTER_API_KEY',
   // Cost per 1M tokens (USD) - approximate
-  inputCostPer1M: 0.10,
-  outputCostPer1M: 0.40,
+  inputCostPer1M: 0.15,
+  outputCostPer1M: 0.60,
 } as const;
 
 // Timeout configuration (in milliseconds)
@@ -296,7 +296,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       outputTokens: agentResult.outputTokens,
       estimatedCostUsd: Math.round(estimatedCostUsd * 10000) / 10000, // Round to 4 decimal places
       durationMs: agentResult.durationMs,
-      llmModel: llmConfig.model,
+      llmModel: LLM_CONFIG.model,
       filesWritten: agentResult.filesWritten,
       screenshotsTaken: agentResult.screenshotsTaken,
       finalScore: agentResult.finalScore,
@@ -470,7 +470,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       width: metadata.width,
       height: metadata.height,
       stylePreset,
-      llmModel: llmConfig.model,
+      llmModel: LLM_CONFIG.model,
       timestamps: metadata.visuals,
     }).returning({ id: visuals.id });
     const visualId = insertedVisual.id;

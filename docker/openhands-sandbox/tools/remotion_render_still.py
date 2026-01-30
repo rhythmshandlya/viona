@@ -3,15 +3,30 @@ Remotion Render Still Tool for OpenHands.
 
 Renders a single frame from a Remotion composition as a PNG image.
 Returns the image as ImageContent for the agent to visually inspect.
+
+Auto-regenerates Root.tsx before rendering to ensure compositions are registered.
 """
 
 import base64
+import json
 import os
 import shlex
 from collections.abc import Sequence
 from typing import Optional
 
 from pydantic import Field
+
+
+def emit_root_generation_event(success: bool, compositions: int, message: str):
+    """Emit a JSON event for Root.tsx generation."""
+    event = {
+        "type": "root_generation",
+        "tool": "RemotionRenderStillTool",
+        "success": success,
+        "compositions_found": compositions,
+        "message": message
+    }
+    print(json.dumps(event), flush=True)
 
 from openhands.sdk import (
     Action,
@@ -110,6 +125,24 @@ class RemotionRenderStillExecutor(ToolExecutor[RemotionRenderStillAction, Remoti
         action: RemotionRenderStillAction,
         conversation=None
     ) -> RemotionRenderStillObservation:
+        # Auto-regenerate Root.tsx before rendering to ensure composition is registered
+        # This is critical - without this, Remotion won't find newly created compositions
+        try:
+            from tools.root_generator import generate_and_write_root
+            success, message, compositions = generate_and_write_root(self.working_dir)
+            emit_root_generation_event(
+                success=success,
+                compositions=len(compositions),
+                message=message
+            )
+        except Exception as e:
+            # Log but don't fail - the render will fail if composition isn't found
+            emit_root_generation_event(
+                success=False,
+                compositions=0,
+                message=f"Root.tsx generation failed: {e}"
+            )
+
         # Generate output path if not provided
         output_path = action.output_path
         if not output_path:

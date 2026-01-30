@@ -3,6 +3,8 @@ TypeScript Validator Tool for OpenHands.
 
 Runs TypeScript compiler in noEmit mode to check for syntax and type errors
 without generating output files. Returns structured error information.
+
+Auto-regenerates Root.tsx before validation to ensure compositions are registered.
 """
 
 import json
@@ -38,6 +40,17 @@ def emit_typescript_event(path: str, success: bool, error_count: int, errors: li
         if error_count > 5:
             event["more_errors"] = error_count - 5
 
+    print(json.dumps(event), flush=True)
+
+
+def emit_root_generation_event(success: bool, compositions: int, message: str):
+    """Emit a JSON event for Root.tsx generation."""
+    event = {
+        "type": "root_generation",
+        "success": success,
+        "compositions_found": compositions,
+        "message": message
+    }
     print(json.dumps(event), flush=True)
 
 from openhands.sdk import (
@@ -133,6 +146,24 @@ class TypeScriptValidatorExecutor(ToolExecutor[TypeScriptValidatorAction, TypeSc
         action: TypeScriptValidatorAction,
         conversation=None
     ) -> TypeScriptValidatorObservation:
+        # Auto-regenerate Root.tsx before validation to ensure compositions are registered
+        # This allows the agent to use `remotion still` for previews during generation
+        try:
+            from tools.root_generator import generate_and_write_root
+            success, message, compositions = generate_and_write_root(self.working_dir)
+            emit_root_generation_event(
+                success=success,
+                compositions=len(compositions),
+                message=message
+            )
+        except Exception as e:
+            # Don't fail validation if root generation fails - just log it
+            emit_root_generation_event(
+                success=False,
+                compositions=0,
+                message=f"Root.tsx generation failed: {e}"
+            )
+
         # Always use the project's tsconfig.json for proper settings (skipLibCheck, etc.)
         # This ensures node_modules type conflicts are ignored
         cmd_parts = ["npx", "tsc", "--noEmit", "--pretty", "false", "--project", self.working_dir]
@@ -195,6 +226,12 @@ Runs the TypeScript compiler in --noEmit mode to check for:
 - Type errors
 - Import/export issues
 - Unused variables (in strict mode)
+
+IMPORTANT: This tool auto-regenerates Root.tsx before validation!
+This means:
+1. Your composition will be registered in Root.tsx automatically
+2. You can use RemotionRenderStillTool immediately after validation passes
+3. You do NOT need to edit Root.tsx manually
 
 Use this tool FIRST before attempting to bundle, as it's faster and catches most issues.
 
