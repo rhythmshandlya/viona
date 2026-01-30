@@ -158,7 +158,8 @@
       "Bash(npx remotion render:*)",
       "Bash(PGPASSWORD=reelify123 psql:*)",
       "Bash(npx esbuild:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "Bash(git remote:*)"
     ]
   }
 }
