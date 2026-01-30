@@ -1,10 +1,10 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm, writeFile, readFile } from 'fs/promises';
+import { mkdir, rm, writeFile, readFile, readdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, spawnSync, ChildProcess } from 'child_process';
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
 import { db, projects, tracks, timelineItems, transcripts, jobs, visuals } from '../db/index.js';
@@ -18,28 +18,29 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // LLM model configuration by quality tier
+// Using OpenRouter for access to multiple providers
 const LLM_MODELS = {
   fast: {
-    model: 'gemini-2.0-flash',
-    provider: 'google',
-    apiKeyEnv: 'GEMINI_API_KEY',
-    // Cost per 1M tokens (USD) - approximate as of 2025
+    model: 'openrouter/google/gemini-3-flash-preview',
+    provider: 'openrouter',
+    apiKeyEnv: 'OPENROUTER_API_KEY',
+    // Cost per 1M tokens (USD) - approximate
     inputCostPer1M: 0.10,
     outputCostPer1M: 0.40,
   },
   balanced: {
-    model: 'gemini-2.0-flash',
-    provider: 'google',
-    apiKeyEnv: 'GEMINI_API_KEY',
+    model: 'openrouter/google/gemini-3-flash-preview',
+    provider: 'openrouter',
+    apiKeyEnv: 'OPENROUTER_API_KEY',
     inputCostPer1M: 0.10,
     outputCostPer1M: 0.40,
   },
   quality: {
-    model: 'gemini-1.5-pro',
-    provider: 'google',
-    apiKeyEnv: 'GEMINI_API_KEY',
-    inputCostPer1M: 1.25,
-    outputCostPer1M: 5.00,
+    model: 'openrouter/google/gemini-3-flash-preview',
+    provider: 'openrouter',
+    apiKeyEnv: 'OPENROUTER_API_KEY',
+    inputCostPer1M: 0.15,
+    outputCostPer1M: 0.60,
   },
 } as const;
 
@@ -250,6 +251,27 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     }
 
     await publishJobProgress(jobId, 10, 'Preparing workspace...');
+
+    // Clean up ALL old composition directories to prevent stale imports in Root.tsx
+    // The root_generator scans src/ for proj_* directories, so we need to remove old ones
+    const srcDir = join(config.remotion.projectDir, 'src');
+    try {
+      const entries = await readdir(srcDir);
+      for (const entry of entries) {
+        // Remove any proj_* directory that isn't the current composition
+        if (entry.startsWith('proj_') && entry !== compositionId) {
+          const oldDir = join(srcDir, entry);
+          logger.info({ oldDir, compositionId }, 'Removing stale composition directory');
+          await rm(oldDir, { recursive: true, force: true });
+        }
+      }
+    } catch (e) {
+      // srcDir might not exist yet on first run, that's fine
+      logger.debug({ srcDir, error: e }, 'Could not clean old compositions (may not exist yet)');
+    }
+
+    // Clean up any existing project directory for a fresh start
+    await rm(projectDir, { recursive: true, force: true });
 
     // Create project directory in Remotion workspace
     await mkdir(projectDir, { recursive: true });
@@ -612,39 +634,45 @@ async function runOpenHandsAgent(
   try {
     if (useDocker) {
       // Run inside Docker container for isolation
-      logger.info({ projectId, model, workspace, dockerImage: config.openHands.dockerImage }, 'Starting OpenHands agent in Docker...');
+      // Workspace is INTERNAL to Docker (no mount) - only mount output directory for results
+      logger.info({ projectId, model, dockerImage: config.openHands.dockerImage }, 'Starting OpenHands agent in Docker...');
 
-      // Docker run command with volume mounts
-      // Note: entrypoint.sh runs the visual_generator.py script, we just pass args
+      // Clean up any existing container with the same name (from previous failed runs)
+      const containerName = `openhands-${jobId}`;
+      spawnSync('docker', ['rm', '-f', containerName], { stdio: 'ignore' });
+
+      // Create output directory for generated project files
+      const outputDir = join(workspace, 'src');
+      await mkdir(outputDir, { recursive: true });
+
+      // Docker run command with minimal mounts
+      // Workspace is internal to Docker (/opt/remotion-template) with pre-installed node_modules
+      // Only mount: prompt file (input), output directory (results)
       subprocess = spawn('docker', [
         'run',
         '--rm',
-        '--name', `openhands-${jobId}`,
+        '--name', containerName,
         // Resource limits
         '--memory', config.openHands.memoryLimit,
         '--cpus', config.openHands.cpuLimit,
-        // Mount workspace
-        '-v', `${workspace}:/workspace`,
-        // Mount prompt file
+        // Mount prompt file (read-only input)
         '-v', `${promptPath}:/tmp/prompt.txt:ro`,
-        // Mount bundles output directory
-        '-v', `${config.remotion.bundleOutputDir}:/bundles`,
+        // Mount output directory (for exporting generated project)
+        '-v', `${outputDir}:/output`,
         // Environment variables
         '-e', `LLM_API_KEY=${process.env[apiKeyEnv] || ''}`,
         '-e', `GEMINI_API_KEY=${process.env.GEMINI_API_KEY || ''}`,
         '-e', `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
         '-e', `OPENAI_API_KEY=${process.env.OPENAI_API_KEY || ''}`,
-        '-e', 'REMOTION_PROJECT_DIR=/workspace',
-        // Working directory
-        '-w', '/workspace',
+        '-e', `OPENROUTER_API_KEY=${process.env.OPENROUTER_API_KEY || ''}`,
         // Image
         config.openHands.dockerImage,
         // Arguments passed to entrypoint (which runs visual_generator.py)
-        '--workspace', '/workspace',
         '--project-id', projectId,
         '--model', model,
         '--prompt-file', '/tmp/prompt.txt',
         '--api-key-env', 'LLM_API_KEY',
+        '--output-dir', '/output',
         '--duration-frames', String(options.durationFrames),
         '--fps', String(options.fps),
         '--max-iterations', '3',

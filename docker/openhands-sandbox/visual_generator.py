@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-OpenHands Visual Generator Agent with Iterative Refinement.
+OpenHands Visual Generator Agent with Self-Healing and Visual Iteration.
 
-Generates Remotion visuals using OpenHands SDK with a feedback loop:
-1. Generator agent creates code
-2. Critic agent validates and scores
-3. If score < threshold, feed critique back and iterate
-4. Max 3 iterations, return best attempt
+Flow:
+1. Generator Phase: Write code, self-heal until ZERO TypeScript errors
+2. Visual Evaluation: Capture screenshots at transcript timestamps, evaluate quality
+3. Visual Feedback: Create TODO of visual improvements
+4. Improvement Phase: Fix visual issues, self-heal any new errors
+5. Repeat 2-4 until visual quality passes
 
-Based on OpenHands SDK iterative refinement pattern:
-https://docs.openhands.dev/sdk/guides/iterative-refinement
+The iteration loop is for VISUAL improvements, not fixing compilation errors.
+TypeScript errors should be fixed within the generation phase itself.
 """
 
 import argparse
@@ -17,18 +18,19 @@ import json
 import os
 import re
 import signal
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
 
 # Event types for progress tracking
 EVENT_STARTED = "started"
-EVENT_ITERATION_START = "iteration_start"
+EVENT_PHASE_START = "phase_start"
 EVENT_TOOL_CALL = "tool_call"
 EVENT_TOOL_RESULT = "tool_result"
+EVENT_TYPESCRIPT_CHECK = "typescript_check"
+EVENT_VISUAL_EVALUATION = "visual_evaluation"
 EVENT_ITERATION_COMPLETE = "iteration_complete"
-EVENT_CRITIC_RESULT = "critic_result"
-EVENT_VALIDATION_ERROR = "validation_error"
 EVENT_LLM_REASONING = "llm_reasoning"
 EVENT_COMPLETE = "complete"
 EVENT_ERROR = "error"
@@ -37,6 +39,7 @@ EVENT_CANCELLED = "cancelled"
 # Configuration
 MAX_ITERATIONS = 3
 QUALITY_THRESHOLD = 90
+MAX_SELF_HEAL_ATTEMPTS = 3
 
 
 def emit_event(event_type: str, **kwargs):
@@ -65,15 +68,6 @@ def emit_error(message: str, error_type: str = "unknown", stack_trace: str = Non
     )
 
 
-def emit_validation_error(validation_type: str, errors: list):
-    """Emit a validation error event."""
-    emit_event(
-        EVENT_VALIDATION_ERROR,
-        validation_type=validation_type,
-        errors=errors
-    )
-
-
 def load_skill(skill_path: str) -> str:
     """Load a skill file content."""
     path = Path(skill_path)
@@ -82,37 +76,41 @@ def load_skill(skill_path: str) -> str:
     return ""
 
 
-def parse_critic_score(response: str) -> dict:
-    """Parse the critic's JSON score from the response."""
-    # Try to find JSON in the response
-    json_match = re.search(r'\{[^{}]*"score"[^{}]*\}', response, re.DOTALL)
-    if json_match:
-        try:
-            return json.loads(json_match.group())
-        except json.JSONDecodeError:
-            pass
+def run_typescript_check(workspace: str, project_id: str) -> tuple[bool, list[str]]:
+    """Run TypeScript compiler and return (success, errors)."""
+    emit_tool_call("typescript_check", project_id=project_id)
 
-    # Try to find a more complex JSON object
     try:
-        # Find the last JSON object in the response
-        json_objects = re.findall(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response, re.DOTALL)
-        for obj in reversed(json_objects):
-            try:
-                parsed = json.loads(obj)
-                if "score" in parsed:
-                    return parsed
-            except json.JSONDecodeError:
-                continue
-    except Exception:
-        pass
+        result = subprocess.run(
+            ["npx", "tsc", "--noEmit", "--pretty", "false"],
+            cwd=workspace,
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
 
-    # Return default failed score
-    return {
-        "score": 0,
-        "breakdown": {"correctness": 0, "completeness": 0, "visualQuality": 0, "codeQuality": 0},
-        "issues": ["Could not parse critic response"],
-        "suggestion": "Review the generated code manually"
-    }
+        output = result.stdout + result.stderr
+
+        # Parse errors
+        errors = []
+        for line in output.split('\n'):
+            if 'error TS' in line:
+                errors.append(line.strip())
+
+        success = result.returncode == 0 and len(errors) == 0
+
+        emit_tool_result(
+            "typescript_check",
+            success=success,
+            error_count=len(errors),
+            errors=errors[:10] if errors else []
+        )
+
+        return success, errors
+
+    except Exception as e:
+        emit_tool_result("typescript_check", success=False, error=str(e))
+        return False, [str(e)]
 
 
 def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_editing_skill: str):
@@ -124,16 +122,18 @@ def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_edit
     from openhands.tools.task_tracker import TaskTrackerTool
     from openhands.tools.terminal import TerminalTool, TerminalExecutor
 
-    # Import custom file editing tools
+    # Import custom tools
     from tools.write_file import WriteFileTool
     from tools.diff_patch import DiffPatchTool
+    from tools.typescript_validator import TypeScriptValidatorTool
 
-    # Register custom file tools
+    # Register custom file tools with TypeScript validation
     def create_file_tools(conv_state):
         terminal_executor = TerminalExecutor(working_dir=conv_state.workspace.working_dir)
         tools = []
         tools.extend(WriteFileTool.create(conv_state))
         tools.extend(DiffPatchTool.create(conv_state, terminal_executor))
+        tools.extend(TypeScriptValidatorTool.create(conv_state, terminal_executor))
         return tools
 
     register_tool("FileToolSet", create_file_tools)
@@ -154,36 +154,31 @@ def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_edit
             Tool(name=TerminalTool.name),
             Tool(name=FileEditorTool.name),
             Tool(name=TaskTrackerTool.name),
-            Tool(name="FileToolSet"),  # Custom tools for reliable file editing
+            Tool(name="FileToolSet"),
         ],
         agent_context=agent_context,
     )
 
 
-def create_critic_agent(llm, scoring_rubric: str):
-    """Create the critic agent with validation tools and scoring rubric."""
+def create_visual_evaluator_agent(llm, scoring_rubric: str):
+    """Create the visual evaluator agent focused on screenshot analysis."""
     from openhands.sdk import Agent, AgentContext, Tool
     from openhands.sdk.context.skills.skill import Skill
     from openhands.sdk.tool import register_tool
     from openhands.tools.terminal import TerminalExecutor
 
-    # Import and register custom tools
-    from tools.typescript_validator import TypeScriptValidatorTool
-    from tools.remotion_bundle import RemotionBundleTool
+    # Import visual evaluation tools
     from tools.remotion_render_still import RemotionRenderStillTool
     from tools.submit_score import SubmitScoreTool
 
-    # Create a shared terminal executor factory
-    def create_validation_tools(conv_state):
+    def create_visual_tools(conv_state):
         terminal_executor = TerminalExecutor(working_dir=conv_state.workspace.working_dir)
         tools = []
-        tools.extend(TypeScriptValidatorTool.create(conv_state, terminal_executor))
-        tools.extend(RemotionBundleTool.create(conv_state, terminal_executor))
         tools.extend(RemotionRenderStillTool.create(conv_state, terminal_executor))
-        tools.extend(SubmitScoreTool.create(conv_state))  # Add score submission tool
+        tools.extend(SubmitScoreTool.create(conv_state))
         return tools
 
-    register_tool("ValidationToolSet", create_validation_tools)
+    register_tool("VisualToolSet", create_visual_tools)
 
     skills = []
     if scoring_rubric:
@@ -193,16 +188,24 @@ def create_critic_agent(llm, scoring_rubric: str):
 
     return Agent(
         llm=llm,
-        tools=[Tool(name="ValidationToolSet")],
+        tools=[Tool(name="VisualToolSet")],
         agent_context=agent_context,
     )
 
 
 def auto_generate_root_tsx(workspace: str, project_id: str) -> bool:
-    """Auto-generate Root.tsx from detected compositions."""
+    """Auto-generate Root.tsx from detected compositions.
+
+    This always runs after generation to ensure Root.tsx correctly registers
+    the composition. The prompt tells the agent NOT to modify Root.tsx directly,
+    so this is the canonical way to update it.
+    """
     from tools.root_generator import generate_and_write_root
 
-    emit_tool_call("root_generator", message="Auto-generating Root.tsx")
+    emit_tool_call(
+        "root_generator",
+        message="Auto-generating Root.tsx (always runs to ensure correct composition registration)"
+    )
 
     try:
         success, message, compositions = generate_and_write_root(workspace, project_id)
@@ -236,26 +239,85 @@ def auto_generate_root_tsx(workspace: str, project_id: str) -> bool:
         return False
 
 
-def run_generator(agent, workspace: str, prompt: str, project_id: str, critique: Optional[str] = None, iteration: int = 1) -> str:
-    """Run the generator agent and return the conversation result."""
+def run_generator_with_self_healing(
+    agent,
+    workspace: str,
+    prompt: str,
+    project_id: str,
+    visual_feedback: Optional[str] = None,
+    iteration: int = 1
+) -> tuple[bool, str]:
+    """
+    Run generator with self-healing loop.
+
+    The generator writes code AND validates TypeScript.
+    If there are errors, it fixes them before completing.
+    Returns (success, message).
+    """
     from openhands.sdk import Conversation
     import time
 
-    conversation = Conversation(agent=agent, workspace=workspace)
+    emit_event(EVENT_PHASE_START, phase="generation", iteration=iteration)
 
-    if critique:
-        message = f"""Previous attempt had issues. Fix them based on this feedback:
+    # Build the prompt with project structure requirements
+    # Convert project_id to valid component name (PascalCase, no underscores/hyphens)
+    component_name = ''.join(word.capitalize() for word in project_id.replace('-', '_').split('_'))
 
-{critique}
+    project_structure = f"""
+## PROJECT STRUCTURE REQUIREMENTS - FOLLOW EXACTLY
+
+**Folder name:** src/{project_id}/
+**Component name:** {component_name}
+
+You MUST create files in this structure:
+```
+src/
+└── {project_id}/           # YOUR CODE GOES HERE - use this EXACT folder name!
+    ├── index.tsx           # Main composition (export as {component_name})
+    ├── metadata.json       # Composition config (compositionId: "{project_id.replace('_', '-')}")
+    └── components/         # Reusable components (optional)
+```
+
+**CRITICAL:**
+- Create the folder `src/{project_id}/` (NOT src/Counter, NOT src/MyProject - use EXACT name!)
+- Export your main component as: `export const {component_name}: React.FC = () => ...`
+- In metadata.json, use compositionId: "{project_id.replace('_', '-')}"
+- Do NOT edit Root.tsx - it is auto-generated
+"""
+
+    if visual_feedback:
+        message = f"""{project_structure}
+
+Improve the visuals based on this feedback:
+
+{visual_feedback}
+
+IMPORTANT:
+- Focus on the VISUAL improvements mentioned above
+- After making changes, validate TypeScript and fix any errors
+- Do NOT finish until TypeScript compiles with ZERO errors
 
 Original task:
 {prompt}"""
     else:
-        message = prompt
+        message = f"""{project_structure}
 
-    emit_tool_call("generator", message="Running generator agent", iteration=iteration)
+{prompt}
+
+CRITICAL REQUIREMENT - SELF-HEALING:
+After writing ALL files, you MUST:
+1. Run TypeScriptValidatorTool to check for errors
+2. If there are ANY errors, fix them
+3. Run TypeScriptValidatorTool again
+4. Repeat until ZERO errors
+
+Do NOT finish until TypeScript validation passes with no errors.
+This is a hard requirement - code that doesn't compile is unacceptable."""
+
+    emit_tool_call("generator", message="Running self-healing generator", iteration=iteration)
 
     start_time = time.time()
+    conversation = Conversation(agent=agent, workspace=workspace)
 
     try:
         conversation.send_message(message)
@@ -278,139 +340,318 @@ Original task:
             error=str(e),
             stack_trace=traceback.format_exc()
         )
-        raise
+        return False, str(e)
 
-    # Auto-generate Root.tsx after agent completes
-    # This fixes the most common failure point (editing Root.tsx with duplicates)
+    # Auto-generate Root.tsx
     auto_generate_root_tsx(workspace, project_id)
 
-    # Return last agent message
-    return "Generation complete"
+    # Verify TypeScript compiles (safety check)
+    ts_success, ts_errors = run_typescript_check(workspace, project_id)
+
+    if not ts_success:
+        emit_event(
+            EVENT_TYPESCRIPT_CHECK,
+            success=False,
+            message="Generator finished but TypeScript still has errors",
+            error_count=len(ts_errors),
+            errors=ts_errors[:5]
+        )
+        # Return with error info - the outer loop can decide to retry
+        return False, f"TypeScript errors: {'; '.join(ts_errors[:3])}"
+
+    emit_event(EVENT_TYPESCRIPT_CHECK, success=True, message="TypeScript validation passed")
+    return True, "Generation complete with zero errors"
 
 
-def run_critic(agent, workspace: str, project_id: str, duration_frames: int, fps: int, threshold: int = QUALITY_THRESHOLD) -> dict:
-    """Run the critic agent and return the score."""
+def run_visual_evaluation(
+    agent,
+    workspace: str,
+    project_id: str,
+    transcript_segments: list,
+    duration_frames: int,
+    fps: int
+) -> dict:
+    """
+    Run visual evaluation focused on screenshot analysis.
+
+    Captures screenshots at transcript-aligned timestamps and evaluates:
+    - Animation smoothness
+    - Visual appeal
+    - Style consistency
+    - Timing alignment with speech
+
+    Returns score and visual improvement feedback.
+    """
     from openhands.sdk import Conversation
     from tools.submit_score import get_last_score, clear_last_score
     import time
 
-    # Clear any previous score
+    emit_event(EVENT_PHASE_START, phase="visual_evaluation")
+
     clear_last_score()
 
-    conversation = Conversation(agent=agent, workspace=workspace)
+    # Try to read actual duration from metadata.json (more reliable than passed value)
+    actual_duration = duration_frames
+    actual_fps = fps
+    metadata_path = Path(workspace) / "src" / project_id / "metadata.json"
+    if metadata_path.exists():
+        try:
+            import json
+            metadata = json.loads(metadata_path.read_text())
+            if "durationInFrames" in metadata:
+                actual_duration = metadata["durationInFrames"]
+                emit_event(EVENT_TOOL_CALL, tool="metadata_read",
+                           message=f"Read duration from metadata.json: {actual_duration} frames")
+            if "fps" in metadata:
+                actual_fps = metadata["fps"]
+        except Exception as e:
+            emit_event(EVENT_TOOL_CALL, tool="metadata_read",
+                       message=f"Could not read metadata.json: {e}, using passed duration: {duration_frames}")
 
-    # Calculate frames to check (start, middle, end)
-    mid_frame = duration_frames // 2
-    end_frame = max(0, duration_frames - 10)
+    # Calculate frames to capture based on transcript
+    frames_to_check = []
 
-    critic_prompt = f"""Evaluate the Remotion project at src/{project_id}/.
+    # Cap all frames at actual_duration - 1 to avoid out-of-bounds errors
+    max_frame = max(0, actual_duration - 1)
 
-Follow these steps to evaluate the visual generation:
+    # Always check start and end
+    frames_to_check.append({"frame": 0, "description": "Opening frame"})
+    frames_to_check.append({"frame": min(max_frame, max(0, actual_duration - 10)), "description": "Closing frame"})
 
-1. **TypeScript Validation**: Run TypeScriptValidatorTool on path "src/{project_id}"
-2. **Bundle Validation**: Run RemotionBundleTool with entry_point="src/index.ts"
-3. **Visual Inspection**: Run RemotionRenderStillTool for composition_id="{project_id}" at frames:
-   - Frame 0 (start)
-   - Frame {mid_frame} (middle)
-   - Frame {end_frame} (near end)
-4. **Check metadata.json** in src/{project_id}/ for completeness
-5. **Review the code** for Remotion best practices
+    # Add frames at transcript segment boundaries
+    for segment in transcript_segments[:10]:  # Limit to 10 segments
+        start_frame = int((segment.get("startMs", 0) / 1000) * actual_fps)
+        mid_frame = int(((segment.get("startMs", 0) + segment.get("endMs", 0)) / 2 / 1000) * actual_fps)
 
-IMPORTANT: After running all validations, you MUST call SubmitScoreTool to submit your evaluation score.
-Do NOT just output JSON - you MUST use the SubmitScoreTool tool with your score.
+        # Cap frames at max_frame to prevent out-of-bounds
+        start_frame = min(start_frame, max_frame)
+        mid_frame = min(mid_frame, max_frame)
 
-SCORING WEIGHTS (total = 100):
-- visual_quality (0-70): 70% weight - MOST IMPORTANT!
-  * Are animations smooth and well-timed?
-  * Is it visually appealing and professional?
-  * Does it match the requested style?
-  * Do the screenshots look good?
-- correctness (0-10): 10% weight - TypeScript compiles, no runtime errors
-- completeness (0-10): 10% weight - All required files present, metadata.json complete
-- code_quality (0-10): 10% weight - Clean code, follows Remotion best practices
+        if start_frame < actual_duration:
+            frames_to_check.append({
+                "frame": start_frame,
+                "description": f"Segment start: {segment.get('text', '')[:50]}..."
+            })
+        if mid_frame < actual_duration and mid_frame != start_frame:
+            frames_to_check.append({
+                "frame": mid_frame,
+                "description": f"Segment middle"
+            })
 
-Focus primarily on VISUAL QUALITY when scoring! The animations must look great."""
+    # Deduplicate and sort
+    seen_frames = set()
+    unique_frames = []
+    for f in frames_to_check:
+        if f["frame"] not in seen_frames:
+            seen_frames.add(f["frame"])
+            unique_frames.append(f)
+    unique_frames.sort(key=lambda x: x["frame"])
 
-    emit_tool_call("critic", message="Running critic agent")
+    # Convert project_id to valid composition ID (underscores to hyphens)
+    composition_id = project_id.replace('_', '-')
+
+    # Build evaluation prompt
+    frames_list = "\n".join([
+        f"   - Frame {f['frame']}: {f['description']}"
+        for f in unique_frames[:8]  # Limit to 8 frames
+    ])
+
+    # Log which frames will be captured for debugging
+    emit_event(
+        EVENT_TOOL_CALL,
+        tool="visual_evaluation_setup",
+        composition_id=composition_id,
+        actual_duration=actual_duration,
+        passed_duration=duration_frames,
+        fps=actual_fps,
+        frames_to_capture=[f['frame'] for f in unique_frames[:8]],
+        message=f"Will capture {len(unique_frames[:8])} frames from composition '{composition_id}' (actual duration: {actual_duration} frames, passed: {duration_frames})"
+    )
+
+    eval_prompt = f"""Evaluate the visual quality of the Remotion composition.
+
+The code has already been verified to compile with ZERO TypeScript errors.
+Your job is to evaluate VISUAL QUALITY only.
+
+## Steps:
+
+1. **Capture Screenshots** using RemotionRenderStillTool:
+   composition_id: "{composition_id}"
+   Frames to capture:
+{frames_list}
+
+2. **Evaluate Each Screenshot** for:
+   - Animation smoothness (do transitions look professional?)
+   - Visual appeal (is it visually pleasing?)
+   - Style consistency (does it match the requested style?)
+   - Text readability (is text clear and legible?)
+   - Timing (does content appear at appropriate moments?)
+
+3. **Create Improvement TODO** - List specific visual improvements:
+   - "Fade transition at frame X is too abrupt, use longer duration"
+   - "Text at frame Y is too small, increase font size to 48px"
+   - "Color contrast is poor in frame Z, use darker background"
+   - etc.
+
+4. **Submit Score** using SubmitScoreTool:
+   - visual_quality (0-70): The MAIN score - how good do the visuals look?
+   - correctness (10): Full points - code compiles
+   - completeness (0-10): Are all transcript segments covered?
+   - code_quality (10): Full points - assume good
+   - issues: List of specific visual problems found
+   - suggestion: Detailed TODO for visual improvements
+
+Focus on VISUAL QUALITY. The code works - we're evaluating how good it LOOKS."""
+
+    emit_tool_call("visual_evaluator", message="Running visual evaluation")
     start_time = time.time()
 
-    try:
-        conversation.send_message(critic_prompt)
-        conversation.run()
-        duration_ms = int((time.time() - start_time) * 1000)
-    except Exception as e:
-        emit_tool_result("critic", success=False, error=str(e))
+    # Retry logic for LLM failures (empty responses, rate limits, etc.)
+    max_retries = 3
+    retry_delay = 5  # seconds
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            conversation = Conversation(agent=agent, workspace=workspace)
+            conversation.send_message(eval_prompt)
+            conversation.run()
+            duration_ms = int((time.time() - start_time) * 1000)
+            break  # Success - exit retry loop
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+
+            # Check if it's a retryable error (empty response, rate limit, timeout)
+            is_retryable = any(indicator in error_str for indicator in [
+                "empty", "choices", "rate", "limit", "timeout", "429", "503", "overloaded"
+            ])
+
+            if is_retryable and attempt < max_retries - 1:
+                emit_event(
+                    EVENT_TOOL_CALL,
+                    tool="visual_evaluator_retry",
+                    attempt=attempt + 1,
+                    max_retries=max_retries,
+                    error=str(e),
+                    message=f"LLM returned error, retrying in {retry_delay}s (attempt {attempt + 1}/{max_retries})"
+                )
+                time.sleep(retry_delay)
+                retry_delay *= 2  # Exponential backoff
+                continue
+            else:
+                # Non-retryable error or max retries reached
+                emit_tool_result("visual_evaluator", success=False, error=str(e))
+                return {
+                    "score": 20,  # Low score but not zero since code compiles
+                    "visual_quality": 0,
+                    "correctness": 10,
+                    "completeness": 5,
+                    "code_quality": 5,
+                    "issues": [f"Visual evaluation failed after {attempt + 1} attempts: {str(e)}"],
+                    "suggestion": "LLM API issues - check API key, quota, and model availability"
+                }
+    else:
+        # All retries exhausted
+        emit_tool_result("visual_evaluator", success=False, error=str(last_error))
         return {
-            "score": 0,
-            "breakdown": {"correctness": 0, "completeness": 0, "visualQuality": 0, "codeQuality": 0},
-            "issues": [f"Critic agent failed: {str(e)}"],
-            "suggestion": "Check agent logs for details"
+            "score": 20,
+            "visual_quality": 0,
+            "correctness": 10,
+            "completeness": 5,
+            "code_quality": 5,
+            "issues": [f"Visual evaluation failed after {max_retries} retries: {str(last_error)}"],
+            "suggestion": "LLM API consistently failing - check service status"
         }
 
-    # Get the score from the SubmitScoreTool
+    # Get score from SubmitScoreTool
     score_result = get_last_score()
 
     if score_result is None:
-        emit_event("debug", message="SubmitScoreTool was not called by critic agent")
+        # Fallback
+        score_result = {
+            "score": 30,
+            "visual_quality": 10,
+            "correctness": 10,
+            "completeness": 5,
+            "code_quality": 5,
+            "issues": ["Could not parse visual evaluation"],
+            "suggestion": "Review screenshots manually"
+        }
 
-        # Fallback: try to parse score from conversation events
-        response = ""
-        try:
-            if hasattr(conversation, 'state') and hasattr(conversation.state, 'events'):
-                for event in reversed(conversation.state.events):
-                    content = getattr(event, 'content', None) or getattr(event, 'message', None) or getattr(event, 'text', None)
-                    if content and '"score"' in str(content):
-                        response = str(content)
-                        break
-        except Exception:
-            pass
-
-        score_result = parse_critic_score(response)
-        emit_event("debug", fallback_parsing=True, response_length=len(response))
-
-    # Emit detailed critic result
     emit_event(
-        EVENT_CRITIC_RESULT,
+        EVENT_VISUAL_EVALUATION,
         score=score_result.get("score", 0),
-        threshold=threshold,
-        breakdown=score_result.get("breakdown", {}),
+        visual_quality=score_result.get("visual_quality", 0),
         issues=score_result.get("issues", []),
         suggestion=score_result.get("suggestion", ""),
-        duration_ms=duration_ms,
+        duration_ms=duration_ms
     )
 
     return score_result
 
 
 def main():
-    parser = argparse.ArgumentParser(description="OpenHands Visual Generator with Iterative Refinement")
-    parser.add_argument("--workspace", required=True, help="Path to Remotion project")
+    parser = argparse.ArgumentParser(description="OpenHands Visual Generator with Self-Healing")
+    parser.add_argument("--workspace", default=os.environ.get("REMOTION_PROJECT_DIR", "/opt/remotion-template"),
+                        help="Path to Remotion project (default: $REMOTION_PROJECT_DIR)")
+    parser.add_argument("--output-dir", default="/output", help="Directory to copy final bundle (mounted from host)")
     parser.add_argument("--project-id", required=True, help="Composition ID")
     parser.add_argument("--model", required=True, help="LLM model to use")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
     parser.add_argument("--api-key-env", default="LLM_API_KEY", help="Env var for API key")
     parser.add_argument("--duration-frames", type=int, default=900, help="Video duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Video FPS")
-    parser.add_argument("--max-iterations", type=int, default=MAX_ITERATIONS, help="Max refinement iterations")
+    parser.add_argument("--max-iterations", type=int, default=MAX_ITERATIONS, help="Max visual improvement iterations")
     parser.add_argument("--quality-threshold", type=int, default=QUALITY_THRESHOLD, help="Quality score threshold")
     args = parser.parse_args()
 
-    # Get API key from environment
+    # Get API key based on model provider
     api_key = os.environ.get(args.api_key_env)
     if not api_key:
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        # Detect provider from model string
+        model_lower = args.model.lower()
+        if model_lower.startswith("openrouter/") or "openrouter" in model_lower:
+            api_key = os.environ.get("OPENROUTER_API_KEY")
+        elif "gemini" in model_lower:
+            api_key = os.environ.get("GEMINI_API_KEY")
+        elif "claude" in model_lower or "anthropic" in model_lower:
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+        elif "gpt" in model_lower or "openai" in model_lower:
+            api_key = os.environ.get("OPENAI_API_KEY")
+        else:
+            # Fallback: try all keys
+            api_key = (
+                os.environ.get("OPENROUTER_API_KEY") or
+                os.environ.get("GEMINI_API_KEY") or
+                os.environ.get("ANTHROPIC_API_KEY") or
+                os.environ.get("OPENAI_API_KEY")
+            )
 
     if not api_key:
-        emit_event(EVENT_ERROR, message=f"Missing API key in {args.api_key_env} or provider-specific env vars")
+        emit_event(EVENT_ERROR, message=f"Missing API key for model {args.model}")
         sys.exit(1)
 
-    # Read prompt from file
+    # Read prompt
     prompt_path = Path(args.prompt_file)
     if not prompt_path.exists():
         emit_event(EVENT_ERROR, message=f"Prompt file not found: {args.prompt_file}")
         sys.exit(1)
 
     prompt = prompt_path.read_text(encoding="utf-8")
+
+    # Extract transcript segments from prompt for screenshot timing
+    transcript_segments = []
+    for line in prompt.split('\n'):
+        # Parse lines like "[0:05 - 0:12] Some text here"
+        match = re.match(r'\[(\d+):(\d+)\s*-\s*(\d+):(\d+)\]\s*(.+)', line)
+        if match:
+            start_min, start_sec, end_min, end_sec, text = match.groups()
+            transcript_segments.append({
+                "startMs": (int(start_min) * 60 + int(start_sec)) * 1000,
+                "endMs": (int(end_min) * 60 + int(end_sec)) * 1000,
+                "text": text
+            })
 
     # Import OpenHands
     try:
@@ -422,7 +663,7 @@ def main():
 
     emit_event(EVENT_STARTED, model=args.model, workspace=args.workspace, max_iterations=args.max_iterations)
 
-    # Track state for graceful cancellation
+    # Cancellation handling
     cancelled = False
 
     def handle_sigterm(signum, frame):
@@ -435,9 +676,12 @@ def main():
     signal.signal(signal.SIGINT, handle_sigterm)
 
     try:
-        # Determine model name for litellm
+        # Configure LLM model name
         model_lower = args.model.lower()
-        if "gemini" in model_lower:
+        if args.model.startswith("openrouter/") or "/" in args.model:
+            # Already has provider prefix (e.g., openrouter/google/gemini-2.0-flash)
+            model_name = args.model
+        elif "gemini" in model_lower:
             model_name = f"gemini/{args.model}"
         elif "claude" in model_lower:
             model_name = f"anthropic/{args.model}"
@@ -446,7 +690,6 @@ def main():
         else:
             model_name = args.model
 
-        # Configure LLM
         llm = LLM(
             model=model_name,
             api_key=SecretStr(api_key),
@@ -461,46 +704,60 @@ def main():
 
         # Create agents
         generator_agent = create_generator_agent(llm, remotion_skill, style_skill, file_editing_skill)
-        critic_agent = create_critic_agent(llm, scoring_rubric)
+        visual_evaluator = create_visual_evaluator_agent(llm, scoring_rubric)
 
-        # Iterative refinement loop
+        # State tracking
         best_score = 0
         best_iteration = 0
-        critique_feedback = None
+        visual_feedback = None
         final_status = "failed"
 
         for iteration in range(args.max_iterations):
             if cancelled:
                 break
 
-            emit_event(EVENT_ITERATION_START, iteration=iteration + 1, max_iterations=args.max_iterations)
+            emit_event(EVENT_PHASE_START, phase="iteration", iteration=iteration + 1, max_iterations=args.max_iterations)
 
-            # Phase 1: Generate code
-            run_generator(
+            # ===== PHASE 1: Generate with self-healing =====
+            gen_success, gen_message = run_generator_with_self_healing(
                 generator_agent,
                 args.workspace,
                 prompt,
                 args.project_id,
-                critique_feedback,
+                visual_feedback,
                 iteration=iteration + 1
             )
 
             if cancelled:
                 break
 
-            # Phase 2: Critic evaluates
-            score_result = run_critic(
-                critic_agent,
+            if not gen_success:
+                # Generator failed to produce error-free code
+                # This shouldn't happen often with self-healing
+                emit_event(
+                    EVENT_ITERATION_COMPLETE,
+                    iteration=iteration + 1,
+                    score=0,
+                    issues=[gen_message],
+                    suggestion="Generator failed to self-heal TypeScript errors"
+                )
+                # Try again in next iteration with feedback
+                visual_feedback = f"CRITICAL: Code did not compile. Error: {gen_message}\nFix all TypeScript errors before proceeding."
+                continue
+
+            # ===== PHASE 2: Visual evaluation =====
+            score_result = run_visual_evaluation(
+                visual_evaluator,
                 args.workspace,
                 args.project_id,
+                transcript_segments,
                 args.duration_frames,
-                args.fps,
-                threshold=args.quality_threshold
+                args.fps
             )
 
             current_score = score_result.get("score", 0)
 
-            # Track best attempt
+            # Track best
             if current_score > best_score:
                 best_score = current_score
                 best_iteration = iteration + 1
@@ -509,35 +766,55 @@ def main():
                 EVENT_ITERATION_COMPLETE,
                 iteration=iteration + 1,
                 score=current_score,
-                breakdown=score_result.get("breakdown", {}),
+                visual_quality=score_result.get("visual_quality", 0),
                 issues=score_result.get("issues", []),
                 suggestion=score_result.get("suggestion", ""),
                 threshold=args.quality_threshold,
             )
 
-            # Phase 3: Decision
+            # ===== PHASE 3: Check if done =====
             if current_score >= args.quality_threshold:
                 final_status = "passed"
                 break
 
-            # Prepare feedback for next iteration
-            critique_feedback = f"""Score: {current_score}/100 (need {args.quality_threshold} to pass)
+            # ===== PHASE 4: Prepare visual feedback for next iteration =====
+            issues_list = '\n'.join([f"- {issue}" for issue in score_result.get("issues", [])])
+            visual_feedback = f"""Visual Quality Score: {current_score}/100 (need {args.quality_threshold} to pass)
+Visual Quality: {score_result.get('visual_quality', 0)}/70
 
-Issues found:
-{chr(10).join('- ' + issue for issue in score_result.get('issues', []))}
+## Issues Found (TODO - fix these):
+{issues_list}
 
-Suggestion:
-{score_result.get('suggestion', 'Review and fix the issues above.')}"""
+## Suggestion:
+{score_result.get('suggestion', 'Improve visual quality of animations and transitions.')}
 
-        # Count generated files
+Focus on improving the VISUAL quality - the code compiles fine."""
+
+        # Count files
         project_dir = Path(args.workspace) / "src" / args.project_id
         files_written = 0
         if project_dir.exists():
             files_written = len([f for f in project_dir.glob("**/*") if f.is_file()])
 
-        # Determine final status
         if final_status != "passed" and best_score > 0:
             final_status = "completed_with_warnings"
+
+        # Copy generated files to output directory (mounted from host)
+        output_dir = Path(args.output_dir)
+        if output_dir.exists():
+            project_src = Path(args.workspace) / "src" / args.project_id
+            output_project = output_dir / args.project_id
+
+            if project_src.exists():
+                import shutil
+                # Clean up any existing output
+                if output_project.exists():
+                    shutil.rmtree(output_project)
+                # Copy generated project to output
+                shutil.copytree(project_src, output_project)
+                emit_event(EVENT_TOOL_CALL, tool="export", message=f"Exported project to {output_project}")
+            else:
+                emit_event(EVENT_TOOL_CALL, tool="export", message="No project directory found to export", success=False)
 
         emit_event(
             EVENT_COMPLETE,

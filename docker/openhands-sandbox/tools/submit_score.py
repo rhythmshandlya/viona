@@ -37,6 +37,12 @@ def clear_last_score():
     _last_score = None
 
 
+def set_last_score(score: dict):
+    """Set the last score (primarily for testing)."""
+    global _last_score
+    _last_score = score
+
+
 class SubmitScoreAction(Action):
     """Action to submit an evaluation score."""
 

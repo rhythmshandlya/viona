@@ -61,14 +61,18 @@ COMPOSITION_PATTERNS = [
 
 # Pattern to detect exported React components
 COMPONENT_EXPORT_PATTERNS = [
-    # export const ComponentName = () => ...
-    re.compile(r'export\s+const\s+(\w+)\s*[=:][^=].*?(?:React\.FC|FC|=>|\(\))', re.DOTALL),
+    # export const ComponentName: React.FC = ...
+    re.compile(r'export\s+const\s+(\w+)\s*:\s*(?:React\.)?FC'),
+    # export const ComponentName = () => ...  (arrow function)
+    re.compile(r'export\s+const\s+(\w+)\s*=\s*\([^)]*\)\s*(?::\s*\w+)?\s*=>'),
     # export function ComponentName
     re.compile(r'export\s+function\s+(\w+)\s*\('),
     # export default function ComponentName
     re.compile(r'export\s+default\s+function\s+(\w+)\s*\('),
     # const ComponentName = ... ; export { ComponentName }
     re.compile(r'export\s*\{\s*(\w+)(?:\s+as\s+\w+)?\s*\}'),
+    # export default ComponentName (at end of file)
+    re.compile(r'export\s+default\s+(\w+)\s*;?\s*$', re.MULTILINE),
 ]
 
 # Pattern to detect composition config in metadata.json or component
@@ -235,15 +239,25 @@ def _extract_composition(
             comp_name = match.group(1)
 
             # Skip common non-composition exports
-            if comp_name in ('RemotionRoot', 'Root', 'App', 'default'):
+            if comp_name in ('RemotionRoot', 'Root', 'App', 'default', 'schema', 'props', 'Props'):
                 continue
+
+            # Skip if this looks like a zod schema (not a React component)
+            # Check the line where this export appears
+            export_line_match = re.search(rf'export\s+const\s+{comp_name}\s*=\s*(\w+)', content)
+            if export_line_match:
+                assigned_value = export_line_match.group(1)
+                if assigned_value in ('z', 'zod', 'propsSchema', 'schema'):
+                    continue
 
             # Check if this looks like a video component (uses Remotion hooks)
             if not _is_video_component(content):
                 continue
 
-            # Use the component name as the composition ID
-            comp_id = _to_composition_id(comp_name)
+            # Use the folder name as the composition ID (not the component name)
+            # Convert underscores to hyphens since Remotion only allows a-z, A-Z, 0-9, and -
+            folder_name = file_path.parent.name
+            comp_id = folder_name.replace('_', '-') if folder_name != 'src' else _to_composition_id(comp_name)
 
             return CompositionInfo(
                 component_name=comp_name,

@@ -16,3 +16,17 @@ build.ps1
 # OS files
 .DS_Store
 Thumbs.db
+
+# Symlinks/junctions (Docker can't handle Windows symlinks)
+templates/openhands-sandbox/.openhands
+templates/openhands-sandbox/.agents
+templates/openhands-sandbox/skills
+
+# Node modules (platform-specific, must be installed inside Docker)
+templates/openhands-sandbox/node_modules
+**/node_modules
+
+# Python cache
+__pycache__
+*.pyc
+.pytest_cache

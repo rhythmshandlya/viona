@@ -152,7 +152,8 @@ export const MyVideo = () => {
 
             assert len(compositions) == 1
             assert compositions[0].component_name == "MyVideo"
-            assert compositions[0].composition_id == "my-video"
+            # Composition ID uses folder name (with underscores converted to hyphens)
+            assert compositions[0].composition_id == "MyVideo"
 
     def test_scan_with_metadata_json(self):
         """Test that metadata.json updates composition config."""
@@ -220,7 +221,8 @@ export const Project2 = () => <div />;
             compositions = scan_compositions(tmpdir, project_id="Project1")
 
             assert len(compositions) == 1
-            assert compositions[0].composition_id == "project1"
+            # Composition ID uses folder name
+            assert compositions[0].composition_id == "Project1"
             assert compositions[0].component_name == "Project1"
 
             # Scan all should find both
@@ -267,7 +269,7 @@ export const Helper = () => <div />;
     def test_scan_deduplicates_by_id(self):
         """Test that duplicate composition IDs are deduplicated."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Create two project directories that would have the same composition ID
+            # Create a project directory
             proj1 = Path(tmpdir) / "Test"
             proj1.mkdir()
             (proj1 / "index.tsx").write_text("""
@@ -279,8 +281,8 @@ export const Test = () => <div />;
             # the deduplication logic in a realistic scenario
             compositions = scan_compositions(tmpdir)
 
-            # Should only have one "test" composition
-            test_comps = [c for c in compositions if c.composition_id == "test"]
+            # Should only have one "Test" composition (using folder name)
+            test_comps = [c for c in compositions if c.composition_id == "Test"]
             assert len(test_comps) == 1
 
 
@@ -485,7 +487,8 @@ export const TargetProject = () => <div />;
 
             assert success is True
             comp_ids = [c.composition_id for c in compositions]
-            assert "target-project" in comp_ids
+            # Composition ID uses folder name
+            assert "TargetProject" in comp_ids
 
 
 # =============================================================================
@@ -560,7 +563,8 @@ export const Bars: React.FC<BarsProps> = ({ progress }) => {
 
             assert 'import { Composition } from "remotion";' in root_content
             assert 'import { BubbleSort }' in root_content
-            assert 'id="bubble-sort"' in root_content
+            # Composition ID uses folder name
+            assert 'id="BubbleSort"' in root_content
             assert 'durationInFrames={900}' in root_content
             assert 'fps={30}' in root_content
             assert 'export const RemotionRoot' in root_content

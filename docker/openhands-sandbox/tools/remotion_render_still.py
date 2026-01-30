@@ -50,6 +50,10 @@ class RemotionRenderStillAction(Action):
         default=1080,
         description="Output height in pixels"
     )
+    timeout: int = Field(
+        default=120,
+        description="Timeout in seconds for the render command (default 120s, use longer for first render)"
+    )
 
 
 class RemotionRenderStillObservation(Observation):
@@ -66,14 +70,15 @@ class RemotionRenderStillObservation(Observation):
     @property
     def to_llm_content(self) -> Sequence[TextContent | ImageContent]:
         if self.success and self.image_base64:
+            # OpenHands SDK expects image_urls with data URLs for base64 images
+            data_url = f"data:image/png;base64,{self.image_base64}"
             return [
                 TextContent(text=f"Rendered frame {self.frame} of composition '{self.composition_id}'.\n"
                            f"Image path: {self.image_path}\n"
                            f"Review the image below:"),
                 ImageContent(
-                    type="base64",
-                    media_type="image/png",
-                    data=self.image_base64
+                    type="image",
+                    image_urls=[data_url]
                 )
             ]
         elif self.success:
@@ -98,6 +103,7 @@ class RemotionRenderStillExecutor(ToolExecutor[RemotionRenderStillAction, Remoti
     def __init__(self, terminal: TerminalExecutor, working_dir: str = "/workspace"):
         self.terminal = terminal
         self.working_dir = working_dir
+        self._first_render_done = False
 
     def __call__(
         self,
@@ -114,38 +120,60 @@ class RemotionRenderStillExecutor(ToolExecutor[RemotionRenderStillAction, Remoti
 
         # Remotion 4.0.247+ uses chrome-headless-shell auto-downloaded to node_modules
         # No need to specify browser executable - Remotion finds it automatically
+        # Use --log-level=verbose to capture more details on failure
         cmd_parts = [
             "cd", shlex.quote(self.working_dir), "&&",
             "npx", "remotion", "still",
             shlex.quote(entry_point),
             shlex.quote(action.composition_id),
             shlex.quote(output_path),
-            "--frame", str(action.frame),
-            "--width", str(action.width),
-            "--height", str(action.height),
-            # Browser settings for Docker environment
-            "--disable-web-security",
-            "--ignore-certificate-errors",
+            "--frame=" + str(action.frame),
+            "--log-level=verbose",
         ]
 
         cmd = " ".join(cmd_parts)
 
-        # Run renderer
-        result = self.terminal(TerminalAction(command=cmd))
+        # First render takes longer due to browser initialization
+        # Use longer timeout for first render (180s), shorter for subsequent (120s)
+        timeout = action.timeout
+        if not self._first_render_done:
+            timeout = max(timeout, 180)  # At least 180s for first render
+
+        # Run renderer with stderr captured (2>&1 redirects stderr to stdout)
+        # Use timeout command to enforce time limit
+        # IMPORTANT: Wrap in bash -c because timeout can't run shell builtins like 'cd'
+        full_cmd = f"timeout {timeout}s bash -c {shlex.quote(cmd)} 2>&1"
+        result = self.terminal(TerminalAction(command=full_cmd))
         output = result.text if hasattr(result, 'text') else str(result)
+
+        # Mark first render as done (successful or not)
+        self._first_render_done = True
 
         # Extract errors from output
         errors = []
-        error_indicators = ["error", "Error", "ERROR", "failed", "Failed", "FAILED", "Cannot", "cannot"]
+        error_indicators = ["error", "Error", "ERROR", "failed", "Failed", "FAILED", "Cannot", "cannot", "not found", "does not exist", "out of range", "exceeds"]
         for line in output.split("\n"):
-            if any(indicator in line for indicator in error_indicators):
-                errors.append(line.strip())
+            line_stripped = line.strip()
+            if line_stripped and any(indicator in line for indicator in error_indicators):
+                errors.append(line_stripped)
 
         # Check if file was created
         check_cmd = f"test -f {shlex.quote(output_path)} && echo 'EXISTS'"
         check_result = self.terminal(TerminalAction(command=check_cmd))
         check_output = check_result.text if hasattr(check_result, 'text') else str(check_result)
         file_exists = "EXISTS" in check_output
+
+        # If file doesn't exist and no errors found, add diagnostic info
+        if not file_exists and not errors:
+            errors.append(f"Output file was not created at {output_path}")
+            errors.append(f"Frame requested: {action.frame}")
+            errors.append(f"Composition ID: {action.composition_id}")
+            # Include last few lines of output for context
+            output_lines = [l.strip() for l in output.split("\n") if l.strip()]
+            if output_lines:
+                errors.append(f"Remotion output: {' | '.join(output_lines[-5:])}")
+            else:
+                errors.append("Remotion produced no output - check if composition exists in Root.tsx")
 
         success = file_exists and len(errors) == 0
 
@@ -156,7 +184,14 @@ class RemotionRenderStillExecutor(ToolExecutor[RemotionRenderStillAction, Remoti
                 read_cmd = f"base64 -w 0 {shlex.quote(output_path)}"
                 base64_result = self.terminal(TerminalAction(command=read_cmd))
                 base64_output = base64_result.text if hasattr(base64_result, 'text') else str(base64_result)
-                # Clean up the output (remove any trailing whitespace/newlines)
+                # Clean up the output:
+                # 1. Remove ANSI escape codes (terminal control sequences like \x1b[?2004l)
+                # 2. Remove whitespace/newlines
+                import re
+                # Remove all ANSI escape sequences
+                base64_output = re.sub(r'\x1b\[[0-9;?]*[a-zA-Z]', '', base64_output)
+                # Remove any non-base64 characters (keep only A-Za-z0-9+/=)
+                base64_output = re.sub(r'[^A-Za-z0-9+/=]', '', base64_output)
                 image_base64 = base64_output.strip()
             except Exception as e:
                 errors.append(f"Could not read image: {str(e)}")

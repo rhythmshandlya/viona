@@ -5,6 +5,7 @@ Runs TypeScript compiler in noEmit mode to check for syntax and type errors
 without generating output files. Returns structured error information.
 """
 
+import json
 import os
 import re
 import shlex
@@ -12,6 +13,32 @@ from collections.abc import Sequence
 from typing import Optional
 
 from pydantic import Field
+
+
+def emit_typescript_event(path: str, success: bool, error_count: int, errors: list):
+    """Emit a concise JSON event for TypeScript validation."""
+    event = {
+        "type": "typescript_validation",
+        "path": path,
+        "success": success,
+        "error_count": error_count,
+    }
+
+    if not success and errors:
+        # Show concise error summary
+        error_summary = []
+        for e in errors[:5]:  # First 5 errors
+            error_summary.append({
+                "file": e.get("file", "").split("/")[-1],  # Just filename
+                "line": e.get("line"),
+                "code": e.get("code"),
+                "message": e.get("message", "")[:60]  # Truncate message
+            })
+        event["errors"] = error_summary
+        if error_count > 5:
+            event["more_errors"] = error_count - 5
+
+    print(json.dumps(event), flush=True)
 
 from openhands.sdk import (
     Action,
@@ -106,19 +133,14 @@ class TypeScriptValidatorExecutor(ToolExecutor[TypeScriptValidatorAction, TypeSc
         action: TypeScriptValidatorAction,
         conversation=None
     ) -> TypeScriptValidatorObservation:
-        # Build tsc command
-        path = shlex.quote(os.path.join(self.working_dir, action.path))
+        # Always use the project's tsconfig.json for proper settings (skipLibCheck, etc.)
+        # This ensures node_modules type conflicts are ignored
+        cmd_parts = ["npx", "tsc", "--noEmit", "--pretty", "false", "--project", self.working_dir]
 
-        cmd_parts = ["npx", "tsc", "--noEmit", "--pretty", "false"]
-
-        if action.strict:
-            cmd_parts.append("--strict")
-
-        # Add project flag if checking a directory
-        if os.path.isdir(action.path) or action.path == ".":
-            cmd_parts.extend(["--project", path])
-        else:
-            cmd_parts.append(path)
+        # Note: We always check the whole project because:
+        # 1. tsconfig.json has skipLibCheck: true (ignores node_modules type conflicts)
+        # 2. tsconfig.json has include: ["src/**/*"] (only checks src files)
+        # 3. Checking individual files without tsconfig causes node_modules errors
 
         cmd = " ".join(cmd_parts)
 
@@ -126,10 +148,19 @@ class TypeScriptValidatorExecutor(ToolExecutor[TypeScriptValidatorAction, TypeSc
         result = self.terminal(TerminalAction(command=cmd))
         output = result.text if hasattr(result, 'text') else str(result)
 
-        # Parse errors
+        # Parse errors and filter to only show errors from src/ (not node_modules)
         errors = []
         for match in self.ERROR_PATTERN.finditer(output):
             file_path, line, column, _, code, message = match.groups()
+
+            # Skip errors from node_modules or type definition files
+            if 'node_modules' in file_path or file_path.endswith('.d.ts'):
+                continue
+
+            # Only include errors from the requested path (if specific path given)
+            if action.path != "." and action.path not in file_path:
+                continue
+
             errors.append(TypeScriptError(
                 file=file_path,
                 line=int(line),
@@ -138,8 +169,16 @@ class TypeScriptValidatorExecutor(ToolExecutor[TypeScriptValidatorAction, TypeSc
                 message=message.strip()
             ).to_dict())
 
-        # Check for success (exit code 0 and no errors)
-        success = len(errors) == 0 and "error" not in output.lower()
+        # Success = no errors from user code
+        success = len(errors) == 0
+
+        # Emit concise summary event
+        emit_typescript_event(
+            path=action.path,
+            success=success,
+            error_count=len(errors),
+            errors=errors
+        )
 
         return TypeScriptValidatorObservation(
             success=success,

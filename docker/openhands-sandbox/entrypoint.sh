@@ -2,67 +2,83 @@
 set -e
 
 echo "=== Clipify Visual Generation Sandbox ==="
-echo "Initializing workspace..."
 
-# Copy pre-baked Remotion project to workspace (with node_modules!)
-# This is instant because we're copying from the Docker image, not downloading
-if [ ! -f "/workspace/package.json" ]; then
-    echo "Setting up Remotion project with pre-installed dependencies..."
-    cp -r /opt/remotion-template/* /workspace/
-    cp -r /opt/remotion-template/node_modules /workspace/
-    # Ensure public folder exists for static assets
-    mkdir -p /workspace/public
-    echo "✓ Remotion dependencies ready (pre-baked)"
+# =============================================================================
+# WORKSPACE: /opt/remotion-template (internal to Docker)
+# - node_modules already installed during Docker build
+# - Webpack cache pre-warmed during Docker build
+# - No copying needed - everything runs on Docker's internal filesystem
+#
+# MOUNTS:
+# - /output: For exporting final bundle (mounted from host)
+# - /tmp/prompt.json: Input prompt file (read-only mount)
+# =============================================================================
+
+WORKSPACE="/opt/remotion-template"
+cd "$WORKSPACE"
+
+echo "Workspace: $WORKSPACE (internal)"
+echo "✓ Node modules ready (pre-installed)"
+echo "✓ Webpack cache ready (pre-warmed)"
+
+# Reset Root.tsx to clean state for each run
+# This prevents stale imports from previous agent runs
+mkdir -p "$WORKSPACE/src"
+
+cat > "$WORKSPACE/src/Root.tsx" << 'ROOT_EOF'
+import "./index.css";
+import React from "react";
+import { Composition } from "remotion";
+
+// Placeholder composition - will be auto-generated after code generation
+const Placeholder: React.FC = () => (
+  <div style={{ backgroundColor: '#1a1a2e', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <span style={{ color: '#fff', fontSize: 32 }}>Waiting for composition...</span>
+  </div>
+);
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <Composition
+      id="placeholder"
+      component={Placeholder}
+      durationInFrames={30}
+      fps={30}
+      width={1920}
+      height={1080}
+    />
+  );
+};
+ROOT_EOF
+echo "✓ Root.tsx reset"
+
+# Clean up any old composition directories from previous runs
+find "$WORKSPACE/src" -maxdepth 1 -type d -name "proj_*" -exec rm -rf {} \; 2>/dev/null || true
+
+# Copy skills if not present
+if [ ! -d "$WORKSPACE/.openhands" ]; then
+    mkdir -p "$WORKSPACE/.openhands"
+    cp -r /opt/openhands/skills "$WORKSPACE/.openhands/"
+fi
+
+# =============================================================================
+# PRE-WARM BROWSER
+# Webpack is already cached, so this just initializes the browser (~5s)
+# =============================================================================
+echo "Pre-warming browser..."
+PREWARM_START=$(date +%s)
+
+if timeout 60s npx remotion still ./src/index.ts placeholder /tmp/prewarm.png --frame=0 2>&1 | tail -3; then
+    PREWARM_END=$(date +%s)
+    echo "✓ Browser ready ($((PREWARM_END - PREWARM_START))s)"
+    rm -f /tmp/prewarm.png
 else
-    # Workspace already has package.json, but might be missing node_modules
-    if [ ! -d "/workspace/node_modules" ]; then
-        echo "Copying pre-baked node_modules..."
-        cp -r /opt/remotion-template/node_modules /workspace/
-        echo "✓ Dependencies restored"
-    fi
-    # Ensure src/index.css exists
-    if [ ! -f "/workspace/src/index.css" ]; then
-        cp /opt/remotion-template/src/index.css /workspace/src/
-    fi
-    # Ensure public folder exists
-    mkdir -p /workspace/public
+    echo "⚠ Browser pre-warm failed (will retry on first render)"
 fi
 
-# Copy skills to workspace if not present
-if [ ! -d "/workspace/.openhands" ]; then
-    mkdir -p /workspace/.openhands
-    cp -r /opt/openhands/skills /workspace/.openhands/
-fi
-
-# Copy AGENTS.md if not present
-if [ ! -f "/workspace/AGENTS.md" ]; then
-    cp /opt/openhands/AGENTS.md /workspace/
-fi
-
-# Copy Remotion config for Docker environment
-if [ ! -f "/workspace/remotion.config.ts" ]; then
-    cp /opt/openhands/templates/remotion.config.ts /workspace/
-fi
-
-# Verify TypeScript can resolve dependencies
-echo "Verifying TypeScript setup..."
-if [ -f "/workspace/node_modules/react/package.json" ]; then
-    echo "✓ React types available"
-else
-    echo "⚠ React not found, copying from template..."
-    cp -r /opt/remotion-template/node_modules /workspace/
-fi
-
-if [ -f "/workspace/node_modules/remotion/package.json" ]; then
-    echo "✓ Remotion available"
-fi
-
-if [ -f "/workspace/node_modules/zod/package.json" ]; then
-    echo "✓ Zod available"
-fi
-
-echo "=== Workspace ready ==="
+echo "=== Ready ==="
 echo ""
 
-# Run the visual generator agent
+# Run visual generator with internal workspace
+# The --workspace argument is handled by the script, defaulting to REMOTION_PROJECT_DIR env var
 exec python /opt/openhands/visual_generator.py "$@"

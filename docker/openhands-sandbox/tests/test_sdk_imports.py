@@ -115,11 +115,11 @@ def test_visual_generator_imports():
 
     assert hasattr(visual_generator, 'emit_event')
     assert hasattr(visual_generator, 'load_skill')
-    assert hasattr(visual_generator, 'parse_critic_score')
     assert hasattr(visual_generator, 'create_generator_agent')
-    assert hasattr(visual_generator, 'create_critic_agent')
-    assert hasattr(visual_generator, 'run_generator')
-    assert hasattr(visual_generator, 'run_critic')
+    assert hasattr(visual_generator, 'create_visual_evaluator_agent')
+    assert hasattr(visual_generator, 'run_generator_with_self_healing')
+    assert hasattr(visual_generator, 'run_visual_evaluation')
+    assert hasattr(visual_generator, 'run_typescript_check')
     assert hasattr(visual_generator, 'auto_generate_root_tsx')
     print("✓ visual_generator.py import successful")
 
@@ -165,31 +165,37 @@ def test_tool_registration():
     print("✓ Tool registration successful")
 
 
-def test_parse_critic_score():
-    """Test the critic score parsing function."""
+def test_submit_score_module():
+    """Test the submit score module for storing scores."""
     # Add path
     generator_dir = Path(__file__).parent.parent
     if str(generator_dir) not in sys.path:
         sys.path.insert(0, str(generator_dir))
 
-    from visual_generator import parse_critic_score
+    from tools.submit_score import get_last_score, clear_last_score, set_last_score
 
-    # Test valid JSON
-    response = '{"score": 85, "breakdown": {"correctness": 25}, "issues": ["test"], "suggestion": "fix it"}'
-    result = parse_critic_score(response)
+    # Test clear and get
+    clear_last_score()
+    assert get_last_score() is None
+
+    # Test set and get
+    test_score = {
+        "score": 85,
+        "visual_quality": 60,
+        "correctness": 10,
+        "completeness": 10,
+        "code_quality": 5,
+        "issues": ["test issue"],
+        "suggestion": "fix it"
+    }
+    set_last_score(test_score)
+    result = get_last_score()
     assert result["score"] == 85
+    assert result["visual_quality"] == 60
 
-    # Test JSON embedded in text
-    response = 'Here is my evaluation:\n{"score": 90, "issues": []}\nDone.'
-    result = parse_critic_score(response)
-    assert result["score"] == 90
-
-    # Test invalid response returns default
-    response = 'No JSON here'
-    result = parse_critic_score(response)
-    assert result["score"] == 0
-
-    print("✓ Critic score parsing successful")
+    # Clean up
+    clear_last_score()
+    print("✓ Submit score module successful")
 
 
 def run_all_tests():
@@ -203,7 +209,7 @@ def run_all_tests():
         test_skill_loading,
         test_agent_context_with_skills,
         test_tool_registration,
-        test_parse_critic_score,
+        test_submit_score_module,
     ]
 
     passed = 0

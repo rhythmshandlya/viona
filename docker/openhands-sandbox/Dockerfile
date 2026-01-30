@@ -47,6 +47,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Unzip/archive handling
     unzip \
     zip \
+    # Patch command for diff patching
+    patch \
     # Clean up
     && rm -rf /var/lib/apt/lists/*
 
@@ -70,38 +72,51 @@ RUN pip install --no-cache-dir \
     pytest
 
 # =============================================================================
-# PRE-BAKE REMOTION DEPENDENCIES
-# This ensures the workspace is ready immediately without network calls
+# PRE-BAKE REMOTION PROJECT
+# Install dependencies inside Docker (not from Windows node_modules)
 # =============================================================================
 
-# Create the Remotion project template with pre-installed dependencies
 WORKDIR /opt/remotion-template
 
-# Copy package.json and install dependencies during build
-COPY templates/remotion-project/package.json ./package.json
-COPY templates/remotion-project/tsconfig.json ./tsconfig.json
+# Copy only package files (not node_modules - they're platform-specific)
+COPY templates/openhands-sandbox/package.json ./
+COPY templates/openhands-sandbox/package-lock.json ./
+COPY templates/openhands-sandbox/tsconfig.json ./
 
-# Install all Remotion dependencies (this gets cached in the Docker layer)
-RUN pnpm install
+# Install dependencies inside Docker (for Linux)
+RUN npm ci
+
+# Copy source files
+COPY templates/openhands-sandbox/src/ ./src/
+COPY templates/openhands-sandbox/public/ ./public/
+COPY templates/openhands-sandbox/remotion.config.ts ./
+COPY templates/openhands-sandbox/eslint.config.mjs ./
+COPY templates/openhands-sandbox/postcss.config.mjs ./
 
 # Pre-download Remotion's chrome-headless-shell browser
-# This avoids the download at runtime
 RUN npx remotion browser ensure
 
-# Create src directory with base files
-RUN mkdir -p src public
-COPY templates/remotion-project/src/index.tsx ./src/index.tsx
-COPY templates/remotion-project/src/index.css ./src/index.css
-COPY templates/remotion-project/public/.gitkeep ./public/.gitkeep
+# Verify TypeScript compiles
+RUN npx tsc --noEmit
+
+# =============================================================================
+# PRE-WARM WEBPACK BUNDLE CACHE
+# The first Remotion render is slow because Webpack needs to bundle everything.
+# By doing a render during Docker build, we warm up the Webpack cache in
+# node_modules/.cache, which persists in the Docker image.
+# Subsequent renders (even with different compositions) are much faster.
+# =============================================================================
+RUN echo "Pre-warming Webpack bundle cache..." && \
+    npx remotion still ./src/index.ts placeholder /tmp/prewarm.png --frame=0 --log=error 2>&1 || true && \
+    rm -f /tmp/prewarm.png && \
+    echo "Webpack cache warmed"
 
 # =============================================================================
 # COPY OPENHANDS FILES
 # =============================================================================
 
-# Copy skills and templates
+# Copy skills
 COPY skills/ /opt/openhands/skills/
-COPY templates/ /opt/openhands/templates/
-COPY AGENTS.md /opt/openhands/AGENTS.md
 
 # Copy custom tools package
 COPY tools/ /opt/openhands/tools/
@@ -112,16 +127,19 @@ COPY tests/ /opt/openhands/tests/
 # Copy agent script
 COPY visual_generator.py /opt/openhands/visual_generator.py
 
-# Create entrypoint script
+# Copy entrypoint script
 COPY entrypoint.sh /opt/openhands/entrypoint.sh
 RUN chmod +x /opt/openhands/entrypoint.sh
 
-# Set working directory to workspace (will be mounted as volume)
-WORKDIR /workspace
+# Create output directory for bundle export (this is what gets mounted)
+RUN mkdir -p /output
+
+# Working directory is the internal Remotion project (NOT mounted)
+WORKDIR /opt/remotion-template
 
 # Environment variables
 ENV PYTHONPATH="/opt/openhands"
-ENV REMOTION_PROJECT_DIR=/workspace
+ENV REMOTION_PROJECT_DIR="/opt/remotion-template"
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Chrome flags for Docker environment

@@ -53,9 +53,10 @@ class TestVisualGeneratorModule:
 
         assert hasattr(visual_generator, 'emit_event')
         assert hasattr(visual_generator, 'load_skill')
-        assert hasattr(visual_generator, 'parse_critic_score')
         assert hasattr(visual_generator, 'create_generator_agent')
-        assert hasattr(visual_generator, 'create_critic_agent')
+        assert hasattr(visual_generator, 'create_visual_evaluator_agent')
+        assert hasattr(visual_generator, 'run_generator_with_self_healing')
+        assert hasattr(visual_generator, 'run_visual_evaluation')
         assert hasattr(visual_generator, 'auto_generate_root_tsx')
 
     def test_emit_event(self):
@@ -95,40 +96,12 @@ class TestVisualGeneratorModule:
         content = load_skill("/nonexistent/skill.md")
         assert content == ""
 
-    def test_parse_critic_score_valid_json(self):
-        """Test parsing valid critic JSON."""
-        from visual_generator import parse_critic_score
+    def test_run_typescript_check_import(self):
+        """Test that run_typescript_check function exists."""
+        import visual_generator
 
-        response = '{"score": 85, "breakdown": {"correctness": 20}, "issues": [], "suggestion": "Good"}'
-        result = parse_critic_score(response)
-
-        assert result["score"] == 85
-        assert result["breakdown"]["correctness"] == 20
-
-    def test_parse_critic_score_embedded_json(self):
-        """Test parsing JSON embedded in text."""
-        from visual_generator import parse_critic_score
-
-        response = '''Here is my evaluation:
-
-Based on my analysis, I give this a score of:
-
-{"score": 92, "breakdown": {"correctness": 23, "completeness": 24}, "issues": ["minor issue"], "suggestion": "Almost perfect"}
-
-That concludes my review.'''
-
-        result = parse_critic_score(response)
-        assert result["score"] == 92
-
-    def test_parse_critic_score_invalid(self):
-        """Test parsing invalid response returns default."""
-        from visual_generator import parse_critic_score
-
-        response = "This is not JSON at all, just plain text."
-        result = parse_critic_score(response)
-
-        assert result["score"] == 0
-        assert "Could not parse" in result["issues"][0]
+        assert hasattr(visual_generator, 'run_typescript_check')
+        assert callable(visual_generator.run_typescript_check)
 
 
 # =============================================================================

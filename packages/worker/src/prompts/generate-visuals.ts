@@ -70,12 +70,31 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
 You are generating animated visuals for an educational video using Remotion.
 
 ## Project Setup
-- Working directory: /workspace (Remotion project)
-- Generate components in: src/${projectId}/
-- Composition ID must be: "${projectId}"
+The workspace is a pre-configured Remotion project with all dependencies installed.
 
-## IMPORTANT: Do NOT edit src/Root.tsx
-Root.tsx is AUTO-GENERATED after you finish. Just create your components in src/${projectId}/ and the system will register them automatically.
+**File Structure:**
+\`\`\`
+/workspace/
+├── package.json          # DO NOT MODIFY
+├── tsconfig.json         # DO NOT MODIFY (has skipLibCheck: true)
+├── node_modules/         # Pre-installed, DO NOT MODIFY
+└── src/
+    ├── index.tsx         # Entry point, DO NOT MODIFY
+    ├── Root.tsx          # AUTO-GENERATED, DO NOT MODIFY
+    └── ${projectId}/     # YOUR CODE GOES HERE
+        ├── index.tsx     # Main composition (export as ${projectId})
+        ├── constants.ts  # Colors, timing constants
+        ├── metadata.json # Composition metadata
+        └── components/   # Reusable components
+\`\`\`
+
+**Your Composition ID:** "${projectId}"
+
+## IMPORTANT Rules
+1. Only write files inside \`src/${projectId}/\`
+2. Do NOT edit src/Root.tsx - it is auto-generated
+3. Do NOT modify package.json, tsconfig.json, or node_modules
+4. Export your main composition as: \`export const ${projectId}: React.FC = () => ...\`
 
 ## Video Properties
 - Duration: ${durationMs}ms (${durationInFrames} frames)
@@ -106,18 +125,27 @@ ${styleGuidelines}
 
 3. **Use Remotion best practices**:
    - useCurrentFrame() for animation timing
+   - useVideoConfig() to get fps for spring animations
    - interpolate() for smooth value transitions
-   - spring() for physics-based motion
+   - spring({ frame, fps, config: {...} }) - fps is REQUIRED
    - Sequence components for timed sections
    - AbsoluteFill for layout
 
-4. **Iterate with screenshots**:
+4. **SELF-HEALING: Validate and fix TypeScript errors**:
+   - After writing each file, run TypeScriptValidatorTool
+   - If there are ANY errors, fix them IMMEDIATELY
+   - Run TypeScriptValidatorTool again to verify the fix
+   - Repeat until ZERO errors before moving to next file
+   - CRITICAL: You MUST finish with ZERO TypeScript errors
+   - Code that doesn't compile is UNACCEPTABLE
+
+5. **Iterate with screenshots**:
    - Use: npx remotion still ./src/index.ts ${projectId} ./src/${projectId}/preview.png --frame=X
    - Capture key moments and evaluate visually
    - Refine until the visual clearly communicates the concept
    - The preview.png will be saved in your project directory for easy access
 
-5. **Create metadata.json** in src/${projectId}/ when done:
+6. **Create metadata.json** in src/${projectId}/ when done:
 \`\`\`json
 {
   "compositionId": "${projectId}",
@@ -145,20 +173,27 @@ Do NOT ask questions. Make reasonable decisions:
 
 You must complete the task without human input.
 
+## CRITICAL: Zero Error Requirement
+Before finishing, you MUST verify TypeScript compiles with ZERO errors:
+1. Run TypeScriptValidatorTool on the entire project
+2. If ANY errors exist, fix them
+3. Run TypeScriptValidatorTool again
+4. Repeat until you see "TypeScript validation passed. No errors found."
+
 ## Quality Checklist
-Before finishing, verify:
+- [ ] TypeScript compiles with ZERO errors (REQUIRED)
 - [ ] Animations are smooth, not jarring
 - [ ] Text is readable (good contrast, appropriate size)
 - [ ] Timing matches speech in transcript
 - [ ] Visual supports comprehension, not just decoration
-- [ ] Code compiles without errors
 - [ ] metadata.json is created with accurate timestamps
 
 ## Example Component Structure
 
 \`\`\`tsx
 // src/${projectId}/index.tsx
-import { AbsoluteFill, Sequence, useCurrentFrame, interpolate, spring } from 'remotion';
+import React from 'react';
+import { AbsoluteFill, Sequence } from 'remotion';
 import { COLORS, TIMING } from './constants';
 import { ProcessDiagram } from './components/ProcessDiagram';
 
@@ -169,6 +204,33 @@ export const ${projectId}: React.FC = () => {
         <ProcessDiagram steps={['Step 1', 'Step 2', 'Step 3']} />
       </Sequence>
     </AbsoluteFill>
+  );
+};
+
+// src/${projectId}/components/ProcessDiagram.tsx - Example with spring()
+import React from 'react';
+import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
+
+export const ProcessDiagram: React.FC<{ steps: string[] }> = ({ steps }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();  // REQUIRED for spring()
+
+  return (
+    <div style={{ display: 'flex', gap: 20 }}>
+      {steps.map((step, i) => {
+        // spring() REQUIRES fps parameter
+        const scale = spring({
+          frame: frame - i * 10,
+          fps,  // REQUIRED!
+          config: { damping: 10, stiffness: 100 },
+        });
+        return (
+          <div key={i} style={{ transform: \`scale(\${scale})\` }}>
+            {step}
+          </div>
+        );
+      })}
+    </div>
   );
 };
 \`\`\`

@@ -8,6 +8,7 @@ and WriteFileTool (reliable but token-heavy).
 Based on community feedback from OpenHands issues #8112 and #9920.
 """
 
+import json
 import os
 import re
 import tempfile
@@ -16,6 +17,50 @@ from pathlib import Path
 from typing import Optional
 
 from pydantic import Field
+
+
+def summarize_diff(diff: str) -> dict:
+    """Extract a concise summary of diff changes."""
+    summary = {
+        "lines_added": diff.count('\n+') - diff.count('\n+++'),
+        "lines_removed": diff.count('\n-') - diff.count('\n---'),
+    }
+
+    # Extract changed line numbers from hunks
+    hunk_pattern = re.compile(r'^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@', re.MULTILINE)
+    hunks = hunk_pattern.findall(diff)
+    if hunks:
+        summary["hunks"] = len(hunks)
+        summary["at_lines"] = [int(h[0]) for h in hunks[:3]]
+
+    # Extract specific changes (first few)
+    changes = []
+    for line in diff.split('\n'):
+        if line.startswith('+') and not line.startswith('+++'):
+            changes.append(f"+{line[1:30].strip()}...")
+        elif line.startswith('-') and not line.startswith('---'):
+            changes.append(f"-{line[1:30].strip()}...")
+        if len(changes) >= 4:
+            break
+    if changes:
+        summary["changes"] = changes
+
+    return summary
+
+
+def emit_diff_event(path: str, summary: dict, success: bool, hunks_applied: int = 0, error: str = None):
+    """Emit a concise JSON event for diff operations."""
+    event = {
+        "type": "file_operation",
+        "action": "patch",
+        "path": path,
+        "success": success,
+        "hunks_applied": hunks_applied,
+        **summary
+    }
+    if error:
+        event["error"] = error
+    print(json.dumps(event), flush=True)
 
 from openhands.sdk import (
     Action,
@@ -222,6 +267,16 @@ class DiffPatchExecutor(ToolExecutor[DiffPatchAction, DiffPatchObservation]):
             # Check for common failure patterns
             if "FAILED" in output or "rejected" in output.lower():
                 success = False
+
+            # Emit concise summary event
+            diff_summary = summarize_diff(action.diff)
+            emit_diff_event(
+                path=action.path,
+                summary=diff_summary,
+                success=success,
+                hunks_applied=hunks_applied,
+                error=None if success else "Patch failed"
+            )
 
             return DiffPatchObservation(
                 success=success,

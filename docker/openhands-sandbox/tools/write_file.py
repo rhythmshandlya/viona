@@ -5,12 +5,63 @@ Writes complete file contents to disk, replacing if exists.
 This bypasses the str_replace limitation when editing files with duplicate content.
 """
 
+import json
 import os
+import re
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Optional
 
 from pydantic import Field
+
+
+def summarize_code_content(content: str, path: str) -> dict:
+    """Extract a concise summary of code content for logging."""
+    summary = {
+        "lines": content.count('\n') + 1,
+        "bytes": len(content.encode('utf-8')),
+    }
+
+    ext = Path(path).suffix.lower()
+
+    if ext in ('.ts', '.tsx', '.js', '.jsx'):
+        # Extract imports
+        imports = re.findall(r"import\s+(?:\{([^}]+)\}|(\w+))\s+from\s+['\"]([^'\"]+)['\"]", content)
+        if imports:
+            summary["imports"] = [m[2] for m in imports[:5]]  # First 5 import sources
+
+        # Extract exports
+        exports = re.findall(r"export\s+(?:const|function|class|interface|type)\s+(\w+)", content)
+        if exports:
+            summary["exports"] = exports[:5]  # First 5 exports
+
+        # Extract component names
+        components = re.findall(r"(?:const|function)\s+(\w+).*?React\.FC|:\s*React\.FC", content)
+        if components:
+            summary["components"] = components[:3]
+
+    elif ext == '.json':
+        try:
+            data = json.loads(content)
+            summary["keys"] = list(data.keys())[:5] if isinstance(data, dict) else f"array[{len(data)}]"
+        except json.JSONDecodeError:
+            pass
+
+    return summary
+
+
+def emit_file_event(action: str, path: str, summary: dict, success: bool = True, error: str = None):
+    """Emit a concise JSON event for file operations."""
+    event = {
+        "type": "file_operation",
+        "action": action,
+        "path": path,
+        "success": success,
+        **summary
+    }
+    if error:
+        event["error"] = error
+    print(json.dumps(event), flush=True)
 
 from openhands.sdk import (
     Action,
@@ -99,6 +150,15 @@ class WriteFileExecutor(ToolExecutor[WriteFileAction, WriteFileObservation]):
             # Write content
             content_bytes = action.content.encode('utf-8')
             full_path.write_bytes(content_bytes)
+
+            # Emit concise summary event
+            summary = summarize_code_content(action.content, action.path)
+            emit_file_event(
+                action="create" if created_new else "update",
+                path=action.path,
+                summary=summary,
+                success=True
+            )
 
             return WriteFileObservation(
                 success=True,

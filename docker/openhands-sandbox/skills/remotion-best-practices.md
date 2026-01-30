@@ -1,5 +1,27 @@
 # Remotion Best Practices
 
+## CRITICAL - Common Errors to Avoid
+
+1. **spring() REQUIRES fps** - Always get fps from `useVideoConfig()`:
+   ```tsx
+   const { fps } = useVideoConfig();
+   spring({ frame, fps, config: {...} });  // fps is REQUIRED!
+   ```
+
+2. **Only import what you use** - TypeScript strict mode fails on unused imports:
+   ```tsx
+   // BAD: import { COLORS } from '../constants';  // but never use COLORS
+   // GOOD: Only import what you actually use
+   ```
+
+3. **Only export what exists in constants** - Check constants.ts before importing:
+   ```tsx
+   // If constants.ts only has: export const COLORS = { background: '...', primary: '...' }
+   // Then COLORS.accent, COLORS.secondary, etc. will cause TypeScript errors
+   ```
+
+4. **Validate TypeScript after each file** - Run TypeScriptValidatorTool frequently!
+
 ## Core Hooks
 
 ### useCurrentFrame()
@@ -44,20 +66,29 @@ const translateX = interpolate(frame, [0, 60], [-100, 0], {
 ```
 
 ### spring()
-Physics-based animations with natural feel.
+Physics-based animations with natural feel. **fps is REQUIRED!**
 
 ```tsx
-import { spring } from 'remotion';
+import { spring, useVideoConfig } from 'remotion';
 
-const scale = spring({
-  frame,
-  fps,
-  config: {
-    damping: 10,      // Lower = more bouncy
-    stiffness: 100,   // Higher = faster
-    mass: 1,          // Higher = slower
-  },
-});
+const MyComponent = () => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();  // MUST get fps from useVideoConfig!
+
+  // CORRECT: fps is required parameter
+  const scale = spring({
+    frame,
+    fps,        // REQUIRED - get from useVideoConfig()
+    config: {
+      damping: 10,      // Lower = more bouncy
+      stiffness: 100,   // Higher = faster
+      mass: 1,          // Higher = slower
+    },
+  });
+
+  // WRONG - will cause TypeScript error:
+  // const scale = spring({ frame, config: {...} });  // Missing fps!
+};
 ```
 
 ## Composition Structure
