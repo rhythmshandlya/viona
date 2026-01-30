@@ -64,6 +64,21 @@ export function DynamicVisualLoader({
       // Create a custom require function that provides React and Remotion
       const customRequire = (moduleName: string) => {
         if (moduleName === 'react') return React;
+        if (moduleName === 'react/jsx-runtime') {
+          // Provide JSX runtime for React 17+ JSX transform
+          return {
+            jsx: React.createElement,
+            jsxs: React.createElement,
+            Fragment: React.Fragment,
+          };
+        }
+        if (moduleName === 'react/jsx-dev-runtime') {
+          // Dev runtime uses same functions
+          return {
+            jsxDEV: React.createElement,
+            Fragment: React.Fragment,
+          };
+        }
         if (moduleName === 'remotion') return Remotion;
         throw new Error(`Unknown module: ${moduleName}`);
       };

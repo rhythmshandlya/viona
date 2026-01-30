@@ -160,7 +160,11 @@
       "Bash(npx esbuild:*)",
       "Bash(npx vitest:*)",
       "Bash(git remote:*)",
-      "Bash(gh repo view:*)"
+      "Bash(gh repo view:*)",
+      "Bash(source:*)",
+      "Bash(set -a)",
+      "Bash(. ./.env)",
+      "Bash(set +a)"
     ]
   }
 }

@@ -1,59 +1,118 @@
+import { buildReferenceExamplesSection } from './visual-references.js';
+
+/**
+ * Style guidelines with SPECIFIC design tokens.
+ * Each style includes exact CSS values the AI should use.
+ */
 export const STYLE_GUIDELINES: Record<string, string> = {
   minimal: `
 Style: Minimal (Clean & Professional)
+
+**COLOR PALETTE:**
+- Background: #1a1a1a (dark gray)
+- Elements: #ffffff (white)
+- Accent: #3b82f6 (blue)
+- Muted: #6b7280
+
+**DESIGN:**
 - Clean geometric shapes, generous whitespace
 - Monochrome diagrams with single accent color for highlights
 - Thin lines, subtle shadows, elegant simplicity
-- Smooth fade/slide animations, nothing flashy
 - Icons: Line-style, single weight, consistent sizing
-- Colors: #1a1a1a background, #ffffff elements, #3b82f6 accent
-- Diagram style: Clean flowcharts, simple node connections, understated
-- Animation style: Elements fade in smoothly, subtle position shifts
-- Best for: Business processes, professional workflows, corporate content`,
+
+**ANIMATION:**
+- Use spring({ damping: 20, stiffness: 60 }) - smooth, no bounce
+- Stagger elements by 20 frames
+- Fade in with interpolate over 20 frames
+- Elements fade in smoothly, subtle position shifts`,
 
   modern: `
 Style: Modern (Vibrant & Dynamic)
+
+**COLOR PALETTE:**
+- Background: #0f0f23 (deep navy/purple)
+- Primary gradient: Purple #8b5cf6 to Blue #3b82f6
+- Accent: Cyan #06b6d4
+- Success: #22c55e
+- White: #ffffff
+
+**DESIGN:**
 - Gradient-filled shapes, rounded corners on everything
 - Vibrant colors that pop, glass morphism effects
-- Smooth spring animations with slight overshoot
 - Icons: Filled style, colorful, modern flat design
-- Colors: Purple #8b5cf6 to Blue #3b82f6 gradients, Cyan #06b6d4 accents
-- Diagram style: Colorful nodes, gradient connections, depth with shadows
-- Animation style: Spring physics, elements bounce in, satisfying motion
-- Best for: Tech tutorials, SaaS explainers, startup content`,
+- Colorful nodes, gradient connections, depth with shadows
+
+**EFFECTS:**
+- Glass cards: background blur, subtle borders
+- Soft glows on key elements
+- Gradient backgrounds
+
+**ANIMATION:**
+- Use spring({ damping: 12, stiffness: 80 }) - bouncy, satisfying
+- Stagger elements by 15 frames
+- Spring physics, elements bounce in, satisfying motion`,
 
   playful: `
 Style: Playful (Fun & Energetic)
+
+**COLOR PALETTE:**
+- Background: #1a1a2e (dark purple)
+- Primary: Orange #f97316
+- Secondary: Yellow #eab308
+- Accent: Pink #ec4899
+- Success: Green #22c55e
+
+**DESIGN:**
 - Bright saturated colors, rounded bubbly shapes
-- Bouncy animations with elastic overshoot (spring: stiffness 200, damping 10)
 - Hand-drawn style elements, imperfect circles, wobbly lines
 - Icons: Emoji-style, illustrated, character-based
-- Colors: Orange #f97316, Yellow #eab308, Pink #ec4899, Green #22c55e
-- Diagram style: Cartoon-like, characters pointing at things, fun illustrations
-- Animation style: Bouncy entrances, wiggle effects, playful transitions
-- Best for: Educational content for younger audiences, lifestyle, entertainment`,
+- Cartoon-like, characters pointing at things, fun illustrations
+
+**ANIMATION:**
+- Use spring({ damping: 8, stiffness: 200 }) - very bouncy with overshoot
+- Add wiggle: rotation oscillates ±3 degrees
+- Stagger by 10 frames for rapid fire effect
+- Bouncy entrances, wiggle effects, playful transitions`,
 
   bold: `
 Style: Bold (High Contrast & Impactful)
+
+**COLOR PALETTE:**
+- Background: #000000 (pure black)
+- Primary: #ffffff (pure white)
+- Accent: #ef4444 (red) or #eab308 (yellow)
+
+**DESIGN:**
 - Maximum contrast: black/white with ONE neon accent
 - Large, chunky shapes that command attention
-- Dramatic scale animations (0 to 100% spring)
 - Icons: Solid, heavy weight, impossible to miss
-- Colors: #000000, #ffffff, accent: #ef4444 (red) or #eab308 (yellow)
-- Diagram style: Thick borders, heavy arrows, stark contrasts
-- Animation style: Dramatic reveals, scale from zero, powerful presence
-- Best for: Strong statements, key concepts, memorable moments`,
+- Thick borders, heavy arrows, stark contrasts
+
+**ANIMATION:**
+- Use spring({ damping: 15, stiffness: 150 }) - snappy, powerful
+- Scale from 0 to 1 for dramatic reveals
+- Dramatic reveals, scale from zero, powerful presence`,
 
   classic: `
 Style: Classic (Trustworthy & Educational)
+
+**COLOR PALETTE:**
+- Background: Navy #1e3a5f
+- Primary: Gold #d4af37
+- Text: Cream #f5f5dc
+- Muted: Charcoal #374151
+
+**DESIGN:**
 - Traditional diagram layouts, clean data visualization
 - Muted, professional color palette
-- Smooth, dignified animations without bounce
 - Icons: Traditional, professional, outline or subtle fill
-- Colors: Navy #1e3a5f, Gold #d4af37, Cream #f5f5dc, Charcoal #374151
-- Diagram style: Academic charts, clean axes, proper labels, traditional graphs
-- Animation style: Smooth fades, professional transitions, no gimmicks
-- Best for: Finance, science, history, academic explanations, data-heavy content`,
+- Academic charts, clean axes, proper labels, traditional graphs
+
+**ANIMATION:**
+- Use spring({ damping: 25, stiffness: 50 }) - dignified, no bounce
+- Smooth fades over 30 frames
+- Smooth fades, professional transitions, no gimmicks`
+- Understated motion, nothing flashy`,
 };
 
 interface TranscriptWord {
@@ -87,300 +146,133 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
       ? 'Top portion of split screen (video will appear below)'
       : 'Left portion of split screen (video will appear on the right)';
 
+  // Get the reference examples section
+  const referenceExamples = buildReferenceExamplesSection(projectId);
+
   return `
-You are generating animated visuals for a SHORT-FORM SOCIAL MEDIA video using Remotion.
+You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
+Your output must be VISUALLY STUNNING - polished, professional, with smooth animations and beautiful effects.
 
-## 🎬 VIDEO CONTEXT - READ THIS FIRST
+${referenceExamples}
 
-**Platform:** Instagram Reels, TikTok, YouTube Shorts
-**Format:** Talking head video with animated visual explanations
-**Purpose:** Create RICH, COMPLEX animated visuals that explain concepts visually
+## 🎯 YOUR TASK
 
-**The Setup:**
-- A person is speaking directly to camera (the "talking head")
-- Your visuals will appear ${layoutMode === 'pip' ? 'BEHIND the speaker (who appears as a small PiP overlay)' : layoutMode === 'split-horizontal' ? 'ABOVE the speaker (split screen)' : 'BESIDE the speaker (split screen)'}
-- **SUBTITLES ARE SEPARATE** - text/captions are handled elsewhere, you create VISUALS
-- The speaker explains concepts verbally - your job is to VISUALIZE those concepts
-- Think of yourself as creating animated infographics, diagrams, and illustrations
-
-**Your Goal: Complex Animated Visualizations**
-You are NOT creating text overlays or captions. You are creating:
-- Animated diagrams that build up step by step
-- Flowcharts with elements appearing in sequence
-- Data visualizations (charts, graphs) that animate in
-- Process illustrations showing how things work
-- Concept maps and relationship diagrams
-- Visual metaphors and illustrations
-- Animated icons and symbols representing ideas
-
-**Design Principles:**
-1. **VISUAL, NOT TEXTUAL** - Minimize text! Use shapes, icons, diagrams, illustrations
-2. **ANIMATE PROGRESSIVELY** - Build complexity over time, reveal piece by piece
-3. **SYNC WITH SPEECH** - When speaker mentions Step 1, show Step 1 animating in
-4. **EDUCATIONAL VALUE** - Visuals should help viewers UNDERSTAND the concept
-5. **PROFESSIONAL QUALITY** - Smooth animations, consistent style, polished look
-6. **MOBILE-OPTIMIZED** - ${width < height ? 'Vertical format - stack elements, use full height' : 'Design for mobile viewing'}
-
-**What to Create:**
-- Flowcharts that animate node by node
-- Diagrams that build up as concepts are explained
-- Charts/graphs with animated data points
-- Process visualizations (arrows, steps, cycles)
-- Comparison graphics (vs, before/after)
-- Icon-based illustrations
-- Animated infographics
-
-**What NOT to Create:**
-- Text captions or subtitles (handled separately)
-- Simple text overlays (not your job)
-- Static images (everything should animate)
-- Overly simple visuals (aim for rich, educational content)
-
-## Project Setup
-The workspace is a pre-configured Remotion project with all dependencies installed.
-
-**File Structure:**
-\`\`\`
-/workspace/
-├── package.json          # DO NOT MODIFY
-├── tsconfig.json         # DO NOT MODIFY (has skipLibCheck: true)
-├── node_modules/         # Pre-installed, DO NOT MODIFY
-└── src/
-    ├── index.tsx         # Entry point, DO NOT MODIFY
-    ├── Root.tsx          # AUTO-GENERATED, DO NOT MODIFY
-    └── ${projectId}/     # YOUR CODE GOES HERE
-        ├── index.tsx     # Main composition (export as ${projectId})
-        ├── constants.ts  # Colors, timing constants
-        ├── metadata.json # Composition metadata
-        └── components/   # Reusable components
-\`\`\`
-
-**Your Composition ID:** "${projectId}"
-
-## IMPORTANT Rules
-1. Only write files inside \`src/${projectId}/\`
-2. Do NOT edit src/Root.tsx - it is auto-generated
-3. Do NOT modify package.json, tsconfig.json, or node_modules
-4. Export your main composition as: \`export const ${projectId}: React.FC = () => ...\`
-
-## Video Properties
-- Duration: ${durationMs}ms (${durationInFrames} frames)
-- FPS: ${fps}
-- **Resolution: ${width}x${height}** (THIS IS CRITICAL - see below)
-- Layout: ${layoutContext}
-
-## ⚠️ CRITICAL: Dimension Requirements
-**Your visuals MUST be designed for ${width}x${height} pixels.**
-
-This is ${width < height ? 'a VERTICAL (portrait) format' : width > height ? 'a HORIZONTAL (landscape) format' : 'a SQUARE format'}.
-${layoutMode !== 'pip' ? `The user chose a SPLIT layout, so these dimensions are for the visuals portion only (not full screen).` : ''}
-
-**Design Rules for ${width}x${height}:**
-- Use \`useVideoConfig()\` to get width/height dynamically - NEVER hardcode dimensions
-- Font sizes should be proportional: titles ~${Math.round(height * 0.04)}px, body ~${Math.round(height * 0.025)}px
-- Margins/padding: ~${Math.round(Math.min(width, height) * 0.05)}px
-- ${width < height ? 'Stack elements VERTICALLY - this is portrait mode!' : 'Arrange elements HORIZONTALLY for landscape'}
-- Center important content - don't let it get cut off at edges
-
-**In metadata.json, you MUST use exactly:**
-\`\`\`json
-"width": ${width},
-"height": ${height}
-\`\`\`
-
-## Transcript
+**Transcript to Visualize:**
 ${transcriptText}
 
-## Style Preset: ${stylePreset}
+**Style: ${stylePreset}**
 ${styleGuidelines}
 
-## Your Task
+---
 
-1. **Analyze the transcript** for visualization opportunities:
+## 📐 Video Specifications
 
-   **PROCESSES & WORKFLOWS:**
-   - Steps being explained → Animated flowchart building node by node
-   - Sequences → Timeline with milestones appearing in order
-   - Cycles → Circular diagram with rotating/highlighting sections
-   - Cause & effect → Animated arrows showing relationships
+- **Resolution: ${width}x${height}** (${width < height ? 'VERTICAL/Portrait' : 'Horizontal'})
+- **Duration:** ${durationMs}ms (${durationInFrames} frames at ${fps} FPS)
+- **Layout:** ${layoutContext}
+- **Composition ID:** \`${projectId}\`
 
-   **DATA & COMPARISONS:**
-   - Statistics mentioned → Animated bar/line charts, pie charts
-   - Numbers → Animated counters, gauge meters, progress rings
-   - Comparisons → Side-by-side graphics, VS animations
-   - Rankings → Podium graphics, leaderboard animations
+---
 
-   **CONCEPTS & FRAMEWORKS:**
-   - Mental models → Animated diagrams (pyramids, matrices, Venn diagrams)
-   - Hierarchies → Org charts, tree structures that expand
-   - Categories → Icon grids, grouped elements
-   - Relationships → Mind maps, connection lines animating between nodes
+## 🎨 VISUAL DESIGN REQUIREMENTS
 
-   **VISUAL METAPHORS:**
-   - Abstract concepts → Illustrative animations (growth = plant growing, speed = rocket)
-   - Transformations → Before/after morphing animations
-   - Journeys → Path animations, roadmaps
+**Your Goal: Create RICH, ANIMATED visuals that EXPLAIN the concepts visually.**
 
-   **IMPORTANT:** Analyze what the speaker is EXPLAINING, then create visuals that SHOW it.
-   Don't just put text on screen - CREATE A VISUAL REPRESENTATION of the concept.
+You are creating:
+- Animated diagrams that build up step by step
+- Flowcharts with elements appearing in sequence
+- Data visualizations (charts, graphs) with animated entries
+- Process illustrations with connecting arrows
+- Concept maps and relationship diagrams
+- Icon-based illustrations with glow effects
 
-2. **Create Remotion components** in src/${projectId}/:
-   - index.tsx - Main composition with Sequences for each visual
-   - constants.ts - Colors, timing, style constants
-   - components/ - Reusable visual components
-   - Each visual should sync with transcript timestamps
+**You are NOT creating:**
+- Text captions or subtitles (handled separately)
+- Static images (everything must animate)
+- Simple text overlays
 
-3. **Use Remotion best practices**:
-   - useCurrentFrame() for animation timing
-   - useVideoConfig() to get fps AND dimensions
-   - interpolate() for smooth value transitions - ALWAYS use \`extrapolateRight: 'clamp'\`
-   - spring({ frame, fps, config: {...} }) - fps is REQUIRED, never omit it!
-   - Sequence components for timed sections
-   - AbsoluteFill for layout
-   - All animation values must be PURE FUNCTIONS of frame - no state!
+**Visual Polish Checklist:**
+- [ ] Every key element has a subtle glow (boxShadow)
+- [ ] Background uses gradient, not flat color
+- [ ] Elements stagger in with 15-20 frame delays
+- [ ] Spring animations have satisfying bounce (damping: 12)
+- [ ] Colors follow the style preset exactly
+- [ ] Typography uses the specified font families
 
-4. **⛔ FORBIDDEN PATTERNS - These will break rendering:**
-   - ❌ CSS transitions (transition: all 0.3s) - causes flickering
-   - ❌ CSS animations (@keyframes) - not frame-accurate
-   - ❌ CSS transform with transition - use Remotion's interpolate instead
-   - ❌ setTimeout/setInterval - breaks deterministic rendering
-   - ❌ useState for animation values - use useCurrentFrame instead
-   - ❌ Relative animations (previous frame + delta) - must be absolute from frame 0
+---
 
-   **WHY:** Remotion renders each frame independently. CSS animations and state
-   don't work because each frame must produce the SAME output given the SAME frame number.
-   Always calculate animation values as: \`f(frame) = value\`
+## 📁 Project Structure
 
-4. **SELF-HEALING: Validate and fix TypeScript errors**:
-   - After writing each file, run TypeScriptValidatorTool
-   - If there are ANY errors, fix them IMMEDIATELY
-   - Run TypeScriptValidatorTool again to verify the fix
-   - Repeat until ZERO errors before moving to next file
-   - CRITICAL: You MUST finish with ZERO TypeScript errors
-   - Code that doesn't compile is UNACCEPTABLE
+Write files ONLY in \`src/${projectId}/\`:
 
-5. **Iterate with screenshots**:
-   - Use: npx remotion still ./src/index.ts ${projectId} ./src/${projectId}/preview.png --frame=X
-   - Capture key moments and evaluate visually
-   - Refine until the visual clearly communicates the concept
-   - The preview.png will be saved in your project directory for easy access
+\`\`\`
+src/${projectId}/
+├── index.tsx          # Main composition (export as ${projectId})
+├── constants.ts       # COLORS, TIMING, FONTS
+├── metadata.json      # Composition metadata
+└── components/        # Reusable visual components
+\`\`\`
 
-6. **Create metadata.json** in src/${projectId}/ when done:
+**metadata.json format:**
 \`\`\`json
 {
   "compositionId": "${projectId}",
   "durationInFrames": ${durationInFrames},
   "fps": ${fps},
   "width": ${width},
-  "height": ${height},
-  "visuals": [
-    {
-      "startMs": 5000,
-      "endMs": 12000,
-      "type": "process",
-      "description": "5-step workflow diagram"
-    }
-  ]
+  "height": ${height}
 }
 \`\`\`
 
-## Decision Making
-Do NOT ask questions. Make reasonable decisions:
-- If multiple visual types fit, choose the clearest one
-- If data is ambiguous, use what's stated in transcript
-- If unsure whether to visualize, err toward visualizing
-- If something fails, try an alternative approach
+---
 
-You must complete the task without human input.
+## 🔧 TECHNICAL RULES (Follow to avoid errors)
 
-## CRITICAL: Zero Error Requirement
-Before finishing, you MUST verify TypeScript compiles with ZERO errors:
-1. Run TypeScriptValidatorTool on the entire project
-2. If ANY errors exist, fix them
-3. Run TypeScriptValidatorTool again
-4. Repeat until you see "TypeScript validation passed. No errors found."
+**Remotion Patterns:**
+- \`useCurrentFrame()\` for animation timing
+- \`useVideoConfig()\` to get fps AND dimensions - NEVER hardcode!
+- \`interpolate()\` with \`extrapolateRight: 'clamp'\`
+- \`spring({ frame, fps, config })\` - fps is REQUIRED
+- Font sizes: \`height * 0.04\` for titles, \`height * 0.025\` for body
 
-## Quality Checklist
-- [ ] TypeScript compiles with ZERO errors (REQUIRED)
-- [ ] **metadata.json has width: ${width}, height: ${height}** (REQUIRED)
-- [ ] **Design fits ${width}x${height} - no hardcoded 1920x1080!** (REQUIRED)
-- [ ] Visuals are ANIMATED (not static images) - elements build progressively
-- [ ] Animations are smooth with proper easing (use spring() or interpolate())
-- [ ] Timing syncs with transcript - visuals appear when speaker mentions concepts
-- [ ] Minimal text - diagrams and shapes convey meaning, not words
-- [ ] Visual complexity matches the concept being explained
-- [ ] Professional polish - consistent colors, aligned elements, clean design
-- [ ] Educational value - viewer learns from watching the visual
+**⛔ FORBIDDEN (Will break rendering):**
+- ❌ CSS transitions or @keyframes
+- ❌ setTimeout/setInterval
+- ❌ useState for animation values
+- ❌ Hardcoded pixel dimensions (use useVideoConfig)
 
-## Example Component Structure
+**WHY:** Remotion renders each frame independently. Animation values must be pure functions of frame number.
 
-\`\`\`tsx
-// src/${projectId}/index.tsx
-import React from 'react';
-import { AbsoluteFill, Sequence, useVideoConfig } from 'remotion';
-import { COLORS, TIMING } from './constants';
-import { ProcessDiagram } from './components/ProcessDiagram';
+---
 
-export const ${projectId}: React.FC = () => {
-  // ALWAYS use useVideoConfig() to get dimensions - NEVER hardcode!
-  const { width, height } = useVideoConfig();
+## ✅ SELF-HEALING WORKFLOW
 
-  // Calculate responsive sizes based on actual dimensions
-  const padding = Math.min(width, height) * 0.05;
-  const titleSize = height * 0.04;
+1. After writing each file, run \`TypeScriptValidatorTool\`
+2. If ANY errors, fix them IMMEDIATELY
+3. Repeat until ZERO TypeScript errors
+4. Use \`npx remotion still ./src/index.ts ${projectId} ./preview.png --frame=X\` to check visuals
+5. Refine until visuals match the reference quality
 
-  return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.background, padding }}>
-      <Sequence from={TIMING.processStart} durationInFrames={TIMING.processDuration}>
-        <ProcessDiagram steps={['Step 1', 'Step 2', 'Step 3']} />
-      </Sequence>
-    </AbsoluteFill>
-  );
-};
+---
 
-// src/${projectId}/components/ProcessDiagram.tsx - Example with responsive sizing
-import React from 'react';
-import { useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
+## 🎬 WHAT TO VISUALIZE
 
-export const ProcessDiagram: React.FC<{ steps: string[] }> = ({ steps }) => {
-  const frame = useCurrentFrame();
-  // Get BOTH fps AND dimensions from useVideoConfig()
-  const { fps, width, height } = useVideoConfig();
+Analyze the transcript for:
 
-  // Responsive layout: stack vertically for portrait, horizontally for landscape
-  const isPortrait = height > width;
-  const gap = Math.min(width, height) * 0.02;
-  const fontSize = height * 0.03;
+| Transcript Content | Visual to Create |
+|-------------------|------------------|
+| Steps/Process | Animated flowchart, nodes appear sequentially |
+| Statistics/Numbers | Animated bar chart, counters, progress rings |
+| Comparisons | Side-by-side graphics, VS animations |
+| Concepts/Frameworks | Diagrams, mind maps, Venn diagrams |
+| Hierarchies | Org charts, tree structures |
+| Relationships | Connection lines animating between nodes |
 
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: isPortrait ? 'column' : 'row',
-      gap,
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}>
-      {steps.map((step, i) => {
-        const scale = spring({
-          frame: frame - i * 10,
-          fps,  // REQUIRED!
-          config: { damping: 10, stiffness: 100 },
-        });
-        return (
-          <div key={i} style={{
-            transform: \`scale(\${scale})\`,
-            fontSize,
-          }}>
-            {step}
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-\`\`\`
+**IMPORTANT:** Don't just put text on screen. CREATE A VISUAL REPRESENTATION.
 
-Now analyze the transcript and create appropriate visuals.
+---
+
+Now analyze the transcript and create visually stunning Remotion components that match the reference example quality.
 `;
 }
 
