@@ -157,7 +157,8 @@
       "WebFetch(domain:openrouter.ai)",
       "Bash(npx remotion render:*)",
       "Bash(PGPASSWORD=reelify123 psql:*)",
-      "Bash(npx esbuild:*)"
+      "Bash(npx esbuild:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }
