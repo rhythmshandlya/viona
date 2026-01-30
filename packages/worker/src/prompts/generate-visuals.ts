@@ -1,48 +1,57 @@
 export const STYLE_GUIDELINES: Record<string, string> = {
   minimal: `
-Style: Minimal
-- Clean lines, lots of whitespace
-- Monochrome with single accent color
-- Simple geometric shapes
-- Subtle animations (fade, slide)
-- Sans-serif fonts (Inter, Helvetica)
-- Colors: #1a1a1a, #ffffff, one accent`,
+Style: Minimal (Clean & Professional)
+- Clean lines, generous whitespace
+- Monochrome with single bold accent color for emphasis
+- Simple geometric shapes, no clutter
+- Quick fade/slide animations (0.3s duration)
+- Sans-serif fonts: Inter or SF Pro (LARGE sizes for mobile!)
+- Colors: #1a1a1a background, #ffffff text, one bright accent
+- Perfect for: Business tips, productivity content, professional advice
+- Social media tip: Let the speaker be the star, visuals just highlight key points`,
 
   modern: `
-Style: Modern
-- Gradients and rounded corners
-- Vibrant colors with good contrast
-- Smooth spring animations
-- Glass morphism effects where appropriate
-- Sans-serif fonts (Inter, Poppins)
-- Colors: Use modern palette with blues, purples, teals`,
+Style: Modern (Trendy & Eye-catching)
+- Vibrant gradients and rounded corners (very TikTok/Instagram native)
+- High saturation colors that pop on mobile screens
+- Smooth spring animations with slight overshoot
+- Glass morphism / frosted glass effects for overlays
+- Sans-serif fonts: Poppins, Plus Jakarta Sans (bold weights)
+- Colors: Purple-blue gradients, cyan accents, dark backgrounds
+- Perfect for: Tech content, tutorials, explainers
+- Social media tip: Gradient backgrounds grab attention in feeds`,
 
   playful: `
-Style: Playful
-- Hand-drawn feel, slightly imperfect
-- Bright, saturated colors
-- Bouncy animations with overshoot
-- Icons and illustrations
-- Rounded, friendly fonts
-- Colors: Warm, inviting palette`,
+Style: Playful (Fun & Engaging)
+- Bright, saturated candy colors
+- Bouncy animations with elastic overshoot (spring config: stiffness 200, damping 10)
+- Rounded shapes, emoji-style icons welcome
+- Handwritten or rounded fonts (Comic Neue, Nunito)
+- Colors: Orange #f97316, Yellow #eab308, Pink #ec4899, Green #22c55e
+- Perfect for: Lifestyle, entertainment, casual education
+- Social media tip: Energy matches the fast-paced scroll, very shareable`,
 
   bold: `
-Style: Bold
-- High contrast, large text
-- Strong typography
-- Dramatic animations (scale, rotate)
-- Minimal decoration, maximum impact
-- Heavy weight fonts
-- Colors: Black, white, one bold accent`,
+Style: Bold (High Impact)
+- Maximum contrast: pure black and white with ONE accent color
+- LARGE typography that fills the frame - impossible to miss
+- Dramatic scale animations (start at 0, spring to 100%)
+- Minimal decoration, every element has purpose
+- Heavy weight fonts: Anton, Bebas Neue, Impact
+- Colors: #000000, #ffffff, one neon accent (red, yellow, or cyan)
+- Perfect for: Hot takes, controversial opinions, strong statements
+- Social media tip: This style STOPS the scroll - use for hooks`,
 
   classic: `
-Style: Classic
-- Traditional chart styles
-- Serif fonts for headings
-- Muted, professional tones
-- Subtle, refined animations
-- Clean data visualization
-- Colors: Navy, gold, cream, gray`,
+Style: Classic (Trustworthy & Educational)
+- Traditional layouts, clean data visualization
+- Serif fonts for authority (Playfair Display, Georgia)
+- Muted, professional tones that feel credible
+- Smooth, dignified animations (no bounce)
+- Chart styles: clean bars, simple line graphs
+- Colors: Navy #1e3a5f, Gold #d4af37, Cream #f5f5dc, Charcoal #374151
+- Perfect for: Finance, history, academic content, news-style
+- Social media tip: Builds trust, great for expert positioning`,
 };
 
 interface TranscriptWord {
@@ -77,7 +86,41 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
       : 'Left portion of split screen (video will appear on the right)';
 
   return `
-You are generating animated visuals for an educational video using Remotion.
+You are generating animated visuals for a SHORT-FORM SOCIAL MEDIA video using Remotion.
+
+## 🎬 VIDEO CONTEXT - READ THIS FIRST
+
+**Platform:** Instagram Reels, TikTok, YouTube Shorts
+**Format:** Talking head video with visual overlays
+**Audience:** Social media users with short attention spans (3-5 second hooks needed)
+
+**The Setup:**
+- A person is speaking directly to camera (the "talking head")
+- Your visuals will appear ${layoutMode === 'pip' ? 'BEHIND the speaker (who appears as a small PiP overlay)' : layoutMode === 'split-horizontal' ? 'ABOVE the speaker (split screen)' : 'BESIDE the speaker (split screen)'}
+- The speaker is explaining concepts - your visuals SUPPORT their message
+- Viewers are scrolling fast - visuals must grab attention INSTANTLY
+
+**Design Principles for Short-Form Content:**
+1. **BOLD & CLEAR** - Text must be readable on a phone screen (no tiny fonts!)
+2. **FAST ANIMATIONS** - Quick entrances (0.3-0.5s), don't make viewers wait
+3. **HIGH CONTRAST** - Visuals must pop against any background
+4. **COMPLEMENT, DON'T COMPETE** - Support the speaker, don't distract from them
+5. **MOBILE-FIRST** - ${width < height ? 'This is VERTICAL video - perfect for mobile!' : 'Design for thumb-stopping impact'}
+6. **HOOK EARLY** - First 3 seconds need something visually interesting
+
+**What Works on Social Media:**
+- Animated text that appears with the speaker's key points
+- Simple diagrams that build up piece by piece
+- Progress bars, counters, checkmarks for lists
+- Bold headlines that reinforce what's being said
+- Subtle motion (not static, but not overwhelming)
+
+**What to AVOID:**
+- Walls of text (max 5-7 words per text element)
+- Slow, subtle animations (they'll scroll past)
+- Complex diagrams that need time to understand
+- Anything that requires reading while listening
+- Visuals that fight for attention with the speaker
 
 ## Project Setup
 The workspace is a pre-configured Remotion project with all dependencies installed.
@@ -139,13 +182,26 @@ ${styleGuidelines}
 
 ## Your Task
 
-1. **Analyze the transcript** for visual opportunities:
-   - Processes/steps being explained → Flowcharts, timelines
-   - Data/statistics mentioned → Charts, counters, stat cards
-   - Frameworks/models described → Diagrams, matrices, pyramids
-   - Comparisons being made → Side-by-side, versus graphics
-   - Lists being enumerated → Animated bullet points, icon grids
-   - Key concepts → Text callouts, visual metaphors
+1. **Analyze the transcript** for visual opportunities (BEST for talking head videos):
+
+   **HIGH IMPACT visuals (use these!):**
+   - Key phrases/quotes → Big animated text that appears AS the speaker says it
+   - Numbers/statistics → Animated counters, bold stat cards ("3X faster!")
+   - Lists (3-5 items) → Checkmarks/bullets that appear one by one
+   - Before/After → Simple two-panel comparison
+   - Steps/Process → Numbered steps (1, 2, 3) appearing sequentially
+
+   **MEDIUM IMPACT visuals:**
+   - Frameworks → Simple diagram that builds up (max 4-5 elements)
+   - Comparisons → VS graphics, simple side-by-side
+   - Timelines → Horizontal progress with milestones
+
+   **USE SPARINGLY (can distract from speaker):**
+   - Complex flowcharts (too much to process)
+   - Detailed data visualizations (need focus to read)
+   - Anything with lots of small text
+
+   **GOLDEN RULE:** If someone can't understand the visual in 2 seconds, simplify it!
 
 2. **Create Remotion components** in src/${projectId}/:
    - index.tsx - Main composition with Sequences for each visual
@@ -214,10 +270,13 @@ Before finishing, you MUST verify TypeScript compiles with ZERO errors:
 - [ ] TypeScript compiles with ZERO errors (REQUIRED)
 - [ ] **metadata.json has width: ${width}, height: ${height}** (REQUIRED)
 - [ ] **Design fits ${width}x${height} - no hardcoded 1920x1080!** (REQUIRED)
-- [ ] Animations are smooth, not jarring
-- [ ] Text is readable (good contrast, appropriate size)
-- [ ] Timing matches speech in transcript
-- [ ] Visual supports comprehension, not just decoration
+- [ ] Animations are FAST (0.3-0.5s entrances) - no slow fades!
+- [ ] Text is LARGE and readable on mobile (min ${Math.round(height * 0.025)}px)
+- [ ] High contrast - visuals pop against any background
+- [ ] Timing syncs with speaker's words in transcript
+- [ ] First 3 seconds have something visually interesting (hook!)
+- [ ] No text element has more than 7 words
+- [ ] Visuals SUPPORT the speaker, don't compete for attention
 
 ## Example Component Structure
 

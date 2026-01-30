@@ -223,4 +223,93 @@ describe('STYLE_GUIDELINES', () => {
       expect(guideline).toContain('Style:');
     });
   });
+
+  it('includes social media tips in each style', () => {
+    Object.values(STYLE_GUIDELINES).forEach((guideline) => {
+      expect(guideline).toContain('Social media tip:');
+      expect(guideline).toContain('Perfect for:');
+    });
+  });
+});
+
+describe('short-form social media context', () => {
+  const baseOptions = {
+    transcript: [{ text: 'Test', startMs: 0, endMs: 1000 }],
+    projectId: 'test_project',
+    stylePreset: 'modern',
+    styleGuidelines: STYLE_GUIDELINES.modern,
+    durationMs: 60000,
+    fps: 30,
+    width: 1080,
+    height: 1920,
+    layoutMode: 'pip' as const,
+  };
+
+  it('mentions short-form social media platforms', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('SHORT-FORM SOCIAL MEDIA');
+    expect(prompt).toContain('Instagram Reels');
+    expect(prompt).toContain('TikTok');
+    expect(prompt).toContain('YouTube Shorts');
+  });
+
+  it('explains the talking head video format', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('Talking head');
+    expect(prompt).toContain('person is speaking directly to camera');
+  });
+
+  it('includes design principles for short-form content', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('BOLD & CLEAR');
+    expect(prompt).toContain('FAST ANIMATIONS');
+    expect(prompt).toContain('HIGH CONTRAST');
+    expect(prompt).toContain('MOBILE-FIRST');
+    expect(prompt).toContain('HOOK EARLY');
+  });
+
+  it('explains what to avoid', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('What to AVOID');
+    expect(prompt).toContain('Walls of text');
+    expect(prompt).toContain('Slow, subtle animations');
+  });
+
+  it('provides correct speaker position based on layout mode', () => {
+    const pipPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'pip' });
+    expect(pipPrompt).toContain('BEHIND the speaker (who appears as a small PiP overlay)');
+
+    const splitHPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'split-horizontal' });
+    expect(splitHPrompt).toContain('ABOVE the speaker (split screen)');
+
+    const splitVPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'split-vertical' });
+    expect(splitVPrompt).toContain('BESIDE the speaker (split screen)');
+  });
+
+  it('includes high impact visual recommendations', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('HIGH IMPACT');
+    expect(prompt).toContain('Big animated text');
+    expect(prompt).toContain('Animated counters');
+  });
+
+  it('includes the 2-second rule for simplicity', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain("can't understand the visual in 2 seconds, simplify");
+  });
+
+  it('includes social media specific quality checks', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('FAST (0.3-0.5s entrances)');
+    expect(prompt).toContain('First 3 seconds');
+    expect(prompt).toContain('No text element has more than 7 words');
+    expect(prompt).toContain("don't compete for attention");
+  });
 });
