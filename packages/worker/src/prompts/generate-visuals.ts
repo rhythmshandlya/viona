@@ -234,12 +234,14 @@ src/${projectId}/
 - \`interpolate()\` with \`extrapolateRight: 'clamp'\`
 - \`spring({ frame, fps, config })\` - fps is REQUIRED
 - Font sizes: \`height * 0.04\` for titles, \`height * 0.025\` for body
+- **ALWAYS add \`key\` prop when using .map()**: \`{items.map((item, i) => <div key={i}>...</div>)}\`
 
 **⛔ FORBIDDEN (Will break rendering):**
 - ❌ CSS transitions or @keyframes
 - ❌ setTimeout/setInterval
 - ❌ useState for animation values
 - ❌ Hardcoded pixel dimensions (use useVideoConfig)
+- ❌ Missing key props in .map() loops
 
 **WHY:** Remotion renders each frame independently. Animation values must be pure functions of frame number.
 
