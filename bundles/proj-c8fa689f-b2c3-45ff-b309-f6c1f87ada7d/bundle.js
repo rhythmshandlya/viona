@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 5430:
+/***/ 4334:
 /***/ ((__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) => {
 
 
@@ -61,7 +61,7 @@ var update = injectStylesIntoStyleTag_default()(cjs_js_src/* default */.A, optio
 
 
 
-const COLORS = {
+const ExampleTest_COLORS = {
   background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
   primary: "#e94560",
   secondary: "#0f3460",
@@ -97,7 +97,7 @@ const AnimatedTitle = ({ text }) => {
       style: {
         fontSize: 72,
         fontWeight: "bold",
-        color: COLORS.text,
+        color: ExampleTest_COLORS.text,
         textAlign: "center",
         transform: `scale(${scale})`,
         opacity,
@@ -160,7 +160,7 @@ const AnimatedProgressBar = ({
           display: "flex",
           justifyContent: "space-between",
           marginBottom: 8,
-          color: COLORS.text,
+          color: ExampleTest_COLORS.text,
           fontSize: 18
         },
         children: [
@@ -188,7 +188,7 @@ const AnimatedProgressBar = ({
             style: {
               width: `${width}%`,
               height: "100%",
-              background: `linear-gradient(90deg, ${COLORS.primary}, ${COLORS.accent})`,
+              background: `linear-gradient(90deg, ${ExampleTest_COLORS.primary}, ${ExampleTest_COLORS.accent})`,
               borderRadius: 6
             }
           }
@@ -203,7 +203,7 @@ const ExampleTest = () => {
     esm.AbsoluteFill,
     {
       style: {
-        background: COLORS.background,
+        background: ExampleTest_COLORS.background,
         fontFamily: "Inter, system-ui, sans-serif"
       },
       children: [
@@ -239,7 +239,7 @@ const ExampleTest = () => {
                       "h2",
                       {
                         style: {
-                          color: COLORS.text,
+                          color: ExampleTest_COLORS.text,
                           fontSize: 28,
                           marginBottom: 24,
                           margin: 0
@@ -256,7 +256,7 @@ const ExampleTest = () => {
                       "h2",
                       {
                         style: {
-                          color: COLORS.text,
+                          color: ExampleTest_COLORS.text,
                           fontSize: 28,
                           marginBottom: 24,
                           margin: 0
@@ -268,7 +268,7 @@ const ExampleTest = () => {
                       "ul",
                       {
                         style: {
-                          color: COLORS.text,
+                          color: ExampleTest_COLORS.text,
                           fontSize: 18,
                           lineHeight: 2,
                           paddingLeft: 20
@@ -294,206 +294,706 @@ const ExampleTest = () => {
 
 ;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/constants.ts
 
+
 const constants_COLORS = {
-  bg: "#000000",
-  white: "#FFFFFF",
-  accent: "#EF4444",
+  bg: "#0f0f23",
+  primary: "#8b5cf6",
+  // Purple
+  secondary: "#3b82f6",
+  // Blue
+  accent: "#06b6d4",
+  // Cyan
+  success: "#22c55e",
+  // Green
+  danger: "#ef4444",
   // Red
-  muted: "#444444",
-  glow: "rgba(239, 68, 68, 0.4)"
+  warning: "#f97316",
+  // Orange
+  white: "#ffffff",
+  text: "#ffffff",
+  glass: "rgba(255, 255, 255, 0.1)",
+  glassBorder: "rgba(255, 255, 255, 0.2)",
+  muted: "#888888"
 };
-const constants_TIMING = {
-  intro: { start: 0, end: 60 },
-  useCases: { start: 60, end: 270 },
-  priorityQueue: { start: 270, end: 600 },
-  complexityTrap: { start: 600, end: 1140 },
-  timingWheelIntro: { start: 1140, end: 1530 },
-  timingWheelDetail: { start: 1530, end: 1830 },
-  hierarchicalIntro: { start: 1830, end: 2100 },
-  hierarchicalMechanism: { start: 2100, end: 2460 },
-  summary: { start: 2460, end: 2700 },
-  outro: { start: 2700, end: 2967 }
+const FONT_FAMILY = "Inter, system-ui, sans-serif";
+const SPRING_CONFIG = {
+  soft: { damping: 20, stiffness: 60 },
+  bouncy: { damping: 12, stiffness: 80 },
+  stiff: { damping: 15, stiffness: 150 }
 };
-
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/useResponsive.ts
-
-
-const useResponsive = () => {
-  const { width, height } = (0,esm.useVideoConfig)();
+const TRANSCRIPT_TIMINGS = {
+  intro: { start: 0, end: 7 },
+  // 0:00 - 0:07
+  heapStart: { start: 7, end: 12 },
+  // 0:07 - 0:12
+  heapWork: { start: 12, end: 20 },
+  // 0:12 - 0:20
+  heapTrap: { start: 20, end: 28 },
+  // 0:20 - 0:28
+  heapSlow: { start: 28, end: 35 },
+  // 0:28 - 0:35
+  solution: { start: 35, end: 41 },
+  // 0:35 - 0:41
+  wheelBasic: { start: 41, end: 53 },
+  // 0:41 - 0:53
+  wheelHier: { start: 53, end: 67 },
+  // 0:53 - 1:07
+  wheelTick: { start: 67, end: 75 },
+  // 1:07 - 1:15
+  mechClock: { start: 75, end: 82 },
+  // 1:15 - 1:22
+  realWorld: { start: 82, end: 99 }
+  // 1:22 - 1:38
+};
+const constants_getResponsiveSizes = (width, height) => {
   const minDim = Math.min(width, height);
   return {
-    width,
-    height,
-    minDim,
-    padding: minDim * 0.08,
-    gap: {
-      xs: minDim * 0.01,
-      sm: minDim * 0.02,
-      md: minDim * 0.04,
-      lg: minDim * 0.06,
-      xl: minDim * 0.1
-    },
-    radius: {
-      sm: minDim * 0.01,
-      md: minDim * 0.02,
-      lg: minDim * 0.04,
-      full: minDim * 0.5
-    },
     fontSize: {
       xs: height * 0.018,
-      sm: height * 0.025,
-      md: height * 0.035,
-      lg: height * 0.05,
-      xl: height * 0.07,
-      xxl: height * 0.1
+      sm: height * 0.022,
+      md: height * 0.032,
+      lg: height * 0.045,
+      xl: height * 0.06,
+      xxl: height * 0.08
     },
-    borderWidth: Math.max(3, minDim * 8e-3),
-    glow: minDim * 0.03
+    padding: minDim * 0.05,
+    gap: minDim * 0.03,
+    borderRadius: minDim * 0.02,
+    borderWidth: Math.max(2, minDim * 3e-3),
+    iconSize: minDim * 0.08,
+    nodeSize: minDim * 0.12
   };
 };
-
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/Node.tsx
-
-
-
-
-
-const Node = ({ label, index, active }) => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { fps } = (0,esm.useVideoConfig)();
-  const r = useResponsive();
-  const delay = index * 10;
-  const show = (0,esm.spring)({
-    frame: frame - delay,
-    fps,
-    config: { damping: 12, stiffness: 120 }
-  });
-  const borderColor = active ? constants_COLORS.accent : constants_COLORS.white;
-  const shadowColor = active ? constants_COLORS.accent : constants_COLORS.white;
-  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-    "div",
-    {
-      style: {
-        width: "100%",
-        padding: `${r.gap.md}px ${r.gap.lg}px`,
-        border: `${r.borderWidth}px solid ${borderColor}`,
-        borderRadius: r.radius.md,
-        backgroundColor: active ? constants_COLORS.accent : "transparent",
-        opacity: show,
-        transform: `scale(${show})`,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: active ? `0 0 ${r.glow}px ${shadowColor}` : "none"
-      },
-      children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-        "span",
-        {
-          style: {
-            fontFamily: "Impact, sans-serif",
-            fontSize: r.fontSize.md,
-            color: active ? constants_COLORS.bg : constants_COLORS.white,
-            textTransform: "uppercase",
-            textAlign: "center",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis"
-          },
-          children: label
-        }
-      )
-    }
-  );
+const fadeInUp = (frame, startFrame, fps) => {
+  const opacity = interpolate(frame, [startFrame, startFrame + 15], [0, 1], { extrapolateRight: "clamp" });
+  const translateY = interpolate(frame, [startFrame, startFrame + 15], [20, 0], { extrapolateRight: "clamp" });
+  return { opacity, transform: `translateY(${translateY}px)` };
 };
 
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/ClockFace.tsx
+// EXTERNAL MODULE: ./node_modules/react/index.js
+var react = __webpack_require__(6540);
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneIntro.tsx
 
 
 
 
 
-const ClockFace = ({ size, highlightIndex }) => {
+const SceneIntro = () => {
   const frame = (0,esm.useCurrentFrame)();
-  const { fps } = (0,esm.useVideoConfig)();
-  const r = useResponsive();
-  const slots = Array.from({ length: 12 });
-  const radius = size / 2 - r.gap.md;
-  const fadeIn = (0,esm.spring)({
-    frame,
-    fps,
-    config: { damping: 15, stiffness: 100 }
-  });
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-    "div",
-    {
-      style: {
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        border: `${r.borderWidth}px solid ${constants_COLORS.white}`,
-        position: "relative",
-        opacity: fadeIn,
-        transform: `scale(${fadeIn})`
-      },
-      children: [
-        slots.map((_, i) => {
-          const angle = i * 360 / slots.length;
-          const isActive = highlightIndex === i;
-          const x = size / 2 + radius * Math.sin(angle * Math.PI / 180);
-          const y = size / 2 - radius * Math.cos(angle * Math.PI / 180);
-          return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "div",
+  const { width, height, fps } = (0,esm.useVideoConfig)();
+  const { iconSize, fontSize } = constants_getResponsiveSizes(width, height);
+  const tasks = (0,react.useMemo)(() => {
+    return Array.from({ length: 30 }).map((_, i) => ({
+      id: i,
+      x: (0,esm.interpolate)(Math.random(), [0, 1], [-width * 0.4, width * 0.4]),
+      // Relative to center
+      delay: Math.random() * 60,
+      color: Math.random() > 0.5 ? constants_COLORS.secondary : constants_COLORS.accent
+    }));
+  }, [width]);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center"
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      marginTop: 100,
+      width: iconSize * 3,
+      height: iconSize * 3,
+      borderRadius: "50%",
+      backgroundColor: constants_COLORS.primary,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      boxShadow: `0 0 40px ${constants_COLORS.primary}66`,
+      zIndex: 10,
+      transform: `scale(${(0,esm.spring)({ frame: frame - 10, fps, config: SPRING_CONFIG.bouncy })})`,
+      opacity: (0,esm.interpolate)(frame, [10, 20], [0, 1])
+    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontSize: fontSize.lg }, children: "\u2699\uFE0F" }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }, children: tasks.map((task) => {
+      const dropFrame = frame - task.delay;
+      if (dropFrame < 0) return null;
+      const progress = (0,esm.interpolate)(dropFrame, [0, 60], [0, 1]);
+      const y = (0,esm.interpolate)(progress, [0, 1], [-100, height / 2 - 100]);
+      const opacity = (0,esm.interpolate)(progress, [0.8, 1], [1, 0]);
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: width / 2 + task.x,
+            top: y,
+            width: iconSize * 0.6,
+            height: iconSize * 0.6,
+            backgroundColor: task.color,
+            borderRadius: 8,
+            opacity,
+            transform: `rotate(${progress * 360}deg)`
+          }
+        },
+        task.id
+      );
+    }) })
+  ] });
+};
+
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/BinaryHeap.tsx
+
+
+
+
+const BinaryHeap = ({ nodes, highlightPath = [], scale = 1 }) => {
+  const { width, height, fps } = (0,esm.useVideoConfig)();
+  const frame = (0,esm.useCurrentFrame)();
+  const { nodeSize, fontSize } = constants_getResponsiveSizes(width, height);
+  const startY = height * 0.15;
+  const levelHeight = height * 0.12;
+  const getPosition = (index) => {
+    const level = Math.floor(Math.log2(index + 1));
+    const levelStartIndex = Math.pow(2, level) - 1;
+    const positionInLevel = index - levelStartIndex;
+    const nodesInLevel = Math.pow(2, level);
+    const maxSpread = width * 0.8;
+    const spread = maxSpread / (nodesInLevel + 1);
+    const x = (width - maxSpread) / 2 + spread * (positionInLevel + 1);
+    const y = startY + level * levelHeight;
+    return { x, y };
+  };
+  const renderLines = () => {
+    return nodes.map((node, i) => {
+      if (i === 0) return null;
+      const parentIndex = Math.floor((i - 1) / 2);
+      const parent = nodes[parentIndex];
+      if (!parent && parentIndex >= nodes.length) return null;
+      const pos = getPosition(i);
+      const parentPos = getPosition(parentIndex);
+      const isPathHighlighed = highlightPath.includes(i) && highlightPath.includes(parentIndex);
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "svg",
+        {
+          style: {
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 0
+          },
+          children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "line",
             {
-              style: {
-                position: "absolute",
-                left: x,
-                top: y,
-                width: r.gap.md,
-                height: r.gap.md,
-                backgroundColor: isActive ? constants_COLORS.accent : constants_COLORS.white,
-                borderRadius: "50%",
-                transform: "translate(-50%, -50%)",
-                boxShadow: isActive ? `0 0 ${r.glow}px ${constants_COLORS.accent}` : "none",
-                border: isActive ? `2px solid ${constants_COLORS.white}` : "none"
-              }
-            },
-            i
-          );
-        }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: r.gap.sm,
-              height: r.gap.sm,
-              backgroundColor: constants_COLORS.white,
-              borderRadius: "50%",
-              transform: "translate(-50%, -50%)"
+              x1: parentPos.x,
+              y1: parentPos.y + nodeSize / 2,
+              x2: pos.x,
+              y2: pos.y - nodeSize / 2,
+              stroke: isPathHighlighed ? constants_COLORS.danger : constants_COLORS.secondary,
+              strokeWidth: isPathHighlighed ? 4 : 2,
+              strokeOpacity: 0.6
             }
+          )
+        },
+        `line-${i}`
+      );
+    });
+  };
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", width: "100%", height: "100%", transform: `scale(${scale})` }, children: [
+    renderLines(),
+    nodes.map((node, i) => {
+      const { x, y } = getPosition(i);
+      const spr = (0,esm.spring)({
+        frame: frame - i * 3,
+        // Stagger
+        fps,
+        config: SPRING_CONFIG.bouncy
+      });
+      const isHighlighted = highlightPath.includes(i) || node.highlight;
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: x - nodeSize / 2,
+            top: y - nodeSize / 2,
+            width: nodeSize,
+            height: nodeSize,
+            borderRadius: "50%",
+            backgroundColor: isHighlighted ? constants_COLORS.danger : node.color || constants_COLORS.primary,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            color: constants_COLORS.white,
+            fontWeight: "bold",
+            fontSize: fontSize.md,
+            boxShadow: `0 4px 10px ${isHighlighted ? constants_COLORS.danger : constants_COLORS.primary}66`,
+            transform: `scale(${spr})`,
+            zIndex: 1,
+            border: `2px solid ${constants_COLORS.glassBorder}`
+          },
+          children: node.value
+        },
+        node.id
+      );
+    })
+  ] });
+};
+
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/ComplexityVisual.tsx
+
+
+
+
+const O1Visual = () => {
+  const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const { fontSize } = getResponsiveSizes(width, height);
+  const scale = interpolate(frame % 60, [0, 30, 60], [1, 1.1, 1]);
+  const glow = interpolate(frame % 60, [0, 30, 60], [10, 30, 10]);
+  return /* @__PURE__ */ jsxs("div", { style: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center"
+  }, children: [
+    /* @__PURE__ */ jsx("h1", { style: {
+      fontSize: fontSize.xxl,
+      color: COLORS.success,
+      textShadow: `0 0 ${glow}px ${COLORS.success}`,
+      transform: `scale(${scale})`,
+      margin: 0
+    }, children: "O(1)" }),
+    /* @__PURE__ */ jsx("p", { style: {
+      color: COLORS.text,
+      fontSize: fontSize.md,
+      opacity: 0.8,
+      marginTop: 10
+    }, children: "Constant Time" })
+  ] });
+};
+const OLogNVisual = () => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { width, height } = (0,esm.useVideoConfig)();
+  const { fontSize } = constants_getResponsiveSizes(width, height);
+  const scale = (0,esm.interpolate)(frame % 60, [0, 30, 60], [1, 1.05, 1]);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center"
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: {
+      fontSize: fontSize.xxl,
+      color: constants_COLORS.danger,
+      transform: `scale(${scale})`,
+      margin: 0
+    }, children: "O(log n)" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: {
+      color: constants_COLORS.text,
+      fontSize: fontSize.md,
+      opacity: 0.8,
+      marginTop: 10
+    }, children: "Logarithmic (Slower)" })
+  ] });
+};
+
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneHeap.tsx
+
+
+
+
+
+
+const SceneHeap = () => {
+  const frame = (0,esm.useCurrentFrame)();
+  const initialNodes = [
+    { id: 0, value: 2 },
+    { id: 1, value: 5 },
+    { id: 2, value: 12 },
+    { id: 3, value: 7 },
+    { id: 4, value: 6 },
+    { id: 5, value: 20 },
+    { id: 6, value: 15 }
+  ];
+  let currentNodes = [...initialNodes];
+  let highlightPath = [];
+  if (frame > 90) {
+    currentNodes.push({ id: 7, value: 1, color: constants_COLORS.accent, highlight: true });
+  }
+  if (frame > 120) {
+    highlightPath = [3, 7];
+    if (frame > 140) {
+      currentNodes = [
+        { id: 0, value: 2 },
+        { id: 1, value: 5 },
+        { id: 2, value: 12 },
+        { id: 7, value: 1, color: constants_COLORS.accent, highlight: true },
+        // moved up
+        { id: 4, value: 6 },
+        { id: 5, value: 20 },
+        { id: 6, value: 15 },
+        { id: 3, value: 7 }
+        // moved down
+      ];
+      highlightPath = [1, 3];
+    }
+  }
+  if (frame > 140 && frame > 160) {
+    currentNodes = [
+      { id: 0, value: 2 },
+      { id: 7, value: 1, color: constants_COLORS.accent, highlight: true },
+      // moved up
+      { id: 2, value: 12 },
+      { id: 1, value: 5 },
+      // moved down
+      { id: 4, value: 6 },
+      { id: 5, value: 20 },
+      { id: 6, value: 15 },
+      { id: 3, value: 7 }
+    ];
+    highlightPath = [0, 1];
+  }
+  if (frame > 160 && frame > 180) {
+    currentNodes = [
+      { id: 7, value: 1, color: constants_COLORS.accent, highlight: true },
+      // ROOT
+      { id: 0, value: 2 },
+      // moved down
+      { id: 2, value: 12 },
+      { id: 1, value: 5 },
+      { id: 4, value: 6 },
+      { id: 5, value: 20 },
+      { id: 6, value: 15 },
+      { id: 3, value: 7 }
+    ];
+    highlightPath = [];
+  }
+  const scale = (0,esm.interpolate)(frame, [220, 260], [1, 0.8]);
+  const opacity = (0,esm.interpolate)(frame, [260, 280], [1, 0]);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { width: "100%", height: "100%", opacity }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { width: "100%", height: "100%", transform: `scale(${scale})` }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      BinaryHeap,
+      {
+        nodes: currentNodes.map((n) => ({ ...n, highlight: n.id === 7 && frame > 90 })),
+        highlightPath
+      }
+    ) }),
+    frame > 180 && /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      position: "absolute",
+      top: "60%",
+      left: 0,
+      width: "100%",
+      display: "flex",
+      justifyContent: "center"
+    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(OLogNVisual, {}) })
+  ] });
+};
+
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/TimingWheel.tsx
+
+
+
+
+
+const TimingWheel = ({
+  items,
+  radius = 300,
+  rotation = 0,
+  activeSlot = -1,
+  label = "Seconds",
+  isOuter = false
+}) => {
+  const { width, height } = (0,esm.useVideoConfig)();
+  const { fontSize } = constants_getResponsiveSizes(width, height);
+  const slots = 60;
+  const renderSlots = () => {
+    return Array.from({ length: slots }).map((_, i) => {
+      const angle = i * 360 / slots - 90;
+      const radians = angle * Math.PI / 180;
+      const innerR = radius - (isOuter ? 20 : 10);
+      const outerR = radius + (isOuter ? 20 : 10);
+      const x1 = Math.cos(radians) * innerR;
+      const y1 = Math.sin(radians) * innerR;
+      const x2 = Math.cos(radians) * outerR;
+      const y2 = Math.sin(radians) * outerR;
+      const isActive = i === activeSlot;
+      return /* @__PURE__ */ (0,jsx_runtime.jsxs)(react.Fragment, { children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "line",
+          {
+            x1,
+            y1,
+            x2,
+            y2,
+            stroke: isActive ? constants_COLORS.accent : constants_COLORS.glassBorder,
+            strokeWidth: isActive ? 4 : 2
           }
         ),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "div",
+        i % 5 === 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "text",
           {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: r.borderWidth,
-              height: radius * 0.8,
-              backgroundColor: constants_COLORS.accent,
-              transformOrigin: "top center",
-              transform: `translate(-50%, 0) rotate(${180 + (highlightIndex || 0) * (360 / slots.length)}deg)`,
-              boxShadow: `0 0 ${r.glow}px ${constants_COLORS.accent}`
-            }
+            x: Math.cos(radians) * (outerR + 25),
+            y: Math.sin(radians) * (outerR + 25),
+            fill: isActive ? constants_COLORS.accent : constants_COLORS.muted,
+            fontSize: fontSize.sm,
+            textAnchor: "middle",
+            alignmentBaseline: "middle",
+            style: { opacity: 0.7 },
+            children: i
           }
         )
-      ]
-    }
-  );
+      ] }, i);
+    });
+  };
+  const renderItems = () => {
+    return items.map((item) => {
+      const angle = item.slot * 360 / slots - 90;
+      const radians = angle * Math.PI / 180;
+      const itemRadius = radius - 40;
+      const x = Math.cos(radians) * itemRadius;
+      const y = Math.sin(radians) * itemRadius;
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)("g", { transform: `translate(${x}, ${y})`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "circle",
+        {
+          r: 12,
+          fill: item.color || constants_COLORS.success,
+          stroke: constants_COLORS.white,
+          strokeWidth: 2
+        }
+      ) }, item.id);
+    });
+  };
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "absolute"
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+      "svg",
+      {
+        width: radius * 2.5,
+        height: radius * 2.5,
+        viewBox: `-${radius * 1.25} -${radius * 1.25} ${radius * 2.5} ${radius * 2.5}`,
+        style: { transform: `rotate(${rotation}deg)` },
+        children: [
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "circle",
+            {
+              r: radius,
+              fill: "none",
+              stroke: constants_COLORS.secondary,
+              strokeWidth: 4,
+              opacity: 0.3
+            }
+          ),
+          renderSlots(),
+          renderItems(),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "line",
+            {
+              x1: 0,
+              y1: 0,
+              x2: 0,
+              y2: -radius,
+              stroke: constants_COLORS.accent,
+              strokeWidth: 3,
+              strokeLinecap: "round"
+            }
+          ),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { r: 8, fill: constants_COLORS.accent })
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      position: "absolute",
+      textAlign: "center",
+      paddingTop: isOuter ? 0 : 40,
+      pointerEvents: "none"
+    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h3", { style: { color: constants_COLORS.text, fontSize: fontSize.md, margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.5)" }, children: label }) })
+  ] });
+};
+
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneWheel.tsx
+
+
+
+
+
+const SceneWheel = () => {
+  const frame = (0,esm.useCurrentFrame)();
+  const wheel1Scale = (0,esm.interpolate)(frame, [0, 30], [0, 1], { extrapolateRight: "clamp" });
+  const zoomOut = (0,esm.interpolate)(frame, [120, 150], [1, 0.6], { extrapolateRight: "clamp" });
+  const baseRotation = frame * 0.5;
+  const rotation = (0,esm.interpolate)(frame, [60, 120], [0, 90]);
+  const items = [];
+  if (frame > 30) {
+    items.push({ id: 1, slot: 5, value: 5, color: constants_COLORS.accent });
+  }
+  const outerItems = [];
+  if (frame > 150) {
+    outerItems.push({ id: 2, slot: 10, value: 60, color: constants_COLORS.warning });
+  }
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    transform: `scale(${wheel1Scale})`
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+      transform: `scale(${zoomOut})`,
+      position: "relative",
+      width: "100%",
+      height: "100%",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center"
+    }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+        position: "absolute",
+        opacity: (0,esm.interpolate)(frame, [120, 140], [0, 1])
+      }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        TimingWheel,
+        {
+          radius: 550,
+          items: outerItems,
+          label: "Minutes",
+          isOuter: true,
+          activeSlot: Math.floor((frame - 200) / 10) % 60
+        }
+      ) }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        TimingWheel,
+        {
+          radius: 300,
+          rotation: baseRotation + rotation,
+          items,
+          label: "Seconds",
+          activeSlot: Math.floor((baseRotation + rotation) / 6) % 60
+        }
+      )
+    ] }),
+    frame > 40 && frame < 100 && /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+      position: "absolute",
+      top: "20%",
+      right: "10%"
+    }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("h2", { style: { color: constants_COLORS.success, fontSize: 60, margin: 0 }, children: "O(1)" }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.text, fontSize: 30, margin: 0 }, children: "Direct Access" })
+    ] })
+  ] });
+};
+
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneArchitecture.tsx
+
+
+
+
+const SceneArchitecture = () => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { width, height, fps } = (0,esm.useVideoConfig)();
+  const { fontSize } = constants_getResponsiveSizes(width, height);
+  const titleOpacity = (0,esm.interpolate)(frame, [0, 20], [0, 1]);
+  const logos = [
+    { name: "Apache Kafka", color: "#231F20", textColor: "#ffffff", delay: 20 },
+    { name: "Netty", color: "#373737", textColor: "#ffffff", delay: 40 }
+  ];
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 100
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: {
+      color: constants_COLORS.text,
+      fontSize: fontSize.xl,
+      opacity: titleOpacity
+    }, children: "Proven Architecture" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { display: "flex", gap: 60 }, children: logos.map((logo, i) => {
+      const spr = (0,esm.spring)({
+        frame: frame - logo.delay,
+        fps,
+        config: SPRING_CONFIG.bouncy
+      });
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            width: 300,
+            height: 300,
+            borderRadius: 40,
+            backgroundColor: logo.color,
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            transform: `scale(${spr})`,
+            boxShadow: `0 20px 50px ${logo.color}66`,
+            border: `2px solid ${constants_COLORS.glassBorder}`
+          },
+          children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: {
+            color: logo.textColor,
+            fontSize: fontSize.lg,
+            fontWeight: "bold",
+            textAlign: "center"
+          }, children: logo.name })
+        },
+        i
+      );
+    }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", bottom: 100 }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      opacity: (0,esm.interpolate)(frame, [60, 80], [0, 1]),
+      background: constants_COLORS.glass,
+      padding: "20px 40px",
+      borderRadius: 100,
+      border: `1px solid ${constants_COLORS.glassBorder}`
+    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: constants_COLORS.secondary, fontSize: fontSize.md }, children: "Zero Lag Throughput" }) }) })
+  ] });
+};
+
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneOutro.tsx
+
+
+
+
+const SceneOutro = () => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { width, height } = (0,esm.useVideoConfig)();
+  const { fontSize } = constants_getResponsiveSizes(width, height);
+  const opacity = (0,esm.interpolate)(frame, [0, 20], [0, 1]);
+  const scale = (0,esm.interpolate)(frame, [0, 30], [0.9, 1]);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    alignItems: "center",
+    opacity,
+    transform: `scale(${scale})`
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      width: 300,
+      height: 300,
+      borderRadius: "50%",
+      background: `linear-gradient(135deg, ${constants_COLORS.primary}, ${constants_COLORS.secondary})`,
+      marginBottom: 40
+    } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: fontSize.xl, marginBottom: 20 }, children: "Prasanna" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.accent, fontSize: fontSize.md }, children: "Zoho Technical Architect" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      marginTop: 60,
+      padding: "20px 40px",
+      background: constants_COLORS.white,
+      borderRadius: 100
+    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: constants_COLORS.bg, fontSize: fontSize.md, fontWeight: "bold" }, children: "Follow for more" }) })
+  ] });
 };
 
 ;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/index.tsx
@@ -504,241 +1004,46 @@ const ClockFace = ({ size, highlightIndex }) => {
 
 
 
-const BigTitle = ({ text }) => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { fps } = (0,esm.useVideoConfig)();
-  const r = useResponsive();
-  const scale = (0,esm.spring)({
-    frame,
-    fps,
-    config: { damping: 12, stiffness: 150 }
-  });
-  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-    "h1",
-    {
-      style: {
-        fontFamily: "Impact, sans-serif",
-        fontSize: r.fontSize.xl,
-        color: constants_COLORS.white,
-        textTransform: "uppercase",
-        textAlign: "center",
-        margin: 0,
-        transform: `scale(${scale})`,
-        lineHeight: 1,
-        maxWidth: "90%"
-      },
-      children: text
-    }
-  );
-};
-const AccentBox = ({ text, subtext }) => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { fps } = (0,esm.useVideoConfig)();
-  const r = useResponsive();
-  const widthScale = (0,esm.spring)({
-    frame,
-    fps,
-    config: { damping: 15, stiffness: 100 }
-  });
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-    "div",
-    {
-      style: {
-        backgroundColor: constants_COLORS.accent,
-        padding: r.gap.md,
-        width: `${90 * widthScale}%`,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        boxShadow: `0 0 ${r.glow}px ${constants_COLORS.accent}`
-      },
-      children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "span",
-          {
-            style: {
-              fontFamily: "Impact, sans-serif",
-              fontSize: r.fontSize.lg,
-              color: constants_COLORS.bg,
-              textTransform: "uppercase"
-            },
-            children: text
-          }
-        ),
-        subtext && /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "span",
-          {
-            style: {
-              fontFamily: "system-ui, sans-serif",
-              fontSize: r.fontSize.sm,
-              color: constants_COLORS.bg,
-              fontWeight: 700
-            },
-            children: subtext
-          }
-        )
-      ]
-    }
-  );
-};
+
+
 const ProjC8fa689fB2c345ffB309F6c1f87ada7d = () => {
-  const frame = (0,esm.useCurrentFrame)();
-  (0,esm.useVideoConfig)();
-  const r = useResponsive();
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { backgroundColor: constants_COLORS.bg, color: constants_COLORS.white }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.intro.start, durationInFrames: constants_TIMING.intro.end - constants_TIMING.intro.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.xl
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(BigTitle, { text: "SYSTEM DESIGN" }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(AccentBox, { text: "CHALLENGE" })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.useCases.start, durationInFrames: constants_TIMING.useCases.end - constants_TIMING.useCases.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.lg,
-      padding: r.padding
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(BigTitle, { text: "THE SCHEDULER" }),
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { width: "100%", display: "flex", flexDirection: "column", gap: r.gap.md }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(Node, { label: "MILLIONS OF TASKS", index: 0 }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(Node, { label: "DELAYED EXECUTION", index: 1 }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(Node, { label: "RETRY LOGIC", index: 2 })
-      ] })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.priorityQueue.start, durationInFrames: constants_TIMING.priorityQueue.end - constants_TIMING.priorityQueue.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.lg,
-      padding: r.padding
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(BigTitle, { text: "PRIORITY QUEUE" }),
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { border: `${r.borderWidth}px solid ${constants_COLORS.white}`, padding: r.gap.md, position: "relative" }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(Node, { label: "BINARY HEAP", index: 0, active: true }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { textAlign: "center", marginTop: r.gap.sm, fontFamily: "monospace", fontSize: r.fontSize.sm }, children: "O(log N)" })
-      ] }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { fontFamily: "Impact, sans-serif", fontSize: r.fontSize.md, color: constants_COLORS.accent, textAlign: "center" }, children: "AUTO-SORTING TRAP" })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.complexityTrap.start, durationInFrames: constants_TIMING.complexityTrap.end - constants_TIMING.complexityTrap.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.lg,
-      padding: r.padding
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(BigTitle, { text: "THE OVERHEAD" }),
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontSize: r.fontSize.xl, fontWeight: "bold", color: constants_COLORS.accent }, children: "10,000,000" }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontSize: r.fontSize.md }, children: "CONNECTIONS" })
-      ] }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(AccentBox, { text: "BOTTLENECK", subtext: "Rebalancing the tree too much" })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.timingWheelIntro.start, durationInFrames: constants_TIMING.timingWheelIntro.end - constants_TIMING.timingWheelIntro.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.lg
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { transform: "rotate(-5deg)" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(BigTitle, { text: "CONSTANT TIME" }) }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { transform: "rotate(5deg)" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(AccentBox, { text: "TIMING WHEEL", subtext: "O(1) Scheduling" }) })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.timingWheelDetail.start, durationInFrames: constants_TIMING.timingWheelDetail.end - constants_TIMING.timingWheelDetail.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.lg
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(ClockFace, { size: r.minDim * 0.6, highlightIndex: Math.floor(frame / 2) % 12 }),
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", gap: r.gap.sm }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { border: `${r.borderWidth}px solid ${constants_COLORS.accent}`, padding: r.gap.sm, fontFamily: "Impact" }, children: "5S BUCKET" }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { border: `${r.borderWidth}px solid ${constants_COLORS.white}`, padding: r.gap.sm, fontFamily: "Impact" }, children: "NO SORTING" })
-      ] })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.hierarchicalIntro.start, durationInFrames: constants_TIMING.hierarchicalIntro.end - constants_TIMING.hierarchicalIntro.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.xl
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(BigTitle, { text: "THE GENIUS" }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(AccentBox, { text: "HIERARCHY", subtext: "Multiple Wheels" })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.hierarchicalMechanism.start, durationInFrames: constants_TIMING.hierarchicalMechanism.end - constants_TIMING.hierarchicalMechanism.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.lg
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: r.gap.md }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(ClockFace, { size: r.minDim * 0.4, highlightIndex: Math.floor(frame / 10) % 12 }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontSize: r.fontSize.lg }, children: "\u2192" }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(ClockFace, { size: r.minDim * 0.3, highlightIndex: Math.floor(frame / 2) % 12 })
-      ] }),
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { textAlign: "center" }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontFamily: "Impact", fontSize: r.fontSize.md }, children: "CASCADE DOWN" }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { color: constants_COLORS.accent, fontSize: r.fontSize.sm }, children: "MINUTE \u2192 SECOND" })
-      ] })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.summary.start, durationInFrames: constants_TIMING.summary.end - constants_TIMING.summary.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.lg,
-      padding: r.padding
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(BigTitle, { text: "USED BY GIANTS" }),
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", flexDirection: "column", gap: r.gap.sm, width: "100%" }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(Node, { label: "APACHE KAFKA", index: 0, active: true }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(Node, { label: "NETTY", index: 1, active: true })
-      ] })
-    ] }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: constants_TIMING.outro.start, durationInFrames: constants_TIMING.outro.end - constants_TIMING.outro.start, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: r.gap.xl
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(AccentBox, { text: "FOLLOW", subtext: "FOR REAL ENGINEERING" }),
-      /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { textAlign: "center" }, children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontSize: r.fontSize.md, fontFamily: "Impact" }, children: "PRASANNA" }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontSize: r.fontSize.sm }, children: "ZOHO ENGINEER" })
-      ] })
-    ] }) })
+  const { fps, height } = (0,esm.useVideoConfig)();
+  const INTRO_DURATION = 7 * fps;
+  const HEAP_DURATION = 28 * fps;
+  const WHEEL_DURATION = 47 * fps;
+  const ARCH_DURATION = 8 * fps;
+  const minFont = height * 0.022;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { backgroundColor: constants_COLORS.bg }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.Sequence, { from: 0, durationInFrames: INTRO_DURATION, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneIntro, {}),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+        position: "absolute",
+        top: height * 0.08,
+        width: "100%",
+        textAlign: "center"
+      }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "System Design Challenge" }) }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+        position: "absolute",
+        bottom: height * 0.06,
+        width: "100%",
+        textAlign: "center"
+      }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.text, fontSize: minFont }, children: "Task Scheduler" }) })
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.Sequence, { from: INTRO_DURATION, durationInFrames: HEAP_DURATION, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneHeap, {}),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Priority Queue (Binary Heap)" }) }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", bottom: height * 0.06, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.text, fontSize: minFont }, children: "O(log n) Insertion" }) })
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.Sequence, { from: INTRO_DURATION + HEAP_DURATION, durationInFrames: WHEEL_DURATION, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneWheel, {}),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Hierarchical Timing Wheel" }) }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", bottom: height * 0.06, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.text, fontSize: minFont }, children: "O(1) Constant Time" }) })
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.Sequence, { from: INTRO_DURATION + HEAP_DURATION + WHEEL_DURATION, durationInFrames: ARCH_DURATION, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneArchitecture, {}),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Real World Usage" }) })
+    ] }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: INTRO_DURATION + HEAP_DURATION + WHEEL_DURATION + ARCH_DURATION, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneOutro, {}) })
   ] });
 };
 
@@ -964,7 +1269,7 @@ if (typeof globalThis === 'undefined') {
 
 var ___CSS_LOADER_EXPORT___ = _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_1___default()((_node_modules_css_loader_dist_runtime_cssWithMappingToString_js__WEBPACK_IMPORTED_MODULE_0___default()));
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, "/*! tailwindcss v4.1.1 | MIT License | https://tailwindcss.com */\n@layer theme, base, components, utilities;\n@supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {\n  @layer base {\n    *, ::before, ::after, ::backdrop {\n      --tw-rotate-x: rotateX(0);\n      --tw-rotate-y: rotateY(0);\n      --tw-rotate-z: rotateZ(0);\n      --tw-skew-x: skewX(0);\n      --tw-skew-y: skewY(0);\n      --tw-border-style: solid;\n    }\n  }\n}\n@layer theme {\n  :root, :host {\n    --font-sans: ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\",\n      \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\";\n    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,\n      \"Liberation Mono\", \"Courier New\", monospace;\n    --default-transition-duration: 150ms;\n    --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n    --default-font-family: var(--font-sans);\n    --default-font-feature-settings: var(--font-sans--font-feature-settings);\n    --default-font-variation-settings: var(\n      --font-sans--font-variation-settings\n    );\n    --default-mono-font-family: var(--font-mono);\n    --default-mono-font-feature-settings: var(\n      --font-mono--font-feature-settings\n    );\n    --default-mono-font-variation-settings: var(\n      --font-mono--font-variation-settings\n    );\n  }\n}\n@layer base {\n  *, ::after, ::before, ::backdrop, ::file-selector-button {\n    box-sizing: border-box;\n    margin: 0;\n    padding: 0;\n    border: 0 solid;\n  }\n  html, :host {\n    line-height: 1.5;\n    -webkit-text-size-adjust: 100%;\n    tab-size: 4;\n    font-family: var( --default-font-family, ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\" );\n    font-feature-settings: var(--default-font-feature-settings, normal);\n    font-variation-settings: var( --default-font-variation-settings, normal );\n    -webkit-tap-highlight-color: transparent;\n  }\n  body {\n    line-height: inherit;\n  }\n  hr {\n    height: 0;\n    color: inherit;\n    border-top-width: 1px;\n  }\n  abbr:where([title]) {\n    -webkit-text-decoration: underline dotted;\n    text-decoration: underline dotted;\n  }\n  h1, h2, h3, h4, h5, h6 {\n    font-size: inherit;\n    font-weight: inherit;\n  }\n  a {\n    color: inherit;\n    -webkit-text-decoration: inherit;\n    text-decoration: inherit;\n  }\n  b, strong {\n    font-weight: bolder;\n  }\n  code, kbd, samp, pre {\n    font-family: var( --default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace );\n    font-feature-settings: var( --default-mono-font-feature-settings, normal );\n    font-variation-settings: var( --default-mono-font-variation-settings, normal );\n    font-size: 1em;\n  }\n  small {\n    font-size: 80%;\n  }\n  sub, sup {\n    font-size: 75%;\n    line-height: 0;\n    position: relative;\n    vertical-align: baseline;\n  }\n  sub {\n    bottom: -0.25em;\n  }\n  sup {\n    top: -0.5em;\n  }\n  table {\n    text-indent: 0;\n    border-color: inherit;\n    border-collapse: collapse;\n  }\n  :-moz-focusring {\n    outline: auto;\n  }\n  progress {\n    vertical-align: baseline;\n  }\n  summary {\n    display: list-item;\n  }\n  ol, ul, menu {\n    list-style: none;\n  }\n  img, svg, video, canvas, audio, iframe, embed, object {\n    display: block;\n    vertical-align: middle;\n  }\n  img, video {\n    max-width: 100%;\n    height: auto;\n  }\n  button, input, select, optgroup, textarea, ::file-selector-button {\n    font: inherit;\n    font-feature-settings: inherit;\n    font-variation-settings: inherit;\n    letter-spacing: inherit;\n    color: inherit;\n    border-radius: 0;\n    background-color: transparent;\n    opacity: 1;\n  }\n  :where(select:is([multiple], [size])) optgroup {\n    font-weight: bolder;\n  }\n  :where(select:is([multiple], [size])) optgroup option {\n    padding-inline-start: 20px;\n  }\n  ::file-selector-button {\n    margin-inline-end: 4px;\n  }\n  ::placeholder {\n    opacity: 1;\n    color: color-mix(in oklab, currentColor 50%, transparent);\n  }\n  textarea {\n    resize: vertical;\n  }\n  ::-webkit-search-decoration {\n    -webkit-appearance: none;\n  }\n  ::-webkit-date-and-time-value {\n    min-height: 1lh;\n    text-align: inherit;\n  }\n  ::-webkit-datetime-edit {\n    display: inline-flex;\n  }\n  ::-webkit-datetime-edit-fields-wrapper {\n    padding: 0;\n  }\n  ::-webkit-datetime-edit, ::-webkit-datetime-edit-year-field, ::-webkit-datetime-edit-month-field, ::-webkit-datetime-edit-day-field, ::-webkit-datetime-edit-hour-field, ::-webkit-datetime-edit-minute-field, ::-webkit-datetime-edit-second-field, ::-webkit-datetime-edit-millisecond-field, ::-webkit-datetime-edit-meridiem-field {\n    padding-block: 0;\n  }\n  :-moz-ui-invalid {\n    box-shadow: none;\n  }\n  button, input:where([type=\"button\"], [type=\"reset\"], [type=\"submit\"]), ::file-selector-button {\n    appearance: button;\n  }\n  ::-webkit-inner-spin-button, ::-webkit-outer-spin-button {\n    height: auto;\n  }\n  [hidden]:where(:not([hidden=\"until-found\"])) {\n    display: none !important;\n  }\n}\n@layer utilities {\n  .absolute {\n    position: absolute;\n  }\n  .relative {\n    position: relative;\n  }\n  .container {\n    width: 100%;\n    @media (width >= 40rem) {\n      max-width: 40rem;\n    }\n    @media (width >= 48rem) {\n      max-width: 48rem;\n    }\n    @media (width >= 64rem) {\n      max-width: 64rem;\n    }\n    @media (width >= 80rem) {\n      max-width: 80rem;\n    }\n    @media (width >= 96rem) {\n      max-width: 96rem;\n    }\n  }\n  .flex {\n    display: flex;\n  }\n  .hidden {\n    display: none;\n  }\n  .inline {\n    display: inline;\n  }\n  .inline-block {\n    display: inline-block;\n  }\n  .transform {\n    transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);\n  }\n  .border {\n    border-style: var(--tw-border-style);\n    border-width: 1px;\n  }\n  .uppercase {\n    text-transform: uppercase;\n  }\n  .italic {\n    font-style: italic;\n  }\n  .transition {\n    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter;\n    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));\n    transition-duration: var(--tw-duration, var(--default-transition-duration));\n  }\n}\n@property --tw-rotate-x {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateX(0);\n}\n@property --tw-rotate-y {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateY(0);\n}\n@property --tw-rotate-z {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateZ(0);\n}\n@property --tw-skew-x {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: skewX(0);\n}\n@property --tw-skew-y {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: skewY(0);\n}\n@property --tw-border-style {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: solid;\n}\n", "",{"version":3,"sources":["webpack://./src/index.css"],"names":[],"mappings":"AAAA,gEACA;AADA,yCACA;AADA;EAAA;IAAA;MAAA,yBACA;MADA,yBACA;MADA,yBACA;MADA,qBACA;MADA,qBACA;MADA,wBACA;IAAA;EAAA;AAAA;AADA;EAAA;IAAA;6DACA;IADA;iDACA;IADA,oCACA;IADA,kEACA;IADA,uCACA;IADA,wEACA;IADA;;KACA;IADA,4CACA;IADA;;KACA;IADA;;KACA;EAAA;AAAA;AADA;EAAA;IAAA,sBACA;IADA,SACA;IADA,UACA;IADA,eACA;EAAA;EADA;IAAA,gBACA;IADA,8BACA;IADA,WACA;IADA,6JACA;IADA,mEACA;IADA,yEACA;IADA,wCACA;EAAA;EADA;IAAA,oBACA;EAAA;EADA;IAAA,SACA;IADA,cACA;IADA,qBACA;EAAA;EADA;IAAA,yCACA;IADA,iCACA;EAAA;EADA;IAAA,kBACA;IADA,oBACA;EAAA;EADA;IAAA,cACA;IADA,gCACA;IADA,wBACA;EAAA;EADA;IAAA,mBACA;EAAA;EADA;IAAA,kJACA;IADA,0EACA;IADA,8EACA;IADA,cACA;EAAA;EADA;IAAA,cACA;EAAA;EADA;IAAA,cACA;IADA,cACA;IADA,kBACA;IADA,wBACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,WACA;EAAA;EADA;IAAA,cACA;IADA,qBACA;IADA,yBACA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,wBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,cACA;IADA,sBACA;EAAA;EADA;IAAA,eACA;IADA,YACA;EAAA;EADA;IAAA,aACA;IADA,8BACA;IADA,gCACA;IADA,uBACA;IADA,cACA;IADA,gBACA;IADA,6BACA;IADA,UACA;EAAA;EADA;IAAA,mBACA;EAAA;EADA;IAAA,0BACA;EAAA;EADA;IAAA,sBACA;EAAA;EADA;IAAA,UACA;IADA,yDACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,wBACA;EAAA;EADA;IAAA,eACA;IADA,mBACA;EAAA;EADA;IAAA,oBACA;EAAA;EADA;IAAA,UACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,YACA;EAAA;EADA;IAAA,wBACA;EAAA;AAAA;AADA;EAAA;IAAA,kBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,WACA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,qBACA;EAAA;EADA;IAAA,qGACA;EAAA;EADA;IAAA,oCACA;IADA,iBACA;EAAA;EADA;IAAA,yBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,mRACA;IADA,qFACA;IADA,2EACA;EAAA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,uBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,uBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,oBACA;AAAA","sourcesContent":["@import \"tailwindcss\";\n"],"sourceRoot":""}]);
+___CSS_LOADER_EXPORT___.push([module.id, "/*! tailwindcss v4.1.1 | MIT License | https://tailwindcss.com */\n@layer theme, base, components, utilities;\n@supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {\n  @layer base {\n    *, ::before, ::after, ::backdrop {\n      --tw-rotate-x: rotateX(0);\n      --tw-rotate-y: rotateY(0);\n      --tw-rotate-z: rotateZ(0);\n      --tw-skew-x: skewX(0);\n      --tw-skew-y: skewY(0);\n      --tw-border-style: solid;\n    }\n  }\n}\n@layer theme {\n  :root, :host {\n    --font-sans: ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\",\n      \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\";\n    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,\n      \"Liberation Mono\", \"Courier New\", monospace;\n    --default-transition-duration: 150ms;\n    --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n    --default-font-family: var(--font-sans);\n    --default-font-feature-settings: var(--font-sans--font-feature-settings);\n    --default-font-variation-settings: var(\n      --font-sans--font-variation-settings\n    );\n    --default-mono-font-family: var(--font-mono);\n    --default-mono-font-feature-settings: var(\n      --font-mono--font-feature-settings\n    );\n    --default-mono-font-variation-settings: var(\n      --font-mono--font-variation-settings\n    );\n  }\n}\n@layer base {\n  *, ::after, ::before, ::backdrop, ::file-selector-button {\n    box-sizing: border-box;\n    margin: 0;\n    padding: 0;\n    border: 0 solid;\n  }\n  html, :host {\n    line-height: 1.5;\n    -webkit-text-size-adjust: 100%;\n    tab-size: 4;\n    font-family: var( --default-font-family, ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\" );\n    font-feature-settings: var(--default-font-feature-settings, normal);\n    font-variation-settings: var( --default-font-variation-settings, normal );\n    -webkit-tap-highlight-color: transparent;\n  }\n  body {\n    line-height: inherit;\n  }\n  hr {\n    height: 0;\n    color: inherit;\n    border-top-width: 1px;\n  }\n  abbr:where([title]) {\n    -webkit-text-decoration: underline dotted;\n    text-decoration: underline dotted;\n  }\n  h1, h2, h3, h4, h5, h6 {\n    font-size: inherit;\n    font-weight: inherit;\n  }\n  a {\n    color: inherit;\n    -webkit-text-decoration: inherit;\n    text-decoration: inherit;\n  }\n  b, strong {\n    font-weight: bolder;\n  }\n  code, kbd, samp, pre {\n    font-family: var( --default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace );\n    font-feature-settings: var( --default-mono-font-feature-settings, normal );\n    font-variation-settings: var( --default-mono-font-variation-settings, normal );\n    font-size: 1em;\n  }\n  small {\n    font-size: 80%;\n  }\n  sub, sup {\n    font-size: 75%;\n    line-height: 0;\n    position: relative;\n    vertical-align: baseline;\n  }\n  sub {\n    bottom: -0.25em;\n  }\n  sup {\n    top: -0.5em;\n  }\n  table {\n    text-indent: 0;\n    border-color: inherit;\n    border-collapse: collapse;\n  }\n  :-moz-focusring {\n    outline: auto;\n  }\n  progress {\n    vertical-align: baseline;\n  }\n  summary {\n    display: list-item;\n  }\n  ol, ul, menu {\n    list-style: none;\n  }\n  img, svg, video, canvas, audio, iframe, embed, object {\n    display: block;\n    vertical-align: middle;\n  }\n  img, video {\n    max-width: 100%;\n    height: auto;\n  }\n  button, input, select, optgroup, textarea, ::file-selector-button {\n    font: inherit;\n    font-feature-settings: inherit;\n    font-variation-settings: inherit;\n    letter-spacing: inherit;\n    color: inherit;\n    border-radius: 0;\n    background-color: transparent;\n    opacity: 1;\n  }\n  :where(select:is([multiple], [size])) optgroup {\n    font-weight: bolder;\n  }\n  :where(select:is([multiple], [size])) optgroup option {\n    padding-inline-start: 20px;\n  }\n  ::file-selector-button {\n    margin-inline-end: 4px;\n  }\n  ::placeholder {\n    opacity: 1;\n    color: color-mix(in oklab, currentColor 50%, transparent);\n  }\n  textarea {\n    resize: vertical;\n  }\n  ::-webkit-search-decoration {\n    -webkit-appearance: none;\n  }\n  ::-webkit-date-and-time-value {\n    min-height: 1lh;\n    text-align: inherit;\n  }\n  ::-webkit-datetime-edit {\n    display: inline-flex;\n  }\n  ::-webkit-datetime-edit-fields-wrapper {\n    padding: 0;\n  }\n  ::-webkit-datetime-edit, ::-webkit-datetime-edit-year-field, ::-webkit-datetime-edit-month-field, ::-webkit-datetime-edit-day-field, ::-webkit-datetime-edit-hour-field, ::-webkit-datetime-edit-minute-field, ::-webkit-datetime-edit-second-field, ::-webkit-datetime-edit-millisecond-field, ::-webkit-datetime-edit-meridiem-field {\n    padding-block: 0;\n  }\n  :-moz-ui-invalid {\n    box-shadow: none;\n  }\n  button, input:where([type=\"button\"], [type=\"reset\"], [type=\"submit\"]), ::file-selector-button {\n    appearance: button;\n  }\n  ::-webkit-inner-spin-button, ::-webkit-outer-spin-button {\n    height: auto;\n  }\n  [hidden]:where(:not([hidden=\"until-found\"])) {\n    display: none !important;\n  }\n}\n@layer utilities {\n  .absolute {\n    position: absolute;\n  }\n  .fixed {\n    position: fixed;\n  }\n  .relative {\n    position: relative;\n  }\n  .static {\n    position: static;\n  }\n  .container {\n    width: 100%;\n    @media (width >= 40rem) {\n      max-width: 40rem;\n    }\n    @media (width >= 48rem) {\n      max-width: 48rem;\n    }\n    @media (width >= 64rem) {\n      max-width: 64rem;\n    }\n    @media (width >= 80rem) {\n      max-width: 80rem;\n    }\n    @media (width >= 96rem) {\n      max-width: 96rem;\n    }\n  }\n  .flex {\n    display: flex;\n  }\n  .hidden {\n    display: none;\n  }\n  .inline {\n    display: inline;\n  }\n  .inline-block {\n    display: inline-block;\n  }\n  .transform {\n    transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);\n  }\n  .border {\n    border-style: var(--tw-border-style);\n    border-width: 1px;\n  }\n  .italic {\n    font-style: italic;\n  }\n  .transition {\n    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter;\n    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));\n    transition-duration: var(--tw-duration, var(--default-transition-duration));\n  }\n}\n@property --tw-rotate-x {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateX(0);\n}\n@property --tw-rotate-y {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateY(0);\n}\n@property --tw-rotate-z {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateZ(0);\n}\n@property --tw-skew-x {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: skewX(0);\n}\n@property --tw-skew-y {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: skewY(0);\n}\n@property --tw-border-style {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: solid;\n}\n", "",{"version":3,"sources":["webpack://./src/index.css"],"names":[],"mappings":"AAAA,gEACA;AADA,yCACA;AADA;EAAA;IAAA;MAAA,yBACA;MADA,yBACA;MADA,yBACA;MADA,qBACA;MADA,qBACA;MADA,wBACA;IAAA;EAAA;AAAA;AADA;EAAA;IAAA;6DACA;IADA;iDACA;IADA,oCACA;IADA,kEACA;IADA,uCACA;IADA,wEACA;IADA;;KACA;IADA,4CACA;IADA;;KACA;IADA;;KACA;EAAA;AAAA;AADA;EAAA;IAAA,sBACA;IADA,SACA;IADA,UACA;IADA,eACA;EAAA;EADA;IAAA,gBACA;IADA,8BACA;IADA,WACA;IADA,6JACA;IADA,mEACA;IADA,yEACA;IADA,wCACA;EAAA;EADA;IAAA,oBACA;EAAA;EADA;IAAA,SACA;IADA,cACA;IADA,qBACA;EAAA;EADA;IAAA,yCACA;IADA,iCACA;EAAA;EADA;IAAA,kBACA;IADA,oBACA;EAAA;EADA;IAAA,cACA;IADA,gCACA;IADA,wBACA;EAAA;EADA;IAAA,mBACA;EAAA;EADA;IAAA,kJACA;IADA,0EACA;IADA,8EACA;IADA,cACA;EAAA;EADA;IAAA,cACA;EAAA;EADA;IAAA,cACA;IADA,cACA;IADA,kBACA;IADA,wBACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,WACA;EAAA;EADA;IAAA,cACA;IADA,qBACA;IADA,yBACA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,wBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,cACA;IADA,sBACA;EAAA;EADA;IAAA,eACA;IADA,YACA;EAAA;EADA;IAAA,aACA;IADA,8BACA;IADA,gCACA;IADA,uBACA;IADA,cACA;IADA,gBACA;IADA,6BACA;IADA,UACA;EAAA;EADA;IAAA,mBACA;EAAA;EADA;IAAA,0BACA;EAAA;EADA;IAAA,sBACA;EAAA;EADA;IAAA,UACA;IADA,yDACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,wBACA;EAAA;EADA;IAAA,eACA;IADA,mBACA;EAAA;EADA;IAAA,oBACA;EAAA;EADA;IAAA,UACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,YACA;EAAA;EADA;IAAA,wBACA;EAAA;AAAA;AADA;EAAA;IAAA,kBACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,WACA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,qBACA;EAAA;EADA;IAAA,qGACA;EAAA;EADA;IAAA,oCACA;IADA,iBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,mRACA;IADA,qFACA;IADA,2EACA;EAAA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,uBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,uBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,oBACA;AAAA","sourcesContent":["@import \"tailwindcss\";\n"],"sourceRoot":""}]);
 // Exports
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
 
@@ -28514,7 +28819,7 @@ var NoReactInternals = {
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
-/******/ 	__webpack_require__(5430);
+/******/ 	__webpack_require__(4334);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	

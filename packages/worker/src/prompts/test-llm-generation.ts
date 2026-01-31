@@ -1,6 +1,10 @@
 /**
  * Test script to send the visual generation prompt directly to OpenRouter/Gemini
- * Run with: npx tsx src/prompts/test-llm-generation.ts
+ *
+ * Run with:
+ *   npx tsx src/prompts/test-llm-generation.ts          # Uses Pro (default for code gen)
+ *   npx tsx src/prompts/test-llm-generation.ts flash    # Uses Flash (faster, cheaper)
+ *   npx tsx src/prompts/test-llm-generation.ts pro      # Uses Pro (higher quality)
  *
  * Requires: OPENROUTER_API_KEY environment variable
  */
@@ -16,6 +20,26 @@ if (!OPENROUTER_API_KEY) {
   console.error('   export OPENROUTER_API_KEY=your_key_here');
   process.exit(1);
 }
+
+// Model configurations
+const MODELS = {
+  flash: {
+    id: 'google/gemini-3-flash-preview',
+    name: 'Gemini 3 Flash Preview',
+    inputCostPer1M: 0.10,
+    outputCostPer1M: 0.40,
+  },
+  pro: {
+    id: 'google/gemini-3-pro-preview',
+    name: 'Gemini 3 Pro Preview',
+    inputCostPer1M: 2.00,
+    outputCostPer1M: 12.00,
+  },
+} as const;
+
+// Parse command line argument
+const modelArg = process.argv[2]?.toLowerCase() as 'flash' | 'pro' | undefined;
+const selectedModel = MODELS[modelArg || 'pro']; // Default to Pro for code generation
 
 const testTranscript = [
   { text: "Here's", startMs: 0, endMs: 300 },
@@ -75,8 +99,9 @@ const prompt = buildGenerateVisualsPrompt({
 });
 
 async function testGeneration() {
-  console.log('🚀 Sending prompt to OpenRouter (Gemini 3 Flash)...');
-  console.log(`📝 Prompt length: ${prompt.length} characters\n`);
+  console.log(`🚀 Sending prompt to OpenRouter (${selectedModel.name})...`);
+  console.log(`📝 Prompt length: ${prompt.length} characters`);
+  console.log(`💰 Estimated cost: $${(prompt.length / 4 / 1_000_000 * selectedModel.inputCostPer1M).toFixed(4)} input\n`);
 
   const startTime = Date.now();
 
@@ -90,14 +115,14 @@ async function testGeneration() {
         'X-Title': 'Clipify Visual Generation Test',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
+        model: selectedModel.id,
         messages: [
           {
             role: 'user',
             content: prompt,
           },
         ],
-        temperature: 1.0, // Gemini requires this
+        temperature: 1.0, // Gemini 3.x requires this
         max_tokens: 16000,
       }),
     });
@@ -110,8 +135,15 @@ async function testGeneration() {
     const data = await response.json();
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
+    const inputTokens = data.usage?.prompt_tokens || 0;
+    const outputTokens = data.usage?.completion_tokens || 0;
+    const estimatedCost =
+      (inputTokens / 1_000_000) * selectedModel.inputCostPer1M +
+      (outputTokens / 1_000_000) * selectedModel.outputCostPer1M;
+
     console.log(`✅ Response received in ${elapsed}s`);
-    console.log(`📊 Usage: ${data.usage?.prompt_tokens || '?'} prompt tokens, ${data.usage?.completion_tokens || '?'} completion tokens\n`);
+    console.log(`📊 Usage: ${inputTokens} input tokens, ${outputTokens} output tokens`);
+    console.log(`💰 Estimated cost: $${estimatedCost.toFixed(4)}\n`);
 
     const content = data.choices?.[0]?.message?.content || '';
 
@@ -119,8 +151,9 @@ async function testGeneration() {
     const outputDir = join(process.cwd(), 'test-output');
     await mkdir(outputDir, { recursive: true });
 
-    const outputPath = join(outputDir, `${projectId}-output.md`);
-    await writeFile(outputPath, `# LLM Output for ${projectId}\n\nGenerated at: ${new Date().toISOString()}\nElapsed: ${elapsed}s\n\n---\n\n${content}`);
+    const modelSuffix = modelArg || 'pro';
+    const outputPath = join(outputDir, `${projectId}-${modelSuffix}-output.md`);
+    await writeFile(outputPath, `# LLM Output for ${projectId}\n\nModel: ${selectedModel.name}\nGenerated at: ${new Date().toISOString()}\nElapsed: ${elapsed}s\nTokens: ${inputTokens} in / ${outputTokens} out\nCost: $${estimatedCost.toFixed(4)}\n\n---\n\n${content}`);
 
     console.log(`💾 Full output saved to: ${outputPath}`);
     console.log('\n' + '='.repeat(80));

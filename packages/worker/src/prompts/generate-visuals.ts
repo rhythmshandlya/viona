@@ -147,21 +147,77 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
   const transcriptText = formatTranscript(transcript);
   const durationInFrames = Math.ceil((durationMs / 1000) * fps);
 
-  // Layout context for the agent
   const layoutContext = layoutMode === 'pip'
-    ? 'Full-screen visuals (video will be overlaid as a small picture-in-picture window)'
+    ? 'Full-screen visuals (1080×1920) - video overlaid as small PiP window. Use full vertical space.'
     : layoutMode === 'split-horizontal'
-      ? 'Top portion of split screen (video will appear below)'
-      : 'Left portion of split screen (video will appear on the right)';
+      ? `Top portion of 50/50 horizontal split (${width}×${height}) - REDUCED HEIGHT. Stack elements tightly, use smaller fonts.`
+      : `Left portion of 50/50 vertical split (${width}×${height}) - REDUCED WIDTH. Avoid wide layouts, stack vertically.`;
 
-  // Get the reference examples section
   const referenceExamples = buildReferenceExamplesSection(projectId);
 
-  return `
-You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
-Your output must be VISUALLY STUNNING - polished, professional, with smooth animations and beautiful effects.
+  return `You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
 
-${referenceExamples}
+---
+
+## ⛔ CRITICAL CONSTRAINTS (Read First!)
+
+These rules are NON-NEGOTIABLE. Violating them causes runtime errors.
+
+### 1. React key Prop (MANDATORY)
+EVERY \`.map()\` call MUST have a \`key\` prop. Missing keys cause React errors.
+
+\`\`\`tsx
+// ✅ CORRECT
+{items.map((item, i) => <div key={i}>{item}</div>)}
+{steps.map((step, i) => <React.Fragment key={i}><Arrow /><Node /></React.Fragment>)}
+
+// ❌ WRONG - Will cause errors
+{items.map((item) => <div>{item}</div>)}
+\`\`\`
+
+### 2. Responsive Sizing for Layout Modes (MANDATORY)
+Your visuals must adapt to different layout configurations:
+
+| Layout Mode | Dimensions | Aspect Ratio | Constraint |
+|-------------|------------|--------------|------------|
+| **pip** | 1080×1920 | 9:16 portrait | Full screen - visuals behind PiP video |
+| **split-horizontal** | 1080×960 (50%) | Wide/short | Top half only - less vertical space |
+| **split-vertical** | 540×1920 (50%) | Narrow/tall | Left half only - less horizontal space |
+
+**CRITICAL:** Hardcoded pixels will break across layout modes. Use relative sizing:
+
+\`\`\`tsx
+const { width, height, fps } = useVideoConfig();
+const minDim = Math.min(width, height);
+
+// ✅ CORRECT - Scales to any layout mode
+fontSize: height * 0.035,      // Readable in split-horizontal (960px height)
+padding: minDim * 0.05,        // Works in split-vertical (540px width)
+borderRadius: minDim * 0.02,
+gap: minDim * 0.03,
+
+// ❌ WRONG - Breaks in split layouts
+fontSize: 48,    // Too large for 960px height
+padding: 60,     // Overflows 540px width
+\`\`\`
+
+### 3. Forbidden Patterns (Will Break Rendering)
+- ❌ CSS transitions or @keyframes (Remotion renders frame-by-frame)
+- ❌ setTimeout/setInterval (not frame-deterministic)
+- ❌ useState for animation values (use \`useCurrentFrame()\` instead)
+- ❌ Hardcoded pixel dimensions
+
+### 4. Required Remotion Patterns
+\`\`\`tsx
+const frame = useCurrentFrame();
+const { width, height, fps } = useVideoConfig();
+
+// Animation: pure function of frame
+const opacity = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: 'clamp' });
+const scale = spring({ frame, fps, config: { damping: 12, stiffness: 80 } });
+\`\`\`
+
+---
 
 ## 🎯 YOUR TASK
 
@@ -180,27 +236,105 @@ ${styleGuidelines}
 - **Layout:** ${layoutContext}
 - **Composition ID:** \`${projectId}\`
 
-### ⚠️ CRITICAL: Dimension Requirements
+Your composition MUST render at exactly ${width}x${height} pixels.
 
-**Your composition MUST render at exactly ${width}x${height} pixels.**
+---
 
-1. **metadata.json MUST have:**
-   \`\`\`json
-   { "width": ${width}, "height": ${height} }
-   \`\`\`
+## 🎨 LAYOUT & ALIGNMENT (Critical for Visual Quality)
 
-2. **In ALL components, use useVideoConfig() for dimensions:**
-   \`\`\`tsx
-   const { width, height, fps } = useVideoConfig();
-   // Then calculate sizes relative to these:
-   const fontSize = height * 0.04;
-   const padding = Math.min(width, height) * 0.05;
-   \`\`\`
+### ⚠️ MANDATORY: Use This Layout Structure
+**Every composition MUST use this flexbox structure to prevent misalignment:**
 
-3. **NEVER hardcode pixel values like:**
-   - ❌ \`width: 1080\` or \`height: 1920\`
-   - ❌ \`fontSize: 48\` (use \`height * 0.025\` instead)
-   - ❌ \`padding: 50\` (use \`width * 0.05\` instead)
+\`\`\`tsx
+const { width, height } = useVideoConfig();
+const minDim = Math.min(width, height);
+
+<AbsoluteFill style={{ background: '#0f0f23' }}>
+  <div style={{
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    padding: minDim * 0.04,
+    gap: minDim * 0.025,
+    boxSizing: 'border-box',  // CRITICAL: Prevents overflow
+  }}>
+    {/* TITLE ZONE - Fixed height, always centered */}
+    <div style={{
+      flex: '0 0 auto',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: height * 0.08,
+    }}>
+      <h1 style={{
+        fontSize: height * 0.04,
+        textAlign: 'center',
+        margin: 0,  // Remove default margins
+      }}>Title Here</h1>
+    </div>
+
+    {/* VISUAL ZONE - Expands to fill, centers content */}
+    <div style={{
+      flex: 1,
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      overflow: 'hidden',  // Prevent diagram overflow
+    }}>
+      {/* Diagram container - constrained size */}
+      <div style={{
+        maxWidth: '85%',
+        maxHeight: '90%',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+      }}>
+        {/* Your diagram/chart goes here */}
+      </div>
+    </div>
+
+    {/* CAPTION ZONE - Fixed height (optional) */}
+    <div style={{
+      flex: '0 0 auto',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: height * 0.06,
+    }}>
+      <p style={{ fontSize: height * 0.022, textAlign: 'center', margin: 0 }}>Caption</p>
+    </div>
+  </div>
+</AbsoluteFill>
+\`\`\`
+
+### Alignment Rules (STRICT)
+| Element | Container Style | Content Style |
+|---------|-----------------|---------------|
+| Titles | \`display: 'flex', justifyContent: 'center', alignItems: 'center'\` | \`textAlign: 'center', margin: 0\` |
+| Diagrams | \`flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center'\` | \`maxWidth: '85%', maxHeight: '90%'\` |
+| Labels | Same as titles | \`fontSize: height * 0.022\` |
+| Multi-element rows | \`display: 'flex', justifyContent: 'center', gap: minDim * 0.03\` | Each item centered |
+
+### Common Alignment Mistakes
+| ❌ Wrong | ✅ Correct |
+|----------|-----------|
+| \`position: 'absolute', top: 50\` | \`flex: 1, justifyContent: 'center'\` |
+| Hardcoded margins | Flexbox gap |
+| No container constraints | \`maxWidth: '85%'\` on diagrams |
+| Missing \`boxSizing: 'border-box'\` | Always include on main container |
+
+### Layout Mode Considerations
+- **split-horizontal (1080×960):** Less vertical space - reduce title size, tighter gaps
+- **split-vertical (540×1920):** Less horizontal space - stack elements vertically, avoid wide layouts
+- **pip (1080×1920):** Full space - can use more elaborate layouts
+
+---
+
+**metadata.json:**
+\`\`\`json
+{ "compositionId": "${projectId}", "durationInFrames": ${durationInFrames}, "fps": ${fps}, "width": ${width}, "height": ${height} }
+\`\`\`
 
 ---
 
@@ -218,30 +352,61 @@ Every sequence must have animation throughout its duration, not just entrance ef
 **2. CONCEPTUAL, NOT LITERAL**
 Show WHY and HOW, not just WHAT.
 - ❌ "Binary tree" → Draw a static tree diagram
-- ✅ "Binary tree is slow here" → Show search path growing longer, branches multiplying, O(n) counter climbing
+- ✅ "Binary tree is slow here" → Show search path growing longer, O(n) counter climbing
 - ❌ "Caching improves speed" → Show a cache icon
-- ✅ "Caching improves speed" → Show request hitting cache (instant) vs database trip (long journey)
+- ✅ "Caching improves speed" → Show request hitting cache (instant) vs database (long journey)
 
 **3. ZERO TEXT OVERLAYS**
 Subtitles handle all text. Your job is PURE VISUAL STORYTELLING.
 - ❌ Animated text saying "Step 1: Configure"
-- ❌ Labels floating over diagrams
 - ✅ Visual metaphors that need no explanation
 - Exception: Single numbers/percentages for data viz (e.g., "85%" in a progress ring)
 
+### Rich Animation Techniques (NOT just fade-in!)
+
+**Multi-phase animations** - Each element should have entrance → action → hold:
+\`\`\`tsx
+// Phase 1: Entrance (frames 0-30)
+const entranceScale = spring({ frame, fps, config: { damping: 12 } });
+
+// Phase 2: Action (frames 30-90) - the element DOES something
+const actionProgress = interpolate(frame, [30, 90], [0, 1], { extrapolateRight: 'clamp' });
+const rotation = Math.sin(actionProgress * Math.PI * 2) * 10; // Wobble
+const pulseScale = 1 + Math.sin(actionProgress * Math.PI * 4) * 0.05; // Pulse
+
+// Phase 3: Hold with subtle motion (frames 90+)
+const breathe = 1 + Math.sin(frame * 0.1) * 0.02; // Subtle breathing
+\`\`\`
+
+**Layered motion** - Multiple properties animating at different rates:
+\`\`\`tsx
+const opacity = interpolate(frame, [0, 20], [0, 1]);
+const y = interpolate(frame, [0, 40], [50, 0], { extrapolateRight: 'clamp' });
+const scale = spring({ frame: frame - 10, fps, config: { damping: 8 } }); // Delayed
+const rotation = interpolate(frame, [0, 60], [-5, 0]); // Slower
+\`\`\`
+
+**State transitions** - Elements change appearance over time:
+\`\`\`tsx
+const progress = interpolate(frame, [startFrame, endFrame], [0, 1]);
+const color = progress < 0.5 ? '#3b82f6' : '#22c55e'; // Blue → Green
+const size = interpolate(progress, [0, 0.5, 1], [1, 1.2, 1]); // Grow then shrink
+\`\`\`
+
 ---
 
-## 📋 SCENE PLANNING WITH REASONING (REQUIRED FIRST STEP)
+## 📋 SCENE PLANNING WITH TIMESTAMP SYNC (REQUIRED FIRST STEP)
 
 Before writing ANY code, analyze the transcript and output a scene plan.
 
-### Scene Plan Format:
+**⚠️ CRITICAL: Visuals MUST match transcript timestamps exactly!**
 
 \`\`\`json
 {
   "scenes": [
     {
       "timestamp": "0:00 - 0:08",
+      "frameRange": [0, 240],
       "transcript": "Exact words being spoken",
       "reasoning": {
         "whatIsBeingExplained": "The core concept",
@@ -259,33 +424,14 @@ Before writing ANY code, analyze the transcript and output a scene plan.
 }
 \`\`\`
 
-### Example Scene Plan:
+### Timestamp Synchronization Rules
+1. **Calculate frame ranges:** \`startFrame = (startMs / 1000) * fps\`, \`endFrame = (endMs / 1000) * fps\`
+2. **Each scene's animation MUST start and end within its frame range**
+3. **Use \`<Sequence from={startFrame} durationInFrames={duration}>\`** to enforce timing
+4. **Verify with stills:** Check frames at 0%, 25%, 50%, 75%, 100% of each scene
 
-**Transcript:** "The problem with bubble sort is that it keeps comparing adjacent elements over and over..."
-
-\`\`\`json
-{
-  "scenes": [
-    {
-      "timestamp": "0:00 - 0:07",
-      "transcript": "The problem with bubble sort is that it keeps comparing adjacent elements over and over",
-      "reasoning": {
-        "whatIsBeingExplained": "Bubble sort's inefficiency - redundant comparisons",
-        "whyNotLiteral": "Just showing swaps doesn't convey the WASTE. Viewer won't feel the redundancy.",
-        "whatWouldMakeItClick": "Show the SAME comparisons repeatedly. Make repetition visually tedious.",
-        "howAnimationAddsUnderstanding": "Multiple passes over already-sorted sections shows wasted work. Counter quantifies it."
-      },
-      "decision": {
-        "visualMetaphor": "Array with scan line re-scanning sorted sections",
-        "animationNarrative": "Pass 1: scan left-to-right, swaps happen → Pass 2: starts over, fewer swaps but SAME distance → Pass 3: full scan for 1 swap → counter climbs",
-        "keyframes": ["full array, scan begins", "pass 2 starting over", "pass N, counter shows wasted ops"]
-      }
-    }
-  ]
-}
-\`\`\`
-
-### Reasoning Quality Checklist:
+**Reasoning Quality Checklist:**
+- [ ] Frame ranges calculated from transcript timestamps
 - [ ] "whyNotLiteral" identifies specific failure of obvious approach
 - [ ] "whatWouldMakeItClick" describes an insight, not just a visual
 - [ ] "howAnimationAddsUnderstanding" explains what MOTION contributes
@@ -305,115 +451,9 @@ src/${projectId}/
 └── components/        # Reusable visual components
 \`\`\`
 
-**metadata.json format:**
-\`\`\`json
-{
-  "compositionId": "${projectId}",
-  "durationInFrames": ${durationInFrames},
-  "fps": ${fps},
-  "width": ${width},
-  "height": ${height}
-}
-\`\`\`
-
----
-
-## 🔧 TECHNICAL RULES (Follow to avoid errors)
-
-**Remotion Patterns:**
-- \`useCurrentFrame()\` for animation timing
-- \`useVideoConfig()\` to get fps AND dimensions - NEVER hardcode!
-- \`interpolate()\` with \`extrapolateRight: 'clamp'\`
-- \`spring({ frame, fps, config })\` - fps is REQUIRED
-
-**⚠️ CRITICAL: React key prop (WILL CAUSE ERRORS IF MISSING):**
-- EVERY .map() call MUST have a key prop on the returned element
-- Pattern: \`{items.map((item, i) => <div key={i}>...</div>)}\`
-- Pattern: \`{items.map((item, i) => <React.Fragment key={i}>...</React.Fragment>)}\`
-- This applies to ALL mapped elements: divs, spans, components, fragments
-
-**Responsive Value Pattern (MANDATORY):**
-\`\`\`tsx
-const { width, height, fps } = useVideoConfig();
-const minDim = Math.min(width, height);
-
-// Font sizes - relative to height
-const fontSize = {
-  sm: height * 0.022,
-  md: height * 0.032,
-  lg: height * 0.045,
-};
-
-// Spacing - relative to minDim
-const padding = minDim * 0.05;
-const gap = minDim * 0.03;
-const borderRadius = minDim * 0.02;
-const glow = minDim * 0.025;
-const borderWidth = Math.max(2, minDim * 0.003);
-\`\`\`
-
-**⛔ FORBIDDEN (Will break rendering):**
-- ❌ CSS transitions or @keyframes
-- ❌ setTimeout/setInterval
-- ❌ useState for animation values
-- ❌ Hardcoded pixel dimensions (use useVideoConfig)
-- ❌ Missing key props in .map() loops - ALWAYS use: \`items.map((item, i) => <Element key={i} />)\`
-
-**WHY:** Remotion renders each frame independently. Animation values must be pure functions of frame number.
-
-**REACT KEY PROP EXAMPLES (MANDATORY):**
-\`\`\`tsx
-// ✅ CORRECT - key on every mapped element
-{steps.map((step, i) => (
-  <div key={i}>{step}</div>
-))}
-
-// ✅ CORRECT - key on Fragment when returning multiple elements
-{items.map((item, i) => (
-  <React.Fragment key={i}>
-    <Arrow />
-    <Node label={item} />
-  </React.Fragment>
-))}
-
-// ❌ WRONG - missing key (causes React warnings)
-{steps.map((step) => (
-  <div>{step}</div>
-))}
-\`\`\`
-
-**📐 RESPONSIVE LAYOUT RULES (Prevent text overlapping visuals):**
-- Use flexbox with RESPONSIVE values:
-  \`\`\`tsx
-  const minDim = Math.min(width, height);
-  display: 'flex',
-  flexDirection: 'column',
-  gap: minDim * 0.03,
-  padding: minDim * 0.05,
-  \`\`\`
-- Title/heading region: top 15% (flex: '0 0 15%')
-- Visual/diagram region: middle (flex: 1)
-- Labels/caption region: bottom (flex: '0 0 auto')
-- NEVER position text absolutely on top of diagram elements
-- Text overflow handling:
-  - Single-line: \`whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'\`
-  - Multi-line: \`wordWrap: 'break-word', overflowWrap: 'break-word'\`
-
----
-
-## ✅ SELF-HEALING WORKFLOW
-
-1. After writing each file, run \`TypeScriptValidatorTool\`
-2. If ANY errors, fix them IMMEDIATELY
-3. Repeat until ZERO TypeScript errors
-4. Use \`npx remotion still ./src/index.ts ${projectId} ./preview.png --frame=X\` to check visuals
-5. Refine until visuals match the reference quality
-
 ---
 
 ## 🎬 WHAT TO VISUALIZE
-
-Analyze the transcript for:
 
 | Transcript Content | Visual to Create |
 |-------------------|------------------|
@@ -428,7 +468,37 @@ Analyze the transcript for:
 
 ---
 
-Now analyze the transcript and create visually stunning Remotion components that match the reference example quality.
+${referenceExamples}
+
+---
+
+## ✅ SELF-HEALING WORKFLOW
+
+1. After writing each file, run \`TypeScriptValidatorTool\`
+2. If ANY errors, fix them IMMEDIATELY
+3. Repeat until ZERO TypeScript errors
+4. **Render stills at multiple frames to verify:**
+   - \`--frame=0\` (start) - Check initial state
+   - \`--frame=${Math.floor(durationInFrames * 0.25)}\` (25%) - Check first scene
+   - \`--frame=${Math.floor(durationInFrames * 0.5)}\` (50%) - Check mid-point
+   - \`--frame=${Math.floor(durationInFrames * 0.75)}\` (75%) - Check later scenes
+   - \`--frame=${durationInFrames - 1}\` (end) - Check final state
+
+5. **Verify alignment in each still:**
+   - [ ] Title centered horizontally
+   - [ ] Diagram centered in visual zone
+   - [ ] No elements overlapping
+   - [ ] No elements cut off at edges
+   - [ ] Consistent spacing throughout
+
+6. **Verify timestamp sync:**
+   - [ ] Scene content matches transcript at that frame
+   - [ ] Animations active during their designated scenes
+   - [ ] No static periods during active scenes
+
+---
+
+Now analyze the transcript and create visually stunning Remotion components.
 `;
 }
 
@@ -437,7 +507,6 @@ function formatTranscript(words: TranscriptWord[]): string {
     return 'No transcript available.';
   }
 
-  // Group words into sentences/segments
   const segments: Array<{ startMs: number; endMs: number; text: string }> = [];
   let currentSegment: TranscriptWord[] = [];
   let segmentStartMs = 0;
@@ -449,7 +518,6 @@ function formatTranscript(words: TranscriptWord[]): string {
 
     currentSegment.push(word);
 
-    // Split on sentence-ending punctuation or after ~5 seconds
     const text = word.text.trim();
     const isEndOfSentence = /[.!?]$/.test(text);
     const segmentDuration = word.endMs - segmentStartMs;
@@ -464,7 +532,6 @@ function formatTranscript(words: TranscriptWord[]): string {
     }
   }
 
-  // Add remaining words
   if (currentSegment.length > 0) {
     segments.push({
       startMs: segmentStartMs,
@@ -473,7 +540,6 @@ function formatTranscript(words: TranscriptWord[]): string {
     });
   }
 
-  // Format as timestamped text
   return segments
     .map(s => `[${formatTime(s.startMs)} - ${formatTime(s.endMs)}] ${s.text}`)
     .join('\n');

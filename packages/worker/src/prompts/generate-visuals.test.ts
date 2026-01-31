@@ -133,7 +133,7 @@ describe('buildGenerateVisualsPrompt', () => {
   });
 
   describe('responsive design guidance', () => {
-    it('includes responsive value pattern', () => {
+    it('includes responsive sizing guidance', () => {
       const prompt = buildGenerateVisualsPrompt({
         ...baseOptions,
         width: 1080,
@@ -141,8 +141,8 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      // Check for responsive value pattern
-      expect(prompt).toContain('Responsive Value Pattern');
+      // Check for responsive sizing section (renamed from "Responsive Value Pattern")
+      expect(prompt).toContain('Responsive Sizing');
       expect(prompt).toContain('Math.min(width, height)');
     });
 
@@ -346,10 +346,11 @@ describe('Scene Planning', () => {
     expect(prompt).toContain('howAnimationAddsUnderstanding');
   });
 
-  it('provides a bubble sort example with full reasoning', () => {
+  it('provides reference examples with reasoning', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain('bubble sort');
-    expect(prompt).toContain('redundant comparisons');
+    // Reference examples now demonstrate reasoning patterns
+    expect(prompt).toContain('What it demonstrates');
+    expect(prompt).toContain('Key insight');
   });
 });

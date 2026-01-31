@@ -18,21 +18,44 @@ import { buildGenerateVisualsPrompt, STYLE_GUIDELINES } from '../prompts/generat
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// LLM model configuration - using OpenRouter with Gemini 3 Flash Preview
+// LLM model configuration - using OpenRouter with Gemini 3
+// Flash for general tasks (cheaper), Pro for code generation (higher quality)
+type ModelTier = 'flash' | 'pro';
+
+const LLM_MODELS = {
+  flash: {
+    model: 'openrouter/google/gemini-3-flash-preview',
+    inputCostPer1M: 0.10,
+    outputCostPer1M: 0.40,
+  },
+  pro: {
+    model: 'openrouter/google/gemini-3-pro-preview',
+    inputCostPer1M: 2.00,
+    outputCostPer1M: 12.00,
+  },
+} as const;
+
 const LLM_CONFIG = {
-  model: 'openrouter/google/gemini-3-flash-preview',
   provider: 'openrouter',
   apiKeyEnv: 'OPENROUTER_API_KEY',
   // CRITICAL: Gemini 3.x requires temperature=1.0
   // Google docs warn that lower temperatures cause "unexpected behavior, looping issues"
   temperature: 1.0,
-  // Cost per 1M tokens (USD) - approximate
-  inputCostPer1M: 0.10,
-  outputCostPer1M: 0.40,
+  // Default model tier for code generation
+  codeGenerationTier: 'pro' as ModelTier,
+  // Default model tier for other tasks (planning, critique, etc.)
+  generalTier: 'flash' as ModelTier,
 } as const;
 
+function getModelConfig(tier: ModelTier) {
+  return {
+    ...LLM_CONFIG,
+    ...LLM_MODELS[tier],
+  };
+}
+
 // Timeout configuration (in milliseconds)
-const AGENT_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes max per job
+const AGENT_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes max per job
 const GRACEFUL_SHUTDOWN_MS = 10 * 1000; // 10 seconds for graceful shutdown
 
 // Track running processes for cancellation
@@ -289,16 +312,22 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     // Calculate duration in frames
     const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
 
+    // Use Pro model for code generation (higher quality)
+    const codeGenModel = getModelConfig(LLM_CONFIG.codeGenerationTier);
+    // Use Flash model for critic/other tasks (faster, cheaper)
+    const flashModel = getModelConfig(LLM_CONFIG.generalTier);
+
     // Run OpenHands agent and capture metrics
     const agentResult = await runOpenHandsAgent(prompt, {
       workspace: config.remotion.projectDir,
       projectId: compositionId,
       jobId,
-      model: LLM_CONFIG.model,
+      model: codeGenModel.model,
+      modelFlash: flashModel.model,
       apiKeyEnv: LLM_CONFIG.apiKeyEnv,
       temperature: LLM_CONFIG.temperature,
-      inputCostPer1M: LLM_CONFIG.inputCostPer1M,
-      outputCostPer1M: LLM_CONFIG.outputCostPer1M,
+      inputCostPer1M: codeGenModel.inputCostPer1M,
+      outputCostPer1M: codeGenModel.outputCostPer1M,
       durationFrames,
       fps: project.fps || 30,
       width: dimensions?.width || 1080,
@@ -308,8 +337,8 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
 
     // Calculate estimated cost
     const estimatedCostUsd =
-      (agentResult.inputTokens / 1_000_000) * LLM_CONFIG.inputCostPer1M +
-      (agentResult.outputTokens / 1_000_000) * LLM_CONFIG.outputCostPer1M;
+      (agentResult.inputTokens / 1_000_000) * codeGenModel.inputCostPer1M +
+      (agentResult.outputTokens / 1_000_000) * codeGenModel.outputCostPer1M;
 
     // Store metrics in job
     const jobMetrics: JobMetrics = {
@@ -317,7 +346,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       outputTokens: agentResult.outputTokens,
       estimatedCostUsd: Math.round(estimatedCostUsd * 10000) / 10000, // Round to 4 decimal places
       durationMs: agentResult.durationMs,
-      llmModel: LLM_CONFIG.model,
+      llmModel: codeGenModel.model,
       filesWritten: agentResult.filesWritten,
       screenshotsTaken: agentResult.screenshotsTaken,
       finalScore: agentResult.finalScore,
@@ -464,7 +493,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       width: metadata.width,
       height: metadata.height,
       stylePreset,
-      llmModel: LLM_CONFIG.model,
+      llmModel: codeGenModel.model,
       timestamps: metadata.visuals,
     }).returning({ id: visuals.id });
     const visualId = insertedVisual.id;
@@ -530,7 +559,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     await publishJobProgress(jobId, 100, 'Complete');
     await publishJobComplete(jobId, projectId);
 
-    logger.info({ projectId, compositionId, model: LLM_CONFIG.model }, 'Visual generation complete');
+    logger.info({ projectId, compositionId, model: codeGenModel.model }, 'Visual generation complete');
 
   } catch (error) {
     logger.error({ projectId, err: error }, 'Visual generation failed');
@@ -555,7 +584,8 @@ interface OpenHandsOptions {
   workspace: string;
   projectId: string;
   jobId: string;
-  model: string;
+  model: string;           // Pro model for code generation
+  modelFlash: string;      // Flash model for critic/other tasks
   apiKeyEnv: string;
   temperature: number;
   inputCostPer1M: number;
@@ -587,7 +617,7 @@ async function runOpenHandsAgent(
   prompt: string,
   options: OpenHandsOptions
 ): Promise<AgentResult> {
-  const { workspace, projectId, jobId, model, apiKeyEnv } = options;
+  const { workspace, projectId, jobId, model, modelFlash, apiKeyEnv } = options;
 
   // Write prompt to temp file with unique name to avoid conflicts
   const tempId = `${jobId}-${Date.now()}`;
@@ -655,6 +685,7 @@ async function runOpenHandsAgent(
         // Arguments passed to entrypoint (which runs visual_generator.py)
         '--project-id', projectId,
         '--model', model,
+        '--model-flash', modelFlash,
         '--prompt-file', '/tmp/prompt.txt',
         '--api-key-env', 'LLM_API_KEY',
         '--output-dir', '/output',
@@ -679,6 +710,7 @@ async function runOpenHandsAgent(
         '--workspace', workspace,
         '--project-id', projectId,
         '--model', model,
+        '--model-flash', modelFlash,
         '--prompt-file', promptPath,
         '--api-key-env', apiKeyEnv,
         '--duration-frames', String(options.durationFrames),

@@ -752,7 +752,8 @@ def main():
     parser.add_argument("--output-dir", default="/output", help="Directory to copy source files (mounted from host)")
     parser.add_argument("--bundle-dir", default="/bundles", help="Directory to export bundle (mounted from host)")
     parser.add_argument("--project-id", required=True, help="Composition ID")
-    parser.add_argument("--model", required=True, help="LLM model to use")
+    parser.add_argument("--model", required=True, help="LLM model for code generation (Pro)")
+    parser.add_argument("--model-flash", help="LLM model for evaluation/other tasks (Flash). Defaults to --model")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
     parser.add_argument("--api-key-env", default="LLM_API_KEY", help="Env var for API key")
     parser.add_argument("--duration-frames", type=int, default=900, help="Video duration in frames")
@@ -834,27 +835,41 @@ def main():
     signal.signal(signal.SIGINT, handle_sigterm)
 
     try:
-        # Configure LLM model name
-        model_lower = args.model.lower()
-        if args.model.startswith("openrouter/") or "/" in args.model:
-            # Already has provider prefix (e.g., openrouter/google/gemini-2.0-flash)
-            model_name = args.model
-        elif "gemini" in model_lower:
-            model_name = f"gemini/{args.model}"
-        elif "claude" in model_lower:
-            model_name = f"anthropic/{args.model}"
-        elif "gpt" in model_lower:
-            model_name = f"openai/{args.model}"
-        else:
-            model_name = args.model
+        def get_model_name(model: str) -> str:
+            """Convert model string to litellm format."""
+            model_lower = model.lower()
+            if model.startswith("openrouter/") or "/" in model:
+                # Already has provider prefix (e.g., openrouter/google/gemini-2.0-flash)
+                return model
+            elif "gemini" in model_lower:
+                return f"gemini/{model}"
+            elif "claude" in model_lower:
+                return f"anthropic/{model}"
+            elif "gpt" in model_lower:
+                return f"openai/{model}"
+            return model
 
-        # CRITICAL: Gemini 3.x requires temperature=1.0
-        # Google docs warn that lower temperatures cause "unexpected behavior, looping issues"
-        llm = LLM(
-            model=model_name,
+        # Configure LLM for code generation (Pro - higher quality)
+        generator_model_name = get_model_name(args.model)
+        generator_llm = LLM(
+            model=generator_model_name,
             api_key=SecretStr(api_key),
             temperature=args.temperature,
+            usage_id="code-generation",  # For cost tracking
         )
+
+        # Configure LLM for evaluation (Flash - faster, cheaper)
+        # Use flash model if specified, otherwise fall back to main model
+        flash_model = args.model_flash or args.model
+        evaluator_model_name = get_model_name(flash_model)
+        evaluator_llm = LLM(
+            model=evaluator_model_name,
+            api_key=SecretStr(api_key),
+            temperature=args.temperature,
+            usage_id="visual-evaluation",  # For cost tracking
+        )
+
+        emit_event(EVENT_TOOL_CALL, tool="config", message=f"Generator: {generator_model_name}, Evaluator: {evaluator_model_name}")
 
         # Load skills
         skills_dir = Path(__file__).parent / "skills"
@@ -863,9 +878,11 @@ def main():
         scoring_rubric = load_skill(skills_dir / "scoring-rubric.md")
         file_editing_skill = load_skill(skills_dir / "file-editing-guide.md")
 
-        # Create agents
-        generator_agent = create_generator_agent(llm, remotion_skill, style_skill, file_editing_skill)
-        visual_evaluator = create_visual_evaluator_agent(llm, scoring_rubric)
+        # Create agents with appropriate models
+        # Generator uses Pro for high-quality code generation
+        generator_agent = create_generator_agent(generator_llm, remotion_skill, style_skill, file_editing_skill)
+        # Evaluator uses Flash for faster, cheaper visual evaluation
+        visual_evaluator = create_visual_evaluator_agent(evaluator_llm, scoring_rubric)
 
         # State tracking
         best_score = 0

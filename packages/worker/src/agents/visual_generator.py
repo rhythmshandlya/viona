@@ -241,16 +241,23 @@ def main():
     parser = argparse.ArgumentParser(description="OpenHands Visual Generator with Iterative Refinement")
     parser.add_argument("--workspace", required=True, help="Path to Remotion project")
     parser.add_argument("--project-id", required=True, help="Composition ID")
-    parser.add_argument("--model", required=True, help="LLM model to use")
+    parser.add_argument("--model", required=True, help="LLM model for code generation (Pro)")
+    parser.add_argument("--model-flash", help="LLM model for critic/other tasks (Flash). Defaults to --model if not specified")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
     parser.add_argument("--api-key-env", default="LLM_API_KEY", help="Env var for API key")
     parser.add_argument("--duration-frames", type=int, default=900, help="Video duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Video FPS")
+    parser.add_argument("--width", type=int, default=1080, help="Video width")
+    parser.add_argument("--height", type=int, default=1920, help="Video height")
+    parser.add_argument("--temperature", type=float, default=1.0, help="LLM temperature")
     parser.add_argument("--max-iterations", type=int, default=MAX_ITERATIONS, help="Max refinement iterations")
     parser.add_argument("--quality-threshold", type=int, default=QUALITY_THRESHOLD, help="Quality score threshold")
     parser.add_argument("--enable-planning", action="store_true", default=True, help="Enable planning mode for structured task tracking")
     parser.add_argument("--no-planning", action="store_false", dest="enable_planning", help="Disable planning mode")
     args = parser.parse_args()
+
+    # Use Flash model for critic if specified, otherwise fall back to main model
+    critic_model = args.model_flash or args.model
 
     # Get API key from environment
     api_key = os.environ.get(args.api_key_env)
@@ -280,6 +287,7 @@ def main():
     emit_event(
         EVENT_STARTED,
         model=args.model,
+        model_flash=critic_model,
         workspace=args.workspace,
         max_iterations=args.max_iterations,
         planning_mode=args.enable_planning,
@@ -298,22 +306,36 @@ def main():
     signal.signal(signal.SIGINT, handle_sigterm)
 
     try:
-        # Determine model name for litellm
-        model_lower = args.model.lower()
-        if "gemini" in model_lower:
-            model_name = f"gemini/{args.model}"
-        elif "claude" in model_lower:
-            model_name = f"anthropic/{args.model}"
-        elif "gpt" in model_lower:
-            model_name = f"openai/{args.model}"
-        else:
-            model_name = args.model
+        def get_model_name(model: str) -> str:
+            """Convert model string to litellm format."""
+            model_lower = model.lower()
+            if "gemini" in model_lower:
+                return f"gemini/{model}"
+            elif "claude" in model_lower:
+                return f"anthropic/{model}"
+            elif "gpt" in model_lower:
+                return f"openai/{model}"
+            return model
 
-        # Configure LLM
-        llm = LLM(
-            model=model_name,
+        # Configure LLM for code generation (Pro - higher quality)
+        generator_model_name = get_model_name(args.model)
+        generator_llm = LLM(
+            model=generator_model_name,
             api_key=SecretStr(api_key),
+            temperature=args.temperature,
+            usage_id="code-generation",  # For cost tracking
         )
+
+        # Configure LLM for critic/other tasks (Flash - faster, cheaper)
+        critic_model_name = get_model_name(critic_model)
+        critic_llm = LLM(
+            model=critic_model_name,
+            api_key=SecretStr(api_key),
+            temperature=args.temperature,
+            usage_id="visual-evaluation",  # For cost tracking
+        )
+
+        emit_event(EVENT_TOOL_CALL, tool="config", message=f"Generator: {generator_model_name}, Critic: {critic_model_name}")
 
         # Load skills
         skills_dir = Path(__file__).parent / "skills"
@@ -321,11 +343,13 @@ def main():
         style_skill = load_skill(skills_dir / "visual-design.md")
         scoring_rubric = load_skill(skills_dir / "scoring-rubric.md")
 
-        # Create agents
+        # Create agents with appropriate models
+        # Generator uses Pro for high-quality code generation
         generator_agent = create_generator_agent(
-            llm, remotion_skill, style_skill, enable_planning=args.enable_planning
+            generator_llm, remotion_skill, style_skill, enable_planning=args.enable_planning
         )
-        critic_agent = create_critic_agent(llm, scoring_rubric)
+        # Critic uses Flash for faster, cheaper validation
+        critic_agent = create_critic_agent(critic_llm, scoring_rubric)
 
         # Iterative refinement loop
         best_score = 0

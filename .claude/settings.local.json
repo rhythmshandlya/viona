@@ -171,7 +171,20 @@
       "Bash(npm test)",
       "WebFetch(domain:docs.openhands.dev)",
       "Bash(python -m py_compile:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npx skills:*)",
+      "Skill(find-skills)",
+      "WebFetch(domain:agent-skills.md)",
+      "Skill(superpowers:writing-skills)",
+      "Bash(for d in */)",
+      "Bash(do if [ -f \"$d/SKILL.md\" ])",
+      "Bash(then echo \"✓ $d\")",
+      "Bash(else echo \"✗ $d \\(empty\\)\")",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(npm test:*)",
+      "Bash(npm run:*)",
+      "Bash(python:*)"
     ]
   }
 }

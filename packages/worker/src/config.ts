@@ -49,7 +49,7 @@ export const config = {
     // Use Docker sandbox for isolation (recommended for production)
     useDocker: process.env.OPENHANDS_USE_DOCKER === 'true',
     // Docker image with Python, Node.js, Chromium, Remotion
-    dockerImage: process.env.OPENHANDS_DOCKER_IMAGE || 'clipify-remotion-sandbox:latest',
+    dockerImage: process.env.OPENHANDS_DOCKER_IMAGE || 'clipify-openhands-sandbox:latest',
     // Container resource limits
     memoryLimit: process.env.OPENHANDS_MEMORY_LIMIT || '4g',
     cpuLimit: process.env.OPENHANDS_CPU_LIMIT || '2',
