@@ -240,7 +240,7 @@ def run_typescript_check(workspace: str, project_id: str) -> tuple[bool, list[st
         return False, [str(e)]
 
 
-def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_editing_skill: str, planning_skill: str = None, condenser_llm=None):
+def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_editing_skill: str, planning_skill: str = None, motion_graphics_skill: str = None, condenser_llm=None):
     """Create the generator agent with Remotion skills and file editing tools."""
     from openhands.sdk import Agent, AgentContext, Tool
     from openhands.sdk.context.skills.skill import Skill
@@ -270,6 +270,9 @@ def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_edit
     # Planning skill should be first - it instructs the LLM to think before coding
     if planning_skill:
         skills.append(Skill(name="visual-planning", content=planning_skill))
+    # Motion graphics skill - animation recipes and techniques
+    if motion_graphics_skill:
+        skills.append(Skill(name="motion-graphics", content=motion_graphics_skill))
     if remotion_skill:
         skills.append(Skill(name="remotion-best-practices", content=remotion_skill))
     if style_skill:
@@ -871,6 +874,7 @@ def main():
         # Load skills
         skills_dir = Path(__file__).parent / "skills"
         planning_skill = load_skill(skills_dir / "visual-planning.md")  # Planning process - loaded first
+        motion_graphics_skill = load_skill(skills_dir / "motion-graphics.md")  # Animation recipes
         remotion_skill = load_skill(skills_dir / "remotion-best-practices.md")
         style_skill = load_skill(skills_dir / "visual-design.md")
         scoring_rubric = load_skill(skills_dir / "scoring-rubric.md")
@@ -881,7 +885,8 @@ def main():
         # Use the flash model for the condenser (summarizes conversation history when it gets too long)
         generator_agent = create_generator_agent(
             generator_llm, remotion_skill, style_skill, file_editing_skill,
-            planning_skill=planning_skill,  # NEW: Structured planning before code generation
+            planning_skill=planning_skill,  # Structured planning before code generation
+            motion_graphics_skill=motion_graphics_skill,  # Animation recipes for Instagram-worthy visuals
             condenser_llm=evaluator_llm  # Use cheaper flash model for condensation
         )
         # Evaluator uses Flash for faster, cheaper visual evaluation

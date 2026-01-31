@@ -131,6 +131,87 @@ Background:
 
 ---
 
+## Step 3.5: Animation Inventory (MANDATORY)
+
+**Every element MUST have a specified animation. Simple fades are REJECTED.**
+
+Refer to the `motion-graphics` skill for animation techniques.
+
+### Animation Requirements:
+
+```
+ANIMATION INVENTORY:
+
+Background Animation:
+- Type: [particles | gradient-shift | waves | grid-pulse | orbiting]
+- Intensity: [subtle | medium | prominent]
+- Motion: [description of continuous movement]
+
+Element Animations:
+┌─────────────────────────────────────────────────────────────────┐
+│ Element: [Name]                                                  │
+│ ├── Entrance: [scale | slide | draw | blur-focus | counter]     │
+│ │   ├── Movement: [from-bottom | from-left | scale-up | etc]   │
+│ │   ├── Duration: [X] frames                                    │
+│ │   └── Easing: spring(damping: X, stiffness: Y) or bezier     │
+│ ├── On-screen: [breathing | glow-pulse | static]                │
+│ └── Exit (if any): [zoom-out | slide-out | fade]               │
+└─────────────────────────────────────────────────────────────────┘
+
+[Repeat for each element in Visual Inventory]
+```
+
+### Validation Rules:
+
+❌ **REJECT** if any element entrance is only "fade in" or "opacity 0→1"
+❌ **REJECT** if background has no animation (static solid color)
+❌ **REJECT** if numbers appear instantly (must use counter tick-up)
+❌ **REJECT** if all elements animate at the same time (no stagger)
+
+✅ **REQUIRE** at least one "hero" animation (complex, attention-grabbing)
+✅ **REQUIRE** background with continuous subtle motion
+✅ **REQUIRE** staggered timing (primary → secondary → labels)
+✅ **REQUIRE** spring() or easing for all movements (no linear)
+
+### Example Animation Inventory:
+
+```
+ANIMATION INVENTORY:
+
+Background Animation:
+- Type: floating particles + gradient-shift
+- Intensity: subtle
+- Motion: 20 particles drift and pulse, gradient hue shifts 20° over duration
+
+Element Animations:
+
+Element: Hero Number ($1.2M)
+├── Entrance: counter tick-up + scale
+│   ├── Movement: counts from 0, scales from 0.8 to 1
+│   ├── Duration: 45 frames
+│   └── Easing: spring(damping: 50, stiffness: 100)
+├── On-screen: glow-pulse
+└── Exit: none (holds)
+
+Element: Chart Bars (4 bars)
+├── Entrance: slide + scale
+│   ├── Movement: slide from bottom, grow to target height
+│   ├── Duration: 20 frames each, staggered by 5 frames
+│   └── Easing: spring(damping: 12, stiffness: 200)
+├── On-screen: subtle breathing
+└── Exit: none
+
+Element: Labels
+├── Entrance: slide
+│   ├── Movement: slide from bottom 30px
+│   ├── Duration: 12 frames
+│   └── Easing: spring(damping: 15, stiffness: 150)
+├── On-screen: static
+└── Exit: none
+```
+
+---
+
 ## Step 4: Layout Planning
 
 Divide the 1920x1080 canvas into zones:
@@ -204,15 +285,27 @@ Before proceeding to Phase 2, verify your plan:
 ```
 PLAN VALIDATION CHECKLIST:
 
+Content & Structure:
 [ ] Category identified with reason
 [ ] Core message is ONE sentence
 [ ] Key elements listed (2-4 items)
 [ ] ALL relationships have corresponding connections in inventory
 [ ] Visual inventory lists EVERY shape, line, and label
 [ ] For Structural: edge count matches relationship count
+
+Layout:
 [ ] Layout zones assigned with pixel coordinates
 [ ] Animation timeline covers all inventory items
 [ ] Total animation time fits within duration
+
+Animation (CRITICAL - Instagram-worthy quality):
+[ ] Background has continuous motion (NOT static)
+[ ] NO element uses fade-only entrance
+[ ] Every element has movement (scale, slide, draw, or blur)
+[ ] Numbers use counter tick-up (NOT instant appear)
+[ ] Animations are staggered (NOT all at once)
+[ ] Using spring() or easing (NOT linear interpolation)
+[ ] At least one "hero" animation that grabs attention
 ```
 
 **If any checkbox is unchecked, go back and complete it before proceeding.**
