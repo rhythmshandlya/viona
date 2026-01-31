@@ -27,7 +27,7 @@ describe('buildGenerateVisualsPrompt', () => {
       expect(prompt).toContain('Resolution: 1080x1920');
 
       // Check CRITICAL section mentions exact dimensions
-      expect(prompt).toContain('MUST be designed for 1080x1920 pixels');
+      expect(prompt).toContain('MUST render at exactly 1080x1920 pixels');
 
       // Check metadata.json example has correct dimensions
       expect(prompt).toContain('"width": 1080');
@@ -43,7 +43,7 @@ describe('buildGenerateVisualsPrompt', () => {
       });
 
       expect(prompt).toContain('Resolution: 1080x960');
-      expect(prompt).toContain('MUST be designed for 1080x960 pixels');
+      expect(prompt).toContain('MUST render at exactly 1080x960 pixels');
       expect(prompt).toContain('"width": 1080');
       expect(prompt).toContain('"height": 960');
     });
@@ -57,7 +57,7 @@ describe('buildGenerateVisualsPrompt', () => {
       });
 
       expect(prompt).toContain('Resolution: 540x1920');
-      expect(prompt).toContain('MUST be designed for 540x1920 pixels');
+      expect(prompt).toContain('MUST render at exactly 540x1920 pixels');
       expect(prompt).toContain('"width": 540');
       expect(prompt).toContain('"height": 1920');
     });
@@ -71,8 +71,7 @@ describe('buildGenerateVisualsPrompt', () => {
       });
 
       expect(prompt).toContain('Resolution: 1920x1080');
-      expect(prompt).toContain('HORIZONTAL (landscape) format');
-      expect(prompt).toContain('Arrange elements HORIZONTALLY');
+      expect(prompt).toContain('HORIZONTAL/Landscape');
     });
 
     it('handles portrait dimensions correctly', () => {
@@ -83,8 +82,7 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      expect(prompt).toContain('VERTICAL (portrait) format');
-      expect(prompt).toContain('Stack elements VERTICALLY');
+      expect(prompt).toContain('VERTICAL/Portrait');
     });
 
     it('handles square dimensions correctly', () => {
@@ -95,7 +93,7 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      expect(prompt).toContain('SQUARE format');
+      expect(prompt).toContain('SQUARE');
     });
   });
 
@@ -120,7 +118,6 @@ describe('buildGenerateVisualsPrompt', () => {
       });
 
       expect(prompt).toContain('Top portion of split screen (video will appear below)');
-      expect(prompt).toContain('SPLIT layout');
     });
 
     it('provides correct context for split-vertical mode', () => {
@@ -136,7 +133,7 @@ describe('buildGenerateVisualsPrompt', () => {
   });
 
   describe('responsive design guidance', () => {
-    it('calculates proportional font sizes based on height', () => {
+    it('includes responsive value pattern', () => {
       const prompt = buildGenerateVisualsPrompt({
         ...baseOptions,
         width: 1080,
@@ -144,13 +141,12 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      // Title size should be ~4% of height = ~77px
-      expect(prompt).toContain('titles ~77px');
-      // Body size should be ~2.5% of height = ~48px
-      expect(prompt).toContain('body ~48px');
+      // Check for responsive value pattern
+      expect(prompt).toContain('Responsive Value Pattern');
+      expect(prompt).toContain('Math.min(width, height)');
     });
 
-    it('calculates proportional margins based on smaller dimension', () => {
+    it('includes font size calculations relative to height', () => {
       const prompt = buildGenerateVisualsPrompt({
         ...baseOptions,
         width: 1080,
@@ -158,13 +154,14 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      // Margins should be ~5% of smaller dimension (1080) = ~54px
-      expect(prompt).toContain('Margins/padding: ~54px');
+      expect(prompt).toContain('height * 0.022');
+      expect(prompt).toContain('height * 0.032');
+      expect(prompt).toContain('height * 0.045');
     });
   });
 
-  describe('quality checklist', () => {
-    it('includes dimension verification in checklist', () => {
+  describe('metadata requirements', () => {
+    it('includes metadata.json format requirements', () => {
       const prompt = buildGenerateVisualsPrompt({
         ...baseOptions,
         width: 1080,
@@ -172,8 +169,9 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      expect(prompt).toContain('metadata.json has width: 1080, height: 1920');
-      expect(prompt).toContain('Design fits 1080x1920 - no hardcoded 1920x1080!');
+      expect(prompt).toContain('metadata.json');
+      expect(prompt).toContain('"width": 1080');
+      expect(prompt).toContain('"height": 1920');
     });
   });
 
@@ -186,9 +184,10 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      expect(prompt).toContain('Duration: 60000ms');
+      expect(prompt).toContain('Duration:**');
+      expect(prompt).toContain('60000ms');
       expect(prompt).toContain('1800 frames'); // 60s * 30fps
-      expect(prompt).toContain('FPS: 30');
+      expect(prompt).toContain('30 FPS');
     });
   });
 
@@ -201,9 +200,8 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      expect(prompt).toContain('const { width, height } = useVideoConfig()');
+      expect(prompt).toContain('const { width, height, fps } = useVideoConfig()');
       expect(prompt).toContain('NEVER hardcode');
-      expect(prompt).toContain('const isPortrait = height > width');
     });
   });
 });
@@ -224,16 +222,16 @@ describe('STYLE_GUIDELINES', () => {
     });
   });
 
-  it('includes diagram and animation style in each style', () => {
+  it('includes design and animation sections in each style', () => {
     Object.values(STYLE_GUIDELINES).forEach((guideline) => {
-      expect(guideline).toContain('Diagram style:');
-      expect(guideline).toContain('Animation style:');
-      expect(guideline).toContain('Best for:');
+      expect(guideline).toContain('**DESIGN:**');
+      expect(guideline).toContain('**ANIMATION:**');
+      expect(guideline).toContain('**COLOR PALETTE:**');
     });
   });
 });
 
-describe('short-form social media context', () => {
+describe('visualization guidance', () => {
   const baseOptions = {
     transcript: [{ text: 'Test', startMs: 0, endMs: 1000 }],
     projectId: 'test_project',
@@ -246,75 +244,112 @@ describe('short-form social media context', () => {
     layoutMode: 'pip' as const,
   };
 
-  it('mentions short-form social media platforms', () => {
-    const prompt = buildGenerateVisualsPrompt(baseOptions);
-
-    expect(prompt).toContain('SHORT-FORM SOCIAL MEDIA');
-    expect(prompt).toContain('Instagram Reels');
-    expect(prompt).toContain('TikTok');
-    expect(prompt).toContain('YouTube Shorts');
-  });
-
-  it('explains the talking head video format', () => {
-    const prompt = buildGenerateVisualsPrompt(baseOptions);
-
-    expect(prompt).toContain('Talking head');
-    expect(prompt).toContain('person is speaking directly to camera');
-  });
-
-  it('emphasizes visual content over text', () => {
-    const prompt = buildGenerateVisualsPrompt(baseOptions);
-
-    expect(prompt).toContain('SUBTITLES ARE SEPARATE');
-    expect(prompt).toContain('VISUAL, NOT TEXTUAL');
-    expect(prompt).toContain('Minimize text');
-    expect(prompt).toContain('shapes, icons, diagrams, illustrations');
-  });
-
-  it('explains complex visualization goals', () => {
-    const prompt = buildGenerateVisualsPrompt(baseOptions);
-
-    expect(prompt).toContain('RICH, COMPLEX animated visuals');
-    expect(prompt).toContain('animated infographics');
-    expect(prompt).toContain('Flowcharts with elements appearing in sequence');
-    expect(prompt).toContain('Data visualizations');
-  });
-
-  it('provides correct speaker position based on layout mode', () => {
+  it('provides correct layout context based on layout mode', () => {
     const pipPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'pip' });
-    expect(pipPrompt).toContain('BEHIND the speaker (who appears as a small PiP overlay)');
+    expect(pipPrompt).toContain('Full-screen visuals (video will be overlaid as a small picture-in-picture window)');
 
     const splitHPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'split-horizontal' });
-    expect(splitHPrompt).toContain('ABOVE the speaker (split screen)');
+    expect(splitHPrompt).toContain('Top portion of split screen (video will appear below)');
 
     const splitVPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'split-vertical' });
-    expect(splitVPrompt).toContain('BESIDE the speaker (split screen)');
+    expect(splitVPrompt).toContain('Left portion of split screen (video will appear on the right)');
   });
 
-  it('includes visualization categories', () => {
+  it('includes visualization mapping table', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain('PROCESSES & WORKFLOWS');
-    expect(prompt).toContain('DATA & COMPARISONS');
-    expect(prompt).toContain('CONCEPTS & FRAMEWORKS');
-    expect(prompt).toContain('VISUAL METAPHORS');
+    expect(prompt).toContain('Steps/Process');
+    expect(prompt).toContain('Animated flowchart');
+    expect(prompt).toContain('Statistics/Numbers');
+    expect(prompt).toContain('Comparisons');
+    expect(prompt).toContain('Concepts/Frameworks');
   });
 
-  it('explains what NOT to create', () => {
+  it('emphasizes visual representation over text', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain('What NOT to Create');
-    expect(prompt).toContain('Text captions or subtitles');
-    expect(prompt).toContain('Simple text overlays');
-    expect(prompt).toContain('Static images');
+    expect(prompt).toContain("Don't just put text on screen");
+    expect(prompt).toContain('CREATE A VISUAL REPRESENTATION');
   });
 
-  it('includes quality checks for animated visualizations', () => {
+  it('includes self-healing workflow guidance', () => {
     const prompt = buildGenerateVisualsPrompt(baseOptions);
 
-    expect(prompt).toContain('ANIMATED (not static images)');
-    expect(prompt).toContain('elements build progressively');
-    expect(prompt).toContain('Minimal text - diagrams and shapes convey meaning');
-    expect(prompt).toContain('Educational value');
+    expect(prompt).toContain('SELF-HEALING WORKFLOW');
+    expect(prompt).toContain('TypeScriptValidatorTool');
+    expect(prompt).toContain('ZERO TypeScript errors');
+  });
+});
+
+describe('Animation Philosophy', () => {
+  const baseOptions = {
+    transcript: [{ text: 'Test', startMs: 0, endMs: 1000 }],
+    projectId: 'test_project',
+    stylePreset: 'modern',
+    styleGuidelines: STYLE_GUIDELINES.modern,
+    durationMs: 60000,
+    fps: 30,
+    width: 1080,
+    height: 1920,
+    layoutMode: 'pip' as const,
+  };
+
+  it('includes the Three Laws of Meaningful Animation', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('CONTINUOUS MOTION');
+    expect(prompt).toContain('CONCEPTUAL, NOT LITERAL');
+    expect(prompt).toContain('ZERO TEXT OVERLAYS');
+  });
+
+  it('provides examples of conceptual vs literal animations', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('Binary tree is slow here');
+    expect(prompt).toContain('O(n) counter climbing');
+  });
+
+  it('explicitly forbids text overlays', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('Subtitles handle all text');
+    expect(prompt).toContain('PURE VISUAL STORYTELLING');
+  });
+});
+
+describe('Scene Planning', () => {
+  const baseOptions = {
+    transcript: [{ text: 'Test', startMs: 0, endMs: 1000 }],
+    projectId: 'test_project',
+    stylePreset: 'modern',
+    styleGuidelines: STYLE_GUIDELINES.modern,
+    durationMs: 60000,
+    fps: 30,
+    width: 1080,
+    height: 1920,
+    layoutMode: 'pip' as const,
+  };
+
+  it('requires scene planning before code', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('SCENE PLANNING WITH REASONING');
+    expect(prompt).toContain('REQUIRED FIRST STEP');
+  });
+
+  it('includes Chain of Thought reasoning fields', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('whatIsBeingExplained');
+    expect(prompt).toContain('whyNotLiteral');
+    expect(prompt).toContain('whatWouldMakeItClick');
+    expect(prompt).toContain('howAnimationAddsUnderstanding');
+  });
+
+  it('provides a bubble sort example with full reasoning', () => {
+    const prompt = buildGenerateVisualsPrompt(baseOptions);
+
+    expect(prompt).toContain('bubble sort');
+    expect(prompt).toContain('redundant comparisons');
   });
 });
