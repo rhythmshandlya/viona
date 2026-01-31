@@ -565,149 +565,362 @@ export const \${projectId}: React.FC = () => {
 `;
 
 /**
- * Reference Example 3: Responsive Info Card Layout
- * Shows heading + content + footer pattern with proper text wrapping
+ * Reference Example 3: Hash Collisions - When Keys Collide
+ * Demonstrates: Gravity, bounce physics, squash/stretch, stacking
+ * Meaningful: Balls physically pile up, lookup scanner digs through - shows O(n) cost
  */
-export const REFERENCE_INFO_CARD = `
-// src/\${projectId}/components/InfoCard.tsx
+export const REFERENCE_HASH_COLLISIONS = `
+// src/\${projectId}/index.tsx
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
+import { AbsoluteFill, useVideoConfig, useCurrentFrame, interpolate, spring } from 'remotion';
 
 const COLORS = {
-  bgDeep: '#0f0f23',
-  bgGradient: 'radial-gradient(ellipse at center, #1a1a3e 0%, #0f0f23 90%)',
-  primary: '#8b5cf6',
-  accent: '#06b6d4',
+  bg: '#0f0f23',
+  bucket: '#1e293b',
+  bucketStroke: '#475569',
+  ball: ['#8b5cf6', '#3b82f6', '#06b6d4', '#22c55e', '#f97316', '#ef4444', '#ec4899', '#eab308'],
+  collision: '#ef4444',
+  success: '#22c55e',
   glow: 'rgba(139, 92, 246, 0.4)',
-  white: '#ffffff',
-  muted: '#888888',
 };
 
-export const InfoCard: React.FC<{
-  title: string;
-  subtitle: string;
-  content: string;
-  highlight: string;
-}> = ({ title, subtitle, content, highlight }) => {
+interface Ball {
+  id: number;
+  key: string;
+  bucketIndex: number;
+  color: string;
+  dropFrame: number;
+  stackPosition: number;
+}
+
+// Simple physics simulation for a falling ball
+const simulateBallPhysics = (
+  frame: number,
+  dropFrame: number,
+  targetY: number,
+  bounceHeight: number,
+  fps: number
+) => {
+  const elapsed = frame - dropFrame;
+  if (elapsed < 0) return { y: -100, settled: false };
+
+  const gravity = 0.004;
+  const bounceDamping = 0.5;
+  const settleThreshold = 2;
+
+  let y = 0;
+  let velocity = 0;
+  let bounces = 0;
+  const maxBounces = 4;
+
+  for (let t = 0; t < elapsed; t++) {
+    velocity += gravity;
+    y += velocity;
+
+    if (y >= targetY) {
+      y = targetY;
+      velocity = -velocity * bounceDamping;
+      bounces++;
+
+      if (bounces >= maxBounces || Math.abs(velocity) < settleThreshold * 0.01) {
+        return { y: targetY, settled: true };
+      }
+    }
+  }
+
+  return { y: Math.min(y, targetY), settled: false };
+};
+
+export const \${projectId}: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const minDim = Math.min(width, height);
 
-  // RESPONSIVE DESIGN TOKENS
-  const padding = minDim * 0.06;
-  const gap = minDim * 0.025;
-  const radius = minDim * 0.025;
-  const glow = minDim * 0.03;
-  const borderWidth = Math.max(2, minDim * 0.003);
+  // === CONFIGURATION ===
+  const numBuckets = 6;
+  const ballRadius = minDim * 0.035;
+  const bucketWidth = minDim * 0.11;
+  const bucketHeight = height * 0.45;
+  const bucketGap = minDim * 0.02;
+  const bucketY = height * 0.75;
 
-  const fontSize = {
-    title: height * 0.055,
-    subtitle: height * 0.025,
-    content: height * 0.032,
-    highlight: height * 0.08,
-  };
+  // === BALLS WITH INTENTIONAL COLLISIONS ===
+  const balls: Ball[] = [
+    { id: 0, key: 'user_1', bucketIndex: 0, color: COLORS.ball[0], dropFrame: 15, stackPosition: 0 },
+    { id: 1, key: 'user_2', bucketIndex: 2, color: COLORS.ball[1], dropFrame: 30, stackPosition: 0 },
+    { id: 2, key: 'user_3', bucketIndex: 4, color: COLORS.ball[2], dropFrame: 45, stackPosition: 0 },
+    { id: 3, key: 'user_4', bucketIndex: 2, color: COLORS.ball[3], dropFrame: 60, stackPosition: 1 },
+    { id: 4, key: 'user_5', bucketIndex: 1, color: COLORS.ball[4], dropFrame: 75, stackPosition: 0 },
+    { id: 5, key: 'user_6', bucketIndex: 2, color: COLORS.ball[5], dropFrame: 90, stackPosition: 2 },
+    { id: 6, key: 'user_7', bucketIndex: 5, color: COLORS.ball[6], dropFrame: 105, stackPosition: 0 },
+    { id: 7, key: 'user_8', bucketIndex: 2, color: COLORS.ball[7], dropFrame: 120, stackPosition: 3 },
+    { id: 8, key: 'user_9', bucketIndex: 4, color: COLORS.ball[0], dropFrame: 135, stackPosition: 1 },
+    { id: 9, key: 'user_10', bucketIndex: 3, color: COLORS.ball[1], dropFrame: 150, stackPosition: 0 },
+  ];
 
-  const cardScale = spring({ frame, fps, config: { damping: 12, stiffness: 60 } });
-  const contentOpacity = interpolate(frame, [20, 40], [0, 1], { extrapolateRight: 'clamp' });
-  const glowPulse = interpolate(Math.sin(frame * 0.08), [-1, 1], [0.5, 1]);
+  // === LOOKUP ANIMATION ===
+  const lookupStartFrame = 180;
+  const lookupBucketIndex = 2;
+  const lookupProgress = interpolate(
+    frame - lookupStartFrame,
+    [0, 30, 50, 70, 90],
+    [0, 1, 2, 3, 4],
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+  );
+  const lookupComplete = frame > lookupStartFrame + 100;
+
+  // Count collisions
+  const bucketCounts: Record<number, number> = {};
+  balls.forEach(ball => {
+    if (frame >= ball.dropFrame) {
+      bucketCounts[ball.bucketIndex] = (bucketCounts[ball.bucketIndex] || 0) + 1;
+    }
+  });
+  const totalCollisions = Object.values(bucketCounts).reduce((sum, count) => sum + Math.max(0, count - 1), 0);
+
+  // === RESPONSIVE SIZES ===
+  const fontSize = height * 0.02;
+  const counterSize = height * 0.045;
+  const totalBucketsWidth = numBuckets * bucketWidth + (numBuckets - 1) * bucketGap;
+  const startX = (width - totalBucketsWidth) / 2;
 
   return (
-    <AbsoluteFill style={{ background: COLORS.bgGradient }}>
-      <div style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding,
-      }}>
-        {/* CARD CONTAINER */}
+    <AbsoluteFill style={{
+      background: \`radial-gradient(ellipse at top, #1a1a3e 0%, \${COLORS.bg} 70%)\`,
+    }}>
+      {/* === BUCKETS === */}
+      {Array.from({ length: numBuckets }).map((_, bucketIdx) => {
+        const bucketX = startX + bucketIdx * (bucketWidth + bucketGap);
+        const ballsInBucket = bucketCounts[bucketIdx] || 0;
+        const isOverloaded = ballsInBucket > 2;
+        const isBeingSearched = frame >= lookupStartFrame && bucketIdx === lookupBucketIndex;
+
+        const shakeX = isOverloaded
+          ? Math.sin(frame * 0.5 + bucketIdx) * minDim * 0.003 * (ballsInBucket - 2)
+          : 0;
+
+        return (
+          <div
+            key={bucketIdx}
+            style={{
+              position: 'absolute',
+              left: bucketX,
+              top: bucketY - bucketHeight,
+              width: bucketWidth,
+              height: bucketHeight,
+              transform: \`translateX(\${shakeX}px)\`,
+            }}
+          >
+            <div style={{
+              width: '100%',
+              height: '100%',
+              background: COLORS.bucket,
+              border: \`\${Math.max(2, minDim * 0.003)}px solid \${isBeingSearched ? COLORS.ball[1] : COLORS.bucketStroke}\`,
+              borderTop: 'none',
+              borderRadius: \`0 0 \${minDim * 0.015}px \${minDim * 0.015}px\`,
+              boxShadow: isBeingSearched
+                ? \`0 0 \${minDim * 0.03}px \${COLORS.ball[1]}66\`
+                : isOverloaded
+                  ? \`0 0 \${minDim * 0.02}px \${COLORS.collision}44\`
+                  : 'none',
+            }} />
+
+            <div style={{
+              position: 'absolute',
+              bottom: -minDim * 0.05,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontFamily: 'ui-monospace, monospace',
+              fontSize,
+              color: '#666',
+            }}>
+              [{bucketIdx}]
+            </div>
+          </div>
+        );
+      })}
+
+      {/* === FALLING BALLS === */}
+      {balls.map((ball) => {
+        const bucketX = startX + ball.bucketIndex * (bucketWidth + bucketGap) + bucketWidth / 2;
+        const bucketBottom = bucketY;
+        const targetY = bucketBottom - ballRadius - (ball.stackPosition * ballRadius * 2.2);
+
+        const physics = simulateBallPhysics(frame, ball.dropFrame, targetY, ballRadius * 2, fps);
+
+        if (frame < ball.dropFrame) return null;
+
+        const isBeingChecked = frame >= lookupStartFrame &&
+          ball.bucketIndex === lookupBucketIndex &&
+          Math.floor(lookupProgress) === ball.stackPosition;
+        const isFoundMatch = lookupComplete && ball.bucketIndex === lookupBucketIndex && ball.stackPosition === 3;
+
+        const justLanded = physics.settled && frame - ball.dropFrame < 20;
+        const isCollision = ball.stackPosition > 0 && justLanded;
+
+        const velocity = frame - ball.dropFrame < 5 ? 0 : Math.min((frame - ball.dropFrame) * 0.02, 0.3);
+        const scaleX = physics.settled ? 1 : 1 - velocity * 0.2;
+        const scaleY = physics.settled ? 1 : 1 + velocity * 0.3;
+
+        const landingSquash = justLanded && physics.settled
+          ? interpolate(frame - ball.dropFrame, [0, 8, 15], [1, 0.7, 1], { extrapolateRight: 'clamp' })
+          : 1;
+
+        return (
+          <div
+            key={ball.id}
+            style={{
+              position: 'absolute',
+              left: bucketX - ballRadius,
+              top: physics.y - ballRadius,
+              width: ballRadius * 2,
+              height: ballRadius * 2,
+              borderRadius: '50%',
+              background: \`radial-gradient(circle at 30% 30%, \${ball.color}, \${ball.color}88)\`,
+              transform: \`scaleX(\${scaleX * (1 / landingSquash)}) scaleY(\${scaleY * landingSquash})\`,
+              boxShadow: isBeingChecked
+                ? \`0 0 \${minDim * 0.03}px \${COLORS.ball[1]}, inset 0 0 \${minDim * 0.015}px rgba(255,255,255,0.3)\`
+                : isCollision
+                  ? \`0 0 \${minDim * 0.04}px \${COLORS.collision}\`
+                  : isFoundMatch
+                    ? \`0 0 \${minDim * 0.04}px \${COLORS.success}\`
+                    : \`0 0 \${minDim * 0.015}px \${ball.color}66, inset 0 0 \${minDim * 0.01}px rgba(255,255,255,0.2)\`,
+              border: isFoundMatch
+                ? \`\${Math.max(2, minDim * 0.004)}px solid \${COLORS.success}\`
+                : isBeingChecked
+                  ? \`\${Math.max(2, minDim * 0.004)}px solid \${COLORS.ball[1]}\`
+                  : 'none',
+              zIndex: ball.stackPosition + 1,
+            }}
+          >
+            <div style={{
+              position: 'absolute',
+              top: '15%',
+              left: '20%',
+              width: '25%',
+              height: '25%',
+              borderRadius: '50%',
+              background: 'rgba(255, 255, 255, 0.4)',
+            }} />
+          </div>
+        );
+      })}
+
+      {/* === LOOKUP SCANNER === */}
+      {frame >= lookupStartFrame && !lookupComplete && (
         <div style={{
-          width: '100%',
-          maxWidth: width * 0.9,
-          background: 'rgba(139, 92, 246, 0.08)',
-          border: \`\${borderWidth}px solid \${COLORS.primary}\`,
-          borderRadius: radius,
-          boxShadow: \`0 0 \${glow * glowPulse}px \${COLORS.glow}\`,
-          transform: \`scale(\${cardScale})\`,
-          overflow: 'hidden', // Prevent content overflow
+          position: 'absolute',
+          left: startX + lookupBucketIndex * (bucketWidth + bucketGap),
+          top: bucketY - bucketHeight + (bucketHeight * 0.1),
+          width: bucketWidth,
+          height: minDim * 0.008,
+          background: \`linear-gradient(90deg, transparent, \${COLORS.ball[1]}, transparent)\`,
+          transform: \`translateY(\${Math.floor(lookupProgress) * ballRadius * 2.5}px)\`,
+          boxShadow: \`0 0 \${minDim * 0.02}px \${COLORS.ball[1]}\`,
+          opacity: 0.8,
+        }} />
+      )}
+
+      {/* === STATS DISPLAY === */}
+      <div style={{
+        position: 'absolute',
+        top: minDim * 0.05,
+        left: 0,
+        right: 0,
+        display: 'flex',
+        justifyContent: 'center',
+        gap: minDim * 0.1,
+      }}>
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: minDim * 0.01,
         }}>
-          {/* CARD LAYOUT: Vertical stack with flexbox */}
+          <span style={{
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: counterSize,
+            fontWeight: 800,
+            color: totalCollisions > 0 ? COLORS.collision : COLORS.success,
+            textShadow: \`0 0 \${minDim * 0.02}px \${totalCollisions > 0 ? COLORS.collision : COLORS.success}66\`,
+          }}>
+            {totalCollisions}
+          </span>
+          <span style={{
+            fontFamily: 'system-ui, sans-serif',
+            fontSize: height * 0.02,
+            color: '#888',
+          }}>
+            collisions
+          </span>
+        </div>
+
+        {frame >= lookupStartFrame && (
           <div style={{
             display: 'flex',
             flexDirection: 'column',
-            padding,
-            gap,
+            alignItems: 'center',
+            gap: minDim * 0.01,
+            opacity: spring({ frame: frame - lookupStartFrame, fps, config: { damping: 15 } }),
           }}>
-            {/* HEADER REGION */}
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: gap * 0.3,
+            <span style={{
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: counterSize,
+              fontWeight: 800,
+              color: lookupComplete ? COLORS.success : COLORS.ball[1],
+              textShadow: \`0 0 \${minDim * 0.02}px \${lookupComplete ? COLORS.success : COLORS.ball[1]}66\`,
             }}>
-              <h1 style={{
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                fontSize: fontSize.title,
-                fontWeight: 700,
-                color: COLORS.white,
-                margin: 0,
-                lineHeight: 1.2,
-                // Multi-line text handling
-                wordWrap: 'break-word',
-                overflowWrap: 'break-word',
-              }}>
-                {title}
-              </h1>
-              <p style={{
-                fontFamily: 'system-ui, sans-serif',
-                fontSize: fontSize.subtitle,
-                color: COLORS.muted,
-                margin: 0,
-                textTransform: 'uppercase',
-                letterSpacing: '0.1em',
-              }}>
-                {subtitle}
-              </p>
-            </div>
-
-            {/* HIGHLIGHT NUMBER */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: \`\${gap}px 0\`,
-              opacity: contentOpacity,
-            }}>
-              <span style={{
-                fontFamily: 'system-ui, -apple-system, sans-serif',
-                fontSize: fontSize.highlight,
-                fontWeight: 800,
-                color: COLORS.primary,
-                textShadow: \`0 0 \${glow}px \${COLORS.glow}\`,
-              }}>
-                {highlight}
-              </span>
-            </div>
-
-            {/* CONTENT REGION */}
-            <p style={{
+              {Math.min(Math.floor(lookupProgress) + 1, 4)}
+            </span>
+            <span style={{
               fontFamily: 'system-ui, sans-serif',
-              fontSize: fontSize.content,
-              color: COLORS.white,
-              margin: 0,
-              lineHeight: 1.5,
-              opacity: contentOpacity,
-              textAlign: 'center',
-              // CRITICAL: Multi-line text handling
-              wordWrap: 'break-word',
-              overflowWrap: 'break-word',
-              hyphens: 'auto',
+              fontSize: height * 0.02,
+              color: '#888',
             }}>
-              {content}
-            </p>
+              checks to find
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* === O(1) vs O(n) indicator === */}
+      {frame >= lookupStartFrame + 50 && (
+        <div style={{
+          position: 'absolute',
+          bottom: minDim * 0.08,
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent: 'center',
+          opacity: spring({ frame: frame - lookupStartFrame - 50, fps, config: { damping: 12 } }),
+        }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: minDim * 0.02,
+            padding: \`\${minDim * 0.015}px \${minDim * 0.03}px\`,
+            background: 'rgba(239, 68, 68, 0.15)',
+            borderRadius: minDim * 0.01,
+            border: \`\${Math.max(1, minDim * 0.002)}px solid \${COLORS.collision}44\`,
+          }}>
+            <span style={{
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: height * 0.028,
+              fontWeight: 700,
+              color: COLORS.collision,
+            }}>
+              O(n)
+            </span>
+            <span style={{
+              fontFamily: 'system-ui, sans-serif',
+              fontSize: height * 0.022,
+              color: '#888',
+            }}>
+              instead of O(1)
+            </span>
           </div>
         </div>
-      </div>
+      )}
     </AbsoluteFill>
   );
 };
@@ -890,8 +1103,8 @@ ${REFERENCE_SEARCH_RACE.replace(/\$\{projectId\}/g, projectId)}
 ### Example 2: Stack Overflow - The Inevitable Crash
 ${REFERENCE_STACK_OVERFLOW.replace(/\$\{projectId\}/g, projectId)}
 
-### Example 3: Info Card with Text Wrapping
-${REFERENCE_INFO_CARD}
+### Example 3: Hash Collisions - When Keys Collide
+${REFERENCE_HASH_COLLISIONS.replace(/\$\{projectId\}/g, projectId)}
 
 ---
 
