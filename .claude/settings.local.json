@@ -166,7 +166,12 @@
       "Bash(. ./.env)",
       "Bash(set +a)",
       "Bash(npm run migrate:*)",
-      "Bash(npm run db:migrate:*)"
+      "Bash(npm run db:migrate:*)",
+      "Skill(superpowers:finishing-a-development-branch)",
+      "Bash(npm test)",
+      "WebFetch(domain:docs.openhands.dev)",
+      "Bash(python -m py_compile:*)",
+      "Bash(git push:*)"
     ]
   }
 }
