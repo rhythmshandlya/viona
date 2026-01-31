@@ -242,158 +242,322 @@ export const \${projectId}: React.FC = () => {
 `;
 
 /**
- * Reference Example 2: Responsive Bar Chart
- * Shows proper flexbox layout with dynamic bar sizing
+ * Reference Example 2: Stack Overflow - The Inevitable Crash
+ * Demonstrates: Physics (particles, gravity), state progression, memory pressure visualization
+ * Meaningful: Frames pile up, memory fills, shake increases - viewer FEELS the impending crash
  */
-export const REFERENCE_BAR_CHART = `
-// src/\${projectId}/components/AnimatedBarChart.tsx
+export const REFERENCE_STACK_OVERFLOW = `
+// src/\${projectId}/index.tsx
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
+import { AbsoluteFill, useVideoConfig, useCurrentFrame, interpolate, spring, Easing } from 'remotion';
 
 const COLORS = {
-  bgDeep: '#0f0f23',
-  bgGradient: 'radial-gradient(ellipse at top, #1a1a3e 0%, #0f0f23 60%)',
-  primary: '#8b5cf6',
-  secondary: '#3b82f6',
-  accent: '#06b6d4',
-  success: '#22c55e',
-  muted: '#888888',
+  bg: '#0f0f23',
+  frame: '#8b5cf6',
+  frameStroke: '#a78bfa',
+  danger: '#ef4444',
+  warning: '#f97316',
+  safe: '#22c55e',
+  memoryBg: '#1a1a2e',
+  memoryFill: '#8b5cf6',
+  explosion: '#ff6b6b',
 };
 
-const BAR_COLORS = [COLORS.primary, COLORS.secondary, COLORS.accent, COLORS.success];
-
-interface DataPoint {
-  label: string;
-  value: number;
+interface StackFrame {
+  id: number;
+  name: string;
+  arg: number;
 }
 
-export const AnimatedBarChart: React.FC<{ data: DataPoint[]; title: string }> = ({ data, title }) => {
+export const \${projectId}: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
   const minDim = Math.min(width, height);
 
-  // ALL RESPONSIVE VALUES
+  // === ANIMATION TIMELINE ===
+  const frameInterval = 8; // New stack frame every 8 frames
+  const maxFrames = 14;
+  const crashFrame = maxFrames * frameInterval;
+  const explosionDuration = 40;
+
+  const currentStackDepth = Math.min(Math.floor(frame / frameInterval), maxFrames);
+  const isCrashed = frame >= crashFrame;
+  const explosionProgress = isCrashed
+    ? interpolate(frame - crashFrame, [0, explosionDuration], [0, 1], { extrapolateRight: 'clamp' })
+    : 0;
+
+  // Generate stack frames (recursive fibonacci as example)
+  const stackFrames: StackFrame[] = [];
+  for (let i = 0; i <= currentStackDepth && i < maxFrames; i++) {
+    stackFrames.push({
+      id: i,
+      name: 'fib',
+      arg: maxFrames - i,
+    });
+  }
+
+  // === RESPONSIVE SIZES ===
+  const stackWidth = width * 0.45;
+  const frameHeight = height * 0.05;
+  const frameGap = height * 0.008;
   const padding = minDim * 0.05;
-  const gap = minDim * 0.02;
-  const titleSize = height * 0.045;
-  const valueSize = height * 0.028;
-  const labelSize = height * 0.02;
-  const radius = minDim * 0.015;
-  const glow = minDim * 0.02;
+  const fontSize = height * 0.022;
+  const memoryBarWidth = width * 0.08;
+  const memoryBarHeight = height * 0.7;
 
-  const maxValue = Math.max(...data.map(d => d.value));
-  const barAreaWidth = width - padding * 2;
-  const barWidth = (barAreaWidth - gap * (data.length - 1)) / data.length;
-  const maxBarHeight = height * 0.45;
+  // === MEMORY PRESSURE ===
+  const memoryUsage = currentStackDepth / maxFrames;
+  const memoryColor = memoryUsage > 0.85
+    ? COLORS.danger
+    : memoryUsage > 0.6
+      ? COLORS.warning
+      : COLORS.safe;
 
-  // Title animation
-  const titleScale = spring({ frame, fps, config: { damping: 15, stiffness: 80 } });
+  // Shake intensity increases as memory fills
+  const shakeIntensity = interpolate(memoryUsage, [0.7, 1], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  const shakeX = isCrashed ? 0 : Math.sin(frame * 1.5) * shakeIntensity * minDim * 0.008;
+  const shakeY = isCrashed ? 0 : Math.cos(frame * 1.8) * shakeIntensity * minDim * 0.005;
+
+  // === EXPLOSION PARTICLES ===
+  const particles = Array.from({ length: 20 }, (_, i) => {
+    const angle = (i / 20) * Math.PI * 2 + i * 0.5;
+    const velocity = minDim * 0.3 + (i % 5) * minDim * 0.1;
+    const size = minDim * 0.015 + (i % 3) * minDim * 0.01;
+    return {
+      x: Math.cos(angle) * velocity * explosionProgress,
+      y: Math.sin(angle) * velocity * explosionProgress - (explosionProgress * explosionProgress * minDim * 0.2),
+      size: size * (1 - explosionProgress * 0.5),
+      opacity: 1 - explosionProgress,
+      rotation: explosionProgress * 360 * (i % 2 === 0 ? 1 : -1),
+    };
+  });
 
   return (
-    <AbsoluteFill style={{ background: COLORS.bgGradient }}>
-      {/* STRUCTURED LAYOUT: Title Region + Chart Region */}
+    <AbsoluteFill style={{
+      background: \`radial-gradient(ellipse at center, #1a1a3e 0%, \${COLORS.bg} 70%)\`,
+    }}>
       <div style={{
         width: '100%',
         height: '100%',
         display: 'flex',
-        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: minDim * 0.08,
         padding,
+        transform: \`translate(\${shakeX}px, \${shakeY}px)\`,
       }}>
-        {/* TITLE REGION - Top 15% */}
+
+        {/* === STACK VISUALIZATION === */}
         <div style={{
-          flex: '0 0 15%',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
+          gap: minDim * 0.02,
+          position: 'relative',
         }}>
-          <h1 style={{
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            fontSize: titleSize,
-            fontWeight: 700,
-            color: '#ffffff',
-            textAlign: 'center',
-            transform: \`scale(\${titleScale})\`,
-            margin: 0,
-            // Text handling
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            maxWidth: '100%',
+          {/* Stack container */}
+          <div style={{
+            width: stackWidth,
+            height: height * 0.75,
+            display: 'flex',
+            flexDirection: 'column-reverse',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            gap: frameGap,
+            position: 'relative',
+            overflow: 'visible',
           }}>
-            {title}
-          </h1>
-        </div>
-
-        {/* CHART REGION - Bottom 85% */}
-        <div style={{
-          flex: 1,
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center',
-          gap,
-          paddingBottom: height * 0.1,
-        }}>
-          {data.map((item, i) => {
-            const delay = 15 + i * 12;
-            const barProgress = spring({ frame: frame - delay, fps, config: { damping: 12, stiffness: 80 } });
-            const targetHeight = (item.value / maxValue) * maxBarHeight;
-            const currentHeight = targetHeight * barProgress;
-            const displayValue = Math.round(item.value * barProgress);
-            const glowPulse = interpolate(Math.sin((frame - delay) * 0.08), [-1, 1], [0.4, 1]);
-            const barColor = BAR_COLORS[i % BAR_COLORS.length];
-
-            return (
-              <div key={i} style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: gap * 0.5,
-                width: barWidth,
-                maxWidth: width * 0.2, // Cap bar width
+            {/* Explosion overlay */}
+            {isCrashed && (
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                zIndex: 100,
               }}>
-                {/* Value label */}
+                {/* Central flash */}
                 <div style={{
-                  fontFamily: 'ui-monospace, monospace',
-                  fontSize: valueSize,
-                  fontWeight: 700,
-                  color: barColor,
-                  textShadow: \`0 0 \${glow}px \${barColor}\`,
-                  opacity: barProgress,
-                }}>
-                  {displayValue}
-                </div>
-
-                {/* Bar */}
-                <div style={{
-                  width: '100%',
-                  height: currentHeight,
-                  background: \`linear-gradient(180deg, \${barColor} 0%, \${barColor}88 100%)\`,
-                  borderRadius: radius,
-                  boxShadow: \`0 0 \${glow * glowPulse}px \${barColor}66\`,
-                  border: \`\${Math.max(1, minDim * 0.001)}px solid \${barColor}\`,
+                  width: minDim * 0.3 * (1 + explosionProgress * 2),
+                  height: minDim * 0.3 * (1 + explosionProgress * 2),
+                  borderRadius: '50%',
+                  background: \`radial-gradient(circle, \${COLORS.explosion} 0%, transparent 70%)\`,
+                  opacity: 1 - explosionProgress,
                 }} />
 
-                {/* Label */}
-                <div style={{
-                  fontFamily: 'system-ui, sans-serif',
-                  fontSize: labelSize,
-                  color: COLORS.muted,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  opacity: barProgress,
-                  textAlign: 'center',
-                  // Text handling for labels
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  width: '100%',
-                }}>
-                  {item.label}
-                </div>
+                {/* Particles */}
+                {particles.map((p, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      position: 'absolute',
+                      top: '50%',
+                      left: '50%',
+                      width: p.size,
+                      height: p.size,
+                      borderRadius: minDim * 0.003,
+                      background: i % 3 === 0 ? COLORS.danger : i % 3 === 1 ? COLORS.warning : COLORS.frame,
+                      transform: \`translate(\${p.x}px, \${p.y}px) rotate(\${p.rotation}deg)\`,
+                      opacity: p.opacity,
+                      boxShadow: \`0 0 \${minDim * 0.01}px \${COLORS.explosion}\`,
+                    }}
+                  />
+                ))}
               </div>
-            );
-          })}
+            )}
+
+            {/* Stack frames */}
+            {stackFrames.map((sf, i) => {
+              const entryDelay = sf.id * frameInterval;
+              const entryProgress = spring({
+                frame: frame - entryDelay,
+                fps,
+                config: { damping: 12, stiffness: 100 },
+              });
+
+              // Frames get more "stressed" as stack fills
+              const stressLevel = i / maxFrames;
+              const pulseSpeed = 0.1 + stressLevel * 0.2;
+              const pulse = 1 + Math.sin(frame * pulseSpeed + i) * stressLevel * 0.05;
+
+              // Explosion scatter
+              const scatterX = isCrashed
+                ? (Math.random() - 0.5) * minDim * explosionProgress * 0.5
+                : 0;
+              const scatterY = isCrashed
+                ? -explosionProgress * minDim * 0.3 * (1 + Math.random())
+                : 0;
+              const scatterRotate = isCrashed
+                ? (Math.random() - 0.5) * 45 * explosionProgress
+                : 0;
+              const scatterOpacity = isCrashed ? 1 - explosionProgress : 1;
+
+              return (
+                <div
+                  key={sf.id}
+                  style={{
+                    width: stackWidth * 0.9,
+                    height: frameHeight,
+                    background: \`linear-gradient(135deg, \${COLORS.frame}22 0%, \${COLORS.frame}11 100%)\`,
+                    border: \`\${Math.max(1, minDim * 0.002)}px solid \${COLORS.frameStroke}\`,
+                    borderRadius: minDim * 0.01,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: minDim * 0.015,
+                    transform: \`
+                      scale(\${entryProgress * pulse})
+                      translateX(\${scatterX}px)
+                      translateY(\${scatterY}px)
+                      rotate(\${scatterRotate}deg)
+                    \`,
+                    opacity: scatterOpacity * entryProgress,
+                    boxShadow: stressLevel > 0.7
+                      ? \`0 0 \${minDim * 0.015}px \${COLORS.danger}66\`
+                      : \`0 0 \${minDim * 0.01}px \${COLORS.frame}44\`,
+                  }}
+                >
+                  {/* Function name */}
+                  <span style={{
+                    fontFamily: 'ui-monospace, monospace',
+                    fontSize,
+                    fontWeight: 600,
+                    color: COLORS.frameStroke,
+                  }}>
+                    {sf.name}({sf.arg})
+                  </span>
+
+                  {/* Return arrow indicator - shows it's waiting */}
+                  <div style={{
+                    width: minDim * 0.025,
+                    height: minDim * 0.025,
+                    borderRadius: '50%',
+                    background: stressLevel > 0.7 ? COLORS.danger : COLORS.frame,
+                    opacity: 0.6 + Math.sin(frame * 0.15 + i * 0.5) * 0.4,
+                  }} />
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Depth counter */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'baseline',
+            gap: minDim * 0.015,
+          }}>
+            <span style={{
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: height * 0.05,
+              fontWeight: 800,
+              color: memoryColor,
+              textShadow: \`0 0 \${minDim * 0.02}px \${memoryColor}\`,
+            }}>
+              {currentStackDepth}
+            </span>
+            <span style={{
+              fontFamily: 'system-ui, sans-serif',
+              fontSize: height * 0.022,
+              color: '#888',
+            }}>
+              frames deep
+            </span>
+          </div>
         </div>
+
+        {/* === MEMORY BAR === */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: minDim * 0.02,
+        }}>
+          {/* Memory container */}
+          <div style={{
+            width: memoryBarWidth,
+            height: memoryBarHeight,
+            background: COLORS.memoryBg,
+            borderRadius: minDim * 0.015,
+            border: \`\${Math.max(1, minDim * 0.002)}px solid #333\`,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-end',
+            position: 'relative',
+          }}>
+            {/* Fill level */}
+            <div style={{
+              width: '100%',
+              height: \`\${memoryUsage * 100}%\`,
+              background: \`linear-gradient(180deg, \${memoryColor} 0%, \${memoryColor}88 100%)\`,
+              borderRadius: minDim * 0.01,
+              boxShadow: \`0 0 \${minDim * 0.025}px \${memoryColor}66\`,
+              transition: 'none',
+            }} />
+
+            {/* Danger zone line */}
+            <div style={{
+              position: 'absolute',
+              top: '15%',
+              left: 0,
+              right: 0,
+              height: Math.max(1, minDim * 0.002),
+              background: COLORS.danger,
+              opacity: 0.5 + Math.sin(frame * 0.2) * 0.3,
+            }} />
+          </div>
+
+          {/* Memory percentage */}
+          <span style={{
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: height * 0.03,
+            fontWeight: 700,
+            color: memoryColor,
+          }}>
+            {Math.round(memoryUsage * 100)}%
+          </span>
+        </div>
+
       </div>
     </AbsoluteFill>
   );
@@ -723,8 +887,8 @@ ${RESPONSIVE_LAYOUT_HELPER}
 ### Example 1: Linear vs Binary Search Race
 ${REFERENCE_SEARCH_RACE.replace(/\$\{projectId\}/g, projectId)}
 
-### Example 2: Responsive Bar Chart with Title
-${REFERENCE_BAR_CHART}
+### Example 2: Stack Overflow - The Inevitable Crash
+${REFERENCE_STACK_OVERFLOW.replace(/\$\{projectId\}/g, projectId)}
 
 ### Example 3: Info Card with Text Wrapping
 ${REFERENCE_INFO_CARD}
