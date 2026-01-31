@@ -211,6 +211,33 @@ class TypeScriptValidatorExecutor(ToolExecutor[TypeScriptValidatorAction, TypeSc
             errors=errors
         )
 
+        # Persist errors to file for recovery after condensation
+        # This helps the agent remember what to fix even after context is summarized
+        error_file = os.path.join(self.working_dir, ".typescript-errors.txt")
+        if errors:
+            error_lines = [
+                "TYPESCRIPT ERRORS - READ THIS FILE IF YOU FORGOT WHAT TO FIX",
+                "=" * 60,
+                ""
+            ]
+            for e in errors:
+                error_lines.append(f"File: {e['file']}")
+                error_lines.append(f"Line: {e['line']}, Column: {e['column']}")
+                error_lines.append(f"Error: {e['code']}: {e['message']}")
+                error_lines.append("")
+            try:
+                with open(error_file, 'w') as f:
+                    f.write("\n".join(error_lines))
+            except Exception:
+                pass  # Don't fail validation if we can't write the file
+        else:
+            # Clear error file on success
+            try:
+                if os.path.exists(error_file):
+                    os.remove(error_file)
+            except Exception:
+                pass
+
         return TypeScriptValidatorObservation(
             success=success,
             error_count=len(errors),

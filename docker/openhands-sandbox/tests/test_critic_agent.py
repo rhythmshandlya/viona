@@ -23,7 +23,8 @@ from pathlib import Path
 # Add tools to path
 sys.path.insert(0, "/opt/openhands")
 
-WORKSPACE = "/workspace"
+# Use the actual Remotion template directory which has node_modules, package.json, etc.
+WORKSPACE = "/opt/remotion-template"
 PROJECT_ID = "proj-critic-test"
 
 # Colors
@@ -212,21 +213,32 @@ def generate_root():
     return success
 
 
-def run_critic_agent(model: str, api_key: str):
+def run_critic_agent(model: str, api_key: str, base_url: str = None, quality: str = "good"):
     """Run the actual critic agent with an LLM."""
 
     log(f"\n{BLUE}Running Critic Agent with {model}...{RESET}")
+    if base_url:
+        log(f"  Using base URL: {base_url}")
 
     from pydantic import SecretStr
     from openhands.sdk import LLM
 
-    # Import the create_critic_agent function
-    from visual_generator import create_critic_agent, load_skill
+    # Import the create_visual_evaluator_agent and create_text_evaluator_agent functions
+    from visual_generator import (
+        create_visual_evaluator_agent,
+        create_text_evaluator_agent,
+        load_skill,
+        CLAUDE_CONFIG,
+        is_claude_model
+    )
     from tools.submit_score import get_last_score, clear_last_score
 
     # Determine model name for litellm
     model_lower = model.lower()
-    if "gemini" in model_lower:
+    if base_url:
+        # Using proxy - use openai provider format
+        model_name = f"openai/{model}"
+    elif "gemini" in model_lower:
         model_name = f"gemini/{model}"
     elif "claude" in model_lower:
         model_name = f"anthropic/{model}"
@@ -239,14 +251,32 @@ def run_critic_agent(model: str, api_key: str):
     llm = LLM(
         model=model_name,
         api_key=SecretStr(api_key),
+        base_url=base_url,
+    )
+
+    # Configure condenser LLM (use same model for simplicity)
+    condenser_llm = LLM(
+        model=model_name,
+        api_key=SecretStr(api_key),
+        base_url=base_url,
+        usage_id="condenser",  # Different usage_id to avoid collision
     )
 
     # Load scoring rubric
     skills_dir = Path("/opt/openhands/skills")
     scoring_rubric = load_skill(skills_dir / "scoring-rubric.md")
 
-    # Create critic agent
-    critic_agent = create_critic_agent(llm, scoring_rubric)
+    # Use Claude config for Claude models
+    config = CLAUDE_CONFIG if is_claude_model(model) else None
+
+    # Create appropriate evaluator agent based on model
+    if is_claude_model(model):
+        # Use text-based evaluator for Claude (no screenshots)
+        critic_agent = create_text_evaluator_agent(llm, scoring_rubric, condenser_llm=condenser_llm, config=config)
+        log("  Using text-based evaluator (no screenshots)", BLUE)
+    else:
+        # Use visual evaluator for other models (with screenshots)
+        critic_agent = create_visual_evaluator_agent(llm, scoring_rubric, condenser_llm=condenser_llm, config=config)
 
     # Clear any previous score
     clear_last_score()
@@ -254,35 +284,82 @@ def run_critic_agent(model: str, api_key: str):
     # Run critic
     from openhands.sdk import Conversation
 
-    conversation = Conversation(agent=critic_agent, workspace=WORKSPACE)
-
     duration_frames = 150
     fps = 30
     mid_frame = duration_frames // 2
-    end_frame = duration_frames - 10
 
-    critic_prompt = f"""Evaluate the Remotion project at src/{PROJECT_ID}/.
+    # Use appropriate max iterations for the model
+    max_iterations = 15  # Same for both now with text-based evaluation
 
-Follow these steps:
+    # Create conversation with appropriate iteration limit
+    conversation = Conversation(agent=critic_agent, workspace=WORKSPACE, max_iteration_per_run=max_iterations)
 
-1. **TypeScript Validation**: Run TypeScriptValidatorTool on path "src/{PROJECT_ID}"
-2. **Bundle Validation**: Run RemotionBundleTool with entry_point="src/index.tsx"
-3. **Visual Inspection**: Run RemotionRenderStillTool for composition_id="{PROJECT_ID}" at frames:
-   - Frame 0 (start)
-   - Frame {mid_frame} (middle)
-   - Frame {end_frame} (near end)
-4. **Review the rendered images** - Are they visually appealing? Smooth animations?
-5. **Check metadata.json** in src/{PROJECT_ID}/
+    # For Claude: Use text-based evaluation with code included in prompt
+    if is_claude_model(model):
+        # Read the actual code for text-based evaluation
+        project_dir = Path(WORKSPACE) / "src" / PROJECT_ID
+        code_path = project_dir / "index.tsx"
+        code_content = code_path.read_text() if code_path.exists() else "// Code not found"
 
-IMPORTANT: After evaluation, you MUST call SubmitScoreTool with your scores.
+        critic_prompt = f"""Evaluate visual quality using TEXT-BASED REASONING. Analyze the code below.
 
-SCORING WEIGHTS (total = 100):
-- visual_quality (0-70): 70% weight - MOST IMPORTANT!
-- correctness (0-10): 10% weight
-- completeness (0-10): 10% weight
-- code_quality (0-10): 10% weight
+## Source Code (src/{PROJECT_ID}/index.tsx):
+```tsx
+{code_content}
+```
 
-Focus on VISUAL QUALITY - do the animations look professional and smooth?"""
+## Evaluation Criteria (analyze the code above):
+
+### Animation Quality (0-30 points):
+- spring() usage: Look for `spring({{` patterns with damping/stiffness config
+- interpolate() usage: Look for frame-based interpolation with easing
+- Staggering: Look for `delay = index * N` or incremental delay patterns
+- Sequence components: Look for `<Sequence from={{N}}` for choreography
+
+### Background Motion (0-15 points):
+- Animated gradients: Look for `hsl({{frame}}` or interpolated colors
+- Particles: Look for mapped arrays with position animations
+- Continuous motion: Look for frame-based transforms on background elements
+
+### Visual Effects (0-25 points):
+- Scale animations: Look for `transform: \`scale(${{...}})\``
+- Counter animations: Look for number interpolation (counting up/down)
+- Draw/reveal effects: Look for clipPath or strokeDashoffset animations
+- NOT just opacity fades
+
+## Score the Code:
+- 60-70: Uses spring(), staggering, background motion, multiple animation types
+- 45-59: Uses spring() OR staggering, some variety beyond fades
+- 30-44: Basic interpolate() animations, mostly fades
+- 0-29: Static or minimal animation
+
+IMMEDIATELY call SubmitScoreTool with your analysis:
+- visual_quality (0-70): Based on code patterns found above
+- correctness: 10 (code compiles)
+- completeness: 10 (assume complete)
+- code_quality: 10 (assume good)
+- issues: List 1-3 specific missing animation patterns
+- suggestion: One specific improvement with code example
+
+YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task."""
+
+        prompt_words = len(critic_prompt.split())
+        log(f"  Text eval: code={len(code_content)} chars, prompt={prompt_words} words", BLUE)
+    else:
+        critic_prompt = f"""Evaluate visual quality for composition "{PROJECT_ID}".
+
+STEP 1: Render 1 screenshot with RemotionRenderStillTool (composition_id="{PROJECT_ID}", frame=0)
+
+STEP 2: IMMEDIATELY call SubmitScoreTool with:
+- visual_quality (0-70): How good do visuals look?
+- correctness: 10 (code compiles)
+- completeness: 10 (assume complete)
+- code_quality: 10 (assume good)
+- issues: List any visual problems
+- suggestion: One improvement
+
+YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task.
+If screenshots fail, submit score anyway with visual_quality=50 and note the issue."""
 
     log("  Sending prompt to critic agent...", BLUE)
 
@@ -307,6 +384,7 @@ Focus on VISUAL QUALITY - do the animations look professional and smooth?"""
 def main():
     parser = argparse.ArgumentParser(description="Test Real Critic Agent")
     parser.add_argument("--model", default="gemini-2.0-flash-exp", help="LLM model to use")
+    parser.add_argument("--base-url", default=None, help="LLM API base URL (for proxy). Use port 8082 for tool-name-fixer.")
     parser.add_argument("--quality", choices=["good", "average", "bad"], default="good",
                        help="Quality level of test component")
     args = parser.parse_args()
@@ -316,17 +394,24 @@ def main():
         os.environ.get("GEMINI_API_KEY") or
         os.environ.get("ANTHROPIC_API_KEY") or
         os.environ.get("OPENAI_API_KEY") or
-        os.environ.get("LLM_API_KEY")
+        os.environ.get("LLM_API_KEY") or
+        "not-needed"  # For proxy that doesn't require key
     )
 
-    if not api_key:
-        log("ERROR: No API key found. Set GEMINI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY", RED)
-        return 1
+    # Check for base URL from env
+    # Default to port 8082 (tool-name-fixer) for Claude models via proxy
+    base_url = args.base_url or os.environ.get("LLM_BASE_URL")
+
+    # Auto-detect: if using Claude model without explicit base_url, use tool-name-fixer port
+    if base_url and ":8317" in base_url and "claude" in args.model.lower():
+        log(f"  Note: Switching from port 8317 to 8082 (tool-name-fixer) for Claude", YELLOW)
+        base_url = base_url.replace(":8317", ":8082")
 
     log(f"\n{BLUE}{'='*60}{RESET}")
     log(f"{BLUE}  CRITIC AGENT EVALUATION TEST{RESET}")
     log(f"{BLUE}{'='*60}{RESET}")
     log(f"  Model: {args.model}")
+    log(f"  Base URL: {base_url or 'default'}")
     log(f"  Component Quality: {args.quality}")
 
     # Step 1: Create test component
@@ -340,7 +425,7 @@ def main():
 
     # Step 3: Run critic agent
     log(f"\n{BLUE}Step 3: Running Critic Agent{RESET}")
-    score_result = run_critic_agent(args.model, api_key)
+    score_result = run_critic_agent(args.model, api_key, base_url, args.quality)
 
     # Results
     log(f"\n{BLUE}{'='*60}{RESET}")

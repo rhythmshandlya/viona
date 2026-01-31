@@ -80,11 +80,11 @@ WORKDIR /opt/remotion-template
 
 # Copy only package files (not node_modules - they're platform-specific)
 COPY templates/openhands-sandbox/package.json ./
-COPY templates/openhands-sandbox/package-lock.json ./
 COPY templates/openhands-sandbox/tsconfig.json ./
 
 # Install dependencies inside Docker (for Linux)
-RUN npm ci
+# Using npm install since package-lock.json may not exist
+RUN npm install
 
 # Copy source files
 COPY templates/openhands-sandbox/src/ ./src/

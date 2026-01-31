@@ -196,11 +196,8 @@ clipify/
 │   │   │   └── animations/     # Animation presets
 │   │   └── package.json
 │   │
-│   ├── shared/                 # Shared TypeScript types
-│   │   └── src/types/
-│   │
-│   └── mcp-tools/              # MCP tools for Claude Code
-│       └── src/tools/
+│   └── shared/                 # Shared TypeScript types
+│       └── src/types/
 │
 ├── docker/
 │   ├── openhands-sandbox/      # AI agent Docker image

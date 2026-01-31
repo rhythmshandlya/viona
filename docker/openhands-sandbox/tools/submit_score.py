@@ -59,7 +59,11 @@ class SubmitScoreAction(Action):
     )
     visual_quality: int = Field(
         default=0,
-        description="Score for visual quality - animations smooth, visually appealing, matches style (0-70, 70% weight)"
+        description="Score for visual quality - animations, visual appeal (0-50, 50% weight)"
+    )
+    transcript_alignment: int = Field(
+        default=0,
+        description="Score for transcript alignment - specific content visualized correctly (0-20, 20% weight)"
     )
     code_quality: int = Field(
         default=0,
@@ -67,7 +71,7 @@ class SubmitScoreAction(Action):
     )
     issues: list[str] = Field(
         default_factory=list,
-        description="List of issues found"
+        description="List of issues found (especially unmet transcript criteria)"
     )
     suggestion: str = Field(
         default="",
@@ -103,6 +107,7 @@ class SubmitScoreExecutor(ToolExecutor[SubmitScoreAction, SubmitScoreObservation
                 "correctness": action.correctness,
                 "completeness": action.completeness,
                 "visualQuality": action.visual_quality,
+                "transcriptAlignment": action.transcript_alignment,
                 "codeQuality": action.code_quality,
             },
             "issues": action.issues,
@@ -111,34 +116,35 @@ class SubmitScoreExecutor(ToolExecutor[SubmitScoreAction, SubmitScoreObservation
 
         return SubmitScoreObservation(
             success=True,
-            message=f"Score of {action.score}/100 recorded successfully. "
-                    f"Breakdown: correctness={action.correctness}, "
-                    f"completeness={action.completeness}, "
-                    f"visualQuality={action.visual_quality}, "
-                    f"codeQuality={action.code_quality}"
+            message=f"Score of {action.score}/100 recorded. "
+                    f"visual={action.visual_quality}/50, "
+                    f"transcript={action.transcript_alignment}/20, "
+                    f"correct={action.correctness}/10, "
+                    f"complete={action.completeness}/10, "
+                    f"quality={action.code_quality}/10"
         )
 
 
 _SUBMIT_SCORE_DESCRIPTION = """Submit your evaluation score for the generated code.
 
-IMPORTANT: You MUST call this tool at the end of your evaluation to submit your score.
+IMPORTANT: You MUST call this tool to complete your evaluation.
 
 SCORING WEIGHTS (total = 100):
-- visual_quality: 0-70 (70% weight) - MOST IMPORTANT! Animations, visual appeal, style match
-- correctness: 0-10 (10% weight) - TypeScript compiles, no runtime errors
-- completeness: 0-10 (10% weight) - All files present, metadata.json complete
-- code_quality: 0-10 (10% weight) - Clean code, Remotion best practices
+- visual_quality: 0-50 (50%) - Animations, visual appeal, motion graphics
+- transcript_alignment: 0-20 (20%) - Specific transcript content visualized correctly
+- correctness: 0-10 (10%) - TypeScript compiles, no errors
+- completeness: 0-10 (10%) - All files present
+- code_quality: 0-10 (10%) - Clean code, best practices
 
 Parameters:
-- score: Overall score from 0-100 (should equal sum of breakdown scores)
-- visual_quality: 0-70 - How good do the animations look? Smooth? Appealing? Matches style?
-- correctness: 0-10 - Does the code compile and run without errors?
-- completeness: 0-10 - Are all required files and components present?
-- code_quality: 0-10 - Is the code clean and following best practices?
-- issues: List of specific issues found during evaluation
-- suggestion: Clear, actionable suggestion for the next iteration
-
-Focus primarily on VISUAL QUALITY when scoring!
+- score: Overall score 0-100 (sum of breakdown scores)
+- visual_quality: 0-50 - Animation quality, motion graphics, visual appeal
+- transcript_alignment: 0-20 - How many transcript-specific criteria are met?
+- correctness: 0-10 - Does code compile?
+- completeness: 0-10 - All required files present?
+- code_quality: 0-10 - Clean code?
+- issues: Unmet transcript criteria and visual problems
+- suggestion: Most impactful fix
 """
 
 

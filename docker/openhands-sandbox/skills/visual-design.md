@@ -1,78 +1,89 @@
 # Visual Design Guidelines
 
+## Design Philosophy: SOFT, ELEGANT, PREMIUM
+
+**Goal:** Create visuals that feel calm, refined, and aesthetically pleasing.
+
+### AVOID (Tacky/Cheap):
+- Bouncy animations (low damping)
+- Shake/wiggle effects
+- Overly saturated colors
+- Fast, jarring motion
+- Too many competing elements
+- EMOJIS - Never use emojis in visuals. Use icons, shapes, or text instead.
+
+### EMBRACE (Premium/Elegant):
+- Smooth, graceful motion
+- Muted, sophisticated colors
+- Generous whitespace
+- Slow, purposeful reveals
+- Subtle depth and shadows
+
+---
+
 ## Style Presets
+
+### Modern Elegant (DEFAULT - Use This)
+- Soft gradients with muted tones
+- Generous rounded corners (16-24px)
+- Glass morphism with subtle blur
+- Smooth animations (damping: 25+, no bounce)
+
+```tsx
+const ModernElegantStyle = {
+  gradient: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e3a5f 100%)',
+  text: '#f1f5f9',
+  accent: '#818cf8',  // Soft purple
+  fontFamily: 'Plus Jakarta Sans, sans-serif',
+  borderRadius: 20,
+  // Spring config: { damping: 25, stiffness: 80 }
+};
+```
 
 ### Minimal
 - Clean lines, lots of whitespace
-- Monochrome with single accent color
+- Monochrome with single soft accent
 - Simple geometric shapes
-- Subtle animations
+- Very subtle animations
 
 ```tsx
 const MinimalStyle = {
-  background: '#ffffff',
+  background: '#fafafa',
   text: '#1a1a1a',
-  accent: '#3b82f6',
+  accent: '#6366f1',  // Soft indigo
   fontFamily: 'Inter, system-ui, sans-serif',
 };
 ```
 
-### Modern
-- Vibrant gradients
-- Rounded corners (16-24px)
-- Glass morphism effects
-- Smooth spring animations
+### Dark Premium
+- Deep, rich dark backgrounds
+- Soft glows instead of harsh highlights
+- Refined typography
+- Elegant transitions
 
 ```tsx
-const ModernStyle = {
-  gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6, #06b6d4)',
-  text: '#ffffff',
-  fontFamily: 'Plus Jakarta Sans, sans-serif',
-  borderRadius: 16,
-};
-```
-
-### Playful
-- Bright, saturated colors
-- Bouncy animations
-- Rounded shapes, circles
-- Friendly, approachable feel
-
-```tsx
-const PlayfulStyle = {
-  colors: ['#f97316', '#eab308', '#22c55e', '#3b82f6'],
-  background: '#fef3c7',
-  fontFamily: 'Nunito, sans-serif',
-};
-```
-
-### Bold
-- High contrast (black/white)
-- Large, impactful text
-- Strong red accents
-- Dramatic entrances
-
-```tsx
-const BoldStyle = {
-  background: '#000000',
-  text: '#ffffff',
-  accent: '#ef4444',
-  fontFamily: 'Bebas Neue, Impact, sans-serif',
+const DarkPremiumStyle = {
+  background: '#0f0f1a',
+  text: '#e2e8f0',
+  accent: '#a78bfa',  // Soft violet
+  glow: 'rgba(167, 139, 250, 0.2)',
+  fontFamily: 'DM Sans, sans-serif',
 };
 ```
 
 ### Classic
 - Traditional, professional
 - Serif fonts
-- Navy blue, gold accents
-- Chart-style visualizations
+- Navy blue, muted gold
+- Dignified, no-bounce motion
 
 ```tsx
 const ClassicStyle = {
-  background: '#f5f5dc',
+  background: '#f8f6f0',
   primary: '#1e3a5f',
-  gold: '#d4af37',
+  gold: '#b8860b',  // Muted gold
   fontFamily: 'Playfair Display, Georgia, serif',
+  // Spring config: { damping: 30, stiffness: 60 }
 };
 ```
 
@@ -112,26 +123,59 @@ const width = interpolate(frame, [0, 20], [0, 100], { extrapolateRight: 'clamp' 
 </div>
 ```
 
-## Animation Timing
+## Animation Timing (Premium Feel)
 
-- **Micro-interactions**: 100-200ms
-- **Transitions**: 200-400ms
-- **Complex animations**: 400-800ms
-- **Scene transitions**: 500-1000ms
+**Goal:** Responsive but not rushed. Professional polish.
 
-## Animation Sequence
+### Timing Guidelines
+- **Element entrances**: 500-800ms (16-26 frames) - responsive, not sluggish
+- **Counter tick-ups**: 1.2-2s (36-60 frames) - satisfying progression
+- **Scene transitions**: 600-900ms - smooth but not slow
+- **Stagger delay**: 150-250ms between elements (5-8 frames)
 
-1. Background/container appears first
-2. Primary content animates in
-3. Secondary content follows (staggered)
-4. Decorative elements last
+### The Golden Easing Curve
 
-## Quality Checklist
+**Material Design Standard: `cubic-bezier(0.4, 0, 0.2, 1)`**
+- Fast, responsive start (feels instant)
+- Gentle, smooth deceleration (polished landing)
 
-- [ ] Text is readable (contrast ratio > 4.5:1)
-- [ ] Animations have purpose
-- [ ] Consistent spacing throughout
-- [ ] Color palette is cohesive
-- [ ] Visual hierarchy is clear
-- [ ] No jarring transitions
-- [ ] Polished entry/exit animations
+### Spring Configs for Premium Motion
+
+```tsx
+// PREMIUM DEFAULT - Responsive & polished
+{ damping: 20, stiffness: 100, mass: 0.8 }
+
+// Elegant - Slightly slower, refined
+{ damping: 22, stiffness: 90, mass: 0.9 }
+
+// Quick - Snappy but smooth
+{ damping: 18, stiffness: 120, mass: 0.6 }
+```
+
+## Animation Sequence (12 Principles Applied)
+
+1. **Background**: Subtle continuous motion (gradient shift, soft particles)
+2. **Hero content**: Scale + Y movement with ease-out (responsive entrance)
+3. **Secondary content**: Staggered 5-8 frames apart with arc motion
+4. **Details/labels**: Quick fade + slide, last to appear
+5. **Continuous elements**: Subtle breathing, glow pulse (after entrance)
+
+## Disney's Principles Checklist
+
+- [ ] **Ease-out**: Fast start, slow end (not linear)
+- [ ] **Stagger**: Elements enter sequentially, not all at once
+- [ ] **Arcs**: Movement follows curves, not straight lines
+- [ ] **Overlapping**: Different parts move at different times
+- [ ] **Follow-through**: Motion settles naturally after stopping
+- [ ] **Secondary action**: Supporting micro-movements enhance main action
+
+## Quality Markers (Premium vs Cheap)
+
+| Premium | Cheap |
+|---------|-------|
+| Ease-out curves | Linear motion |
+| Staggered reveals | Everything at once |
+| Arc paths | Straight lines |
+| Slight overshoot → settle | Abrupt stops |
+| Varied timing | Uniform/robotic |
+| Subtle secondary motion | Static after entrance |

@@ -28,8 +28,8 @@ async function getBundleLocation(): Promise<string> {
 
   console.log('Bundling Remotion composition...');
 
-  // Path to the remotion-entry.tsx file
-  const entryPoint = join(__dirname, 'remotion-entry.tsx');
+  // Path to the remotion-entry.tsx file (relative to package root, since __dirname is dist/ after compilation)
+  const entryPoint = join(__dirname, '..', 'src', 'remotion-entry.tsx');
 
   bundleLocation = await bundle({
     entryPoint,

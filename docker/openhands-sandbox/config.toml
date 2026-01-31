@@ -55,6 +55,24 @@ max_output_tokens = 8192
 input_cost_per_1m = 3.00
 output_cost_per_1m = 15.00
 
+[llm.claude-proxy]
+# Claude via Claude Code proxy (aggressive context management)
+# Uses automatic detection based on model name containing 'claude' or 'anthropic'
+# Context: 200K (vs Gemini's 1M), so we use aggressive limits
+model = "claude-sonnet-4-20250514"
+temperature = 0.3
+max_output_tokens = 8192
+input_cost_per_1m = 3.00
+output_cost_per_1m = 15.00
+
+# Claude-specific context management (auto-applied when Claude detected)
+# These values are defined in visual_generator.py CLAUDE_CONFIG
+# condenser_max_size = 35        # vs 100 for Gemini
+# condenser_max_size_eval = 20   # vs 50 for Gemini
+# generator_max_iterations = 25  # vs 50 for Gemini
+# evaluator_max_iterations = 8   # vs 15 for Gemini
+# skills_to_load = ["remotion-best-practices", "file-editing-guide"]
+
 [agent]
 # Agent behavior configuration
 max_iterations = 3

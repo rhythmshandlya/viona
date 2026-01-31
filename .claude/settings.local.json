@@ -204,7 +204,14 @@
       "WebFetch(domain:vercel.com)",
       "WebFetch(domain:medium.com)",
       "WebFetch(domain:langfuse.com)",
-      "WebFetch(domain:claude.com)"
+      "WebFetch(domain:claude.com)",
+      "Bash(__NEW_LINE_8493c9bcc9bac1f5__ export MSYS_NO_PATHCONV=1)",
+      "Bash(__NEW_LINE_8493c9bcc9bac1f5__ docker run --rm --add-host=host.docker.internal:host-gateway -v C:/Users/armaa/test:/test -v C:/Users/armaa/test/output:/output clipify-openhands --project-id test-motion-graphics-2 --model claude-opus-4-5-20251101 --model-flash claude-haiku-4-5-20251001 --prompt-file /test/test_prompt.txt --base-url http://host.docker.internal:3457/v1 --duration-frames 540 --max-iterations 1 --width 1920 --height 1080)",
+      "Bash(cmd.exe:*)",
+      "Bash(gh issue view:*)",
+      "Bash(du:*)",
+      "Bash(node:*)",
+      "WebFetch(domain:eval.16x.engineer)"
     ]
   }
 }

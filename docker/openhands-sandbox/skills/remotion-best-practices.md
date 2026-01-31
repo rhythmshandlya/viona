@@ -1,23 +1,23 @@
 # Remotion Best Practices
 
-## ⛔ FORBIDDEN - These BREAK Remotion Rendering
+## FORBIDDEN - These BREAK Remotion Rendering
 
 **NEVER use these - they cause flickering, non-deterministic output, or render failures:**
 
 ```tsx
-// ❌ CSS transitions - FORBIDDEN
+// BAD: CSS transitions - FORBIDDEN
 style={{ transition: 'all 0.3s ease' }}
 
-// ❌ CSS animations - FORBIDDEN
+// BAD: CSS animations - FORBIDDEN
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 
-// ❌ setTimeout/setInterval - FORBIDDEN
+// BAD: setTimeout/setInterval - FORBIDDEN
 setTimeout(() => setVisible(true), 1000);
 
-// ❌ useState for animation values - FORBIDDEN
+// BAD: useState for animation values - FORBIDDEN
 const [position, setPosition] = useState(0);
 
-// ❌ Relative to previous frame - FORBIDDEN
+// BAD: Relative to previous frame - FORBIDDEN
 position = previousPosition + velocity;
 ```
 
@@ -27,7 +27,7 @@ passing or previous renders. Every value MUST be a pure function of the frame nu
 
 **ALWAYS calculate animation values like this:**
 ```tsx
-// ✅ CORRECT - Pure function of frame
+// GOOD: CORRECT - Pure function of frame
 const frame = useCurrentFrame();
 const opacity = interpolate(frame, [0, 30], [0, 1]);
 const position = frame * 2; // position at frame 50 = 100, always!
@@ -101,7 +101,7 @@ const translateX = interpolate(frame, [0, 60], [-100, 0], {
   extrapolateRight: 'clamp',  // REQUIRED! Stops at 0, doesn't go to 100, 200, etc.
 });
 
-// ❌ BAD - without clamp, values extrapolate forever:
+// BAD: BAD - without clamp, values extrapolate forever:
 // At frame 120: interpolate(120, [0, 60], [0, 100]) = 200 (not 100!)
 ```
 

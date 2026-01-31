@@ -163,15 +163,15 @@ Element Animations:
 
 ### Validation Rules:
 
-❌ **REJECT** if any element entrance is only "fade in" or "opacity 0→1"
-❌ **REJECT** if background has no animation (static solid color)
-❌ **REJECT** if numbers appear instantly (must use counter tick-up)
-❌ **REJECT** if all elements animate at the same time (no stagger)
+REJECT: if any element entrance is only "fade in" or "opacity 0→1"
+REJECT: if background has no animation (static solid color)
+REJECT: if numbers appear instantly (must use counter tick-up)
+REJECT: if all elements animate at the same time (no stagger)
 
-✅ **REQUIRE** at least one "hero" animation (complex, attention-grabbing)
-✅ **REQUIRE** background with continuous subtle motion
-✅ **REQUIRE** staggered timing (primary → secondary → labels)
-✅ **REQUIRE** spring() or easing for all movements (no linear)
+REQUIRE: at least one "hero" animation (complex, attention-grabbing)
+REQUIRE: background with continuous subtle motion
+REQUIRE: staggered timing (primary → secondary → labels)
+REQUIRE: spring() or easing for all movements (no linear)
 
 ### Example Animation Inventory:
 
