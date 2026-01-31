@@ -1088,23 +1088,104 @@ export const StatsGrid: React.FC<{ title: string; stats: StatItem[] }> = ({ titl
  */
 export function buildReferenceExamplesSection(projectId: string): string {
   return `
-## 🎨 REFERENCE EXAMPLES - FULLY RESPONSIVE DESIGN
+## 🎨 NARRATIVE REFERENCE EXAMPLES
 
-**CRITICAL: Every value must be relative to width/height. NO hardcoded pixels.**
+These examples demonstrate **meaningful animations** that teach concepts through motion:
+
+**KEY PRINCIPLES:**
+1. **Continuous motion** - Animation throughout, not just "spring in and sit"
+2. **Conceptual, not literal** - Show WHY/HOW, not just WHAT
+3. **Physics-based** - Gravity, bouncing, particles create visceral understanding
+4. **Responsive** - All sizes relative to width/height
+
+---
+
+### Example 1: Linear vs Binary Search Race
+${REFERENCE_SEARCH_RACE.replace(/\$\{projectId\}/g, projectId)}
+
+### Example 2: Stack Overflow with Physics
+${REFERENCE_STACK_OVERFLOW.replace(/\$\{projectId\}/g, projectId)}
+
+### Example 3: Hash Collisions with Gravity
+${REFERENCE_HASH_COLLISIONS.replace(/\$\{projectId\}/g, projectId)}
+
+---
+
+## 🔬 PHYSICS PATTERNS FOR REMOTION
+
+### Ball Physics (Gravity + Bounce)
+\`\`\`tsx
+const simulateBallPhysics = (
+  frame: number,
+  dropFrame: number,
+  targetY: number,
+  fps: number
+) => {
+  const elapsed = frame - dropFrame;
+  if (elapsed < 0) return { y: -100, settled: false };
+
+  const gravity = 0.004;
+  const bounceDamping = 0.5;
+
+  let y = 0;
+  let velocity = 0;
+  let bounces = 0;
+
+  for (let t = 0; t < elapsed; t++) {
+    velocity += gravity;
+    y += velocity;
+
+    if (y >= targetY) {
+      y = targetY;
+      velocity = -velocity * bounceDamping;
+      bounces++;
+      if (bounces >= 4 || Math.abs(velocity) < 0.01) {
+        return { y: targetY, settled: true };
+      }
+    }
+  }
+  return { y: Math.min(y, targetY), settled: false };
+};
+\`\`\`
+
+### Shake Effect (Stress Indicator)
+\`\`\`tsx
+// Shake intensity increases with stress level
+const stressLevel = currentValue / maxValue;
+const shakeIntensity = interpolate(stressLevel, [0.7, 1], [0, 1], {
+  extrapolateLeft: 'clamp',
+  extrapolateRight: 'clamp',
+});
+const shakeX = Math.sin(frame * 1.5) * shakeIntensity * minDim * 0.008;
+const shakeY = Math.cos(frame * 1.8) * shakeIntensity * minDim * 0.005;
+
+// Apply to container
+transform: \`translate(\${shakeX}px, \${shakeY}px)\`
+\`\`\`
+
+### Squash & Stretch
+\`\`\`tsx
+// During fall - stretch vertically
+const velocity = Math.min((frame - dropFrame) * 0.02, 0.3);
+const scaleX = isSettled ? 1 : 1 - velocity * 0.2;
+const scaleY = isSettled ? 1 : 1 + velocity * 0.3;
+
+// On landing - squash horizontally
+const landingSquash = justLanded
+  ? interpolate(frame - landFrame, [0, 8, 15], [1, 0.7, 1], {
+      extrapolateRight: 'clamp',
+    })
+  : 1;
+
+transform: \`scaleX(\${scaleX / landingSquash}) scaleY(\${scaleY * landingSquash})\`
+\`\`\`
+
+---
 
 ### Responsive Design Helper (USE THIS PATTERN):
 \`\`\`tsx
 ${RESPONSIVE_LAYOUT_HELPER}
 \`\`\`
-
-### Example 1: Linear vs Binary Search Race
-${REFERENCE_SEARCH_RACE.replace(/\$\{projectId\}/g, projectId)}
-
-### Example 2: Stack Overflow - The Inevitable Crash
-${REFERENCE_STACK_OVERFLOW.replace(/\$\{projectId\}/g, projectId)}
-
-### Example 3: Hash Collisions - When Keys Collide
-${REFERENCE_HASH_COLLISIONS.replace(/\$\{projectId\}/g, projectId)}
 
 ---
 
