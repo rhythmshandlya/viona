@@ -199,7 +199,12 @@
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:help.router-for.me)",
       "Bash(node tool-name-fixer.js:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "WebFetch(domain:lucumr.pocoo.org)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:langfuse.com)",
+      "WebFetch(domain:claude.com)"
     ]
   }
 }

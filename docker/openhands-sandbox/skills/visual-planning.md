@@ -1,129 +1,280 @@
 # Visual Planning Process
 
-## MANDATORY: Complete These Steps BEFORE Writing Code
+## CRITICAL: Two-Phase Workflow
 
-You MUST complete all planning steps and output your thinking BEFORE writing any code.
-Skipping this process results in poor quality visuals.
+This is a **TWO-PHASE** process. You MUST complete Phase 1 entirely before starting Phase 2.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  PHASE 1: PLANNING (Read-Only)                              │
+│  - Analyze the content                                       │
+│  - Design the visual approach                                │
+│  - Output complete plan                                      │
+│  - NO CODE WRITING IN THIS PHASE                            │
+├─────────────────────────────────────────────────────────────┤
+│  CHECKPOINT: Verify plan completeness                        │
+├─────────────────────────────────────────────────────────────┤
+│  PHASE 2: EXECUTION                                          │
+│  - Implement exactly what was planned                        │
+│  - Reference plan while coding                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**VIOLATION WARNING:** If you write ANY code before completing the plan output, you WILL produce poor quality visuals with missing elements (like trees without edges, charts without labels).
 
 ---
 
-## Step 0: Content Category Detection
+# PHASE 1: PLANNING
 
-First, identify what type of content you're visualizing:
+## Step 1: Content Category Detection
 
-| Category | Examples | Key Challenge |
-|----------|----------|---------------|
-| **Structural** | Trees, graphs, hierarchies, org charts, relationships | Showing connections clearly |
-| **Quantitative** | Numbers, charts, metrics, comparisons, trends, finance | Making data readable and impactful |
-| **Sequential** | Processes, timelines, steps, flows, algorithms | Showing order and progression |
-| **Conceptual** | Abstract ideas, metaphors, explanations | Making intangible things tangible |
-| **Text-focused** | Quotes, key points, callouts, titles | Typography and emphasis |
+Identify the content type. This determines which rules apply.
 
-**Output:** "Category: [X]" before proceeding.
+| Category | Examples | Primary Challenge |
+|----------|----------|-------------------|
+| **Structural** | Trees, graphs, hierarchies, org charts, networks, relationships | Showing connections/edges clearly |
+| **Quantitative** | Numbers, charts, metrics, comparisons, trends, finance, statistics | Making data readable and impactful |
+| **Sequential** | Processes, timelines, steps, flows, algorithms, instructions | Showing order and progression |
+| **Conceptual** | Abstract ideas, metaphors, explanations, comparisons of ideas | Making intangible things tangible |
+| **Text-focused** | Quotes, key points, callouts, titles, announcements | Typography and emphasis |
+
+**Output format:**
+```
+CATEGORY: [Structural|Quantitative|Sequential|Conceptual|Text-focused]
+REASON: [One sentence explaining why this category]
+```
 
 ---
 
-## Step 1: Content Analysis
+## Step 2: Content Analysis
 
-Answer these questions:
+Answer these questions explicitly:
 
-1. **What is the single most important thing the viewer should understand?**
-   - If you can't answer in one sentence, you're trying to show too much
+### 2.1 Core Message
+**What is the single most important thing the viewer should understand?**
+- Must be answerable in ONE sentence
+- If you need more than one sentence, you're trying to show too much
 
-2. **What are the 2-4 key elements that MUST appear?**
-   - List them explicitly
-   - If more than 4, you need multiple scenes
+### 2.2 Key Elements
+**What are the 2-4 elements that MUST appear?**
+- List each element explicitly
+- If more than 4, consider splitting into multiple scenes
 
-3. **What relationships/connections exist between elements?**
-   - Parent-child? Sequential? Comparative? Cause-effect?
-   - These MUST be visualized, not implied
+### 2.3 Relationships
+**What relationships exist between elements?**
+- Parent-child? (A contains B)
+- Sequential? (A then B)
+- Comparative? (A vs B)
+- Cause-effect? (A causes B)
+- **These relationships MUST be visualized with lines/arrows/connections**
 
-**Output:** Write your answers before proceeding.
+**Output format:**
+```
+CORE MESSAGE: [One sentence]
+
+KEY ELEMENTS:
+1. [Element name]: [Description]
+2. [Element name]: [Description]
+3. [Element name]: [Description]
+4. [Element name]: [Description]
+
+RELATIONSHIPS:
+- [Element A] → [Element B]: [Relationship type]
+- [Element B] → [Element C]: [Relationship type]
+```
 
 ---
 
-## Step 2: Visual Inventory
+## Step 3: Visual Inventory (CRITICAL)
 
-List EVERY visual element you will create:
+**You must list EVERY visual element before writing code.**
 
+This is where most failures happen. If you don't list it here, you WILL forget to implement it.
+
+### For ALL content types:
 ```
-Elements:
-- [ ] Element 1: [description] - [approximate size]
-- [ ] Element 2: [description] - [approximate size]
-- [ ] Connection: [from] → [to] - [line/arrow style]
-- [ ] Label: [text] - [where it goes]
+VISUAL INVENTORY:
+
+Shapes/Objects:
+- [ ] [Name]: [Description] at [position] sized [W]x[H]px
+- [ ] [Name]: [Description] at [position] sized [W]x[H]px
+
+Connections/Lines (IF ANY RELATIONSHIPS EXIST):
+- [ ] Line from [A] to [B]: [style: solid/dashed] [color] [thickness]px
+- [ ] Arrow from [X] to [Y]: [style] [color]
+
+Text Labels:
+- [ ] "[Text]" at [position]: [size]px [weight]
+- [ ] "[Text]" at [position]: [size]px [weight]
+
+Background:
+- [ ] [Description of background]
 ```
 
-**Critical for Structural content:**
-- List every node AND every edge
-- Example: "Binary tree: 7 nodes, 6 edges (root→left, root→right, left→leftleft, etc.)"
-- If you don't list edges, you WILL forget to draw them
+### Category-Specific Inventory Requirements:
 
-**Critical for Quantitative content:**
-- List the actual numbers/values
-- List axes, labels, legends needed
-- Identify which number is the "hero" (biggest visual emphasis)
+**STRUCTURAL (Trees, Graphs):**
+- Count nodes: "N nodes total"
+- Count edges: "E edges total"
+- List EVERY edge: "root→left, root→right, left→leftChild, ..."
+- **If nodes > edges+1 for a tree, you're missing edges!**
+
+**QUANTITATIVE (Charts, Numbers):**
+- List the actual data values
+- Identify the "hero number" (largest visual emphasis)
+- List all axis labels, legends, units
+
+**SEQUENTIAL (Processes, Steps):**
+- Number each step
+- List connecting arrows between steps
+- Identify visual state changes (current vs completed vs future)
 
 ---
 
-## Step 3: Layout Planning
+## Step 4: Layout Planning
 
-Divide the screen into zones and assign elements:
+Divide the 1920x1080 canvas into zones:
 
 ```
-┌─────────────────────────────────────┐
-│           TOP (titles, headers)      │  ~15% height
-├─────────────────────────────────────┤
-│                                      │
-│           CENTER (main content)      │  ~60% height
-│                                      │
-├─────────────────────────────────────┤
-│           BOTTOM (labels, progress)  │  ~25% height
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        SAFE ZONE (80px padding)                  │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                    TOP ZONE (~15%)                         │  │
+│  │                 Titles, headers, context                   │  │
+│  ├───────────────────────────────────────────────────────────┤  │
+│  │                                                            │  │
+│  │                    CENTER ZONE (~55%)                      │  │
+│  │                    Main visual content                     │  │
+│  │                                                            │  │
+│  ├───────────────────────────────────────────────────────────┤  │
+│  │                    BOTTOM ZONE (~30%)                      │  │
+│  │              Labels, legends, progress bars                │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-**Answer:**
-- Where is the focal point? (Center is default, top-third for titles)
-- How much whitespace? (Aim for 30-40% empty space)
-- What's the visual flow direction? (Left→right? Top→down? Center→out?)
+**Output format:**
+```
+LAYOUT:
+- Canvas: 1920x1080
+- Safe padding: 80px all sides
+- Usable area: 1760x920
+
+Zone assignments:
+- TOP (y: 80-240): [What goes here]
+- CENTER (y: 240-700): [What goes here]
+- BOTTOM (y: 700-1000): [What goes here]
+
+Focal point: [x, y coordinates]
+Visual flow: [Left→Right | Top→Down | Center→Out]
+Whitespace target: [30-40%]
+```
 
 ---
 
-## Step 4: Animation Timeline
+## Step 5: Animation Timeline
 
-Plan the sequence with frame numbers:
+Plan the animation sequence with specific frame ranges.
+Assume 30fps unless specified otherwise.
 
+**Output format:**
 ```
-Timeline (assuming 30fps):
-- Frame 0-15: Background fades in
-- Frame 15-45: [Primary element] animates in from [direction]
-- Frame 45-75: [Connections/edges] draw in
-- Frame 75-105: [Labels] fade in
-- Frame 105+: Hold for viewer to absorb
+ANIMATION TIMELINE (30fps, [total]s = [total frames] frames):
+
+Frame 0-15 (0.0-0.5s): [Background/setup]
+Frame 15-45 (0.5-1.5s): [Primary element] - [animation type]
+Frame 45-75 (1.5-2.5s): [Connections/edges] - [animation type]
+Frame 75-105 (2.5-3.5s): [Secondary elements] - [animation type]
+Frame 105-135 (3.5-4.5s): [Labels/text] - [animation type]
+Frame 135+: Hold for viewer absorption
 ```
 
-**Rules:**
-- One element animates at a time (max 2 simultaneous)
-- 300-500ms per element (10-15 frames at 30fps)
-- 200-300ms pause between animations (6-10 frames)
-- Budget 2-4 seconds per major concept
+**Animation Rules:**
+- One element at a time (max 2 simultaneous)
+- 300-500ms (10-15 frames) per element entrance
+- 200-300ms (6-10 frames) pause between animations
+- Structure → Connections → Labels → Decorations
 
 ---
 
-## NOW Write Code
+## CHECKPOINT: Plan Validation
 
-Only after completing Steps 0-4 should you write code.
+Before proceeding to Phase 2, verify your plan:
 
-Reference your plan as you code:
-- Check off elements from your inventory as you implement them
-- Follow your layout zones
-- Match your animation timeline
+```
+PLAN VALIDATION CHECKLIST:
+
+[ ] Category identified with reason
+[ ] Core message is ONE sentence
+[ ] Key elements listed (2-4 items)
+[ ] ALL relationships have corresponding connections in inventory
+[ ] Visual inventory lists EVERY shape, line, and label
+[ ] For Structural: edge count matches relationship count
+[ ] Layout zones assigned with pixel coordinates
+[ ] Animation timeline covers all inventory items
+[ ] Total animation time fits within duration
+```
+
+**If any checkbox is unchecked, go back and complete it before proceeding.**
+
+---
+
+# PHASE 2: EXECUTION
+
+Now implement the code. Reference your plan continuously.
+
+## Implementation Order
+
+1. **Set up component structure** - Create the React component with AbsoluteFill
+2. **Implement background** - First visual layer
+3. **Implement shapes/objects** - All nodes, shapes, containers
+4. **Implement connections** - ALL edges, lines, arrows (check inventory!)
+5. **Implement labels** - Text elements
+6. **Implement animations** - Add spring/interpolate to each element
+7. **Verify against inventory** - Check off each item
+
+## Code Structure Template
+
+```tsx
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+
+export const [ComponentName]: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+
+  // Animation timing (from your timeline)
+  const phase1Start = 0;
+  const phase2Start = 15;
+  // ... etc
+
+  return (
+    <AbsoluteFill style={{ /* background */ }}>
+      {/* 1. Background layer */}
+
+      {/* 2. Shapes/objects from inventory */}
+
+      {/* 3. Connections/edges from inventory - DON'T SKIP! */}
+
+      {/* 4. Labels from inventory */}
+    </AbsoluteFill>
+  );
+};
+```
+
+## Post-Implementation Verification
+
+After writing code, verify:
+- [ ] Every inventory item is implemented
+- [ ] Every relationship has a visible connection
+- [ ] Animations follow the timeline
+- [ ] Safe padding (80px) is respected
+- [ ] Text is at least 24px
 
 ---
 
 # Design Rules Reference
 
-## Universal Rules (Apply to ALL content)
+## Universal Rules
 
 ### Layout
 - **Edge padding:** 80px minimum from all edges
@@ -132,28 +283,25 @@ Reference your plan as you code:
 - **Focal point:** Center or upper-third of screen
 
 ### Typography
-- **Title:** 64-96px, bold
-- **Heading:** 48-64px, semibold
-- **Body:** 32-40px, regular
-- **Caption/Label:** 24-32px, regular or light
-- **Minimum readable:** Never below 24px
+| Type | Size | Weight |
+|------|------|--------|
+| Title | 64-96px | Bold |
+| Heading | 48-64px | Semibold |
+| Body | 32-40px | Regular |
+| Caption/Label | 24-32px | Regular/Light |
+| **Minimum** | 24px | - |
 
-### Animation
-- **Duration per element:** 300-500ms (10-15 frames at 30fps)
-- **Pause between:** 200-300ms (6-10 frames)
-- **Sequence:** Structure → Connections → Labels → Decorations
-- **Direction:** Enter from logical direction (hierarchy: top→down, sequence: left→right)
-- **Easing:** Use spring() for organic, interpolate() for mechanical
-
-### Visual Hierarchy
-- **Maximum focal elements:** 3 per scene
-- **Size ratio:** Primary should be 1.5-2x larger than secondary
-- **Contrast:** Primary elements get highest contrast, secondary gets muted
+### Animation Timing
+| Element | Duration | Notes |
+|---------|----------|-------|
+| Element entrance | 300-500ms (10-15f) | Use spring() for organic |
+| Pause between | 200-300ms (6-10f) | Let viewer process |
+| Connection draw | 400-600ms (12-18f) | Slightly longer than nodes |
 
 ### Color
-- **Limit palette:** Maximum 3-4 colors per scene
-- **Semantic colors:** Green=positive/success, Red=negative/warning (when relevant)
-- **Text contrast:** Minimum 4.5:1 ratio against background
+- Maximum 3-4 colors per scene
+- Semantic: Green=positive, Red=negative (when contextually appropriate)
+- Text contrast: Minimum 4.5:1 ratio against background
 
 ---
 
@@ -161,133 +309,99 @@ Reference your plan as you code:
 
 ### Structural (Trees, Graphs, Hierarchies)
 
-**CRITICAL: Connections are NOT optional**
-- Every relationship MUST have a visible line/edge
-- Edge thickness: 2-4px
-- Edge color: Slightly transparent (0.6-0.8 opacity) or muted
-- Edges connect TO the node, not near it
+**CONNECTIONS ARE MANDATORY - NOT OPTIONAL**
 
-**Node Layout**
-- Same-level nodes: equal vertical position
-- Level spacing: 120-150px vertical gap
-- Sibling spacing: 80-120px horizontal gap
-- Parent centered above children
+| Rule | Specification |
+|------|---------------|
+| Edge thickness | 2-4px |
+| Edge opacity | 0.6-0.8 (slightly transparent) |
+| Edge endpoints | Connect TO the node center, not near it |
+| Level spacing | 120-150px vertical |
+| Sibling spacing | 80-120px horizontal |
+| Parent position | Centered above children |
 
-**Animation Order**
-1. Root/parent nodes appear first
-2. Edges draw outward from parent to child
-3. Child nodes appear as edges reach them
-4. Labels appear last
+**Animation Order:**
+1. Root/parent node appears
+2. Edge draws from parent toward child
+3. Child node appears as edge reaches it
+4. Repeat for next level
+5. Labels appear last
 
-**Common Mistakes to Avoid**
-- ❌ Nodes without edges (looks like floating boxes)
-- ❌ Edges that don't touch nodes (disconnected)
-- ❌ Inconsistent level heights
-- ❌ All nodes appearing at once (no hierarchy feel)
+**Common Failures:**
+- Nodes without edges (floating boxes)
+- Edges not touching nodes (disconnected look)
+- Inconsistent level heights
+- All nodes appearing simultaneously
 
 ### Quantitative (Numbers, Charts, Finance)
 
-**Hero Number**
-- Identify the ONE most important number
-- Make it 2-3x larger than other numbers
-- Animate it counting up (not instant)
-- Consider adding subtle glow or emphasis
+**Hero Number Treatment:**
+- ONE number gets primary emphasis
+- 2-3x larger than other numbers
+- Animate counting up (not instant appear)
+- Optional: subtle glow or color accent
 
-**Charts**
+**Chart Requirements:**
 - Always include axis labels
-- Animate bars/lines growing, not appearing
-- Use consistent bar widths
-- Highlight the key data point with color or size
+- Animate growth (bars grow up, lines draw)
+- Consistent bar widths
+- Highlight key data point
 
-**Comparisons**
-- Side-by-side layout with clear divider
-- Use same scale for fair comparison
-- Color code: consistent meaning across comparisons
-
-**Trends**
-- Show direction with arrows or slope
-- Green for up/positive, red for down/negative (when contextually appropriate)
-- Animate the change, not just the end state
-
-**Common Mistakes to Avoid**
-- ❌ Numbers too small to read quickly
-- ❌ Charts without labels (what am I looking at?)
-- ❌ Inconsistent scales in comparisons
-- ❌ Too many data points (simplify!)
+**Common Failures:**
+- Numbers too small to read quickly
+- Charts without axis labels
+- Inconsistent scales in comparisons
+- Too many data points (simplify!)
 
 ### Sequential (Processes, Steps, Flows)
 
-**Flow Direction**
+**Flow Direction:**
 - Horizontal: left → right (most common)
-- Vertical: top → down (for hierarchical steps)
-- Be consistent within a scene
+- Vertical: top → down (hierarchical)
+- Be consistent within scene
 
-**Step Indicators**
-- Number each step clearly (1, 2, 3 or bullets)
-- Connect steps with arrows or lines
-- Equal spacing between steps
+**Step Indicators:**
+- Number each step (1, 2, 3)
+- Connect with arrows/lines
+- Equal spacing
 
-**Progress Indication**
-- Highlight current step (larger, brighter, or outlined)
-- Dim completed steps (lower opacity)
-- Gray out future steps
+**Progress States:**
+- Current: Bright, larger, or glowing
+- Completed: Slightly dimmed
+- Future: Grayed out
 
-**Animation**
+**Animation:**
 - Steps appear one at a time
-- Arrow/connection draws before next step appears
-- Current step gets emphasis animation (pulse, glow)
+- Arrow draws before next step appears
+- Current step pulses or glows
 
-**Common Mistakes to Avoid**
-- ❌ Steps without visual connection (just floating items)
-- ❌ No indication of order (which comes first?)
-- ❌ All steps same emphasis (no sense of progression)
+### Conceptual (Abstract Ideas)
 
-### Conceptual (Abstract Ideas, Metaphors)
-
-**Make It Concrete**
-- Find a visual metaphor (abstract concept → familiar object)
-- Example: "Growth" → plant growing, "Security" → shield/lock
+**Make Abstract Concrete:**
+- Map to visual metaphor (Growth → plant, Security → shield)
 - Keep metaphors simple and universal
+- Every concept needs a visual anchor (icon, shape)
 
-**Visual Anchors**
-- Every abstract concept needs a visual anchor (icon, shape, image)
-- Don't rely on text alone
-- Use consistent iconography style
-
-**Relationships**
-- Show how concepts connect (arrows, proximity, containers)
-- Group related concepts visually
-- Use color to categorize
-
-**Animation**
-- Build up concept piece by piece
-- Reveal connections after establishing elements
-- Use motion to reinforce meaning (growth = expanding, speed = fast motion)
+**Show Relationships:**
+- Use arrows, proximity, or containers
+- Group related concepts
+- Color-code categories
 
 ### Text-Focused (Quotes, Key Points)
 
-**Typography is Everything**
-- Choose font weight to convey tone (bold = important, light = subtle)
-- Use size hierarchy deliberately
-- Limit to 2 font sizes per scene
+**Typography:**
+- Max 2 font sizes per scene
+- Bold = important, Light = subtle
+- Center short text, left-align longer text
+- Line height: 1.4-1.6x
 
-**Emphasis**
-- Highlight key words with color, underline, or size
-- Don't highlight everything (defeats purpose)
-- Maximum 3-5 words emphasized per scene
+**Emphasis:**
+- Highlight 3-5 key words max
+- Use color, size, or underline
+- Don't highlight everything
 
-**Layout**
-- Center alignment for short quotes
-- Left alignment for longer text
-- Generous line height (1.4-1.6x)
-
-**Animation**
-- Fade in full text, OR
-- Word-by-word reveal for emphasis, OR
-- Key words animate separately
-
-**Common Mistakes to Avoid**
-- ❌ Too much text (this is video, not a document)
-- ❌ All text same size (no hierarchy)
-- ❌ Text too close to edges (cramped feeling)
-- ❌ Busy background behind text (readability)
+**Common Failures:**
+- Too much text
+- All text same size
+- Text too close to edges
+- Busy background hurting readability
