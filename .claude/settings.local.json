@@ -198,7 +198,8 @@
       "Bash(xargs:*)",
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:help.router-for.me)",
-      "Bash(node tool-name-fixer.js:*)"
+      "Bash(node tool-name-fixer.js:*)",
+      "Bash(wc:*)"
     ]
   }
 }

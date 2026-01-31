@@ -240,10 +240,11 @@ def run_typescript_check(workspace: str, project_id: str) -> tuple[bool, list[st
         return False, [str(e)]
 
 
-def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_editing_skill: str):
+def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_editing_skill: str, planning_skill: str = None, condenser_llm=None):
     """Create the generator agent with Remotion skills and file editing tools."""
     from openhands.sdk import Agent, AgentContext, Tool
     from openhands.sdk.context.skills.skill import Skill
+    from openhands.sdk.context.condenser import LLMSummarizingCondenser
     from openhands.sdk.tool import register_tool
     from openhands.tools.file_editor import FileEditorTool
     from openhands.tools.task_tracker import TaskTrackerTool
@@ -266,6 +267,9 @@ def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_edit
     register_tool("FileToolSet", create_file_tools)
 
     skills = []
+    # Planning skill should be first - it instructs the LLM to think before coding
+    if planning_skill:
+        skills.append(Skill(name="visual-planning", content=planning_skill))
     if remotion_skill:
         skills.append(Skill(name="remotion-best-practices", content=remotion_skill))
     if style_skill:
@@ -274,6 +278,16 @@ def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_edit
         skills.append(Skill(name="file-editing-guide", content=file_editing_skill))
 
     agent_context = AgentContext(skills=skills) if skills else None
+
+    # Configure condenser to prevent context window overflow
+    # Uses a cheaper/faster model to summarize conversation history
+    condenser = None
+    if condenser_llm:
+        condenser = LLMSummarizingCondenser(
+            llm=condenser_llm,
+            max_size=100,  # Trigger condensation at 100 events (before hitting token limits)
+            keep_first=4,  # Preserve initial context (system prompt, first instructions)
+        )
 
     return Agent(
         llm=llm,
@@ -284,13 +298,15 @@ def create_generator_agent(llm, remotion_skill: str, style_skill: str, file_edit
             Tool(name="FileToolSet"),
         ],
         agent_context=agent_context,
+        condenser=condenser,
     )
 
 
-def create_visual_evaluator_agent(llm, scoring_rubric: str):
+def create_visual_evaluator_agent(llm, scoring_rubric: str, condenser_llm=None):
     """Create the visual evaluator agent focused on screenshot analysis."""
     from openhands.sdk import Agent, AgentContext, Tool
     from openhands.sdk.context.skills.skill import Skill
+    from openhands.sdk.context.condenser import LLMSummarizingCondenser
     from openhands.sdk.tool import register_tool
     from openhands.tools.terminal import TerminalExecutor
 
@@ -313,10 +329,20 @@ def create_visual_evaluator_agent(llm, scoring_rubric: str):
 
     agent_context = AgentContext(skills=skills) if skills else None
 
+    # Configure condenser for visual evaluator (less critical but still helpful)
+    condenser = None
+    if condenser_llm:
+        condenser = LLMSummarizingCondenser(
+            llm=condenser_llm,
+            max_size=50,  # Smaller limit for evaluator (simpler task)
+            keep_first=2,  # Keep initial instructions
+        )
+
     return Agent(
         llm=llm,
         tools=[Tool(name="VisualToolSet")],
         agent_context=agent_context,
+        condenser=condenser,
     )
 
 
@@ -472,7 +498,9 @@ This is a hard requirement - code that doesn't compile is unacceptable."""
     emit_tool_call("generator", message="Running self-healing generator", iteration=iteration)
 
     start_time = time.time()
-    conversation = Conversation(agent=agent, workspace=workspace)
+    # Limit iterations to prevent runaway context growth
+    # 50 steps is enough for code generation + self-healing
+    conversation = Conversation(agent=agent, workspace=workspace, max_iteration_per_run=50)
 
     try:
         conversation.send_message(message)
@@ -668,7 +696,9 @@ Focus on VISUAL QUALITY. The code works - we're evaluating how good it LOOKS."""
 
     for attempt in range(max_retries):
         try:
-            conversation = Conversation(agent=agent, workspace=workspace)
+            # Evaluator has simpler task: render stills + submit score
+            # 20 iterations is plenty for rendering a few frames
+            conversation = Conversation(agent=agent, workspace=workspace, max_iteration_per_run=20)
             conversation.send_message(eval_prompt)
             conversation.run()
             duration_ms = int((time.time() - start_time) * 1000)
@@ -836,10 +866,11 @@ def main():
             usage_id="visual-evaluation",  # For cost tracking
         )
 
-        emit_event(EVENT_TOOL_CALL, tool="config", message=f"Generator: {args.model}, Evaluator: {flash_model}, Base URL: {args.base_url}")
+        emit_event(EVENT_TOOL_CALL, tool="config", message=f"Generator: {args.model}, Evaluator: {flash_model}, Base URL: {args.base_url}, Condenser: LLMSummarizingCondenser (max_size=100)")
 
         # Load skills
         skills_dir = Path(__file__).parent / "skills"
+        planning_skill = load_skill(skills_dir / "visual-planning.md")  # Planning process - loaded first
         remotion_skill = load_skill(skills_dir / "remotion-best-practices.md")
         style_skill = load_skill(skills_dir / "visual-design.md")
         scoring_rubric = load_skill(skills_dir / "scoring-rubric.md")
@@ -847,9 +878,17 @@ def main():
 
         # Create agents with appropriate models
         # Generator uses Pro for high-quality code generation
-        generator_agent = create_generator_agent(generator_llm, remotion_skill, style_skill, file_editing_skill)
+        # Use the flash model for the condenser (summarizes conversation history when it gets too long)
+        generator_agent = create_generator_agent(
+            generator_llm, remotion_skill, style_skill, file_editing_skill,
+            planning_skill=planning_skill,  # NEW: Structured planning before code generation
+            condenser_llm=evaluator_llm  # Use cheaper flash model for condensation
+        )
         # Evaluator uses Flash for faster, cheaper visual evaluation
-        visual_evaluator = create_visual_evaluator_agent(evaluator_llm, scoring_rubric)
+        visual_evaluator = create_visual_evaluator_agent(
+            evaluator_llm, scoring_rubric,
+            condenser_llm=evaluator_llm  # Same model for condenser
+        )
 
         # State tracking
         best_score = 0
