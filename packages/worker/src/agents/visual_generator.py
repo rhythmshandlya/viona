@@ -82,8 +82,15 @@ def parse_critic_score(response: str) -> dict:
     }
 
 
-def create_generator_agent(llm, remotion_skill: str, style_skill: str):
-    """Create the generator agent with Remotion skills."""
+def create_generator_agent(llm, remotion_skill: str, style_skill: str, enable_planning: bool = True):
+    """Create the generator agent with Remotion skills.
+
+    Args:
+        llm: The LLM configuration
+        remotion_skill: Remotion best practices skill content
+        style_skill: Visual design skill content
+        enable_planning: Enable planning mode for long-horizon tasks (default: True)
+    """
     from openhands.sdk import Agent, AgentContext, Tool
     from openhands.sdk.context.skills.skill import Skill
     from openhands.tools.file_editor import FileEditorTool
@@ -98,6 +105,10 @@ def create_generator_agent(llm, remotion_skill: str, style_skill: str):
 
     agent_context = AgentContext(skills=skills) if skills else None
 
+    # Use planning-aware system prompt for long-horizon visual generation tasks
+    # This enables the TaskTrackerTool to maintain a structured plan
+    system_prompt = "system_prompt_long_horizon.j2" if enable_planning else "system_prompt.j2"
+
     return Agent(
         llm=llm,
         tools=[
@@ -106,6 +117,7 @@ def create_generator_agent(llm, remotion_skill: str, style_skill: str):
             Tool(name=TaskTrackerTool.name),
         ],
         agent_context=agent_context,
+        system_prompt_filename=system_prompt,
     )
 
 
@@ -236,6 +248,8 @@ def main():
     parser.add_argument("--fps", type=int, default=30, help="Video FPS")
     parser.add_argument("--max-iterations", type=int, default=MAX_ITERATIONS, help="Max refinement iterations")
     parser.add_argument("--quality-threshold", type=int, default=QUALITY_THRESHOLD, help="Quality score threshold")
+    parser.add_argument("--enable-planning", action="store_true", default=True, help="Enable planning mode for structured task tracking")
+    parser.add_argument("--no-planning", action="store_false", dest="enable_planning", help="Disable planning mode")
     args = parser.parse_args()
 
     # Get API key from environment
@@ -263,7 +277,13 @@ def main():
         emit_event(EVENT_ERROR, message=f"Failed to import OpenHands: {e}")
         sys.exit(1)
 
-    emit_event(EVENT_STARTED, model=args.model, workspace=args.workspace, max_iterations=args.max_iterations)
+    emit_event(
+        EVENT_STARTED,
+        model=args.model,
+        workspace=args.workspace,
+        max_iterations=args.max_iterations,
+        planning_mode=args.enable_planning,
+    )
 
     # Track state for graceful cancellation
     cancelled = False
@@ -302,7 +322,9 @@ def main():
         scoring_rubric = load_skill(skills_dir / "scoring-rubric.md")
 
         # Create agents
-        generator_agent = create_generator_agent(llm, remotion_skill, style_skill)
+        generator_agent = create_generator_agent(
+            llm, remotion_skill, style_skill, enable_planning=args.enable_planning
+        )
         critic_agent = create_critic_agent(llm, scoring_rubric)
 
         # Iterative refinement loop
