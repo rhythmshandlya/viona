@@ -1,9 +1,7 @@
 "use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -17,14 +15,6 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/index.tsx
@@ -33,10 +23,12 @@ __export(index_exports, {
   ProjC8fa689fB2c345ffB309F6c1f87ada7d: () => ProjC8fa689fB2c345ffB309F6c1f87ada7d
 });
 module.exports = __toCommonJS(index_exports);
-var import_remotion10 = require("remotion");
+var import_remotion5 = require("remotion");
+
+// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/TitleCard.tsx
+var import_remotion = require("remotion");
 
 // src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/constants.ts
-var import_remotion = require("remotion");
 var COLORS = {
   bg: "#0f0f23",
   primary: "#8b5cf6",
@@ -47,20 +39,15 @@ var COLORS = {
   // Cyan
   success: "#22c55e",
   // Green
+  warning: "#eab308",
+  // Yellow
   danger: "#ef4444",
   // Red
-  warning: "#f97316",
-  // Orange
   white: "#ffffff",
-  text: "#ffffff",
+  text: "#e2e8f0",
+  muted: "#64748b",
   glass: "rgba(255, 255, 255, 0.1)",
-  glassBorder: "rgba(255, 255, 255, 0.2)",
-  muted: "#888888"
-};
-var SPRING_CONFIG = {
-  soft: { damping: 20, stiffness: 60 },
-  bouncy: { damping: 12, stiffness: 80 },
-  stiff: { damping: 15, stiffness: 150 }
+  glassBorder: "rgba(255, 255, 255, 0.2)"
 };
 var getResponsiveSizes = (width, height) => {
   const minDim = Math.min(width, height);
@@ -73,636 +60,399 @@ var getResponsiveSizes = (width, height) => {
       xl: height * 0.06,
       xxl: height * 0.08
     },
-    padding: minDim * 0.05,
-    gap: minDim * 0.03,
+    spacing: {
+      xs: minDim * 0.02,
+      sm: minDim * 0.03,
+      md: minDim * 0.05,
+      lg: minDim * 0.08
+    },
     borderRadius: minDim * 0.02,
-    borderWidth: Math.max(2, minDim * 3e-3),
-    iconSize: minDim * 0.08,
-    nodeSize: minDim * 0.12
+    iconSize: minDim * 0.08
   };
 };
 
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneIntro.tsx
-var import_react = require("react");
-var import_remotion2 = require("remotion");
+// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/TitleCard.tsx
 var import_jsx_runtime = require("react/jsx-runtime");
-var SceneIntro = () => {
-  const frame = (0, import_remotion2.useCurrentFrame)();
-  const { width, height, fps } = (0, import_remotion2.useVideoConfig)();
-  const { iconSize, fontSize } = getResponsiveSizes(width, height);
-  const tasks = (0, import_react.useMemo)(() => {
-    return Array.from({ length: 30 }).map((_, i) => ({
-      id: i,
-      x: (0, import_remotion2.interpolate)(Math.random(), [0, 1], [-width * 0.4, width * 0.4]),
-      // Relative to center
-      delay: Math.random() * 60,
-      color: Math.random() > 0.5 ? COLORS.secondary : COLORS.accent
-    }));
-  }, [width]);
+var TitleCard = ({ title, subtitle, opacity = 1 }) => {
+  const { width, height } = (0, import_remotion.useVideoConfig)();
+  const sizes = getResponsiveSizes(width, height);
+  const frame = (0, import_remotion.useCurrentFrame)();
+  const titleFade = (0, import_remotion.interpolate)(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+  const subtitleFade = (0, import_remotion.interpolate)(frame, [15, 35], [0, 1], { extrapolateRight: "clamp" });
+  const containerY = (0, import_remotion.interpolate)(frame, [0, 30], [20, 0], { extrapolateRight: "clamp" });
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { style: {
-    width: "100%",
-    height: "100%",
     display: "flex",
     flexDirection: "column",
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "center"
+    width: "100%",
+    opacity,
+    transform: `translateY(${containerY}px)`
   }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: {
-      marginTop: 100,
-      width: iconSize * 3,
-      height: iconSize * 3,
-      borderRadius: "50%",
-      backgroundColor: COLORS.primary,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      boxShadow: `0 0 40px ${COLORS.primary}66`,
-      zIndex: 10,
-      transform: `scale(${(0, import_remotion2.spring)({ frame: frame - 10, fps, config: SPRING_CONFIG.bouncy })})`,
-      opacity: (0, import_remotion2.interpolate)(frame, [10, 20], [0, 1])
-    }, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)("span", { style: { fontSize: fontSize.lg }, children: "\u2699\uFE0F" }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { style: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }, children: tasks.map((task) => {
-      const dropFrame = frame - task.delay;
-      if (dropFrame < 0) return null;
-      const progress = (0, import_remotion2.interpolate)(dropFrame, [0, 60], [0, 1]);
-      const y = (0, import_remotion2.interpolate)(progress, [0, 1], [-100, height / 2 - 100]);
-      const opacity = (0, import_remotion2.interpolate)(progress, [0.8, 1], [1, 0]);
-      return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-        "div",
-        {
-          style: {
-            position: "absolute",
-            left: width / 2 + task.x,
-            top: y,
-            width: iconSize * 0.6,
-            height: iconSize * 0.6,
-            backgroundColor: task.color,
-            borderRadius: 8,
-            opacity,
-            transform: `rotate(${progress * 360}deg)`
-          }
-        },
-        task.id
-      );
-    }) })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("h1", { style: {
+      fontSize: sizes.fontSize.xxl,
+      color: COLORS.white,
+      textAlign: "center",
+      margin: 0,
+      opacity: titleFade,
+      fontWeight: 800,
+      background: `linear-gradient(90deg, ${COLORS.primary}, ${COLORS.accent})`,
+      WebkitBackgroundClip: "text",
+      WebkitTextFillColor: "transparent"
+    }, children: title }),
+    subtitle && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("p", { style: {
+      fontSize: sizes.fontSize.lg,
+      color: COLORS.text,
+      textAlign: "center",
+      marginTop: sizes.spacing.sm,
+      opacity: subtitleFade
+    }, children: subtitle })
   ] });
 };
 
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneHeap.tsx
-var import_remotion5 = require("remotion");
-
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/BinaryHeap.tsx
-var import_remotion3 = require("remotion");
+// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/TaskQueue.tsx
+var import_remotion2 = require("remotion");
 var import_jsx_runtime2 = require("react/jsx-runtime");
-var BinaryHeap = ({ nodes, highlightPath = [], scale = 1 }) => {
-  const { width, height, fps } = (0, import_remotion3.useVideoConfig)();
-  const frame = (0, import_remotion3.useCurrentFrame)();
-  const { nodeSize, fontSize } = getResponsiveSizes(width, height);
-  const startY = height * 0.15;
-  const levelHeight = height * 0.12;
-  const getPosition = (index) => {
-    const level = Math.floor(Math.log2(index + 1));
-    const levelStartIndex = Math.pow(2, level) - 1;
-    const positionInLevel = index - levelStartIndex;
-    const nodesInLevel = Math.pow(2, level);
-    const maxSpread = width * 0.8;
-    const spread = maxSpread / (nodesInLevel + 1);
-    const x = (width - maxSpread) / 2 + spread * (positionInLevel + 1);
-    const y = startY + level * levelHeight;
-    return { x, y };
-  };
-  const renderLines = () => {
-    return nodes.map((node, i) => {
-      if (i === 0) return null;
-      const parentIndex = Math.floor((i - 1) / 2);
-      const parent = nodes[parentIndex];
-      if (!parent && parentIndex >= nodes.length) return null;
-      const pos = getPosition(i);
-      const parentPos = getPosition(parentIndex);
-      const isPathHighlighed = highlightPath.includes(i) && highlightPath.includes(parentIndex);
-      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-        "svg",
-        {
-          style: {
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            zIndex: 0
-          },
-          children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-            "line",
-            {
-              x1: parentPos.x,
-              y1: parentPos.y + nodeSize / 2,
-              x2: pos.x,
-              y2: pos.y - nodeSize / 2,
-              stroke: isPathHighlighed ? COLORS.danger : COLORS.secondary,
-              strokeWidth: isPathHighlighed ? 4 : 2,
-              strokeOpacity: 0.6
-            }
-          )
-        },
-        `line-${i}`
-      );
-    });
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: { position: "relative", width: "100%", height: "100%", transform: `scale(${scale})` }, children: [
-    renderLines(),
-    nodes.map((node, i) => {
-      const { x, y } = getPosition(i);
-      const spr = (0, import_remotion3.spring)({
-        frame: frame - i * 3,
-        // Stagger
-        fps,
-        config: SPRING_CONFIG.bouncy
-      });
-      const isHighlighted = highlightPath.includes(i) || node.highlight;
-      return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+var TaskQueue = () => {
+  const frame = (0, import_remotion2.useCurrentFrame)();
+  const { width, height } = (0, import_remotion2.useVideoConfig)();
+  const sizes = getResponsiveSizes(width, height);
+  const minDim = Math.min(width, height);
+  const taskCount = 15;
+  const tasks = Array.from({ length: taskCount }, (_, i) => i);
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: {
+    position: "relative",
+    width: "100%",
+    height: "100%",
+    overflow: "hidden"
+  }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("div", { style: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      textAlign: "center",
+      zIndex: 10
+    }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: {
+        fontSize: sizes.fontSize.xl,
+        fontWeight: "bold",
+        color: COLORS.danger
+      }, children: Math.floor((0, import_remotion2.interpolate)(frame, [0, 200], [0, 1e7])).toLocaleString() }),
+      /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { style: { fontSize: sizes.fontSize.sm, color: COLORS.text }, children: "Delayed Tasks" })
+    ] }),
+    tasks.map((i) => {
+      const startFrame = i * 5;
+      const progress = (0, import_remotion2.interpolate)(frame - startFrame, [0, 60], [0, 1], { extrapolateRight: "clamp" });
+      const xOffset = (i % 3 - 1) * (minDim * 0.2);
+      const yStart = -100;
+      const yEnd = height * 0.4 + i * minDim * 0.04;
+      const currentY = (0, import_remotion2.interpolate)(progress, [0, 1], [yStart, yEnd]);
+      const opacity = (0, import_remotion2.interpolate)(progress, [0, 0.2], [0, 1], { extrapolateRight: "clamp" });
+      if (frame < startFrame) return null;
+      return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
         "div",
         {
           style: {
             position: "absolute",
-            left: x - nodeSize / 2,
-            top: y - nodeSize / 2,
-            width: nodeSize,
-            height: nodeSize,
-            borderRadius: "50%",
-            backgroundColor: isHighlighted ? COLORS.danger : node.color || COLORS.primary,
+            left: "50%",
+            top: 0,
+            transform: `translate(calc(-50% + ${xOffset}px), ${currentY}px)`,
+            width: minDim * 0.6,
+            height: minDim * 0.1,
+            background: COLORS.glass,
+            border: `1px solid ${COLORS.glassBorder}`,
+            borderRadius: sizes.borderRadius,
             display: "flex",
-            justifyContent: "center",
             alignItems: "center",
-            color: COLORS.white,
-            fontWeight: "bold",
-            fontSize: fontSize.md,
-            boxShadow: `0 4px 10px ${isHighlighted ? COLORS.danger : COLORS.primary}66`,
-            transform: `scale(${spr})`,
-            zIndex: 1,
-            border: `2px solid ${COLORS.glassBorder}`
+            justifyContent: "center",
+            opacity,
+            color: COLORS.text,
+            fontSize: sizes.fontSize.sm
           },
-          children: node.value
+          children: [
+            "Task #",
+            23902 + i,
+            " - Expires in ",
+            i % 5 + 1,
+            "s"
+          ]
         },
-        node.id
+        i
       );
     })
   ] });
 };
 
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/ComplexityVisual.tsx
-var import_remotion4 = require("remotion");
+// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/BinaryHeap.tsx
+var import_remotion3 = require("remotion");
 var import_jsx_runtime3 = require("react/jsx-runtime");
-var OLogNVisual = () => {
-  const frame = (0, import_remotion4.useCurrentFrame)();
-  const { width, height } = (0, import_remotion4.useVideoConfig)();
-  const { fontSize } = getResponsiveSizes(width, height);
-  const scale = (0, import_remotion4.interpolate)(frame % 60, [0, 30, 60], [1, 1.05, 1]);
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center"
-  }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("h1", { style: {
-      fontSize: fontSize.xxl,
-      color: COLORS.danger,
-      transform: `scale(${scale})`,
-      margin: 0
-    }, children: "O(log n)" }),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("p", { style: {
-      color: COLORS.text,
-      fontSize: fontSize.md,
-      opacity: 0.8,
-      marginTop: 10
-    }, children: "Logarithmic (Slower)" })
-  ] });
-};
-
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneHeap.tsx
-var import_jsx_runtime4 = require("react/jsx-runtime");
-var SceneHeap = () => {
-  const frame = (0, import_remotion5.useCurrentFrame)();
-  const initialNodes = [
-    { id: 0, value: 2 },
-    { id: 1, value: 5 },
-    { id: 2, value: 12 },
-    { id: 3, value: 7 },
-    { id: 4, value: 6 },
-    { id: 5, value: 20 },
-    { id: 6, value: 15 }
-  ];
-  let currentNodes = [...initialNodes];
-  let highlightPath = [];
-  if (frame > 90) {
-    currentNodes.push({ id: 7, value: 1, color: COLORS.accent, highlight: true });
-  }
-  if (frame > 120) {
-    highlightPath = [3, 7];
-    if (frame > 140) {
-      currentNodes = [
-        { id: 0, value: 2 },
-        { id: 1, value: 5 },
-        { id: 2, value: 12 },
-        { id: 7, value: 1, color: COLORS.accent, highlight: true },
-        // moved up
-        { id: 4, value: 6 },
-        { id: 5, value: 20 },
-        { id: 6, value: 15 },
-        { id: 3, value: 7 }
-        // moved down
-      ];
-      highlightPath = [1, 3];
+var BinaryHeap = () => {
+  const frame = (0, import_remotion3.useCurrentFrame)();
+  const { width, height } = (0, import_remotion3.useVideoConfig)();
+  const sizes = getResponsiveSizes(width, height);
+  const minDim = Math.min(width, height);
+  const levels = 4;
+  const nodes = [];
+  const startY = height * 0.1;
+  const levelHeight = height * 0.15;
+  for (let l = 0; l < levels; l++) {
+    const numNodes = Math.pow(2, l);
+    const span = width * 0.8;
+    const startX = (width - span) / 2;
+    const gap = span / (numNodes + 1);
+    for (let n = 0; n < numNodes; n++) {
+      nodes.push({
+        id: `node-${l}-${n}`,
+        level: l,
+        x: startX + gap * (n + 1),
+        y: startY + l * levelHeight
+      });
     }
   }
-  if (frame > 140 && frame > 160) {
-    currentNodes = [
-      { id: 0, value: 2 },
-      { id: 7, value: 1, color: COLORS.accent, highlight: true },
-      // moved up
-      { id: 2, value: 12 },
-      { id: 1, value: 5 },
-      // moved down
-      { id: 4, value: 6 },
-      { id: 5, value: 20 },
-      { id: 6, value: 15 },
-      { id: 3, value: 7 }
-    ];
-    highlightPath = [0, 1];
-  }
-  if (frame > 160 && frame > 180) {
-    currentNodes = [
-      { id: 7, value: 1, color: COLORS.accent, highlight: true },
-      // ROOT
-      { id: 0, value: 2 },
-      // moved down
-      { id: 2, value: 12 },
-      { id: 1, value: 5 },
-      { id: 4, value: 6 },
-      { id: 5, value: 20 },
-      { id: 6, value: 15 },
-      { id: 3, value: 7 }
-    ];
-    highlightPath = [];
-  }
-  const scale = (0, import_remotion5.interpolate)(frame, [220, 260], [1, 0.8]);
-  const opacity = (0, import_remotion5.interpolate)(frame, [260, 280], [1, 0]);
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { width: "100%", height: "100%", opacity }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { width: "100%", height: "100%", transform: `scale(${scale})` }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-      BinaryHeap,
-      {
-        nodes: currentNodes.map((n) => ({ ...n, highlight: n.id === 7 && frame > 90 })),
-        highlightPath
-      }
-    ) }),
-    frame > 180 && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: {
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)("div", { style: { position: "relative", width: "100%", height: "100%" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: {
       position: "absolute",
-      top: "60%",
-      left: 0,
+      top: 0,
       width: "100%",
-      display: "flex",
-      justifyContent: "center"
-    }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(OLogNVisual, {}) })
-  ] });
-};
-
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneWheel.tsx
-var import_remotion7 = require("remotion");
-
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/TimingWheel.tsx
-var import_react2 = __toESM(require("react"));
-var import_remotion6 = require("remotion");
-var import_jsx_runtime5 = require("react/jsx-runtime");
-var TimingWheel = ({
-  items,
-  radius = 300,
-  rotation = 0,
-  activeSlot = -1,
-  label = "Seconds",
-  isOuter = false
-}) => {
-  const { width, height } = (0, import_remotion6.useVideoConfig)();
-  const { fontSize } = getResponsiveSizes(width, height);
-  const slots = 60;
-  const renderSlots = () => {
-    return Array.from({ length: slots }).map((_, i) => {
-      const angle = i * 360 / slots - 90;
-      const radians = angle * Math.PI / 180;
-      const innerR = radius - (isOuter ? 20 : 10);
-      const outerR = radius + (isOuter ? 20 : 10);
-      const x1 = Math.cos(radians) * innerR;
-      const y1 = Math.sin(radians) * innerR;
-      const x2 = Math.cos(radians) * outerR;
-      const y2 = Math.sin(radians) * outerR;
-      const isActive = i === activeSlot;
-      return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_react2.default.Fragment, { children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-          "line",
-          {
-            x1,
-            y1,
-            x2,
-            y2,
-            stroke: isActive ? COLORS.accent : COLORS.glassBorder,
-            strokeWidth: isActive ? 4 : 2
-          }
-        ),
-        i % 5 === 0 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-          "text",
-          {
-            x: Math.cos(radians) * (outerR + 25),
-            y: Math.sin(radians) * (outerR + 25),
-            fill: isActive ? COLORS.accent : COLORS.muted,
-            fontSize: fontSize.sm,
-            textAnchor: "middle",
-            alignmentBaseline: "middle",
-            style: { opacity: 0.7 },
-            children: i
-          }
-        )
-      ] }, i);
-    });
-  };
-  const renderItems = () => {
-    return items.map((item) => {
-      const angle = item.slot * 360 / slots - 90;
-      const radians = angle * Math.PI / 180;
-      const itemRadius = radius - 40;
-      const x = Math.cos(radians) * itemRadius;
-      const y = Math.sin(radians) * itemRadius;
-      return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("g", { transform: `translate(${x}, ${y})`, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-        "circle",
-        {
-          r: 12,
-          fill: item.color || COLORS.success,
-          stroke: COLORS.white,
-          strokeWidth: 2
-        }
-      ) }, item.id);
-    });
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "absolute"
-  }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-      "svg",
-      {
-        width: radius * 2.5,
-        height: radius * 2.5,
-        viewBox: `-${radius * 1.25} -${radius * 1.25} ${radius * 2.5} ${radius * 2.5}`,
-        style: { transform: `rotate(${rotation}deg)` },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-            "circle",
-            {
-              r: radius,
-              fill: "none",
-              stroke: COLORS.secondary,
-              strokeWidth: 4,
-              opacity: 0.3
-            }
-          ),
-          renderSlots(),
-          renderItems(),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-            "line",
-            {
-              x1: 0,
-              y1: 0,
-              x2: 0,
-              y2: -radius,
-              stroke: COLORS.accent,
-              strokeWidth: 3,
-              strokeLinecap: "round"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("circle", { r: 8, fill: COLORS.accent })
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: {
-      position: "absolute",
       textAlign: "center",
-      paddingTop: isOuter ? 0 : 40,
-      pointerEvents: "none"
-    }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("h3", { style: { color: COLORS.text, fontSize: fontSize.md, margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.5)" }, children: label }) })
-  ] });
-};
-
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneWheel.tsx
-var import_jsx_runtime6 = require("react/jsx-runtime");
-var SceneWheel = () => {
-  const frame = (0, import_remotion7.useCurrentFrame)();
-  const wheel1Scale = (0, import_remotion7.interpolate)(frame, [0, 30], [0, 1], { extrapolateRight: "clamp" });
-  const zoomOut = (0, import_remotion7.interpolate)(frame, [120, 150], [1, 0.6], { extrapolateRight: "clamp" });
-  const baseRotation = frame * 0.5;
-  const rotation = (0, import_remotion7.interpolate)(frame, [60, 120], [0, 90]);
-  const items = [];
-  if (frame > 30) {
-    items.push({ id: 1, slot: 5, value: 5, color: COLORS.accent });
-  }
-  const outerItems = [];
-  if (frame > 150) {
-    outerItems.push({ id: 2, slot: 10, value: 60, color: COLORS.warning });
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    transform: `scale(${wheel1Scale})`
-  }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: {
-      transform: `scale(${zoomOut})`,
-      position: "relative",
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center"
-    }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: {
-        position: "absolute",
-        opacity: (0, import_remotion7.interpolate)(frame, [120, 140], [0, 1])
-      }, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-        TimingWheel,
-        {
-          radius: 550,
-          items: outerItems,
-          label: "Minutes",
-          isOuter: true,
-          activeSlot: Math.floor((frame - 200) / 10) % 60
-        }
-      ) }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-        TimingWheel,
-        {
-          radius: 300,
-          rotation: baseRotation + rotation,
-          items,
-          label: "Seconds",
-          activeSlot: Math.floor((baseRotation + rotation) / 6) % 60
-        }
-      )
-    ] }),
-    frame > 40 && frame < 100 && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: {
-      position: "absolute",
-      top: "20%",
-      right: "10%"
-    }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("h2", { style: { color: COLORS.success, fontSize: 60, margin: 0 }, children: "O(1)" }),
-      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("p", { style: { color: COLORS.text, fontSize: 30, margin: 0 }, children: "Direct Access" })
-    ] })
-  ] });
-};
-
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneArchitecture.tsx
-var import_remotion8 = require("remotion");
-var import_jsx_runtime7 = require("react/jsx-runtime");
-var SceneArchitecture = () => {
-  const frame = (0, import_remotion8.useCurrentFrame)();
-  const { width, height, fps } = (0, import_remotion8.useVideoConfig)();
-  const { fontSize } = getResponsiveSizes(width, height);
-  const titleOpacity = (0, import_remotion8.interpolate)(frame, [0, 20], [0, 1]);
-  const logos = [
-    { name: "Apache Kafka", color: "#231F20", textColor: "#ffffff", delay: 20 },
-    { name: "Netty", color: "#373737", textColor: "#ffffff", delay: 40 }
-  ];
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 100
-  }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("h1", { style: {
-      color: COLORS.text,
-      fontSize: fontSize.xl,
-      opacity: titleOpacity
-    }, children: "Proven Architecture" }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { display: "flex", gap: 60 }, children: logos.map((logo, i) => {
-      const spr = (0, import_remotion8.spring)({
-        frame: frame - logo.delay,
-        fps,
-        config: SPRING_CONFIG.bouncy
-      });
-      return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+      color: COLORS.primary,
+      fontSize: sizes.fontSize.xl,
+      fontWeight: "bold"
+    }, children: "Priority Queue (Logarithmic)" }),
+    nodes.map((node, i) => {
+      const delay = node.level * 10 + i % 3 * 5;
+      const scale = (0, import_remotion3.interpolate)(frame - delay, [0, 10], [0, 1], { extrapolateRight: "clamp" });
+      const isBottleneck = frame > 100;
+      const color = isBottleneck && node.level > 2 ? COLORS.danger : COLORS.secondary;
+      if (scale <= 0) return null;
+      return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
         "div",
         {
           style: {
-            width: 300,
-            height: 300,
-            borderRadius: 40,
-            backgroundColor: logo.color,
+            position: "absolute",
+            left: node.x,
+            top: node.y,
+            width: minDim * 0.08,
+            height: minDim * 0.08,
+            borderRadius: "50%",
+            background: color,
+            transform: `translate(-50%, -50%) scale(${scale})`,
+            boxShadow: `0 0 10px ${color}88`,
             display: "flex",
-            justifyContent: "center",
             alignItems: "center",
-            transform: `scale(${spr})`,
-            boxShadow: `0 20px 50px ${logo.color}66`,
-            border: `2px solid ${COLORS.glassBorder}`
+            justifyContent: "center",
+            color: "white",
+            fontSize: sizes.fontSize.xs,
+            fontWeight: "bold"
           },
-          children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: {
-            color: logo.textColor,
-            fontSize: fontSize.lg,
-            fontWeight: "bold",
-            textAlign: "center"
-          }, children: logo.name })
+          children: i
         },
-        i
+        node.id
       );
-    }) }),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { position: "absolute", bottom: 100 }, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: {
-      opacity: (0, import_remotion8.interpolate)(frame, [60, 80], [0, 1]),
-      background: COLORS.glass,
-      padding: "20px 40px",
-      borderRadius: 100,
-      border: `1px solid ${COLORS.glassBorder}`
-    }, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { color: COLORS.secondary, fontSize: fontSize.md }, children: "Zero Lag Throughput" }) }) })
+    }),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("div", { style: {
+      position: "absolute",
+      bottom: height * 0.1,
+      width: "100%",
+      textAlign: "center",
+      color: COLORS.warning,
+      fontSize: sizes.fontSize.lg,
+      opacity: (0, import_remotion3.interpolate)(frame, [60, 80], [0, 1], { extrapolateRight: "clamp" })
+    }, children: "Rebalancing Overhead: O(log N)" })
   ] });
 };
 
-// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneOutro.tsx
-var import_remotion9 = require("remotion");
-var import_jsx_runtime8 = require("react/jsx-runtime");
-var SceneOutro = () => {
-  const frame = (0, import_remotion9.useCurrentFrame)();
-  const { width, height } = (0, import_remotion9.useVideoConfig)();
-  const { fontSize } = getResponsiveSizes(width, height);
-  const opacity = (0, import_remotion9.interpolate)(frame, [0, 20], [0, 1]);
-  const scale = (0, import_remotion9.interpolate)(frame, [0, 30], [0.9, 1]);
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    opacity,
-    transform: `scale(${scale})`
-  }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: {
-      width: 300,
-      height: 300,
+// src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/TimingWheel.tsx
+var import_remotion4 = require("remotion");
+var import_jsx_runtime4 = require("react/jsx-runtime");
+var TimingWheel = ({ hierarchical = false }) => {
+  const frame = (0, import_remotion4.useCurrentFrame)();
+  const { width, height } = (0, import_remotion4.useVideoConfig)();
+  const minDim = Math.min(width, height);
+  const sizes = getResponsiveSizes(width, height);
+  const slots = 12;
+  const radius = minDim * 0.35;
+  const center = { x: width / 2, y: height / 2 };
+  const rotation = (0, import_remotion4.interpolate)(frame, [0, 300], [0, 360]);
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { position: "relative", width: "100%", height: "100%" }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: {
+      position: "absolute",
+      top: height * 0.1,
+      width: "100%",
+      textAlign: "center",
+      color: COLORS.success,
+      fontSize: sizes.fontSize.xl,
+      fontWeight: "bold",
+      zIndex: 10
+    }, children: hierarchical ? "Hierarchical (Scalable)" : "Timing Wheel (O(1))" }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: {
+      position: "absolute",
+      left: center.x,
+      top: center.y,
+      width: radius * 2,
+      height: radius * 2,
+      transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
       borderRadius: "50%",
-      background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`,
-      marginBottom: 40
+      border: `4px solid ${COLORS.accent}`
+    }, children: [
+      Array.from({ length: slots }).map((_, i) => {
+        const angle = i / slots * 2 * Math.PI;
+        const slotX = Math.cos(angle - Math.PI / 2) * (radius * 0.85);
+        const slotY = Math.sin(angle - Math.PI / 2) * (radius * 0.85);
+        const bucketSize = minDim * 0.1;
+        return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: `translate(-50%, -50%) translate(${slotX}px, ${slotY}px) rotate(${i / slots * 360}deg)`,
+              width: bucketSize,
+              height: bucketSize,
+              border: `2px solid ${COLORS.glassBorder}`,
+              background: COLORS.glass,
+              borderRadius: sizes.borderRadius,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: COLORS.accent,
+              fontSize: sizes.fontSize.sm
+            },
+            children: i
+          },
+          i
+        );
+      }),
+      /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: {
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        width: minDim * 0.05,
+        height: minDim * 0.05,
+        background: COLORS.white,
+        borderRadius: "50%",
+        transform: "translate(-50%, -50%)",
+        boxShadow: `0 0 20px ${COLORS.white}88`
+      } })
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: {
+      position: "absolute",
+      left: center.x,
+      top: center.y - radius - minDim * 0.05,
+      transform: "translateX(-50%)",
+      width: 0,
+      height: 0,
+      borderLeft: `${minDim * 0.03}px solid transparent`,
+      borderRight: `${minDim * 0.03}px solid transparent`,
+      borderTop: `${minDim * 0.05}px solid ${COLORS.danger}`,
+      zIndex: 5
     } }),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("h1", { style: { color: COLORS.text, fontSize: fontSize.xl, marginBottom: 20 }, children: "Prasanna" }),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("p", { style: { color: COLORS.accent, fontSize: fontSize.md }, children: "Zoho Technical Architect" }),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: {
-      marginTop: 60,
-      padding: "20px 40px",
-      background: COLORS.white,
-      borderRadius: 100
-    }, children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: { color: COLORS.bg, fontSize: fontSize.md, fontWeight: "bold" }, children: "Follow for more" }) })
+    Array.from({ length: 5 }).map((_, i) => {
+      const dropStart = i * 60;
+      if (frame < dropStart) return null;
+      const dropProgress = (0, import_remotion4.interpolate)(frame - dropStart, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+      const dropY = (0, import_remotion4.interpolate)(dropProgress, [0, 1], [0, center.y - radius + minDim * 0.1]);
+      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: center.x,
+            top: dropY,
+            width: minDim * 0.04,
+            height: minDim * 0.04,
+            background: COLORS.success,
+            borderRadius: "50%",
+            opacity: (0, import_remotion4.interpolate)(frame - dropStart, [20, 25], [1, 0])
+            // Disappear into bucket
+          }
+        },
+        i
+      );
+    }),
+    hierarchical && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: {
+      position: "absolute",
+      right: minDim * 0.1,
+      bottom: minDim * 0.1,
+      width: minDim * 0.3,
+      height: minDim * 0.3,
+      border: `2px solid ${COLORS.secondary}`,
+      borderRadius: "50%",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      opacity: 0.8
+    }, children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("div", { style: { color: COLORS.secondary, fontSize: sizes.fontSize.xs }, children: "Hour Wheel" }) })
   ] });
 };
 
 // src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/index.tsx
-var import_jsx_runtime9 = require("react/jsx-runtime");
+var import_jsx_runtime5 = require("react/jsx-runtime");
 var ProjC8fa689fB2c345ffB309F6c1f87ada7d = () => {
-  const { fps, height } = (0, import_remotion10.useVideoConfig)();
-  const INTRO_DURATION = 7 * fps;
-  const HEAP_DURATION = 28 * fps;
-  const WHEEL_DURATION = 47 * fps;
-  const ARCH_DURATION = 8 * fps;
-  const minFont = height * 0.022;
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_remotion10.AbsoluteFill, { style: { backgroundColor: COLORS.bg }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_remotion10.Sequence, { from: 0, durationInFrames: INTRO_DURATION, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(SceneIntro, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: {
+  const { height } = (0, import_remotion5.useVideoConfig)();
+  const frame = (0, import_remotion5.useCurrentFrame)();
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_remotion5.AbsoluteFill, { style: { backgroundColor: COLORS.bg }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.Sequence, { from: 0, durationInFrames: 90, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.AbsoluteFill, { style: { justifyContent: "center", alignItems: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+      TitleCard,
+      {
+        title: "System Design Challenge",
+        subtitle: "Millions of Delayed Tasks?"
+      }
+    ) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.Sequence, { from: 90, durationInFrames: 210, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.AbsoluteFill, { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(TaskQueue, {}) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.Sequence, { from: 300, durationInFrames: 300, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.AbsoluteFill, { style: { justifyContent: "center", alignItems: "center", padding: 40 }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(BinaryHeap, {}) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.Sequence, { from: 600, durationInFrames: 450, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_remotion5.AbsoluteFill, { style: { justifyContent: "center", alignItems: "center", padding: 40 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(BinaryHeap, {}),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: {
         position: "absolute",
-        top: height * 0.08,
-        width: "100%",
-        textAlign: "center"
-      }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h1", { style: { color: COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "System Design Challenge" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: {
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%) rotate(-15deg)",
+        border: `8px solid ${COLORS.danger}`,
+        padding: 20,
+        borderRadius: 20,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        color: COLORS.danger,
+        fontSize: height * 0.08,
+        fontWeight: 900,
+        opacity: (0, import_remotion5.interpolate)(frame - 600, [0, 20], [0, 1], { extrapolateRight: "clamp" })
+      }, children: "BOTTLENECK" })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.Sequence, { from: 1050, durationInFrames: 570, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.AbsoluteFill, { children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(TimingWheel, { hierarchical: false }) }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.Sequence, { from: 1620, durationInFrames: 720, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_remotion5.AbsoluteFill, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(TimingWheel, { hierarchical: true }),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: {
         position: "absolute",
-        bottom: height * 0.06,
+        bottom: height * 0.15,
         width: "100%",
+        textAlign: "center",
+        color: COLORS.secondary,
+        fontSize: height * 0.03,
+        fontWeight: "bold"
+      }, children: "Cascading Tasks..." })
+    ] }) }),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_remotion5.Sequence, { from: 2340, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_remotion5.AbsoluteFill, { style: { justifyContent: "center", alignItems: "center" }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+        TitleCard,
+        {
+          title: "Apache Kafka & Netty",
+          subtitle: "Real-World Architecture"
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: {
+        marginTop: 100,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 20
+      }, children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: {
+        fontSize: height * 0.025,
+        color: COLORS.text,
+        maxWidth: "80%",
         textAlign: "center"
-      }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { style: { color: COLORS.text, fontSize: minFont }, children: "Task Scheduler" }) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_remotion10.Sequence, { from: INTRO_DURATION, durationInFrames: HEAP_DURATION, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(SceneHeap, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h1", { style: { color: COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Priority Queue (Binary Heap)" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { position: "absolute", bottom: height * 0.06, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { style: { color: COLORS.text, fontSize: minFont }, children: "O(log n) Insertion" }) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_remotion10.Sequence, { from: INTRO_DURATION + HEAP_DURATION, durationInFrames: WHEEL_DURATION, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(SceneWheel, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h1", { style: { color: COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Hierarchical Timing Wheel" }) }),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { position: "absolute", bottom: height * 0.06, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { style: { color: COLORS.text, fontSize: minFont }, children: "O(1) Constant Time" }) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_remotion10.Sequence, { from: INTRO_DURATION + HEAP_DURATION + WHEEL_DURATION, durationInFrames: ARCH_DURATION, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(SceneArchitecture, {}),
-      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("h1", { style: { color: COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Real World Usage" }) })
-    ] }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(import_remotion10.Sequence, { from: INTRO_DURATION + HEAP_DURATION + WHEEL_DURATION + ARCH_DURATION, children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(SceneOutro, {}) })
+      }, children: "Used for massive throughput without lag." }) })
+    ] }) })
   ] });
 };

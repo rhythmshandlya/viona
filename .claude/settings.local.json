@@ -184,7 +184,8 @@
       "Bash(done)",
       "Bash(npm test:*)",
       "Bash(npm run:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "WebFetch(domain:docs.openclaw.ai)"
     ]
   }
 }

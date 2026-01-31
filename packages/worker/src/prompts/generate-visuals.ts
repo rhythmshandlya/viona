@@ -157,6 +157,26 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
 
   return `You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
 
+## 📱 PLATFORM CONTEXT
+
+**This is for Instagram Reels / TikTok / YouTube Shorts.**
+
+You're creating visuals using **Remotion** (React-based video framework) that will be rendered and played on mobile devices. The visuals accompany spoken educational content (tutorials, explainers, tech breakdowns).
+
+**What works on short-form:**
+- Clean, bold visuals that read on small screens
+- Fast enough to hold attention, slow enough to understand
+- Visual explanations that ADD to speech (not duplicate it)
+- Professional aesthetic that builds creator credibility
+
+**What fails on short-form:**
+- Tiny text or complex diagrams (can't read on phone)
+- Slow, boring corporate animations
+- Visuals that just repeat what's being said
+- Cluttered screens with too many elements
+
+**Your role:** Create the visual layer that makes educational content WATCHABLE and SHAREABLE. The speech provides information; your visuals provide understanding.
+
 ---
 
 ## ⛔ CRITICAL CONSTRAINTS (Read First!)
@@ -189,17 +209,39 @@ Your visuals must adapt to different layout configurations:
 \`\`\`tsx
 const { width, height, fps } = useVideoConfig();
 const minDim = Math.min(width, height);
+const frame = useCurrentFrame();
 
-// ✅ CORRECT - Scales to any layout mode
-fontSize: height * 0.035,      // Readable in split-horizontal (960px height)
-padding: minDim * 0.05,        // Works in split-vertical (540px width)
-borderRadius: minDim * 0.02,
-gap: minDim * 0.03,
+// ✅ CORRECT - Every value is relative AND all variables are used
+const titleOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
+const titleY = interpolate(frame, [0, 30], [-20, 0], { extrapolateRight: 'clamp' });
+const contentScale = spring({ frame: frame - 15, fps, config: { damping: 12, stiffness: 80 } });
 
-// ❌ WRONG - Breaks in split layouts
-fontSize: 48,    // Too large for 960px height
-padding: 60,     // Overflows 540px width
+<div style={{
+  fontSize: height * 0.035,      // ← uses height
+  padding: minDim * 0.05,        // ← uses minDim
+  borderRadius: minDim * 0.02,   // ← uses minDim
+  gap: minDim * 0.03,            // ← uses minDim
+  opacity: titleOpacity,         // ← uses titleOpacity (interpolate result)
+  transform: \`translateY(\${titleY}px) scale(\${contentScale})\`,  // ← uses titleY, contentScale
+}}>...</div>
+
+// ❌ WRONG - Hardcoded values AND unused declarations
+const minDim = Math.min(width, height);  // Declared but never used!
+const titleOpacity = interpolate(...);    // Declared but never used!
+fontSize: 48,    // Hardcoded - breaks in split layouts
+padding: 60,     // Hardcoded - overflows 540px width
 \`\`\`
+
+**Sizing Reference (all relative to dimensions):**
+| Element | Formula | Example (1080×1920) |
+|---------|---------|---------------------|
+| Title font | \`height * 0.04\` | ~77px |
+| Body font | \`height * 0.025\` | ~48px |
+| Small text | \`height * 0.018\` | ~35px |
+| Main padding | \`minDim * 0.05\` | ~54px |
+| Gap between | \`minDim * 0.03\` | ~32px |
+| Border radius | \`minDim * 0.02\` | ~22px |
+| Icon size | \`minDim * 0.08\` | ~86px |
 
 ### 3. Forbidden Patterns (Will Break Rendering)
 - ❌ CSS transitions or @keyframes (Remotion renders frame-by-frame)
@@ -216,6 +258,54 @@ const { width, height, fps } = useVideoConfig();
 const opacity = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: 'clamp' });
 const scale = spring({ frame, fps, config: { damping: 12, stiffness: 80 } });
 \`\`\`
+
+### 5. NO UNUSED DECLARATIONS (TypeScript Strict Mode)
+**Every variable you declare MUST be used.** Unused declarations cause TS6133 errors.
+
+## ⚠️ CRITICAL: When you get TS6133 "declared but never read" errors:
+**→ USE THE VARIABLE, don't delete it!**
+
+The variable was declared for a reason. Find where it should be used and USE IT.
+
+\`\`\`tsx
+// ❌ WRONG PATTERN - Declare animation vars, then don't use them
+const rotationInner = interpolate(frame, [0, 60], [0, 360]);
+const springScale = spring({ frame, fps, config: { damping: 12 } });
+const yPos = interpolate(frame, [0, 30], [100, 0]);
+// Then render with HARDCODED or DIFFERENT values:
+<div style={{ transform: 'rotate(45deg) scale(1)', top: 50 }}>  // ← WRONG! Use the vars!
+
+// ✅ CORRECT PATTERN - Declare and USE in the same component
+const rotationInner = interpolate(frame, [0, 60], [0, 360]);
+const springScale = spring({ frame, fps, config: { damping: 12 } });
+const yPos = interpolate(frame, [0, 30], [100, 0]);
+<div style={{
+  transform: \`rotate(\${rotationInner}deg) scale(\${springScale})\`,  // ← USES rotationInner, springScale
+  top: yPos,  // ← USES yPos
+}}>
+\`\`\`
+
+## The Pattern: DECLARE → IMMEDIATELY USE
+\`\`\`tsx
+// Step 1: Declare responsive sizes
+const { width, height, fps } = useVideoConfig();
+const minDim = Math.min(width, height);
+const frame = useCurrentFrame();
+
+// Step 2: Declare animations (only what you'll use!)
+const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
+const scale = spring({ frame, fps, config: { damping: 12 } });
+
+// Step 3: USE EVERYTHING in the render
+<div style={{
+  fontSize: height * 0.035,     // ← uses height
+  padding: minDim * 0.04,       // ← uses minDim
+  opacity,                      // ← uses opacity
+  transform: \`scale(\${scale})\`, // ← uses scale (which used frame, fps)
+}}>
+\`\`\`
+
+**If you won't use a variable, DON'T DECLARE IT in the first place.**
 
 ---
 
@@ -338,91 +428,166 @@ const minDim = Math.min(width, height);
 
 ---
 
-## 🎬 ANIMATION PHILOSOPHY
+## 🎬 INTELLIGENT VISUAL DESIGN
 
-You are creating **visual narratives**, not decorated slides.
+You are creating **Instagram-worthy educational content**. Every visual must be SMART - matching what's being said.
 
-### The Three Laws of Meaningful Animation:
+### 🧠 UNDERSTAND THE TRANSCRIPT FIRST
 
-**1. CONTINUOUS MOTION**
-Every sequence must have animation throughout its duration, not just entrance effects.
-- ❌ Elements spring in, then sit static
-- ✅ Elements enter, then DEMONSTRATE, then transition
+Before designing ANY visual, ask: **"What is the speaker trying to convey?"**
 
-**2. CONCEPTUAL, NOT LITERAL**
-Show WHY and HOW, not just WHAT.
-- ❌ "Binary tree" → Draw a static tree diagram
-- ✅ "Binary tree is slow here" → Show search path growing longer, O(n) counter climbing
-- ❌ "Caching improves speed" → Show a cache icon
-- ✅ "Caching improves speed" → Show request hitting cache (instant) vs database (long journey)
+| Transcript Type | What Speaker Wants | Correct Visual Response |
+|-----------------|-------------------|------------------------|
+| **Intro/Hook** | "Here's a challenge..." | Clean title card with topic name + relevant icon. NO random animations. Static or subtle fade-in. |
+| **Problem Statement** | "You need to handle millions of tasks..." | SHOW the problem: tasks flooding in, queue overflowing, system struggling under load |
+| **Solution Introduction** | "We can use a priority queue" | Show the TRANSITION: problem → solution. Queue organizing chaos, tasks getting prioritized |
+| **Concept Explanation** | "This gives us logarithmic time" | EXPLAIN visually: tree halving with each step, counter showing O(log n) vs O(n) |
+| **Comparison** | "Unlike a regular queue..." | Side-by-side: regular queue struggling vs priority queue handling efficiently |
+| **Step-by-step** | "First we insert, then we heapify..." | Sequential animation showing each operation happening |
 
-**3. ZERO TEXT OVERLAYS**
-Subtitles handle all text. Your job is PURE VISUAL STORYTELLING.
-- ❌ Animated text saying "Step 1: Configure"
-- ✅ Visual metaphors that need no explanation
-- Exception: Single numbers/percentages for data viz (e.g., "85%" in a progress ring)
+### ❌ STUPID vs ✅ SMART Animations
 
-### Rich Animation Techniques (NOT just fade-in!)
+**Example: "Here is a system design challenge for you"**
+- ❌ STUPID: Random shapes bouncing, decorative particles, meaningless motion
+- ✅ SMART: Clean title "System Design Challenge" + challenge name + relevant architectural icon. Maybe subtle fade-in. That's it.
 
-**Multi-phase animations** - Each element should have entrance → action → hold:
+**Example: "You need to build a scheduler handling millions of delayed tasks"**
+- ❌ STUPID: Static text "Scheduler" or a calendar icon sitting there
+- ✅ SMART: Tasks flooding in (animated particles/items), a queue filling up, timestamps ticking, system visibly under pressure
+
+**Example: "We can use a priority queue"**
+- ❌ STUPID: Just show a heap diagram appearing
+- ✅ SMART: Show the chaotic tasks from before NOW getting organized. High-priority items float to top. Order emerging from chaos.
+
+**Example: "This gives us logarithmic time complexity"**
+- ❌ STUPID: Text "O(log n)" appearing
+- ✅ SMART: Show a tree where each decision eliminates HALF the remaining options. Counter showing steps: 1000→500→250→125→62→31→16→8→4→2→1. Visual proof of WHY it's log n.
+
+### The Golden Rule
+**If your animation doesn't EXPLAIN or ENHANCE the spoken content, it's decoration. Cut it.**
+
+### When Static is Better Than Animated
+- Intro title cards → Clean, professional, readable
+- Topic transitions → Brief pause with clear label
+- Complex diagrams → Let viewer absorb before animating
+- After making a point → Hold for emphasis
+
+### When Animation is Essential
+- Showing a PROCESS (how something works)
+- Showing CHANGE (before→after, problem→solution)
+- Showing SCALE (millions of items, growing complexity)
+- Showing TIME (steps, sequences, causation)
+
+### Animation Techniques (Use When Appropriate)
+
+**For PROBLEM_STATEMENT scenes** - Show scale and struggle:
 \`\`\`tsx
-// Phase 1: Entrance (frames 0-30)
-const entranceScale = spring({ frame, fps, config: { damping: 12 } });
-
-// Phase 2: Action (frames 30-90) - the element DOES something
-const actionProgress = interpolate(frame, [30, 90], [0, 1], { extrapolateRight: 'clamp' });
-const rotation = Math.sin(actionProgress * Math.PI * 2) * 10; // Wobble
-const pulseScale = 1 + Math.sin(actionProgress * Math.PI * 4) * 0.05; // Pulse
-
-// Phase 3: Hold with subtle motion (frames 90+)
-const breathe = 1 + Math.sin(frame * 0.1) * 0.02; // Subtle breathing
+// Tasks flooding in - shows "millions of tasks"
+const taskCount = Math.floor(interpolate(frame, [0, 90], [0, 100]));
+const tasks = Array.from({ length: taskCount }, (_, i) => (
+  <div key={i} style={{
+    transform: \`translateY(\${(i % 10) * 20}px)\`,
+    opacity: interpolate(frame, [i * 0.5, i * 0.5 + 10], [0, 1]),
+  }} />
+));
 \`\`\`
 
-**Layered motion** - Multiple properties animating at different rates:
+**For SOLUTION_INTRODUCTION scenes** - Show transformation:
 \`\`\`tsx
-const opacity = interpolate(frame, [0, 20], [0, 1]);
-const y = interpolate(frame, [0, 40], [50, 0], { extrapolateRight: 'clamp' });
-const scale = spring({ frame: frame - 10, fps, config: { damping: 8 } }); // Delayed
-const rotation = interpolate(frame, [0, 60], [-5, 0]); // Slower
+// Chaos → Order transition
+const orderProgress = interpolate(frame, [0, 60], [0, 1], { extrapolateRight: 'clamp' });
+const itemY = interpolate(orderProgress, [0, 1], [randomY, sortedY]); // Items move to sorted positions
+const itemColor = orderProgress > 0.5 ? COLORS.success : COLORS.warning; // Color shift
 \`\`\`
 
-**State transitions** - Elements change appearance over time:
+**For CONCEPT_EXPLANATION scenes** - Show the WHY:
 \`\`\`tsx
-const progress = interpolate(frame, [startFrame, endFrame], [0, 1]);
-const color = progress < 0.5 ? '#3b82f6' : '#22c55e'; // Blue → Green
-const size = interpolate(progress, [0, 0.5, 1], [1, 1.2, 1]); // Grow then shrink
+// "Logarithmic time" - show tree halving
+const step = Math.floor(interpolate(frame, [0, 120], [0, 7]));
+const remainingNodes = Math.pow(2, 7 - step); // 128 → 64 → 32 → 16 → 8 → 4 → 2 → 1
+const eliminatedNodes = 128 - remainingNodes;
+// Visual: highlight remaining path, fade out eliminated branches
+\`\`\`
+
+**For INTRO_HOOK scenes** - Keep it simple:
+\`\`\`tsx
+// Just a clean fade-in, no fancy animations
+const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
+// That's it. No bouncing. No particles. Just readable text.
 \`\`\`
 
 ---
 
-## 📋 SCENE PLANNING WITH TIMESTAMP SYNC (REQUIRED FIRST STEP)
+## 📋 SCENE PLANNING WITH TRANSCRIPT INTELLIGENCE (REQUIRED FIRST STEP)
 
-Before writing ANY code, analyze the transcript and output a scene plan.
+Before writing ANY code, analyze EACH transcript segment and determine the RIGHT visual approach.
 
-**⚠️ CRITICAL: Visuals MUST match transcript timestamps exactly!**
+**⚠️ CRITICAL: Understand WHAT the speaker is trying to convey, then design visuals that HELP.**
 
 \`\`\`json
 {
   "scenes": [
     {
-      "timestamp": "0:00 - 0:08",
-      "frameRange": [0, 240],
-      "transcript": "Exact words being spoken",
-      "reasoning": {
-        "whatIsBeingExplained": "The core concept",
-        "whyNotLiteral": "Why a literal depiction would fail",
-        "whatWouldMakeItClick": "The aha moment visual",
-        "howAnimationAddsUnderstanding": "What motion communicates"
+      "timestamp": "0:00 - 0:03",
+      "frameRange": [0, 90],
+      "transcript": "Here's a system design challenge for you",
+      "contentType": "INTRO_HOOK",
+      "analysis": {
+        "speakerIntent": "Set up the topic, create curiosity",
+        "viewerNeeds": "Know what this video is about",
+        "visualApproach": "STATIC_TITLE_CARD"
       },
-      "decision": {
-        "visualMetaphor": "The chosen representation",
-        "animationNarrative": "Beat-by-beat motion description",
-        "keyframes": ["start state", "middle state", "end state"]
+      "visual": {
+        "description": "Clean title: 'System Design Challenge' with subtle icon",
+        "animation": "Simple fade-in, then hold. No bouncing or particles.",
+        "whyThisWorks": "Viewer can read and understand topic without distraction"
+      }
+    },
+    {
+      "timestamp": "0:03 - 0:10",
+      "frameRange": [90, 300],
+      "transcript": "You need to build a scheduler that handles millions of delayed tasks",
+      "contentType": "PROBLEM_STATEMENT",
+      "analysis": {
+        "speakerIntent": "Explain the scale and difficulty of the problem",
+        "viewerNeeds": "FEEL the scale of millions, understand the challenge",
+        "visualApproach": "ANIMATED_DEMONSTRATION"
+      },
+      "visual": {
+        "description": "Tasks flooding in as particles/items, queue growing, numbers climbing",
+        "animation": "Continuous stream of tasks, counter rapidly increasing, visual overwhelm",
+        "whyThisWorks": "Viewer SEES millions, doesn't just hear the word"
+      }
+    },
+    {
+      "timestamp": "0:10 - 0:18",
+      "transcript": "We can use a priority queue to solve this",
+      "contentType": "SOLUTION_INTRODUCTION",
+      "analysis": {
+        "speakerIntent": "Introduce the solution and WHY it helps",
+        "viewerNeeds": "See how this SOLVES the problem shown before",
+        "visualApproach": "TRANSITION_BEFORE_AFTER"
+      },
+      "visual": {
+        "description": "The chaotic tasks from before now getting organized into a heap structure",
+        "animation": "Chaos → Order transition. High-priority items float up. Structure emerges.",
+        "whyThisWorks": "Visual CONNECTS solution to problem. Not just showing a heap icon."
       }
     }
   ]
 }
 \`\`\`
+
+### Content Types Reference
+| Type | Visual Approach | Animation Level |
+|------|-----------------|-----------------|
+| INTRO_HOOK | Title card + icon | Minimal (fade-in) |
+| PROBLEM_STATEMENT | Demonstrate the struggle | High (show scale, chaos) |
+| SOLUTION_INTRODUCTION | Before→After transition | Medium-High (transformation) |
+| CONCEPT_EXPLANATION | Visual proof/demonstration | High (show WHY it works) |
+| COMPARISON | Side-by-side | Medium (highlight differences) |
+| STEP_BY_STEP | Sequential operations | Medium (one step at a time) |
+| CONCLUSION | Summary visual | Minimal (clean, memorable) |
 
 ### Timestamp Synchronization Rules
 1. **Calculate frame ranges:** \`startFrame = (startMs / 1000) * fps\`, \`endFrame = (endMs / 1000) * fps\`
@@ -451,6 +616,45 @@ src/${projectId}/
 └── components/        # Reusable visual components
 \`\`\`
 
+### constants.ts Template (COMPLETE - include all colors you might need)
+\`\`\`tsx
+// All colors your components might use - add upfront to avoid TS errors
+export const COLORS = {
+  bg: '#0f0f23',
+  primary: '#8b5cf6',
+  secondary: '#3b82f6',
+  accent: '#06b6d4',
+  success: '#22c55e',
+  warning: '#eab308',
+  danger: '#ef4444',
+  white: '#ffffff',
+  text: '#e2e8f0',
+  muted: '#64748b',        // ← Often forgotten, causes TS2339
+  glass: 'rgba(255, 255, 255, 0.1)',
+  glassBorder: 'rgba(255, 255, 255, 0.2)',
+};
+
+// Responsive sizing helper (use in components)
+export const getResponsiveSizes = (width: number, height: number) => {
+  const minDim = Math.min(width, height);
+  return {
+    fontSize: {
+      sm: height * 0.022,
+      md: height * 0.032,
+      lg: height * 0.045,
+      xl: height * 0.06,
+    },
+    spacing: {
+      xs: minDim * 0.02,
+      sm: minDim * 0.03,
+      md: minDim * 0.05,
+      lg: minDim * 0.08,
+    },
+    borderRadius: minDim * 0.02,
+  };
+};
+\`\`\`
+
 ---
 
 ## 🎬 WHAT TO VISUALIZE
@@ -476,6 +680,24 @@ ${referenceExamples}
 
 1. After writing each file, run \`TypeScriptValidatorTool\`
 2. If ANY errors, fix them IMMEDIATELY
+
+### ⚠️ For TS6133 "unused declaration" errors - THIS IS CRITICAL:
+
+**WRONG approach:** Delete the unused variable
+**RIGHT approach:** Find where it should be used and USE IT
+
+| Unused Variable | WHERE TO USE IT |
+|-----------------|-----------------|
+| \`minDim\` | Replace ALL hardcoded px values: \`fontSize: minDim * 0.04\`, \`padding: minDim * 0.03\` |
+| \`fps\` | Pass to spring(): \`spring({ frame, fps, config: {...} })\` |
+| \`frame\` | Use in interpolate/spring for animations |
+| \`opacity\` | Add to style: \`style={{ opacity }}\` |
+| \`scale\`, \`rotation\`, \`yPos\` | Add to transform: \`transform: \\\`scale(\${scale}) rotate(\${rotation}deg) translateY(\${yPos}px)\\\`\` |
+| \`springScale\`, \`springRotation\` | Same as above - use in transform |
+| \`SPRING_CONFIGS\` | Use in spring calls: \`spring({ frame, fps, config: SPRING_CONFIGS.bouncy })\` |
+
+**The variable was declared because you INTENDED to use it. Follow through!**
+
 3. Repeat until ZERO TypeScript errors
 4. **Render stills at multiple frames to verify:**
    - \`--frame=0\` (start) - Check initial state

@@ -2,7 +2,7 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 4334:
+/***/ 2874:
 /***/ ((__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) => {
 
 
@@ -61,7 +61,7 @@ var update = injectStylesIntoStyleTag_default()(cjs_js_src/* default */.A, optio
 
 
 
-const ExampleTest_COLORS = {
+const COLORS = {
   background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
   primary: "#e94560",
   secondary: "#0f3460",
@@ -97,7 +97,7 @@ const AnimatedTitle = ({ text }) => {
       style: {
         fontSize: 72,
         fontWeight: "bold",
-        color: ExampleTest_COLORS.text,
+        color: COLORS.text,
         textAlign: "center",
         transform: `scale(${scale})`,
         opacity,
@@ -160,7 +160,7 @@ const AnimatedProgressBar = ({
           display: "flex",
           justifyContent: "space-between",
           marginBottom: 8,
-          color: ExampleTest_COLORS.text,
+          color: COLORS.text,
           fontSize: 18
         },
         children: [
@@ -188,7 +188,7 @@ const AnimatedProgressBar = ({
             style: {
               width: `${width}%`,
               height: "100%",
-              background: `linear-gradient(90deg, ${ExampleTest_COLORS.primary}, ${ExampleTest_COLORS.accent})`,
+              background: `linear-gradient(90deg, ${COLORS.primary}, ${COLORS.accent})`,
               borderRadius: 6
             }
           }
@@ -203,7 +203,7 @@ const ExampleTest = () => {
     esm.AbsoluteFill,
     {
       style: {
-        background: ExampleTest_COLORS.background,
+        background: COLORS.background,
         fontFamily: "Inter, system-ui, sans-serif"
       },
       children: [
@@ -239,7 +239,7 @@ const ExampleTest = () => {
                       "h2",
                       {
                         style: {
-                          color: ExampleTest_COLORS.text,
+                          color: COLORS.text,
                           fontSize: 28,
                           marginBottom: 24,
                           margin: 0
@@ -256,7 +256,7 @@ const ExampleTest = () => {
                       "h2",
                       {
                         style: {
-                          color: ExampleTest_COLORS.text,
+                          color: COLORS.text,
                           fontSize: 28,
                           marginBottom: 24,
                           margin: 0
@@ -268,7 +268,7 @@ const ExampleTest = () => {
                       "ul",
                       {
                         style: {
-                          color: ExampleTest_COLORS.text,
+                          color: COLORS.text,
                           fontSize: 18,
                           lineHeight: 2,
                           paddingLeft: 20
@@ -294,7 +294,6 @@ const ExampleTest = () => {
 
 ;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/constants.ts
 
-
 const constants_COLORS = {
   bg: "#0f0f23",
   primary: "#8b5cf6",
@@ -305,47 +304,17 @@ const constants_COLORS = {
   // Cyan
   success: "#22c55e",
   // Green
+  warning: "#eab308",
+  // Yellow
   danger: "#ef4444",
   // Red
-  warning: "#f97316",
-  // Orange
   white: "#ffffff",
-  text: "#ffffff",
+  text: "#e2e8f0",
+  muted: "#64748b",
   glass: "rgba(255, 255, 255, 0.1)",
-  glassBorder: "rgba(255, 255, 255, 0.2)",
-  muted: "#888888"
+  glassBorder: "rgba(255, 255, 255, 0.2)"
 };
-const FONT_FAMILY = "Inter, system-ui, sans-serif";
-const SPRING_CONFIG = {
-  soft: { damping: 20, stiffness: 60 },
-  bouncy: { damping: 12, stiffness: 80 },
-  stiff: { damping: 15, stiffness: 150 }
-};
-const TRANSCRIPT_TIMINGS = {
-  intro: { start: 0, end: 7 },
-  // 0:00 - 0:07
-  heapStart: { start: 7, end: 12 },
-  // 0:07 - 0:12
-  heapWork: { start: 12, end: 20 },
-  // 0:12 - 0:20
-  heapTrap: { start: 20, end: 28 },
-  // 0:20 - 0:28
-  heapSlow: { start: 28, end: 35 },
-  // 0:28 - 0:35
-  solution: { start: 35, end: 41 },
-  // 0:35 - 0:41
-  wheelBasic: { start: 41, end: 53 },
-  // 0:41 - 0:53
-  wheelHier: { start: 53, end: 67 },
-  // 0:53 - 1:07
-  wheelTick: { start: 67, end: 75 },
-  // 1:07 - 1:15
-  mechClock: { start: 75, end: 82 },
-  // 1:15 - 1:22
-  realWorld: { start: 82, end: 99 }
-  // 1:22 - 1:38
-};
-const constants_getResponsiveSizes = (width, height) => {
+const getResponsiveSizes = (width, height) => {
   const minDim = Math.min(width, height);
   return {
     fontSize: {
@@ -356,87 +325,136 @@ const constants_getResponsiveSizes = (width, height) => {
       xl: height * 0.06,
       xxl: height * 0.08
     },
-    padding: minDim * 0.05,
-    gap: minDim * 0.03,
+    spacing: {
+      xs: minDim * 0.02,
+      sm: minDim * 0.03,
+      md: minDim * 0.05,
+      lg: minDim * 0.08
+    },
     borderRadius: minDim * 0.02,
-    borderWidth: Math.max(2, minDim * 3e-3),
-    iconSize: minDim * 0.08,
-    nodeSize: minDim * 0.12
+    iconSize: minDim * 0.08
   };
 };
-const fadeInUp = (frame, startFrame, fps) => {
-  const opacity = interpolate(frame, [startFrame, startFrame + 15], [0, 1], { extrapolateRight: "clamp" });
-  const translateY = interpolate(frame, [startFrame, startFrame + 15], [20, 0], { extrapolateRight: "clamp" });
-  return { opacity, transform: `translateY(${translateY}px)` };
+const SPRING_CONFIG = {
+  damping: 12,
+  stiffness: 80
 };
 
-// EXTERNAL MODULE: ./node_modules/react/index.js
-var react = __webpack_require__(6540);
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneIntro.tsx
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/TitleCard.tsx
 
 
 
 
-
-const SceneIntro = () => {
+const TitleCard = ({ title, subtitle, opacity = 1 }) => {
+  const { width, height } = (0,esm.useVideoConfig)();
+  const sizes = getResponsiveSizes(width, height);
   const frame = (0,esm.useCurrentFrame)();
-  const { width, height, fps } = (0,esm.useVideoConfig)();
-  const { iconSize, fontSize } = constants_getResponsiveSizes(width, height);
-  const tasks = (0,react.useMemo)(() => {
-    return Array.from({ length: 30 }).map((_, i) => ({
-      id: i,
-      x: (0,esm.interpolate)(Math.random(), [0, 1], [-width * 0.4, width * 0.4]),
-      // Relative to center
-      delay: Math.random() * 60,
-      color: Math.random() > 0.5 ? constants_COLORS.secondary : constants_COLORS.accent
-    }));
-  }, [width]);
+  const titleFade = (0,esm.interpolate)(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+  const subtitleFade = (0,esm.interpolate)(frame, [15, 35], [0, 1], { extrapolateRight: "clamp" });
+  const containerY = (0,esm.interpolate)(frame, [0, 30], [20, 0], { extrapolateRight: "clamp" });
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-    width: "100%",
-    height: "100%",
     display: "flex",
     flexDirection: "column",
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "center"
+    width: "100%",
+    opacity,
+    transform: `translateY(${containerY}px)`
   }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
-      marginTop: 100,
-      width: iconSize * 3,
-      height: iconSize * 3,
-      borderRadius: "50%",
-      backgroundColor: constants_COLORS.primary,
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      boxShadow: `0 0 40px ${constants_COLORS.primary}66`,
-      zIndex: 10,
-      transform: `scale(${(0,esm.spring)({ frame: frame - 10, fps, config: SPRING_CONFIG.bouncy })})`,
-      opacity: (0,esm.interpolate)(frame, [10, 20], [0, 1])
-    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { fontSize: fontSize.lg }, children: "\u2699\uFE0F" }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }, children: tasks.map((task) => {
-      const dropFrame = frame - task.delay;
-      if (dropFrame < 0) return null;
-      const progress = (0,esm.interpolate)(dropFrame, [0, 60], [0, 1]);
-      const y = (0,esm.interpolate)(progress, [0, 1], [-100, height / 2 - 100]);
-      const opacity = (0,esm.interpolate)(progress, [0.8, 1], [1, 0]);
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: {
+      fontSize: sizes.fontSize.xxl,
+      color: constants_COLORS.white,
+      textAlign: "center",
+      margin: 0,
+      opacity: titleFade,
+      fontWeight: 800,
+      background: `linear-gradient(90deg, ${constants_COLORS.primary}, ${constants_COLORS.accent})`,
+      WebkitBackgroundClip: "text",
+      WebkitTextFillColor: "transparent"
+    }, children: title }),
+    subtitle && /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: {
+      fontSize: sizes.fontSize.lg,
+      color: constants_COLORS.text,
+      textAlign: "center",
+      marginTop: sizes.spacing.sm,
+      opacity: subtitleFade
+    }, children: subtitle })
+  ] });
+};
+
+;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/TaskQueue.tsx
+
+
+
+
+const TaskQueue = () => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { width, height } = (0,esm.useVideoConfig)();
+  const sizes = getResponsiveSizes(width, height);
+  const minDim = Math.min(width, height);
+  const taskCount = 15;
+  const tasks = Array.from({ length: taskCount }, (_, i) => i);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    position: "relative",
+    width: "100%",
+    height: "100%",
+    overflow: "hidden"
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      textAlign: "center",
+      zIndex: 10
+    }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+        fontSize: sizes.fontSize.xl,
+        fontWeight: "bold",
+        color: constants_COLORS.danger
+      }, children: Math.floor((0,esm.interpolate)(frame, [0, 200], [0, 1e7])).toLocaleString() }),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { fontSize: sizes.fontSize.sm, color: constants_COLORS.text }, children: "Delayed Tasks" })
+    ] }),
+    tasks.map((i) => {
+      const startFrame = i * 5;
+      const progress = (0,esm.interpolate)(frame - startFrame, [0, 60], [0, 1], { extrapolateRight: "clamp" });
+      const xOffset = (i % 3 - 1) * (minDim * 0.2);
+      const yStart = -100;
+      const yEnd = height * 0.4 + i * minDim * 0.04;
+      const currentY = (0,esm.interpolate)(progress, [0, 1], [yStart, yEnd]);
+      const opacity = (0,esm.interpolate)(progress, [0, 0.2], [0, 1], { extrapolateRight: "clamp" });
+      if (frame < startFrame) return null;
+      return /* @__PURE__ */ (0,jsx_runtime.jsxs)(
         "div",
         {
           style: {
             position: "absolute",
-            left: width / 2 + task.x,
-            top: y,
-            width: iconSize * 0.6,
-            height: iconSize * 0.6,
-            backgroundColor: task.color,
-            borderRadius: 8,
+            left: "50%",
+            top: 0,
+            transform: `translate(calc(-50% + ${xOffset}px), ${currentY}px)`,
+            width: minDim * 0.6,
+            height: minDim * 0.1,
+            background: constants_COLORS.glass,
+            border: `1px solid ${constants_COLORS.glassBorder}`,
+            borderRadius: sizes.borderRadius,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             opacity,
-            transform: `rotate(${progress * 360}deg)`
-          }
+            color: constants_COLORS.text,
+            fontSize: sizes.fontSize.sm
+          },
+          children: [
+            "Task #",
+            23902 + i,
+            " - Expires in ",
+            i % 5 + 1,
+            "s"
+          ]
         },
-        task.id
+        i
       );
-    }) })
+    })
   ] });
 };
 
@@ -445,249 +463,79 @@ const SceneIntro = () => {
 
 
 
-const BinaryHeap = ({ nodes, highlightPath = [], scale = 1 }) => {
-  const { width, height, fps } = (0,esm.useVideoConfig)();
+const BinaryHeap = () => {
   const frame = (0,esm.useCurrentFrame)();
-  const { nodeSize, fontSize } = constants_getResponsiveSizes(width, height);
-  const startY = height * 0.15;
-  const levelHeight = height * 0.12;
-  const getPosition = (index) => {
-    const level = Math.floor(Math.log2(index + 1));
-    const levelStartIndex = Math.pow(2, level) - 1;
-    const positionInLevel = index - levelStartIndex;
-    const nodesInLevel = Math.pow(2, level);
-    const maxSpread = width * 0.8;
-    const spread = maxSpread / (nodesInLevel + 1);
-    const x = (width - maxSpread) / 2 + spread * (positionInLevel + 1);
-    const y = startY + level * levelHeight;
-    return { x, y };
-  };
-  const renderLines = () => {
-    return nodes.map((node, i) => {
-      if (i === 0) return null;
-      const parentIndex = Math.floor((i - 1) / 2);
-      const parent = nodes[parentIndex];
-      if (!parent && parentIndex >= nodes.length) return null;
-      const pos = getPosition(i);
-      const parentPos = getPosition(parentIndex);
-      const isPathHighlighed = highlightPath.includes(i) && highlightPath.includes(parentIndex);
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-        "svg",
-        {
-          style: {
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            pointerEvents: "none",
-            zIndex: 0
-          },
-          children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "line",
-            {
-              x1: parentPos.x,
-              y1: parentPos.y + nodeSize / 2,
-              x2: pos.x,
-              y2: pos.y - nodeSize / 2,
-              stroke: isPathHighlighed ? constants_COLORS.danger : constants_COLORS.secondary,
-              strokeWidth: isPathHighlighed ? 4 : 2,
-              strokeOpacity: 0.6
-            }
-          )
-        },
-        `line-${i}`
-      );
-    });
-  };
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", width: "100%", height: "100%", transform: `scale(${scale})` }, children: [
-    renderLines(),
-    nodes.map((node, i) => {
-      const { x, y } = getPosition(i);
-      const spr = (0,esm.spring)({
-        frame: frame - i * 3,
-        // Stagger
-        fps,
-        config: SPRING_CONFIG.bouncy
+  const { width, height } = (0,esm.useVideoConfig)();
+  const sizes = getResponsiveSizes(width, height);
+  const minDim = Math.min(width, height);
+  const levels = 4;
+  const nodes = [];
+  const startY = height * 0.1;
+  const levelHeight = height * 0.15;
+  for (let l = 0; l < levels; l++) {
+    const numNodes = Math.pow(2, l);
+    const span = width * 0.8;
+    const startX = (width - span) / 2;
+    const gap = span / (numNodes + 1);
+    for (let n = 0; n < numNodes; n++) {
+      nodes.push({
+        id: `node-${l}-${n}`,
+        level: l,
+        x: startX + gap * (n + 1),
+        y: startY + l * levelHeight
       });
-      const isHighlighted = highlightPath.includes(i) || node.highlight;
+    }
+  }
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", width: "100%", height: "100%" }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      position: "absolute",
+      top: 0,
+      width: "100%",
+      textAlign: "center",
+      color: constants_COLORS.primary,
+      fontSize: sizes.fontSize.xl,
+      fontWeight: "bold"
+    }, children: "Priority Queue (Logarithmic)" }),
+    nodes.map((node, i) => {
+      const delay = node.level * 10 + i % 3 * 5;
+      const scale = (0,esm.interpolate)(frame - delay, [0, 10], [0, 1], { extrapolateRight: "clamp" });
+      const isBottleneck = frame > 100;
+      const color = isBottleneck && node.level > 2 ? constants_COLORS.danger : constants_COLORS.secondary;
+      if (scale <= 0) return null;
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(
         "div",
         {
           style: {
             position: "absolute",
-            left: x - nodeSize / 2,
-            top: y - nodeSize / 2,
-            width: nodeSize,
-            height: nodeSize,
+            left: node.x,
+            top: node.y,
+            width: minDim * 0.08,
+            height: minDim * 0.08,
             borderRadius: "50%",
-            backgroundColor: isHighlighted ? constants_COLORS.danger : node.color || constants_COLORS.primary,
+            background: color,
+            transform: `translate(-50%, -50%) scale(${scale})`,
+            boxShadow: `0 0 10px ${color}88`,
             display: "flex",
-            justifyContent: "center",
             alignItems: "center",
-            color: constants_COLORS.white,
-            fontWeight: "bold",
-            fontSize: fontSize.md,
-            boxShadow: `0 4px 10px ${isHighlighted ? constants_COLORS.danger : constants_COLORS.primary}66`,
-            transform: `scale(${spr})`,
-            zIndex: 1,
-            border: `2px solid ${constants_COLORS.glassBorder}`
+            justifyContent: "center",
+            color: "white",
+            fontSize: sizes.fontSize.xs,
+            fontWeight: "bold"
           },
-          children: node.value
+          children: i
         },
         node.id
       );
-    })
-  ] });
-};
-
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/ComplexityVisual.tsx
-
-
-
-
-const O1Visual = () => {
-  const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
-  const { fontSize } = getResponsiveSizes(width, height);
-  const scale = interpolate(frame % 60, [0, 30, 60], [1, 1.1, 1]);
-  const glow = interpolate(frame % 60, [0, 30, 60], [10, 30, 10]);
-  return /* @__PURE__ */ jsxs("div", { style: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center"
-  }, children: [
-    /* @__PURE__ */ jsx("h1", { style: {
-      fontSize: fontSize.xxl,
-      color: COLORS.success,
-      textShadow: `0 0 ${glow}px ${COLORS.success}`,
-      transform: `scale(${scale})`,
-      margin: 0
-    }, children: "O(1)" }),
-    /* @__PURE__ */ jsx("p", { style: {
-      color: COLORS.text,
-      fontSize: fontSize.md,
-      opacity: 0.8,
-      marginTop: 10
-    }, children: "Constant Time" })
-  ] });
-};
-const OLogNVisual = () => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { width, height } = (0,esm.useVideoConfig)();
-  const { fontSize } = constants_getResponsiveSizes(width, height);
-  const scale = (0,esm.interpolate)(frame % 60, [0, 30, 60], [1, 1.05, 1]);
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center"
-  }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: {
-      fontSize: fontSize.xxl,
-      color: constants_COLORS.danger,
-      transform: `scale(${scale})`,
-      margin: 0
-    }, children: "O(log n)" }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: {
-      color: constants_COLORS.text,
-      fontSize: fontSize.md,
-      opacity: 0.8,
-      marginTop: 10
-    }, children: "Logarithmic (Slower)" })
-  ] });
-};
-
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneHeap.tsx
-
-
-
-
-
-
-const SceneHeap = () => {
-  const frame = (0,esm.useCurrentFrame)();
-  const initialNodes = [
-    { id: 0, value: 2 },
-    { id: 1, value: 5 },
-    { id: 2, value: 12 },
-    { id: 3, value: 7 },
-    { id: 4, value: 6 },
-    { id: 5, value: 20 },
-    { id: 6, value: 15 }
-  ];
-  let currentNodes = [...initialNodes];
-  let highlightPath = [];
-  if (frame > 90) {
-    currentNodes.push({ id: 7, value: 1, color: constants_COLORS.accent, highlight: true });
-  }
-  if (frame > 120) {
-    highlightPath = [3, 7];
-    if (frame > 140) {
-      currentNodes = [
-        { id: 0, value: 2 },
-        { id: 1, value: 5 },
-        { id: 2, value: 12 },
-        { id: 7, value: 1, color: constants_COLORS.accent, highlight: true },
-        // moved up
-        { id: 4, value: 6 },
-        { id: 5, value: 20 },
-        { id: 6, value: 15 },
-        { id: 3, value: 7 }
-        // moved down
-      ];
-      highlightPath = [1, 3];
-    }
-  }
-  if (frame > 140 && frame > 160) {
-    currentNodes = [
-      { id: 0, value: 2 },
-      { id: 7, value: 1, color: constants_COLORS.accent, highlight: true },
-      // moved up
-      { id: 2, value: 12 },
-      { id: 1, value: 5 },
-      // moved down
-      { id: 4, value: 6 },
-      { id: 5, value: 20 },
-      { id: 6, value: 15 },
-      { id: 3, value: 7 }
-    ];
-    highlightPath = [0, 1];
-  }
-  if (frame > 160 && frame > 180) {
-    currentNodes = [
-      { id: 7, value: 1, color: constants_COLORS.accent, highlight: true },
-      // ROOT
-      { id: 0, value: 2 },
-      // moved down
-      { id: 2, value: 12 },
-      { id: 1, value: 5 },
-      { id: 4, value: 6 },
-      { id: 5, value: 20 },
-      { id: 6, value: 15 },
-      { id: 3, value: 7 }
-    ];
-    highlightPath = [];
-  }
-  const scale = (0,esm.interpolate)(frame, [220, 260], [1, 0.8]);
-  const opacity = (0,esm.interpolate)(frame, [260, 280], [1, 0]);
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { width: "100%", height: "100%", opacity }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { width: "100%", height: "100%", transform: `scale(${scale})` }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      BinaryHeap,
-      {
-        nodes: currentNodes.map((n) => ({ ...n, highlight: n.id === 7 && frame > 90 })),
-        highlightPath
-      }
-    ) }),
-    frame > 180 && /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+    }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
       position: "absolute",
-      top: "60%",
-      left: 0,
+      bottom: height * 0.1,
       width: "100%",
-      display: "flex",
-      justifyContent: "center"
-    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(OLogNVisual, {}) })
+      textAlign: "center",
+      color: constants_COLORS.warning,
+      fontSize: sizes.fontSize.lg,
+      opacity: (0,esm.interpolate)(frame, [60, 80], [0, 1], { extrapolateRight: "clamp" })
+    }, children: "Rebalancing Overhead: O(log N)" })
   ] });
 };
 
@@ -696,303 +544,125 @@ const SceneHeap = () => {
 
 
 
-
-const TimingWheel = ({
-  items,
-  radius = 300,
-  rotation = 0,
-  activeSlot = -1,
-  label = "Seconds",
-  isOuter = false
-}) => {
+const TimingWheel = ({ hierarchical = false }) => {
+  const frame = (0,esm.useCurrentFrame)();
   const { width, height } = (0,esm.useVideoConfig)();
-  const { fontSize } = constants_getResponsiveSizes(width, height);
-  const slots = 60;
-  const renderSlots = () => {
-    return Array.from({ length: slots }).map((_, i) => {
-      const angle = i * 360 / slots - 90;
-      const radians = angle * Math.PI / 180;
-      const innerR = radius - (isOuter ? 20 : 10);
-      const outerR = radius + (isOuter ? 20 : 10);
-      const x1 = Math.cos(radians) * innerR;
-      const y1 = Math.sin(radians) * innerR;
-      const x2 = Math.cos(radians) * outerR;
-      const y2 = Math.sin(radians) * outerR;
-      const isActive = i === activeSlot;
-      return /* @__PURE__ */ (0,jsx_runtime.jsxs)(react.Fragment, { children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "line",
-          {
-            x1,
-            y1,
-            x2,
-            y2,
-            stroke: isActive ? constants_COLORS.accent : constants_COLORS.glassBorder,
-            strokeWidth: isActive ? 4 : 2
-          }
-        ),
-        i % 5 === 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "text",
-          {
-            x: Math.cos(radians) * (outerR + 25),
-            y: Math.sin(radians) * (outerR + 25),
-            fill: isActive ? constants_COLORS.accent : constants_COLORS.muted,
-            fontSize: fontSize.sm,
-            textAnchor: "middle",
-            alignmentBaseline: "middle",
-            style: { opacity: 0.7 },
-            children: i
-          }
-        )
-      ] }, i);
-    });
-  };
-  const renderItems = () => {
-    return items.map((item) => {
-      const angle = item.slot * 360 / slots - 90;
-      const radians = angle * Math.PI / 180;
-      const itemRadius = radius - 40;
-      const x = Math.cos(radians) * itemRadius;
-      const y = Math.sin(radians) * itemRadius;
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)("g", { transform: `translate(${x}, ${y})`, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-        "circle",
-        {
-          r: 12,
-          fill: item.color || constants_COLORS.success,
-          stroke: constants_COLORS.white,
-          strokeWidth: 2
-        }
-      ) }, item.id);
-    });
-  };
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "absolute"
-  }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-      "svg",
-      {
-        width: radius * 2.5,
-        height: radius * 2.5,
-        viewBox: `-${radius * 1.25} -${radius * 1.25} ${radius * 2.5} ${radius * 2.5}`,
-        style: { transform: `rotate(${rotation}deg)` },
-        children: [
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "circle",
-            {
-              r: radius,
-              fill: "none",
-              stroke: constants_COLORS.secondary,
-              strokeWidth: 4,
-              opacity: 0.3
-            }
-          ),
-          renderSlots(),
-          renderItems(),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "line",
-            {
-              x1: 0,
-              y1: 0,
-              x2: 0,
-              y2: -radius,
-              stroke: constants_COLORS.accent,
-              strokeWidth: 3,
-              strokeLinecap: "round"
-            }
-          ),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { r: 8, fill: constants_COLORS.accent })
-        ]
-      }
-    ),
+  const minDim = Math.min(width, height);
+  const sizes = getResponsiveSizes(width, height);
+  const slots = 12;
+  const radius = minDim * 0.35;
+  const center = { x: width / 2, y: height / 2 };
+  const rotation = (0,esm.interpolate)(frame, [0, 300], [0, 360]);
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { position: "relative", width: "100%", height: "100%" }, children: [
     /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
       position: "absolute",
-      textAlign: "center",
-      paddingTop: isOuter ? 0 : 40,
-      pointerEvents: "none"
-    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h3", { style: { color: constants_COLORS.text, fontSize: fontSize.md, margin: 0, textShadow: "0 2px 4px rgba(0,0,0,0.5)" }, children: label }) })
-  ] });
-};
-
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneWheel.tsx
-
-
-
-
-
-const SceneWheel = () => {
-  const frame = (0,esm.useCurrentFrame)();
-  const wheel1Scale = (0,esm.interpolate)(frame, [0, 30], [0, 1], { extrapolateRight: "clamp" });
-  const zoomOut = (0,esm.interpolate)(frame, [120, 150], [1, 0.6], { extrapolateRight: "clamp" });
-  const baseRotation = frame * 0.5;
-  const rotation = (0,esm.interpolate)(frame, [60, 120], [0, 90]);
-  const items = [];
-  if (frame > 30) {
-    items.push({ id: 1, slot: 5, value: 5, color: constants_COLORS.accent });
-  }
-  const outerItems = [];
-  if (frame > 150) {
-    outerItems.push({ id: 2, slot: 10, value: 60, color: constants_COLORS.warning });
-  }
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    transform: `scale(${wheel1Scale})`
-  }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-      transform: `scale(${zoomOut})`,
-      position: "relative",
+      top: height * 0.1,
       width: "100%",
-      height: "100%",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center"
+      textAlign: "center",
+      color: constants_COLORS.success,
+      fontSize: sizes.fontSize.xl,
+      fontWeight: "bold",
+      zIndex: 10
+    }, children: hierarchical ? "Hierarchical (Scalable)" : "Timing Wheel (O(1))" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+      position: "absolute",
+      left: center.x,
+      top: center.y,
+      width: radius * 2,
+      height: radius * 2,
+      transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+      borderRadius: "50%",
+      border: `4px solid ${constants_COLORS.accent}`
     }, children: [
+      Array.from({ length: slots }).map((_, i) => {
+        const angle = i / slots * 2 * Math.PI;
+        const slotX = Math.cos(angle - Math.PI / 2) * (radius * 0.85);
+        const slotY = Math.sin(angle - Math.PI / 2) * (radius * 0.85);
+        const bucketSize = minDim * 0.1;
+        return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: `translate(-50%, -50%) translate(${slotX}px, ${slotY}px) rotate(${i / slots * 360}deg)`,
+              width: bucketSize,
+              height: bucketSize,
+              border: `2px solid ${constants_COLORS.glassBorder}`,
+              background: constants_COLORS.glass,
+              borderRadius: sizes.borderRadius,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: constants_COLORS.accent,
+              fontSize: sizes.fontSize.sm
+            },
+            children: i
+          },
+          i
+        );
+      }),
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
         position: "absolute",
-        opacity: (0,esm.interpolate)(frame, [120, 140], [0, 1])
-      }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-        TimingWheel,
-        {
-          radius: 550,
-          items: outerItems,
-          label: "Minutes",
-          isOuter: true,
-          activeSlot: Math.floor((frame - 200) / 10) % 60
-        }
-      ) }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(
-        TimingWheel,
-        {
-          radius: 300,
-          rotation: baseRotation + rotation,
-          items,
-          label: "Seconds",
-          activeSlot: Math.floor((baseRotation + rotation) / 6) % 60
-        }
-      )
+        left: "50%",
+        top: "50%",
+        width: minDim * 0.05,
+        height: minDim * 0.05,
+        background: constants_COLORS.white,
+        borderRadius: "50%",
+        transform: "translate(-50%, -50%)",
+        boxShadow: `0 0 20px ${constants_COLORS.white}88`
+      } })
     ] }),
-    frame > 40 && frame < 100 && /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
       position: "absolute",
-      top: "20%",
-      right: "10%"
-    }, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("h2", { style: { color: constants_COLORS.success, fontSize: 60, margin: 0 }, children: "O(1)" }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.text, fontSize: 30, margin: 0 }, children: "Direct Access" })
-    ] })
-  ] });
-};
-
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneArchitecture.tsx
-
-
-
-
-const SceneArchitecture = () => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { width, height, fps } = (0,esm.useVideoConfig)();
-  const { fontSize } = constants_getResponsiveSizes(width, height);
-  const titleOpacity = (0,esm.interpolate)(frame, [0, 20], [0, 1]);
-  const logos = [
-    { name: "Apache Kafka", color: "#231F20", textColor: "#ffffff", delay: 20 },
-    { name: "Netty", color: "#373737", textColor: "#ffffff", delay: 40 }
-  ];
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 100
-  }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: {
-      color: constants_COLORS.text,
-      fontSize: fontSize.xl,
-      opacity: titleOpacity
-    }, children: "Proven Architecture" }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { display: "flex", gap: 60 }, children: logos.map((logo, i) => {
-      const spr = (0,esm.spring)({
-        frame: frame - logo.delay,
-        fps,
-        config: SPRING_CONFIG.bouncy
-      });
+      left: center.x,
+      top: center.y - radius - minDim * 0.05,
+      transform: "translateX(-50%)",
+      width: 0,
+      height: 0,
+      borderLeft: `${minDim * 0.03}px solid transparent`,
+      borderRight: `${minDim * 0.03}px solid transparent`,
+      borderTop: `${minDim * 0.05}px solid ${constants_COLORS.danger}`,
+      zIndex: 5
+    } }),
+    Array.from({ length: 5 }).map((_, i) => {
+      const dropStart = i * 60;
+      if (frame < dropStart) return null;
+      const dropProgress = (0,esm.interpolate)(frame - dropStart, [0, 20], [0, 1], { extrapolateRight: "clamp" });
+      const dropY = (0,esm.interpolate)(dropProgress, [0, 1], [0, center.y - radius + minDim * 0.1]);
       return /* @__PURE__ */ (0,jsx_runtime.jsx)(
         "div",
         {
           style: {
-            width: 300,
-            height: 300,
-            borderRadius: 40,
-            backgroundColor: logo.color,
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            transform: `scale(${spr})`,
-            boxShadow: `0 20px 50px ${logo.color}66`,
-            border: `2px solid ${constants_COLORS.glassBorder}`
-          },
-          children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: {
-            color: logo.textColor,
-            fontSize: fontSize.lg,
-            fontWeight: "bold",
-            textAlign: "center"
-          }, children: logo.name })
+            position: "absolute",
+            left: center.x,
+            top: dropY,
+            width: minDim * 0.04,
+            height: minDim * 0.04,
+            background: constants_COLORS.success,
+            borderRadius: "50%",
+            opacity: (0,esm.interpolate)(frame - dropStart, [20, 25], [1, 0])
+            // Disappear into bucket
+          }
         },
         i
       );
-    }) }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", bottom: 100 }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
-      opacity: (0,esm.interpolate)(frame, [60, 80], [0, 1]),
-      background: constants_COLORS.glass,
-      padding: "20px 40px",
-      borderRadius: 100,
-      border: `1px solid ${constants_COLORS.glassBorder}`
-    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: constants_COLORS.secondary, fontSize: fontSize.md }, children: "Zero Lag Throughput" }) }) })
-  ] });
-};
-
-;// ./src/proj_c8fa689f_b2c3_45ff_b309_f6c1f87ada7d/components/SceneOutro.tsx
-
-
-
-
-const SceneOutro = () => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { width, height } = (0,esm.useVideoConfig)();
-  const { fontSize } = constants_getResponsiveSizes(width, height);
-  const opacity = (0,esm.interpolate)(frame, [0, 20], [0, 1]);
-  const scale = (0,esm.interpolate)(frame, [0, 30], [0.9, 1]);
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    opacity,
-    transform: `scale(${scale})`
-  }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
-      width: 300,
-      height: 300,
+    }),
+    hierarchical && /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      position: "absolute",
+      right: minDim * 0.1,
+      bottom: minDim * 0.1,
+      width: minDim * 0.3,
+      height: minDim * 0.3,
+      border: `2px solid ${constants_COLORS.secondary}`,
       borderRadius: "50%",
-      background: `linear-gradient(135deg, ${constants_COLORS.primary}, ${constants_COLORS.secondary})`,
-      marginBottom: 40
-    } }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: fontSize.xl, marginBottom: 20 }, children: "Prasanna" }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.accent, fontSize: fontSize.md }, children: "Zoho Technical Architect" }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
-      marginTop: 60,
-      padding: "20px 40px",
-      background: constants_COLORS.white,
-      borderRadius: 100
-    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: constants_COLORS.bg, fontSize: fontSize.md, fontWeight: "bold" }, children: "Follow for more" }) })
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      opacity: 0.8
+    }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { color: constants_COLORS.secondary, fontSize: sizes.fontSize.xs }, children: "Hour Wheel" }) })
   ] });
 };
 
@@ -1005,45 +675,70 @@ const SceneOutro = () => {
 
 
 
-
 const ProjC8fa689fB2c345ffB309F6c1f87ada7d = () => {
-  const { fps, height } = (0,esm.useVideoConfig)();
-  const INTRO_DURATION = 7 * fps;
-  const HEAP_DURATION = 28 * fps;
-  const WHEEL_DURATION = 47 * fps;
-  const ARCH_DURATION = 8 * fps;
-  const minFont = height * 0.022;
+  const { height } = (0,esm.useVideoConfig)();
+  const frame = (0,esm.useCurrentFrame)();
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { backgroundColor: constants_COLORS.bg }, children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.Sequence, { from: 0, durationInFrames: INTRO_DURATION, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneIntro, {}),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: 0, durationInFrames: 90, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { justifyContent: "center", alignItems: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      TitleCard,
+      {
+        title: "System Design Challenge",
+        subtitle: "Millions of Delayed Tasks?"
+      }
+    ) }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: 90, durationInFrames: 210, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(TaskQueue, {}) }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: 300, durationInFrames: 300, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { style: { justifyContent: "center", alignItems: "center", padding: 40 }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(BinaryHeap, {}) }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: 600, durationInFrames: 450, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { justifyContent: "center", alignItems: "center", padding: 40 }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(BinaryHeap, {}),
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
         position: "absolute",
-        top: height * 0.08,
-        width: "100%",
-        textAlign: "center"
-      }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "System Design Challenge" }) }),
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%) rotate(-15deg)",
+        border: `8px solid ${constants_COLORS.danger}`,
+        padding: 20,
+        borderRadius: 20,
+        backgroundColor: "rgba(0,0,0,0.8)",
+        color: constants_COLORS.danger,
+        fontSize: height * 0.08,
+        fontWeight: 900,
+        opacity: (0,esm.interpolate)(frame - 600, [0, 20], [0, 1], { extrapolateRight: "clamp" })
+      }, children: "BOTTLENECK" })
+    ] }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: 1050, durationInFrames: 570, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.AbsoluteFill, { children: /* @__PURE__ */ (0,jsx_runtime.jsx)(TimingWheel, { hierarchical: false }) }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: 1620, durationInFrames: 720, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(TimingWheel, { hierarchical: true }),
       /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
         position: "absolute",
-        bottom: height * 0.06,
+        bottom: height * 0.15,
         width: "100%",
+        textAlign: "center",
+        color: constants_COLORS.secondary,
+        fontSize: height * 0.03,
+        fontWeight: "bold"
+      }, children: "Cascading Tasks..." })
+    ] }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: 2340, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { style: { justifyContent: "center", alignItems: "center" }, children: [
+      /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        TitleCard,
+        {
+          title: "Apache Kafka & Netty",
+          subtitle: "Real-World Architecture"
+        }
+      ),
+      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+        marginTop: 100,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 20
+      }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+        fontSize: height * 0.025,
+        color: constants_COLORS.text,
+        maxWidth: "80%",
         textAlign: "center"
-      }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.text, fontSize: minFont }, children: "Task Scheduler" }) })
-    ] }),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.Sequence, { from: INTRO_DURATION, durationInFrames: HEAP_DURATION, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneHeap, {}),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Priority Queue (Binary Heap)" }) }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", bottom: height * 0.06, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.text, fontSize: minFont }, children: "O(log n) Insertion" }) })
-    ] }),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.Sequence, { from: INTRO_DURATION + HEAP_DURATION, durationInFrames: WHEEL_DURATION, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneWheel, {}),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Hierarchical Timing Wheel" }) }),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", bottom: height * 0.06, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("p", { style: { color: constants_COLORS.text, fontSize: minFont }, children: "O(1) Constant Time" }) })
-    ] }),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.Sequence, { from: INTRO_DURATION + HEAP_DURATION + WHEEL_DURATION, durationInFrames: ARCH_DURATION, children: [
-      /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneArchitecture, {}),
-      /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: { position: "absolute", top: height * 0.08, width: "100%", textAlign: "center" }, children: /* @__PURE__ */ (0,jsx_runtime.jsx)("h1", { style: { color: constants_COLORS.text, fontSize: height * 0.04, margin: 0 }, children: "Real World Usage" }) })
-    ] }),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(esm.Sequence, { from: INTRO_DURATION + HEAP_DURATION + WHEEL_DURATION + ARCH_DURATION, children: /* @__PURE__ */ (0,jsx_runtime.jsx)(SceneOutro, {}) })
+      }, children: "Used for massive throughput without lag." }) })
+    ] }) })
   ] });
 };
 
@@ -1269,7 +964,7 @@ if (typeof globalThis === 'undefined') {
 
 var ___CSS_LOADER_EXPORT___ = _node_modules_css_loader_dist_runtime_api_js__WEBPACK_IMPORTED_MODULE_1___default()((_node_modules_css_loader_dist_runtime_cssWithMappingToString_js__WEBPACK_IMPORTED_MODULE_0___default()));
 // Module
-___CSS_LOADER_EXPORT___.push([module.id, "/*! tailwindcss v4.1.1 | MIT License | https://tailwindcss.com */\n@layer theme, base, components, utilities;\n@supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {\n  @layer base {\n    *, ::before, ::after, ::backdrop {\n      --tw-rotate-x: rotateX(0);\n      --tw-rotate-y: rotateY(0);\n      --tw-rotate-z: rotateZ(0);\n      --tw-skew-x: skewX(0);\n      --tw-skew-y: skewY(0);\n      --tw-border-style: solid;\n    }\n  }\n}\n@layer theme {\n  :root, :host {\n    --font-sans: ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\",\n      \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\";\n    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,\n      \"Liberation Mono\", \"Courier New\", monospace;\n    --default-transition-duration: 150ms;\n    --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n    --default-font-family: var(--font-sans);\n    --default-font-feature-settings: var(--font-sans--font-feature-settings);\n    --default-font-variation-settings: var(\n      --font-sans--font-variation-settings\n    );\n    --default-mono-font-family: var(--font-mono);\n    --default-mono-font-feature-settings: var(\n      --font-mono--font-feature-settings\n    );\n    --default-mono-font-variation-settings: var(\n      --font-mono--font-variation-settings\n    );\n  }\n}\n@layer base {\n  *, ::after, ::before, ::backdrop, ::file-selector-button {\n    box-sizing: border-box;\n    margin: 0;\n    padding: 0;\n    border: 0 solid;\n  }\n  html, :host {\n    line-height: 1.5;\n    -webkit-text-size-adjust: 100%;\n    tab-size: 4;\n    font-family: var( --default-font-family, ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\" );\n    font-feature-settings: var(--default-font-feature-settings, normal);\n    font-variation-settings: var( --default-font-variation-settings, normal );\n    -webkit-tap-highlight-color: transparent;\n  }\n  body {\n    line-height: inherit;\n  }\n  hr {\n    height: 0;\n    color: inherit;\n    border-top-width: 1px;\n  }\n  abbr:where([title]) {\n    -webkit-text-decoration: underline dotted;\n    text-decoration: underline dotted;\n  }\n  h1, h2, h3, h4, h5, h6 {\n    font-size: inherit;\n    font-weight: inherit;\n  }\n  a {\n    color: inherit;\n    -webkit-text-decoration: inherit;\n    text-decoration: inherit;\n  }\n  b, strong {\n    font-weight: bolder;\n  }\n  code, kbd, samp, pre {\n    font-family: var( --default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace );\n    font-feature-settings: var( --default-mono-font-feature-settings, normal );\n    font-variation-settings: var( --default-mono-font-variation-settings, normal );\n    font-size: 1em;\n  }\n  small {\n    font-size: 80%;\n  }\n  sub, sup {\n    font-size: 75%;\n    line-height: 0;\n    position: relative;\n    vertical-align: baseline;\n  }\n  sub {\n    bottom: -0.25em;\n  }\n  sup {\n    top: -0.5em;\n  }\n  table {\n    text-indent: 0;\n    border-color: inherit;\n    border-collapse: collapse;\n  }\n  :-moz-focusring {\n    outline: auto;\n  }\n  progress {\n    vertical-align: baseline;\n  }\n  summary {\n    display: list-item;\n  }\n  ol, ul, menu {\n    list-style: none;\n  }\n  img, svg, video, canvas, audio, iframe, embed, object {\n    display: block;\n    vertical-align: middle;\n  }\n  img, video {\n    max-width: 100%;\n    height: auto;\n  }\n  button, input, select, optgroup, textarea, ::file-selector-button {\n    font: inherit;\n    font-feature-settings: inherit;\n    font-variation-settings: inherit;\n    letter-spacing: inherit;\n    color: inherit;\n    border-radius: 0;\n    background-color: transparent;\n    opacity: 1;\n  }\n  :where(select:is([multiple], [size])) optgroup {\n    font-weight: bolder;\n  }\n  :where(select:is([multiple], [size])) optgroup option {\n    padding-inline-start: 20px;\n  }\n  ::file-selector-button {\n    margin-inline-end: 4px;\n  }\n  ::placeholder {\n    opacity: 1;\n    color: color-mix(in oklab, currentColor 50%, transparent);\n  }\n  textarea {\n    resize: vertical;\n  }\n  ::-webkit-search-decoration {\n    -webkit-appearance: none;\n  }\n  ::-webkit-date-and-time-value {\n    min-height: 1lh;\n    text-align: inherit;\n  }\n  ::-webkit-datetime-edit {\n    display: inline-flex;\n  }\n  ::-webkit-datetime-edit-fields-wrapper {\n    padding: 0;\n  }\n  ::-webkit-datetime-edit, ::-webkit-datetime-edit-year-field, ::-webkit-datetime-edit-month-field, ::-webkit-datetime-edit-day-field, ::-webkit-datetime-edit-hour-field, ::-webkit-datetime-edit-minute-field, ::-webkit-datetime-edit-second-field, ::-webkit-datetime-edit-millisecond-field, ::-webkit-datetime-edit-meridiem-field {\n    padding-block: 0;\n  }\n  :-moz-ui-invalid {\n    box-shadow: none;\n  }\n  button, input:where([type=\"button\"], [type=\"reset\"], [type=\"submit\"]), ::file-selector-button {\n    appearance: button;\n  }\n  ::-webkit-inner-spin-button, ::-webkit-outer-spin-button {\n    height: auto;\n  }\n  [hidden]:where(:not([hidden=\"until-found\"])) {\n    display: none !important;\n  }\n}\n@layer utilities {\n  .absolute {\n    position: absolute;\n  }\n  .fixed {\n    position: fixed;\n  }\n  .relative {\n    position: relative;\n  }\n  .static {\n    position: static;\n  }\n  .container {\n    width: 100%;\n    @media (width >= 40rem) {\n      max-width: 40rem;\n    }\n    @media (width >= 48rem) {\n      max-width: 48rem;\n    }\n    @media (width >= 64rem) {\n      max-width: 64rem;\n    }\n    @media (width >= 80rem) {\n      max-width: 80rem;\n    }\n    @media (width >= 96rem) {\n      max-width: 96rem;\n    }\n  }\n  .flex {\n    display: flex;\n  }\n  .hidden {\n    display: none;\n  }\n  .inline {\n    display: inline;\n  }\n  .inline-block {\n    display: inline-block;\n  }\n  .transform {\n    transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);\n  }\n  .border {\n    border-style: var(--tw-border-style);\n    border-width: 1px;\n  }\n  .italic {\n    font-style: italic;\n  }\n  .transition {\n    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter;\n    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));\n    transition-duration: var(--tw-duration, var(--default-transition-duration));\n  }\n}\n@property --tw-rotate-x {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateX(0);\n}\n@property --tw-rotate-y {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateY(0);\n}\n@property --tw-rotate-z {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateZ(0);\n}\n@property --tw-skew-x {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: skewX(0);\n}\n@property --tw-skew-y {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: skewY(0);\n}\n@property --tw-border-style {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: solid;\n}\n", "",{"version":3,"sources":["webpack://./src/index.css"],"names":[],"mappings":"AAAA,gEACA;AADA,yCACA;AADA;EAAA;IAAA;MAAA,yBACA;MADA,yBACA;MADA,yBACA;MADA,qBACA;MADA,qBACA;MADA,wBACA;IAAA;EAAA;AAAA;AADA;EAAA;IAAA;6DACA;IADA;iDACA;IADA,oCACA;IADA,kEACA;IADA,uCACA;IADA,wEACA;IADA;;KACA;IADA,4CACA;IADA;;KACA;IADA;;KACA;EAAA;AAAA;AADA;EAAA;IAAA,sBACA;IADA,SACA;IADA,UACA;IADA,eACA;EAAA;EADA;IAAA,gBACA;IADA,8BACA;IADA,WACA;IADA,6JACA;IADA,mEACA;IADA,yEACA;IADA,wCACA;EAAA;EADA;IAAA,oBACA;EAAA;EADA;IAAA,SACA;IADA,cACA;IADA,qBACA;EAAA;EADA;IAAA,yCACA;IADA,iCACA;EAAA;EADA;IAAA,kBACA;IADA,oBACA;EAAA;EADA;IAAA,cACA;IADA,gCACA;IADA,wBACA;EAAA;EADA;IAAA,mBACA;EAAA;EADA;IAAA,kJACA;IADA,0EACA;IADA,8EACA;IADA,cACA;EAAA;EADA;IAAA,cACA;EAAA;EADA;IAAA,cACA;IADA,cACA;IADA,kBACA;IADA,wBACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,WACA;EAAA;EADA;IAAA,cACA;IADA,qBACA;IADA,yBACA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,wBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,cACA;IADA,sBACA;EAAA;EADA;IAAA,eACA;IADA,YACA;EAAA;EADA;IAAA,aACA;IADA,8BACA;IADA,gCACA;IADA,uBACA;IADA,cACA;IADA,gBACA;IADA,6BACA;IADA,UACA;EAAA;EADA;IAAA,mBACA;EAAA;EADA;IAAA,0BACA;EAAA;EADA;IAAA,sBACA;EAAA;EADA;IAAA,UACA;IADA,yDACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,wBACA;EAAA;EADA;IAAA,eACA;IADA,mBACA;EAAA;EADA;IAAA,oBACA;EAAA;EADA;IAAA,UACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,YACA;EAAA;EADA;IAAA,wBACA;EAAA;AAAA;AADA;EAAA;IAAA,kBACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,WACA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,qBACA;EAAA;EADA;IAAA,qGACA;EAAA;EADA;IAAA,oCACA;IADA,iBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,mRACA;IADA,qFACA;IADA,2EACA;EAAA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,uBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,uBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,oBACA;AAAA","sourcesContent":["@import \"tailwindcss\";\n"],"sourceRoot":""}]);
+___CSS_LOADER_EXPORT___.push([module.id, "/*! tailwindcss v4.1.1 | MIT License | https://tailwindcss.com */\n@layer theme, base, components, utilities;\n@supports ((-webkit-hyphens: none) and (not (margin-trim: inline))) or ((-moz-orient: inline) and (not (color:rgb(from red r g b)))) {\n  @layer base {\n    *, ::before, ::after, ::backdrop {\n      --tw-rotate-x: rotateX(0);\n      --tw-rotate-y: rotateY(0);\n      --tw-rotate-z: rotateZ(0);\n      --tw-skew-x: skewX(0);\n      --tw-skew-y: skewY(0);\n      --tw-border-style: solid;\n      --tw-blur: initial;\n      --tw-brightness: initial;\n      --tw-contrast: initial;\n      --tw-grayscale: initial;\n      --tw-hue-rotate: initial;\n      --tw-invert: initial;\n      --tw-opacity: initial;\n      --tw-saturate: initial;\n      --tw-sepia: initial;\n      --tw-drop-shadow: initial;\n      --tw-drop-shadow-color: initial;\n      --tw-drop-shadow-alpha: 100%;\n      --tw-drop-shadow-size: initial;\n    }\n  }\n}\n@layer theme {\n  :root, :host {\n    --font-sans: ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\",\n      \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\";\n    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,\n      \"Liberation Mono\", \"Courier New\", monospace;\n    --default-transition-duration: 150ms;\n    --default-transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);\n    --default-font-family: var(--font-sans);\n    --default-font-feature-settings: var(--font-sans--font-feature-settings);\n    --default-font-variation-settings: var(\n      --font-sans--font-variation-settings\n    );\n    --default-mono-font-family: var(--font-mono);\n    --default-mono-font-feature-settings: var(\n      --font-mono--font-feature-settings\n    );\n    --default-mono-font-variation-settings: var(\n      --font-mono--font-variation-settings\n    );\n  }\n}\n@layer base {\n  *, ::after, ::before, ::backdrop, ::file-selector-button {\n    box-sizing: border-box;\n    margin: 0;\n    padding: 0;\n    border: 0 solid;\n  }\n  html, :host {\n    line-height: 1.5;\n    -webkit-text-size-adjust: 100%;\n    tab-size: 4;\n    font-family: var( --default-font-family, ui-sans-serif, system-ui, sans-serif, \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Segoe UI Symbol\", \"Noto Color Emoji\" );\n    font-feature-settings: var(--default-font-feature-settings, normal);\n    font-variation-settings: var( --default-font-variation-settings, normal );\n    -webkit-tap-highlight-color: transparent;\n  }\n  body {\n    line-height: inherit;\n  }\n  hr {\n    height: 0;\n    color: inherit;\n    border-top-width: 1px;\n  }\n  abbr:where([title]) {\n    -webkit-text-decoration: underline dotted;\n    text-decoration: underline dotted;\n  }\n  h1, h2, h3, h4, h5, h6 {\n    font-size: inherit;\n    font-weight: inherit;\n  }\n  a {\n    color: inherit;\n    -webkit-text-decoration: inherit;\n    text-decoration: inherit;\n  }\n  b, strong {\n    font-weight: bolder;\n  }\n  code, kbd, samp, pre {\n    font-family: var( --default-mono-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace );\n    font-feature-settings: var( --default-mono-font-feature-settings, normal );\n    font-variation-settings: var( --default-mono-font-variation-settings, normal );\n    font-size: 1em;\n  }\n  small {\n    font-size: 80%;\n  }\n  sub, sup {\n    font-size: 75%;\n    line-height: 0;\n    position: relative;\n    vertical-align: baseline;\n  }\n  sub {\n    bottom: -0.25em;\n  }\n  sup {\n    top: -0.5em;\n  }\n  table {\n    text-indent: 0;\n    border-color: inherit;\n    border-collapse: collapse;\n  }\n  :-moz-focusring {\n    outline: auto;\n  }\n  progress {\n    vertical-align: baseline;\n  }\n  summary {\n    display: list-item;\n  }\n  ol, ul, menu {\n    list-style: none;\n  }\n  img, svg, video, canvas, audio, iframe, embed, object {\n    display: block;\n    vertical-align: middle;\n  }\n  img, video {\n    max-width: 100%;\n    height: auto;\n  }\n  button, input, select, optgroup, textarea, ::file-selector-button {\n    font: inherit;\n    font-feature-settings: inherit;\n    font-variation-settings: inherit;\n    letter-spacing: inherit;\n    color: inherit;\n    border-radius: 0;\n    background-color: transparent;\n    opacity: 1;\n  }\n  :where(select:is([multiple], [size])) optgroup {\n    font-weight: bolder;\n  }\n  :where(select:is([multiple], [size])) optgroup option {\n    padding-inline-start: 20px;\n  }\n  ::file-selector-button {\n    margin-inline-end: 4px;\n  }\n  ::placeholder {\n    opacity: 1;\n    color: color-mix(in oklab, currentColor 50%, transparent);\n  }\n  textarea {\n    resize: vertical;\n  }\n  ::-webkit-search-decoration {\n    -webkit-appearance: none;\n  }\n  ::-webkit-date-and-time-value {\n    min-height: 1lh;\n    text-align: inherit;\n  }\n  ::-webkit-datetime-edit {\n    display: inline-flex;\n  }\n  ::-webkit-datetime-edit-fields-wrapper {\n    padding: 0;\n  }\n  ::-webkit-datetime-edit, ::-webkit-datetime-edit-year-field, ::-webkit-datetime-edit-month-field, ::-webkit-datetime-edit-day-field, ::-webkit-datetime-edit-hour-field, ::-webkit-datetime-edit-minute-field, ::-webkit-datetime-edit-second-field, ::-webkit-datetime-edit-millisecond-field, ::-webkit-datetime-edit-meridiem-field {\n    padding-block: 0;\n  }\n  :-moz-ui-invalid {\n    box-shadow: none;\n  }\n  button, input:where([type=\"button\"], [type=\"reset\"], [type=\"submit\"]), ::file-selector-button {\n    appearance: button;\n  }\n  ::-webkit-inner-spin-button, ::-webkit-outer-spin-button {\n    height: auto;\n  }\n  [hidden]:where(:not([hidden=\"until-found\"])) {\n    display: none !important;\n  }\n}\n@layer utilities {\n  .visible {\n    visibility: visible;\n  }\n  .absolute {\n    position: absolute;\n  }\n  .relative {\n    position: relative;\n  }\n  .container {\n    width: 100%;\n    @media (width >= 40rem) {\n      max-width: 40rem;\n    }\n    @media (width >= 48rem) {\n      max-width: 48rem;\n    }\n    @media (width >= 64rem) {\n      max-width: 64rem;\n    }\n    @media (width >= 80rem) {\n      max-width: 80rem;\n    }\n    @media (width >= 96rem) {\n      max-width: 96rem;\n    }\n  }\n  .flex {\n    display: flex;\n  }\n  .hidden {\n    display: none;\n  }\n  .inline {\n    display: inline;\n  }\n  .inline-block {\n    display: inline-block;\n  }\n  .transform {\n    transform: var(--tw-rotate-x) var(--tw-rotate-y) var(--tw-rotate-z) var(--tw-skew-x) var(--tw-skew-y);\n  }\n  .border {\n    border-style: var(--tw-border-style);\n    border-width: 1px;\n  }\n  .italic {\n    font-style: italic;\n  }\n  .filter {\n    filter: var(--tw-blur,) var(--tw-brightness,) var(--tw-contrast,) var(--tw-grayscale,) var(--tw-hue-rotate,) var(--tw-invert,) var(--tw-saturate,) var(--tw-sepia,) var(--tw-drop-shadow,);\n  }\n  .transition {\n    transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to, opacity, box-shadow, transform, translate, scale, rotate, filter, -webkit-backdrop-filter, backdrop-filter;\n    transition-timing-function: var(--tw-ease, var(--default-transition-timing-function));\n    transition-duration: var(--tw-duration, var(--default-transition-duration));\n  }\n}\n@property --tw-rotate-x {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateX(0);\n}\n@property --tw-rotate-y {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateY(0);\n}\n@property --tw-rotate-z {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: rotateZ(0);\n}\n@property --tw-skew-x {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: skewX(0);\n}\n@property --tw-skew-y {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: skewY(0);\n}\n@property --tw-border-style {\n  syntax: \"*\";\n  inherits: false;\n  initial-value: solid;\n}\n@property --tw-blur {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-brightness {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-contrast {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-grayscale {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-hue-rotate {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-invert {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-opacity {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-saturate {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-sepia {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-drop-shadow {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-drop-shadow-color {\n  syntax: \"*\";\n  inherits: false;\n}\n@property --tw-drop-shadow-alpha {\n  syntax: \"<percentage>\";\n  inherits: false;\n  initial-value: 100%;\n}\n@property --tw-drop-shadow-size {\n  syntax: \"*\";\n  inherits: false;\n}\n", "",{"version":3,"sources":["webpack://./src/index.css"],"names":[],"mappings":"AAAA,gEACA;AADA,yCACA;AADA;EAAA;IAAA;MAAA,yBACA;MADA,yBACA;MADA,yBACA;MADA,qBACA;MADA,qBACA;MADA,wBACA;MADA,kBACA;MADA,wBACA;MADA,sBACA;MADA,uBACA;MADA,wBACA;MADA,oBACA;MADA,qBACA;MADA,sBACA;MADA,mBACA;MADA,yBACA;MADA,+BACA;MADA,4BACA;MADA,8BACA;IAAA;EAAA;AAAA;AADA;EAAA;IAAA;6DACA;IADA;iDACA;IADA,oCACA;IADA,kEACA;IADA,uCACA;IADA,wEACA;IADA;;KACA;IADA,4CACA;IADA;;KACA;IADA;;KACA;EAAA;AAAA;AADA;EAAA;IAAA,sBACA;IADA,SACA;IADA,UACA;IADA,eACA;EAAA;EADA;IAAA,gBACA;IADA,8BACA;IADA,WACA;IADA,6JACA;IADA,mEACA;IADA,yEACA;IADA,wCACA;EAAA;EADA;IAAA,oBACA;EAAA;EADA;IAAA,SACA;IADA,cACA;IADA,qBACA;EAAA;EADA;IAAA,yCACA;IADA,iCACA;EAAA;EADA;IAAA,kBACA;IADA,oBACA;EAAA;EADA;IAAA,cACA;IADA,gCACA;IADA,wBACA;EAAA;EADA;IAAA,mBACA;EAAA;EADA;IAAA,kJACA;IADA,0EACA;IADA,8EACA;IADA,cACA;EAAA;EADA;IAAA,cACA;EAAA;EADA;IAAA,cACA;IADA,cACA;IADA,kBACA;IADA,wBACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,WACA;EAAA;EADA;IAAA,cACA;IADA,qBACA;IADA,yBACA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,wBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,cACA;IADA,sBACA;EAAA;EADA;IAAA,eACA;IADA,YACA;EAAA;EADA;IAAA,aACA;IADA,8BACA;IADA,gCACA;IADA,uBACA;IADA,cACA;IADA,gBACA;IADA,6BACA;IADA,UACA;EAAA;EADA;IAAA,mBACA;EAAA;EADA;IAAA,0BACA;EAAA;EADA;IAAA,sBACA;EAAA;EADA;IAAA,UACA;IADA,yDACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,wBACA;EAAA;EADA;IAAA,eACA;IADA,mBACA;EAAA;EADA;IAAA,oBACA;EAAA;EADA;IAAA,UACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,gBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,YACA;EAAA;EADA;IAAA,wBACA;EAAA;AAAA;AADA;EAAA;IAAA,mBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,WACA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;IADA;MAAA,gBACA;IAAA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,aACA;EAAA;EADA;IAAA,eACA;EAAA;EADA;IAAA,qBACA;EAAA;EADA;IAAA,qGACA;EAAA;EADA;IAAA,oCACA;IADA,iBACA;EAAA;EADA;IAAA,kBACA;EAAA;EADA;IAAA,0LACA;EAAA;EADA;IAAA,mRACA;IADA,qFACA;IADA,2EACA;EAAA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,yBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,uBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,uBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;EADA,oBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA;AADA;EAAA,sBACA;EADA,eACA;EADA,mBACA;AAAA;AADA;EAAA,WACA;EADA,eACA;AAAA","sourcesContent":["@import \"tailwindcss\";\n"],"sourceRoot":""}]);
 // Exports
 /* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (___CSS_LOADER_EXPORT___);
 
@@ -28819,7 +28514,7 @@ var NoReactInternals = {
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
 /******/ 	__webpack_require__(6507);
-/******/ 	__webpack_require__(4334);
+/******/ 	__webpack_require__(2874);
 /******/ 	__webpack_require__(3610);
 /******/ 	var __webpack_exports__ = __webpack_require__(3482);
 /******/ 	
