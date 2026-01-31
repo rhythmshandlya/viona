@@ -1,4 +1,6 @@
 ---
+name: physics-effects
+description: Frame-based physics simulations for Remotion. Includes gravity, bounce, squash/stretch, shake, and particle effects.
 triggers:
   - physics
   - gravity
@@ -9,33 +11,25 @@ triggers:
   - explosion
 ---
 
-# Physics & Effects
+# Physics Effects
 
-Frame-based physics that work with Remotion's rendering model.
-All functions are **pure functions of frame number** - no state!
+All physics must be **pure functions of frame** - deterministic, no state.
 
-## Ball Physics Simulation
+## Ball Physics
 
 ```tsx
 const simulateBallPhysics = (
-  frame: number,
-  dropFrame: number,
-  targetY: number,
-  fps: number
+  frame: number, dropFrame: number, targetY: number, fps: number
 ): { y: number; settled: boolean } => {
   const elapsed = frame - dropFrame;
   if (elapsed < 0) return { y: -100, settled: false };
 
-  const gravity = 0.004;      // Acceleration per frame²
-  const bounceDamping = 0.5;  // Energy loss per bounce
-  const maxBounces = 4;
-
+  const gravity = 0.004, bounceDamping = 0.5, maxBounces = 4;
   let y = 0, velocity = 0, bounces = 0;
 
   for (let t = 0; t < elapsed; t++) {
     velocity += gravity;
     y += velocity;
-
     if (y >= targetY) {
       y = targetY;
       velocity = -velocity * bounceDamping;
@@ -54,52 +48,37 @@ const simulateBallPhysics = (
 ```tsx
 const getSquashStretch = (velocity: number, settled: boolean) => {
   if (settled) return { scaleX: 1, scaleY: 1 };
-
   const stretch = Math.min(velocity * 0.02, 0.3);
-  return {
-    scaleX: 1 - stretch * 0.2,  // Compress horizontally
-    scaleY: 1 + stretch * 0.3,  // Stretch vertically
-  };
+  return { scaleX: 1 - stretch * 0.2, scaleY: 1 + stretch * 0.3 };
 };
 ```
 
-## Shake Effect
+## Shake
 
 ```tsx
-const getShake = (frame: number, intensity: number, minDim: number) => {
-  if (intensity <= 0) return { x: 0, y: 0 };
-
-  return {
-    x: Math.sin(frame * 1.5) * intensity * minDim * 0.008,
-    y: Math.cos(frame * 1.8) * intensity * minDim * 0.005,
-  };
-};
+const getShake = (frame: number, intensity: number, minDim: number) => ({
+  x: Math.sin(frame * 1.5) * intensity * minDim * 0.008,
+  y: Math.cos(frame * 1.8) * intensity * minDim * 0.005,
+});
 ```
 
-## Explosion Particles
+## Particles
 
 ```tsx
-const generateParticles = (count: number, progress: number, minDim: number) => {
-  return Array.from({ length: count }, (_, i) => {
+const generateParticles = (count: number, progress: number, minDim: number) =>
+  Array.from({ length: count }, (_, i) => {
     const angle = (i / count) * Math.PI * 2 + i * 0.5;
     const velocity = minDim * 0.3 + (i % 5) * minDim * 0.1;
-    const size = minDim * 0.015 + (i % 3) * minDim * 0.01;
-
     return {
       x: Math.cos(angle) * velocity * progress,
-      y: Math.sin(angle) * velocity * progress
-         - (progress * progress * minDim * 0.2), // gravity
-      size: size * (1 - progress * 0.5),
+      y: Math.sin(angle) * velocity * progress - progress * progress * minDim * 0.2,
       opacity: 1 - progress,
-      rotation: progress * 360 * (i % 2 === 0 ? 1 : -1),
     };
   });
-};
 ```
 
-## Key Principle
+## Rules
 
-**All physics must be deterministic!**
-- Frame 100 MUST always produce the same result
-- No random() without seed
+- Frame N must always produce same result
+- No `Math.random()` without seed
 - No external state

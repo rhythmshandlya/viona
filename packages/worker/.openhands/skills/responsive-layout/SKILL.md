@@ -1,4 +1,6 @@
 ---
+name: responsive-layout
+description: Dimension-independent layouts for any resolution. Covers minDim calculations, flexbox patterns, and avoiding hardcoded pixels.
 triggers:
   - responsive
   - dimension
@@ -8,26 +10,11 @@ triggers:
   - hardcoded pixels
 ---
 
-# Responsive Layout Rules
+# Responsive Layout
 
-## NEVER Hardcode Pixel Values
+Compositions MUST work at any resolution. Never hardcode pixels.
 
-**Your composition MUST work at any resolution.**
-
-```tsx
-// ❌ FORBIDDEN - hardcoded pixels
-const fontSize = 48;
-const padding = 50;
-const width = 1080;
-
-// ✅ CORRECT - relative to dimensions
-const { width, height, fps } = useVideoConfig();
-const minDim = Math.min(width, height);
-const fontSize = height * 0.04;
-const padding = minDim * 0.05;
-```
-
-## Responsive Value Pattern (MANDATORY)
+## Responsive Values
 
 ```tsx
 const { width, height, fps } = useVideoConfig();
@@ -47,22 +34,17 @@ const borderRadius = minDim * 0.02;
 const borderWidth = Math.max(2, minDim * 0.003);
 ```
 
-## Layout Structure (Prevent Overlapping)
+## Layout Structure
 
 ```
 ┌─────────────────────────┐
-│  Title (top 15%)        │  ← flex: '0 0 15%'
+│  Title (top 15%)        │  flex: '0 0 15%'
 ├─────────────────────────┤
-│                         │
-│  Visual/Diagram         │  ← flex: 1
-│  (middle 60%)           │
-│                         │
+│  Visual (middle 60%)    │  flex: 1
 ├─────────────────────────┤
-│  Labels (bottom 25%)    │  ← flex: '0 0 auto'
+│  Labels (bottom 25%)    │  flex: '0 0 auto'
 └─────────────────────────┘
 ```
-
-## Flexbox with Responsive Values
 
 ```tsx
 <div style={{
@@ -77,22 +59,9 @@ const borderWidth = Math.max(2, minDim * 0.003);
 </div>
 ```
 
-## Text Overflow Handling
+## Rules
 
-```tsx
-// Single-line (truncate)
-whiteSpace: 'nowrap',
-overflow: 'hidden',
-textOverflow: 'ellipsis',
-
-// Multi-line (wrap)
-wordWrap: 'break-word',
-overflowWrap: 'break-word',
-```
-
-## Critical Rules
-
-1. **NEVER** place text directly on top of diagrams
-2. **ALWAYS** use useVideoConfig() for dimensions
-3. **ALWAYS** calculate sizes relative to width/height/minDim
-4. **VERIFY** layout at multiple aspect ratios
+1. Never place text directly on diagrams
+2. Always use `useVideoConfig()` for dimensions
+3. Calculate sizes relative to width/height/minDim
+4. Verify layout at multiple aspect ratios

@@ -1,4 +1,6 @@
 ---
+name: remotion-best-practices
+description: Frame-based animation patterns for Remotion video compositions. Covers hooks, interpolation, springs, and forbidden patterns that break rendering.
 triggers:
   - remotion
   - video composition
@@ -11,68 +13,40 @@ triggers:
 
 # Remotion Best Practices
 
-## ⛔ FORBIDDEN - These BREAK Remotion Rendering
-
-**NEVER use these - they cause flickering, non-deterministic output, or render failures:**
+## Forbidden Patterns (Break Rendering)
 
 ```tsx
-// ❌ CSS transitions - FORBIDDEN
+// ❌ CSS transitions/animations - non-deterministic
 style={{ transition: 'all 0.3s ease' }}
+@keyframes fadeIn { ... }
 
-// ❌ CSS animations - FORBIDDEN
-@keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-
-// ❌ setTimeout/setInterval - FORBIDDEN
+// ❌ Timers/state for animation - non-deterministic
 setTimeout(() => setVisible(true), 1000);
-
-// ❌ useState for animation values - FORBIDDEN
 const [position, setPosition] = useState(0);
 ```
 
-**WHY?** Remotion renders each frame independently. Every value MUST be a pure function of the frame number.
-
-```tsx
-// ✅ CORRECT - Pure function of frame
-const frame = useCurrentFrame();
-const opacity = interpolate(frame, [0, 30], [0, 1]);
-```
-
----
+Remotion renders each frame independently. Every value MUST be a pure function of frame number.
 
 ## Core Hooks
 
-### useCurrentFrame()
 ```tsx
-const frame = useCurrentFrame(); // 0-indexed frame number
-```
-
-### useVideoConfig()
-```tsx
+const frame = useCurrentFrame();
 const { width, height, fps, durationInFrames } = useVideoConfig();
-```
 
-### interpolate() - ALWAYS use extrapolateRight: 'clamp'
-```tsx
+// interpolate - ALWAYS use clamp
 const opacity = interpolate(frame, [0, 30], [0, 1], {
   extrapolateLeft: 'clamp',
-  extrapolateRight: 'clamp',  // REQUIRED!
+  extrapolateRight: 'clamp',
 });
+
+// spring - fps REQUIRED
+const scale = spring({ frame, fps, config: { damping: 10, stiffness: 100 } });
 ```
 
-### spring() - fps is REQUIRED
-```tsx
-const { fps } = useVideoConfig();
-const scale = spring({
-  frame,
-  fps,        // REQUIRED!
-  config: { damping: 10, stiffness: 100 },
-});
-```
+## Common Patterns
 
-## Common Animation Patterns
-
-### Staggered List
 ```tsx
+// Staggered list
 {items.map((item, i) => {
   const delay = i * 5;
   const opacity = interpolate(frame, [delay, delay + 20], [0, 1], {
@@ -81,17 +55,14 @@ const scale = spring({
   });
   return <div key={i} style={{ opacity }}>{item}</div>;
 })}
-```
 
-### Counter Animation
-```tsx
+// Counter animation
 const count = Math.floor(interpolate(frame, [0, 90], [0, 1000]));
-return <span>{count.toLocaleString()}</span>;
 ```
 
-## Critical Rules
+## Rules
 
-1. **spring() REQUIRES fps** - Always get fps from `useVideoConfig()`
-2. **Only import what you use** - TypeScript strict mode fails on unused imports
-3. **Validate TypeScript after each file** - Run TypeScriptValidatorTool frequently
-4. **ALWAYS use key prop in .map()** - `{items.map((item, i) => <div key={i}>...</div>)}`
+1. `spring()` requires fps from `useVideoConfig()`
+2. Only import what you use (strict mode)
+3. Always use `key` prop in `.map()`
+4. Run TypeScript validation frequently
