@@ -1603,7 +1603,7 @@ def main():
 
             # ===== PHASE 3: Check if done =====
             if current_score >= args.quality_threshold:
-                final_status = "passed"
+                final_status = "ready"  # "ready" status allows export
                 break
 
             # ===== PHASE 4: Prepare visual feedback for next iteration =====
@@ -1662,8 +1662,8 @@ Focus on improving the VISUAL quality - the code compiles fine."""
             except Exception as e:
                 emit_event(EVENT_ERROR, message=f"Failed to validate dimensions: {e}")
 
-        if final_status != "passed" and best_score > 0:
-            final_status = "completed_with_warnings"
+        if final_status != "ready" and best_score > 0:
+            final_status = "ready"  # Allow export even if score didn't meet threshold
 
         # Copy generated files to output directory (mounted from host)
         output_dir = Path(args.output_dir)
