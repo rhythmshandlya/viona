@@ -204,33 +204,30 @@ ${styleGuidelines}
 
 ---
 
-## 🎨 VISUAL DESIGN REQUIREMENTS
+## 🎬 ANIMATION PHILOSOPHY
 
-**Your Goal: Create RICH, ANIMATED visuals that EXPLAIN the concepts visually.**
+You are creating **visual narratives**, not decorated slides.
 
-You are creating:
-- Animated diagrams that build up step by step
-- Flowcharts with elements appearing in sequence
-- Data visualizations (charts, graphs) with animated entries
-- Process illustrations with connecting arrows
-- Concept maps and relationship diagrams
-- Icon-based illustrations with glow effects
+### The Three Laws of Meaningful Animation:
 
-**You are NOT creating:**
-- Text captions or subtitles (handled separately)
-- Static images (everything must animate)
-- Simple text overlays
+**1. CONTINUOUS MOTION**
+Every sequence must have animation throughout its duration, not just entrance effects.
+- ❌ Elements spring in, then sit static
+- ✅ Elements enter, then DEMONSTRATE, then transition
 
-**Visual Polish Checklist:**
-- [ ] **ALL values are RESPONSIVE** - no hardcoded pixels (use width/height multipliers)
-- [ ] Every key element has a subtle glow: \`boxShadow: \`0 0 \${minDim * 0.02}px rgba(...)\`\`
-- [ ] Background uses gradient, not flat color
-- [ ] Elements stagger in with 15-20 frame delays
-- [ ] Spring animations have satisfying bounce (damping: 12)
-- [ ] Colors follow the style preset exactly
-- [ ] **NO TEXT OVERLAPPING VISUALS** - text and diagrams in separate regions
-- [ ] **TEXT OVERFLOW HANDLED** - ellipsis for single-line, word-wrap for multi-line
-- [ ] Clear vertical layout: title → visual → labels (stacked, not overlapping)
+**2. CONCEPTUAL, NOT LITERAL**
+Show WHY and HOW, not just WHAT.
+- ❌ "Binary tree" → Draw a static tree diagram
+- ✅ "Binary tree is slow here" → Show search path growing longer, branches multiplying, O(n) counter climbing
+- ❌ "Caching improves speed" → Show a cache icon
+- ✅ "Caching improves speed" → Show request hitting cache (instant) vs database trip (long journey)
+
+**3. ZERO TEXT OVERLAYS**
+Subtitles handle all text. Your job is PURE VISUAL STORYTELLING.
+- ❌ Animated text saying "Step 1: Configure"
+- ❌ Labels floating over diagrams
+- ✅ Visual metaphors that need no explanation
+- Exception: Single numbers/percentages for data viz (e.g., "85%" in a progress ring)
 
 ---
 
