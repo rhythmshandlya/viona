@@ -80,160 +80,161 @@ const useResponsive = () => {
 `;
 
 /**
- * Reference Example 1: Responsive Flowchart
- * Demonstrates proper layout with flexbox, responsive sizing, and text handling
+ * Reference Example 1: Linear vs Binary Search Race
+ * Demonstrates: Parallel state machines, elimination regions, continuous animation
+ * Meaningful: The RACE creates contrast - binary finishes in 4 steps while linear crawls
  */
-export const REFERENCE_FLOWCHART = `
+export const REFERENCE_SEARCH_RACE = `
 // src/\${projectId}/index.tsx
 import React from 'react';
-import { AbsoluteFill, useVideoConfig, useCurrentFrame, spring, interpolate } from 'remotion';
+import { AbsoluteFill, useVideoConfig, useCurrentFrame, interpolate, spring } from 'remotion';
 
 const COLORS = {
-  bgDeep: '#0f0f23',
-  bgGradient: 'radial-gradient(ellipse at top, #1a1a3e 0%, #0f0f23 60%)',
-  primary: '#8b5cf6',
-  secondary: '#3b82f6',
-  accent: '#06b6d4',
-  glow: 'rgba(139, 92, 246, 0.4)',
-  white: '#ffffff',
-  muted: '#888888',
-};
-
-// Reusable responsive hook
-const useResponsive = () => {
-  const { width, height } = useVideoConfig();
-  const minDim = Math.min(width, height);
-  return {
-    padding: minDim * 0.05,
-    gap: minDim * 0.03,
-    radius: minDim * 0.02,
-    fontSize: {
-      sm: height * 0.022,
-      md: height * 0.032,
-      lg: height * 0.045,
-    },
-    glow: minDim * 0.025,
-  };
-};
-
-const FlowNode: React.FC<{ label: string; index: number }> = ({ label, index }) => {
-  const frame = useCurrentFrame();
-  const { fps, width, height } = useVideoConfig();
-  const r = useResponsive();
-
-  const delay = index * 20;
-  const scale = spring({ frame: frame - delay, fps, config: { damping: 12, stiffness: 80 } });
-  const opacity = interpolate(frame - delay, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
-  const glowIntensity = interpolate(Math.sin((frame - delay) * 0.1), [-1, 1], [0.3, 0.8]);
-
-  // ALL SIZES ARE RESPONSIVE
-  const nodeWidth = width * 0.85;
-  const nodeHeight = height * 0.1;
-  const numberSize = height * 0.045;
-
-  return (
-    <div style={{
-      width: nodeWidth,
-      height: nodeHeight,
-      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15) 0%, rgba(139, 92, 246, 0.05) 100%)',
-      border: \`\${Math.max(2, height * 0.002)}px solid \${COLORS.primary}\`,
-      borderRadius: r.radius,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'flex-start',
-      padding: \`0 \${r.padding}px\`,
-      gap: r.gap,
-      transform: \`scale(\${scale})\`,
-      opacity,
-      boxShadow: \`0 0 \${r.glow * glowIntensity}px \${COLORS.glow}\`,
-      // TEXT OVERFLOW HANDLING
-      overflow: 'hidden',
-    }}>
-      {/* Number badge */}
-      <div style={{
-        width: numberSize,
-        height: numberSize,
-        minWidth: numberSize, // Prevent shrinking
-        borderRadius: r.radius * 0.5,
-        background: COLORS.primary,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        fontSize: r.fontSize.sm,
-        fontWeight: 700,
-        color: COLORS.bgDeep,
-      }}>
-        {index + 1}
-      </div>
-
-      {/* Label with proper text handling */}
-      <span style={{
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        fontSize: r.fontSize.md,
-        fontWeight: 600,
-        color: COLORS.white,
-        letterSpacing: '0.02em',
-        // CRITICAL: Text overflow handling
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        flex: 1,
-      }}>
-        {label}
-      </span>
-    </div>
-  );
-};
-
-const ConnectorArrow: React.FC<{ index: number }> = ({ index }) => {
-  const frame = useCurrentFrame();
-  const { fps, height } = useVideoConfig();
-  const r = useResponsive();
-
-  const delay = index * 20 + 10;
-  const progress = spring({ frame: frame - delay, fps, config: { damping: 15, stiffness: 60 } });
-
-  // Responsive arrow dimensions
-  const arrowHeight = height * 0.04;
-  const arrowWidth = height * 0.004;
-
-  return (
-    <div style={{
-      width: arrowWidth,
-      height: arrowHeight * progress,
-      background: \`linear-gradient(180deg, \${COLORS.primary} 0%, \${COLORS.accent} 100%)\`,
-      borderRadius: arrowWidth / 2,
-      boxShadow: \`0 0 \${r.glow * 0.5}px \${COLORS.glow}\`,
-    }} />
-  );
+  bg: '#0f0f23',
+  linear: '#ef4444',
+  binary: '#22c55e',
+  element: '#2a2a4a',
+  eliminated: 'rgba(42, 42, 74, 0.3)',
 };
 
 export const \${projectId}: React.FC = () => {
-  const { width, height } = useVideoConfig();
-  const r = useResponsive();
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const minDim = Math.min(width, height);
 
-  const steps = ['Research & Discovery', 'Design & Prototype', 'Build & Launch'];
+  // 16 sorted elements, target at index 12
+  const elements = Array.from({ length: 16 }, (_, i) => (i + 1) * 5);
+  const targetIndex = 12;
+
+  // === LINEAR SEARCH: Slow crawl ===
+  const linearSpeed = 12;
+  const linearProgress = Math.floor(frame / linearSpeed);
+  const linearCurrentIndex = Math.min(linearProgress, targetIndex);
+  const linearFound = linearProgress >= targetIndex;
+  const linearChecks = Math.min(linearProgress + 1, targetIndex + 1);
+
+  // === BINARY SEARCH: Divide & conquer ===
+  const binarySteps = [
+    { left: 0, right: 15, mid: 7, direction: 'right' },
+    { left: 8, right: 15, mid: 11, direction: 'right' },
+    { left: 12, right: 15, mid: 13, direction: 'left' },
+    { left: 12, right: 12, mid: 12, direction: 'found' },
+  ];
+  const binarySpeed = 35;
+  const binaryStepIndex = Math.min(Math.floor(frame / binarySpeed), binarySteps.length - 1);
+  const binaryStep = binarySteps[binaryStepIndex];
+  const binaryFound = binaryStep.direction === 'found';
+  const binaryChecks = Math.min(binaryStepIndex + 1, binarySteps.length);
+
+  // Responsive sizes
+  const elementWidth = minDim * 0.045;
+  const elementHeight = minDim * 0.07;
+  const gap = minDim * 0.008;
+  const rowGap = minDim * 0.12;
+  const counterSize = height * 0.055;
+
+  const renderRow = (algorithm: 'linear' | 'binary') => {
+    const currentIdx = algorithm === 'linear'
+      ? (linearFound ? targetIndex : linearCurrentIndex)
+      : (binaryFound ? targetIndex : binaryStep.mid);
+    const found = algorithm === 'linear' ? linearFound : binaryFound;
+
+    return (
+      <div style={{ display: 'flex', gap, justifyContent: 'center' }}>
+        {elements.map((val, i) => {
+          const isTarget = i === targetIndex;
+          const isCurrent = i === currentIdx;
+          const isEliminated = algorithm === 'binary' && (i < binaryStep.left || i > binaryStep.right);
+          const isChecked = algorithm === 'linear' && i < linearCurrentIndex;
+
+          let bgColor = COLORS.element;
+          let opacity = 1;
+          let scale = 1;
+
+          if (isTarget && found) {
+            bgColor = algorithm === 'linear' ? COLORS.linear : COLORS.binary;
+            scale = 1.15;
+          } else if (isCurrent && !found) {
+            bgColor = algorithm === 'linear' ? COLORS.linear : COLORS.binary;
+            scale = 1.2;
+          } else if (isEliminated) {
+            opacity = 0.25;
+            scale = 0.85;
+          } else if (isChecked) {
+            opacity = 0.5;
+          }
+
+          return (
+            <div key={i} style={{
+              width: elementWidth,
+              height: elementHeight,
+              background: bgColor,
+              borderRadius: minDim * 0.008,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: height * 0.018,
+              fontWeight: 600,
+              color: opacity < 1 ? '#444' : '#fff',
+              opacity,
+              transform: \`scale(\${scale})\`,
+            }}>
+              {val}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
-    <AbsoluteFill style={{ background: COLORS.bgGradient }}>
-      {/* MAIN LAYOUT CONTAINER - Flexbox for alignment */}
+    <AbsoluteFill style={{ background: \`radial-gradient(ellipse at center, #1a1a3e 0%, \${COLORS.bg} 70%)\` }}>
       <div style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: r.padding,
-        gap: r.gap * 0.5,
+        width: '100%', height: '100%',
+        display: 'flex', flexDirection: 'column',
+        justifyContent: 'center', alignItems: 'center',
+        padding: minDim * 0.04, gap: rowGap,
       }}>
-        {steps.map((step, i) => (
-          <React.Fragment key={i}>
-            {i > 0 && <ConnectorArrow index={i} />}
-            <FlowNode label={step} index={i} />
-          </React.Fragment>
-        ))}
+        {/* LINEAR ROW */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: minDim * 0.02 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: minDim * 0.03 }}>
+            <div style={{
+              width: minDim * 0.015, height: minDim * 0.015,
+              borderRadius: '50%', background: COLORS.linear,
+              boxShadow: \`0 0 \${minDim * 0.015}px \${COLORS.linear}\`,
+            }} />
+            <span style={{
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: counterSize, fontWeight: 800,
+              color: COLORS.linear,
+            }}>
+              {linearChecks}
+            </span>
+            {linearFound && <span style={{ color: COLORS.linear }}>✓</span>}
+          </div>
+          {renderRow('linear')}
+        </div>
+
+        {/* BINARY ROW */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: minDim * 0.02 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: minDim * 0.03 }}>
+            <div style={{
+              width: minDim * 0.015, height: minDim * 0.015,
+              borderRadius: '50%', background: COLORS.binary,
+              boxShadow: \`0 0 \${minDim * 0.015}px \${COLORS.binary}\`,
+            }} />
+            <span style={{
+              fontFamily: 'ui-monospace, monospace',
+              fontSize: counterSize, fontWeight: 800,
+              color: COLORS.binary,
+            }}>
+              {binaryChecks}
+            </span>
+            {binaryFound && <span style={{ color: COLORS.binary }}>✓</span>}
+          </div>
+          {renderRow('binary')}
+        </div>
       </div>
     </AbsoluteFill>
   );
@@ -719,8 +720,8 @@ export function buildReferenceExamplesSection(projectId: string): string {
 ${RESPONSIVE_LAYOUT_HELPER}
 \`\`\`
 
-### Example 1: Responsive Flowchart
-${REFERENCE_FLOWCHART.replace(/\$\{projectId\}/g, projectId)}
+### Example 1: Linear vs Binary Search Race
+${REFERENCE_SEARCH_RACE.replace(/\$\{projectId\}/g, projectId)}
 
 ### Example 2: Responsive Bar Chart with Title
 ${REFERENCE_BAR_CHART}
