@@ -54,4 +54,28 @@ export const config = {
     memoryLimit: process.env.OPENHANDS_MEMORY_LIMIT || '4g',
     cpuLimit: process.env.OPENHANDS_CPU_LIMIT || '2',
   },
+
+  llm: {
+    // LLM provider: 'claude-max' (via local proxy) or 'openrouter' (default)
+    provider: (process.env.LLM_PROVIDER || 'openrouter') as 'claude-max' | 'openrouter',
+
+    // Claude Max settings (requires claude-max-api-proxy running locally)
+    claudeMax: {
+      proxyUrl: process.env.CLAUDE_MAX_PROXY_URL || 'http://localhost:3456/v1',
+      model: process.env.CLAUDE_MAX_MODEL || 'claude-opus-4-5-20251101',
+      modelFlash: process.env.CLAUDE_MAX_MODEL_FLASH || 'claude-haiku-4-5-20251001',
+      apiKey: 'not-needed', // Proxy uses Claude Max subscription
+    },
+
+    // OpenRouter settings
+    openrouter: {
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: process.env.OPENROUTER_API_KEY || '',
+      model: 'google/gemini-3-pro-preview',
+      modelFlash: 'google/gemini-3-flash-preview',
+    },
+
+    // Shared settings
+    temperature: 1.0, // Required for Gemini 3.x, fine for Claude
+  },
 } as const;

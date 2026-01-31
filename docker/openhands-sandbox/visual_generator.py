@@ -391,11 +391,12 @@ def run_generator_with_self_healing(
     component_name = ''.join(word.capitalize() for word in project_id.replace('-', '_').split('_'))
 
     agent_context = """
-## WHO YOU ARE
+## IMMEDIATE ACTION REQUIRED - START NOW
 
-You are a Remotion visual generation agent. Your job is to create animated video visuals
-using React and the Remotion framework. These visuals will be rendered into actual videos
-that accompany spoken content (like podcasts, tutorials, or presentations).
+You are a Remotion code generation agent. Your task is to WRITE CODE NOW using the WriteFileTool.
+Do NOT ask questions. Do NOT wait for clarification. START WRITING FILES IMMEDIATELY.
+
+Your FIRST action must be: Use WriteFileTool to create the index.tsx file.
 
 ## YOUR END GOAL
 
@@ -755,7 +756,8 @@ def main():
     parser.add_argument("--model", required=True, help="LLM model for code generation (Pro)")
     parser.add_argument("--model-flash", help="LLM model for evaluation/other tasks (Flash). Defaults to --model")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
-    parser.add_argument("--api-key-env", default="LLM_API_KEY", help="Env var for API key")
+    parser.add_argument("--base-url", required=True, help="LLM API base URL")
+    parser.add_argument("--api-key", default="not-needed", help="LLM API key")
     parser.add_argument("--duration-frames", type=int, default=900, help="Video duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Video FPS")
     parser.add_argument("--width", type=int, default=1080, help="Visual width in pixels")
@@ -765,31 +767,8 @@ def main():
     parser.add_argument("--quality-threshold", type=int, default=QUALITY_THRESHOLD, help="Quality score threshold")
     args = parser.parse_args()
 
-    # Get API key based on model provider
-    api_key = os.environ.get(args.api_key_env)
-    if not api_key:
-        # Detect provider from model string
-        model_lower = args.model.lower()
-        if model_lower.startswith("openrouter/") or "openrouter" in model_lower:
-            api_key = os.environ.get("OPENROUTER_API_KEY")
-        elif "gemini" in model_lower:
-            api_key = os.environ.get("GEMINI_API_KEY")
-        elif "claude" in model_lower or "anthropic" in model_lower:
-            api_key = os.environ.get("ANTHROPIC_API_KEY")
-        elif "gpt" in model_lower or "openai" in model_lower:
-            api_key = os.environ.get("OPENAI_API_KEY")
-        else:
-            # Fallback: try all keys
-            api_key = (
-                os.environ.get("OPENROUTER_API_KEY") or
-                os.environ.get("GEMINI_API_KEY") or
-                os.environ.get("ANTHROPIC_API_KEY") or
-                os.environ.get("OPENAI_API_KEY")
-            )
-
-    if not api_key:
-        emit_event(EVENT_ERROR, message=f"Missing API key for model {args.model}")
-        sys.exit(1)
+    # API key comes directly from argument
+    api_key = args.api_key
 
     # Read prompt
     prompt_path = Path(args.prompt_file)
@@ -820,7 +799,7 @@ def main():
         emit_event(EVENT_ERROR, message=f"Failed to import OpenHands: {e}")
         sys.exit(1)
 
-    emit_event(EVENT_STARTED, model=args.model, workspace=args.workspace, max_iterations=args.max_iterations, width=args.width, height=args.height, temperature=args.temperature)
+    emit_event(EVENT_STARTED, model=args.model, base_url=args.base_url, workspace=args.workspace, max_iterations=args.max_iterations, width=args.width, height=args.height, temperature=args.temperature)
 
     # Cancellation handling
     cancelled = False
@@ -835,25 +814,13 @@ def main():
     signal.signal(signal.SIGINT, handle_sigterm)
 
     try:
-        def get_model_name(model: str) -> str:
-            """Convert model string to litellm format."""
-            model_lower = model.lower()
-            if model.startswith("openrouter/") or "/" in model:
-                # Already has provider prefix (e.g., openrouter/google/gemini-2.0-flash)
-                return model
-            elif "gemini" in model_lower:
-                return f"gemini/{model}"
-            elif "claude" in model_lower:
-                return f"anthropic/{model}"
-            elif "gpt" in model_lower:
-                return f"openai/{model}"
-            return model
-
         # Configure LLM for code generation (Pro - higher quality)
-        generator_model_name = get_model_name(args.model)
+        # When using custom base URL (Claude Max proxy or OpenRouter), use openai/* format for litellm
+        # The base URL determines the actual provider
         generator_llm = LLM(
-            model=generator_model_name,
+            model=f"openai/{args.model}",
             api_key=SecretStr(api_key),
+            base_url=args.base_url,  # OpenHands SDK uses base_url, not api_base
             temperature=args.temperature,
             usage_id="code-generation",  # For cost tracking
         )
@@ -861,15 +828,15 @@ def main():
         # Configure LLM for evaluation (Flash - faster, cheaper)
         # Use flash model if specified, otherwise fall back to main model
         flash_model = args.model_flash or args.model
-        evaluator_model_name = get_model_name(flash_model)
         evaluator_llm = LLM(
-            model=evaluator_model_name,
+            model=f"openai/{flash_model}",
             api_key=SecretStr(api_key),
+            base_url=args.base_url,  # OpenHands SDK uses base_url, not api_base
             temperature=args.temperature,
             usage_id="visual-evaluation",  # For cost tracking
         )
 
-        emit_event(EVENT_TOOL_CALL, tool="config", message=f"Generator: {generator_model_name}, Evaluator: {evaluator_model_name}")
+        emit_event(EVENT_TOOL_CALL, tool="config", message=f"Generator: {args.model}, Evaluator: {flash_model}, Base URL: {args.base_url}")
 
         # Load skills
         skills_dir = Path(__file__).parent / "skills"

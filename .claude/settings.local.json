@@ -185,7 +185,20 @@
       "Bash(npm test:*)",
       "Bash(npm run:*)",
       "Bash(python:*)",
-      "WebFetch(domain:docs.openclaw.ai)"
+      "WebFetch(domain:docs.openclaw.ai)",
+      "Bash(where:*)",
+      "Bash(npm install:*)",
+      "Bash(claude-max-api:*)",
+      "Bash(start cmd /c \"claude-max-api 3456\")",
+      "Bash(tasklist:*)",
+      "WebFetch(domain:antran.app)",
+      "Bash(brew tap:*)",
+      "Bash(brew install:*)",
+      "Bash(./cli-proxy-api.exe:*)",
+      "Bash(xargs:*)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:help.router-for.me)",
+      "Bash(node tool-name-fixer.js:*)"
     ]
   }
 }

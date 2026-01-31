@@ -244,7 +244,8 @@ def main():
     parser.add_argument("--model", required=True, help="LLM model for code generation (Pro)")
     parser.add_argument("--model-flash", help="LLM model for critic/other tasks (Flash). Defaults to --model if not specified")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
-    parser.add_argument("--api-key-env", default="LLM_API_KEY", help="Env var for API key")
+    parser.add_argument("--base-url", required=True, help="LLM API base URL")
+    parser.add_argument("--api-key", default="not-needed", help="LLM API key")
     parser.add_argument("--duration-frames", type=int, default=900, help="Video duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Video FPS")
     parser.add_argument("--width", type=int, default=1080, help="Video width")
@@ -259,14 +260,8 @@ def main():
     # Use Flash model for critic if specified, otherwise fall back to main model
     critic_model = args.model_flash or args.model
 
-    # Get API key from environment
-    api_key = os.environ.get(args.api_key_env)
-    if not api_key:
-        api_key = os.environ.get("GEMINI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
-
-    if not api_key:
-        emit_event(EVENT_ERROR, message=f"Missing API key in {args.api_key_env} or provider-specific env vars")
-        sys.exit(1)
+    # API key comes directly from argument
+    api_key = args.api_key
 
     # Read prompt from file
     prompt_path = Path(args.prompt_file)
@@ -288,6 +283,7 @@ def main():
         EVENT_STARTED,
         model=args.model,
         model_flash=critic_model,
+        base_url=args.base_url,
         workspace=args.workspace,
         max_iterations=args.max_iterations,
         planning_mode=args.enable_planning,
@@ -306,36 +302,27 @@ def main():
     signal.signal(signal.SIGINT, handle_sigterm)
 
     try:
-        def get_model_name(model: str) -> str:
-            """Convert model string to litellm format."""
-            model_lower = model.lower()
-            if "gemini" in model_lower:
-                return f"gemini/{model}"
-            elif "claude" in model_lower:
-                return f"anthropic/{model}"
-            elif "gpt" in model_lower:
-                return f"openai/{model}"
-            return model
-
         # Configure LLM for code generation (Pro - higher quality)
-        generator_model_name = get_model_name(args.model)
+        # When using custom base URL (Claude Max proxy), use openai/* format for litellm
+        # The proxy exposes an OpenAI-compatible API
         generator_llm = LLM(
-            model=generator_model_name,
+            model=f"openai/{args.model}",
             api_key=SecretStr(api_key),
+            api_base=args.base_url,
             temperature=args.temperature,
             usage_id="code-generation",  # For cost tracking
         )
 
         # Configure LLM for critic/other tasks (Flash - faster, cheaper)
-        critic_model_name = get_model_name(critic_model)
         critic_llm = LLM(
-            model=critic_model_name,
+            model=f"openai/{critic_model}",
             api_key=SecretStr(api_key),
+            api_base=args.base_url,
             temperature=args.temperature,
             usage_id="visual-evaluation",  # For cost tracking
         )
 
-        emit_event(EVENT_TOOL_CALL, tool="config", message=f"Generator: {generator_model_name}, Critic: {critic_model_name}")
+        emit_event(EVENT_TOOL_CALL, tool="config", message=f"Generator: {args.model}, Critic: {critic_model}, Base URL: {args.base_url}")
 
         # Load skills
         skills_dir = Path(__file__).parent / "skills"

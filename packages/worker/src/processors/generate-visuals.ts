@@ -18,39 +18,46 @@ import { buildGenerateVisualsPrompt, STYLE_GUIDELINES } from '../prompts/generat
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// LLM model configuration - using OpenRouter with Gemini 3
-// Flash for general tasks (cheaper), Pro for code generation (higher quality)
-type ModelTier = 'flash' | 'pro';
+// LLM configuration - supports Claude Max (local proxy) or OpenRouter
+interface LLMConfig {
+  provider: 'claude-max' | 'openrouter';
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  modelFlash: string;
+  temperature: number;
+  // Cost tracking (only for OpenRouter)
+  inputCostPer1M?: number;
+  outputCostPer1M?: number;
+}
 
-const LLM_MODELS = {
-  flash: {
-    model: 'openrouter/google/gemini-3-flash-preview',
-    inputCostPer1M: 0.10,
-    outputCostPer1M: 0.40,
-  },
-  pro: {
-    model: 'openrouter/google/gemini-3-pro-preview',
-    inputCostPer1M: 2.00,
-    outputCostPer1M: 12.00,
-  },
-} as const;
+function getLLMConfig(): LLMConfig {
+  const provider = config.llm.provider;
 
-const LLM_CONFIG = {
-  provider: 'openrouter',
-  apiKeyEnv: 'OPENROUTER_API_KEY',
-  // CRITICAL: Gemini 3.x requires temperature=1.0
-  // Google docs warn that lower temperatures cause "unexpected behavior, looping issues"
-  temperature: 1.0,
-  // Default model tier for code generation
-  codeGenerationTier: 'pro' as ModelTier,
-  // Default model tier for other tasks (planning, critique, etc.)
-  generalTier: 'flash' as ModelTier,
-} as const;
+  if (provider === 'claude-max') {
+    logger.info({ provider }, 'Using Claude Max via local proxy');
+    return {
+      provider: 'claude-max',
+      baseUrl: config.llm.claudeMax.proxyUrl,
+      apiKey: config.llm.claudeMax.apiKey,
+      model: config.llm.claudeMax.model,
+      modelFlash: config.llm.claudeMax.modelFlash,
+      temperature: config.llm.temperature,
+      // No per-token cost for Claude Max (subscription)
+    };
+  }
 
-function getModelConfig(tier: ModelTier) {
+  // Default: OpenRouter
+  logger.info({ provider }, 'Using OpenRouter');
   return {
-    ...LLM_CONFIG,
-    ...LLM_MODELS[tier],
+    provider: 'openrouter',
+    baseUrl: config.llm.openrouter.baseUrl,
+    apiKey: config.llm.openrouter.apiKey,
+    model: config.llm.openrouter.model,
+    modelFlash: config.llm.openrouter.modelFlash,
+    temperature: config.llm.temperature,
+    inputCostPer1M: 2.00,  // Gemini Pro pricing
+    outputCostPer1M: 12.00,
   };
 }
 
@@ -312,22 +319,21 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     // Calculate duration in frames
     const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
 
-    // Use Pro model for code generation (higher quality)
-    const codeGenModel = getModelConfig(LLM_CONFIG.codeGenerationTier);
-    // Use Flash model for critic/other tasks (faster, cheaper)
-    const flashModel = getModelConfig(LLM_CONFIG.generalTier);
+    // Get LLM configuration (Claude Max or OpenRouter)
+    const llmConfig = getLLMConfig();
 
     // Run OpenHands agent and capture metrics
     const agentResult = await runOpenHandsAgent(prompt, {
       workspace: config.remotion.projectDir,
       projectId: compositionId,
       jobId,
-      model: codeGenModel.model,
-      modelFlash: flashModel.model,
-      apiKeyEnv: LLM_CONFIG.apiKeyEnv,
-      temperature: LLM_CONFIG.temperature,
-      inputCostPer1M: codeGenModel.inputCostPer1M,
-      outputCostPer1M: codeGenModel.outputCostPer1M,
+      model: llmConfig.model,
+      modelFlash: llmConfig.modelFlash,
+      baseUrl: llmConfig.baseUrl,
+      apiKey: llmConfig.apiKey,
+      temperature: llmConfig.temperature,
+      inputCostPer1M: llmConfig.inputCostPer1M,
+      outputCostPer1M: llmConfig.outputCostPer1M,
       durationFrames,
       fps: project.fps || 30,
       width: dimensions?.width || 1080,
@@ -335,10 +341,11 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       verbose: job.data.verbose,
     });
 
-    // Calculate estimated cost
-    const estimatedCostUsd =
-      (agentResult.inputTokens / 1_000_000) * codeGenModel.inputCostPer1M +
-      (agentResult.outputTokens / 1_000_000) * codeGenModel.outputCostPer1M;
+    // Calculate estimated cost (only for OpenRouter - Claude Max has no per-token cost)
+    const estimatedCostUsd = llmConfig.inputCostPer1M && llmConfig.outputCostPer1M
+      ? (agentResult.inputTokens / 1_000_000) * llmConfig.inputCostPer1M +
+        (agentResult.outputTokens / 1_000_000) * llmConfig.outputCostPer1M
+      : 0;
 
     // Store metrics in job
     const jobMetrics: JobMetrics = {
@@ -346,7 +353,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       outputTokens: agentResult.outputTokens,
       estimatedCostUsd: Math.round(estimatedCostUsd * 10000) / 10000, // Round to 4 decimal places
       durationMs: agentResult.durationMs,
-      llmModel: codeGenModel.model,
+      llmModel: llmConfig.model,
       filesWritten: agentResult.filesWritten,
       screenshotsTaken: agentResult.screenshotsTaken,
       finalScore: agentResult.finalScore,
@@ -493,7 +500,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       width: metadata.width,
       height: metadata.height,
       stylePreset,
-      llmModel: codeGenModel.model,
+      llmModel: llmConfig.model,
       timestamps: metadata.visuals,
     }).returning({ id: visuals.id });
     const visualId = insertedVisual.id;
@@ -586,10 +593,11 @@ interface OpenHandsOptions {
   jobId: string;
   model: string;           // Pro model for code generation
   modelFlash: string;      // Flash model for critic/other tasks
-  apiKeyEnv: string;
+  baseUrl: string;         // LLM API base URL
+  apiKey: string;          // LLM API key
   temperature: number;
-  inputCostPer1M: number;
-  outputCostPer1M: number;
+  inputCostPer1M?: number; // Optional - not available for Claude Max
+  outputCostPer1M?: number;
   durationFrames: number;
   fps: number;
   width: number;
@@ -617,7 +625,7 @@ async function runOpenHandsAgent(
   prompt: string,
   options: OpenHandsOptions
 ): Promise<AgentResult> {
-  const { workspace, projectId, jobId, model, modelFlash, apiKeyEnv } = options;
+  const { workspace, projectId, jobId, model, modelFlash, baseUrl, apiKey } = options;
 
   // Write prompt to temp file with unique name to avoid conflicts
   const tempId = `${jobId}-${Date.now()}`;
@@ -661,6 +669,10 @@ async function runOpenHandsAgent(
       // Docker run command with mounts for source and bundle output
       // Workspace is internal to Docker (/opt/remotion-template) with pre-installed node_modules
       // Mounts: prompt file (input), output directory (source), bundle directory (bundle)
+
+      // Replace localhost with host.docker.internal for Docker to reach host services
+      const dockerBaseUrl = baseUrl.replace('localhost', 'host.docker.internal').replace('127.0.0.1', 'host.docker.internal');
+
       subprocess = spawn('docker', [
         'run',
         '--rm',
@@ -674,20 +686,18 @@ async function runOpenHandsAgent(
         '-v', `${outputDir}:/output`,
         // Mount bundle directory (for exporting compiled bundle)
         '-v', `${bundleOutputDir}:/bundles`,
-        // Environment variables
-        '-e', `LLM_API_KEY=${process.env[apiKeyEnv] || ''}`,
-        '-e', `GEMINI_API_KEY=${process.env.GEMINI_API_KEY || ''}`,
-        '-e', `ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY || ''}`,
-        '-e', `OPENAI_API_KEY=${process.env.OPENAI_API_KEY || ''}`,
-        '-e', `OPENROUTER_API_KEY=${process.env.OPENROUTER_API_KEY || ''}`,
+        // Environment variables for LiteLLM to use custom base URL
+        '-e', `OPENAI_API_BASE=${dockerBaseUrl}`,
+        '-e', `OPENAI_API_KEY=${apiKey}`,
         // Image
         config.openHands.dockerImage,
         // Arguments passed to entrypoint (which runs visual_generator.py)
         '--project-id', projectId,
         '--model', model,
         '--model-flash', modelFlash,
+        '--base-url', dockerBaseUrl,
+        '--api-key', apiKey,
         '--prompt-file', '/tmp/prompt.txt',
-        '--api-key-env', 'LLM_API_KEY',
         '--output-dir', '/output',
         '--bundle-dir', '/bundles',
         '--duration-frames', String(options.durationFrames),
@@ -711,8 +721,9 @@ async function runOpenHandsAgent(
         '--project-id', projectId,
         '--model', model,
         '--model-flash', modelFlash,
+        '--base-url', baseUrl,
+        '--api-key', apiKey,
         '--prompt-file', promptPath,
-        '--api-key-env', apiKeyEnv,
         '--duration-frames', String(options.durationFrames),
         '--fps', String(options.fps),
         '--width', String(options.width || 1080),
@@ -724,7 +735,6 @@ async function runOpenHandsAgent(
         env: {
           ...process.env,
           REMOTION_PROJECT_DIR: workspace,
-          LLM_API_KEY: process.env[apiKeyEnv] || '',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
       });
