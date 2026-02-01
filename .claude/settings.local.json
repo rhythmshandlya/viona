@@ -211,7 +211,8 @@
       "Bash(gh issue view:*)",
       "Bash(du:*)",
       "Bash(node:*)",
-      "WebFetch(domain:eval.16x.engineer)"
+      "WebFetch(domain:eval.16x.engineer)",
+      "Bash(git submodule:*)"
     ]
   }
 }

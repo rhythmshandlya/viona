@@ -308,6 +308,32 @@ export async function projectRoutes(fastify: FastifyInstance) {
     };
   });
 
+  // Reset project status to ready (for recovery from failed state)
+  fastify.post('/projects/:id/reset-status', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Only allow reset from failed or complete states
+    if (project.status !== 'failed' && project.status !== 'complete') {
+      return reply.status(400).send({
+        error: `Cannot reset project in '${project.status}' state. Only 'failed' or 'complete' projects can be reset.`
+      });
+    }
+
+    await db.update(projects)
+      .set({ status: 'ready' as ProjectStatus, updatedAt: new Date() })
+      .where(eq(projects.id, id));
+
+    return { success: true, message: 'Project status reset to ready', previousStatus: project.status };
+  });
+
   // Start rendering
   fastify.post('/projects/:id/render', async (request, reply) => {
     const { id } = request.params as { id: string };

@@ -89,10 +89,18 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       };
 
       try {
+        // Normalize paths for Windows - use forward slashes and proper file:// URL format
+        const normalizedVideoPath = videoPath.replace(/\\/g, '/');
+        const normalizedOutputPath = outputPath.replace(/\\/g, '/');
+        // On Windows, file:// URLs need three slashes: file:///C:/path/to/file
+        const videoFileUrl = process.platform === 'win32'
+          ? `file:///${normalizedVideoPath}`
+          : `file://${normalizedVideoPath}`;
+
         await renderVideo({
-          videoUrl: `file://${videoPath}`,
+          videoUrl: videoFileUrl,
           subtitles,
-          outputPath,
+          outputPath: normalizedOutputPath,
           width,
           height,
           fps,
@@ -179,10 +187,14 @@ function convertToSubtitles(items: any[]): SubtitleItem[] {
 async function copyVideo(inputPath: string, outputPath: string): Promise<void> {
   const ffmpeg = (await import('fluent-ffmpeg')).default;
 
+  // Normalize paths for FFmpeg on Windows (use forward slashes)
+  const normalizedInput = inputPath.replace(/\\/g, '/');
+  const normalizedOutput = outputPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
+    ffmpeg(normalizedInput)
       .outputOptions(['-c', 'copy'])
-      .output(outputPath)
+      .output(normalizedOutput)
       .on('end', () => resolve())
       .on('error', (err) => reject(err))
       .run();
@@ -203,10 +215,13 @@ async function renderSubtitlesWithFFmpeg(
 
   if (subtitles.length === 0) {
     // No subtitles, just copy the video
+    // Normalize paths for FFmpeg on Windows
+    const normalizedInput = inputPath.replace(/\\/g, '/');
+    const normalizedOutput = outputPath.replace(/\\/g, '/');
     return new Promise((resolve, reject) => {
-      ffmpeg(inputPath)
+      ffmpeg(normalizedInput)
         .outputOptions(['-c', 'copy'])
-        .output(outputPath)
+        .output(normalizedOutput)
         .on('end', () => resolve())
         .on('error', (err) => reject(err))
         .run();
@@ -221,13 +236,18 @@ async function renderSubtitlesWithFFmpeg(
   await writeFile(assPath, assContent, 'utf-8');
 
   // Burn subtitles into video
+  // Normalize paths for FFmpeg on Windows
+  const normalizedInput = inputPath.replace(/\\/g, '/');
+  const normalizedOutput = outputPath.replace(/\\/g, '/');
+  const normalizedAss = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
+    ffmpeg(normalizedInput)
       .outputOptions([
-        '-vf', `ass=${assPath.replace(/\\/g, '/').replace(/:/g, '\\:')}`,
+        '-vf', `ass=${normalizedAss}`,
         '-c:a', 'copy',
       ])
-      .output(outputPath)
+      .output(normalizedOutput)
       .on('end', () => resolve())
       .on('error', (err) => reject(err))
       .run();
