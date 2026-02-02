@@ -514,26 +514,43 @@ LLM_MODEL=google/gemini-2.0-flash-001
 
 ## Implementation Phases
 
-### Phase 1: Infrastructure & Dockerfiles
-1. Create `.dockerignore`
-2. Create `docker/api/Dockerfile`
-3. Create `docker/web/Dockerfile`
-4. Create `docker/worker/Dockerfile` (without visual-gen)
-5. Create new `docker-compose.yml`
-6. Test: `docker compose up` runs api, web, worker
+### Phase 1: Code Cleanup & Preparation
+1. Remove hardcoded Windows paths from `packages/worker/src/config.ts`
+2. Remove hardcoded Windows paths from `packages/api/src/config.ts`
+3. Add `bundles` bucket to MinIO setup
+4. Create `.dockerignore`
+5. Test: existing code still works with environment variables
 
-### Phase 2: Visual Generation Service
-1. Create `docker/visual-gen/Dockerfile` (based on openhands-sandbox)
-2. Create `docker/visual-gen/worker.py` (BullMQ consumer)
-3. Add S3 upload logic for bundles
-4. Update `generate-visuals.ts` to just queue (not spawn Docker)
-5. Test: visual generation works end-to-end
+### Phase 2: Infrastructure Dockerfiles
+1. Create `docker/api/Dockerfile` (multi-stage build)
+2. Create `docker/web/Dockerfile` (Next.js standalone)
+3. Create `docker/worker/Dockerfile` (Node + Python + Whisper model)
+4. Create new `docker-compose.yml` (infrastructure + api + web + worker)
+5. Add database migration init container
+6. Test: `docker compose up` runs api, web, worker (without visual-gen)
 
-### Phase 3: Polish & Documentation
-1. Create `.env.example`
-2. Create `docker-compose.override.yml` (dev hot reload)
-3. Update README with Docker instructions
-4. Add health checks and proper logging
+### Phase 3: API Bundle Serving from S3
+1. Remove static file serving for `/bundles/`
+2. Add MinIO `bundles` bucket initialization
+3. Add new route to proxy/redirect bundle requests to MinIO
+4. Update frontend to handle new bundle URL format
+5. Test: bundles served from MinIO work in browser
+
+### Phase 4: Visual Generation Service
+1. Create `docker/visual-gen/` directory structure
+2. Move `generate-visuals.ts` logic to visual-gen service
+3. Create visual-gen Dockerfile (Node + Python + Chromium + Remotion)
+4. Add S3 upload for generated bundles
+5. Remove generate-visuals processor from worker
+6. Add visual-gen to docker-compose.yml
+7. Test: visual generation works end-to-end
+
+### Phase 5: Polish & Documentation
+1. Create `.env.example` with all variables documented
+2. Create `docker-compose.override.yml` (dev hot reload with volume mounts)
+3. Add health check endpoints to all services
+4. Update README with Docker setup instructions
+5. Test: full stack works on fresh clone + `docker compose up`
 
 ---
 
@@ -580,14 +597,239 @@ WHISPER_MODEL=large docker compose build worker
 
 ---
 
+---
+
+## Code Changes Required
+
+### Critical: Remove Hardcoded Paths
+
+**File: `packages/worker/src/config.ts`**
+```typescript
+// BEFORE (hardcoded Windows paths)
+remotion: {
+  projectDir: process.env.REMOTION_PROJECT_DIR || 'C:/Users/armaa/test',
+  bundleOutputDir: process.env.BUNDLE_OUTPUT_DIR || 'C:/Users/armaa/Documents/cllipify/bundles',
+}
+
+// AFTER (environment-only, fail if not set in production)
+remotion: {
+  projectDir: process.env.REMOTION_PROJECT_DIR || './remotion-workspace',
+  bundleOutputDir: process.env.BUNDLE_OUTPUT_DIR || './bundles',
+}
+```
+
+**File: `packages/api/src/config.ts`**
+```typescript
+// BEFORE
+bundles: {
+  dir: process.env.BUNDLE_OUTPUT_DIR || 'C:/Users/armaa/Documents/cllipify/bundles',
+}
+
+// AFTER - Remove static file serving, use S3
+// bundles.dir no longer needed - served from MinIO
+```
+
+### API: Change Bundle Serving to S3
+
+**Current:** Static file serving from filesystem
+```typescript
+// REMOVE THIS
+await fastify.register(fastifyStatic, {
+  root: config.bundles.dir,
+  prefix: '/bundles/',
+});
+```
+
+**New:** Proxy or redirect to MinIO presigned URLs
+```typescript
+// ADD: New route for bundle access
+fastify.get('/bundles/:compositionId/*', async (request, reply) => {
+  const { compositionId } = request.params;
+  const path = request.params['*'];
+  const key = `${compositionId}/${path}`;
+
+  // Option A: Redirect to presigned URL
+  const url = await minioClient.presignedGetObject('bundles', key, 3600);
+  return reply.redirect(302, url);
+
+  // Option B: Proxy the content (for CORS)
+  const stream = await minioClient.getObject('bundles', key);
+  return reply.type(getMimeType(path)).send(stream);
+});
+```
+
+### visual-gen: Add S3 Upload
+
+The visual-gen service must upload bundles to MinIO instead of writing to shared filesystem:
+
+```typescript
+// After generating bundle locally in /tmp
+const bundleDir = `/tmp/bundle-${compositionId}`;
+
+// Upload entire bundle directory to MinIO
+await uploadDirectory('bundles', compositionId, bundleDir);
+
+// Update database with S3 URL
+await db.update(visuals).set({
+  bundleUrl: `bundles/${compositionId}/index.html`,
+});
+
+// Cleanup local files
+await rm(bundleDir, { recursive: true });
+```
+
+### Worker: Remove generate-visuals Processor
+
+The worker service no longer handles visual generation:
+
+```typescript
+// packages/worker/src/index.ts
+
+// REMOVE: generate-visuals queue registration
+// This is now handled by visual-gen service
+```
+
+### Database Migrations
+
+Add migration runner to service startup:
+
+**Option A: Init container in docker-compose.yml**
+```yaml
+services:
+  db-migrate:
+    build: ./docker/api
+    command: pnpm db:migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+```
+
+**Option B: Entrypoint script**
+```bash
+#!/bin/sh
+# docker/api/entrypoint.sh
+pnpm db:migrate
+exec node dist/index.js
+```
+
+---
+
+## visual-gen Service Architecture
+
+### Implementation: TypeScript + Python Subprocess
+
+The visual-gen service is a Node.js BullMQ consumer that calls Python as a subprocess:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     visual-gen service                           │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────┐     ┌──────────────────────────────────────┐  │
+│  │ BullMQ       │     │ Python subprocess                     │  │
+│  │ Consumer     │────▶│ visual_generator.py                   │  │
+│  │ (TypeScript) │     │ (OpenHands agent + Remotion)          │  │
+│  └──────────────┘     └──────────────────────────────────────┘  │
+│         │                              │                         │
+│         │                              ▼                         │
+│         │                    ┌──────────────────┐               │
+│         │                    │ Local bundle     │               │
+│         │                    │ /tmp/bundle-xxx  │               │
+│         │                    └────────┬─────────┘               │
+│         │                             │                         │
+│         │                             ▼                         │
+│         │                    ┌──────────────────┐               │
+│         │                    │ Upload to MinIO  │               │
+│         │                    │ s3://bundles/... │               │
+│         │                    └──────────────────┘               │
+│         │                                                       │
+│         ▼                                                       │
+│  ┌──────────────┐                                               │
+│  │ Update DB    │                                               │
+│  │ (job status) │                                               │
+│  └──────────────┘                                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### What Moves from Worker to visual-gen
+
+| Component | From | To |
+|-----------|------|-----|
+| `generate-visuals.ts` processor | worker | visual-gen |
+| OpenHands Python agent | docker/openhands-sandbox | visual-gen image |
+| Remotion bundling | spawned container | visual-gen image |
+| LLM API calls | spawned container | visual-gen directly |
+
+### visual-gen Dockerfile
+
+Based on openhands-sandbox but as a long-running service:
+
+```dockerfile
+FROM python:3.12-slim-bookworm
+
+# System dependencies (Node.js, Chromium, FFmpeg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl git wget \
+    # Chromium dependencies for Remotion
+    libnss3 libdbus-1-3 libatk1.0-0 libasound2 \
+    libxrandr2 libxkbcommon-dev libxfixes3 libxcomposite1 \
+    libxdamage1 libgbm-dev libcups2 libcairo2 libpango-1.0-0 \
+    # Fonts
+    fonts-liberation fonts-noto-color-emoji fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs
+
+# Install pnpm and global tools
+RUN npm install -g pnpm @remotion/cli typescript
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    openhands-sdk litellm openai pydantic
+
+# Copy and install Node.js app (BullMQ consumer)
+WORKDIR /app
+COPY package*.json pnpm-lock.yaml ./
+COPY packages/shared ./packages/shared
+RUN pnpm install --frozen-lockfile
+
+# Copy visual-gen specific code
+COPY docker/visual-gen/src ./src
+COPY docker/visual-gen/scripts ./scripts
+
+# Copy Remotion template
+COPY docker/visual-gen/remotion-template ./remotion-template
+RUN cd remotion-template && npm install && npx remotion browser ensure
+
+# Pre-warm Remotion webpack cache
+RUN cd remotion-template && npx remotion still ./src/index.ts placeholder /tmp/prewarm.png --frame=0 || true
+
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+CMD ["node", "dist/index.js"]
+```
+
+---
+
 ## Summary
 
 | Aspect | Decision |
 |--------|----------|
 | Architecture | 7 services (postgres, redis, minio, web, api, worker, visual-gen) |
-| Visual generation | Separate `visual-gen` service, no Docker-in-Docker |
-| Storage | MinIO (local) / S3 (cloud) for bundles |
+| Visual generation | Separate `visual-gen` service, TypeScript + Python subprocess |
+| Bundle storage | MinIO/S3 only (no shared filesystem) |
+| Bundle serving | API proxies/redirects to MinIO presigned URLs |
 | LLM | OpenRouter API only |
 | ML models | Baked into worker image (Whisper base by default, configurable) |
-| Cloud-ready | Yes - env-based config, S3-compatible storage |
+| Cloud-ready | Yes - env-based config, S3-compatible storage, no shared volumes |
 | Shared volumes | None between app services (only infra persistence) |
+| DB migrations | Init container runs before API starts |
