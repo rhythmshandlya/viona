@@ -278,20 +278,63 @@ await queue.add('generate-visuals', {
 
 ### Environment Variables for Storage
 
+**Current code needs updates for S3 compatibility.** The MinIO client config is missing:
+- `region` (required for AWS S3)
+- `pathStyle` (MinIO uses path style, S3 uses virtual hosted)
+- Port handling (S3 doesn't use explicit port)
+
+#### Code Change Required
+
+```typescript
+// packages/*/src/services/minio.ts - S3-compatible initialization
+
+export const minioClient = new Client({
+  endPoint: config.s3.endpoint,
+  ...(config.s3.port && { port: config.s3.port }),  // Only if set
+  region: config.s3.region,                          // NEW: required for S3
+  useSSL: config.s3.useSSL,
+  accessKey: config.s3.accessKey,
+  secretKey: config.s3.secretKey,
+  pathStyle: config.s3.pathStyle,                    // NEW: true for MinIO
+});
+```
+
+#### Local (Docker Compose with MinIO)
 ```bash
-# Local (MinIO)
-S3_ENDPOINT=http://minio:9000
+S3_ENDPOINT=minio
+S3_PORT=9000
+S3_REGION=us-east-1
 S3_ACCESS_KEY=clipify
 S3_SECRET_KEY=clipify123
+S3_USE_SSL=false
+S3_PATH_STYLE=true
 S3_BUCKET_UPLOADS=uploads
 S3_BUCKET_OUTPUTS=outputs
 S3_BUCKET_BUNDLES=bundles
+```
 
-# Cloud (AWS S3) - same code, different config
-S3_ENDPOINT=https://s3.us-east-1.amazonaws.com
+#### Cloud (AWS S3) - Same code, different config
+```bash
+S3_ENDPOINT=s3.us-east-1.amazonaws.com
+# S3_PORT - not set (uses 443 with SSL)
+S3_REGION=us-east-1
 S3_ACCESS_KEY=AKIA...
 S3_SECRET_KEY=...
-S3_REGION=us-east-1
+S3_USE_SSL=true
+S3_PATH_STYLE=false
+S3_BUCKET_UPLOADS=clipify-prod-uploads
+S3_BUCKET_OUTPUTS=clipify-prod-outputs
+S3_BUCKET_BUNDLES=clipify-prod-bundles
+```
+
+#### Cloud (GCP Cloud Storage) - S3-compatible mode
+```bash
+S3_ENDPOINT=storage.googleapis.com
+S3_REGION=auto
+S3_ACCESS_KEY=GOOG...
+S3_SECRET_KEY=...
+S3_USE_SSL=true
+S3_PATH_STYLE=false
 ```
 
 ---
@@ -621,11 +664,13 @@ LLM_MODEL=google/gemini-2.0-flash-001
 ## Implementation Phases
 
 ### Phase 1: Code Cleanup & Preparation
-1. Remove hardcoded Windows paths from `packages/worker/src/config.ts`
-2. Remove hardcoded Windows paths from `packages/api/src/config.ts`
-3. Add `bundles` bucket to MinIO setup
-4. Create `.dockerignore`
-5. Test: existing code still works with environment variables
+1. Update MinIO client to be S3-compatible (add region, pathStyle, optional port)
+2. Rename `minio` config to `s3` for clarity
+3. Remove hardcoded Windows paths from `packages/worker/src/config.ts`
+4. Remove hardcoded Windows paths from `packages/api/src/config.ts`
+5. Add `bundles` bucket to MinIO setup
+6. Create `.dockerignore`
+7. Test: existing code still works with environment variables
 
 ### Phase 2: Infrastructure Dockerfiles
 1. Create `docker/api/Dockerfile` (multi-stage build)
@@ -706,6 +751,59 @@ WHISPER_MODEL=large docker compose build worker
 ---
 
 ## Code Changes Required
+
+### Critical: S3/MinIO Client Compatibility
+
+The current MinIO client config only works with MinIO, not AWS S3. Update both API and worker:
+
+**File: `packages/api/src/config.ts` and `packages/worker/src/config.ts`**
+```typescript
+// BEFORE (MinIO-only)
+minio: {
+  endpoint: process.env.MINIO_ENDPOINT || 'localhost',
+  port: parseInt(process.env.MINIO_PORT || '9000', 10),
+  // Missing: region, pathStyle
+}
+
+// AFTER (S3-compatible)
+s3: {
+  endpoint: process.env.S3_ENDPOINT || 'localhost',
+  port: process.env.S3_PORT ? parseInt(process.env.S3_PORT, 10) : undefined,
+  region: process.env.S3_REGION || 'us-east-1',
+  accessKey: process.env.S3_ACCESS_KEY || 'clipify',
+  secretKey: process.env.S3_SECRET_KEY || 'clipify123',
+  useSSL: process.env.S3_USE_SSL === 'true',
+  pathStyle: process.env.S3_PATH_STYLE !== 'false',  // true for MinIO, false for S3
+  buckets: {
+    uploads: process.env.S3_BUCKET_UPLOADS || 'uploads',
+    outputs: process.env.S3_BUCKET_OUTPUTS || 'outputs',
+    bundles: process.env.S3_BUCKET_BUNDLES || 'bundles',
+  },
+}
+```
+
+**File: `packages/api/src/services/minio.ts` and `packages/worker/src/services/minio.ts`**
+```typescript
+// BEFORE
+export const minioClient = new Client({
+  endPoint: config.minio.endpoint,
+  port: config.minio.port,  // Always set - breaks S3
+  useSSL: config.minio.useSSL,
+  accessKey: config.minio.accessKey,
+  secretKey: config.minio.secretKey,
+});
+
+// AFTER
+export const s3Client = new Client({
+  endPoint: config.s3.endpoint,
+  ...(config.s3.port && { port: config.s3.port }),  // Only if defined
+  region: config.s3.region,
+  useSSL: config.s3.useSSL,
+  accessKey: config.s3.accessKey,
+  secretKey: config.s3.secretKey,
+  pathStyle: config.s3.pathStyle,
+});
+```
 
 ### Critical: Remove Hardcoded Paths
 
