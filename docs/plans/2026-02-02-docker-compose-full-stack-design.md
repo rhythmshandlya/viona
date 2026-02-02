@@ -60,6 +60,67 @@ This creates friction for new developers and makes deployment complex.
 2. **Cloud-ready storage**: Bundles stored in MinIO/S3, not shared volumes
 3. **Environment-based config**: Same code runs locally and in cloud
 4. **OpenRouter for LLM**: Simple API key, no local proxy needed
+5. **Models baked into images**: ML models pre-downloaded during Docker build for instant startup
+
+---
+
+## ML Model Strategy
+
+### Models Inventory
+
+| Model | Service | Purpose | Size |
+|-------|---------|---------|------|
+| **Whisper** (base) | worker | Speech-to-text transcription | ~150MB |
+| **Whisper** (small/medium/large) | worker | Higher accuracy (optional) | 500MB - 3GB |
+| **pyannote** | worker | Speaker diarization (WhisperX) | ~100MB |
+| **demucs** (optional) | worker | Audio source separation | ~300MB |
+
+### Approach: Bake Models into Docker Image
+
+Models are pre-downloaded during Docker build, not at runtime:
+
+```dockerfile
+# docker/worker/Dockerfile
+
+# Pre-download Whisper model during build
+ARG WHISPER_MODEL=base
+RUN python -c "import whisper; whisper.load_model('${WHISPER_MODEL}')"
+
+# Pre-download pyannote models (for WhisperX alignment)
+RUN python -c "from pyannote.audio import Pipeline; Pipeline.from_pretrained('pyannote/speaker-diarization')" || true
+```
+
+### Benefits
+
+- **Instant startup**: No download wait on first run
+- **Works offline**: No network dependency after build
+- **Reproducible**: Same model version every time
+- **CI/CD friendly**: Build once, deploy anywhere
+
+### Trade-offs
+
+- **Larger images**: worker image ~2GB (vs ~500MB without models)
+- **Slower builds**: Initial build downloads models (cached after)
+- **Model updates**: Rebuild image to update models
+
+### Configurable Model Size
+
+Build arg allows choosing model size:
+
+```bash
+# Build with base model (default, fastest, smallest)
+docker compose build worker
+
+# Build with larger model for better accuracy
+docker compose build --build-arg WHISPER_MODEL=medium worker
+```
+
+| Model | Accuracy | Image Size | GPU Memory |
+|-------|----------|------------|------------|
+| base | Good | +150MB | 1GB |
+| small | Better | +500MB | 2GB |
+| medium | Great | +1.5GB | 5GB |
+| large | Best | +3GB | 10GB |
 
 ---
 
@@ -181,17 +242,45 @@ CMD ["node", "dist/index.js"]
 |---------|------|-------------------|
 | `web` | node:20-alpine | None |
 | `api` | node:20-alpine | None |
-| `worker` | node:20-slim | Python 3.12, FFmpeg, WhisperX |
+| `worker` | node:20-slim | Python 3.12, FFmpeg, WhisperX, **Whisper model (baked)** |
 | `visual-gen` | python:3.12-slim | Node 20, Chromium, Remotion, pnpm |
 
 ### Image Sizes (Estimated)
 
-| Service | Size |
-|---------|------|
-| web | ~300MB |
-| api | ~250MB |
-| worker | ~1.5GB |
-| visual-gen | ~2.5GB |
+| Service | Size | Notes |
+|---------|------|-------|
+| web | ~300MB | |
+| api | ~250MB | |
+| worker | ~2GB | Includes Whisper base model (~150MB) + PyTorch |
+| worker (large) | ~4.5GB | With Whisper large model (~3GB) |
+| visual-gen | ~2.5GB | Includes Chromium |
+
+### Worker Dockerfile (with baked models)
+
+```dockerfile
+FROM node:20-slim AS base
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.12 python3-pip python3.12-venv \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python ML dependencies
+RUN pip3 install --no-cache-dir \
+    whisperx \
+    torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+
+# Pre-download Whisper model (baked into image for instant startup)
+ARG WHISPER_MODEL=base
+ENV WHISPER_MODEL=${WHISPER_MODEL}
+RUN python3 -c "import whisper; print(f'Downloading {\"${WHISPER_MODEL}\"} model...'); whisper.load_model('${WHISPER_MODEL}')"
+
+# Pre-download pyannote for speaker diarization (optional, may require HF token)
+# RUN python3 -c "from pyannote.audio import Pipeline"
+
+# ... Node.js build stages follow ...
+```
 
 ---
 
@@ -296,6 +385,8 @@ services:
     build:
       context: .
       dockerfile: docker/worker/Dockerfile
+      args:
+        WHISPER_MODEL: ${WHISPER_MODEL:-base}  # Model baked into image
     environment:
       DATABASE_URL: postgresql://clipify:${POSTGRES_PASSWORD:-clipify123}@postgres:5432/clipify
       REDIS_URL: redis://redis:6379
@@ -304,7 +395,6 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:-clipify123}
       S3_BUCKET_UPLOADS: uploads
       S3_BUCKET_OUTPUTS: outputs
-      WHISPER_MODEL: ${WHISPER_MODEL:-base}
       WHISPER_DEVICE: ${WHISPER_DEVICE:-cpu}
     depends_on:
       postgres:
@@ -454,7 +544,7 @@ LLM_MODEL=google/gemini-2.0-flash-001
 cp .env.example .env
 # Edit .env, add OPENROUTER_API_KEY
 
-# Start everything
+# Start everything (uses base Whisper model by default)
 pnpm docker:up
 
 # View logs
@@ -470,6 +560,24 @@ pnpm docker:down
 pnpm docker:clean
 ```
 
+### Building with Different Model Sizes
+
+```bash
+# Default: base model (~150MB, fastest, good accuracy)
+docker compose build worker
+
+# Small model (~500MB, better accuracy)
+WHISPER_MODEL=small docker compose build worker
+
+# Medium model (~1.5GB, great accuracy)
+WHISPER_MODEL=medium docker compose build worker
+
+# Large model (~3GB, best accuracy, needs GPU for speed)
+WHISPER_MODEL=large docker compose build worker
+```
+
+**Recommendation**: Start with `base` for development, use `small` or `medium` for production.
+
 ---
 
 ## Summary
@@ -480,5 +588,6 @@ pnpm docker:clean
 | Visual generation | Separate `visual-gen` service, no Docker-in-Docker |
 | Storage | MinIO (local) / S3 (cloud) for bundles |
 | LLM | OpenRouter API only |
+| ML models | Baked into worker image (Whisper base by default, configurable) |
 | Cloud-ready | Yes - env-based config, S3-compatible storage |
 | Shared volumes | None between app services (only infra persistence) |
