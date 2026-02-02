@@ -1,0 +1,622 @@
+{
+  "meta": {
+    "project_id": "proj_c9b2ab0e_8fbc_4e9a_a15e_252f94536675",
+    "transcript_summary": "Explaining Reservoir Sampling: how to pick a random winner from an infinite stream using O(1) memory.",
+    "total_duration_frames": 2334,
+    "fps": 30,
+    "canvas": {
+      "width": 1080,
+      "height": 1920,
+      "orientation": "vertical"
+    },
+    "style_preset": "minimal",
+    "layout_mode": "pip"
+  },
+  "concept_analysis": {
+    "core_topic": "Reservoir Sampling Algorithm",
+    "key_entities": [
+      {
+        "name": "Comment Stream",
+        "role": "Infinite influx of data points",
+        "visual_importance": "primary"
+      },
+      {
+        "name": "Reservoir",
+        "role": "Single memory slot holding the current winner",
+        "visual_importance": "high"
+      },
+      {
+        "name": "Probability Die",
+        "role": "Determines if the current winner is replaced",
+        "visual_importance": "medium"
+      }
+    ],
+    "relationships": [
+      {
+        "from": "Comment Stream",
+        "to": "Reservoir",
+        "type": "potential-replacement",
+        "visualization": "collision-or-replacement"
+      }
+    ],
+    "processes": [
+      {
+        "name": "Sampling Step",
+        "steps": [
+          "New comment arrives (n)",
+          "Roll die with 1/n chance",
+          "If hit, replace reservoir",
+          "Else, discard"
+        ],
+        "is_core_animation": true
+      }
+    ]
+  },
+  "visual_system": {
+    "metaphor_mapping": {
+      "Comment": {
+        "visual": "rounded-rectangle with text 'ID'",
+        "style": {
+          "color": "style.primary",
+          "size_percent": 15
+        },
+        "personality": "fast-moving, anonymous"
+      },
+      "Reservoir": {
+        "visual": "glowing-container-box",
+        "style": {
+          "color": "style.accent",
+          "size_percent": 25
+        },
+        "personality": "stable, protective"
+      },
+      "RAM_Limit": {
+        "visual": "glass-container-filling-up",
+        "style": {
+          "color": "style.secondary"
+        },
+        "personality": "constraining, fragile"
+      }
+    },
+    "visual_vocabulary": {
+      "streaming": {
+        "animation": "continuous flow from top to bottom",
+        "effects": [
+          "motion-blur",
+          "opacity-fade-at-edges"
+        ]
+      },
+      "replacement": {
+        "animation": "new object pushes old object out",
+        "effects": [
+          "impact-shake",
+          "accent-glow-burst"
+        ]
+      },
+      "dice_roll": {
+        "animation": "spinning-3d-cube-effect",
+        "effects": [
+          "trail-lines"
+        ]
+      }
+    },
+    "spatial_layout": {
+      "type": "vertical-stack",
+      "description": "Stream at top, Reservoir in center, Labels at bottom",
+      "positions": {
+        "stream_source": {
+          "x_percent": 50,
+          "y_percent": 10
+        },
+        "reservoir_area": {
+          "x_percent": 50,
+          "y_percent": 45
+        },
+        "stats_area": {
+          "x_percent": 50,
+          "y_percent": 75
+        }
+      },
+      "safe_zones": {
+        "bottom": {
+          "height_percent": 15,
+          "reserved_for": "subtitles"
+        }
+      }
+    },
+    "motion_principles": {
+      "default_spring": {
+        "damping": 20,
+        "stiffness": 60,
+        "mass": 1
+      },
+      "travel_duration_frames": 30,
+      "stagger_delay_frames": 20
+    }
+  },
+  "scenes": [
+    {
+      "scene_id": "S01_IntroStream",
+      "frame_range": [
+        0,
+        150
+      ],
+      "transcript_segment": "Imagine you're building a giveaway system for a live stream where millions of comments are pouring in nonstop,",
+      "narrative_goal": "Establish the scale of the incoming data",
+      "viewer_takeaway": "The stream is massive and continuous",
+      "visual_story": {
+        "setup": {
+          "description": "Dark background with a vertical stream of white rectangles",
+          "mood": "dynamic"
+        },
+        "build_sequence": [
+          {
+            "at_frame": 0,
+            "action": "Particles/rectangles start falling from y:0 to y:100",
+            "element": "CommentStream",
+            "technique": "continuous-flow",
+            "effects": [
+              "motion-blur"
+            ],
+            "rationale": "Visualizes 'millions of comments pouring in'"
+          }
+        ],
+        "hero_moment": {
+          "what": "The sheer speed and volume of the falling blocks",
+          "frame_range": [
+            30,
+            120
+          ],
+          "treatment": "Increase speed slightly over 5 seconds"
+        },
+        "elements_on_stage_at_end": [
+          "CommentStream"
+        ]
+      },
+      "element_positions": {
+        "CommentStream": {
+          "x_percent": 50,
+          "y_percent": 50
+        }
+      },
+      "background": {
+        "type": "solid",
+        "colors": [
+          "style.bg"
+        ]
+      },
+      "transition_to_next": {
+        "type": "continuation",
+        "elements_that_persist": [
+          "CommentStream"
+        ]
+      }
+    },
+    {
+      "scene_id": "S02_TheGoal",
+      "frame_range": [
+        180,
+        240
+      ],
+      "transcript_segment": "and you need to pick exactly one random winner.",
+      "narrative_goal": "Identify the objective",
+      "viewer_takeaway": "We need one winner from the chaos",
+      "visual_story": {
+        "setup": {
+          "description": "The stream continues, but one block is highlighted",
+          "mood": "focused"
+        },
+        "build_sequence": [
+          {
+            "at_frame": 190,
+            "action": "One falling block turns style.accent (blue)",
+            "element": "WinnerBlock",
+            "technique": "color-interpolation",
+            "effects": [
+              "glow-pulse"
+            ],
+            "rationale": "Directs attention to the goal"
+          }
+        ],
+        "hero_moment": {
+          "what": "Highlighting the winner",
+          "frame_range": [
+            190,
+            220
+          ],
+          "treatment": "Time slows down briefly as the blue block passes center screen"
+        },
+        "elements_on_stage_at_end": [
+          "CommentStream",
+          "WinnerBlock"
+        ]
+      },
+      "element_positions": {
+        "WinnerBlock": {
+          "x_percent": 50,
+          "y_percent": 50
+        }
+      },
+      "transition_to_next": {
+        "type": "fade-out-stream",
+        "elements_that_exit": [
+          "CommentStream"
+        ]
+      }
+    },
+    {
+      "scene_id": "S03_TheProblem",
+      "frame_range": [
+        300,
+        450
+      ],
+      "transcript_segment": "You cannot store the comments because you'll run out of RAM, and you do not know when the stream will end.",
+      "narrative_goal": "Explain the technical constraint",
+      "viewer_takeaway": "Memory is limited, and the end is unknown",
+      "visual_story": {
+        "setup": {
+          "description": "A container representing RAM",
+          "mood": "tense"
+        },
+        "build_sequence": [
+          {
+            "at_frame": 310,
+            "action": "A box labeled 'RAM' appears, filling with blocks rapidly",
+            "element": "RAM_Box",
+            "technique": "scale-spring",
+            "effects": [],
+            "rationale": "Visualizes memory limit"
+          },
+          {
+            "at_frame": 380,
+            "action": "RAM_Box turns red and shakes as it overflows",
+            "element": "RAM_Box",
+            "technique": "shake-impact",
+            "effects": [
+              "color-shift-to-danger"
+            ],
+            "rationale": "Shows the failure state"
+          },
+          {
+            "at_frame": 410,
+            "action": "A question mark appears over a timeline",
+            "element": "UnknownEnd",
+            "technique": "fade-in",
+            "effects": [],
+            "rationale": "Shows uncertainty of stream length"
+          }
+        ],
+        "hero_moment": {
+          "what": "The RAM box turning red and shaking",
+          "frame_range": [
+            380,
+            420
+          ],
+          "treatment": "High-intensity shake with particle spray"
+        },
+        "elements_on_stage_at_end": [
+          "RAM_Box"
+        ]
+      },
+      "element_positions": {
+        "RAM_Box": {
+          "x_percent": 50,
+          "y_percent": 50
+        }
+      },
+      "transition_to_next": {
+        "type": "wipe",
+        "elements_that_exit": [
+          "RAM_Box"
+        ]
+      }
+    },
+    {
+      "scene_id": "S04_TheSolution",
+      "frame_range": [
+        810,
+        930
+      ],
+      "transcript_segment": "The solution is called reservoir sampling and the math is beautifully simple.",
+      "narrative_goal": "Introduce the algorithm name",
+      "viewer_takeaway": "Reservoir Sampling is the answer",
+      "visual_story": {
+        "setup": {
+          "description": "Clean title card with elegant typography",
+          "mood": "enlightened"
+        },
+        "build_sequence": [
+          {
+            "at_frame": 820,
+            "action": "Text 'RESERVOIR SAMPLING' appears",
+            "element": "Title",
+            "technique": "letter-stagger-fade",
+            "effects": [
+              "subtle-glow"
+            ],
+            "rationale": "Big reveal of the topic"
+          }
+        ],
+        "hero_moment": {
+          "what": "Title reveal",
+          "frame_range": [
+            820,
+            880
+          ],
+          "treatment": "Slow zoom into the text"
+        },
+        "elements_on_stage_at_end": [
+          "Title"
+        ]
+      },
+      "element_positions": {
+        "Title": {
+          "x_percent": 50,
+          "y_percent": 45
+        }
+      },
+      "transition_to_next": {
+        "type": "fade-out",
+        "elements_that_exit": [
+          "Title"
+        ]
+      }
+    },
+    {
+      "scene_id": "S05_TheProcess",
+      "frame_range": [
+        960,
+        1290
+      ],
+      "transcript_segment": "You always hold into one current winner. When the nth comment arrives, you roll a die. There is one by n chance you replace...",
+      "narrative_goal": "Explain the core logic step-by-step",
+      "viewer_takeaway": "Probability 1/n determines if we swap",
+      "visual_story": {
+        "setup": {
+          "description": "One slot (Reservoir) and an incoming comment",
+          "mood": "educational"
+        },
+        "build_sequence": [
+          {
+            "at_frame": 970,
+            "action": "Reservoir box appears with 'Winner' inside",
+            "element": "Reservoir",
+            "technique": "scale-spring",
+            "effects": [
+              "glow"
+            ],
+            "rationale": "Shows the state"
+          },
+          {
+            "at_frame": 1030,
+            "action": "Comment block 'n' slides in from left",
+            "element": "NewComment",
+            "technique": "slide-in",
+            "effects": [],
+            "rationale": "Introduction of new data"
+          },
+          {
+            "at_frame": 1050,
+            "action": "A Die icon appears and spins",
+            "element": "Die",
+            "technique": "rotate-360",
+            "effects": [],
+            "rationale": "Randomness symbol"
+          },
+          {
+            "at_frame": 1120,
+            "action": "Formula 'P = 1/n' appears above the die",
+            "element": "Formula",
+            "technique": "typewriter",
+            "effects": [
+              "accent-color"
+            ],
+            "rationale": "Mathematical explanation"
+          },
+          {
+            "at_frame": 1200,
+            "action": "NewComment kicks out the old Winner if die hits",
+            "element": "Replacement",
+            "technique": "impact-swap",
+            "effects": [
+              "particle-burst"
+            ],
+            "rationale": "Shows the algorithm in action"
+          }
+        ],
+        "hero_moment": {
+          "what": "The swap animation",
+          "frame_range": [
+            1200,
+            1240
+          ],
+          "treatment": "Slow-motion impact with a bright blue flash"
+        },
+        "elements_on_stage_at_end": [
+          "Reservoir",
+          "Formula"
+        ]
+      },
+      "element_positions": {
+        "Reservoir": {
+          "x_percent": 50,
+          "y_percent": 50
+        },
+        "NewComment": {
+          "x_percent": 20,
+          "y_percent": 50
+        },
+        "Die": {
+          "x_percent": 50,
+          "y_percent": 30
+        },
+        "Formula": {
+          "x_percent": 50,
+          "y_percent": 20
+        }
+      },
+      "transition_to_next": {
+        "type": "fade-out",
+        "elements_that_exit": [
+          "Formula",
+          "Die"
+        ]
+      }
+    },
+    {
+      "scene_id": "S06_TheChallenge",
+      "frame_range": [
+        1650,
+        1890
+      ],
+      "transcript_segment": "The algorithm picks one winner. But how do you modify the probability formula if I asked you to pick exactly five winners without storing the rest?",
+      "narrative_goal": "Pose the brain teaser",
+      "viewer_takeaway": "How does this scale to k items?",
+      "visual_story": {
+        "setup": {
+          "description": "Expand one slot to five",
+          "mood": "puzzling"
+        },
+        "build_sequence": [
+          {
+            "at_frame": 1660,
+            "action": "Single reservoir box splits into 5 smaller boxes",
+            "element": "FiveSlots",
+            "technique": "split-animation",
+            "effects": [],
+            "rationale": "Visualizes the new requirement"
+          },
+          {
+            "at_frame": 1750,
+            "action": "Large question mark appears: 'P = ? / n'",
+            "element": "ChallengeText",
+            "technique": "scale-bounce",
+            "effects": [
+              "accent-glow"
+            ],
+            "rationale": "The core question"
+          }
+        ],
+        "hero_moment": {
+          "what": "The splitting of the reservoir",
+          "frame_range": [
+            1660,
+            1710
+          ],
+          "treatment": "Fluid motion as one box becomes five"
+        },
+        "elements_on_stage_at_end": [
+          "FiveSlots",
+          "ChallengeText"
+        ]
+      },
+      "element_positions": {
+        "FiveSlots": {
+          "x_percent": 50,
+          "y_percent": 50
+        },
+        "ChallengeText": {
+          "x_percent": 50,
+          "y_percent": 30
+        }
+      },
+      "transition_to_next": {
+        "type": "fade-to-outro"
+      }
+    },
+    {
+      "scene_id": "S07_Outro",
+      "frame_range": [
+        1980,
+        2334
+      ],
+      "transcript_segment": "I'm Prasanna. I manage technical architectures at Zoho... follow along and share this to a developer who loves a good puzzle.",
+      "narrative_goal": "CTA and branding",
+      "viewer_takeaway": "Follow for more engineering insights",
+      "visual_story": {
+        "setup": {
+          "description": "Professional profile and social links",
+          "mood": "professional"
+        },
+        "build_sequence": [
+          {
+            "at_frame": 1990,
+            "action": "Profile icon appears center",
+            "element": "Profile",
+            "technique": "scale-spring",
+            "effects": [],
+            "rationale": "Personal branding"
+          },
+          {
+            "at_frame": 2020,
+            "action": "Zoho logo appears below profile",
+            "element": "ZohoLogo",
+            "technique": "fade-in",
+            "effects": [],
+            "rationale": "Professional affiliation"
+          },
+          {
+            "at_frame": 2100,
+            "action": "Social action icons (Follow, Share) appear",
+            "element": "CTA",
+            "technique": "staggered-slide-up",
+            "effects": [
+              "glow"
+            ],
+            "rationale": "Clear call to action"
+          }
+        ],
+        "hero_moment": {
+          "what": "CTA icons appearing",
+          "frame_range": [
+            2100,
+            2160
+          ],
+          "treatment": "Satisfying bounce and subtle rotation"
+        },
+        "elements_on_stage_at_end": [
+          "Profile",
+          "ZohoLogo",
+          "CTA"
+        ]
+      },
+      "element_positions": {
+        "Profile": {
+          "x_percent": 50,
+          "y_percent": 40
+        },
+        "ZohoLogo": {
+          "x_percent": 50,
+          "y_percent": 55
+        },
+        "CTA": {
+          "x_percent": 50,
+          "y_percent": 75
+        }
+      }
+    }
+  ],
+  "global_directives": {
+    "layout_constraints": {
+      "no_element_overlap": true,
+      "safe_zone_bottom_percent": 15,
+      "edge_margin_percent": 8,
+      "max_simultaneous_elements": 5
+    },
+    "animation_constraints": {
+      "min_animation_frames": 20,
+      "min_stagger_frames": 15,
+      "min_travel_frames": 40,
+      "spring_damping_min": 18
+    },
+    "timing_constraints": {
+      "build_before_speak_frames": 15,
+      "hero_hold_frames": 30
+    },
+    "prohibited_patterns": [
+      "instant_teleportation",
+      "cluttered_layouts",
+      "text_in_bottom_15_percent"
+    ]
+  }
+}

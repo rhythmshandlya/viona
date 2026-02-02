@@ -168,7 +168,7 @@ class ProjectOutput:
     # Source code methods
     @classmethod
     def copy_source(cls, workspace: str, project_id: str) -> bool:
-        """Copy final source code from workspace to output."""
+        """Copy final source code from workspace to output, including subdirectories."""
         if not cls._initialized:
             return False
         import shutil
@@ -178,14 +178,26 @@ class ProjectOutput:
             return False
 
         dest_dir = cls._project_dir / "src"
-        # Copy all source files
-        file_count = 0
-        for src_file in src_dir.glob("*"):
-            if src_file.is_file():
-                shutil.copy2(src_file, dest_dir / src_file.name)
-                file_count += 1
+        dest_dir.mkdir(parents=True, exist_ok=True)
 
-        cls._log("ARTIFACT", "Copied source files", count=file_count, from_dir=str(src_dir))
+        # Copy all source files and directories (including components/)
+        file_count = 0
+        dir_count = 0
+        for item in src_dir.glob("*"):
+            if item.is_file():
+                shutil.copy2(item, dest_dir / item.name)
+                file_count += 1
+            elif item.is_dir():
+                # Copy subdirectories like components/, utils/, etc.
+                dest_subdir = dest_dir / item.name
+                if dest_subdir.exists():
+                    shutil.rmtree(dest_subdir)
+                shutil.copytree(item, dest_subdir)
+                dir_count += 1
+                # Count files in subdirectory
+                file_count += sum(1 for _ in item.rglob("*") if _.is_file())
+
+        cls._log("ARTIFACT", "Copied source files", count=file_count, dirs=dir_count, from_dir=str(src_dir))
         return file_count > 0
 
     @classmethod
@@ -282,10 +294,12 @@ CLAUDE_CONFIG = {
     'evaluator_max_iterations': 15,     # Same as Gemini
     'max_self_heal_attempts': 3,        # Same as default
     'skills_to_load': [
-        'animation-guardrails',         # ~70 lines - CONSTRAINTS FIRST (prevents bad patterns)
+        'animation-guardrails',         # ~148 lines - CONSTRAINTS FIRST (prevents bad patterns)
         'visual-planning',              # 500 lines - planning process
         'remotion-best-practices',      # 237 lines - essential
         'file-editing-guide',           # 140 lines - tool usage
+        'component-library',            # 2503 lines - pre-built cinematic components
+        'animation-techniques',         # 800 lines - technique implementations
         # 'motion-graphics' removed - too many options causes random selection
         # 'visual-design' removed - essential parts merged into guardrails
     ],
@@ -301,10 +315,12 @@ DEFAULT_CONFIG = {
     'evaluator_max_iterations': 15,
     'max_self_heal_attempts': 3,
     'skills_to_load': [
-        'animation-guardrails',         # ~70 lines - CONSTRAINTS FIRST (prevents bad patterns)
+        'animation-guardrails',         # ~148 lines - CONSTRAINTS FIRST (prevents bad patterns)
         'visual-planning',              # 500 lines - planning process
         'remotion-best-practices',      # 237 lines - essential
         'file-editing-guide',           # 140 lines - tool usage
+        'component-library',            # 2503 lines - pre-built cinematic components
+        'animation-techniques',         # 800 lines - technique implementations
         # 'motion-graphics' removed - too many options causes random selection
         # 'visual-design' removed - essential parts merged into guardrails
     ],
@@ -352,7 +368,7 @@ PERSISTENT_CONSTRAINTS = """
 
 These rules MUST be followed in ALL code you write or modify. Violations cause rejection.
 
-1. **damping >= 20** in ALL spring configs. Use `{ damping: 22, stiffness: 90 }` as default.
+1. **damping >= 15** in ALL spring configs. Use `{ damping: 20, stiffness: 100 }` as default.
 2. **NO Math.sin() or Math.cos()** on text positions, rotations, or transforms.
 3. **Stagger by 6+ frames**: Each element's delay must differ by `index * 6` minimum.
 4. **Clamp text positions**: Use `extrapolateRight: 'clamp'` so text STAYS after entrance.
@@ -361,11 +377,15 @@ These rules MUST be followed in ALL code you write or modify. Violations cause r
 ### Quick Spring Reference:
 ```tsx
 // CORRECT - Settled, premium motion
-const SPRING_SETTLED = { damping: 22, stiffness: 90, mass: 0.9 };
+const SPRING_SETTLED = { damping: 20, stiffness: 100, mass: 0.8 };
 
-// WRONG - Causes bounce (NEVER USE)
-// { damping: 8, stiffness: 200 }  // TOO BOUNCY
-// { damping: 12, stiffness: 150 } // STILL TOO BOUNCY
+// ALSO ACCEPTABLE
+// { damping: 15, stiffness: 120 }  // Slightly more responsive
+// { damping: 18, stiffness: 100 }  // Good balance
+
+// WRONG - Causes excessive bounce (NEVER USE)
+// { damping: 8, stiffness: 200 }   // TOO BOUNCY
+// { damping: 10, stiffness: 150 }  // STILL TOO BOUNCY
 ```
 
 Violation of ANY constraint = code will be rejected and you must fix it.
@@ -391,19 +411,37 @@ def scan_for_violations(code_content: str) -> list:
             })
 
     # CRITICAL: Low damping values (causes bounce)
+    # Note: damping 15-17 can work for some effects, but <15 is always too bouncy
     damping_matches = re.findall(r'damping:\s*(\d+)', code_content)
     for match in damping_matches:
-        if int(match) < 18:
+        if int(match) < 15:  # Relaxed from 18 - damping 15+ is acceptable
             violations.append({
                 'severity': 'critical',
-                'penalty': 15,
-                'issue': f'Excessive bounce: damping: {match} is too low (minimum is 20)',
-                'fix': 'Change damping to 22 or higher. Use { damping: 22, stiffness: 90 } as default.'
+                'penalty': 10,  # Reduced from 15
+                'issue': f'Excessive bounce: damping: {match} is too low (minimum is 15)',
+                'fix': 'Change damping to 18 or higher. Use { damping: 20, stiffness: 100 } as default.'
             })
             break  # Only report once even if multiple instances
 
     # MAJOR: Intent to create bouncy/playful motion (in comments)
-    bouncy_matches = re.findall(r'(bouncy|playful|wiggle|shake|wobble)', code_content, re.IGNORECASE)
+    # Note: Exclude legitimate uses like "screen-shake", "camera-shake" for impact effects
+    # and "playful" as a style preset name
+    bouncy_matches = re.findall(r'(bouncy|wiggle|wobble)', code_content, re.IGNORECASE)
+
+    # Check for problematic "shake" usage (not screen-shake or camera-shake)
+    shake_matches = re.findall(r'(?<!screen-)(?<!camera-)(?<!impact-)\bshake\b', code_content, re.IGNORECASE)
+    # Filter out shake in effect contexts like "effects": ["camera-shake"]
+    if shake_matches:
+        # Check if shake is used in problematic context (not as effect name)
+        problematic_shake = [m for m in shake_matches if not re.search(r'["\'].*shake.*["\']', code_content)]
+        if problematic_shake:
+            bouncy_matches.extend(['shake'] * len(problematic_shake))
+
+    # Check for "playful" only if it's describing motion, not style preset
+    playful_matches = re.findall(r'playful\s+(motion|animation|bounce|movement)', code_content, re.IGNORECASE)
+    if playful_matches:
+        bouncy_matches.append('playful motion')
+
     if bouncy_matches:
         violations.append({
             'severity': 'major',
@@ -437,6 +475,189 @@ def scan_for_violations(code_content: str) -> list:
                 })
 
     return violations
+
+
+def extract_visuals_from_code(code_content: str, fps: int = 30) -> list:
+    """
+    Extract visual timestamps from generated Remotion code by parsing Sequence components.
+    Returns list of visual dicts with startMs, endMs, type, and description.
+    """
+    visuals = []
+
+    # Pattern to find Sequence components with from and durationInFrames
+    # Matches: <Sequence from={X} durationInFrames={Y}>
+    sequence_pattern = re.compile(
+        r'<Sequence[^>]*\s+from=\{?\s*(\d+)\s*\}?[^>]*\s+durationInFrames=\{?\s*(\d+)\s*\}?[^>]*>',
+        re.IGNORECASE
+    )
+
+    # Alternative pattern: from={X}> without explicit duration
+    sequence_alt_pattern = re.compile(
+        r'<Sequence[^>]*\s+from=\{?\s*(\d+)\s*\}?[^>]*>',
+        re.IGNORECASE
+    )
+
+    # Pattern to find component names inside Sequence
+    component_pattern = re.compile(r'<(\w+)(?:\s|/>|>)')
+
+    # Find all Sequence blocks
+    for match in sequence_pattern.finditer(code_content):
+        start_frame = int(match.group(1))
+        duration_frames = int(match.group(2))
+        start_ms = int((start_frame / fps) * 1000)
+        end_ms = int(((start_frame + duration_frames) / fps) * 1000)
+
+        # Try to find what's inside this Sequence
+        seq_start = match.end()
+        # Find closing tag (simplified - find next component)
+        seq_content = code_content[seq_start:seq_start + 500]
+        comp_match = component_pattern.search(seq_content)
+        component_name = comp_match.group(1) if comp_match else "Visual"
+
+        # Skip if it's just a div or other HTML element
+        if component_name.lower() in ['div', 'span', 'p', 'h1', 'h2', 'h3', 'style']:
+            component_name = "Visual Element"
+
+        visuals.append({
+            'startMs': start_ms,
+            'endMs': end_ms,
+            'type': component_name,
+            'description': f'{component_name} animation ({start_frame}-{start_frame + duration_frames} frames)'
+        })
+
+    # Also find Sequences without explicit duration (they run to end)
+    for match in sequence_alt_pattern.finditer(code_content):
+        start_frame = int(match.group(1))
+        # Check if this was already captured
+        if any(v['startMs'] == int((start_frame / fps) * 1000) for v in visuals):
+            continue
+
+        start_ms = int((start_frame / fps) * 1000)
+
+        # Find component inside
+        seq_start = match.end()
+        seq_content = code_content[seq_start:seq_start + 500]
+        comp_match = component_pattern.search(seq_content)
+        component_name = comp_match.group(1) if comp_match else "Visual"
+
+        if component_name.lower() in ['div', 'span', 'p', 'h1', 'h2', 'h3', 'style']:
+            component_name = "Visual Element"
+
+        visuals.append({
+            'startMs': start_ms,
+            'endMs': None,  # Runs to end
+            'type': component_name,
+            'description': f'{component_name} (from frame {start_frame})'
+        })
+
+    # Sort by start time
+    visuals.sort(key=lambda v: v['startMs'])
+
+    return visuals
+
+
+def check_plan_compliance(code_content: str, visual_plan: dict) -> dict:
+    """
+    Check how well the generated code implements the Visual Plan.
+    Returns compliance report with score and details.
+    """
+    if not visual_plan:
+        return {'score': 100, 'implemented': [], 'missing': [], 'details': 'No plan to verify'}
+
+    report = {
+        'score': 0,
+        'implemented': [],
+        'missing': [],
+        'details': ''
+    }
+
+    scenes = visual_plan.get('scenes', [])
+    entities = visual_plan.get('concept_analysis', {}).get('key_entities', [])
+    metaphors = visual_plan.get('visual_system', {}).get('metaphor_mapping', {})
+
+    if not scenes:
+        return {'score': 100, 'implemented': [], 'missing': [], 'details': 'No scenes in plan'}
+
+    # Check each scene
+    scene_checks = []
+    for scene in scenes:
+        scene_id = scene.get('scene_id', 'unknown')
+        frame_range = scene.get('frame_range', [0, 0])
+        build_sequence = scene.get('visual_story', {}).get('build_sequence', [])
+
+        # Look for evidence this scene was implemented
+        # Check 1: Sequence with matching frame range
+        frame_pattern = rf'from=\{{\s*{frame_range[0]}\s*\}}|from=\{{{frame_range[0]}\}}'
+        has_frame = bool(re.search(frame_pattern, code_content))
+
+        # Check 2: Elements from build_sequence mentioned in code
+        elements_found = []
+        for step in build_sequence:
+            element = step.get('element', '')
+            if element and re.search(rf'\b{re.escape(element)}\b', code_content, re.IGNORECASE):
+                elements_found.append(element)
+
+        # Check 3: Comments mentioning scene ID
+        has_comment = bool(re.search(rf'{scene_id}', code_content, re.IGNORECASE))
+
+        implemented = has_frame or len(elements_found) > 0 or has_comment
+        scene_checks.append({
+            'scene_id': scene_id,
+            'implemented': implemented,
+            'has_frame': has_frame,
+            'elements_found': elements_found,
+            'has_comment': has_comment
+        })
+
+        if implemented:
+            report['implemented'].append(scene_id)
+        else:
+            report['missing'].append(scene_id)
+
+    # Check metaphors
+    metaphor_checks = []
+    for metaphor_name, metaphor_def in metaphors.items():
+        # Look for component or variable matching metaphor name
+        found = bool(re.search(rf'\b{re.escape(metaphor_name)}\b', code_content, re.IGNORECASE))
+        metaphor_checks.append({'name': metaphor_name, 'found': found})
+
+    implemented_metaphors = sum(1 for m in metaphor_checks if m['found'])
+
+    # Calculate score
+    scene_score = (len(report['implemented']) / len(scenes)) * 60 if scenes else 60
+    metaphor_score = (implemented_metaphors / len(metaphors)) * 40 if metaphors else 40
+
+    report['score'] = int(scene_score + metaphor_score)
+    report['scene_checks'] = scene_checks
+    report['metaphor_checks'] = metaphor_checks
+    report['details'] = (
+        f"Scenes: {len(report['implemented'])}/{len(scenes)}, "
+        f"Metaphors: {implemented_metaphors}/{len(metaphors)}"
+    )
+
+    return report
+
+
+def enrich_metadata(metadata: dict, code_content: str, visual_plan: dict = None, fps: int = 30) -> dict:
+    """
+    Enrich metadata.json with extracted visual timestamps and plan compliance.
+    """
+    # Extract visuals from code
+    visuals = extract_visuals_from_code(code_content, fps)
+    if visuals:
+        metadata['visuals'] = visuals
+
+    # Add plan compliance if we have a plan
+    if visual_plan:
+        compliance = check_plan_compliance(code_content, visual_plan)
+        metadata['planCompliance'] = {
+            'score': compliance['score'],
+            'scenesImplemented': len(compliance['implemented']),
+            'scenesTotal': len(visual_plan.get('scenes', [])),
+            'details': compliance['details']
+        }
+
+    return metadata
 
 
 def load_config() -> dict:
@@ -802,7 +1023,7 @@ def run_visual_director(
     style_preset: str,
     layout_mode: str,
     llm,
-    reasoning_effort: str = "medium",
+    reasoning_effort: str = "high",
     workspace: str = None,
     bundle_dir: str = None,
 ) -> Optional[dict]:
@@ -892,7 +1113,7 @@ Think through your creative process in <thinking> tags, then output the Visual P
 
         # Build the model name from the llm object
         # OpenHands LLM objects store model as 'model' attribute
-        model_name = getattr(llm, 'model', None) or getattr(llm, 'model_name', 'google/gemini-2.5-flash')
+        model_name = getattr(llm, 'model', None) or getattr(llm, 'model_name', 'google/gemini-3-flash-preview')
 
         # Get API configuration from LLM object or environment
         api_key = getattr(llm, 'api_key', None)
@@ -924,16 +1145,94 @@ Think through your creative process in <thinking> tags, then output the Visual P
         if api_base:
             litellm_kwargs['api_base'] = api_base
 
-        ProjectOutput.llm("Calling LiteLLM", model=model_name, max_tokens=8000)
+        # Enable native model reasoning based on provider
+        # This allows models to "think" before responding
+        model_lower = model_name.lower()
+
+        if 'gemini' in model_lower:
+            # Gemini 3 models via OpenRouter: Use reasoning parameter with effort level
+            # OpenRouter maps effort to Google's thinkingLevel API
+            # Valid values: "minimal", "low", "medium", "high"
+            if reasoning_effort and reasoning_effort != 'none':
+                # Map our effort levels to OpenRouter's expected values
+                effort_map = {
+                    'low': 'low',
+                    'medium': 'medium',
+                    'high': 'high',
+                    'max': 'high',  # OpenRouter doesn't have 'max', use 'high'
+                }
+                effort = effort_map.get(reasoning_effort, 'high')
+                litellm_kwargs['reasoning'] = {
+                    'effort': effort
+                }
+                ProjectOutput.plan("Gemini reasoning enabled via OpenRouter", effort=effort)
+
+        elif 'claude' in model_lower:
+            # Claude models: Use extended thinking
+            # Requires Anthropic API with thinking support
+            if reasoning_effort != 'none':
+                thinking_budget_map = {
+                    'low': 2048,
+                    'medium': 4096,
+                    'high': 8192,
+                    'max': 16384,
+                }
+                budget = thinking_budget_map.get(reasoning_effort, 4096)
+                litellm_kwargs['thinking'] = {
+                    'type': 'enabled',
+                    'budget_tokens': budget
+                }
+                # Claude extended thinking requires higher max_tokens
+                litellm_kwargs['max_tokens'] = max(8000, budget + 4000)
+                ProjectOutput.plan("Claude extended thinking enabled", budget_tokens=budget)
+
+        elif 'o1' in model_lower or 'o3' in model_lower:
+            # OpenAI o1/o3 models: Have built-in reasoning
+            # Just increase token budget for reasoning output
+            litellm_kwargs['max_tokens'] = 12000
+            ProjectOutput.plan("OpenAI reasoning model detected")
+
+        ProjectOutput.llm("Calling LiteLLM", model=model_name, max_tokens=litellm_kwargs.get('max_tokens', 8000), reasoning=reasoning_effort)
         planning_response = litellm.completion(**litellm_kwargs)
 
-        # Extract response text
+        # Extract response text and native reasoning
         response = ""
+        native_thinking = ""
+
         if planning_response and planning_response.choices:
-            response = planning_response.choices[0].message.content or ""
-            finish_reason = getattr(planning_response.choices[0], 'finish_reason', 'unknown')
+            choice = planning_response.choices[0]
+            message = choice.message
+            response = message.content or ""
+            finish_reason = getattr(choice, 'finish_reason', 'unknown')
+
+            # Extract native reasoning from different model formats
+            # 1. Gemini: thinking in message.thinking or message.reasoning
+            if hasattr(message, 'thinking') and message.thinking:
+                native_thinking = message.thinking
+                ProjectOutput.plan("Gemini native thinking captured", chars=len(native_thinking))
+            elif hasattr(message, 'reasoning') and message.reasoning:
+                native_thinking = message.reasoning
+                ProjectOutput.plan("Native reasoning captured", chars=len(native_thinking))
+
+            # 2. Claude: thinking blocks in message content (list format)
+            if hasattr(message, 'content') and isinstance(message.content, list):
+                for block in message.content:
+                    if hasattr(block, 'type') and block.type == 'thinking':
+                        native_thinking += getattr(block, 'thinking', '') + "\n"
+                    elif hasattr(block, 'type') and block.type == 'text':
+                        response = getattr(block, 'text', response)
+                if native_thinking:
+                    ProjectOutput.plan("Claude thinking blocks captured", chars=len(native_thinking))
+
+            # 3. Check for thinking in tool_calls or function_call (some models)
+            if hasattr(message, 'tool_calls') and message.tool_calls:
+                for tc in message.tool_calls:
+                    if hasattr(tc, 'function') and 'think' in getattr(tc.function, 'name', '').lower():
+                        native_thinking += str(getattr(tc.function, 'arguments', ''))
+
             ProjectOutput.llm("LLM response received",
                           response_length=len(response),
+                          thinking_length=len(native_thinking),
                           finish_reason=finish_reason)
         else:
             ProjectOutput.error("LLM returned no choices",
@@ -947,12 +1246,18 @@ Think through your creative process in <thinking> tags, then output the Visual P
         # Always save raw response for debugging
         ProjectOutput.save_plan_raw_response(response)
 
-        # Extract thinking if present
+        # Emit native thinking first (higher quality than parsed thinking)
+        if native_thinking:
+            emit_event(EVENT_PLANNING_THINKING, thinking=native_thinking, source="native")
+            ProjectOutput.plan("Native model reasoning", thinking_chars=len(native_thinking))
+            ProjectOutput.save_plan_thinking(native_thinking)
+
+        # Also check for XML-style thinking tags in response (fallback)
         thinking_match = re.search(r'<thinking>([\s\S]*?)</thinking>', response, re.IGNORECASE)
-        if thinking_match:
+        if thinking_match and not native_thinking:
             thinking = thinking_match.group(1)
-            emit_event(EVENT_PLANNING_THINKING, thinking=thinking[:500])
-            ProjectOutput.plan("Visual Director reasoning captured", thinking_chars=len(thinking))
+            emit_event(EVENT_PLANNING_THINKING, thinking=thinking, source="xml_tags")
+            ProjectOutput.plan("Visual Director reasoning (from tags)", thinking_chars=len(thinking))
             ProjectOutput.save_plan_thinking(thinking)
 
         # Parse JSON from response
@@ -967,6 +1272,33 @@ Think through your creative process in <thinking> tags, then output the Visual P
                              scenes=scene_count,
                              entities=entity_count,
                              metaphors=metaphors[:5])
+
+            # Emit per-scene reasoning for visibility
+            for scene in plan.get("scenes", []):
+                scene_id = scene.get("scene_id", "?")
+                frame_range = scene.get("frame_range", [0, 0])
+                narrative_goal = scene.get("narrative_goal", "")
+                hero_moment = scene.get("visual_story", {}).get("hero_moment", {})
+                build_steps = len(scene.get("visual_story", {}).get("build_sequence", []))
+
+                emit_event(
+                    EVENT_PLANNING_THINKING,
+                    thinking=f"Scene {scene_id} [{frame_range[0]}-{frame_range[1]}]: {narrative_goal}",
+                    scene_id=scene_id,
+                    frame_range=frame_range,
+                    build_steps=build_steps,
+                    has_hero_moment=bool(hero_moment)
+                )
+
+            # Emit metaphor decisions
+            for entity_name, metaphor in plan.get("visual_system", {}).get("metaphor_mapping", {}).items():
+                visual_desc = metaphor.get("visual", "")
+                emit_event(
+                    EVENT_PLANNING_THINKING,
+                    thinking=f"Metaphor: {entity_name} → {visual_desc}",
+                    entity=entity_name,
+                    visual=visual_desc
+                )
 
             # Save visual plan to plans/ directory (ProjectOutput handles location)
             ProjectOutput.save_visual_plan(plan)
@@ -1315,6 +1647,8 @@ def create_generator_agent(
     planning_skill: str = None,
     motion_graphics_skill: str = None,
     guardrails_skill: str = None,
+    component_library_skill: str = None,
+    animation_techniques_skill: str = None,
     condenser_llm=None,
     config: dict = None,
     inline_guidance: str = None,
@@ -1371,6 +1705,12 @@ def create_generator_agent(
         skills.append(Skill(name="visual-design", content=style_skill))
     if file_editing_skill:
         skills.append(Skill(name="file-editing-guide", content=file_editing_skill))
+    # Component library - reusable pre-built components
+    if component_library_skill:
+        skills.append(Skill(name="component-library", content=component_library_skill))
+    # Animation techniques - how to implement specific techniques from the plan
+    if animation_techniques_skill:
+        skills.append(Skill(name="animation-techniques", content=animation_techniques_skill))
     # Inline guidance for Claude (compensates for reduced skills)
     if inline_guidance:
         skills.append(Skill(name="animation-quick-ref", content=inline_guidance))
@@ -1581,25 +1921,57 @@ def run_generator_with_self_healing(
     component_name = ''.join(word.capitalize() for word in project_id.replace('-', '_').split('_'))
 
     agent_context = """
-## IMMEDIATE ACTION REQUIRED - START NOW
+## DELIBERATE CODING PROCESS - THINK BEFORE YOU CODE
 
-You are a Remotion code generation agent. Your task is to WRITE CODE NOW using the WriteFileTool.
-Do NOT ask questions. Do NOT wait for clarification. START WRITING FILES IMMEDIATELY.
+You are a Remotion code generation expert. You MUST think step-by-step before writing any code.
 
-Your FIRST action must be: Use WriteFileTool to create the index.tsx file.
+### MANDATORY WORKFLOW (Follow This Order):
 
-## YOUR END GOAL
+**PHASE 1: UNDERSTAND (Do NOT skip)**
+Before writing ANY code, you MUST:
+1. Read and understand the Visual Plan completely
+2. Identify ALL entities, metaphors, and techniques specified
+3. List the scenes and their build_sequences
+4. Note any hero_moments that need special treatment
+
+**PHASE 2: PLAN YOUR IMPLEMENTATION**
+Think through and write down your approach:
+- What components will you create?
+- Which techniques from the plan will you use?
+- Check the component-library skill - can you use pre-built components?
+- Check the animation-techniques skill - how to implement each technique?
+
+**PHASE 3: CODE SYSTEMATICALLY**
+Only AFTER planning, write code:
+1. Create index.tsx with imports and main composition
+2. Create components for each visual element
+3. Implement animations matching the plan's techniques EXACTLY
+4. Create metadata.json with correct timing
+
+**PHASE 4: VALIDATE**
+After writing:
+1. Run TypeScriptValidatorTool to check for errors
+2. Fix any errors found
+3. Repeat until ZERO errors
+
+### CRITICAL: USE YOUR SKILLS
+
+You have access to skills in your context. CONSULT THEM:
+- **component-library**: Pre-built components like ProcessFlow, ComparisonSplit, CodeBlock
+- **animation-techniques**: How to implement particle-emitter, mask-reveal, etc.
+- **remotion-best-practices**: Correct Remotion patterns
+
+DO NOT improvise when a skill provides the solution!
+
+### END GOAL
 
 Create a working Remotion composition that:
 1. Compiles with ZERO TypeScript errors
-2. Produces visually appealing animations that match the content
-3. Can be bundled and rendered into a video
+2. Implements the Visual Plan EXACTLY (techniques, timing, hero moments)
+3. Uses component library where applicable
+4. Produces premium, visually appealing animations
 
-After you finish, your code will be automatically bundled using `npx remotion bundle`.
-If your code has errors or doesn't follow the structure, the bundle will fail and
-your work will be wasted. Focus on getting it RIGHT.
-
-## IMPORTANT: UNDERSCORE vs HYPHEN
+### NAMING CONVENTIONS
 
 - Folder names use UNDERSCORES: `src/proj_xxx_xxx/`
 - Composition IDs use HYPHENS: `proj-xxx-xxx`
@@ -1654,7 +2026,27 @@ Original task:
 
 {prompt}
 
-CRITICAL REQUIREMENT - SELF-HEALING:
+## THINK STEP BY STEP - PLAN BEFORE CODING
+
+You MUST plan extensively before each action. DO NOT just make tool calls without thinking.
+
+**Before writing ANY code, think through:**
+1. What does the Visual Plan specify for this scene/element?
+2. What technique is required (particle-emitter, mask-reveal, etc.)?
+3. Does my component-library skill have a pre-built component for this?
+4. Does my animation-techniques skill show how to implement this?
+
+**Use your tools to search and verify:**
+- Use FileEditorTool to READ the skills if you need to look up a component
+- Use TerminalTool with `grep -r "ComponentName" /opt/openhands/skills/` to search skills
+- Read existing code before modifying it
+
+**Between each action, reflect:**
+- Did my last action succeed?
+- Am I implementing the plan correctly?
+- What should I do next?
+
+## CRITICAL REQUIREMENT - SELF-HEALING:
 After writing ALL files, you MUST:
 1. Run TypeScriptValidatorTool to check for errors
 2. If there are ANY errors, fix them
@@ -2339,7 +2731,7 @@ def main():
     parser.add_argument("--quality-threshold", type=int, default=QUALITY_THRESHOLD, help="Quality score threshold")
     parser.add_argument("--style-preset", default="modern", help="Style preset (minimal, modern, playful, bold, classic)")
     parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, split-horizontal, split-vertical)")
-    parser.add_argument("--reasoning-effort", default="medium", help="Reasoning effort for LLM (none, low, medium, high)")
+    parser.add_argument("--reasoning-effort", default="high", help="Reasoning effort for LLM (none, low, medium, high)")
     parser.add_argument("--skip-planning", action="store_true", help="Skip Visual Director planning phase")
     args = parser.parse_args()
 
@@ -2464,6 +2856,8 @@ def main():
         remotion_skill = load_skill(skills_dir / "remotion-best-practices.md") if 'remotion-best-practices' in skills_to_load else None
         style_skill = load_skill(skills_dir / "visual-design.md") if 'visual-design' in skills_to_load else None
         file_editing_skill = load_skill(skills_dir / "file-editing-guide.md") if 'file-editing-guide' in skills_to_load else None
+        component_library_skill = load_skill(skills_dir / "component-library.md") if 'component-library' in skills_to_load else None
+        animation_techniques_skill = load_skill(skills_dir / "animation-techniques.md") if 'animation-techniques' in skills_to_load else None
         # Scoring rubric is always loaded for evaluator
         scoring_rubric = load_skill(skills_dir / "scoring-rubric.md")
 
@@ -2481,6 +2875,8 @@ def main():
             planning_skill=planning_skill,
             motion_graphics_skill=motion_graphics_skill,
             guardrails_skill=guardrails_skill,  # GUARDRAILS - loaded first in skills list
+            component_library_skill=component_library_skill,  # Component library - reusable components
+            animation_techniques_skill=animation_techniques_skill,  # Animation technique implementations
             condenser_llm=evaluator_llm,  # Use cheaper flash model for condensation
             config=config,
             inline_guidance=inline_guidance,
@@ -2674,6 +3070,36 @@ Focus on improving the VISUAL quality - the code compiles fine."""
                     )
             except Exception as e:
                 emit_event(EVENT_ERROR, message=f"Failed to validate dimensions: {e}")
+
+        # ===== METADATA ENRICHMENT =====
+        # Extract visual timestamps and plan compliance from generated code
+        if metadata_path.exists():
+            try:
+                metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
+                index_file = project_dir / "index.tsx"
+                if index_file.exists():
+                    code_content = index_file.read_text(encoding='utf-8')
+                    metadata = enrich_metadata(
+                        metadata,
+                        code_content,
+                        visual_plan=visual_plan,
+                        fps=args.fps
+                    )
+                    metadata_path.write_text(json.dumps(metadata, indent=2), encoding='utf-8')
+
+                    visuals_count = len(metadata.get('visuals', []))
+                    compliance = metadata.get('planCompliance', {})
+                    emit_event(
+                        EVENT_TOOL_CALL,
+                        tool="metadata_enrichment",
+                        message=f"Enriched metadata: {visuals_count} visuals extracted",
+                        visuals_count=visuals_count,
+                        plan_compliance_score=compliance.get('score', 0),
+                        plan_compliance_details=compliance.get('details', '')
+                    )
+                    ProjectOutput.phase("Metadata enriched with visual timestamps")
+            except Exception as e:
+                emit_event(EVENT_TOOL_CALL, tool="metadata_enrichment", message=f"Warning: {e}", success=False)
 
         if final_status != "ready" and best_score > 0:
             final_status = "ready"  # Allow export even if score didn't meet threshold

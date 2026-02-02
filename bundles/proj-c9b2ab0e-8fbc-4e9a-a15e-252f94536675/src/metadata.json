@@ -1,0 +1,57 @@
+{
+  "compositionId": "proj-c9b2ab0e-8fbc-4e9a-a15e-252f94536675",
+  "width": 1080,
+  "height": 1920,
+  "fps": 30,
+  "durationInFrames": 2334,
+  "visuals": [
+    {
+      "startMs": 0,
+      "endMs": 5000,
+      "type": "Scene1",
+      "description": "Scene1 animation (0-150 frames)"
+    },
+    {
+      "startMs": 6000,
+      "endMs": 10000,
+      "type": "Scene2",
+      "description": "Scene2 animation (180-300 frames)"
+    },
+    {
+      "startMs": 10000,
+      "endMs": 25000,
+      "type": "Scene3",
+      "description": "Scene3 animation (300-750 frames)"
+    },
+    {
+      "startMs": 27000,
+      "endMs": 32000,
+      "type": "Scene4",
+      "description": "Scene4 animation (810-960 frames)"
+    },
+    {
+      "startMs": 32000,
+      "endMs": 55000,
+      "type": "Scene5",
+      "description": "Scene5 animation (960-1650 frames)"
+    },
+    {
+      "startMs": 55000,
+      "endMs": 66000,
+      "type": "Scene6",
+      "description": "Scene6 animation (1650-1980 frames)"
+    },
+    {
+      "startMs": 66000,
+      "endMs": null,
+      "type": "Scene7",
+      "description": "Scene7 (from frame 1980)"
+    }
+  ],
+  "planCompliance": {
+    "score": 73,
+    "scenesImplemented": 7,
+    "scenesTotal": 7,
+    "details": "Scenes: 7/7, Metaphors: 1/3"
+  }
+}

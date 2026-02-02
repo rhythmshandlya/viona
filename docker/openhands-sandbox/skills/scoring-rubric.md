@@ -1,184 +1,175 @@
-# Visual Quality Scoring Rubric
+# Visual Generation Scoring Rubric
 
-## MANDATORY: YOU MUST CALL SubmitScoreTool
+**CRITICAL: Score ONLY on the criteria below. Do NOT invent new rules or deductions.**
+- Do NOT deduct for "missing background motion" (not required)
+- Do NOT require stagger > 12 frames (6-12 is correct)
+- Do NOT require damping > 20 (15-25 is acceptable)
+- ONLY deduct points for criteria explicitly listed below
 
-**YOUR ONLY WAY TO COMPLETE THIS TASK IS TO CALL SubmitScoreTool.**
-- If you do NOT call SubmitScoreTool, the task FAILS
-- You cannot finish by just analyzing - you MUST call the tool
-- This is a HARD REQUIREMENT - no exceptions
+Score the generated Remotion code on these criteria (25 points each, 100 total):
 
-## YOUR ONLY TOOL: SubmitScoreTool
+## 1. Correctness (25 points)
 
-You have exactly ONE tool: **SubmitScoreTool**
-- The code is provided in the evaluation prompt - analyze it directly
-- DO NOT use bash/terminal commands
-- DO NOT try to render images
-- Just read the code, evaluate animation patterns, call SubmitScoreTool
+### TypeScript Validation (15 points)
+- **15 points**: Zero TypeScript errors
+- **10 points**: Only unused variable warnings (TS6133)
+- **5 points**: Minor type errors that don't break rendering
+- **0 points**: Critical type errors or missing imports
 
----
+### Remotion Patterns (10 points)
+- **10 points**: Uses useCurrentFrame, useVideoConfig, interpolate/spring correctly
+- **5 points**: Minor pattern issues (e.g., missing extrapolateRight)
+- **0 points**: Uses forbidden patterns (CSS transitions, setTimeout, useState for animation)
 
-You are a visual evaluator agent. The code has already been verified to compile with ZERO TypeScript errors.
-Your job is to evaluate VISUAL QUALITY and TRANSCRIPT ALIGNMENT by analyzing the code.
+## 2. Completeness (25 points)
 
-**SCORING WEIGHTS (100 total):**
-- Visual Quality: 50 points (50%) - Animation quality, motion graphics
-- Transcript Alignment: 20 points (20%) - Specific transcript content visualized
-- Correctness: 10 points (10%) - Always give full points (code compiles)
-- Completeness: 10 points (10%) - Transcript coverage
-- Code Quality: 10 points (10%) - Always give full points (assume good)
+### File Structure (5 points)
+- index.tsx exists with proper exports
+- metadata.json with correct composition info
+- constants.ts with color definitions
 
-## Scoring Dimensions
+### Scene Coverage (10 points)
+- All transcript segments have corresponding visuals
+- Scene timing matches transcript timestamps
+- No gaps in visual coverage
 
-### 1. Visual Quality (50 points)
+### Required Elements (10 points)
+- All entities from concept_analysis are visualized
+- All process animations are implemented
+- Hero moments have special treatment
 
-**Animation Quality (25 points)**
-- 22-25 pts: Motion graphics quality - spring(), particles, staggering, counter animations
-- 15-21 pts: Good variety - multiple animation types, proper staggering
-- 8-14 pts: Basic but varied - elements move (not just fade)
-- 0-7 pts: Weak - mostly fades, static background
+## 3. Visual Quality (25 points)
 
-**Visual Appeal (15 points)**
-- 13-15 pts: Premium animation patterns, polished
-- 8-12 pts: Professional quality
-- 4-7 pts: Acceptable but generic
-- 0-3 pts: Poor - static or minimal animation
+### Layout & Composition (5 points)
+- **5 points**: No overlaps, proper spacing, subtitle zone respected
+- **3 points**: Minor alignment issues
+- **0 points**: Overlapping elements or content in safe zones
 
-**Style Consistency (10 points)**
-- 8-10 pts: Consistent spring configs, timing patterns
-- 4-7 pts: Mostly consistent
-- 0-3 pts: Inconsistent animation styles
+### Animation Quality (5 points)
+- **5 points**: Smooth springs (damping ≥ 15), proper stagger (6+ frames), satisfying motion
+- **3 points**: Animations work but feel mechanical
+- **0 points**: No animations or jarring motion
 
-### 2. Transcript Alignment (20 points) - SPECIFIC CRITERIA
+**Stagger Rules (for reference):**
+- Minimum stagger: 6 frames between sequential elements
+- Acceptable: `index * 6` to `index * 12`
+- Do NOT penalize stagger of 6-12 frames - this is correct
 
-**Check each criterion provided in the evaluation prompt.**
-Each criterion is worth 3-4 points. Examples:
-- "Number '$1.2M' has counter animation" - +4 if present
-- "Percentage '25%' animates (bar or counter)" - +3 if present
-- "Brand name 'Acme Corp' has intro animation" - +3 if present
+**Spring Damping Rules:**
+- Minimum damping: 15 (values 15-25 are all acceptable)
+- Do NOT penalize damping of 15-25 - this is premium motion
 
-Score based on how many specific transcript criteria are met.
+### Plan Compliance - build_sequence (10 points) **CRITICAL**
 
-### 3. Correctness (10 points)
-**Always give 10 points** - The code has been verified to compile.
+If a Visual Plan was provided, verify EACH build_sequence item is implemented:
 
-### 4. Completeness (10 points)
-- 10 pts: All transcript segments have corresponding visuals
-- 8 pts: 90%+ segments covered
-- 5 pts: 75%+ segments covered
-- 0-4 pts: Less than 75% covered
+For each `build_sequence` item in each scene:
+- [ ] Component exists for the specified `element`
+- [ ] The `technique` is properly implemented (not basic fade/opacity)
+- [ ] The `at_frame` timing is respected (+/- 5 frames)
+- [ ] Any `effects` listed are present in the code
 
-### 5. Code Quality (10 points)
-**Always give 10 points** - Assume the code follows best practices.
+**Technique Implementation Verification:**
+| Plan Technique | Required Code Patterns |
+|----------------|----------------------|
+| `particle-emitter` | Physics (velocity, gravity), Array.from, particles.map |
+| `mask-reveal` | clipPath or clip-path, animated radius/inset |
+| `cell-division-animation` | Array.from with count, spring-based positioning |
+| `drop-with-gravity` | Quadratic easing (t*t) or gravity calculation |
+| `glass-shimmer` | Animated gradient, shimmer translate |
+| `3d-rotation` | perspective, rotateX/Y, preserve-3d |
+| `fade-in-blur` | filter: blur() with interpolation |
+| `draw-stroke` | SVG strokeDasharray, strokeDashoffset |
+| `scale-spring` | spring() with scale transform |
+| `fill-animation` | scaleX/scaleY with interpolate |
 
-## Text-Based Evaluation Process
+Scoring:
+- **10 points**: 90%+ of build_sequence items implemented with correct techniques
+- **7 points**: 70-89% implemented correctly
+- **4 points**: 50-69% implemented
+- **0 points**: <50% implemented OR techniques replaced with basic opacity fades
 
-**STEP 0: CHECK FOR VIOLATIONS FIRST (CRITICAL)**
+### Plan Compliance - hero_moments (5 points) **CRITICAL**
 
-Before scoring, scan the code for these CRITICAL violations that cause automatic point deductions:
+For EACH `hero_moment` in the Visual Plan:
+- [ ] Has visual emphasis (glow/drop-shadow, scale boost 1.1+, or particles)
+- [ ] Frame timing matches the specified `frame_range`
+- [ ] The `treatment` description is implemented (e.g., "slow zoom" = scale interpolation)
 
-| Violation | Pattern to Find | Penalty | Fix |
-|-----------|-----------------|---------|-----|
-| **Seesaw/Oscillation** | `Math.sin(frame` or `Math.cos(frame` on text/rotation | -15 | Remove Math.sin/cos from text transforms |
-| **Excessive Bounce** | `damping:` value less than 18 | -15 | Change to `damping: 22` or higher |
-| **Bounce Intent** | Comments with "bouncy", "playful", "wiggle", "shake" | -10 | Use "premium", "elegant", "settled" |
-| **No Stagger** | All elements have same delay or `delay: 0` | -10 | Add `delay = index * 6` |
-| **Unclamped Text** | Text position without `extrapolateRight: 'clamp'` | -5 | Add clamp to prevent drift |
+Scoring:
+- **5 points**: All hero moments have proper visual emphasis
+- **3 points**: Most hero moments implemented with some emphasis
+- **0 points**: Hero moments use same animation as regular elements (no distinction)
 
-**Report ALL violations in the `issues` array with specific details.**
+## 4. Code Quality (25 points)
 
-Example violations to catch:
-```tsx
-// VIOLATION: Seesaw on text (-15 points)
-const wiggle = Math.sin(frame * 0.15) * 2;
-transform: `rotate(${wiggle}deg)`
+### Responsive Sizing (10 points)
+- **10 points**: All sizes use percentages (width/height/minDim)
+- **5 points**: Mostly responsive with a few hardcoded values
+- **0 points**: Hardcoded pixel values throughout
 
-// VIOLATION: Low damping (-15 points)
-{ damping: 8, stiffness: 200 }  // TOO BOUNCY
+### Code Organization (10 points)
+- Reusable components for repeated elements
+- Constants properly defined
+- Clean, readable code structure
 
-// VIOLATION: Bounce intent (-10 points)
-// Playful spring config - bouncy!
+### React Best Practices (5 points)
+- All .map() calls have key props
+- No inline object creation in render
+- Proper component structure
+
+## Scoring Output Format
+
+After evaluation, output ONLY this JSON:
+
+```json
+{
+  "score": <0-100>,
+  "breakdown": {
+    "correctness": <0-25>,
+    "completeness": <0-25>,
+    "visualQuality": <0-25>,
+    "codeQuality": <0-25>
+  },
+  "issues": [
+    "Specific issue 1",
+    "Specific issue 2"
+  ],
+  "suggestion": "Actionable fix instructions"
+}
 ```
 
----
+## Pass Threshold
 
-**STEP 1: Analyze the code provided in the prompt**
+- **90+**: Excellent - Ready for production
+- **70-89**: Good - Minor issues to fix
+- **50-69**: Needs work - Several issues
+- **<50**: Significant problems - Major revision needed
 
-Look for these animation patterns:
+Default quality threshold is 70. Code scoring below this will trigger another iteration with feedback.
 
-| Pattern | Code Signature | Points |
-|---------|---------------|--------|
-| Spring animations | `spring({fps:`, `damping:`, `stiffness:` | +8 |
-| Frame interpolation | `interpolate(frame,` | +5 |
-| Staggered timing | `delay = index *` or incremental delays | +8 |
-| Sequence choreography | `<Sequence from={N}` | +5 |
-| Animated gradients | `hsl(${frame}` or color interpolation | +5 |
-| Particle systems | Mapped arrays with position animations | +5 |
-| Background motion | Frame-based transforms on background | +5 |
-| Scale animations | `transform: \`scale(${...})\`` | +5 |
-| Counter tick-up | Number interpolation over frames | +5 |
-| Draw/reveal | clipPath or strokeDashoffset animation | +5 |
+## Automatic Deductions (Plan Violations)
 
-**STEP 2: Check transcript criteria from the prompt**
+These deductions apply REGARDLESS of other scores when a Visual Plan exists:
 
-The evaluation prompt lists specific content that should be animated.
-Check if each item appears in the code with proper animation.
+| Violation | Deduction |
+|-----------|-----------|
+| Plan specifies `particle-emitter` but code uses static divs | -5 points |
+| Plan specifies `mask-reveal` but code uses basic opacity fade | -5 points |
+| Plan specifies physics (`gravity`, `bounce`, `drop-with-gravity`) but code uses linear interpolation only | -5 points |
+| Plan specifies `cell-division` but elements just appear without splitting animation | -5 points |
+| Hero moment has NO visual distinction (no glow, no scale boost, no emphasis) | -3 points each |
+| Plan specifies `glass-shimmer` but component is plain div | -3 points |
+| Generated code is under 300 lines for 4+ scenes (too minimal) | -10 points |
 
-**STEP 3: Call SubmitScoreTool immediately**
+## Code Volume Guidelines
 
-Example call:
-```
-SubmitScoreTool(
-  visual_quality=45,
-  transcript_alignment=15,
-  correctness=10,
-  completeness=10,
-  code_quality=10,
-  issues=["Background is static", "Numbers appear instantly"],
-  suggestion="Add gradient animation to background using hsl(${frame})"
-)
-```
+For plans with multiple scenes, expect substantial code:
 
-## Scoring Quick Reference
+| Scenes | Minimum Expected Lines | Indicates |
+|--------|----------------------|-----------|
+| 2-3 | 200+ lines | Basic implementation |
+| 4-5 | 350+ lines | Moderate complexity |
+| 6+ | 450+ lines | Full implementation |
 
-- **80-100 points**: Excellent - spring(), staggering, background motion, all transcript content
-- **60-79 points**: Good - some animation variety, most transcript content
-- **40-59 points**: Basic - mostly fades, some transcript content missing
-- **0-39 points**: Poor - static or transcript content not represented
-
-## Quality Threshold
-
-- **Score >= 70**: PASS - Visuals meet minimum quality bar
-- **Score < 70**: FAIL - Provide specific improvement suggestions
-
-## Violation Impact on Scoring
-
-Violations are checked AFTER base scoring. The system applies penalties automatically:
-
-```
-FINAL_SCORE = BASE_SCORE - VIOLATION_PENALTIES
-
-Example:
-  Base score: 75
-  Violations found:
-    - Math.sin on text rotation: -15
-    - damping: 8 (too low): -15
-  Final score: 75 - 30 = 45 (FAIL)
-```
-
-**If you detect violations, report them clearly in `issues` so they can be fixed.**
-
-## IMPORTANT
-
-- **Check for VIOLATIONS FIRST** - they override good patterns
-- **Check transcript criteria second** - they are specific and measurable
-- **Always give 10 points for correctness** - code is verified to compile
-- **Always give 10 points for code quality** - assume good practices
-- **Be specific in issues** - reference exact line/pattern violations
-- **Include code examples in suggestions** - show the correct pattern
-
----
-
-## REMINDER: CALL SubmitScoreTool TO COMPLETE
-
-**You MUST call SubmitScoreTool to complete your evaluation task.**
-This is non-negotiable. Analyze the code, then call SubmitScoreTool.
+If code is significantly below these thresholds, animations are likely oversimplified.

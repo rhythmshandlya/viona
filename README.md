@@ -148,7 +148,7 @@ sequenceDiagram
 | Technology | Purpose |
 |------------|---------|
 | WhisperX | Speech-to-text with word alignment |
-| OpenRouter/Gemini | LLM for visual generation |
+| Claude Max / OpenRouter | LLM for visual generation |
 | OpenHands | AI agent framework |
 | FFmpeg | Audio/video processing |
 | Remotion | Programmatic video rendering |
@@ -516,6 +516,58 @@ pip install whisperx
 pip install pyloudnorm soundfile numpy
 ```
 
+### Claude Max Proxy Setup (for AI visual generation)
+
+The worker supports two LLM providers for AI visual generation:
+
+1. **Claude Max** (recommended) - Uses your Claude Max subscription via a local proxy
+2. **OpenRouter** - Uses OpenRouter API with Gemini models
+
+#### Using Claude Max
+
+Claude Max requires the `claude-max-api-proxy` to expose an OpenAI-compatible API.
+
+**First time setup:**
+```bash
+# Install dependencies (includes claude-max-api-proxy)
+pnpm install
+
+# Verify Claude CLI is authenticated
+claude --version
+```
+
+**Start the proxy (do this after every PC restart):**
+```bash
+# Terminal 1: Start the proxy (runs on port 3456)
+pnpm --filter @reelify/worker proxy
+```
+
+```bash
+# Terminal 2: Start the worker
+pnpm --filter @reelify/worker dev
+```
+
+The proxy exposes:
+- Health check: `http://localhost:3456/health`
+- Models: `http://localhost:3456/v1/models`
+- Chat completions: `http://localhost:3456/v1/chat/completions`
+
+Configure the worker to use Claude Max:
+```bash
+LLM_PROVIDER=claude-max
+CLAUDE_MAX_PROXY_URL=http://localhost:3456/v1
+```
+
+Docker containers automatically use `host.docker.internal:3456` to reach the proxy.
+
+#### Using OpenRouter
+
+Alternatively, use OpenRouter with your API key:
+```bash
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-v1-xxx
+```
+
 ---
 
 ## Environment Variables
@@ -565,7 +617,18 @@ BUNDLE_OUTPUT_DIR=./bundles
 
 # OpenHands (AI Visual Generation)
 OPENHANDS_PYTHON_PATH=python
-OPENHANDS_USE_DOCKER=false
+OPENHANDS_USE_DOCKER=true
+OPENHANDS_DOCKER_IMAGE=clipify-openhands-sandbox:latest
+
+# LLM Provider: 'claude-max' or 'openrouter'
+LLM_PROVIDER=claude-max
+
+# Claude Max settings (requires claude-max-api-proxy running)
+CLAUDE_MAX_PROXY_URL=http://localhost:3456/v1
+CLAUDE_MAX_MODEL=claude-opus-4-5-20251101
+CLAUDE_MAX_MODEL_FLASH=claude-haiku-4-5-20251001
+
+# OpenRouter settings (alternative to Claude Max)
 OPENROUTER_API_KEY=your_api_key_here
 ```
 

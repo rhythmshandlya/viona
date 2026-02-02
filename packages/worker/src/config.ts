@@ -71,7 +71,8 @@ export const config = {
     openrouter: {
       baseUrl: 'https://openrouter.ai/api/v1',
       apiKey: process.env.OPENROUTER_API_KEY || '',
-      model: 'google/gemini-3-pro-preview',
+      // Use Gemini 3 Flash for all tasks - 1M+ context handles large skill files efficiently
+      model: 'google/gemini-3-flash-preview',
       modelFlash: 'google/gemini-3-flash-preview',
     },
 

@@ -56,7 +56,7 @@ function getLLMConfig(): LLMConfig {
     model: config.llm.openrouter.model,
     modelFlash: config.llm.openrouter.modelFlash,
     temperature: config.llm.temperature,
-    inputCostPer1M: 2.00,  // Gemini Pro pricing
+    inputCostPer1M: 0.10,  // Gemini 3 Flash pricing
     outputCostPer1M: 12.00,
   };
 }
@@ -338,6 +338,9 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       fps: project.fps || 30,
       width: dimensions?.width || 1080,
       height: dimensions?.height || 1920,
+      stylePreset: stylePreset || 'modern',
+      layoutMode: layoutMode || 'pip',
+      reasoningEffort: 'high', // Maximum Gemini reasoning for best quality
       verbose: job.data.verbose,
     });
 
@@ -566,7 +569,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     await publishJobProgress(jobId, 100, 'Complete');
     await publishJobComplete(jobId, projectId);
 
-    logger.info({ projectId, compositionId, model: codeGenModel.model }, 'Visual generation complete');
+    logger.info({ projectId, compositionId, model: llmConfig.model }, 'Visual generation complete');
 
   } catch (error) {
     logger.error({ projectId, err: error }, 'Visual generation failed');
@@ -592,7 +595,7 @@ interface OpenHandsOptions {
   projectId: string;
   jobId: string;
   model: string;           // Pro model for code generation
-  modelFlash: string;      // Flash model for critic/other tasks
+  modelFlash: string;      // Flash model for critic/planning
   baseUrl: string;         // LLM API base URL
   apiKey: string;          // LLM API key
   temperature: number;
@@ -602,6 +605,9 @@ interface OpenHandsOptions {
   fps: number;
   width: number;
   height: number;
+  stylePreset: string;     // Style preset (minimal, modern, playful, bold, classic)
+  layoutMode: string;      // Layout mode (pip, split-horizontal, split-vertical)
+  reasoningEffort?: string; // Reasoning effort for Gemini: none|low|medium|high
   verbose?: boolean;
 }
 
@@ -704,11 +710,17 @@ async function runOpenHandsAgent(
         '--fps', String(options.fps),
         '--width', String(options.width || 1080),
         '--height', String(options.height || 1920),
+        '--style-preset', options.stylePreset || 'modern',
+        '--layout-mode', options.layoutMode || 'pip',
+        '--reasoning-effort', options.reasoningEffort || 'high',
         '--temperature', String(options.temperature),
         '--max-iterations', '3',
         '--quality-threshold', '70',
       ], {
         stdio: ['ignore', 'pipe', 'pipe'],
+        // IMPORTANT: Disable MSYS/Git Bash path conversion on Windows
+        // Without this, paths like /tmp/prompt.txt get converted to C:/Program Files/Git/tmp/prompt.txt
+        env: { ...process.env, MSYS_NO_PATHCONV: '1', MSYS2_ARG_CONV_EXCL: '*' },
       });
     } else {
       // Run directly on host (development mode)
@@ -728,6 +740,9 @@ async function runOpenHandsAgent(
         '--fps', String(options.fps),
         '--width', String(options.width || 1080),
         '--height', String(options.height || 1920),
+        '--style-preset', options.stylePreset || 'modern',
+        '--layout-mode', options.layoutMode || 'pip',
+        '--reasoning-effort', options.reasoningEffort || 'high',
         '--temperature', String(options.temperature),
         '--max-iterations', '3',
         '--quality-threshold', '70',
@@ -806,6 +821,22 @@ async function runOpenHandsAgent(
             case 'started':
               lastStatus = `Agent started with ${event.tool || model}`;
               addLog(`Started with max ${event.max_iterations || 3} iterations`);
+              break;
+
+            case 'planning':
+            case 'planning_start':
+              lastStatus = 'Visual Director analyzing transcript...';
+              addLog('Planning phase: Visual Director creating visual plan');
+              break;
+
+            case 'planning_complete':
+              lastStatus = `Visual plan created: ${event.scene_count || 0} scenes`;
+              addLog(`Planning complete: ${event.scene_count || 0} scenes, ${event.entity_count || 0} entities, ${event.validation_errors || 0} validation issues`);
+              break;
+
+            case 'planning_error':
+              logger.warn({ projectId, error: event.error, errors: event.errors }, 'Planning phase had issues');
+              addLog(`Planning issue: ${event.error || event.errors?.join(', ') || 'unknown'}`);
               break;
 
             case 'iteration_start':

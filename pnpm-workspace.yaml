@@ -1,3 +1,6 @@
 packages:
-  - "apps/*"
-  - "packages/*"
+  - apps/*
+  - packages/*
+
+patchedDependencies:
+  claude-max-api-proxy: patches/claude-max-api-proxy.patch

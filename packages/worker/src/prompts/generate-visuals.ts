@@ -657,6 +657,18 @@ export const getResponsiveSizes = (width: number, height: number) => {
 
 ---
 
+## 📦 COMPONENT LIBRARY (Optional Shortcuts)
+
+Pre-built components at \`./components/\` are available as **time-savers**, not requirements. Create custom components whenever you have a better idea.
+
+**Available if useful:** \`Counter\`, \`PathFollow\`, \`Stagger\`, \`ParticleStream\`, \`GlowingOrb\`, \`BarChart\`, \`LineGraph\`, \`Confetti\`, \`Burst\`, \`SafeZone\`
+
+**Import:** \`import { Counter, PathFollow } from './components';\`
+
+**Most visualizations should be custom** - the best explainer videos have unique, creative visuals specific to the content.
+
+---
+
 ## 🎬 WHAT TO VISUALIZE
 
 | Transcript Content | Visual to Create |

@@ -1,0 +1,14 @@
+diff --git a/dist/subprocess/manager.js b/dist/subprocess/manager.js
+index 0bf4f1323ef705885ff04f2b95cd7fd9e3d621b8..a1b2c3d4e5f6789012345678901234567890abcd 100644
+--- a/dist/subprocess/manager.js
++++ b/dist/subprocess/manager.js
+@@ -93,6 +93,10 @@ export class ClaudeSubprocess extends EventEmitter {
+             "stream-json", // JSON streaming output
+             "--verbose", // Required for stream-json
+             "--include-partial-messages", // Enable streaming chunks
++            "--disable-slash-commands", // Disable skills (prevents "using-superpowers" interference)
++            "--system-prompt", // Override default system prompt
++            "You are an AI assistant. Execute the user's request immediately using the tools provided. Do NOT respond with text asking what the user wants. The user's message IS the task - execute it immediately by calling the appropriate tool. Never say 'What would you like to work on?' or 'How can I help?' - just DO the task using tools.",
+             "--model",
+             options.model, // Model alias (opus/sonnet/haiku)
+             "--no-session-persistence", // Don't save sessions

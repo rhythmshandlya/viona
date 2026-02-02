@@ -110,7 +110,7 @@ def run_test():
     # Build Docker command
     # Use host.docker.internal for Windows Docker to reach OpenRouter
     base_url = "https://openrouter.ai/api/v1"
-    model = "google/gemini-2.5-flash"  # With reasoning support
+    model = "google/gemini-3-flash-preview"  # With reasoning support
 
     # Convert Windows paths to Docker-compatible paths
     prompt_path_docker = str(prompt_path).replace("\\", "/")
@@ -148,7 +148,7 @@ def run_test():
         "--height", str(TEST_HEIGHT),
         "--style-preset", "modern",
         "--layout-mode", "pip",
-        "--reasoning-effort", "medium",
+        "--reasoning-effort", "high",
         "--temperature", "1.0",
         "--max-iterations", "2",
         "--quality-threshold", "60",

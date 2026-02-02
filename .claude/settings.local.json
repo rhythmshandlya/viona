@@ -212,7 +212,20 @@
       "Bash(du:*)",
       "Bash(node:*)",
       "WebFetch(domain:eval.16x.engineer)",
-      "Bash(git submodule:*)"
+      "Bash(git submodule:*)",
+      "Bash(ping:*)",
+      "Bash(claude mcp:*)",
+      "Bash(claude api --help:*)",
+      "Bash(claude proxy --help:*)",
+      "Bash(npm view:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(taskkill /F /FI \"WINDOWTITLE eq claude-max-api*\")",
+      "Bash(wmic process:*)",
+      "WebFetch(domain:aclanthology.org)",
+      "WebFetch(domain:www.youtube.com)",
+      "Bash(del \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\src\\\\agents\\\\test_visual_director_llm.py\")",
+      "Skill(frontend-design:frontend-design)",
+      "Bash(git -C \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\" diff --name-only HEAD)"
     ]
   }
 }
