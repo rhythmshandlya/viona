@@ -124,6 +124,112 @@ docker compose build --build-arg WHISPER_MODEL=medium worker
 
 ---
 
+## Scalability: No Shared Filesystem
+
+### Problem with Current Architecture
+
+The current visual generation uses **shared filesystem paths** between services:
+
+```
+Worker → writes to → projectDir/src/{compositionId}/
+                            ↓
+Container → reads from → projectDir/ (mounted volume)
+                            ↓
+Container → writes to → bundleOutputDir/{compositionId}/ (mounted volume)
+                            ↓
+API → serves from → bundles.dir/{compositionId}/ (same path)
+```
+
+**This requires:**
+- Shared volume mounts between containers
+- In cloud: NFS/EFS (expensive, slow, single point of failure)
+- Cannot scale horizontally (all instances need same filesystem)
+
+### Scalable Architecture: Everything Through S3
+
+**Principle: All persistent data flows through object storage. Local filesystem is ephemeral only.**
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                     Scalable Data Flow                                  │
+├────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  visual-gen (horizontally scalable)                                    │
+│      │                                                                  │
+│      │ 1. Receive job from Redis queue                                 │
+│      │    - Job contains: transcript, style, config (NOT file paths)   │
+│      │                                                                  │
+│      │ 2. Work in LOCAL /tmp/{jobId}/ (ephemeral)                      │
+│      │    - Generate source files                                      │
+│      │    - Run Remotion bundler                                       │
+│      │    - Take screenshots for validation                            │
+│      │                                                                  │
+│      │ 3. Upload to MinIO (persistent)                                 │
+│      │    - PUT bundles/{compositionId}/* (all bundle files)           │
+│      │    - PUT outputs/{compositionId}/preview.mp4 (optional video)   │
+│      │                                                                  │
+│      │ 4. Update database                                              │
+│      │    - visuals.bundleUrl = 'bundles/{compositionId}/index.html'   │
+│      │                                                                  │
+│      │ 5. Cleanup LOCAL /tmp/{jobId}/                                  │
+│      ▼                                                                  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │                        MinIO / S3                                 │  │
+│  │  Bucket: bundles/                                                 │  │
+│  │    └── {compositionId}/                                           │  │
+│  │        ├── index.html                                             │  │
+│  │        ├── bundle.js                                              │  │
+│  │        ├── bundle.js.map                                          │  │
+│  │        └── assets/...                                             │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│      │                                                                  │
+│      │ 6. Browser requests bundle                                      │
+│      ▼                                                                  │
+│  api (horizontally scalable)                                           │
+│      │                                                                  │
+│      │ 7. Generate presigned URL or redirect                           │
+│      │    GET /bundles/{compositionId}/index.html                      │
+│      │    → 302 Redirect to MinIO presigned URL                        │
+│      ▼                                                                  │
+│  Browser loads bundle directly from MinIO/S3                           │
+│                                                                         │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Scalability Comparison
+
+| Aspect | Shared Filesystem | S3-Based (This Design) |
+|--------|-------------------|------------------------|
+| Horizontal scaling | ❌ All need same mount | ✅ Stateless workers |
+| Cloud deployment | ❌ Requires EFS/NFS | ✅ Uses native S3 |
+| Cost | ❌ EFS is expensive | ✅ S3 is cheap |
+| Latency | ❌ Network filesystem | ✅ Direct S3 access |
+| Failure isolation | ❌ Shared state | ✅ Job-level isolation |
+| Multi-region | ❌ Complex replication | ✅ S3 cross-region |
+
+### Job Data: Redis, Not Filesystem
+
+**Current (filesystem-based):**
+```typescript
+// Write prompt to file, pass path to container
+await writeFile(promptPath, prompt);
+spawn('docker', ['-v', `${promptPath}:/tmp/prompt.txt`]);
+```
+
+**Scalable (Redis-based):**
+```typescript
+// All job data in Redis, no filesystem needed
+await queue.add('generate-visuals', {
+  projectId,
+  compositionId,
+  transcript: [...],  // Inline data
+  style: 'modern',
+  dimensions: { width: 1080, height: 1920 },
+});
+```
+
+---
+
 ## Cloud-Ready Storage Architecture
 
 ### Bundle Flow
@@ -658,24 +764,64 @@ fastify.get('/bundles/:compositionId/*', async (request, reply) => {
 });
 ```
 
-### visual-gen: Add S3 Upload
+### visual-gen: Fully Ephemeral Processing
 
-The visual-gen service must upload bundles to MinIO instead of writing to shared filesystem:
+The visual-gen service must use **only local temp storage** and upload everything to MinIO:
 
 ```typescript
-// After generating bundle locally in /tmp
-const bundleDir = `/tmp/bundle-${compositionId}`;
+// Job data comes from Redis (not filesystem)
+const job = await queue.process('generate-visuals', async (job) => {
+  const { projectId, compositionId, transcript, style, dimensions } = job.data;
 
-// Upload entire bundle directory to MinIO
-await uploadDirectory('bundles', compositionId, bundleDir);
+  // ALL work in ephemeral temp directory
+  const workDir = join(tmpdir(), `visual-gen-${job.id}`);
+  await mkdir(workDir, { recursive: true });
 
-// Update database with S3 URL
-await db.update(visuals).set({
-  bundleUrl: `bundles/${compositionId}/index.html`,
+  try {
+    // 1. Write source files to LOCAL temp
+    const srcDir = join(workDir, 'src');
+    await generateSourceFiles(srcDir, { transcript, style, dimensions });
+
+    // 2. Bundle Remotion in LOCAL temp
+    const bundleDir = join(workDir, 'bundle');
+    await bundleRemotionProject(srcDir, bundleDir);
+
+    // 3. Upload entire bundle to MinIO
+    await uploadDirectory('bundles', compositionId, bundleDir);
+
+    // 4. Update database with S3 URL
+    await db.update(visuals).set({
+      bundleUrl: `bundles/${compositionId}/index.html`,
+    });
+
+  } finally {
+    // 5. ALWAYS cleanup local files
+    await rm(workDir, { recursive: true, force: true });
+  }
 });
+```
 
-// Cleanup local files
-await rm(bundleDir, { recursive: true });
+### Key Change: Job Data in Redis, Not Filesystem
+
+**Current (not scalable):**
+```typescript
+// Writes prompt to filesystem, mounts into container
+const promptPath = join(tmpdir(), `prompt-${jobId}.txt`);
+await writeFile(promptPath, prompt);
+spawn('docker', ['-v', `${promptPath}:/tmp/prompt.txt`]);
+```
+
+**Scalable:**
+```typescript
+// All job data serialized in Redis
+await queue.add('generate-visuals', {
+  projectId,
+  compositionId,
+  transcript: transcriptWords,  // Inline, not file path
+  style: 'modern',
+  dimensions: { width: 1080, height: 1920 },
+  // Max job data size: ~256KB (Redis limit configurable)
+});
 ```
 
 ### Worker: Remove generate-visuals Processor
