@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-02-02 14:57:40",
+  "project_dir": "/bundles/proj-test-arch2",
+  "status": "bundle_failed",
+  "final_score": 0,
+  "quality_threshold": 70,
+  "best_iteration": 0,
+  "total_iterations": 2,
+  "had_visual_plan": false,
+  "bundle_success": false,
+  "video_url": null,
+  "files_written": 0,
+  "model": "google/gemini-3-flash-preview",
+  "model_flash": null
+}

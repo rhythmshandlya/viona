@@ -1,0 +1,32 @@
+[
+  {
+    "start": 0,
+    "end": 3,
+    "text": "Welcome to this quick tutorial on Python list comprehensions."
+  },
+  {
+    "start": 3,
+    "end": 8,
+    "text": "List comprehensions let you create lists in a single line of code."
+  },
+  {
+    "start": 8,
+    "end": 15,
+    "text": "Instead of writing a for loop, you can write it all in brackets."
+  },
+  {
+    "start": 15,
+    "end": 22,
+    "text": "For example, squares equals x squared for x in range 10."
+  },
+  {
+    "start": 22,
+    "end": 28,
+    "text": "This creates a list of squares from 0 to 81."
+  },
+  {
+    "start": 28,
+    "end": 30,
+    "text": "Thanks for watching!"
+  }
+]

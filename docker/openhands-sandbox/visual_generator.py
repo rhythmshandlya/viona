@@ -388,6 +388,15 @@ const SPRING_SETTLED = { damping: 20, stiffness: 100, mass: 0.8 };
 // { damping: 10, stiffness: 150 }  // STILL TOO BOUNCY
 ```
 
+### Component Library (USE IT!)
+Before creating any component, check skills/component-library.md:
+- ProcessFlow, ComparisonSplit, TreeDiagram - structural components
+- ParticleEmitter, MaskReveal, FadeInBlur - animation components
+- CodeBlock, Terminal, BigNumber - display components
+- GlassCard - container with glass effect
+
+**Copy code from the library - don't reinvent!**
+
 Violation of ANY constraint = code will be rejected and you must fix it.
 """
 
@@ -554,6 +563,129 @@ def extract_visuals_from_code(code_content: str, fps: int = 30) -> list:
     visuals.sort(key=lambda v: v['startMs'])
 
     return visuals
+
+
+# =============================================================================
+# FILE BACKUP AND ROLLBACK SYSTEM
+# =============================================================================
+
+def backup_source_files(workspace: str, project_id: str, iteration: int) -> Optional[str]:
+    """
+    Backup source files before each iteration.
+    Returns backup directory path or None if no files to backup.
+    """
+    src_dir = Path(workspace) / "src" / project_id
+    if not src_dir.exists():
+        return None
+
+    backup_dir = Path(workspace) / ".backups" / f"iteration_{iteration}"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+
+    # Copy all source files
+    import shutil
+    for file in src_dir.glob("**/*"):
+        if file.is_file():
+            rel_path = file.relative_to(src_dir)
+            dest = backup_dir / rel_path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(file, dest)
+
+    ProjectOutput.info("Source files backed up", iteration=iteration, backup_dir=str(backup_dir))
+    return str(backup_dir)
+
+
+def restore_source_files(workspace: str, project_id: str, from_iteration: int) -> bool:
+    """
+    Restore source files from a previous iteration's backup.
+    Returns True if successful, False otherwise.
+    """
+    backup_dir = Path(workspace) / ".backups" / f"iteration_{from_iteration}"
+    src_dir = Path(workspace) / "src" / project_id
+
+    if not backup_dir.exists():
+        ProjectOutput.warn("Backup not found", iteration=from_iteration)
+        return False
+
+    # Clear current source and restore from backup
+    import shutil
+    if src_dir.exists():
+        shutil.rmtree(src_dir)
+    src_dir.mkdir(parents=True, exist_ok=True)
+
+    for file in backup_dir.glob("**/*"):
+        if file.is_file():
+            rel_path = file.relative_to(backup_dir)
+            dest = src_dir / rel_path
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(file, dest)
+
+    ProjectOutput.info("Source files restored", from_iteration=from_iteration)
+    return True
+
+
+def generate_targeted_fix_instructions(violations: list, code_content: str) -> str:
+    """
+    Generate specific fix instructions instead of asking for full rewrite.
+    Returns targeted fix instructions for the agent.
+    """
+    if not violations:
+        return ""
+
+    instructions = ["## TARGETED FIXES REQUIRED (Do NOT rewrite everything - fix ONLY these issues):\n"]
+
+    for v in violations:
+        issue = v.get("issue", "")
+        fix = v.get("fix", "")
+        severity = v.get("severity", "major")
+
+        # Try to find the line number if possible
+        if "damping:" in issue:
+            # Find damping violations in code
+            import re
+            matches = list(re.finditer(r'damping:\s*(\d+)', code_content))
+            for m in matches:
+                if int(m.group(1)) < 15:
+                    # Find line number
+                    line_num = code_content[:m.start()].count('\n') + 1
+                    instructions.append(f"- **Line ~{line_num}**: {issue}")
+                    instructions.append(f"  FIX: {fix}")
+                    break
+        elif "Math.sin" in issue or "Math.cos" in issue:
+            # Find Math.sin/cos in code
+            import re
+            match = re.search(r'Math\.(sin|cos)', code_content)
+            if match:
+                line_num = code_content[:match.start()].count('\n') + 1
+                instructions.append(f"- **Line ~{line_num}**: {issue}")
+                instructions.append(f"  FIX: {fix}")
+        else:
+            instructions.append(f"- **[{severity.upper()}]**: {issue}")
+            instructions.append(f"  FIX: {fix}")
+
+    instructions.append("\n**IMPORTANT**: Make minimal changes. Do NOT simplify or remove working code.")
+    instructions.append("**IMPORTANT**: Keep ALL existing animations and components intact.")
+
+    return "\n".join(instructions)
+
+
+def pre_check_violations(workspace: str, project_id: str) -> tuple[bool, list, str]:
+    """
+    Pre-check source code for violations BEFORE expensive LLM evaluation.
+    Returns (has_critical_violations, violations_list, code_content)
+    """
+    src_dir = Path(workspace) / "src" / project_id
+    index_file = src_dir / "index.tsx"
+
+    if not index_file.exists():
+        return False, [], ""
+
+    code_content = index_file.read_text(encoding="utf-8")
+    violations = scan_for_violations(code_content)
+
+    # Check for critical violations that need immediate fix
+    critical = [v for v in violations if v.get("severity") == "critical"]
+
+    return len(critical) > 0, violations, code_content
 
 
 def check_plan_compliance(code_content: str, visual_plan: dict) -> dict:
@@ -1491,10 +1623,27 @@ For EACH scene in `scenes`:
 
 **SYNC CHECK:** If transcript says [FRAMES 150-360], your scene MUST animate between those frames!
 
-### Step 3: Animation Techniques
-- Use `spring()` with premium config: `{{ damping: 20, stiffness: 100, mass: 0.8 }}`
-- Use `interpolate()` with `extrapolateRight: 'clamp'`
-- Stagger elements by at least 8 frames
+### Step 3: Animation Techniques (USE COMPONENT LIBRARY!)
+
+**CRITICAL: Check skills/component-library.md for pre-built components!**
+
+Technique-to-Component Mapping:
+| Plan Technique | Use Component From Library |
+|----------------|---------------------------|
+| `particle-emitter` | ParticleEmitter (with physics config) |
+| `mask-reveal` | MaskReveal (clipPath-based reveal) |
+| `fade-in-blur` | FadeInBlur (filter: blur animation) |
+| `scale-spring` | Spring-based scale with damping 18-22 |
+| `glass-shimmer` | GlassCard with shimmerEffect |
+| `draw-stroke` | SVG with strokeDasharray/Dashoffset |
+| `drop-with-gravity` | Gravity physics: y = initialY + 0.5 * g * t^2 |
+| `cell-division` | Array.from() with spring-based positioning |
+| `3d-rotation` | perspective + rotateX/Y + preserve-3d |
+| `fill-animation` | scaleX/scaleY with interpolate |
+
+Spring config: `{{ damping: 20, stiffness: 100, mass: 0.8 }}`
+Use `interpolate()` with `extrapolateRight: 'clamp'`
+Stagger elements by 6-12 frames (e.g., `index * 8`)
 
 ### Step 4: Output Files
 1. `index.tsx` - Main composition with all scenes
@@ -1954,14 +2103,33 @@ After writing:
 2. Fix any errors found
 3. Repeat until ZERO errors
 
-### CRITICAL: USE YOUR SKILLS
+### CRITICAL: USE YOUR SKILLS (MANDATORY - DO NOT SKIP!)
 
-You have access to skills in your context. CONSULT THEM:
-- **component-library**: Pre-built components like ProcessFlow, ComparisonSplit, CodeBlock
-- **animation-techniques**: How to implement particle-emitter, mask-reveal, etc.
-- **remotion-best-practices**: Correct Remotion patterns
+You have access to skills in your context. You MUST check them BEFORE coding:
 
-DO NOT improvise when a skill provides the solution!
+**STEP 1: Before writing ANY component, SEARCH skills/component-library.md**
+Use FileEditorTool to read or grep to search:
+```bash
+grep -i "ProcessFlow\\|ComparisonSplit\\|ParticleEmitter" skills/component-library.md
+```
+
+**STEP 2: Check skills/animation-techniques.md for EVERY plan technique**
+If plan says "particle-emitter", "mask-reveal", "glass-shimmer", etc. - the implementation code is in the skill!
+
+**Pre-built components you MUST use (do NOT recreate from scratch):**
+- **ProcessFlow** - For step-by-step processes
+- **ComparisonSplit** - For before/after comparisons
+- **TreeDiagram** - For hierarchical structures
+- **LayerStack** - For layered visualizations
+- **ParticleEmitter** - For particle effects
+- **GlassCard** - For glassmorphism containers
+- **CodeBlock** - For code snippets
+- **BigNumber** - For statistics/numbers
+- **Terminal** - For command line displays
+- **FadeInBlur** - For blur-based reveals
+- **MaskReveal** - For clipPath reveals
+
+**IMPORTANT: If a skill has the component/technique, COPY IT - don't improvise!**
 
 ### END GOAL
 
@@ -2721,7 +2889,7 @@ def main():
     parser.add_argument("--model-flash", help="LLM model for evaluation/other tasks (Flash). Defaults to --model")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
     parser.add_argument("--base-url", required=True, help="LLM API base URL")
-    parser.add_argument("--api-key", default="not-needed", help="LLM API key")
+    parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY", os.environ.get("OPENAI_API_KEY", "not-needed")), help="LLM API key")
     parser.add_argument("--duration-frames", type=int, default=900, help="Video duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Video FPS")
     parser.add_argument("--width", type=int, default=1080, help="Visual width in pixels")
@@ -2925,6 +3093,7 @@ def main():
         # State tracking
         best_score = 0
         best_iteration = 0
+        best_code_backup = None  # Track which iteration has best code
         visual_feedback = None
         final_status = "failed"
 
@@ -2934,6 +3103,11 @@ def main():
 
             ProjectOutput.phase(f"=== Iteration {iteration + 1}/{args.max_iterations} ===")
             emit_event(EVENT_PHASE_START, phase="iteration", iteration=iteration + 1, max_iterations=args.max_iterations)
+
+            # ===== PHASE 0.5: Backup existing code before generation =====
+            if iteration > 0:
+                # Backup current code before potentially overwriting
+                backup_source_files(args.workspace, args.project_id, iteration)
 
             # ===== PHASE 1: Generate with self-healing =====
             ProjectOutput.info("Starting generator with self-healing", iteration=iteration + 1)
@@ -2951,10 +3125,16 @@ def main():
                 break
 
             if not gen_success:
-                # Generator failed to produce error-free code
+                # Generator failed - try to restore previous good code
                 ProjectOutput.error("Generator failed to self-heal",
                                iteration=iteration + 1,
                                error=gen_message[:200])
+
+                # Restore best code if available
+                if best_code_backup is not None:
+                    ProjectOutput.info("Restoring best code from iteration", from_iteration=best_code_backup)
+                    restore_source_files(args.workspace, args.project_id, best_code_backup)
+
                 emit_event(
                     EVENT_ITERATION_COMPLETE,
                     iteration=iteration + 1,
@@ -2967,6 +3147,17 @@ def main():
                 continue
 
             ProjectOutput.info("Generator completed successfully", iteration=iteration + 1)
+
+            # ===== PHASE 1.5: Pre-check for violations (fast fail) =====
+            has_critical, violations, code_content = pre_check_violations(
+                args.workspace, args.project_id
+            )
+            if has_critical:
+                ProjectOutput.warn("Critical violations detected - will generate targeted fixes",
+                              violations=len(violations))
+                # Generate targeted fix instructions for next iteration
+                targeted_fixes = generate_targeted_fix_instructions(violations, code_content)
+                visual_feedback = targeted_fixes
 
             # ===== PHASE 2: Visual evaluation =====
             ProjectOutput.info("Starting visual evaluation", iteration=iteration + 1)
@@ -2989,11 +3180,27 @@ def main():
                           threshold=args.quality_threshold)
             log_debug("SCORE", f"Iteration result", iteration=iteration+1, score=current_score, threshold=args.quality_threshold)
 
-            # Track best
+            # Track best and rollback if score degraded
             if current_score > best_score:
                 best_score = current_score
                 best_iteration = iteration + 1
+                # Backup this version as it's the best so far
+                backup_source_files(args.workspace, args.project_id, iteration + 1)
                 log_debug("SCORE", f"New best score", best=best_score)
+            elif current_score < best_score and best_iteration > 0:
+                # Score degraded - restore the best version
+                ProjectOutput.warn("Score degraded, restoring best code",
+                                  current=current_score, best=best_score, restoring=best_iteration)
+                log_debug("SCORE", "Restoring best iteration due to degradation",
+                         current=current_score, best=best_score)
+                restore_source_files(args.workspace, args.project_id, best_iteration)
+                # Update feedback to be more targeted
+                visual_feedback = f"""CRITICAL: Your changes DEGRADED the score from {best_score} to {current_score}.
+The best code from iteration {best_iteration} has been RESTORED.
+
+DO NOT rewrite from scratch. Make SMALL, TARGETED improvements.
+Focus on the specific issues below:
+{visual_feedback}"""
 
             # Extract breakdown values
             breakdown = score_result.get("breakdown", {})
