@@ -68,7 +68,8 @@ function runEnhancementScript(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const scriptPath = resolve_(config.enhance.scriptPath);
-    const proc = spawn(config.pythonPath, [
+    const pythonPath = resolve_(config.enhance.pythonPath);
+    const proc = spawn(pythonPath, [
       scriptPath,
       '--input', inputPath,
       '--output', outputPath,

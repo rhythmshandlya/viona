@@ -1,7 +1,7 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { mkdir, rm, writeFile, readFile, readdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { join, dirname, resolve } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { spawn, spawnSync, ChildProcess } from 'child_process';
@@ -664,12 +664,12 @@ async function runOpenHandsAgent(
       const containerName = `openhands-${jobId}`;
       spawnSync('docker', ['rm', '-f', containerName], { stdio: 'ignore' });
 
-      // Create output directory for generated project files
-      const outputDir = join(workspace, 'src');
+      // Create output directory for generated project files (must be absolute path for Docker mounts)
+      const outputDir = resolve(join(workspace, 'src'));
       await mkdir(outputDir, { recursive: true });
 
-      // Create bundle output directory
-      const bundleOutputDir = config.remotion.bundleOutputDir;
+      // Create bundle output directory (must be absolute path for Docker mounts)
+      const bundleOutputDir = resolve(config.remotion.bundleOutputDir);
       await mkdir(bundleOutputDir, { recursive: true });
 
       // Docker run command with mounts for source and bundle output

@@ -52,7 +52,13 @@ def run_demucs(input_path: str, output_dir: str) -> str:
     from demucs.apply import apply_model
 
     model = get_model("htdemucs")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Device selection: CUDA > MPS (macOS Apple Silicon) > CPU
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
     model.to(device)
 
     # Load audio as float32 tensor [channels, samples]

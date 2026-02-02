@@ -18,6 +18,10 @@
     "db:migrate": "pnpm --filter @reelify/api db:migrate",
     "db:seed": "pnpm --filter @reelify/api db:seed",
     "setup": "pnpm install && pnpm docker:up && pnpm db:migrate",
+    "setup:macos": "bash scripts/setup-macos.sh",
+    "setup:whisperx": "pnpm --filter @reelify/worker whisperx:setup",
+    "setup:enhance": "pnpm --filter @reelify/worker enhance:setup",
+    "proxy": "pnpm --filter @reelify/worker proxy",
     "lint": "pnpm run --parallel lint",
     "typecheck": "pnpm run --parallel typecheck"
   },
@@ -34,8 +38,5 @@
     "pnpm": ">=9.0.0"
   },
   "pnpm": {
-    "patchedDependencies": {
-      "claude-max-api-proxy": "patches/claude-max-api-proxy.patch"
-    }
   }
 }

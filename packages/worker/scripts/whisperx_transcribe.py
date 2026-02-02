@@ -51,9 +51,22 @@ def emit_progress(percent: int, message: str):
 
 
 def detect_device(requested: str) -> str:
-    """Resolve 'auto' device to cuda or cpu."""
+    """Resolve 'auto' device to cuda, mps, or cpu."""
     if requested == "auto":
-        return "cuda" if torch.cuda.is_available() else "cpu"
+        if torch.cuda.is_available():
+            return "cuda"
+        elif torch.backends.mps.is_available():
+            # macOS Apple Silicon - use MPS for GPU acceleration
+            # Note: WhisperX may have limited MPS support, fallback to CPU if issues
+            return "cpu"  # MPS support in whisperx is experimental, safer to use CPU
+        else:
+            return "cpu"
+    elif requested == "mps":
+        if torch.backends.mps.is_available():
+            return "cpu"  # WhisperX doesn't fully support MPS yet, use CPU
+        else:
+            print("WARNING: MPS requested but not available, falling back to CPU", file=sys.stderr)
+            return "cpu"
     return requested
 
 

@@ -35,12 +35,13 @@ export const config = {
 
   enhance: {
     scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
+    pythonPath: process.env.ENHANCE_PYTHON_PATH || './venv-enhance/bin/python',
   },
 
   remotion: {
-    projectDir: process.env.REMOTION_PROJECT_DIR || 'C:/Users/armaa/test',
+    projectDir: process.env.REMOTION_PROJECT_DIR || './remotion-temp',
     // IMPORTANT: This must match the API's bundles.dir config (set BUNDLE_OUTPUT_DIR in .env)
-    bundleOutputDir: process.env.BUNDLE_OUTPUT_DIR || 'C:/Users/armaa/Documents/cllipify/bundles',
+    bundleOutputDir: process.env.BUNDLE_OUTPUT_DIR || './bundles',
   },
 
   openHands: {

@@ -1,0 +1,434 @@
+```json
+{
+  "meta": {
+    "project_id": "proj_5b12b068_0d54_4df3_931c_03803cb7381b",
+    "transcript_summary": "Explaining the transition from O(log n) Priority Queues to O(1) Hierarchical Timing Wheels for massive scale task scheduling.",
+    "total_duration_frames": 2967,
+    "fps": 30,
+    "canvas": { "width": 1080, "height": 1920, "orientation": "vertical" },
+    "style_preset": "playful",
+    "layout_mode": "pip"
+  },
+
+  "concept_analysis": {
+    "core_topic": "Hierarchical Timing Wheels",
+    "key_entities": [
+      {
+        "name": "Task",
+        "role": "Units of work with specific delay timers",
+        "examples": ["cache expiry", "retry message"],
+        "visual_importance": "primary"
+      },
+      {
+        "name": "Priority Queue",
+        "role": "The 'old' way - sorting tasks in a binary heap",
+        "visual_importance": "secondary"
+      },
+      {
+        "name": "Timing Wheel",
+        "role": "The O(1) solution - circular buffer of buckets",
+        "visual_importance": "primary"
+      }
+    ],
+    "relationships": [
+      {
+        "from": "Outer Wheel",
+        "to": "Inner Wheel",
+        "type": "cascades",
+        "what": "Tasks",
+        "visualization": "gravity-fall-between-circles"
+      }
+    ],
+    "processes": [
+      {
+        "name": "Heap Rebalancing",
+        "steps": ["insert task", "bubble up/down", "shift structure"],
+        "is_core_animation": true
+      },
+      {
+        "name": "Wheel Rotation",
+        "steps": ["hand moves", "bucket activates", "tasks execute/cascade"],
+        "is_core_animation": true
+      }
+    ]
+  },
+
+  "visual_system": {
+    "metaphor_mapping": {
+      "Task": {
+        "visual": "glowing-sticky-note-with-timer",
+        "style": { "color": "style.accent", "size_percent": 8, "glow": "strong" },
+        "personality": "bouncy, impatient"
+      },
+      "PriorityQueue": {
+        "visual": "wobbly-binary-tree-structure",
+        "style": { "color": "style.primary", "size_percent": 30 },
+        "personality": "stressed, struggling to balance"
+      },
+      "TimingWheel": {
+        "visual": "mechanical-clock-gear-with-slots",
+        "style": { "color": "style.secondary", "size_percent": 45 },
+        "personality": "steady, rhythmic, efficient"
+      }
+    },
+
+    "visual_vocabulary": {
+      "sorting_struggle": {
+        "animation": "tree nodes shaking and swapping places rapidly",
+        "effects": ["sweat-drops-particles", "red-glow-on-bottleneck"]
+      },
+      "bucket_drop": {
+        "animation": "task object arcs and lands perfectly in a slot",
+        "effects": ["satisfying-click-sound-visual", "slot-pulse"]
+      },
+      "cascading": {
+        "animation": "group of tasks falling from outer wheel to inner wheel",
+        "effects": ["motion-blur-vertical", "sparkle-on-landing"]
+      }
+    },
+
+    "spatial_layout": {
+      "type": "vertical-stack",
+      "description": "Top for titles/metrics, Center for main mechanism, Bottom for labels/subtitles",
+      "positions": {
+        "main_stage": { "x_percent": 50, "y_percent": 45 },
+        "secondary_stage": { "x_percent": 50, "y_percent": 70 },
+        "metric_area": { "x_percent": 85, "y_percent": 15 },
+        "title_area": { "x_percent": 50, "y_percent": 10 }
+      },
+      "safe_zones": {
+        "bottom": { "height_percent": 15, "reserved_for": "subtitles" }
+      }
+    },
+
+    "motion_principles": {
+      "default_spring": { "damping": 8, "stiffness": 200, "mass": 1 },
+      "travel_duration_frames": 30,
+      "stagger_delay_frames": 10
+    }
+  },
+
+  "scenes": [
+    {
+      "scene_id": "S01_Hook",
+      "frame_range": [0, 60],
+      "transcript_segment": "Here is a system design challenge for you.",
+      "narrative_goal": "Set the stage for a high-stakes engineering problem",
+      "viewer_takeaway": "This is a serious but fun architecture lesson",
+      "visual_story": {
+        "setup": { "description": "Dark purple background with subtle grid lines", "mood": "playful mystery" },
+        "build_sequence": [
+          {
+            "at_frame": 10,
+            "action": "Title 'SYSTEM DESIGN CHALLENGE' appears",
+            "element": "title_card",
+            "technique": "bouncy-drop-from-top",
+            "effects": ["glow", "shadow"],
+            "rationale": "Strong hook"
+          }
+        ],
+        "hero_moment": {
+          "what": "Title card bouncing with overshoot",
+          "frame_range": [10, 40],
+          "treatment": "Playful spring physics"
+        },
+        "elements_on_stage_at_end": ["title_card"]
+      },
+      "element_positions": { "title_card": { "x_percent": 50, "y_percent": 45 } }
+    },
+    {
+      "scene_id": "S02_Scale",
+      "frame_range": [60, 270],
+      "transcript_segment": "You need to build a scheduler that handles millions of delayed tasks, like expiring cache keys or retrying failed messages.",
+      "narrative_goal": "Visualize the sheer volume of tasks",
+      "viewer_takeaway": "Standard tools might break under this load",
+      "visual_story": {
+        "setup": { "description": "Large funnel at the top of the screen", "mood": "overwhelming" },
+        "build_sequence": [
+          {
+            "at_frame": 70,
+            "action": "Flood of 'Task' icons (glowing orbs) pours into funnel",
+            "element": "task_flood",
+            "technique": "particle-emitter",
+            "effects": ["motion-blur", "rapid-count-increment"],
+            "rationale": "Demonstrate 'millions'"
+          },
+          {
+            "at_frame": 150,
+            "action": "Counter showing '10,000,000' appears",
+            "element": "counter",
+            "technique": "number-roll",
+            "effects": ["color-shift-to-orange"],
+            "rationale": "Quantify the scale"
+          }
+        ],
+        "hero_moment": {
+          "what": "The screen filling with vibrant, glowing task icons",
+          "frame_range": [100, 250],
+          "treatment": "High density particles"
+        },
+        "elements_on_stage_at_end": ["funnel", "counter"]
+      },
+      "element_positions": {
+        "funnel": { "x_percent": 50, "y_percent": 30 },
+        "counter": { "x_percent": 50, "y_percent": 60 }
+      }
+    },
+    {
+      "scene_id": "S03_HeapTrap",
+      "frame_range": [270, 600],
+      "transcript_segment": "Your first instinct is probably a priority queue, right? A standard binary heap. It works because you always get the most immediate tasks to execute, as the data structure will sort it for you.",
+      "narrative_goal": "Introduce the common (but flawed) solution",
+      "viewer_takeaway": "Priority queues sort things automatically but have a cost",
+      "visual_story": {
+        "setup": { "description": "Binary tree structure (nodes and lines)", "mood": "organized" },
+        "build_sequence": [
+          {
+            "at_frame": 280,
+            "action": "Binary tree materializes",
+            "element": "priority_queue",
+            "technique": "grow-from-root",
+            "effects": ["connected-line-drawing"],
+            "rationale": "Classic CS representation"
+          },
+          {
+            "at_frame": 380,
+            "action": "Tasks enter top and 'bubble' to their positions",
+            "element": "sorting_action",
+            "technique": "node-swapping",
+            "effects": ["trail-lines"],
+            "rationale": "Show the internal sorting work"
+          }
+        ],
+        "hero_moment": {
+          "what": "The tree rebalancing smoothly as tasks enter",
+          "frame_range": [400, 550],
+          "treatment": "Fluid node transitions"
+        },
+        "elements_on_stage_at_end": ["priority_queue"]
+      },
+      "element_positions": { "priority_queue": { "x_percent": 50, "y_percent": 45 } }
+    },
+    {
+      "scene_id": "S04_Bottleneck",
+      "frame_range": [600, 1020],
+      "transcript_segment": "But it represents a trap because it operates in logarithmic time. This means every single time you add a timer, you have to sort and rebalance the tree. And when you are handling 10 million connections, that sorting overhead is going to be a bottleneck.",
+      "narrative_goal": "Highlight the performance failure at scale",
+      "viewer_takeaway": "O(log n) is too slow for 10M items",
+      "visual_story": {
+        "setup": { "description": "The tree from before, now massive and complex", "mood": "stressful" },
+        "build_sequence": [
+          {
+            "at_frame": 610,
+            "action": "Tree starts shaking violently",
+            "element": "priority_queue",
+            "technique": "shake-intensity-increase",
+            "effects": ["red-glow", "sweat-particles"],
+            "rationale": "Visual stress"
+          },
+          {
+            "at_frame": 750,
+            "action": "Label 'O(log n)' appears and starts flashing red",
+            "element": "complexity_label",
+            "technique": "strobe",
+            "effects": [],
+            "rationale": "Identifying the mathematical culprit"
+          }
+        ],
+        "hero_moment": {
+          "what": "The tree 'breaking' or turning into a red-hot bottleneck visual",
+          "frame_range": [850, 950],
+          "treatment": "Violent shaking and color shift to warning red"
+        },
+        "elements_on_stage_at_end": ["broken_tree", "complexity_label"]
+      },
+      "element_positions": {
+        "broken_tree": { "x_percent": 50, "y_percent": 45 },
+        "complexity_label": { "x_percent": 50, "y_percent": 15 }
+      }
+    },
+    {
+      "scene_id": "S05_TheWheel",
+      "frame_range": [1020, 1590],
+      "transcript_segment": "So can we do better? Can we get the scheduling down to a constant time complexity? Yes, by using hierarchical timing wheel. Picture a simple clock face with 60 slots. If the task is due in 5 seconds, you don't sort it. You just drop it directly to that 5 second bucket.",
+      "narrative_goal": "Introduce the O(1) Timing Wheel",
+      "viewer_takeaway": "Direct indexing is faster than sorting",
+      "visual_story": {
+        "setup": { "description": "Large circular clock-like gear with 60 numbered slots", "mood": "satisfyingly simple" },
+        "build_sequence": [
+          {
+            "at_frame": 1150,
+            "action": "Timing Wheel appears with a bouncy entrance",
+            "element": "timing_wheel",
+            "technique": "scale-spring",
+            "effects": ["gear-rotation-start"],
+            "rationale": "New hero element"
+          },
+          {
+            "at_frame": 1350,
+            "action": "A task (orb) flies and drops perfectly into slot #5",
+            "element": "task_drop",
+            "technique": "parabolic-arc",
+            "effects": ["slot-highlight", "sparkle-on-impact"],
+            "rationale": "Show O(1) direct placement"
+          }
+        ],
+        "hero_moment": {
+          "what": "Multiple tasks dropping into different slots simultaneously with NO sorting movement",
+          "frame_range": [1450, 1550],
+          "treatment": "Satisfying 'click' animations"
+        },
+        "elements_on_stage_at_end": ["timing_wheel"]
+      },
+      "element_positions": { "timing_wheel": { "x_percent": 50, "y_percent": 50 } }
+    },
+    {
+      "scene_id": "S06_Hierarchy",
+      "frame_range": [1590, 2220],
+      "transcript_segment": "But the real genius is in the hierarchy. What if the task is due in an hour? You don't build a massive wheel. You use a second larger wheel acting like a minute hand. This outer wheel doesn't execute tasks, it just holds them. And when the minute hand finally ticks, it takes the task in that bucket and cascades them down to the second wheel to be executed.",
+      "narrative_goal": "Explain the hierarchical cascading mechanism",
+      "viewer_takeaway": "Multiple wheels handle different time scales without massive memory",
+      "visual_story": {
+        "setup": { "description": "Two concentric wheels: Outer (Minutes) and Inner (Seconds)", "mood": "mechanical wonder" },
+        "build_sequence": [
+          {
+            "at_frame": 1650,
+            "action": "Outer wheel zooms in behind the inner wheel",
+            "element": "outer_wheel",
+            "technique": "fade-grow",
+            "effects": ["secondary-color-theme"],
+            "rationale": "Establishing hierarchy"
+          },
+          {
+            "at_frame": 1800,
+            "action": "Tasks land in the Outer Wheel",
+            "element": "outer_tasks",
+            "technique": "drop",
+            "effects": [],
+            "rationale": "Long-term storage"
+          },
+          {
+            "at_frame": 2050,
+            "action": "Outer wheel 'ticks', tasks fall into the Inner wheel",
+            "element": "cascade_animation",
+            "technique": "gravity-fall",
+            "effects": ["motion-trails", "radial-spread"],
+            "rationale": "Visualizing the 'cascade' concept"
+          }
+        ],
+        "hero_moment": {
+          "what": "The cascade of tasks flowing from the large outer gear to the small inner gear like liquid",
+          "frame_range": [2100, 2200],
+          "treatment": "Particle cascade with glow"
+        },
+        "elements_on_stage_at_end": ["inner_wheel", "outer_wheel"]
+      },
+      "element_positions": {
+        "inner_wheel": { "x_percent": 50, "y_percent": 60 },
+        "outer_wheel": { "x_percent": 50, "y_percent": 35 }
+      }
+    },
+    {
+      "scene_id": "S07_RealWorld",
+      "frame_range": [2250, 2640],
+      "transcript_segment": "It is a literal mechanical clock mechanism running in your code. No sorting, just rotating. This isn't just a theory also. This is the exact architecture Apache Kafka and Netty used to handle massive throughput without lag.",
+      "narrative_goal": "Validate the concept with real-world examples",
+      "viewer_takeaway": "This is industry-standard for high performance",
+      "visual_story": {
+        "setup": { "description": "Split screen with mechanical gears on one side and tech logos on the other", "mood": "professional, high-speed" },
+        "build_sequence": [
+          {
+            "at_frame": 2260,
+            "action": "Gears rotating perfectly in sync",
+            "element": "mechanical_gears",
+            "technique": "looping-rotation",
+            "effects": ["metallic-sheen"],
+            "rationale": "Metaphor reinforcement"
+          },
+          {
+            "at_frame": 2450,
+            "action": "Kafka and Netty logos appear with a punchy spring",
+            "element": "logos",
+            "technique": "pop-in",
+            "effects": ["white-glow-pulse"],
+            "rationale": "Authority building"
+          }
+        ],
+        "hero_moment": {
+          "what": "The tech logos glowing brightly as the gears accelerate to high speed",
+          "frame_range": [2500, 2600],
+          "treatment": "Motion blur and speed lines"
+        },
+        "elements_on_stage_at_end": ["Kafka_Logo", "Netty_Logo", "Gears"]
+      },
+      "element_positions": {
+        "Kafka_Logo": { "x_percent": 30, "y_percent": 50 },
+        "Netty_Logo": { "x_percent": 70, "y_percent": 50 },
+        "Gears": { "x_percent": 50, "y_percent": 20 }
+      }
+    },
+    {
+      "scene_id": "S08_Outro",
+      "frame_range": [2640, 2967],
+      "transcript_segment": "I am Prasanna, an engineer who manages technical architectures here at Zoho. Follow me to learn more about real engineering and check the pinned comment for the full architecture breakdown. Thank you.",
+      "narrative_goal": "Personal sign-off and call to action",
+      "viewer_takeaway": "Prasanna is a credible source for more engineering deep-dives",
+      "visual_story": {
+        "setup": { "description": "Clean outro card with presenter name and Zoho logo", "mood": "friendly, professional" },
+        "build_sequence": [
+          {
+            "at_frame": 2650,
+            "action": "Presenter name 'Prasanna' and 'Zoho' logo appear",
+            "element": "outro_card",
+            "technique": "slide-up-fade",
+            "effects": [],
+            "rationale": "Identity"
+          },
+          {
+            "at_frame": 2770,
+            "action": "Social media 'Follow' button and 'Pinned Comment' icon pop up",
+            "element": "cta_elements",
+            "technique": "bouncy-pop",
+            "effects": ["wiggle-animation"],
+            "rationale": "Actionable next steps"
+          }
+        ],
+        "hero_moment": {
+          "what": "Heart icons and 'Follow' button pulsing playfully",
+          "frame_range": [2800, 2900],
+          "treatment": "Playful wiggle and scale pulse"
+        },
+        "elements_on_stage_at_end": ["outro_card", "cta_elements"]
+      },
+      "element_positions": {
+        "outro_card": { "x_percent": 50, "y_percent": 40 },
+        "cta_elements": { "x_percent": 50, "y_percent": 70 }
+      }
+    }
+  ],
+
+  "global_directives": {
+    "layout_constraints": {
+      "no_element_overlap": true,
+      "safe_zone_bottom_percent": 15,
+      "edge_margin_percent": 10,
+      "max_simultaneous_elements": 5
+    },
+    "animation_constraints": {
+      "min_animation_frames": 20,
+      "min_stagger_frames": 10,
+      "min_travel_frames": 30,
+      "spring_damping_min": 8
+    },
+    "timing_constraints": {
+      "build_before_speak_frames": 5,
+      "hero_hold_frames": 30
+    },
+    "prohibited_patterns": [
+      "static_text_only_slides",
+      "teleporting_tasks",
+      "elements_covering_subtitles"
+    ]
+  }
+}
+```

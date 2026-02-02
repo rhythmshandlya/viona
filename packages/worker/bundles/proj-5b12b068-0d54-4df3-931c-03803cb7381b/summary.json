@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-02-02 18:16:51",
+  "project_dir": "/bundles/proj-5b12b068-0d54-4df3-931c-03803cb7381b",
+  "status": "ready",
+  "final_score": 86,
+  "quality_threshold": 70,
+  "best_iteration": 1,
+  "total_iterations": 1,
+  "had_visual_plan": true,
+  "bundle_success": true,
+  "video_url": "/bundles/proj-5b12b068-0d54-4df3-931c-03803cb7381b/video.mp4",
+  "files_written": 8,
+  "model": "google/gemini-3-flash-preview",
+  "model_flash": "google/gemini-3-flash-preview"
+}

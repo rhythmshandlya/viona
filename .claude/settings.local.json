@@ -225,7 +225,15 @@
       "WebFetch(domain:www.youtube.com)",
       "Bash(del \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\src\\\\agents\\\\test_visual_director_llm.py\")",
       "Skill(frontend-design:frontend-design)",
-      "Bash(git -C \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\" diff --name-only HEAD)"
+      "Bash(git -C \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\" diff --name-only HEAD)",
+      "Bash(chmod:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(brew list:*)",
+      "Bash(scripts/.venv/bin/python:*)",
+      "Bash(venv-enhance/bin/python:*)",
+      "Bash(venv-enhance/bin/pip install:*)",
+      "Bash(pkill:*)",
+      "Bash(ln:*)"
     ]
   }
 }

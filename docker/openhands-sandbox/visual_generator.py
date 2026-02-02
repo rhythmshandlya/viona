@@ -1271,6 +1271,7 @@ Think through your creative process in <thinking> tags, then output the Visual P
             ],
             'temperature': 0.7,
             'max_tokens': 8000,  # Increased from 4000 - Visual Plans can be large
+            'drop_params': True,  # Silently drop unsupported params (e.g., thinking for OpenAI-compatible proxies)
         }
         if api_key:
             litellm_kwargs['api_key'] = api_key
