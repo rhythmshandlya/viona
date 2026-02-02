@@ -42,6 +42,202 @@ logging.getLogger("httpx").setLevel(logging.ERROR)
 logging.getLogger("httpcore").setLevel(logging.ERROR)
 logging.getLogger("LiteLLM").setLevel(logging.ERROR)
 
+# =============================================================================
+# PROJECT OUTPUT - Unified output structure for all artifacts
+# =============================================================================
+
+class ProjectOutput:
+    """
+    Unified project output manager.
+
+    Creates a clean, organized structure for all project artifacts:
+
+    bundles/{project-id}/
+    ├── logs/
+    │   └── generation.log      # Clean structured logs (JSON lines)
+    ├── plans/
+    │   ├── visual-plan.json    # Parsed visual plan
+    │   ├── raw-response.txt    # Raw LLM output for debugging
+    │   └── thinking.txt        # Planning reasoning/thinking
+    ├── src/
+    │   ├── index.tsx           # Main composition (copied from workspace)
+    │   ├── constants.ts        # Colors, spring configs
+    │   └── metadata.json       # Composition metadata
+    ├── build/
+    │   ├── index.html          # Bundle entry point
+    │   ├── bundle.js           # Compiled JavaScript
+    │   └── ...                 # Other bundle assets
+    ├── video.mp4               # Rendered video (if successful)
+    └── summary.json            # Final run summary
+    """
+    _project_dir: Path = None
+    _log_file: Path = None
+    _initialized: bool = False
+
+    @classmethod
+    def init(cls, bundle_dir: str, project_id: str):
+        """Initialize project output directory structure."""
+        composition_id = project_id.replace('_', '-')
+        cls._project_dir = Path(bundle_dir) / composition_id
+
+        # Create directory structure
+        (cls._project_dir / "logs").mkdir(parents=True, exist_ok=True)
+        (cls._project_dir / "plans").mkdir(parents=True, exist_ok=True)
+        (cls._project_dir / "src").mkdir(parents=True, exist_ok=True)
+        (cls._project_dir / "build").mkdir(parents=True, exist_ok=True)
+
+        # Initialize log file
+        cls._log_file = cls._project_dir / "logs" / "generation.log"
+        cls._log_file.write_text("", encoding="utf-8")
+        cls._initialized = True
+
+        cls._log("INIT", f"Project output initialized: {cls._project_dir}")
+
+    @classmethod
+    def _log(cls, level: str, message: str, **data):
+        """Write a structured log entry."""
+        if not cls._initialized or cls._log_file is None:
+            return
+        import time
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        entry = {"ts": timestamp, "level": level, "msg": message}
+        if data:
+            entry["data"] = data
+        try:
+            with open(cls._log_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, default=str) + "\n")
+        except Exception:
+            pass
+
+    # Logging methods
+    @classmethod
+    def info(cls, message: str, **data):
+        cls._log("INFO", message, **data)
+
+    @classmethod
+    def phase(cls, message: str, **data):
+        cls._log("PHASE", message, **data)
+
+    @classmethod
+    def plan(cls, message: str, **data):
+        cls._log("PLAN", message, **data)
+
+    @classmethod
+    def warn(cls, message: str, **data):
+        cls._log("WARN", message, **data)
+
+    @classmethod
+    def error(cls, message: str, **data):
+        cls._log("ERROR", message, **data)
+
+    @classmethod
+    def llm(cls, message: str, **data):
+        cls._log("LLM", message, **data)
+
+    # Plan artifact methods
+    @classmethod
+    def save_visual_plan(cls, plan: dict) -> Optional[str]:
+        """Save the parsed visual plan."""
+        if not cls._initialized:
+            return None
+        path = cls._project_dir / "plans" / "visual-plan.json"
+        path.write_text(json.dumps(plan, indent=2), encoding="utf-8")
+        cls._log("ARTIFACT", "Saved visual plan", path=str(path), scenes=len(plan.get("scenes", [])))
+        return str(path)
+
+    @classmethod
+    def save_plan_raw_response(cls, response: str) -> Optional[str]:
+        """Save the raw LLM response from planning."""
+        if not cls._initialized:
+            return None
+        path = cls._project_dir / "plans" / "raw-response.txt"
+        path.write_text(response, encoding="utf-8")
+        cls._log("ARTIFACT", "Saved raw planning response", chars=len(response))
+        return str(path)
+
+    @classmethod
+    def save_plan_thinking(cls, thinking: str) -> Optional[str]:
+        """Save the thinking/reasoning from planning."""
+        if not cls._initialized:
+            return None
+        path = cls._project_dir / "plans" / "thinking.txt"
+        path.write_text(thinking, encoding="utf-8")
+        cls._log("ARTIFACT", "Saved planning thinking", chars=len(thinking))
+        return str(path)
+
+    # Source code methods
+    @classmethod
+    def copy_source(cls, workspace: str, project_id: str) -> bool:
+        """Copy final source code from workspace to output."""
+        if not cls._initialized:
+            return False
+        import shutil
+        src_dir = Path(workspace) / "src" / project_id
+        if not src_dir.exists():
+            cls._log("WARN", "Source directory not found", path=str(src_dir))
+            return False
+
+        dest_dir = cls._project_dir / "src"
+        # Copy all source files
+        file_count = 0
+        for src_file in src_dir.glob("*"):
+            if src_file.is_file():
+                shutil.copy2(src_file, dest_dir / src_file.name)
+                file_count += 1
+
+        cls._log("ARTIFACT", "Copied source files", count=file_count, from_dir=str(src_dir))
+        return file_count > 0
+
+    @classmethod
+    def get_build_dir(cls) -> Optional[Path]:
+        """Get the build output directory path."""
+        if not cls._initialized:
+            return None
+        return cls._project_dir / "build"
+
+    @classmethod
+    def save_error(cls, error_type: str, message: str, traceback: str = None):
+        """Save error details for debugging."""
+        if not cls._initialized:
+            return
+        path = cls._project_dir / "logs" / f"error-{error_type}.txt"
+        content = f"Error Type: {error_type}\nMessage: {message}\n"
+        if traceback:
+            content += f"\nTraceback:\n{traceback}"
+        path.write_text(content, encoding="utf-8")
+        cls._log("ERROR", message, error_type=error_type)
+
+    @classmethod
+    def save_summary(cls, **data) -> Optional[str]:
+        """Save the final run summary."""
+        if not cls._initialized:
+            return None
+        import time
+        summary = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "project_dir": str(cls._project_dir),
+            **data
+        }
+        path = cls._project_dir / "summary.json"
+        path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        cls._log("ARTIFACT", "Saved summary", status=data.get("status"))
+        return str(path)
+
+    @classmethod
+    def get_project_dir(cls) -> Optional[Path]:
+        """Get the project output directory."""
+        return cls._project_dir if cls._initialized else None
+
+    @classmethod
+    def get_log_path(cls) -> Optional[str]:
+        """Get the path to the log file."""
+        return str(cls._log_file) if cls._initialized else None
+
+
+# Backwards compatibility alias
+FileLogger = ProjectOutput
+
+
 # Event types for progress tracking
 EVENT_STARTED = "started"
 EVENT_PHASE_START = "phase_start"
@@ -54,6 +250,10 @@ EVENT_LLM_REASONING = "llm_reasoning"
 EVENT_COMPLETE = "complete"
 EVENT_ERROR = "error"
 EVENT_CANCELLED = "cancelled"
+EVENT_PLANNING_START = "planning_start"
+EVENT_PLANNING_THINKING = "planning_thinking"
+EVENT_PLANNING_COMPLETE = "planning_complete"
+EVENT_PLANNING_ERROR = "planning_error"
 
 # Default Configuration (can be overridden by config.toml or CLI args)
 MAX_ITERATIONS = 3
@@ -278,11 +478,26 @@ def emit_event(event_type: str, **kwargs):
 
 def log_debug(prefix: str, message: str, **kwargs):
     """
-    Log to stderr with clear prefix markers for easy filtering.
-    Use: grep "\\[EVAL\\]" or grep "\\[ERROR\\]" to filter logs.
+    Log to ProjectOutput when initialized, otherwise to stderr.
+
+    When ProjectOutput is initialized, logs go to the clean log file.
+    When not initialized (e.g., during startup), logs go to stderr.
 
     Prefixes: PHASE, EVAL, ERROR, WARN, INFO, TOOL, SCORE
     """
+    # Route to ProjectOutput if initialized (clean file logs, no stderr noise)
+    if ProjectOutput._initialized:
+        if prefix == "ERROR":
+            ProjectOutput.error(message, **kwargs)
+        elif prefix == "WARN":
+            ProjectOutput.warn(message, **kwargs)
+        elif prefix in ("PHASE", "EVAL", "SCORE"):
+            ProjectOutput.phase(message, **kwargs)
+        else:
+            ProjectOutput.info(message, **kwargs)
+        return
+
+    # Fallback to stderr only during startup (before ProjectOutput.init)
     import time
     timestamp = time.strftime("%H:%M:%S")
     extra = " ".join(f"{k}={v}" for k, v in kwargs.items()) if kwargs else ""
@@ -319,6 +534,645 @@ def load_skill(skill_path: str) -> str:
     if path.exists():
         return path.read_text(encoding="utf-8")
     return ""
+
+
+# =============================================================================
+# VISUAL DIRECTOR - Planning Phase
+# Creates a structured Visual Plan before code generation
+# =============================================================================
+
+VISUAL_DIRECTOR_SYSTEM_PROMPT = '''You are a CREATIVE VISUAL DIRECTOR for technical explainer videos.
+
+Your job is to transform dry explanations into VISUALLY STUNNING, MEMORABLE animations that make complex concepts click. Think like a motion graphics artist at a top studio - every frame should be intentional, beautiful, and aid understanding.
+
+## Your Creative Mission
+
+You're not just placing icons on screen. You're telling a VISUAL STORY:
+
+1. **INVENT METAPHORS** - Don't use generic icons. Find the perfect visual analogy.
+   - REST API? A postal service with letters flying between buildings
+   - Database query? A librarian searching towering bookshelves
+   - Load balancer? A traffic controller directing cars to different lanes
+   - Be SURPRISING. Be MEMORABLE. Make viewers say "oh, that's clever!"
+
+2. **CHOREOGRAPH MOTION** - Everything should MOVE with purpose and beauty
+   - Objects don't just "appear" - they have ENTRANCES worthy of a character
+   - Data doesn't teleport - it TRAVELS along beautiful arcing paths with trails
+   - Processes have RHYTHM - build tension, release, breathe, repeat
+   - Think of it as a DANCE - every element has its moment
+
+3. **CREATE MOMENTS** - Each scene needs a "hero moment" that's extra special
+   - The request flying across the screen with a glowing trail
+   - The server "processing" with satisfying internal machinery
+   - The success state with celebration particles
+
+4. **BUILD DRAMA** - Progressive revelation creates engagement
+   - Start simple, add complexity layer by layer
+   - Create anticipation before big reveals
+   - Use timing to create rhythm (fast-fast-SLOW for emphasis)
+
+## Output Schema
+
+Think through your creative process in <thinking> tags, then output a COMPLETE Visual Plan JSON:
+
+```json
+{
+  "meta": {
+    "project_id": "from_input",
+    "transcript_summary": "1-2 sentence summary",
+    "total_duration_frames": 900,
+    "fps": 30,
+    "canvas": { "width": 1080, "height": 1920, "orientation": "vertical" },
+    "style_preset": "modern",
+    "layout_mode": "pip"
+  },
+
+  "concept_analysis": {
+    "core_topic": "main subject being explained",
+    "key_entities": [
+      {
+        "name": "Client",
+        "role": "Initiates requests, receives responses",
+        "examples": ["browser", "mobile app"],
+        "visual_importance": "primary"
+      }
+    ],
+    "relationships": [
+      {
+        "from": "Client",
+        "to": "Server",
+        "type": "sends",
+        "what": "Request",
+        "visualization": "traveling-object-along-path"
+      }
+    ],
+    "processes": [
+      {
+        "name": "API Call Lifecycle",
+        "steps": ["client prepares request", "request travels to server", "server processes", "response returns"],
+        "is_core_animation": true
+      }
+    ]
+  },
+
+  "visual_system": {
+    "metaphor_mapping": {
+      "Client": {
+        "visual": "laptop-computer-icon with glowing screen",
+        "style": { "color": "style.primary", "size_percent": 12, "glow": "subtle" },
+        "personality": "active, initiating, waiting for results"
+      },
+      "Server": {
+        "visual": "server-rack-icon with status lights",
+        "style": { "color": "style.secondary", "size_percent": 12 },
+        "personality": "stable, processing, powerful"
+      },
+      "Request": {
+        "visual": "glowing envelope with arrow",
+        "style": { "color": "style.accent", "size_percent": 8 },
+        "personality": "traveling, carrying intent"
+      }
+    },
+
+    "visual_vocabulary": {
+      "sending": {
+        "animation": "object travels along curved path",
+        "effects": ["motion-trail", "slight-scale-pulse-at-start"]
+      },
+      "receiving": {
+        "animation": "object absorbs into target",
+        "effects": ["ripple-on-target", "brief-glow"]
+      },
+      "processing": {
+        "animation": "target pulses, internal activity",
+        "effects": ["gear-spin-icon", "scanning-line", "glow-intensifies"]
+      },
+      "appearing": {
+        "animation": "scale from 0 with spring",
+        "effects": ["particle-burst-on-arrival", "brief-glow"]
+      }
+    },
+
+    "spatial_layout": {
+      "type": "horizontal-flow",
+      "description": "Client on left, Server on right, connection between",
+      "positions": {
+        "client_area": { "x_percent": 20, "y_percent": 45 },
+        "server_area": { "x_percent": 80, "y_percent": 45 },
+        "label_area": { "y_percent": 70 },
+        "title_area": { "y_percent": 12 }
+      },
+      "safe_zones": {
+        "bottom": { "height_percent": 15, "reserved_for": "subtitles" },
+        "edges": { "margin_percent": 5 }
+      }
+    },
+
+    "motion_principles": {
+      "default_spring": { "damping": 22, "stiffness": 90, "mass": 0.9 },
+      "travel_duration_frames": 45,
+      "stagger_delay_frames": 8,
+      "hold_after_key_moment": 20
+    }
+  },
+
+  "scenes": [
+    {
+      "scene_id": "S01",
+      "frame_range": [0, 180],
+      "transcript_segment": "exact transcript text for this segment",
+      "narrative_goal": "Introduce the CLIENT as the starting point",
+      "viewer_takeaway": "The client is where requests originate",
+
+      "visual_story": {
+        "setup": {
+          "description": "Empty stage with subtle animated background",
+          "mood": "anticipation, beginning of journey"
+        },
+        "build_sequence": [
+          {
+            "at_frame": 15,
+            "action": "Client icon materializes center-left",
+            "element": "Client",
+            "technique": "scale-spring-from-zero",
+            "effects": ["particle-burst", "subtle-glow-pulse"],
+            "rationale": "Dramatic entrance - this is our protagonist"
+          },
+          {
+            "at_frame": 50,
+            "action": "Label 'Client' appears below icon",
+            "element": "client_label",
+            "technique": "typewriter-reveal",
+            "effects": [],
+            "rationale": "Name what we're seeing"
+          }
+        ],
+        "hero_moment": {
+          "what": "Client icon appearing with particle effects",
+          "frame_range": [15, 45],
+          "treatment": "Extra attention - particle effects, slight hold after"
+        },
+        "process_animations": [],
+        "elements_on_stage_at_end": ["Client", "client_label"]
+      },
+
+      "element_positions": {
+        "Client": { "x_percent": 20, "y_percent": 45 },
+        "client_label": { "x_percent": 20, "y_percent": 55 }
+      },
+
+      "background": {
+        "type": "animated-gradient",
+        "colors": ["style.bg", "style.bg_secondary"],
+        "animation": { "type": "slow-hue-shift", "speed": "barely-perceptible" }
+      },
+
+      "transition_to_next": {
+        "type": "continuation",
+        "elements_that_persist": ["Client", "client_label"],
+        "elements_that_exit": []
+      }
+    }
+  ],
+
+  "global_directives": {
+    "layout_constraints": {
+      "no_element_overlap": true,
+      "safe_zone_bottom_percent": 15,
+      "edge_margin_percent": 5,
+      "max_simultaneous_elements": 6
+    },
+    "animation_constraints": {
+      "min_animation_frames": 15,
+      "min_stagger_frames": 8,
+      "min_travel_frames": 45,
+      "spring_damping_min": 20
+    },
+    "timing_constraints": {
+      "build_before_speak_frames": 10,
+      "hero_hold_frames": 20
+    },
+    "prohibited_patterns": [
+      "instant_teleportation",
+      "static_backgrounds",
+      "all_elements_animating_simultaneously",
+      "fade_only_for_hero_elements",
+      "elements_in_subtitle_zone"
+    ]
+  }
+}
+```
+
+## CRITICAL REQUIREMENTS
+
+1. **ALL positions use percentages** (x_percent, y_percent: 0-100)
+2. **Colors reference style tokens** (style.primary, style.accent, etc.)
+3. **Bottom 15% is RESERVED** for subtitles - NO elements there
+4. **Maximum 6 elements** visible simultaneously
+5. **Minimum 15 frames** per animation
+6. **Minimum 8 frame stagger** between element entries
+7. **Hero moments get 30+ frames** with special treatment
+8. **Travel animations use paths** with motion trails (no teleporting)
+9. **Every scene has a hero_moment** - the one thing that makes it memorable
+10. **build_sequence has frame-precise timing** with technique and effects
+
+Think deeply in <thinking> tags, then output the COMPLETE JSON plan.
+'''
+
+
+def get_style_colors(preset: str) -> dict:
+    """Get colors for a style preset."""
+    presets = {
+        "minimal": {"bg": "#1a1a1a", "primary": "#ffffff", "secondary": "#888888", "accent": "#3b82f6", "text": "#ffffff"},
+        "modern": {"bg": "#0f0f23", "primary": "#8b5cf6", "secondary": "#3b82f6", "accent": "#06b6d4", "text": "#ffffff"},
+        "playful": {"bg": "#1a1a2e", "primary": "#f97316", "secondary": "#eab308", "accent": "#ec4899", "text": "#ffffff"},
+        "bold": {"bg": "#000000", "primary": "#ffffff", "secondary": "#888888", "accent": "#ef4444", "text": "#ffffff"},
+        "classic": {"bg": "#1e3a5f", "primary": "#d4af37", "secondary": "#c0c0c0", "accent": "#d4af37", "text": "#f5f5dc"},
+    }
+    return presets.get(preset, presets["modern"])
+
+
+def run_visual_director(
+    transcript: str,
+    project_id: str,
+    width: int,
+    height: int,
+    duration_frames: int,
+    fps: int,
+    style_preset: str,
+    layout_mode: str,
+    llm,
+    reasoning_effort: str = "medium",
+    workspace: str = None,
+    bundle_dir: str = None,
+) -> Optional[dict]:
+    """
+    Run the Visual Director to create a structured Visual Plan.
+
+    Uses LLM directly (via LiteLLM) to analyze transcript and create a plan
+    that guides the code generation phase.
+    """
+    emit_event(EVENT_PLANNING_START, project_id=project_id)
+    log_debug("PHASE", "=== Visual Director Planning ===", project_id=project_id)
+
+    style_colors = get_style_colors(style_preset)
+
+    # Build the planning prompt
+    orientation = "vertical" if height > width else "horizontal" if width > height else "square"
+    duration_seconds = duration_frames / fps
+
+    layout_context = {
+        "pip": "Full screen available - video appears as small overlay.",
+        "split-horizontal": "Top half only - video on bottom.",
+        "split-vertical": "Left half only - video on right."
+    }.get(layout_mode, "Full screen available")
+
+    # Pre-process transcript to extract segments with frame timings
+    import re
+    transcript_with_frames = []
+    # Match patterns like [0:00 - 0:05] or [0:05 - 0:12]
+    segment_pattern = r'\[(\d+):(\d+)\s*-\s*(\d+):(\d+)\]\s*(.+?)(?=\[\d+:\d+|$)'
+    matches = re.findall(segment_pattern, transcript, re.DOTALL)
+
+    if matches:
+        for match in matches:
+            start_min, start_sec, end_min, end_sec, text = match
+            start_seconds = int(start_min) * 60 + int(start_sec)
+            end_seconds = int(end_min) * 60 + int(end_sec)
+            start_frame = start_seconds * fps
+            end_frame = end_seconds * fps
+            text_clean = text.strip()
+            transcript_with_frames.append(
+                f"[FRAMES {start_frame}-{end_frame}] ({start_seconds}s-{end_seconds}s): {text_clean}"
+            )
+        transcript_formatted = "\n".join(transcript_with_frames)
+    else:
+        # Fallback: use raw transcript
+        transcript_formatted = transcript
+
+    planning_prompt = f'''Create a Visual Plan for this explainer video.
+
+## Project Details
+
+PROJECT_ID: {project_id}
+CANVAS: {width}x{height} ({orientation})
+LAYOUT: {layout_mode} - {layout_context}
+DURATION: {duration_frames} frames ({duration_seconds:.1f} seconds) at {fps} FPS
+STYLE: {style_preset}
+COLORS: background={style_colors["bg"]}, primary={style_colors["primary"]}, secondary={style_colors["secondary"]}, accent={style_colors["accent"]}
+
+## Transcript with Frame Timings
+
+IMPORTANT: Use the EXACT frame ranges below for your scenes!
+
+{transcript_formatted}
+
+## Frame Timing Rules
+
+- 1 second = {fps} frames
+- Scene frame_range MUST match the transcript segment frames
+- Animations within a scene should start AFTER the scene's start frame
+- Leave 10-15 frames buffer at scene transitions
+
+## Your Task
+
+1. Analyze this transcript deeply - what concepts need visualization?
+2. Design creative visual metaphors for each entity
+3. Choreograph how elements enter, move, and interact
+4. Create a scene-by-scene plan with EXACT frame timings from above
+
+Think through your creative process in <thinking> tags, then output the Visual Plan JSON.
+'''
+
+    try:
+        import litellm
+
+        # Use LiteLLM directly for planning - simpler than full agent for text generation
+        emit_tool_call("planning", message="Visual Director analyzing transcript...")
+
+        # Build the model name from the llm object
+        # OpenHands LLM objects store model as 'model' attribute
+        model_name = getattr(llm, 'model', None) or getattr(llm, 'model_name', 'google/gemini-2.5-flash')
+
+        # Get API configuration from LLM object or environment
+        api_key = getattr(llm, 'api_key', None)
+        if api_key and hasattr(api_key, 'get_secret_value'):
+            api_key = api_key.get_secret_value()  # Handle SecretStr
+        api_base = getattr(llm, 'base_url', None) or getattr(llm, 'api_base', None)
+
+        # Log to file (clean, no noise)
+        ProjectOutput.plan("Starting Visual Director",
+                       model=model_name,
+                       has_api_key=bool(api_key),
+                       api_base=api_base[:50] if api_base else "env",
+                       prompt_length=len(planning_prompt),
+                       transcript_segments=len(transcript_formatted.split('\n')))
+
+        # Call LLM directly for planning
+        # Pass API config explicitly to avoid relying on environment variables
+        litellm_kwargs = {
+            'model': model_name,
+            'messages': [
+                {"role": "system", "content": VISUAL_DIRECTOR_SYSTEM_PROMPT},
+                {"role": "user", "content": planning_prompt}
+            ],
+            'temperature': 0.7,
+            'max_tokens': 8000,  # Increased from 4000 - Visual Plans can be large
+        }
+        if api_key:
+            litellm_kwargs['api_key'] = api_key
+        if api_base:
+            litellm_kwargs['api_base'] = api_base
+
+        ProjectOutput.llm("Calling LiteLLM", model=model_name, max_tokens=8000)
+        planning_response = litellm.completion(**litellm_kwargs)
+
+        # Extract response text
+        response = ""
+        if planning_response and planning_response.choices:
+            response = planning_response.choices[0].message.content or ""
+            finish_reason = getattr(planning_response.choices[0], 'finish_reason', 'unknown')
+            ProjectOutput.llm("LLM response received",
+                          response_length=len(response),
+                          finish_reason=finish_reason)
+        else:
+            ProjectOutput.error("LLM returned no choices",
+                           response_type=type(planning_response).__name__)
+
+        if not response:
+            emit_event(EVENT_PLANNING_ERROR, error="No response from Visual Director LLM")
+            ProjectOutput.error("Empty response from Visual Director")
+            return None
+
+        # Always save raw response for debugging
+        ProjectOutput.save_plan_raw_response(response)
+
+        # Extract thinking if present
+        thinking_match = re.search(r'<thinking>([\s\S]*?)</thinking>', response, re.IGNORECASE)
+        if thinking_match:
+            thinking = thinking_match.group(1)
+            emit_event(EVENT_PLANNING_THINKING, thinking=thinking[:500])
+            ProjectOutput.plan("Visual Director reasoning captured", thinking_chars=len(thinking))
+            ProjectOutput.save_plan_thinking(thinking)
+
+        # Parse JSON from response
+        plan = parse_visual_plan_json(response)
+
+        if plan:
+            scene_count = len(plan.get("scenes", []))
+            entity_count = len(plan.get("concept_analysis", {}).get("key_entities", []))
+            metaphors = list(plan.get("visual_system", {}).get("metaphor_mapping", {}).keys())
+
+            ProjectOutput.plan("Visual Plan parsed successfully",
+                             scenes=scene_count,
+                             entities=entity_count,
+                             metaphors=metaphors[:5])
+
+            # Save visual plan to plans/ directory (ProjectOutput handles location)
+            ProjectOutput.save_visual_plan(plan)
+
+            # Also save to workspace so generator agent can access it
+            if workspace:
+                plan_json = json.dumps(plan, indent=2)
+                plan_path = Path(workspace) / "src" / project_id / "visual-plan.json"
+                plan_path.parent.mkdir(parents=True, exist_ok=True)
+                plan_path.write_text(plan_json, encoding="utf-8")
+                ProjectOutput.plan("Visual Plan copied to workspace", path=str(plan_path))
+
+            emit_event(
+                EVENT_PLANNING_COMPLETE,
+                project_id=project_id,
+                scene_count=scene_count,
+                entity_count=entity_count
+            )
+            ProjectOutput.plan("Visual Director complete",
+                             scenes=scene_count,
+                             entities=entity_count,
+                             metaphors=len(metaphors))
+            return plan
+        else:
+            # Log detailed failure information
+            ProjectOutput.error("Failed to parse Visual Plan JSON",
+                              response_length=len(response),
+                              contains_json='{' in response and '}' in response,
+                              contains_scenes='"scenes"' in response,
+                              contains_meta='"meta"' in response)
+            emit_event(EVENT_PLANNING_ERROR, error="Failed to parse Visual Plan JSON")
+            return None
+
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        ProjectOutput.save_error("planning", str(e), tb)
+        emit_event(EVENT_PLANNING_ERROR, error=str(e), error_type=type(e).__name__)
+        return None
+
+
+def fix_json_arithmetic(json_str: str) -> str:
+    """Fix common JSON issues like arithmetic expressions.
+
+    LLMs sometimes output things like "y_percent": 45 + 12 which is invalid JSON.
+    This function evaluates simple arithmetic expressions to fix them.
+    """
+    import re
+
+    def eval_expr(match):
+        """Safely evaluate simple arithmetic expression."""
+        expr = match.group(1)
+        try:
+            # Only allow simple arithmetic with numbers
+            if re.match(r'^[\d\s\+\-\*\/\.\(\)]+$', expr):
+                result = eval(expr)
+                return str(result)
+        except Exception:
+            pass
+        return match.group(0)
+
+    # Match patterns like: 45 + 12, 100 - 20, etc. after a colon
+    # Pattern: number operator number (with optional spaces)
+    fixed = re.sub(r':\s*(\d+(?:\.\d+)?\s*[\+\-\*\/]\s*\d+(?:\.\d+)?)', lambda m: ': ' + eval_expr(m), json_str)
+
+    return fixed
+
+
+def parse_visual_plan_json(response: str) -> Optional[dict]:
+    """Extract and parse Visual Plan JSON from response.
+
+    Returns parsed JSON dict or None. Logs detailed errors on failure.
+    """
+    ProjectOutput.plan("Parsing Visual Plan JSON", response_length=len(response))
+
+    # Method 1: Try to find JSON block in markdown code fence
+    # Use greedy matching to get the full JSON block
+    json_match = re.search(r'```(?:json)?\s*(\{[\s\S]+\})\s*```', response)
+    if json_match:
+        json_str = json_match.group(1)
+        ProjectOutput.plan("Found JSON in code fence", json_length=len(json_str))
+
+        # Fix common JSON issues (like arithmetic expressions)
+        json_str = fix_json_arithmetic(json_str)
+
+        try:
+            parsed = json.loads(json_str)
+            ProjectOutput.plan("Successfully parsed JSON from code fence")
+            return parsed
+        except json.JSONDecodeError as e:
+            ProjectOutput.warn(f"JSON parse error in code fence: {e}",
+                          position=e.pos,
+                          context=json_str[max(0, e.pos-50):e.pos+50] if e.pos else "")
+
+    # Method 2: Find balanced braces (handles nested JSON)
+    ProjectOutput.plan("Trying balanced brace extraction")
+    brace_count = 0
+    start_idx = None
+    best_json = None
+    best_json_str = None
+
+    for i, char in enumerate(response):
+        if char == '{':
+            if start_idx is None:
+                start_idx = i
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+            if brace_count == 0 and start_idx is not None:
+                json_str = response[start_idx:i+1]
+                # Fix common JSON issues
+                json_str = fix_json_arithmetic(json_str)
+                try:
+                    parsed = json.loads(json_str)
+                    # Keep the largest valid JSON (most complete plan)
+                    if best_json is None or len(json_str) > len(best_json_str):
+                        best_json = parsed
+                        best_json_str = json_str
+                        ProjectOutput.plan("Found valid JSON block", length=len(json_str))
+                except json.JSONDecodeError:
+                    pass  # Try next block
+                start_idx = None
+
+    if best_json:
+        # Validate the plan has required structure
+        if 'scenes' in best_json or 'concept_analysis' in best_json:
+            ProjectOutput.plan("Visual Plan parsed successfully",
+                          has_scenes='scenes' in best_json,
+                          has_analysis='concept_analysis' in best_json,
+                          scene_count=len(best_json.get('scenes', [])))
+            return best_json
+        else:
+            ProjectOutput.warn("Parsed JSON missing required fields",
+                          keys=list(best_json.keys())[:10])
+
+    # Log failure details
+    ProjectOutput.error("Failed to parse Visual Plan JSON",
+                    response_length=len(response),
+                    contains_json_fence='```json' in response or '```' in response,
+                    contains_brace='{' in response,
+                    first_500_chars=response[:500] if response else "EMPTY")
+
+    return None
+
+
+def inject_visual_plan_into_prompt(original_prompt: str, visual_plan: dict) -> str:
+    """Inject the Visual Plan into the generator prompt."""
+    if not visual_plan:
+        return original_prompt
+
+    # Extract key info for summary
+    entities = visual_plan.get("concept_analysis", {}).get("key_entities", [])
+    scenes = visual_plan.get("scenes", [])
+    metaphors = visual_plan.get("visual_system", {}).get("metaphor_mapping", {})
+
+    plan_json = json.dumps(visual_plan, indent=2)
+
+    plan_section = f'''
+## VISUAL PLAN (Follow This Exactly)
+
+The Visual Director created this plan. Your job is to IMPLEMENT it as Remotion code.
+Do NOT make your own creative decisions - follow the plan exactly.
+
+### Quick Summary
+- **Entities**: {len(entities)} ({', '.join(e.get('name', '') for e in entities[:5])})
+- **Scenes**: {len(scenes)}
+- **Metaphors defined**: {len(metaphors)}
+
+### Full Plan
+```json
+{plan_json}
+```
+
+## Implementation Guide
+
+### Step 1: Create Visual Components
+For EACH entity in `concept_analysis.key_entities`:
+1. Look up its metaphor in `visual_system.metaphor_mapping`
+2. Create a React component that renders the described visual
+3. Use colors from `visual_system.color_tokens`
+4. Position using `x_percent` and `y_percent` (multiply by canvas size)
+
+### Step 2: Implement Scenes (CRITICAL - TIMING MUST MATCH!)
+For EACH scene in `scenes`:
+1. **USE EXACT frame_range** - Scene "S01" with frame_range [0, 150] means ALL animations in that scene happen between frame 0-150
+2. The `at_frame` values in `build_sequence` are ABSOLUTE frame numbers - use them directly
+3. Implement `hero_moment` during its specified frame_range with extra emphasis
+4. `process_animations` duration should fit within the scene's frame_range
+5. Position elements as specified in `element_positions`
+
+**SYNC CHECK:** If transcript says [FRAMES 150-360], your scene MUST animate between those frames!
+
+### Step 3: Animation Techniques
+- Use `spring()` with premium config: `{{ damping: 20, stiffness: 100, mass: 0.8 }}`
+- Use `interpolate()` with `extrapolateRight: 'clamp'`
+- Stagger elements by at least 8 frames
+
+### Step 4: Output Files
+1. `index.tsx` - Main composition with all scenes
+2. `metadata.json` - Composition info
+
+---
+
+'''
+
+    return plan_section + original_prompt
 
 
 def compile_to_cjs(workspace: str, project_id: str, bundle_dir: Path) -> bool:
@@ -966,6 +1820,97 @@ def generate_transcript_criteria(transcript_segments: list) -> dict:
     }
 
 
+def generate_plan_verification_criteria(visual_plan: dict) -> str:
+    """Generate evaluation criteria from the visual plan - focused on SCENES."""
+    if not visual_plan:
+        return ""
+
+    criteria_lines = []
+    criteria_lines.append("## VISUAL PLAN VERIFICATION (Score based on this!):")
+    criteria_lines.append("The code MUST implement these planned scenes. Check the code for each:")
+
+    # Scene-based verification (PRIMARY scoring criteria)
+    scenes = visual_plan.get("scenes", [])
+    if scenes:
+        criteria_lines.append("\n### SCENE IMPLEMENTATION CHECKLIST:")
+        for i, scene in enumerate(scenes[:6]):  # Check up to 6 scenes
+            scene_id = scene.get("scene_id", f"S{i+1:02d}")
+            frame_range = scene.get("frame_range", [0, 0])
+            narrative_goal = scene.get("narrative_goal", "")[:60]
+
+            # Get visual story details
+            visual_story = scene.get("visual_story", {})
+
+            # Hero moment - most important
+            hero = visual_story.get("hero_moment", {})
+            hero_what = hero.get("what", "") if isinstance(hero, dict) else ""
+
+            # Build sequence elements
+            build_seq = visual_story.get("build_sequence", [])
+            elements = list(set([step.get("element", "") for step in build_seq if step.get("element")]))[:3]
+
+            # Process animations
+            process_anims = visual_story.get("process_animations", [])
+
+            criteria_lines.append(f"\n**{scene_id}** [frames {frame_range[0]}-{frame_range[1]}]:")
+            criteria_lines.append(f"  Goal: {narrative_goal}")
+            if elements:
+                criteria_lines.append(f"  - [ ] Elements present: {', '.join(elements)}")
+            if hero_what:
+                criteria_lines.append(f"  - [ ] Hero moment: {hero_what[:50]}")
+            if process_anims:
+                for anim in process_anims[:2]:
+                    anim_name = anim.get("name", anim.get("object", ""))
+                    criteria_lines.append(f"  - [ ] Animation: {anim_name}")
+
+            # Check for specific techniques in build_sequence
+            techniques = list(set([step.get("technique", "") for step in build_seq if step.get("technique")]))[:3]
+            if techniques:
+                criteria_lines.append(f"  - [ ] Uses techniques: {', '.join(techniques)}")
+
+    # Visual metaphors (SECONDARY - should be components in code)
+    visual_system = visual_plan.get("visual_system", {})
+    metaphor_mapping = visual_system.get("metaphor_mapping", {})
+    if metaphor_mapping:
+        criteria_lines.append("\n### VISUAL COMPONENTS (should be React components or elements):")
+        for name, details in list(metaphor_mapping.items())[:4]:
+            if isinstance(details, dict):
+                visual = details.get("visual", "")[:40]
+                criteria_lines.append(f"- [ ] {name}: {visual}")
+
+    # Motion principles
+    motion = visual_system.get("motion_principles", {})
+    if motion:
+        spring_config = motion.get("default_spring", {})
+        if isinstance(spring_config, dict) and spring_config.get("damping"):
+            criteria_lines.append(f"\n### MOTION REQUIREMENTS:")
+            criteria_lines.append(f"- [ ] Spring damping >= {spring_config.get('damping', 20)}")
+            criteria_lines.append(f"- [ ] Stagger delay >= {motion.get('stagger_delay_frames', 8)} frames")
+
+    criteria_lines.append("\n**SCORING:** -5 points per missing scene, -3 per missing hero moment, -2 per missing element")
+
+    # Animation style (simple check)
+    global_directives = visual_plan.get("global_directives", {})
+    animation_style = global_directives.get("animation_style", {})
+    if animation_style:
+        criteria_lines.append("\n### Animation Style Requirements:")
+        # Handle both string and dict formats
+        if isinstance(animation_style, str):
+            criteria_lines.append(f"- [ ] Animation style: {animation_style}")
+        elif isinstance(animation_style, dict):
+            timing = animation_style.get("timing", "")
+            entrance = animation_style.get("entrance", "")
+            if timing:
+                criteria_lines.append(f"- [ ] Timing: {timing}")
+            if entrance:
+                criteria_lines.append(f"- [ ] Entrance style: {entrance}")
+
+    if criteria_lines:
+        criteria_lines.append("\nDeduct 5 points from visual_quality for EACH planned component/scene NOT implemented.")
+
+    return "\n".join(criteria_lines)
+
+
 def run_visual_evaluation(
     agent,
     workspace: str,
@@ -975,6 +1920,7 @@ def run_visual_evaluation(
     fps: int,
     config: dict = None,
     is_claude: bool = False,
+    visual_plan: dict = None,
 ) -> dict:
     """
     Run visual evaluation focused on screenshot analysis.
@@ -1005,7 +1951,6 @@ def run_visual_evaluation(
     metadata_path = Path(workspace) / "src" / project_id / "metadata.json"
     if metadata_path.exists():
         try:
-            import json
             metadata = json.loads(metadata_path.read_text())
             if "durationInFrames" in metadata:
                 actual_duration = metadata["durationInFrames"]
@@ -1082,6 +2027,11 @@ def run_visual_evaluation(
     criteria_list = "\n".join(f"- [ ] {c}" for c in transcript_criteria["criteria"])
     log_debug("EVAL", f"Generated {len(transcript_criteria['criteria'])} transcript criteria")
 
+    # Generate plan verification criteria if a visual plan was provided
+    plan_criteria = generate_plan_verification_criteria(visual_plan)
+    if plan_criteria:
+        log_debug("EVAL", "Added plan verification criteria to evaluation")
+
     # Claude has limited context - skip screenshots to avoid overflow
     # Use text-based evaluation with code included directly in prompt
     if is_claude:
@@ -1131,6 +2081,8 @@ def run_visual_evaluation(
 
 Score: +3-4 points for each criterion met (look for the specific content in code)
 
+{plan_criteria}
+
 ## Scoring Guide:
 - 80-100: Excellent animations + all transcript content visualized
 - 60-79: Good animations + most transcript content present
@@ -1138,12 +2090,12 @@ Score: +3-4 points for each criterion met (look for the specific content in code
 - 0-39: Static or transcript content not represented
 
 IMMEDIATELY call SubmitScoreTool:
-- visual_quality (0-50): Animation patterns found
+- visual_quality (0-50): Animation patterns found + plan compliance
 - transcript_alignment (0-20): How many criteria above are met
 - correctness: 10 (code compiles)
 - completeness: 10 (assume complete)
 - code_quality: 10 (assume good)
-- issues: List unmet transcript criteria
+- issues: List unmet transcript criteria AND unimplemented planned components
 - suggestion: Specific fix for highest-impact missing item
 
 YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task."""
@@ -1193,6 +2145,8 @@ YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task."""
 ## Transcript-Specific Criteria (0-20 points) - CHECK EACH:
 {criteria_list}
 
+{plan_criteria}
+
 ## Scoring Guide:
 - 80-100: Excellent - spring(), staggering, background motion, all transcript content
 - 60-79: Good - some animation variety, most transcript content
@@ -1200,12 +2154,12 @@ YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task."""
 - 0-39: Poor - static or transcript content not represented
 
 IMMEDIATELY call SubmitScoreTool:
-- visual_quality (0-50): Based on animation patterns in code
+- visual_quality (0-50): Based on animation patterns in code + plan compliance
 - transcript_alignment (0-20): How many criteria above are met
 - correctness: 10 (code compiles)
 - completeness: 10 (assume complete)
 - code_quality: 10 (assume good)
-- issues: List specific missing animation patterns
+- issues: List missing animation patterns AND unimplemented planned components
 - suggestion: One specific fix with code example
 
 YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task."""
@@ -1383,7 +2337,23 @@ def main():
     parser.add_argument("--temperature", type=float, default=1.0, help="LLM temperature (1.0 required for Gemini 3.x)")
     parser.add_argument("--max-iterations", type=int, default=MAX_ITERATIONS, help="Max visual improvement iterations")
     parser.add_argument("--quality-threshold", type=int, default=QUALITY_THRESHOLD, help="Quality score threshold")
+    parser.add_argument("--style-preset", default="modern", help="Style preset (minimal, modern, playful, bold, classic)")
+    parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, split-horizontal, split-vertical)")
+    parser.add_argument("--reasoning-effort", default="medium", help="Reasoning effort for LLM (none, low, medium, high)")
+    parser.add_argument("--skip-planning", action="store_true", help="Skip Visual Director planning phase")
     args = parser.parse_args()
+
+    # Initialize project output directory structure
+    if args.bundle_dir:
+        ProjectOutput.init(args.bundle_dir, args.project_id)
+        ProjectOutput.info("Visual Generator started",
+                         project_id=args.project_id,
+                         model=args.model,
+                         model_flash=args.model_flash,
+                         width=args.width,
+                         height=args.height,
+                         duration_frames=args.duration_frames,
+                         style_preset=args.style_preset)
 
     # API key comes directly from argument
     api_key = args.api_key
@@ -1523,6 +2493,39 @@ def main():
             config=config,
         )
 
+        # ========================================
+        # PHASE 0: VISUAL DIRECTOR (Planning)
+        # ========================================
+        visual_plan = None
+
+        if not args.skip_planning:
+            ProjectOutput.phase("=== Phase 0: Visual Director ===")
+
+            visual_plan = run_visual_director(
+                transcript=prompt,
+                project_id=args.project_id,
+                width=args.width,
+                height=args.height,
+                duration_frames=args.duration_frames,
+                fps=args.fps,
+                style_preset=args.style_preset,
+                layout_mode=args.layout_mode,
+                llm=evaluator_llm,  # Use flash model for planning (faster, cheaper)
+                reasoning_effort=args.reasoning_effort,
+                workspace=args.workspace,
+                bundle_dir=args.bundle_dir,  # Save to mounted volume immediately
+            )
+
+            if visual_plan:
+                # Inject plan into prompt for generator
+                prompt = inject_visual_plan_into_prompt(prompt, visual_plan)
+                ProjectOutput.phase("Visual plan injected into generator prompt",
+                               plan_size=len(json.dumps(visual_plan)))
+            else:
+                ProjectOutput.warn("Visual Director did not produce a plan - proceeding without")
+        else:
+            ProjectOutput.phase("Planning phase skipped (--skip-planning)")
+
         # State tracking
         best_score = 0
         best_iteration = 0
@@ -1533,10 +2536,11 @@ def main():
             if cancelled:
                 break
 
-            log_debug("PHASE", f"=== Iteration {iteration + 1}/{args.max_iterations} ===")
+            ProjectOutput.phase(f"=== Iteration {iteration + 1}/{args.max_iterations} ===")
             emit_event(EVENT_PHASE_START, phase="iteration", iteration=iteration + 1, max_iterations=args.max_iterations)
 
             # ===== PHASE 1: Generate with self-healing =====
+            ProjectOutput.info("Starting generator with self-healing", iteration=iteration + 1)
             gen_success, gen_message = run_generator_with_self_healing(
                 generator_agent,
                 args.workspace,
@@ -1552,7 +2556,9 @@ def main():
 
             if not gen_success:
                 # Generator failed to produce error-free code
-                # This shouldn't happen often with self-healing
+                ProjectOutput.error("Generator failed to self-heal",
+                               iteration=iteration + 1,
+                               error=gen_message[:200])
                 emit_event(
                     EVENT_ITERATION_COMPLETE,
                     iteration=iteration + 1,
@@ -1564,7 +2570,10 @@ def main():
                 visual_feedback = f"CRITICAL: Code did not compile. Error: {gen_message}\nFix all TypeScript errors before proceeding."
                 continue
 
+            ProjectOutput.info("Generator completed successfully", iteration=iteration + 1)
+
             # ===== PHASE 2: Visual evaluation =====
+            ProjectOutput.info("Starting visual evaluation", iteration=iteration + 1)
             score_result = run_visual_evaluation(
                 visual_evaluator,
                 args.workspace,
@@ -1574,9 +2583,14 @@ def main():
                 args.fps,
                 config=config,
                 is_claude=is_claude,
+                visual_plan=visual_plan,
             )
 
             current_score = score_result.get("score", 0)
+            ProjectOutput.info("Evaluation complete",
+                          iteration=iteration + 1,
+                          score=current_score,
+                          threshold=args.quality_threshold)
             log_debug("SCORE", f"Iteration result", iteration=iteration+1, score=current_score, threshold=args.quality_threshold)
 
             # Track best
@@ -1631,7 +2645,6 @@ Focus on improving the VISUAL quality - the code compiles fine."""
         metadata_path = project_dir / "metadata.json"
         if metadata_path.exists():
             try:
-                import json
                 metadata = json.loads(metadata_path.read_text(encoding='utf-8'))
                 expected_width = args.width
                 expected_height = args.height
@@ -1665,7 +2678,11 @@ Focus on improving the VISUAL quality - the code compiles fine."""
         if final_status != "ready" and best_score > 0:
             final_status = "ready"  # Allow export even if score didn't meet threshold
 
-        # Copy generated files to output directory (mounted from host)
+        # Copy source files to unified project output (src/)
+        ProjectOutput.copy_source(args.workspace, args.project_id)
+        ProjectOutput.phase("Source files copied to project output")
+
+        # Also copy to legacy output directory for backwards compatibility
         output_dir = Path(args.output_dir)
         if output_dir.exists():
             project_src = Path(args.workspace) / "src" / args.project_id
@@ -1673,14 +2690,9 @@ Focus on improving the VISUAL quality - the code compiles fine."""
 
             if project_src.exists():
                 import shutil
-                # Clean up any existing output
                 if output_project.exists():
                     shutil.rmtree(output_project)
-                # Copy generated project to output
                 shutil.copytree(project_src, output_project)
-                emit_event(EVENT_TOOL_CALL, tool="export", message=f"Exported source to {output_project}")
-            else:
-                emit_event(EVENT_TOOL_CALL, tool="export", message="No project directory found to export", success=False)
 
         # =================================================================
         # BUNDLE THE PROJECT - This is the agent's END GOAL
@@ -1693,24 +2705,27 @@ Focus on improving the VISUAL quality - the code compiles fine."""
         composition_id = args.project_id.replace('_', '-')
 
         if project_dir.exists() and bundle_dir.exists():
-            log_debug("PHASE", "=== Bundling ===", composition=composition_id)
+            ProjectOutput.phase("=== Bundling ===", composition=composition_id)
             emit_event(EVENT_PHASE_START, phase="bundling", message="Creating Remotion bundle...")
 
             try:
-                # Run remotion bundle command
-                bundle_output = bundle_dir / composition_id
+                import shutil
 
-                # Clean up any existing bundle
-                if bundle_output.exists():
-                    import shutil
-                    shutil.rmtree(bundle_output)
+                # Run remotion bundle command
+                # Bundle to a temp location first, then merge into project output
+                bundle_output = bundle_dir / composition_id
+                bundle_temp = bundle_dir / f"{composition_id}-bundle-temp"
+
+                # Clean up temp bundle directory if it exists
+                if bundle_temp.exists():
+                    shutil.rmtree(bundle_temp)
 
                 emit_tool_call("remotion_bundle", composition_id=composition_id)
 
                 bundle_cmd = [
                     "npx", "remotion", "bundle",
                     "src/index.ts",
-                    f"--out-dir={bundle_output}",
+                    f"--out-dir={bundle_temp}",
                     "--log-level=verbose",
                 ]
 
@@ -1732,22 +2747,45 @@ Focus on improving the VISUAL quality - the code compiles fine."""
                 )
 
                 if result.returncode == 0:
-                    log_debug("PHASE", "Bundle command succeeded")
-                    # Verify bundle was created
-                    bundle_index = bundle_output / "index.html"
+                    ProjectOutput.phase("Bundle command succeeded")
+                    # Verify bundle was created in temp location
+                    bundle_index = bundle_temp / "index.html"
 
                     # List what files were actually created for debugging
-                    if bundle_output.exists():
-                        created_files = list(bundle_output.glob("*"))
-                        log_debug("INFO", f"Bundle files: {len(created_files)}")
+                    if bundle_temp.exists():
+                        created_files = list(bundle_temp.glob("*"))
+                        ProjectOutput.info(f"Bundle created with {len(created_files)} files")
 
                     if bundle_index.exists():
                         bundle_success = True
-                        log_debug("PHASE", "Bundle verified (index.html found)")
+                        ProjectOutput.phase("Bundle verified (index.html found)")
                         # Fix absolute paths in index.html to be relative
-                        fix_bundle_paths(bundle_output)
+                        fix_bundle_paths(bundle_temp)
                         # Compile source TSX to CJS for browser dynamic loading
-                        compile_to_cjs(args.workspace, args.project_id, bundle_output)
+                        compile_to_cjs(args.workspace, args.project_id, bundle_temp)
+
+                        # Copy bundle files to project output root (for backwards compatibility)
+                        # This preserves logs/, plans/, src/ while adding bundle files
+                        for f in bundle_temp.glob("*"):
+                            if f.is_file():
+                                shutil.copy2(f, bundle_output / f.name)
+                            elif f.is_dir():
+                                dest = bundle_output / f.name
+                                if dest.exists():
+                                    shutil.rmtree(dest)
+                                shutil.copytree(f, dest)
+
+                        # Also copy to build/ subdirectory for organized structure
+                        build_dir = ProjectOutput.get_build_dir()
+                        if build_dir and build_dir.exists():
+                            for f in bundle_temp.glob("*"):
+                                if f.is_file():
+                                    shutil.copy2(f, build_dir / f.name)
+                            ProjectOutput.phase("Bundle copied to build/")
+
+                        # Clean up temp directory
+                        shutil.rmtree(bundle_temp)
+
                         emit_tool_result(
                             "remotion_bundle",
                             success=True,
@@ -1755,28 +2793,37 @@ Focus on improving the VISUAL quality - the code compiles fine."""
                             bundle_path=str(bundle_output)
                         )
                     else:
-                        # Check if bundle is in a subdirectory
-                        for subdir in bundle_output.iterdir() if bundle_output.exists() else []:
+                        # Check if bundle is in a subdirectory of temp
+                        for subdir in bundle_temp.iterdir() if bundle_temp.exists() else []:
                             if subdir.is_dir() and (subdir / "index.html").exists():
                                 bundle_success = True
-                                # Fix absolute paths in index.html to be relative
                                 fix_bundle_paths(subdir)
-                                # Compile source TSX to CJS for browser dynamic loading
                                 compile_to_cjs(args.workspace, args.project_id, subdir)
+
+                                # Copy to project output
+                                for f in subdir.glob("*"):
+                                    if f.is_file():
+                                        shutil.copy2(f, bundle_output / f.name)
+
                                 emit_tool_result(
                                     "remotion_bundle",
                                     success=True,
                                     message=f"Bundle found in subdirectory {subdir}",
-                                    bundle_path=str(subdir)
+                                    bundle_path=str(bundle_output)
                                 )
                                 break
+
+                        # Clean up temp
+                        if bundle_temp.exists():
+                            shutil.rmtree(bundle_temp)
+
                         if not bundle_success:
                             emit_tool_result(
                                 "remotion_bundle",
                                 success=False,
                                 error="Bundle directory created but index.html not found",
-                                bundle_dir_exists=bundle_output.exists(),
-                                files_found=[f.name for f in bundle_output.glob("*")][:10] if bundle_output.exists() else []
+                                bundle_dir_exists=bundle_temp.exists(),
+                                files_found=[f.name for f in bundle_temp.glob("*")][:10] if bundle_temp.exists() else []
                             )
                 else:
                     log_debug("ERROR", f"Bundle failed", returncode=result.returncode)
@@ -1867,13 +2914,39 @@ Focus on improving the VISUAL quality - the code compiles fine."""
                 log_debug("ERROR", f"Render exception: {str(e)[:100]}")
                 emit_tool_result("remotion_render", success=False, error=str(e))
 
-        log_debug("PHASE", "=== Complete ===", status=final_status, score=best_score, bundle=bundle_success)
+        # Log final summary
+        total_iters = min(iteration + 1, args.max_iterations) if 'iteration' in dir() else 0
+        ProjectOutput.phase("=== Generation Complete ===",
+                          status=final_status,
+                          final_score=best_score,
+                          best_iteration=best_iteration,
+                          total_iterations=total_iters,
+                          files_written=files_written,
+                          bundle_success=bundle_success,
+                          video_rendered=video_url is not None,
+                          had_visual_plan=visual_plan is not None)
+
+        # Save final summary
+        ProjectOutput.save_summary(
+            status=final_status,
+            final_score=best_score,
+            quality_threshold=args.quality_threshold,
+            best_iteration=best_iteration,
+            total_iterations=total_iters,
+            had_visual_plan=visual_plan is not None,
+            bundle_success=bundle_success,
+            video_url=video_url,
+            files_written=files_written,
+            model=args.model,
+            model_flash=args.model_flash,
+        )
+
         emit_event(
             EVENT_COMPLETE,
             status=final_status,
             final_score=best_score,
             best_iteration=best_iteration,
-            total_iterations=min(iteration + 1, args.max_iterations) if 'iteration' in dir() else 0,
+            total_iterations=total_iters,
             files_written=files_written,
             video_url=video_url,
             threshold=args.quality_threshold,
@@ -1883,10 +2956,12 @@ Focus on improving the VISUAL quality - the code compiles fine."""
 
     except Exception as e:
         import traceback
+        tb = traceback.format_exc()
+        ProjectOutput.save_error("fatal", str(e), tb)
         emit_error(
             message=str(e),
             error_type=type(e).__name__,
-            stack_trace=traceback.format_exc()
+            stack_trace=tb
         )
         sys.exit(1)
 
