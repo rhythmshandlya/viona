@@ -452,6 +452,12 @@ These rules MUST be followed in ALL code you write or modify. Violations cause r
 4. **Clamp text positions**: Use `extrapolateRight: 'clamp'` so text STAYS after entrance.
 5. **NO "bouncy/playful/wiggle"** comments - use "premium/elegant/settled" terminology.
 
+### CRITICAL: Constants & Scope Rules
+- **Put ALL constants in constants.ts** - NOT inside components
+- **Export and import** spring configs, colors, sizes from constants.ts
+- Child components CANNOT access variables defined inside parent components
+- If a value is used in multiple components, it MUST be in constants.ts
+
 ### Quick Spring Reference:
 ```tsx
 // CORRECT - Settled, premium motion
@@ -1229,47 +1235,41 @@ Think deeply in <thinking> tags, then output the COMPLETE JSON plan.
 
 CONTENT_ANALYST_PROMPT = '''You are a CREATIVE DIRECTOR analyzing a video transcript.
 
-Your job is to identify the NARRATIVE STRUCTURE - not design visuals yet.
+Your job is to identify the NARRATIVE STRUCTURE and output a JSON brief.
 
 ## Rules
-- Maximum 8 beats for any video
-- Minimum 2 beats (otherwise too short for structure)
-- Each beat must be at least 5 seconds (150 frames at 30fps)
-- The core metaphor must be concrete and visual, not abstract
-- Adjacent transcript lines about the same concept belong in ONE beat
-- Beat types help categorize but use what fits the content
+- Maximum 8 beats, minimum 2 beats
+- Each beat must be at least 150 frames (5 seconds at 30fps)
+- Group related transcript lines into ONE beat
+- The core metaphor must be concrete and visual
 
 ## Beat Types
-- problem: Introduces a challenge or question
-- constraint: Adds limitations or complications
-- solution: Presents the answer or method
-- proof: Demonstrates why it works
-- example: Shows a concrete instance
-- challenge: Poses a follow-up question
-- cta: Call to action
-- outro: Closing/credits
+problem, constraint, solution, proof, example, challenge, cta, outro
 
-## Output Format
-Output ONLY a StructuredBrief JSON (no thinking tags, no explanation):
+## CRITICAL: Output Format
+You MUST output valid JSON. Do NOT use <thinking> tags. Do NOT explain.
+Start your response with ```json and end with ```.
 
 ```json
 {
   "core_metaphor": {
-    "concept": "One unifying visual idea for the whole video",
-    "why": "Brief explanation of why this metaphor works"
+    "concept": "One visual metaphor for the whole video",
+    "why": "Why this works"
   },
   "narrative_beats": [
     {
       "beat_id": "B01",
       "type": "problem",
       "frame_range": [0, 540],
-      "summary": "One sentence - what this beat is about",
-      "key_visual": "What ONE thing should viewers see"
+      "summary": "What this beat is about",
+      "key_visual": "Main visual element"
     }
   ],
-  "visual_elements": ["3-5 recurring elements that tie scenes together"]
+  "visual_elements": ["element1", "element2", "element3"]
 }
 ```
+
+Remember: JSON only, no thinking tags, no explanation.
 '''
 
 VISUAL_DESIGNER_PROMPT = '''You are a VISUAL DESIGNER implementing a creative brief.
@@ -1460,27 +1460,31 @@ def analyze_content_structure(
 
     duration_seconds = duration_frames / fps
 
-    prompt = f'''Analyze this video transcript and identify its narrative structure.
+    prompt = f'''Analyze this transcript and output a StructuredBrief JSON.
 
-## Transcript with Frame Timings
+## Transcript
 {transcript_formatted}
 
-## Video Details
-- Duration: {duration_frames} frames ({duration_seconds:.1f} seconds) at {fps} FPS
-- 1 second = {fps} frames
+## Details
+Duration: {duration_frames} frames ({duration_seconds:.1f}s) at {fps} FPS
 
-## Your Task
-1. Identify the major narrative BEATS (not individual sentences)
-2. Decide ONE unifying visual metaphor for the whole video
-3. List 3-5 visual elements that will recur across scenes
+## Requirements
+1. Identify 4-8 narrative BEATS (group related lines together)
+2. Choose ONE visual metaphor for the entire video
+3. List 3-5 recurring visual elements
 
-Rules:
-- Maximum 8 beats
-- Each beat must be at least 150 frames (5 seconds)
-- Group related transcript lines into single beats
-- Beat frame_range must match transcript timings
+## Output
+Respond with ONLY a JSON code block. No thinking, no explanation.
 
-Output ONLY the JSON - no explanation needed.
+```json
+{{
+  "core_metaphor": {{ "concept": "...", "why": "..." }},
+  "narrative_beats": [
+    {{ "beat_id": "B01", "type": "problem", "frame_range": [0, 500], "summary": "...", "key_visual": "..." }}
+  ],
+  "visual_elements": ["element1", "element2", "element3"]
+}}
+```
 '''
 
     litellm_kwargs = {
@@ -1877,7 +1881,7 @@ The JSON must be COMPLETE with all scenes - do not truncate.
                 {"role": "user", "content": planning_prompt}
             ],
             'temperature': 0.7,
-            'max_tokens': 16000,  # Large Visual Plans with many scenes need more tokens
+            'max_tokens': 32000,  # Large Visual Plans need more tokens - 16K was truncating
             'timeout': 180,  # 3 minute timeout to prevent hanging on slow API responses
         }
         if api_key:
