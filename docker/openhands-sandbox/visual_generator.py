@@ -1446,6 +1446,7 @@ def analyze_content_structure(
     llm,
     api_key: str = None,
     api_base: str = None,
+    planning_model: str = None,
 ) -> Optional[dict]:
     """Pass 1: Extract narrative beats and core metaphor.
 
@@ -1456,7 +1457,9 @@ def analyze_content_structure(
     emit_event("planning_pass1_start")
     ProjectOutput.plan("Pass 1: Analyzing content structure")
 
-    model_name = getattr(llm, 'model', None) or getattr(llm, 'model_name', 'openrouter/xiaomi/mimo-v2-flash')
+    # Use planning_model if provided, otherwise fall back to llm's model
+    model_name = planning_model or getattr(llm, 'model', None) or getattr(llm, 'model_name', 'google/gemini-2.5-flash-lite')
+    ProjectOutput.plan(f"Pass 1 using model: {model_name}")
 
     duration_seconds = duration_frames / fps
 
@@ -1552,6 +1555,7 @@ def design_visuals_from_brief(
     llm,
     api_key: str = None,
     api_base: str = None,
+    planning_model: str = None,
 ) -> Optional[dict]:
     """Pass 2: Design scenes constrained by the brief.
 
@@ -1562,7 +1566,9 @@ def design_visuals_from_brief(
     emit_event("planning_pass2_start")
     ProjectOutput.plan("Pass 2: Designing visuals from brief")
 
-    model_name = getattr(llm, 'model', None) or getattr(llm, 'model_name', 'openrouter/xiaomi/mimo-v2-flash')
+    # Use planning_model if provided, otherwise fall back to llm's model
+    model_name = planning_model or getattr(llm, 'model', None) or getattr(llm, 'model_name', 'google/gemini-2.5-flash-lite')
+    ProjectOutput.plan(f"Pass 2 using model: {model_name}")
 
     orientation = "vertical" if height > width else "horizontal" if width > height else "square"
     beat_count = len(brief.get('narrative_beats', []))
@@ -1681,6 +1687,7 @@ def run_visual_director(
     reasoning_effort: str = "high",
     workspace: str = None,
     bundle_dir: str = None,
+    planning_model: str = None,
 ) -> Optional[dict]:
     """
     Run the Visual Director to create a structured Visual Plan.
@@ -1749,6 +1756,7 @@ def run_visual_director(
         llm=llm,
         api_key=api_key,
         api_base=api_base,
+        planning_model=planning_model,
     )
 
     if brief:
@@ -1773,6 +1781,7 @@ def run_visual_director(
                 llm=llm,
                 api_key=api_key,
                 api_base=api_base,
+                planning_model=planning_model,
             )
 
             if plan:
@@ -3532,6 +3541,7 @@ def main():
     parser.add_argument("--project-id", required=True, help="Composition ID")
     parser.add_argument("--model", required=True, help="LLM model for code generation (Pro)")
     parser.add_argument("--model-flash", help="LLM model for evaluation/other tasks (Flash). Defaults to --model")
+    parser.add_argument("--planning-model", default="google/gemini-2.5-flash-lite", help="LLM model for planning phase (needs good instruction-following). Defaults to gemini-2.5-flash-lite")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
     parser.add_argument("--base-url", required=True, help="LLM API base URL")
     parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY", os.environ.get("OPENAI_API_KEY", "not-needed")), help="LLM API key")
@@ -3734,6 +3744,7 @@ def main():
                 reasoning_effort=args.reasoning_effort,
                 workspace=args.workspace,
                 bundle_dir=args.bundle_dir,  # Save to mounted volume immediately
+                planning_model=args.planning_model,  # Dedicated model for planning phase
             )
 
             if visual_plan:
