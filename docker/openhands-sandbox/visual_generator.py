@@ -32,6 +32,8 @@ import re
 import signal
 import subprocess
 import sys
+import time
+import concurrent.futures
 from pathlib import Path
 from typing import Optional
 
@@ -41,6 +43,50 @@ logging.getLogger("litellm").setLevel(logging.ERROR)
 logging.getLogger("httpx").setLevel(logging.ERROR)
 logging.getLogger("httpcore").setLevel(logging.ERROR)
 logging.getLogger("LiteLLM").setLevel(logging.ERROR)
+
+
+# =============================================================================
+# TIMEOUT UTILITIES - Prevent hanging on slow LLM API calls
+# =============================================================================
+
+class ConversationTimeoutError(Exception):
+    """Raised when a conversation.run() call exceeds the timeout."""
+    pass
+
+
+def run_with_timeout(func, timeout_seconds: int, *args, **kwargs):
+    """
+    Run a function with a timeout using ThreadPoolExecutor.
+
+    Works on both Windows and Unix (unlike signal-based timeouts).
+
+    Args:
+        func: The function to run
+        timeout_seconds: Maximum seconds to wait
+        *args, **kwargs: Arguments to pass to the function
+
+    Returns:
+        The result of func(*args, **kwargs)
+
+    Raises:
+        ConversationTimeoutError: If the function doesn't complete in time
+    """
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(func, *args, **kwargs)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except concurrent.futures.TimeoutError:
+            raise ConversationTimeoutError(
+                f"Operation timed out after {timeout_seconds} seconds. "
+                "The LLM API may be slow or unresponsive. Try again or check the API status."
+            )
+
+
+# Default timeouts for different operations (in seconds)
+GENERATOR_TIMEOUT = 600  # 10 minutes for code generation
+EVALUATOR_TIMEOUT = 300  # 5 minutes for evaluation
+PLANNING_TIMEOUT = 180   # 3 minutes for visual planning
+
 
 # =============================================================================
 # PROJECT OUTPUT - Unified output structure for all artifacts
@@ -284,6 +330,21 @@ def is_claude_model(model_name: str) -> bool:
     return any(p in model_name.lower() for p in claude_patterns)
 
 
+# Models with ~256K or smaller context windows
+# These need aggressive context management to avoid overflow
+SMALL_CONTEXT_MODELS = [
+    'mimo',                 # MiMo v2 Flash - 262K context
+    'grok-code-fast',       # xAI Grok Code Fast 1
+    'minimax-m2',           # MiniMax M2
+]
+
+
+def is_small_context_model(model_name: str) -> bool:
+    """Detect models with ~256K or smaller context windows."""
+    model_lower = model_name.lower()
+    return any(pattern in model_lower for pattern in SMALL_CONTEXT_MODELS)
+
+
 # Configuration for Claude proxy (use ~80% of 200K context)
 # Text-based evaluation - no screenshots to avoid context overflow from images
 CLAUDE_CONFIG = {
@@ -306,7 +367,7 @@ CLAUDE_CONFIG = {
     'evaluation_mode': 'text',          # Text-based reasoning (no screenshots)
 }
 
-# Default configuration (Gemini/OpenRouter - large context window)
+# Default configuration (Gemini/OpenRouter - large context window ~1M tokens)
 DEFAULT_CONFIG = {
     'condenser_max_size': 100,
     'condenser_max_size_eval': 50,
@@ -323,6 +384,23 @@ DEFAULT_CONFIG = {
         'animation-techniques',         # 800 lines - technique implementations
         # 'motion-graphics' removed - too many options causes random selection
         # 'visual-design' removed - essential parts merged into guardrails
+    ],
+}
+
+# Configuration for MiMo and other 256K context models
+# Total skill budget: ~500 lines to leave room for prompt + conversation
+SMALL_CONTEXT_CONFIG = {
+    'condenser_max_size': 20,           # Aggressive condensing - summarize after 20 messages
+    'condenser_max_size_eval': 10,      # Even more aggressive for eval
+    'condenser_keep_first': 2,          # Keep only system + first user message
+    'generator_max_iterations': 30,     # Fewer iterations to prevent context blowup
+    'evaluator_max_iterations': 8,      # Fewer eval iterations
+    'max_self_heal_attempts': 2,        # Fewer retries
+    'skills_to_load': [
+        'animation-guardrails',         # ~148 lines - ESSENTIAL constraints
+        'remotion-best-practices',      # ~237 lines - core Remotion patterns
+        # NOTE: component-library (2503 lines) and animation-techniques (800 lines)
+        # are TOO LARGE for 256K context. Agent must generate from scratch.
     ],
 }
 
@@ -396,6 +474,16 @@ Before creating any component, check skills/component-library.md:
 - GlassCard - container with glass effect
 
 **Copy code from the library - don't reinvent!**
+
+### TASK COMPLETION:
+Your task is COMPLETE when TypeScriptValidatorTool shows "No errors found".
+Once TypeScript passes - STOP IMMEDIATELY. Do not make more changes. Your job is done.
+
+### DO NOT WASTE ITERATIONS:
+- Do NOT use task_tracker - start coding immediately
+- Do NOT run exploratory commands (find, ls, etc.) - the project structure is in the prompt
+- Do NOT plan excessively - write code first, fix errors after
+- Every iteration counts - make progress on EVERY turn
 
 Violation of ANY constraint = code will be rejected and you must fix it.
 """
@@ -1133,6 +1221,128 @@ Think deeply in <thinking> tags, then output the COMPLETE JSON plan.
 '''
 
 
+# =============================================================================
+# TWO-PASS PLANNING PROMPTS
+# Pass 1: Content Analysis - identify narrative beats and core metaphor
+# Pass 2: Visual Design - design scenes constrained by the brief
+# =============================================================================
+
+CONTENT_ANALYST_PROMPT = '''You are a CREATIVE DIRECTOR analyzing a video transcript.
+
+Your job is to identify the NARRATIVE STRUCTURE - not design visuals yet.
+
+## Rules
+- Maximum 8 beats for any video
+- Minimum 2 beats (otherwise too short for structure)
+- Each beat must be at least 5 seconds (150 frames at 30fps)
+- The core metaphor must be concrete and visual, not abstract
+- Adjacent transcript lines about the same concept belong in ONE beat
+- Beat types help categorize but use what fits the content
+
+## Beat Types
+- problem: Introduces a challenge or question
+- constraint: Adds limitations or complications
+- solution: Presents the answer or method
+- proof: Demonstrates why it works
+- example: Shows a concrete instance
+- challenge: Poses a follow-up question
+- cta: Call to action
+- outro: Closing/credits
+
+## Output Format
+Output ONLY a StructuredBrief JSON (no thinking tags, no explanation):
+
+```json
+{
+  "core_metaphor": {
+    "concept": "One unifying visual idea for the whole video",
+    "why": "Brief explanation of why this metaphor works"
+  },
+  "narrative_beats": [
+    {
+      "beat_id": "B01",
+      "type": "problem",
+      "frame_range": [0, 540],
+      "summary": "One sentence - what this beat is about",
+      "key_visual": "What ONE thing should viewers see"
+    }
+  ],
+  "visual_elements": ["3-5 recurring elements that tie scenes together"]
+}
+```
+'''
+
+VISUAL_DESIGNER_PROMPT = '''You are a VISUAL DESIGNER implementing a creative brief.
+
+The Creative Director has already decided the structure. Your job is to design the visuals.
+
+## Your Task
+Design ONE scene per beat. Do NOT create additional scenes.
+
+For each scene:
+1. How the core metaphor manifests in this beat
+2. Build sequence (2-4 element entrances, not 10)
+3. Hero moment (the memorable visual peak)
+4. Transition to next scene
+
+## Constraints
+- You MUST create exactly {beat_count} scenes
+- Scene IDs: S01, S02, ... matching beat order
+- Scene frame_range MUST match the beat's frame_range exactly
+- All visuals MUST use the core metaphor as the unifying thread
+- Only use elements from visual_elements list - no new major concepts
+- Each scene gets 2-4 build steps, not 8-10
+- Bottom 15% reserved for subtitles - no elements there
+
+## Output Format
+Output ONLY the Visual Plan JSON (no thinking tags):
+
+```json
+{{
+  "meta": {{
+    "project_id": "{project_id}",
+    "transcript_summary": "1-2 sentence summary",
+    "total_duration_frames": {duration_frames},
+    "fps": {fps},
+    "canvas": {{ "width": {width}, "height": {height}, "orientation": "{orientation}" }},
+    "style_preset": "{style_preset}",
+    "layout_mode": "{layout_mode}"
+  }},
+  "concept_analysis": {{
+    "core_topic": "from brief",
+    "key_entities": [{{ "name": "...", "role": "...", "visual_importance": "primary|secondary" }}],
+    "relationships": [],
+    "processes": []
+  }},
+  "visual_system": {{
+    "metaphor_mapping": {{}},
+    "visual_vocabulary": {{}},
+    "spatial_layout": {{}},
+    "motion_principles": {{}}
+  }},
+  "scenes": [
+    {{
+      "scene_id": "S01",
+      "frame_range": [0, 540],
+      "transcript_segment": "text from transcript",
+      "narrative_goal": "from beat summary",
+      "visual_story": {{
+        "setup": {{ "description": "...", "mood": "..." }},
+        "build_sequence": [
+          {{ "at_frame": 15, "action": "...", "element": "...", "technique": "...", "effects": [] }}
+        ],
+        "hero_moment": {{ "what": "...", "frame_range": [100, 200], "treatment": "..." }}
+      }},
+      "element_positions": {{}},
+      "background": {{}},
+      "transition_to_next": {{}}
+    }}
+  ]
+}}
+```
+'''
+
+
 def get_style_colors(preset: str) -> dict:
     """Get colors for a style preset."""
     presets = {
@@ -1143,6 +1353,315 @@ def get_style_colors(preset: str) -> dict:
         "classic": {"bg": "#1e3a5f", "primary": "#d4af37", "secondary": "#c0c0c0", "accent": "#d4af37", "text": "#f5f5dc"},
     }
     return presets.get(preset, presets["modern"])
+
+
+# =============================================================================
+# TWO-PASS PLANNING FUNCTIONS
+# =============================================================================
+
+def validate_brief(brief: dict, fps: int = 30) -> tuple[bool, str]:
+    """Validate StructuredBrief before Pass 2.
+
+    Returns (is_valid, reason).
+    """
+    if not brief:
+        return False, "Brief is empty"
+
+    beats = brief.get('narrative_beats', [])
+
+    if len(beats) < 2:
+        return False, f"Too few beats ({len(beats)})"
+    if len(beats) > 8:
+        return False, f"Too many beats ({len(beats)})"
+
+    core_metaphor = brief.get('core_metaphor', {})
+    if not core_metaphor.get('concept'):
+        return False, "Missing core metaphor"
+
+    # Check beat coverage (no gaps > 3 seconds)
+    for i, beat in enumerate(beats[:-1]):
+        current_end = beat.get('frame_range', [0, 0])[1]
+        next_start = beats[i+1].get('frame_range', [0, 0])[0]
+        gap = next_start - current_end
+        if gap > fps * 3:  # 3 second gap
+            return False, f"Gap of {gap} frames between beats {i+1} and {i+2}"
+
+    # Check minimum beat duration (5 seconds)
+    min_frames = fps * 5
+    for i, beat in enumerate(beats):
+        frame_range = beat.get('frame_range', [0, 0])
+        duration = frame_range[1] - frame_range[0]
+        if duration < min_frames:
+            # Allow shorter beats for outro/cta
+            if beat.get('type') not in ('outro', 'cta'):
+                return False, f"Beat {i+1} is too short ({duration} frames)"
+
+    return True, "Valid"
+
+
+def parse_brief_json(response: str) -> Optional[dict]:
+    """Extract and parse StructuredBrief JSON from response."""
+    import re
+
+    # Method 1: Try to find JSON block in markdown code fence
+    json_match = re.search(r'```(?:json)?\s*(\{[\s\S]+\})\s*```', response)
+    if json_match:
+        json_str = json_match.group(1)
+        try:
+            parsed = json.loads(json_str)
+            if 'narrative_beats' in parsed and 'core_metaphor' in parsed:
+                return parsed
+        except json.JSONDecodeError:
+            pass
+
+    # Method 2: Find balanced braces
+    brace_count = 0
+    start_idx = None
+
+    for i, char in enumerate(response):
+        if char == '{':
+            if start_idx is None:
+                start_idx = i
+            brace_count += 1
+        elif char == '}':
+            brace_count -= 1
+            if brace_count == 0 and start_idx is not None:
+                json_str = response[start_idx:i+1]
+                try:
+                    parsed = json.loads(json_str)
+                    if 'narrative_beats' in parsed and 'core_metaphor' in parsed:
+                        return parsed
+                except json.JSONDecodeError:
+                    pass
+                start_idx = None
+
+    return None
+
+
+def analyze_content_structure(
+    transcript: str,
+    transcript_formatted: str,
+    duration_frames: int,
+    fps: int,
+    llm,
+    api_key: str = None,
+    api_base: str = None,
+) -> Optional[dict]:
+    """Pass 1: Extract narrative beats and core metaphor.
+
+    Returns StructuredBrief dict or None on failure.
+    """
+    import litellm
+
+    emit_event("planning_pass1_start")
+    ProjectOutput.plan("Pass 1: Analyzing content structure")
+
+    model_name = getattr(llm, 'model', None) or getattr(llm, 'model_name', 'openrouter/xiaomi/mimo-v2-flash')
+
+    duration_seconds = duration_frames / fps
+
+    prompt = f'''Analyze this video transcript and identify its narrative structure.
+
+## Transcript with Frame Timings
+{transcript_formatted}
+
+## Video Details
+- Duration: {duration_frames} frames ({duration_seconds:.1f} seconds) at {fps} FPS
+- 1 second = {fps} frames
+
+## Your Task
+1. Identify the major narrative BEATS (not individual sentences)
+2. Decide ONE unifying visual metaphor for the whole video
+3. List 3-5 visual elements that will recur across scenes
+
+Rules:
+- Maximum 8 beats
+- Each beat must be at least 150 frames (5 seconds)
+- Group related transcript lines into single beats
+- Beat frame_range must match transcript timings
+
+Output ONLY the JSON - no explanation needed.
+'''
+
+    litellm_kwargs = {
+        'model': model_name,
+        'messages': [
+            {"role": "system", "content": CONTENT_ANALYST_PROMPT},
+            {"role": "user", "content": prompt}
+        ],
+        'temperature': 0.7,
+        'max_tokens': 2000,
+        'timeout': 60,
+    }
+    if api_key:
+        litellm_kwargs['api_key'] = api_key
+    if api_base:
+        litellm_kwargs['api_base'] = api_base
+
+    try:
+        ProjectOutput.llm("Pass 1: Calling LLM for content analysis", model=model_name)
+        response = litellm.completion(**litellm_kwargs)
+
+        if response and response.choices:
+            content = response.choices[0].message.content or ""
+            ProjectOutput.plan("Pass 1: Got response", length=len(content))
+
+            # Save raw response
+            ProjectOutput.save_file("pass1-raw-response.txt", content)
+
+            brief = parse_brief_json(content)
+            if brief:
+                beat_count = len(brief.get('narrative_beats', []))
+                metaphor = brief.get('core_metaphor', {}).get('concept', 'unknown')
+                ProjectOutput.plan("Pass 1: Brief parsed",
+                                 beats=beat_count,
+                                 metaphor=metaphor[:50])
+
+                # Save brief
+                ProjectOutput.save_file("brief.json", json.dumps(brief, indent=2))
+
+                emit_event("planning_pass1_complete", beat_count=beat_count, metaphor=metaphor[:50])
+                return brief
+            else:
+                ProjectOutput.error("Pass 1: Failed to parse brief JSON")
+                return None
+        else:
+            ProjectOutput.error("Pass 1: No response from LLM")
+            return None
+
+    except Exception as e:
+        ProjectOutput.error(f"Pass 1 failed: {e}")
+        return None
+
+
+def design_visuals_from_brief(
+    brief: dict,
+    transcript_formatted: str,
+    project_id: str,
+    width: int,
+    height: int,
+    duration_frames: int,
+    fps: int,
+    style_preset: str,
+    style_colors: dict,
+    layout_mode: str,
+    llm,
+    api_key: str = None,
+    api_base: str = None,
+) -> Optional[dict]:
+    """Pass 2: Design scenes constrained by the brief.
+
+    Returns Visual Plan dict or None on failure.
+    """
+    import litellm
+
+    emit_event("planning_pass2_start")
+    ProjectOutput.plan("Pass 2: Designing visuals from brief")
+
+    model_name = getattr(llm, 'model', None) or getattr(llm, 'model_name', 'openrouter/xiaomi/mimo-v2-flash')
+
+    orientation = "vertical" if height > width else "horizontal" if width > height else "square"
+    beat_count = len(brief.get('narrative_beats', []))
+
+    # Format the brief for the prompt
+    core_metaphor = brief.get('core_metaphor', {})
+    beats = brief.get('narrative_beats', [])
+    visual_elements = brief.get('visual_elements', [])
+
+    beats_formatted = "\n".join([
+        f"- {b['beat_id']}: [{b['frame_range'][0]}-{b['frame_range'][1]}] {b['type'].upper()} - {b['summary']}"
+        for b in beats
+    ])
+
+    # Build the designer prompt with filled-in template
+    designer_prompt = VISUAL_DESIGNER_PROMPT.format(
+        beat_count=beat_count,
+        project_id=project_id,
+        duration_frames=duration_frames,
+        fps=fps,
+        width=width,
+        height=height,
+        orientation=orientation,
+        style_preset=style_preset,
+        layout_mode=layout_mode,
+    )
+
+    prompt = f'''Design visuals for this video based on the Creative Brief.
+
+## Creative Brief
+
+**Core Metaphor:** {core_metaphor.get('concept', 'undefined')}
+**Rationale:** {core_metaphor.get('why', '')}
+
+**Narrative Beats ({beat_count} total):**
+{beats_formatted}
+
+**Visual Elements to Use:** {', '.join(visual_elements)}
+
+## Transcript with Frame Timings
+{transcript_formatted}
+
+## Style
+- Preset: {style_preset}
+- Colors: bg={style_colors["bg"]}, primary={style_colors["primary"]}, secondary={style_colors["secondary"]}, accent={style_colors["accent"]}
+- Canvas: {width}x{height} ({orientation})
+- Layout: {layout_mode}
+
+## Constraints
+- Create EXACTLY {beat_count} scenes (one per beat)
+- Scene frame_range MUST match beat frame_range
+- All visuals must connect to the core metaphor
+- 2-4 build steps per scene, not 8-10
+
+Output ONLY the Visual Plan JSON.
+'''
+
+    litellm_kwargs = {
+        'model': model_name,
+        'messages': [
+            {"role": "system", "content": designer_prompt},
+            {"role": "user", "content": prompt}
+        ],
+        'temperature': 0.7,
+        'max_tokens': 12000,
+        'timeout': 120,
+    }
+    if api_key:
+        litellm_kwargs['api_key'] = api_key
+    if api_base:
+        litellm_kwargs['api_base'] = api_base
+
+    try:
+        ProjectOutput.llm("Pass 2: Calling LLM for visual design", model=model_name)
+        response = litellm.completion(**litellm_kwargs)
+
+        if response and response.choices:
+            content = response.choices[0].message.content or ""
+            ProjectOutput.plan("Pass 2: Got response", length=len(content))
+
+            # Save raw response
+            ProjectOutput.save_file("pass2-raw-response.txt", content)
+
+            plan = parse_visual_plan_json(content)
+            if plan:
+                scene_count = len(plan.get('scenes', []))
+                ProjectOutput.plan("Pass 2: Plan parsed", scenes=scene_count, expected=beat_count)
+
+                if scene_count != beat_count:
+                    ProjectOutput.warn(f"Scene count mismatch: got {scene_count}, expected {beat_count}")
+
+                emit_event("planning_pass2_complete", scene_count=scene_count)
+                return plan
+            else:
+                ProjectOutput.error("Pass 2: Failed to parse Visual Plan JSON")
+                return None
+        else:
+            ProjectOutput.error("Pass 2: No response from LLM")
+            return None
+
+    except Exception as e:
+        ProjectOutput.error(f"Pass 2 failed: {e}")
+        return None
 
 
 def run_visual_director(
@@ -1203,6 +1722,94 @@ def run_visual_director(
         # Fallback: use raw transcript
         transcript_formatted = transcript
 
+    # Get API credentials from LLM object
+    api_key = getattr(llm, 'api_key', None)
+    if api_key and hasattr(api_key, 'get_secret_value'):
+        api_key = api_key.get_secret_value()
+    api_base = getattr(llm, 'base_url', None) or getattr(llm, 'api_base', None)
+
+    # ==========================================================================
+    # TWO-PASS PLANNING (preferred)
+    # Pass 1: Analyze content structure -> StructuredBrief
+    # Pass 2: Design visuals from brief -> Visual Plan
+    # ==========================================================================
+
+    ProjectOutput.plan("Attempting two-pass planning")
+
+    # Pass 1: Content Analysis
+    brief = analyze_content_structure(
+        transcript=transcript,
+        transcript_formatted=transcript_formatted,
+        duration_frames=duration_frames,
+        fps=fps,
+        llm=llm,
+        api_key=api_key,
+        api_base=api_base,
+    )
+
+    if brief:
+        # Validate the brief
+        is_valid, reason = validate_brief(brief, fps)
+
+        if is_valid:
+            ProjectOutput.plan("Brief validated", beats=len(brief.get('narrative_beats', [])))
+
+            # Pass 2: Visual Design
+            plan = design_visuals_from_brief(
+                brief=brief,
+                transcript_formatted=transcript_formatted,
+                project_id=project_id,
+                width=width,
+                height=height,
+                duration_frames=duration_frames,
+                fps=fps,
+                style_preset=style_preset,
+                style_colors=style_colors,
+                layout_mode=layout_mode,
+                llm=llm,
+                api_key=api_key,
+                api_base=api_base,
+            )
+
+            if plan:
+                scene_count = len(plan.get("scenes", []))
+                entity_count = len(plan.get("concept_analysis", {}).get("key_entities", []))
+
+                ProjectOutput.plan("Two-pass planning successful",
+                                 scenes=scene_count,
+                                 entities=entity_count)
+
+                # Save visual plan
+                ProjectOutput.save_visual_plan(plan)
+
+                # Copy to workspace for generator
+                if workspace:
+                    plan_json = json.dumps(plan, indent=2)
+                    plan_path = Path(workspace) / "src" / project_id / "visual-plan.json"
+                    plan_path.parent.mkdir(parents=True, exist_ok=True)
+                    plan_path.write_text(plan_json, encoding="utf-8")
+
+                emit_event(
+                    EVENT_PLANNING_COMPLETE,
+                    project_id=project_id,
+                    scene_count=scene_count,
+                    entity_count=entity_count,
+                    planning_mode="two-pass"
+                )
+                return plan
+            else:
+                ProjectOutput.warn("Pass 2 failed, falling back to single-pass")
+        else:
+            ProjectOutput.warn(f"Brief validation failed: {reason}, falling back to single-pass")
+    else:
+        ProjectOutput.warn("Pass 1 failed, falling back to single-pass")
+
+    # ==========================================================================
+    # SINGLE-PASS FALLBACK (original behavior)
+    # ==========================================================================
+
+    ProjectOutput.plan("Using single-pass planning (fallback)")
+
     planning_prompt = f'''Create a Visual Plan for this explainer video.
 
 ## Project Details
@@ -1229,12 +1836,12 @@ IMPORTANT: Use the EXACT frame ranges below for your scenes!
 
 ## Your Task
 
-1. Analyze this transcript deeply - what concepts need visualization?
-2. Design creative visual metaphors for each entity
-3. Choreograph how elements enter, move, and interact
-4. Create a scene-by-scene plan with EXACT frame timings from above
+1. Analyze this transcript - what concepts need visualization?
+2. Design visual metaphors for each entity
+3. Create a scene-by-scene plan with EXACT frame timings from above
 
-Think through your creative process in <thinking> tags, then output the Visual Plan JSON.
+Output the Visual Plan JSON directly. Keep any thinking BRIEF (under 50 words) to save tokens for the full JSON.
+The JSON must be COMPLETE with all scenes - do not truncate.
 '''
 
     try:
@@ -1270,7 +1877,8 @@ Think through your creative process in <thinking> tags, then output the Visual P
                 {"role": "user", "content": planning_prompt}
             ],
             'temperature': 0.7,
-            'max_tokens': 8000,  # Increased from 4000 - Visual Plans can be large
+            'max_tokens': 16000,  # Large Visual Plans with many scenes need more tokens
+            'timeout': 180,  # 3 minute timeout to prevent hanging on slow API responses
         }
         if api_key:
             litellm_kwargs['api_key'] = api_key
@@ -2225,7 +2833,12 @@ ERROR RECOVERY: If you lose context or forget what errors to fix,
 read the file `.typescript-errors.txt` in the workspace root.
 It contains the current TypeScript errors that need fixing.
 
-Do NOT finish until TypeScript validation passes with no errors.
+## COMPLETION CRITERIA - WHEN TO STOP:
+Your task is COMPLETE when TypeScript validation passes with ZERO errors.
+Once you see "TypeScript validation passed. No errors found." - STOP IMMEDIATELY.
+Do NOT make any more changes. Do NOT run any more commands. Your job is done.
+
+Do NOT finish BEFORE TypeScript validation passes with no errors.
 This is a hard requirement - code that doesn't compile is unacceptable."""
 
     # Use config if not provided
@@ -2241,7 +2854,8 @@ This is a hard requirement - code that doesn't compile is unacceptable."""
 
     try:
         conversation.send_message(message)
-        conversation.run()
+        # Use timeout wrapper to prevent indefinite hanging on slow LLM API
+        run_with_timeout(conversation.run, GENERATOR_TIMEOUT)
 
         duration_ms = int((time.time() - start_time) * 1000)
         log_debug("PHASE", "Generator completed", duration_ms=duration_ms)
@@ -2251,6 +2865,16 @@ This is a hard requirement - code that doesn't compile is unacceptable."""
             duration_ms=duration_ms,
             message="Generator completed"
         )
+    except ConversationTimeoutError as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        log_debug("ERROR", f"Generator timed out after {GENERATOR_TIMEOUT}s", duration_ms=duration_ms)
+        emit_tool_result(
+            "generator",
+            success=False,
+            duration_ms=duration_ms,
+            error=f"Generator timed out after {GENERATOR_TIMEOUT} seconds"
+        )
+        return False, str(e)
     except Exception as e:
         import traceback
         duration_ms = int((time.time() - start_time) * 1000)
@@ -2632,7 +3256,7 @@ def run_visual_evaluation(
 - Background motion: Look for animated gradients or particles (+10)
 
 ## Visual Effects (0-15 points):
-- Scale animations: `transform: \`scale(${{...}})\`` (+5)
+- Scale animations: transform with scale() (+5)
 - Counter animations: Number interpolation over frames (+5)
 - Draw/reveal effects: clipPath or strokeDashoffset (+5)
 
@@ -2698,7 +3322,7 @@ YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task."""
 - Background motion: animated gradients or particles (+10)
 
 ## Visual Effects (0-15 points):
-- Scale animations: `transform: \`scale(${{...}})\`` (+5)
+- Scale animations: transform with scale() (+5)
 - Counter animations: Number interpolation (+5)
 - Draw/reveal: clipPath or strokeDashoffset (+5)
 
@@ -2742,10 +3366,27 @@ YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task."""
             # Use config value (8 for Claude, 15 for Gemini)
             conversation = Conversation(agent=agent, workspace=workspace, max_iteration_per_run=config['evaluator_max_iterations'])
             conversation.send_message(eval_prompt)
-            conversation.run()
+            # Use timeout wrapper to prevent indefinite hanging on slow LLM API
+            run_with_timeout(conversation.run, EVALUATOR_TIMEOUT)
             duration_ms = int((time.time() - start_time) * 1000)
             log_debug("EVAL", f"LLM completed", duration_ms=duration_ms)
             break  # Success - exit retry loop
+        except ConversationTimeoutError as e:
+            last_error = e
+            log_debug("ERROR", f"Evaluator timed out after {EVALUATOR_TIMEOUT}s", attempt=attempt+1)
+            # Timeout is retryable - LLM might be overloaded
+            if attempt < max_retries - 1:
+                log_debug("WARN", f"Retrying after timeout in {retry_delay}s", attempt=attempt+1)
+                time.sleep(retry_delay)
+                retry_delay *= 2
+                continue
+            else:
+                return {
+                    "score": 20,
+                    "breakdown": {"visualQuality": 0, "transcriptAlignment": 0, "correctness": 10, "completeness": 5, "codeQuality": 5},
+                    "issues": [f"Evaluation timed out after {max_retries} attempts"],
+                    "suggestion": "LLM API is slow or unresponsive - try again later"
+                }
         except Exception as e:
             last_error = e
             error_str = str(e).lower()
@@ -2947,10 +3588,21 @@ def main():
         emit_event(EVENT_ERROR, message=f"Failed to import OpenHands: {e}")
         sys.exit(1)
 
-    # Detect Claude and select appropriate config
+    # Detect model type and select appropriate config
     is_claude = is_claude_model(args.model)
-    config = CLAUDE_CONFIG if is_claude else DEFAULT_CONFIG
-    log_debug("PHASE", "=== Starting ===", model=args.model, is_claude=is_claude)
+    is_small_context = is_small_context_model(args.model)
+
+    if is_claude:
+        config = CLAUDE_CONFIG
+        context_mode = "claude-200k"
+    elif is_small_context:
+        config = SMALL_CONTEXT_CONFIG
+        context_mode = "small-256k"
+    else:
+        config = DEFAULT_CONFIG
+        context_mode = "large-1m"
+
+    log_debug("PHASE", "=== Starting ===", model=args.model, is_claude=is_claude, context_mode=context_mode)
 
     emit_event(
         EVENT_STARTED,
@@ -2962,7 +3614,7 @@ def main():
         height=args.height,
         temperature=args.temperature,
         provider="claude-proxy" if is_claude else "openrouter",
-        context_mode="aggressive" if is_claude else "default",
+        context_mode=context_mode,
         condenser_max_size=config['condenser_max_size'],
         skills_to_load=config['skills_to_load'],
     )
@@ -3006,7 +3658,7 @@ def main():
             EVENT_TOOL_CALL,
             tool="config",
             message=f"Generator: {args.model}, Evaluator: {flash_model}, Base URL: {args.base_url}",
-            context_mode="aggressive" if is_claude else "default",
+            context_mode=context_mode,
             condenser_max_size=config['condenser_max_size'],
             generator_max_iterations=config['generator_max_iterations'],
             evaluator_max_iterations=config['evaluator_max_iterations'],

@@ -6,11 +6,10 @@
 
 [llm]
 # Default model - can be overridden via CLI --model flag
-model = "openrouter/google/gemini-3-flash-preview"
+model = "openrouter/xiaomi/mimo-v2-flash"
 
-# CRITICAL: Keep at 1.0 for Gemini 3.x models
-# For Gemini 2.x, use 0.0-0.3 for deterministic code output
-temperature = 1.0
+# Standard temperature for MiMo reasoning model
+temperature = 0.7
 
 # Token limits
 max_output_tokens = 8192
@@ -31,13 +30,13 @@ disable_vision = false
 # Enable prompt caching if supported by provider
 caching_prompt = true
 
-[llm.gemini-flash]
-# Gemini 3 Flash Preview - fast and capable
-model = "openrouter/google/gemini-3-flash-preview"
-temperature = 1.0
+[llm.mimo-flash]
+# MiMo v2 Flash - fast reasoning model from Xiaomi
+model = "openrouter/xiaomi/mimo-v2-flash"
+temperature = 0.7
 max_output_tokens = 8192
-input_cost_per_1m = 0.10
-output_cost_per_1m = 0.40
+input_cost_per_1m = 0.07
+output_cost_per_1m = 0.28
 
 [llm.gemini-pro]
 # Gemini Pro - for complex tasks requiring higher quality
@@ -89,12 +88,12 @@ enable_visual_evaluation = true
 
 [agent.generator]
 # Generator agent - creates the Remotion components
-llm_config = "gemini-flash"
+llm_config = "mimo-flash"
 enable_prompt_extensions = true
 
 [agent.evaluator]
 # Evaluator agent - scores visual quality
-llm_config = "gemini-flash"
+llm_config = "mimo-flash"
 enable_prompt_extensions = true
 
 [skills]

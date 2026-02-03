@@ -71,12 +71,12 @@ export const config = {
     openrouter: {
       baseUrl: 'https://openrouter.ai/api/v1',
       apiKey: process.env.OPENROUTER_API_KEY || '',
-      // Use Gemini 3 Flash for all tasks - 1M+ context handles large skill files efficiently
-      model: 'google/gemini-3-flash-preview',
-      modelFlash: 'google/gemini-3-flash-preview',
+      // Use MiMo v2 Flash - fast reasoning model
+      model: 'xiaomi/mimo-v2-flash',
+      modelFlash: 'xiaomi/mimo-v2-flash',
     },
 
     // Shared settings
-    temperature: 1.0, // Required for Gemini 3.x, fine for Claude
+    temperature: 0.7, // Standard temperature for MiMo
   },
 } as const;
