@@ -1,0 +1,2 @@
+
+Transcript explains reservoir sampling: visualize as a flowing stream of comments (envelopes/icons), a "winner slot" that updates via probability rolls. Key metaphors: endless river for stream, dice for random chance, single glowing winner. Scenes build drama from problem to solution, using motion to show equal probability. Animate sequentially with springs, glows, and transitions to emphasize simplicity and fairness.

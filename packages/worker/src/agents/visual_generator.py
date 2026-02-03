@@ -1458,7 +1458,7 @@ def analyze_content_structure(
     ProjectOutput.plan("Pass 1: Analyzing content structure")
 
     # Use planning_model if provided, otherwise fall back to llm's model
-    model_name = planning_model or getattr(llm, 'model', None) or getattr(llm, 'model_name', 'google/gemini-2.5-flash-lite')
+    model_name = planning_model or getattr(llm, 'model', None) or getattr(llm, 'model_name', 'openrouter/google/gemini-2.5-flash-lite')
     ProjectOutput.plan(f"Pass 1 using model: {model_name}")
 
     duration_seconds = duration_frames / fps
@@ -1567,7 +1567,7 @@ def design_visuals_from_brief(
     ProjectOutput.plan("Pass 2: Designing visuals from brief")
 
     # Use planning_model if provided, otherwise fall back to llm's model
-    model_name = planning_model or getattr(llm, 'model', None) or getattr(llm, 'model_name', 'google/gemini-2.5-flash-lite')
+    model_name = planning_model or getattr(llm, 'model', None) or getattr(llm, 'model_name', 'openrouter/google/gemini-2.5-flash-lite')
     ProjectOutput.plan(f"Pass 2 using model: {model_name}")
 
     orientation = "vertical" if height > width else "horizontal" if width > height else "square"
@@ -3541,7 +3541,7 @@ def main():
     parser.add_argument("--project-id", required=True, help="Composition ID")
     parser.add_argument("--model", required=True, help="LLM model for code generation (Pro)")
     parser.add_argument("--model-flash", help="LLM model for evaluation/other tasks (Flash). Defaults to --model")
-    parser.add_argument("--planning-model", default="google/gemini-2.5-flash-lite", help="LLM model for planning phase (needs good instruction-following). Defaults to gemini-2.5-flash-lite")
+    parser.add_argument("--planning-model", default="openrouter/google/gemini-2.5-flash-lite", help="LLM model for planning phase (needs good instruction-following). Defaults to gemini-2.5-flash-lite")
     parser.add_argument("--prompt-file", required=True, help="Path to prompt file")
     parser.add_argument("--base-url", required=True, help="LLM API base URL")
     parser.add_argument("--api-key", default=os.environ.get("OPENROUTER_API_KEY", os.environ.get("OPENAI_API_KEY", "not-needed")), help="LLM API key")

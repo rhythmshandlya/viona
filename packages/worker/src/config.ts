@@ -71,9 +71,9 @@ export const config = {
     openrouter: {
       baseUrl: 'https://openrouter.ai/api/v1',
       apiKey: process.env.OPENROUTER_API_KEY || '',
-      // Use MiMo v2 Flash - fast reasoning model
-      model: 'xiaomi/mimo-v2-flash',
-      modelFlash: 'xiaomi/mimo-v2-flash',
+      // Use Grok Code Fast 1 - fast coding model
+      model: 'x-ai/grok-code-fast-1',
+      modelFlash: 'x-ai/grok-code-fast-1',
     },
 
     // Shared settings

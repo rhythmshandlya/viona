@@ -225,7 +225,8 @@
       "WebFetch(domain:www.youtube.com)",
       "Bash(del \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\src\\\\agents\\\\test_visual_director_llm.py\")",
       "Skill(frontend-design:frontend-design)",
-      "Bash(git -C \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\" diff --name-only HEAD)"
+      "Bash(git -C \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\" diff --name-only HEAD)",
+      "Bash(git restore:*)"
     ]
   }
 }
