@@ -317,6 +317,7 @@ Files saved to `plans/` folder:
 3. **Better token efficiency**: ~14K total vs ~16K (often truncated)
 4. **Richer scenes**: Each scene gets more detail, not less total content
 5. **Predictable output**: Beat count determines scene count
+6. **Manageable generator workload**: Fewer scenes means the generator agent naturally creates fewer tasks via OpenHands' TaskTrackerTool - no special prompting needed
 
 ## Files to Modify
 
