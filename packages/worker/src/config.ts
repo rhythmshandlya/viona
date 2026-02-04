@@ -44,6 +44,9 @@ export const config = {
     bundleOutputDir: process.env.BUNDLE_OUTPUT_DIR || './bundles',
   },
 
+  // Visual generation agent: 'openhands' or 'opencode'
+  visualAgent: (process.env.VISUAL_AGENT || 'openhands') as 'openhands' | 'opencode',
+
   openHands: {
     // Python path for OpenHands (requires Python 3.12+)
     pythonPath: process.env.OPENHANDS_PYTHON_PATH || 'python',
@@ -54,6 +57,11 @@ export const config = {
     // Container resource limits
     memoryLimit: process.env.OPENHANDS_MEMORY_LIMIT || '4g',
     cpuLimit: process.env.OPENHANDS_CPU_LIMIT || '2',
+  },
+
+  openCode: {
+    // OpenCode server port (if running separately)
+    serverPort: parseInt(process.env.OPENCODE_SERVER_PORT || '4096', 10),
   },
 
   llm: {

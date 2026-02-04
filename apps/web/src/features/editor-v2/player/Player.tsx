@@ -47,14 +47,17 @@ export function Player({ className }: PlayerProps) {
     }
   }, [isPlaying]);
 
-  // Sync current time to Remotion player
+  // Sync current time to Remotion player (only when NOT playing)
+  // During playback, the Remotion player drives its own clock via
+  // frameupdate events — calling seekTo() on a playing player causes
+  // micro-stutters that accumulate and stall playback after ~30 s.
   useEffect(() => {
     const player = playerRef.current;
-    if (!player || isInternalUpdate.current) return;
+    if (!player || isPlaying || isInternalUpdate.current) return;
 
     const frame = Math.round((currentTimeMs / 1000) * fps);
     player.seekTo(frame);
-  }, [currentTimeMs, fps]);
+  }, [currentTimeMs, fps, isPlaying]);
 
   // Listen to Remotion player events
   useEffect(() => {

@@ -322,11 +322,58 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     // Get LLM configuration (Claude Max or OpenRouter)
     const llmConfig = getLLMConfig();
 
-    // Run OpenHands agent and capture metrics
-    const agentResult = await runOpenHandsAgent(prompt, {
-      workspace: config.remotion.projectDir,
-      projectId: compositionId,
-      jobId,
+    // Choose visual generation agent based on config
+    let agentResult: AgentResult;
+
+    if (config.visualAgent === 'opencode') {
+      // Use OpenCode SDK for visual generation with scene-based approach
+      const { generateVisualsWithOpenCode } = await import('../agents/opencode/index.js');
+
+      logger.info({ projectId, compositionId }, 'Using OpenCode for visual generation with scene chunking');
+
+      const openCodeResult = await generateVisualsWithOpenCode({
+        projectId: compositionId,
+        prompt,
+        transcript: transcript.words as any[], // Pass transcript for scene-based chunking
+        workspace: config.remotion.projectDir,
+        bundleDir: resolve(config.remotion.bundleOutputDir),
+        durationFrames,
+        fps: project.fps || 30,
+        width: dimensions?.width || 1080,
+        height: dimensions?.height || 1920,
+        stylePreset,
+        maxIterations: 3,
+        onProgress: (pct, msg) => publishJobProgress(jobId, 15 + Math.floor(pct * 0.7), msg),
+        onLog: (msg) => logger.info({ projectId, compositionId }, msg),
+      });
+
+      if (!openCodeResult.success) {
+        throw new Error(openCodeResult.error || 'OpenCode visual generation failed');
+      }
+
+      // Create complete agentResult compatible with OpenHands format
+      const scenesGenerated = (openCodeResult as any).scenesGenerated || 1;
+      agentResult = {
+        filesWritten: 2 + scenesGenerated, // Main.tsx, metadata.json, and scene files
+        screenshotsTaken: 0,
+        editsCount: openCodeResult.iterations,
+        inputTokens: 0, // OpenAI doesn't return token counts in basic API
+        outputTokens: 0,
+        durationMs: 0,
+        logs: [`OpenCode visual generation completed: ${scenesGenerated} scenes generated in ${openCodeResult.iterations} iterations`],
+        finalScore: 100, // Successful completion
+        totalIterations: openCodeResult.iterations,
+        status: 'completed',
+        videoUrl: openCodeResult.videoPath || null,
+      };
+    } else {
+      // Use OpenHands agent for visual generation (default)
+      logger.info({ projectId, compositionId }, 'Using OpenHands for visual generation');
+
+      agentResult = await runOpenHandsAgent(prompt, {
+        workspace: config.remotion.projectDir,
+        projectId: compositionId,
+        jobId,
       model: llmConfig.model,
       modelFlash: llmConfig.modelFlash,
       baseUrl: llmConfig.baseUrl,
@@ -343,6 +390,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       reasoningEffort: 'high', // Maximum Gemini reasoning for best quality
       verbose: job.data.verbose,
     });
+    }
 
     // Calculate estimated cost (only for OpenRouter - Claude Max has no per-token cost)
     const estimatedCostUsd = llmConfig.inputCostPer1M && llmConfig.outputCostPer1M

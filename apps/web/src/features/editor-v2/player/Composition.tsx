@@ -295,9 +295,10 @@ export function Composition() {
                 <AbsoluteFill>
                   {videoSrc ? (
                     // Use pre-rendered video for smooth playback
+                    // startFrom=0: the <Sequence from={fromFrame}> handles
+                    // timeline positioning; the source video plays from its start
                     <Video
                       src={videoSrc}
-                      startFrom={fromFrame}
                       style={{
                         width: '100%',
                         height: '100%',

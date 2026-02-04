@@ -24,7 +24,8 @@ Style: Minimal (Clean & Professional)
 - Use spring({ damping: 20, stiffness: 60 }) - smooth, no bounce
 - Stagger elements by 20 frames
 - Fade in with interpolate over 20 frames
-- Elements fade in smoothly, subtle position shifts`,
+- Elements fade in smoothly, subtle position shifts
+- Premium: Use FadeInUp for titles, FadeInDown for subtitles, GlowPulse for accent elements`,
 
   modern: `
 Style: Modern (Vibrant & Dynamic)
@@ -58,7 +59,8 @@ Style: Modern (Vibrant & Dynamic)
 **ANIMATION:**
 - Use spring({ damping: 12, stiffness: 80 }) - bouncy, satisfying
 - Stagger elements by 15 frames
-- Spring physics, elements bounce in, satisfying motion`,
+- Spring physics, elements bounce in, satisfying motion
+- Premium: Use BounceIn for hero titles, ZoomIn for stats, Tada for celebrations, PremiumStagger for lists`,
 
   playful: `
 Style: Playful (Fun & Energetic)
@@ -80,7 +82,8 @@ Style: Playful (Fun & Energetic)
 - Use spring({ damping: 8, stiffness: 200 }) - very bouncy with overshoot
 - Add wiggle: rotation oscillates ±3 degrees
 - Stagger by 10 frames for rapid fire effect
-- Bouncy entrances, wiggle effects, playful transitions`,
+- Bouncy entrances, wiggle effects, playful transitions
+- Premium: Use BounceIn, RotateIn, Wobble, HeartBeat for maximum energy`,
 
   bold: `
 Style: Bold (High Contrast & Impactful)
@@ -99,7 +102,8 @@ Style: Bold (High Contrast & Impactful)
 **ANIMATION:**
 - Use spring({ damping: 15, stiffness: 150 }) - snappy, powerful
 - Scale from 0 to 1 for dramatic reveals
-- Dramatic reveals, scale from zero, powerful presence`,
+- Dramatic reveals, scale from zero, powerful presence
+- Premium: Use ZoomIn, LightSpeedIn, Flash, Shake for maximum impact, GlowPulse for emphasis`,
 
   classic: `
 Style: Classic (Trustworthy & Educational)
@@ -120,7 +124,8 @@ Style: Classic (Trustworthy & Educational)
 - Use spring({ damping: 25, stiffness: 50 }) - dignified, no bounce
 - Smooth fades over 30 frames
 - Smooth fades, professional transitions, no gimmicks
-- Understated motion, nothing flashy`,
+- Understated motion, nothing flashy
+- Premium: Use FadeInUp (slow speed), FadeInDown for headers, Pulse (subtle) for emphasis`,
 };
 
 interface TranscriptWord {
@@ -244,19 +249,114 @@ padding: 60,     // Hardcoded - overflows 540px width
 | Icon size | \`minDim * 0.08\` | ~86px |
 
 ### 3. Forbidden Patterns (Will Break Rendering)
-- ❌ CSS transitions or @keyframes (Remotion renders frame-by-frame)
+- ❌ Raw CSS transitions or @keyframes (Remotion renders frame-by-frame)
 - ❌ setTimeout/setInterval (not frame-deterministic)
 - ❌ useState for animation values (use \`useCurrentFrame()\` instead)
 - ❌ Hardcoded pixel dimensions
 
-### 4. Required Remotion Patterns
+### 4. MANDATORY: Use Animation Primitives Library
+
+**You MUST use the pre-built animation components from \`./animations\`.** This ensures consistent, quality animations.
+
+\`\`\`tsx
+// REQUIRED IMPORT at the top of your file
+import {
+  FadeIn, SlideUp, SlideLeft, ScaleIn, PopIn, Stagger, SPRING_CONFIGS, STAGGER_DELAYS,
+  // Premium animations (A1 quality)
+  BounceIn, FadeInUp, FadeInDown, ZoomIn, FlipInX, RotateIn, LightSpeedIn, SlideInRotate,
+  BounceOut, FadeOutUp, ZoomOut,
+  Pulse, Shake, Tada, Wobble, HeartBeat, Flash, GlowPulse,
+  PremiumStagger,
+} from './animations';
+
+// ✅ CORRECT - Use animation primitives (basic for secondary, premium for hero moments)
+<SlideUp delay={0} style="modern">
+  <Title>Welcome</Title>
+</SlideUp>
+
+// ✅ PREMIUM - For hero titles, key reveals, dramatic moments
+<BounceIn delay={0} style="modern">
+  <HeroTitle>The Solution</HeroTitle>
+</BounceIn>
+
+<FadeInUp delay={15} style="minimal">
+  <Subtitle>Clean, elegant reveal</Subtitle>
+</FadeInUp>
+
+// ✅ PREMIUM EMPHASIS - Draw attention to key stats
+<Tada delay={60}>
+  <Counter to={1000000} />
+</Tada>
+
+// ✅ PREMIUM STAGGER - Supports all animation types
+<PremiumStagger animation="fadeInUp" style="modern" startDelay={30}>
+  {items.map((item, i) => <Card key={i}>{item}</Card>)}
+</PremiumStagger>
+
+// ❌ WRONG - Creating custom animations from scratch
+const myCustomOpacity = interpolate(frame, [0, 20], [0, 1]); // DON'T do this!
+\`\`\`
+
+**Available Animation Primitives:**
+
+**Basic (for secondary content, backgrounds, subtle reveals):**
+| Component | Use For | Parameters |
+|-----------|---------|------------|
+| \`FadeIn\` | Simple fade | delay, duration, style |
+| \`SlideUp\` | Enter from bottom | delay, distance, style |
+| \`SlideLeft\` | Enter from right | delay, distance, style |
+| \`ScaleIn\` | Scale entrance | delay, from (0-1), style |
+| \`PopIn\` | Bouncy entrance | delay, style |
+| \`Stagger\` | Staggered children | animation, delayPerItem, style |
+
+**Premium Entrances (A1 quality - for hero moments, key reveals, titles):**
+| Component | Use For | Best Styles | Parameters |
+|-----------|---------|-------------|------------|
+| \`BounceIn\` | Dramatic bouncy entrance with overshoot | playful, modern | delay, duration, style, speed |
+| \`FadeInUp\` | Elegant upward fade (spring physics) | minimal, classic, modern | delay, duration, style, speed, distance |
+| \`FadeInDown\` | Downward fade entrance | minimal, classic | delay, duration, style, speed, distance |
+| \`ZoomIn\` | Dramatic zoom from small | bold, modern | delay, duration, style, speed |
+| \`FlipInX\` | 3D flip on X axis | modern, playful | delay, duration, style, speed |
+| \`RotateIn\` | Spinning entrance | playful, bold | delay, duration, style, speed |
+| \`LightSpeedIn\` | Fast slide with skew | bold, modern | delay, duration, style, speed |
+| \`SlideInRotate\` | Slide + rotate combo | modern, playful | delay, style, speed, direction, distance, angle |
+| \`PremiumStagger\` | Stagger with any animation | all | animation, delayPerItem, style, speed |
+
+**Premium Exits (for elements leaving the screen):**
+| Component | Use For | Parameters |
+|-----------|---------|------------|
+| \`BounceOut\` | Bouncy dismissal | delay, duration, style, speed |
+| \`FadeOutUp\` | Elegant upward exit | delay, duration, style, speed, distance |
+| \`ZoomOut\` | Zoom to nothing | delay, duration, style, speed |
+
+**Premium Emphasis (attention seekers - for highlighting key moments):**
+| Component | Use For | Parameters |
+|-----------|---------|------------|
+| \`Pulse\` | Breathing scale effect | delay, duration, intensity |
+| \`Shake\` | Horizontal shake (errors/warnings) | delay, duration, intensity |
+| \`Tada\` | Scale + rotate celebration | delay, duration |
+| \`Wobble\` | Wobbly side-to-side | delay, duration |
+| \`HeartBeat\` | Double-pulse heartbeat | delay, duration, intensity |
+| \`Flash\` | Rapid opacity flash | delay, duration, flashes |
+| \`GlowPulse\` | Pulsing glow/shadow | delay, duration, color, intensity |
+
+**When to use Premium vs Basic:**
+- **Premium entrances** → Hero titles, key statistics, section headers, dramatic reveals
+- **Premium emphasis** → After a counter finishes, highlighting solutions, success moments
+- **Premium exits** → Elements leaving before next scene, dismissals
+- **Basic** → Background elements, secondary text, rapid sequences, subtle motion
+
+**Style presets:** minimal, modern, playful, bold, classic
+**Speed presets:** fast, normal, slow (each style has its own duration defaults)
+
+### 5. Required Remotion Patterns (for custom logic only)
 \`\`\`tsx
 const frame = useCurrentFrame();
 const { width, height, fps } = useVideoConfig();
 
-// Animation: pure function of frame
+// Only use raw interpolate/spring for CUSTOM timing not covered by primitives
 const opacity = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: 'clamp' });
-const scale = spring({ frame, fps, config: { damping: 12, stiffness: 80 } });
+const scale = spring({ frame, fps, config: SPRING_CONFIGS.modern }); // Use preset configs!
 \`\`\`
 
 ### 5. NO UNUSED DECLARATIONS (TypeScript Strict Mode)
@@ -661,9 +761,14 @@ export const getResponsiveSizes = (width: number, height: number) => {
 
 Pre-built components at \`./components/\` are available as **time-savers**, not requirements. Create custom components whenever you have a better idea.
 
-**Available if useful:** \`Counter\`, \`PathFollow\`, \`Stagger\`, \`ParticleStream\`, \`GlowingOrb\`, \`BarChart\`, \`LineGraph\`, \`Confetti\`, \`Burst\`, \`SafeZone\`
+**Available if useful:** \`Counter\`, \`PathFollow\`, \`Stagger\`, \`ParticleStream\`, \`GlowingOrb\`, \`BarChart\`, \`LineGraph\`, \`Confetti\`, \`Burst\`, \`SafeZone\`, \`PremiumEntrance\`, \`AttentionSeeker\`, \`CombinedAnimation\`
 
-**Import:** \`import { Counter, PathFollow } from './components';\`
+**Import:** \`import { Counter, PathFollow, PremiumEntrance, AttentionSeeker, CombinedAnimation } from './components';\`
+
+**Premium component shortcuts:**
+- \`<PremiumEntrance animation="bounceIn">\` - Pick any entrance via prop
+- \`<AttentionSeeker effect="tada">\` - Pick any emphasis effect via prop
+- \`<CombinedAnimation entrance="fadeInUp" emphasis="pulse" exit="zoomOut">\` - Full lifecycle
 
 **Most visualizations should be custom** - the best explainer videos have unique, creative visuals specific to the content.
 

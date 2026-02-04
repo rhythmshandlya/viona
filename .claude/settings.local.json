@@ -233,7 +233,16 @@
       "Bash(venv-enhance/bin/python:*)",
       "Bash(venv-enhance/bin/pip install:*)",
       "Bash(pkill:*)",
-      "Bash(ln:*)"
+      "Bash(ln:*)",
+      "Bash(opencode:*)",
+      "Bash(npm ls:*)",
+      "Bash(pgrep:*)",
+      "Bash(kill:*)",
+      "Bash(lsof:*)",
+      "Bash(npx remotion:*)",
+      "Bash(cat:*)",
+      "Bash(docker-compose config:*)",
+      "Bash(git log:*)"
     ]
   }
 }
