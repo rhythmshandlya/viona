@@ -9,6 +9,7 @@ This test:
 4. Validates the generated prompt structure
 """
 
+import asyncio
 import json
 import os
 import sys
@@ -124,6 +125,39 @@ def test_security_settings():
     print("  OK PASSED\n")
 
 
+def test_security_hook():
+    """Test the bash security hook allows npm and blocks dangerous commands."""
+    print("=" * 60)
+    print("TEST 3.5: Security Hook")
+    print("=" * 60)
+
+    from claude_visual_generator import bash_security_hook, is_safe_npm_command
+
+    # Test is_safe_npm_command
+    assert is_safe_npm_command("npm install"), "Should allow npm install"
+    assert is_safe_npm_command("npx tsc"), "Should allow npx tsc"
+    assert not is_safe_npm_command("rm -rf /"), "Should block rm -rf"
+    assert not is_safe_npm_command("npm install && rm -rf /"), "Should block chained commands"
+    print("  OK is_safe_npm_command works correctly")
+
+    # Test async hook
+    result = asyncio.run(bash_security_hook({
+        "tool_name": "Bash",
+        "tool_input": {"command": "npm run build"}
+    }))
+    assert result == {}, "Should allow npm run build"
+    print("  OK bash_security_hook allows npm commands")
+
+    result = asyncio.run(bash_security_hook({
+        "tool_name": "Bash",
+        "tool_input": {"command": "rm -rf /"}
+    }))
+    assert result.get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+    print("  OK bash_security_hook blocks dangerous commands")
+
+    print("  OK PASSED\n")
+
+
 def test_generator_initialization():
     """Test that the generator initializes correctly (mocked auth)."""
     print("=" * 60)
@@ -199,6 +233,7 @@ def main():
         test_skill_injection()
         test_prompt_building()
         test_security_settings()
+        test_security_hook()
         test_generator_initialization()
         test_prompt_pipeline()
 
