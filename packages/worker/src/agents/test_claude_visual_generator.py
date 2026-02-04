@@ -351,6 +351,8 @@ def test_is_safe_npm_command_blocks_dangerous():
         "npm install `whoami`",
         "npm install $(cat /etc/passwd)",
         "npm install ${HOME}",
+        # Bypass via newline injection
+        "npm install\nrm -rf /",
     ]
 
     for cmd in blocked_commands:

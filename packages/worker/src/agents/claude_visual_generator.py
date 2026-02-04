@@ -38,7 +38,7 @@ def is_safe_npm_command(command: str) -> bool:
     The sandbox mode provides defense-in-depth for edge cases.
     """
     ALLOWED_PREFIXES = ["npm ", "npx ", "npm.cmd ", "npx.cmd "]
-    FORBIDDEN_OPERATORS = ["&&", "||", ";", "|", "`", "$(", "${"]
+    FORBIDDEN_OPERATORS = ["&&", "||", ";", "|", "`", "$(", "${", "\n"]
 
     stripped = command.strip()
 
