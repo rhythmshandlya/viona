@@ -1,0 +1,11 @@
+# Claude Visual Generator Python Dependencies
+# Install: pip install -r requirements.txt
+
+# Claude Agent SDK (uses OAuth from Claude Pro/Max subscription)
+claude-agent-sdk>=0.1.0
+
+# Async support
+aiofiles>=23.0.0
+
+# Type hints
+typing-extensions>=4.0.0
