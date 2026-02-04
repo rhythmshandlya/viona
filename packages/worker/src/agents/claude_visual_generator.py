@@ -16,12 +16,46 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Claude Agent SDK imports (local stub module)
+# Claude Agent SDK imports
 try:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
+    from claude_agent_sdk.types import HookMatcher
 except ImportError:
-    print("Error: claude_agent_sdk.py not found in the same directory")
+    print("Error: claude-agent-sdk package not installed. Run: pip install claude-agent-sdk")
     sys.exit(1)
+
+
+# =============================================================================
+# Security Hook (Reference: Auto-Claude apps/backend/core/client.py)
+# =============================================================================
+
+
+async def bash_security_hook(
+    input_data: dict,
+    tool_use_id: str | None = None,
+    context: Any = None,
+) -> dict:
+    """
+    Security hook to restrict Bash commands to npm/npx only.
+
+    Prevents arbitrary command execution while allowing TypeScript/Remotion tooling.
+    """
+    if input_data.get("tool_name") != "Bash":
+        return {}
+
+    command = input_data.get("tool_input", {}).get("command", "")
+    ALLOWED_PREFIXES = ["npm ", "npx ", "npm.cmd ", "npx.cmd "]
+
+    if any(command.strip().startswith(prefix) for prefix in ALLOWED_PREFIXES):
+        return {}
+
+    return {
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": f"Only npm/npx commands allowed. Got: {command[:50]}..."
+        }
+    }
 
 
 # =============================================================================
@@ -764,7 +798,7 @@ class ClaudeVisualGenerator:
                 print(f"[ClaudeGenerator] Model: {self.model}")
                 print(f"[ClaudeGenerator] Workspace: {self.workspace}")
 
-                # Create Claude SDK client
+                # Create Claude SDK client with security hook
                 client = ClaudeSDKClient(
                     options=ClaudeAgentOptions(
                         model=self.model,
@@ -772,7 +806,15 @@ class ClaudeVisualGenerator:
                         cwd=str(self.workspace),
                         max_turns=self.max_turns,
                         max_thinking_tokens=self.max_thinking_tokens,
+                        max_buffer_size=10 * 1024 * 1024,  # 10MB for large tool results
+                        enable_file_checkpointing=True,
                         settings=str(settings_path),
+                        allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
+                        hooks={
+                            "PreToolUse": [
+                                HookMatcher(matcher="Bash", hooks=[bash_security_hook]),
+                            ],
+                        },
                     )
                 )
 
