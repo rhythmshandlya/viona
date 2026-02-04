@@ -16,11 +16,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Claude Agent SDK imports
+# Claude Agent SDK imports (local stub module)
 try:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
 except ImportError:
-    print("Error: claude-agent-sdk not installed. Run: pip install claude-agent-sdk")
+    print("Error: claude_agent_sdk.py not found in the same directory")
     sys.exit(1)
 
 

@@ -57,23 +57,23 @@ export async function validateEnvironment(): Promise<{ valid: boolean; error?: s
 
     logger.info({ pythonVersion: pythonResult.output.trim() }, 'Python version detected');
 
-    // Check Claude Agent SDK is installed
-    const sdkCheck = spawn(pythonPath, ['-c', 'import claude_agent_sdk; print("installed")'], { stdio: 'pipe' });
-    const sdkResult = await new Promise<{ code: number | null; output: string }>((resolve) => {
+    // Check Claude Code CLI is available
+    const claudeCheck = spawn('claude', ['--version'], { stdio: 'pipe', shell: true });
+    const claudeResult = await new Promise<{ code: number | null; output: string }>((resolve) => {
       let output = '';
-      sdkCheck.stdout?.on('data', (data) => { output += data.toString(); });
-      sdkCheck.stderr?.on('data', (data) => { output += data.toString(); });
-      sdkCheck.on('close', (code) => resolve({ code, output }));
-      sdkCheck.on('error', () => resolve({ code: -1, output: 'Failed to check Claude Agent SDK' }));
+      claudeCheck.stdout?.on('data', (data) => { output += data.toString(); });
+      claudeCheck.stderr?.on('data', (data) => { output += data.toString(); });
+      claudeCheck.on('close', (code) => resolve({ code, output }));
+      claudeCheck.on('error', () => resolve({ code: -1, output: 'Claude Code CLI not found' }));
     });
 
-    if (sdkResult.code !== 0) {
-      environmentError = `Claude Agent SDK not installed. Run: pip install claude-agent-sdk\nError: ${sdkResult.output}`;
+    if (claudeResult.code !== 0) {
+      environmentError = `Claude Code CLI not available. Install from: https://github.com/anthropics/claude-code\nError: ${claudeResult.output}`;
       environmentValidated = true;
       return { valid: false, error: environmentError };
     }
 
-    logger.info('Claude Agent SDK detected');
+    logger.info({ claudeVersion: claudeResult.output.trim() }, 'Claude Code CLI detected');
 
     environmentValidated = true;
     return { valid: true };
