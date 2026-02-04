@@ -83,8 +83,10 @@ def run_with_timeout(func, timeout_seconds: int, *args, **kwargs):
 
 
 # Default timeouts for different operations (in seconds)
-GENERATOR_TIMEOUT = 600  # 10 minutes for code generation
-EVALUATOR_TIMEOUT = 300  # 5 minutes for evaluation
+# Reduced from 600s to 300s - generators typically complete in 2-3 minutes
+# Longer timeouts allow hangs to go undetected
+GENERATOR_TIMEOUT = 300  # 5 minutes for code generation
+EVALUATOR_TIMEOUT = 180  # 3 minutes for evaluation
 PLANNING_TIMEOUT = 180   # 3 minutes for visual planning
 
 
@@ -291,6 +293,16 @@ class ProjectOutput:
         """Get the path to the log file."""
         return str(cls._log_file) if cls._initialized else None
 
+    @classmethod
+    def save_file(cls, filename: str, content: str) -> Optional[str]:
+        """Save a file to the plans directory."""
+        if not cls._initialized:
+            return None
+        path = cls._project_dir / "plans" / filename
+        path.write_text(content, encoding="utf-8")
+        cls._log("ARTIFACT", f"Saved {filename}", chars=len(content))
+        return str(path)
+
 
 # Backwards compatibility alias
 FileLogger = ProjectOutput
@@ -314,14 +326,13 @@ EVENT_PLANNING_COMPLETE = "planning_complete"
 EVENT_PLANNING_ERROR = "planning_error"
 
 # Default Configuration (can be overridden by config.toml or CLI args)
-MAX_ITERATIONS = 3
+MAX_ITERATIONS = 20  # Allow many iterations for quality improvement
 QUALITY_THRESHOLD = 70
 MAX_SELF_HEAL_ATTEMPTS = 3
 DEFAULT_TEMPERATURE = 1.0  # CRITICAL: Gemini 3.x requires 1.0
 
 # =============================================================================
-# CLAUDE PROXY CONTEXT MANAGEMENT
-# Claude has 200K context vs Gemini's 1M, so we need aggressive limits
+# CONTEXT MANAGEMENT - Treat all models as small context for reliability
 # =============================================================================
 
 def is_claude_model(model_name: str) -> bool:
@@ -330,49 +341,13 @@ def is_claude_model(model_name: str) -> bool:
     return any(p in model_name.lower() for p in claude_patterns)
 
 
-# Models with ~256K or smaller context windows
-# These need aggressive context management to avoid overflow
-SMALL_CONTEXT_MODELS = [
-    'mimo',                 # MiMo v2 Flash - 262K context
-    'grok-code-fast',       # xAI Grok Code Fast 1
-    'minimax-m2',           # MiniMax M2
-]
-
-
-def is_small_context_model(model_name: str) -> bool:
-    """Detect models with ~256K or smaller context windows."""
-    model_lower = model_name.lower()
-    return any(pattern in model_lower for pattern in SMALL_CONTEXT_MODELS)
-
-
-# Configuration for Claude proxy (use ~80% of 200K context)
+# Single configuration for all models - conservative context management
 # Text-based evaluation - no screenshots to avoid context overflow from images
-CLAUDE_CONFIG = {
-    'condenser_max_size': 150,          # Use 80% of context window
-    'condenser_max_size_eval': 80,      # Higher for text eval (no images)
-    'condenser_keep_first': 5,          # More context preserved
-    'generator_max_iterations': 45,     # Near Gemini's 50
-    'evaluator_max_iterations': 15,     # Same as Gemini
-    'max_self_heal_attempts': 3,        # Same as default
-    'skills_to_load': [
-        'animation-guardrails',         # ~148 lines - CONSTRAINTS FIRST (prevents bad patterns)
-        'visual-planning',              # 500 lines - planning process
-        'remotion-best-practices',      # 237 lines - essential
-        'file-editing-guide',           # 140 lines - tool usage
-        'component-library',            # 2503 lines - pre-built cinematic components
-        'animation-techniques',         # 800 lines - technique implementations
-        # 'motion-graphics' removed - too many options causes random selection
-        # 'visual-design' removed - essential parts merged into guardrails
-    ],
-    'evaluation_mode': 'text',          # Text-based reasoning (no screenshots)
-}
-
-# Default configuration (Gemini/OpenRouter - large context window ~1M tokens)
 DEFAULT_CONFIG = {
-    'condenser_max_size': 100,
-    'condenser_max_size_eval': 50,
-    'condenser_keep_first': 4,
-    'generator_max_iterations': 50,
+    'condenser_max_size': 150,          # Conservative context usage
+    'condenser_max_size_eval': 80,      # Higher for text eval (no images)
+    'condenser_keep_first': 5,          # Preserve initial context
+    'generator_max_iterations': 45,
     'evaluator_max_iterations': 15,
     'max_self_heal_attempts': 3,
     'skills_to_load': [
@@ -385,23 +360,7 @@ DEFAULT_CONFIG = {
         # 'motion-graphics' removed - too many options causes random selection
         # 'visual-design' removed - essential parts merged into guardrails
     ],
-}
-
-# Configuration for MiMo and other 256K context models
-# Total skill budget: ~500 lines to leave room for prompt + conversation
-SMALL_CONTEXT_CONFIG = {
-    'condenser_max_size': 20,           # Aggressive condensing - summarize after 20 messages
-    'condenser_max_size_eval': 10,      # Even more aggressive for eval
-    'condenser_keep_first': 2,          # Keep only system + first user message
-    'generator_max_iterations': 30,     # Fewer iterations to prevent context blowup
-    'evaluator_max_iterations': 8,      # Fewer eval iterations
-    'max_self_heal_attempts': 2,        # Fewer retries
-    'skills_to_load': [
-        'animation-guardrails',         # ~148 lines - ESSENTIAL constraints
-        'remotion-best-practices',      # ~237 lines - core Remotion patterns
-        # NOTE: component-library (2503 lines) and animation-techniques (800 lines)
-        # are TOO LARGE for 256K context. Agent must generate from scratch.
-    ],
+    'evaluation_mode': 'text',          # Text-based reasoning (no screenshots)
 }
 
 # Inline guidance for Claude (compensates for reduced skills)
@@ -486,13 +445,368 @@ Your task is COMPLETE when TypeScriptValidatorTool shows "No errors found".
 Once TypeScript passes - STOP IMMEDIATELY. Do not make more changes. Your job is done.
 
 ### DO NOT WASTE ITERATIONS:
-- Do NOT use task_tracker - start coding immediately
 - Do NOT run exploratory commands (find, ls, etc.) - the project structure is in the prompt
 - Do NOT plan excessively - write code first, fix errors after
 - Every iteration counts - make progress on EVERY turn
 
 Violation of ANY constraint = code will be rejected and you must fix it.
 """
+
+
+# =============================================================================
+# SKILL AND TECHNIQUE INJECTION - Inject directly into prompts
+# =============================================================================
+
+def get_condensed_skills() -> str:
+    """
+    Return condensed, essential skill content to inject directly into prompt.
+    Agents don't reliably read skill files, so we inject critical patterns directly.
+    """
+    return """
+## REQUIRED ANIMATION PATTERNS (USE THESE EXACTLY)
+
+### Spring Configuration (ALWAYS use this)
+```tsx
+const SPRING_CONFIG = { damping: 22, stiffness: 90, mass: 0.9 };
+// Usage:
+const progress = spring({frame: frame - startFrame, fps, config: SPRING_CONFIG});
+```
+
+### Stagger Pattern (REQUIRED for multiple elements)
+```tsx
+// NEVER animate all elements at once. Always stagger by 6+ frames:
+{items.map((item, i) => (
+  <Element key={i} delay={i * 6} />
+))}
+```
+
+### Glassmorphism (for cards/containers)
+```tsx
+const glassStyle = {
+  background: 'rgba(255, 255, 255, 0.1)',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  borderRadius: 16,
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+};
+```
+
+### Flowing Particles (for streams/rivers)
+```tsx
+const FlowingParticles: React.FC = () => {
+  const frame = useCurrentFrame();
+  const {width, height} = useVideoConfig();
+  return (
+    <>
+      {Array.from({length: 30}).map((_, i) => {
+        const x = ((frame * 2 + i * 50) % (width + 100)) - 50;
+        const y = (height * 0.4) + Math.sin((frame + i * 20) * 0.03) * 50;
+        return (
+          <div key={i} style={{
+            position: 'absolute', left: x, top: y,
+            width: 16, height: 16, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+            opacity: 0.7,
+          }} />
+        );
+      })}
+    </>
+  );
+};
+```
+
+### Counter Animation (for numbers)
+```tsx
+const Counter: React.FC<{target: number, start: number}> = ({target, start}) => {
+  const frame = useCurrentFrame();
+  const value = Math.round(interpolate(
+    frame - start, [0, 45], [0, target], {extrapolateRight: 'clamp'}
+  ));
+  return <span style={{fontVariantNumeric: 'tabular-nums'}}>{value}</span>;
+};
+```
+
+### Scale Entrance (for appearing elements)
+```tsx
+const ScaleIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({startFrame, children}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const scale = spring({frame: frame - startFrame, fps, config: {damping: 22, stiffness: 90}});
+  return <div style={{transform: `scale(${scale})`}}>{children}</div>;
+};
+```
+
+## PROHIBITED PATTERNS (NEVER DO THESE)
+
+- Math.sin() or Math.cos() on text rotation/position
+- damping < 20 in spring config
+- All elements animating at the same time (no stagger)
+- Plain colored circles instead of proper visuals
+- Instant teleportation (no animation)
+- Static backgrounds with no motion
+"""
+
+
+def extract_technique_examples(visual_plan: dict, skills_dir: str = None) -> str:
+    """
+    Extract code examples from skills for techniques mentioned in visual plan.
+    Returns formatted code examples to inject into prompt.
+    """
+    if not visual_plan:
+        return ""
+
+    # Get all techniques from visual plan
+    techniques = set()
+    for scene in visual_plan.get("scenes", []):
+        for step in scene.get("visual_story", {}).get("build_sequence", []):
+            technique = step.get("technique", "")
+            if technique:
+                techniques.add(technique)
+            for effect in step.get("effects", []):
+                techniques.add(effect)
+
+    # Map techniques to code examples
+    technique_code = {
+        "particle-emitter": '''
+// ParticleEmitter - Use for particle effects
+const ParticleEmitter: React.FC<{count: number, startFrame: number}> = ({count, startFrame}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  return (
+    <>
+      {Array.from({length: count}).map((_, i) => {
+        const delay = i * 6;
+        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 22, stiffness: 90}});
+        const angle = (i / count) * Math.PI * 2;
+        const radius = progress * 100;
+        return (
+          <div key={i} style={{
+            position: 'absolute',
+            left: `calc(50% + ${Math.cos(angle) * radius}px)`,
+            top: `calc(50% + ${Math.sin(angle) * radius}px)`,
+            width: 8, height: 8,
+            borderRadius: '50%',
+            background: '#8b5cf6',
+            opacity: interpolate(progress, [0, 0.8, 1], [0, 1, 0]),
+          }} />
+        );
+      })}
+    </>
+  );
+};''',
+        "glass-morphism": '''
+// GlassCard - Glassmorphism container
+const GlassCard: React.FC<{children: React.ReactNode}> = ({children}) => (
+  <div style={{
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: 16,
+    padding: 24,
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+  }}>
+    {children}
+  </div>
+);''',
+        "flowing-river": '''
+// FlowingRiver - Animated data stream
+const FlowingRiver: React.FC<{startFrame: number}> = ({startFrame}) => {
+  const frame = useCurrentFrame();
+  const {width, height} = useVideoConfig();
+  const particles = Array.from({length: 50}).map((_, i) => {
+    const speed = 2 + (i % 3);
+    const yOffset = (i * 40) % height;
+    const x = ((frame - startFrame) * speed + i * 30) % (width + 100) - 50;
+    const y = yOffset + Math.sin((frame + i * 10) * 0.02) * 30;
+    return (
+      <div key={i} style={{
+        position: 'absolute', left: x, top: y,
+        width: 12 + (i % 8), height: 12 + (i % 8),
+        borderRadius: '50%',
+        background: `linear-gradient(135deg, #3b82f6, #8b5cf6)`,
+        opacity: 0.6 + (i % 4) * 0.1,
+      }} />
+    );
+  });
+  return <>{particles}</>;
+};''',
+        "probability-gate": '''
+// ProbabilityGate - Dice/spinner for random chance visualization
+const ProbabilityGate: React.FC<{n: number, startFrame: number}> = ({n, startFrame}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const spinProgress = spring({frame: frame - startFrame, fps, config: {damping: 15, stiffness: 80}});
+  const rotation = interpolate(spinProgress, [0, 1], [0, 720]);
+  return (
+    <div style={{
+      width: 80, height: 80,
+      background: 'linear-gradient(135deg, #22c55e, #3b82f6)',
+      borderRadius: 12,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      transform: `rotate(${rotation}deg)`,
+      boxShadow: '0 4px 20px rgba(34, 197, 94, 0.4)',
+    }}>
+      <span style={{fontSize: 24, fontWeight: 'bold', color: 'white'}}>1/{n}</span>
+    </div>
+  );
+};''',
+        "scale-spring": '''
+// Scale spring entrance animation
+const scaleEntrance = (frame: number, startFrame: number, fps: number) => {
+  const progress = spring({
+    frame: frame - startFrame,
+    fps,
+    config: { damping: 22, stiffness: 90, mass: 0.9 }
+  });
+  return progress;
+};
+// Usage: transform: `scale(${scaleEntrance(frame, 15, fps)})`''',
+        "counter-animation": '''
+// AnimatedCounter - Number counting up
+const AnimatedCounter: React.FC<{target: number, startFrame: number, duration?: number}> = ({target, startFrame, duration = 45}) => {
+  const frame = useCurrentFrame();
+  const progress = interpolate(frame - startFrame, [0, duration], [0, 1], {extrapolateRight: 'clamp'});
+  const value = Math.round(progress * target);
+  return (
+    <span style={{fontVariantNumeric: 'tabular-nums'}}>{value.toLocaleString()}</span>
+  );
+};''',
+        "mask-reveal": '''
+// MaskReveal - Reveal content with animated clipPath
+const MaskReveal: React.FC<{startFrame: number, children: React.ReactNode}> = ({startFrame, children}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const progress = spring({frame: frame - startFrame, fps, config: {damping: 22, stiffness: 90}});
+  const clipProgress = interpolate(progress, [0, 1], [0, 100]);
+  return (
+    <div style={{
+      clipPath: `inset(0 ${100 - clipProgress}% 0 0)`,
+    }}>
+      {children}
+    </div>
+  );
+};''',
+        "stagger-entrance": '''
+// StaggerEntrance - Stagger children animations
+const StaggerEntrance: React.FC<{startFrame: number, staggerDelay?: number, children: React.ReactNode[]}> = ({
+  startFrame, staggerDelay = 6, children
+}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  return (
+    <>
+      {React.Children.map(children, (child, i) => {
+        const delay = startFrame + i * staggerDelay;
+        const progress = spring({frame: frame - delay, fps, config: {damping: 22, stiffness: 90}});
+        return (
+          <div style={{
+            opacity: progress,
+            transform: `translateY(${interpolate(progress, [0, 1], [20, 0])}px)`,
+          }}>
+            {child}
+          </div>
+        );
+      })}
+    </>
+  );
+};''',
+    }
+
+    # Build code examples section
+    examples = []
+    for technique in techniques:
+        # Normalize technique name
+        normalized = technique.lower().replace("_", "-").replace(" ", "-")
+        for key, code in technique_code.items():
+            if key in normalized or normalized in key:
+                examples.append(f"### {technique}\n```tsx{code}\n```")
+                break
+
+    if not examples:
+        return ""
+
+    return f"""
+## CODE EXAMPLES - COPY THESE DIRECTLY
+
+The visual plan uses these techniques. Here is the EXACT code to implement them:
+
+{chr(10).join(examples)}
+
+**IMPORTANT**: Copy these implementations directly. Do NOT simplify them.
+"""
+
+
+def check_metaphor_implementation(code: str, visual_plan: dict) -> dict:
+    """
+    Check if metaphors from visual plan are actually implemented in code.
+    Returns dict with score and missing metaphors.
+    """
+    if not visual_plan:
+        return {"score": 100, "found": [], "missing": [], "total": 0, "penalty_per_missing": 15}
+
+    metaphors = visual_plan.get("visual_system", {}).get("metaphor_mapping", {})
+    concept = visual_plan.get("concept_analysis", {})
+
+    missing = []
+    found = []
+
+    # Check each metaphor
+    for name, details in metaphors.items():
+        visual_desc = details.get("visual", "") if isinstance(details, dict) else str(details)
+
+        # Look for indicators in code
+        indicators = [
+            name.lower(),
+            name.replace(" ", ""),
+            name.replace(" ", "_"),
+            name.replace(" ", "-"),
+        ]
+
+        # Add visual concept keywords
+        visual_lower = visual_desc.lower()
+        if "river" in visual_lower:
+            indicators.append("river")
+            indicators.append("flow")
+        if "stream" in visual_lower:
+            indicators.append("stream")
+            indicators.append("flow")
+        if "particle" in visual_lower:
+            indicators.append("particle")
+        if "glass" in visual_lower:
+            indicators.append("glass")
+            indicators.append("blur")
+            indicators.append("backdrop")
+        if "dice" in visual_lower:
+            indicators.append("dice")
+        if "spin" in visual_lower:
+            indicators.append("spin")
+            indicators.append("rotat")
+        if "card" in visual_lower:
+            indicators.append("card")
+        if "gate" in visual_lower:
+            indicators.append("gate")
+
+        indicators = [i for i in indicators if i]
+
+        code_lower = code.lower()
+        if any(ind in code_lower for ind in indicators):
+            found.append(name)
+        else:
+            missing.append({"name": name, "visual": visual_desc})
+
+    # Score: 100 if all found, penalize for each missing
+    total = len(metaphors) if metaphors else 1
+    score = int((len(found) / total) * 100) if total > 0 else 100
+
+    return {
+        "score": score,
+        "found": found,
+        "missing": missing,
+        "total": total,
+        "penalty_per_missing": 15,  # -15 points per missing metaphor
+    }
 
 
 def scan_for_violations(code_content: str) -> list:
@@ -714,6 +1028,27 @@ def restore_source_files(workspace: str, project_id: str, from_iteration: int) -
             shutil.copy2(file, dest)
 
     ProjectOutput.info("Source files restored", from_iteration=from_iteration)
+    return True
+
+
+def clear_source_directory(workspace: str, project_id: str) -> bool:
+    """
+    Clear the source directory to give the agent a clean slate.
+    This prevents the agent from getting confused by existing code
+    and entering infinite view/edit loops.
+    Returns True if cleared, False if directory didn't exist.
+    """
+    import shutil
+    src_dir = Path(workspace) / "src" / project_id
+
+    if not src_dir.exists():
+        return False
+
+    # Remove all files but keep the directory structure
+    shutil.rmtree(src_dir)
+    src_dir.mkdir(parents=True, exist_ok=True)
+
+    ProjectOutput.info("Source directory cleared for fresh generation", project_id=project_id)
     return True
 
 
@@ -1237,9 +1572,14 @@ CONTENT_ANALYST_PROMPT = '''You are a CREATIVE DIRECTOR analyzing a video transc
 
 Your job is to identify the NARRATIVE STRUCTURE and output a JSON brief.
 
-## Rules
+## CRITICAL Frame Range Rules
+- Beats must be SEQUENTIAL: B01 ends where B02 starts (no gaps, no overlaps)
+- MINIMUM 150 frames (5 seconds) per beat - NEVER create beats shorter than this
+- Example of CORRECT frame_range: B01 [0, 540], B02 [540, 900], B03 [900, 1500]
+- Example of WRONG: B01 [0, 540], B02 [600, 900] (gap!), B03 [900, 900] (zero duration!)
+
+## Content Rules
 - Maximum 8 beats, minimum 2 beats
-- Each beat must be at least 150 frames (5 seconds at 30fps)
 - Group related transcript lines into ONE beat
 - The core metaphor must be concrete and visual
 
@@ -1247,7 +1587,7 @@ Your job is to identify the NARRATIVE STRUCTURE and output a JSON brief.
 problem, constraint, solution, proof, example, challenge, cta, outro
 
 ## CRITICAL: Output Format
-You MUST output valid JSON. Do NOT use <thinking> tags. Do NOT explain.
+Output ONLY valid JSON. No thinking tags, no explanation.
 Start your response with ```json and end with ```.
 
 ```json
@@ -1268,8 +1608,6 @@ Start your response with ```json and end with ```.
   "visual_elements": ["element1", "element2", "element3"]
 }
 ```
-
-Remember: JSON only, no thinking tags, no explanation.
 '''
 
 VISUAL_DESIGNER_PROMPT = '''You are a VISUAL DESIGNER implementing a creative brief.
@@ -1359,10 +1697,69 @@ def get_style_colors(preset: str) -> dict:
 # TWO-PASS PLANNING FUNCTIONS
 # =============================================================================
 
+def fix_brief_timing(brief: dict, duration_frames: int, fps: int = 30) -> dict:
+    """Auto-fix brief timing issues before validation.
+
+    Fixes:
+    - Zero-duration beats (expands to minimum)
+    - ALL gaps between beats (extends previous beat to close gap)
+    - Overlapping beats (adjusts start of next beat)
+    """
+    if not brief or 'narrative_beats' not in brief:
+        return brief
+
+    beats = brief.get('narrative_beats', [])
+    if len(beats) < 2:
+        return brief
+
+    min_duration = fps * 3  # 3 seconds minimum
+    fixed_beats = []
+
+    for i, beat in enumerate(beats):
+        beat = dict(beat)  # Copy
+        frame_range = list(beat.get('frame_range', [0, 0]))
+
+        # Fix zero-duration beats
+        if frame_range[1] <= frame_range[0]:
+            frame_range[1] = frame_range[0] + min_duration
+            ProjectOutput.plan(f"Fixed zero-duration beat {beat.get('beat_id')}", new_end=frame_range[1])
+
+        # Ensure minimum duration
+        duration = frame_range[1] - frame_range[0]
+        if duration < min_duration and beat.get('type') not in ('outro', 'cta'):
+            frame_range[1] = frame_range[0] + min_duration
+
+        # Close ALL gaps from previous beat by extending previous beat's end
+        if i > 0:
+            prev_end = fixed_beats[i-1]['frame_range'][1]
+            if frame_range[0] > prev_end:
+                # Gap exists - extend previous beat to close it
+                gap = frame_range[0] - prev_end
+                fixed_beats[i-1]['frame_range'][1] = frame_range[0]
+                ProjectOutput.plan(f"Extended beat {fixed_beats[i-1].get('beat_id')} to close gap", gap=gap)
+            elif frame_range[0] < prev_end:
+                # Overlap - adjust this beat's start
+                frame_range[0] = prev_end
+                ProjectOutput.plan(f"Fixed overlap for beat {beat.get('beat_id')}")
+
+        beat['frame_range'] = frame_range
+        fixed_beats.append(beat)
+
+    # Extend last beat to cover full duration
+    if fixed_beats and fixed_beats[-1]['frame_range'][1] < duration_frames:
+        old_end = fixed_beats[-1]['frame_range'][1]
+        fixed_beats[-1]['frame_range'][1] = duration_frames
+        ProjectOutput.plan(f"Extended last beat to duration", old_end=old_end, new_end=duration_frames)
+
+    brief['narrative_beats'] = fixed_beats
+    return brief
+
+
 def validate_brief(brief: dict, fps: int = 30) -> tuple[bool, str]:
     """Validate StructuredBrief before Pass 2.
 
     Returns (is_valid, reason).
+    After fix_brief_timing runs, this should rarely fail.
     """
     if not brief:
         return False, "Brief is empty"
@@ -1371,69 +1768,97 @@ def validate_brief(brief: dict, fps: int = 30) -> tuple[bool, str]:
 
     if len(beats) < 2:
         return False, f"Too few beats ({len(beats)})"
-    if len(beats) > 8:
+    if len(beats) > 10:  # Allow up to 10 beats (more lenient)
         return False, f"Too many beats ({len(beats)})"
 
     core_metaphor = brief.get('core_metaphor', {})
     if not core_metaphor.get('concept'):
         return False, "Missing core metaphor"
 
-    # Check beat coverage (no gaps > 3 seconds)
+    # After fix_brief_timing, gaps should be closed - just verify
     for i, beat in enumerate(beats[:-1]):
         current_end = beat.get('frame_range', [0, 0])[1]
         next_start = beats[i+1].get('frame_range', [0, 0])[0]
         gap = next_start - current_end
-        if gap > fps * 3:  # 3 second gap
+        if gap > 0:  # Any gap after fixing is an error
             return False, f"Gap of {gap} frames between beats {i+1} and {i+2}"
 
-    # Check minimum beat duration (5 seconds)
-    min_frames = fps * 5
+    # Check minimum beat duration (2 seconds, very lenient)
+    min_frames = fps * 2
     for i, beat in enumerate(beats):
         frame_range = beat.get('frame_range', [0, 0])
         duration = frame_range[1] - frame_range[0]
         if duration < min_frames:
-            # Allow shorter beats for outro/cta
-            if beat.get('type') not in ('outro', 'cta'):
+            # Allow shorter beats for outro/cta/proof
+            if beat.get('type') not in ('outro', 'cta', 'proof'):
                 return False, f"Beat {i+1} is too short ({duration} frames)"
 
     return True, "Valid"
+
+
+def strip_thinking_tags(response: str) -> str:
+    """Strip XML-style thinking/reasoning tags from response.
+
+    Models often output <thinking>...</thinking> or similar tags before JSON.
+    This function removes them to expose the actual JSON content.
+    """
+    import re
+
+    # Remove various thinking tag patterns
+    patterns = [
+        r'<thinking>[\s\S]*?</thinking>',  # <thinking>...</thinking>
+        r'<reasoning>[\s\S]*?</reasoning>',  # <reasoning>...</reasoning>
+        r'<analysis>[\s\S]*?</analysis>',    # <analysis>...</analysis>
+        r'<thought>[\s\S]*?</thought>',      # <thought>...</thought>
+    ]
+
+    result = response
+    for pattern in patterns:
+        result = re.sub(pattern, '', result, flags=re.IGNORECASE)
+
+    return result.strip()
 
 
 def parse_brief_json(response: str) -> Optional[dict]:
     """Extract and parse StructuredBrief JSON from response."""
     import re
 
-    # Method 1: Try to find JSON block in markdown code fence
-    json_match = re.search(r'```(?:json)?\s*(\{[\s\S]+\})\s*```', response)
-    if json_match:
-        json_str = json_match.group(1)
-        try:
-            parsed = json.loads(json_str)
-            if 'narrative_beats' in parsed and 'core_metaphor' in parsed:
-                return parsed
-        except json.JSONDecodeError:
-            pass
+    # First, strip any thinking tags
+    cleaned_response = strip_thinking_tags(response)
 
-    # Method 2: Find balanced braces
-    brace_count = 0
-    start_idx = None
+    # Try with cleaned response first, then original if that fails
+    for text in [cleaned_response, response]:
+        # Method 1: Try to find JSON block in markdown code fence
+        json_match = re.search(r'```(?:json)?\s*(\{[\s\S]+\})\s*```', text)
+        if json_match:
+            json_str = json_match.group(1)
+            try:
+                parsed = json.loads(json_str)
+                if 'narrative_beats' in parsed and 'core_metaphor' in parsed:
+                    return parsed
+            except json.JSONDecodeError:
+                pass
 
-    for i, char in enumerate(response):
-        if char == '{':
-            if start_idx is None:
-                start_idx = i
-            brace_count += 1
-        elif char == '}':
-            brace_count -= 1
-            if brace_count == 0 and start_idx is not None:
-                json_str = response[start_idx:i+1]
-                try:
-                    parsed = json.loads(json_str)
-                    if 'narrative_beats' in parsed and 'core_metaphor' in parsed:
-                        return parsed
-                except json.JSONDecodeError:
-                    pass
-                start_idx = None
+        # Method 2: Find balanced braces
+        brace_count = 0
+        start_idx = None
+
+        for i, char in enumerate(text):
+            if char == '{':
+                if start_idx is None:
+                    start_idx = i
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0 and start_idx is not None:
+                    json_str = text[start_idx:i+1]
+                    try:
+                        parsed = json.loads(json_str)
+                        if 'narrative_beats' in parsed and 'core_metaphor' in parsed:
+                            return parsed
+                    except json.JSONDecodeError:
+                        pass
+                    start_idx = None
 
     return None
 
@@ -1760,6 +2185,9 @@ def run_visual_director(
     )
 
     if brief:
+        # Auto-fix timing issues before validation
+        brief = fix_brief_timing(brief, duration_frames, fps)
+
         # Validate the brief
         is_valid, reason = validate_brief(brief, fps)
 
@@ -2127,65 +2555,75 @@ def parse_visual_plan_json(response: str) -> Optional[dict]:
     """
     ProjectOutput.plan("Parsing Visual Plan JSON", response_length=len(response))
 
-    # Method 1: Try to find JSON block in markdown code fence
-    # Use greedy matching to get the full JSON block
-    json_match = re.search(r'```(?:json)?\s*(\{[\s\S]+\})\s*```', response)
-    if json_match:
-        json_str = json_match.group(1)
-        ProjectOutput.plan("Found JSON in code fence", json_length=len(json_str))
+    # First, strip any thinking tags from the response
+    cleaned_response = strip_thinking_tags(response)
+    if len(cleaned_response) != len(response):
+        ProjectOutput.plan("Stripped thinking tags", original_len=len(response), cleaned_len=len(cleaned_response))
 
-        # Fix common JSON issues (like arithmetic expressions)
-        json_str = fix_json_arithmetic(json_str)
+    # Try with cleaned response first, then original if that fails
+    for attempt, text in enumerate([cleaned_response, response]):
+        if attempt == 1 and cleaned_response == response:
+            continue  # Skip if cleaned is same as original
 
-        try:
-            parsed = json.loads(json_str)
-            ProjectOutput.plan("Successfully parsed JSON from code fence")
-            return parsed
-        except json.JSONDecodeError as e:
-            ProjectOutput.warn(f"JSON parse error in code fence: {e}",
-                          position=e.pos,
-                          context=json_str[max(0, e.pos-50):e.pos+50] if e.pos else "")
+        # Method 1: Try to find JSON block in markdown code fence
+        # Use greedy matching to get the full JSON block
+        json_match = re.search(r'```(?:json)?\s*(\{[\s\S]+\})\s*```', text)
+        if json_match:
+            json_str = json_match.group(1)
+            ProjectOutput.plan("Found JSON in code fence", json_length=len(json_str))
 
-    # Method 2: Find balanced braces (handles nested JSON)
-    ProjectOutput.plan("Trying balanced brace extraction")
-    brace_count = 0
-    start_idx = None
-    best_json = None
-    best_json_str = None
+            # Fix common JSON issues (like arithmetic expressions)
+            json_str = fix_json_arithmetic(json_str)
 
-    for i, char in enumerate(response):
-        if char == '{':
-            if start_idx is None:
-                start_idx = i
-            brace_count += 1
-        elif char == '}':
-            brace_count -= 1
-            if brace_count == 0 and start_idx is not None:
-                json_str = response[start_idx:i+1]
-                # Fix common JSON issues
-                json_str = fix_json_arithmetic(json_str)
-                try:
-                    parsed = json.loads(json_str)
-                    # Keep the largest valid JSON (most complete plan)
-                    if best_json is None or len(json_str) > len(best_json_str):
-                        best_json = parsed
-                        best_json_str = json_str
-                        ProjectOutput.plan("Found valid JSON block", length=len(json_str))
-                except json.JSONDecodeError:
-                    pass  # Try next block
-                start_idx = None
+            try:
+                parsed = json.loads(json_str)
+                ProjectOutput.plan("Successfully parsed JSON from code fence")
+                return parsed
+            except json.JSONDecodeError as e:
+                ProjectOutput.warn(f"JSON parse error in code fence: {e}",
+                              position=e.pos,
+                              context=json_str[max(0, e.pos-50):e.pos+50] if e.pos else "")
 
-    if best_json:
-        # Validate the plan has required structure
-        if 'scenes' in best_json or 'concept_analysis' in best_json:
-            ProjectOutput.plan("Visual Plan parsed successfully",
-                          has_scenes='scenes' in best_json,
-                          has_analysis='concept_analysis' in best_json,
-                          scene_count=len(best_json.get('scenes', [])))
-            return best_json
-        else:
-            ProjectOutput.warn("Parsed JSON missing required fields",
-                          keys=list(best_json.keys())[:10])
+        # Method 2: Find balanced braces (handles nested JSON)
+        ProjectOutput.plan("Trying balanced brace extraction")
+        brace_count = 0
+        start_idx = None
+        best_json = None
+        best_json_str = None
+
+        for i, char in enumerate(text):
+            if char == '{':
+                if start_idx is None:
+                    start_idx = i
+                brace_count += 1
+            elif char == '}':
+                brace_count -= 1
+                if brace_count == 0 and start_idx is not None:
+                    json_str = text[start_idx:i+1]
+                    # Fix common JSON issues
+                    json_str = fix_json_arithmetic(json_str)
+                    try:
+                        parsed = json.loads(json_str)
+                        # Keep the largest valid JSON (most complete plan)
+                        if best_json is None or len(json_str) > len(best_json_str):
+                            best_json = parsed
+                            best_json_str = json_str
+                            ProjectOutput.plan("Found valid JSON block", length=len(json_str))
+                    except json.JSONDecodeError:
+                        pass  # Try next block
+                    start_idx = None
+
+        if best_json:
+            # Validate the plan has required structure
+            if 'scenes' in best_json or 'concept_analysis' in best_json:
+                ProjectOutput.plan("Visual Plan parsed successfully",
+                              has_scenes='scenes' in best_json,
+                              has_analysis='concept_analysis' in best_json,
+                              scene_count=len(best_json.get('scenes', [])))
+                return best_json
+            else:
+                ProjectOutput.warn("Parsed JSON missing required fields",
+                              keys=list(best_json.keys())[:10])
 
     # Log failure details
     ProjectOutput.error("Failed to parse Visual Plan JSON",
@@ -2426,7 +2864,7 @@ def create_generator_agent(
     """Create the generator agent with Remotion skills and file editing tools.
 
     Args:
-        config: Configuration dict with condenser settings (from CLAUDE_CONFIG or DEFAULT_CONFIG)
+        config: Configuration dict with condenser settings (from DEFAULT_CONFIG)
         guardrails_skill: Animation guardrails (constraints-first, loaded FIRST)
         inline_guidance: Optional inline guidance to add as a skill (for Claude)
     """
@@ -2502,7 +2940,7 @@ def create_generator_agent(
         tools=[
             Tool(name=TerminalTool.name),
             Tool(name=FileEditorTool.name),
-            Tool(name=TaskTrackerTool.name),
+            Tool(name=TaskTrackerTool.name),  # save_dir param removed - no longer supported
             Tool(name="FileToolSet"),
         ],
         agent_context=agent_context,
@@ -2514,7 +2952,7 @@ def create_visual_evaluator_agent(llm, scoring_rubric: str, condenser_llm=None, 
     """Create the visual evaluator agent focused on screenshot analysis.
 
     Args:
-        config: Configuration dict with condenser settings (from CLAUDE_CONFIG or DEFAULT_CONFIG)
+        config: Configuration dict with condenser settings (from DEFAULT_CONFIG)
     """
     from openhands.sdk import Agent, AgentContext, Tool
     from openhands.sdk.context.skills.skill import Skill
@@ -2586,7 +3024,7 @@ def create_text_evaluator_agent(llm, scoring_rubric: str, condenser_llm=None, co
 
     # Use default config if not provided
     if config is None:
-        config = CLAUDE_CONFIG
+        config = DEFAULT_CONFIG
 
     def create_text_eval_tools(conv_state):
         """Create tools for text-based evaluation (SubmitScoreTool only)."""
@@ -2673,6 +3111,7 @@ def run_generator_with_self_healing(
     visual_feedback: Optional[str] = None,
     iteration: int = 1,
     config: dict = None,
+    visual_plan: dict = None,
 ) -> tuple[bool, str]:
     """
     Run generator with self-healing loop.
@@ -2690,7 +3129,8 @@ def run_generator_with_self_healing(
     # Convert project_id to valid component name (PascalCase, no underscores/hyphens)
     component_name = ''.join(word.capitalize() for word in project_id.replace('-', '_').split('_'))
 
-    agent_context = """
+    # Full context for iteration 1 - includes reading/planning instructions
+    agent_context_full = """
 ## DELIBERATE CODING PROCESS - THINK BEFORE YOU CODE
 
 You are a Remotion code generation expert. You MUST think step-by-step before writing any code.
@@ -2703,6 +3143,12 @@ Before writing ANY code, you MUST:
 2. Identify ALL entities, metaphors, and techniques specified
 3. List the scenes and their build_sequences
 4. Note any hero_moments that need special treatment
+
+**TASK TRACKING (REQUIRED)**
+Use TaskTrackerTool to create tasks from the Visual Plan:
+1. One task per scene (e.g., "S01: Hero title with particle entrance")
+2. Mark tasks as 'in_progress' when starting, 'completed' when done
+3. Tasks are saved to .tasks.json and survive context condensation
 
 **PHASE 2: PLAN YOUR IMPLEMENTATION**
 Think through and write down your approach:
@@ -2768,6 +3214,36 @@ Create a working Remotion composition that:
 
 """
 
+    # Simplified context for fix iterations (2+) - NO READING, just write code
+    agent_context_fix = """
+## DIRECT FIX MODE - WRITE CODE IMMEDIATELY
+
+You are fixing issues from a previous generation. DO NOT explore or read files.
+
+### CRITICAL RULES:
+1. **DO NOT** read or view any files first
+2. **DO NOT** grep or search through skills
+3. **DO NOT** explore the codebase
+4. **IMMEDIATELY** write the code files
+
+### YOUR ONLY TASK:
+1. Write index.tsx with the complete composition
+2. Write any component files needed
+3. Write metadata.json
+4. Run TypeScriptValidatorTool
+5. Fix any TypeScript errors
+6. STOP when TypeScript passes
+
+### NAMING CONVENTIONS:
+- Folder: `src/proj_xxx_xxx/` (underscores)
+- Composition ID: `proj-xxx-xxx` (hyphens)
+
+**START WRITING CODE NOW. Do not read files first.**
+"""
+
+    # Choose context based on iteration
+    agent_context = agent_context_fix if iteration > 1 else agent_context_full
+
     project_structure = f"""
 ## PROJECT STRUCTURE REQUIREMENTS - FOLLOW EXACTLY
 
@@ -2792,21 +3268,29 @@ src/
 """
 
     if visual_feedback:
+        # For fix iterations: direct instructions, no exploration
         message = f"""{PERSISTENT_CONSTRAINTS}
 
 {agent_context}{project_structure}
 
-## VIOLATIONS TO FIX (from previous evaluation):
+## ISSUES TO FIX:
 
 {visual_feedback}
 
-IMPORTANT:
-- Fix ALL violations listed above FIRST
-- Remember: damping >= 20, NO Math.sin on text, stagger by 6+ frames
-- After making changes, validate TypeScript and fix any errors
-- Do NOT finish until TypeScript compiles with ZERO errors
+## ACTION REQUIRED - DO THIS NOW:
 
-Original task:
+1. **WRITE** index.tsx with the complete fixed composition
+2. **WRITE** any component files in components/ folder
+3. **WRITE** metadata.json with correct compositionId
+4. **RUN** TypeScriptValidatorTool to check for errors
+5. **FIX** any TypeScript errors found
+6. **STOP** when TypeScript validation passes
+
+**DO NOT read files. DO NOT explore. Just WRITE the code.**
+
+Remember: damping >= 20, NO Math.sin on text, stagger by 6+ frames.
+
+Original visual plan is in the task below - use it to write the code:
 {prompt}"""
     else:
         message = f"""{PERSISTENT_CONSTRAINTS}
@@ -2858,7 +3342,30 @@ This is a hard requirement - code that doesn't compile is unacceptable."""
     if config is None:
         config = DEFAULT_CONFIG
 
-    log_debug("PHASE", "Generator starting", iteration=iteration, max_iter=config['generator_max_iterations'])
+    # =======================================================================
+    # SKILL AND TECHNIQUE INJECTION
+    # Inject condensed skills and technique examples directly into prompt
+    # Agents don't reliably read skill files, so we inject critical patterns
+    # =======================================================================
+    condensed_skills = get_condensed_skills()
+    message = f"{condensed_skills}\n\n{message}"
+
+    # Extract and inject code examples from visual plan
+    if visual_plan:
+        code_examples = extract_technique_examples(visual_plan)
+        if code_examples:
+            message = f"{message}\n\n{code_examples}"
+            log_debug("PHASE", "Injected technique examples", techniques_count=code_examples.count("###"))
+
+    # Log feedback info for debugging stuck generators
+    has_feedback = visual_feedback is not None
+    feedback_preview = visual_feedback[:100] if visual_feedback else "none"
+    log_debug("PHASE", "Generator starting",
+              iteration=iteration,
+              max_iter=config['generator_max_iterations'],
+              has_feedback=has_feedback,
+              feedback_preview=feedback_preview,
+              timeout_seconds=GENERATOR_TIMEOUT)
 
     start_time = time.time()
     # Limit iterations to prevent runaway context growth
@@ -2866,7 +3373,9 @@ This is a hard requirement - code that doesn't compile is unacceptable."""
     conversation = Conversation(agent=agent, workspace=workspace, max_iteration_per_run=config['generator_max_iterations'])
 
     try:
+        log_debug("LLM", "Sending message to generator agent", prompt_length=len(message))
         conversation.send_message(message)
+        log_debug("LLM", "Starting conversation.run()", timeout=GENERATOR_TIMEOUT)
         # Use timeout wrapper to prevent indefinite hanging on slow LLM API
         run_with_timeout(conversation.run, GENERATOR_TIMEOUT)
 
@@ -3065,15 +3574,19 @@ def generate_plan_verification_criteria(visual_plan: dict) -> str:
             if techniques:
                 criteria_lines.append(f"  - [ ] Uses techniques: {', '.join(techniques)}")
 
-    # Visual metaphors (SECONDARY - should be components in code)
+    # Visual metaphors (CRITICAL - must be implemented as components)
     visual_system = visual_plan.get("visual_system", {})
     metaphor_mapping = visual_system.get("metaphor_mapping", {})
     if metaphor_mapping:
-        criteria_lines.append("\n### VISUAL COMPONENTS (should be React components or elements):")
-        for name, details in list(metaphor_mapping.items())[:4]:
+        criteria_lines.append("\n### METAPHOR IMPLEMENTATION CHECK (CRITICAL - PENALTY: -15 pts each)")
+        criteria_lines.append("The visual plan defines these metaphors that MUST appear in the code:")
+        criteria_lines.append("A video without its core metaphors is GARBAGE. Check EACH:")
+        for name, details in list(metaphor_mapping.items())[:6]:
             if isinstance(details, dict):
-                visual = details.get("visual", "")[:40]
-                criteria_lines.append(f"- [ ] {name}: {visual}")
+                visual = details.get("visual", "")[:60]
+                criteria_lines.append(f"- [ ] **{name}**: Must be visualized as '{visual}'")
+            else:
+                criteria_lines.append(f"- [ ] **{name}**: {str(details)[:60]}")
 
     # Motion principles
     motion = visual_system.get("motion_principles", {})
@@ -3516,6 +4029,50 @@ YOU MUST CALL SubmitScoreTool - this is the ONLY way to complete your task."""
                 violations=[{"severity": v["severity"], "issue": v["issue"]} for v in violations]
             )
 
+    # =======================================================================
+    # METAPHOR IMPLEMENTATION CHECK - Verify visual plan metaphors are in code
+    # This catches missing metaphors that should be visualized
+    # =======================================================================
+    if code_content and visual_plan:
+        metaphor_result = check_metaphor_implementation(code_content, visual_plan)
+        if metaphor_result["missing"]:
+            # Calculate penalty
+            metaphor_penalty = len(metaphor_result["missing"]) * metaphor_result["penalty_per_missing"]
+            current_score = score_result.get("score", 0)
+            adjusted_score = max(0, current_score - metaphor_penalty)
+
+            # Log metaphor issues
+            log_debug("SCORE", f"Missing metaphors found",
+                      count=len(metaphor_result["missing"]),
+                      found=len(metaphor_result["found"]),
+                      penalty=metaphor_penalty)
+            for m in metaphor_result["missing"]:
+                log_debug("METAPHOR", f"MISSING: '{m['name']}' -> '{m['visual']}'")
+
+            # Update score_result
+            score_result["score"] = adjusted_score
+            score_result["metaphor_penalty"] = metaphor_penalty
+
+            # Add metaphor issues to issues list
+            existing_issues = score_result.get("issues", [])
+            metaphor_issues = [f"MISSING METAPHOR: '{m['name']}' should be visualized as '{m['visual']}'" for m in metaphor_result["missing"]]
+            score_result["issues"] = metaphor_issues + existing_issues
+
+            # Update suggestion if no critical violations
+            if not score_result.get("suggestion") or "metaphor" not in score_result.get("suggestion", "").lower():
+                if metaphor_result["missing"]:
+                    first_missing = metaphor_result["missing"][0]
+                    score_result["suggestion"] = f"Implement visual for '{first_missing['name']}': {first_missing['visual']}"
+
+            emit_event(
+                EVENT_TOOL_CALL,
+                tool="metaphor_checker",
+                found=metaphor_result["found"],
+                missing=[m["name"] for m in metaphor_result["missing"]],
+                penalty=metaphor_penalty,
+                adjusted_score=adjusted_score
+            )
+
     # Get breakdown values for the event
     breakdown = score_result.get("breakdown", {})
     emit_event(
@@ -3602,21 +4159,13 @@ def main():
         emit_event(EVENT_ERROR, message=f"Failed to import OpenHands: {e}")
         sys.exit(1)
 
-    # Detect model type and select appropriate config
+    # Detect model type for provider selection
     is_claude = is_claude_model(args.model)
-    is_small_context = is_small_context_model(args.model)
 
-    if is_claude:
-        config = CLAUDE_CONFIG
-        context_mode = "claude-200k"
-    elif is_small_context:
-        config = SMALL_CONTEXT_CONFIG
-        context_mode = "small-256k"
-    else:
-        config = DEFAULT_CONFIG
-        context_mode = "large-1m"
+    # Use single config for all models (conservative context management)
+    config = DEFAULT_CONFIG
 
-    log_debug("PHASE", "=== Starting ===", model=args.model, is_claude=is_claude, context_mode=context_mode)
+    log_debug("PHASE", "=== Starting ===", model=args.model, is_claude=is_claude)
 
     emit_event(
         EVENT_STARTED,
@@ -3628,7 +4177,6 @@ def main():
         height=args.height,
         temperature=args.temperature,
         provider="claude-proxy" if is_claude else "openrouter",
-        context_mode=context_mode,
         condenser_max_size=config['condenser_max_size'],
         skills_to_load=config['skills_to_load'],
     )
@@ -3672,13 +4220,12 @@ def main():
             EVENT_TOOL_CALL,
             tool="config",
             message=f"Generator: {args.model}, Evaluator: {flash_model}, Base URL: {args.base_url}",
-            context_mode=context_mode,
             condenser_max_size=config['condenser_max_size'],
             generator_max_iterations=config['generator_max_iterations'],
             evaluator_max_iterations=config['evaluator_max_iterations'],
         )
 
-        # Load skills based on config (Claude loads fewer to save context)
+        # Load skills based on config
         skills_dir = Path(__file__).parent / "skills"
         skills_to_load = config['skills_to_load']
 
@@ -3775,6 +4322,10 @@ def main():
             if iteration > 0:
                 # Backup current code before potentially overwriting
                 backup_source_files(args.workspace, args.project_id, iteration)
+                # Clear source directory to give agent a clean slate
+                # This prevents agents from getting stuck in infinite view/edit loops
+                # when trying to modify existing code instead of generating fresh
+                clear_source_directory(args.workspace, args.project_id)
 
             # ===== PHASE 1: Generate with self-healing =====
             ProjectOutput.info("Starting generator with self-healing", iteration=iteration + 1)
@@ -3786,6 +4337,7 @@ def main():
                 visual_feedback,
                 iteration=iteration + 1,
                 config=config,
+                visual_plan=visual_plan,
             )
 
             if cancelled:

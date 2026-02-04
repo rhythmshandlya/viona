@@ -1,0 +1,30 @@
+{
+  "compositionId": "proj-c9b2ab0e-8fbc-4e9a-a15e-252f94536675",
+  "durationInFrames": 2334,
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "name": "Reservoir Sampling Visualized",
+  "description": "Visual explanation of Reservoir Sampling algorithm for selecting random winners from a live stream with memory constraints",
+  "tags": [
+    "algorithm",
+    "visualization",
+    "reservoir-sampling",
+    "tutorial",
+    "educational"
+  ],
+  "visuals": [
+    {
+      "startMs": 0,
+      "endMs": null,
+      "type": "Visual Element",
+      "description": "Visual Element (from frame 0)"
+    }
+  ],
+  "planCompliance": {
+    "score": 68,
+    "scenesImplemented": 6,
+    "scenesTotal": 6,
+    "details": "Scenes: 6/6, Metaphors: 1/5"
+  }
+}

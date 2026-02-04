@@ -1,0 +1,841 @@
+import React from 'react';
+import { 
+  AbsoluteFill, 
+  useVideoConfig, 
+  useCurrentFrame, 
+  spring, 
+  interpolate,
+  Sequence,
+} from 'remotion';
+import { COLORS, SPRING_CONFIGS, TIMING, PARTICLES, MEMORY, DIE } from './constants';
+
+// Particle interface
+interface CommentParticle {
+  id: number;
+  spawnFrame: number;
+  x: number;
+  y: number;
+  targetY: number;
+  color: string;
+  size: number;
+  delay: number;
+}
+
+// Memory slot interface
+interface MemorySlotState {
+  winner: number | null;
+  frame: number;
+}
+
+export const ProjC9b2ab0e8fbc4e9aA15e252f94536675: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+  const minDim = Math.min(width, height);
+
+  // Responsive sizing
+  const fontSize = {
+    xs: height * 0.018,
+    sm: height * 0.022,
+    md: height * 0.032,
+    lg: height * 0.045,
+    xl: height * 0.06,
+  };
+
+  const spacing = {
+    xs: minDim * 0.02,
+    sm: minDim * 0.03,
+    md: minDim * 0.05,
+    lg: minDim * 0.08,
+  };
+
+  // Background gradient animation (subtle hue shift)
+  const hueShift = interpolate(frame, [0, 2334], [0, 15]);
+  const baseHue = 220;
+  const backgroundStyle = {
+    background: `radial-gradient(ellipse at center, 
+      hsl(${baseHue + hueShift}, 25%, 12%) 0%, 
+      hsl(${baseHue + hueShift + 20}, 20%, 18%) 70%)`,
+  };
+
+  // === SCENE 01: Comment Stream + Memory Slot ===
+  const s01Active = frame >= TIMING.S01_START && frame < TIMING.S01_END;
+  const s01CommentCount = Math.min(
+    Math.floor((frame - TIMING.S01_START) / PARTICLES.SPAWN_INTERVAL) + PARTICLES.INITIAL_COUNT,
+    PARTICLES.MAX_COUNT
+  );
+
+  // Generate comment particles for S01
+  const s01Particles: CommentParticle[] = [];
+  if (s01Active) {
+    for (let i = 0; i < s01CommentCount; i++) {
+      const spawnFrame = TIMING.S01_START + i * PARTICLES.SPAWN_INTERVAL;
+      if (spawnFrame <= frame) {
+        const baseX = width / 2 + (Math.random() - 0.5) * width * 0.3;
+        s01Particles.push({
+          id: i,
+          spawnFrame,
+          x: baseX,
+          y: interpolate(frame - spawnFrame, [0, 30], [-50, height * 0.4], {
+            extrapolateRight: 'clamp',
+          }),
+          targetY: height * 0.4,
+          color: i % 3 === 0 ? COLORS.comment1 : i % 3 === 1 ? COLORS.comment2 : COLORS.comment3,
+          size: PARTICLES.PARTICLE_SIZE,
+          delay: i,
+        });
+      }
+    }
+  }
+
+  // Memory slot appears in S01
+  const memorySlotVisible = frame >= TIMING.S01_MEMORY_APPEAR;
+  const memorySlotScale = spring({
+    frame: frame - TIMING.S01_MEMORY_APPEAR,
+    fps,
+    config: SPRING_CONFIGS.settled,
+  });
+
+  // S01 Hero moment - highlight flow toward slot
+  const s01HeroActive = frame >= TIMING.S01_HERO_START && frame <= TIMING.S01_HERO_END;
+
+  // === SCENE 02: Equal Probability Challenge ===
+  const s02Active = frame >= TIMING.S02_START && frame < TIMING.S02_HERO_END;
+  
+  // Two highlighted particles (first and "millionth")
+  const s02FirstParticle = frame >= TIMING.S02_FIRST_COMMENT;
+  const s02SecondParticle = frame >= TIMING.S02_FIRST_COMMENT + 30;
+  
+  const firstParticleY = s02FirstParticle ? interpolate(
+    frame - TIMING.S02_FIRST_COMMENT,
+    [0, 30],
+    [height * 0.3, height * 0.45],
+    { extrapolateRight: 'clamp' }
+  ) : height * 0.3;
+
+  const secondParticleY = s02SecondParticle ? interpolate(
+    frame - (TIMING.S02_FIRST_COMMENT + 30),
+    [0, 30],
+    [height * 0.5, height * 0.45],
+    { extrapolateRight: 'clamp' }
+  ) : height * 0.5;
+
+  // Memory slot pulse
+  const memoryPulse = frame >= TIMING.S02_MEMORY_PULSE;
+  const pulseScale = memoryPulse ? spring({
+    frame: frame - TIMING.S02_MEMORY_PULSE,
+    fps,
+    config: SPRING_CONFIGS.subtle,
+  }) : 1;
+
+  // Probability die with question mark
+  const dieVisible = frame >= TIMING.S02_DIE_APPEAR;
+  const dieScale = dieVisible ? spring({
+    frame: frame - TIMING.S02_DIE_APPEAR,
+    fps,
+    config: SPRING_CONFIGS.responsive,
+  }) : 0;
+
+  // === SCENE 03: Reservoir Sampling Algorithm ===
+  const s03Active = frame >= TIMING.S03_START && frame < TIMING.S03_END;
+  
+  // Current winner in memory slot
+  const [memorySlot, setMemorySlot] = React.useState<MemorySlotState>({ winner: null, frame: 0 });
+  
+  // Track winner changes for animation
+  React.useEffect(() => {
+    if (s03Active) {
+      // Simulate algorithm: at certain frames, check if we replace winner
+      const cycle1 = frame >= TIMING.S03_NTH_COMMENT && frame < TIMING.S03_DIE_ROLL;
+      const cycle2 = frame >= TIMING.S03_REPEAT && frame < TIMING.S03_REPEAT + 60;
+      
+      if (cycle1 && memorySlot.winner === null) {
+        setMemorySlot({ winner: 1, frame });
+      }
+      if (frame >= TIMING.S03_SWAP && memorySlot.winner === 1) {
+        setMemorySlot({ winner: 2, frame });
+      }
+      if (cycle2 && frame === TIMING.S03_REPEAT + 15) {
+        setMemorySlot({ winner: 3, frame });
+      }
+      if (cycle2 && frame === TIMING.S03_REPEAT + 45) {
+        setMemorySlot({ winner: 4, frame });
+      }
+    }
+  }, [frame, s03Active, memorySlot.winner]);
+
+  // Die showing 1/n
+  const dieRolling = frame >= TIMING.S03_DIE_ROLL && frame < TIMING.S03_DIE_ROLL + 30;
+  const dieRollProgress = dieRolling ? interpolate(
+    frame - TIMING.S03_DIE_ROLL,
+    [0, 30],
+    [0, 1],
+    { extrapolateRight: 'clamp' }
+  ) : 0;
+
+  // S03 Hero - rapid replacements
+  const s05Active = frame >= TIMING.S05_START && frame < TIMING.S05_HERO_END;
+  
+  // Transform single slot to 5 slots
+  const slotTransformProgress = s05Active ? spring({
+    frame: frame - TIMING.S05_START,
+    fps,
+    config: SPRING_CONFIGS.responsive,
+  }) : 0;
+
+  // Show 5 slots
+  const showFiveSlots = frame >= TIMING.S05_MULTI_SLOTS;
+
+  // === SCENE 06: Outro ===
+  const s06Active = frame >= TIMING.S06_START;
+  
+  // Text reveal
+  const nameVisible = frame >= TIMING.S06_TEXT_APPEAR;
+  const nameOpacity = nameVisible ? interpolate(
+    frame - TIMING.S06_TEXT_APPEAR,
+    [0, 15],
+    [0, 1],
+    { extrapolateRight: 'clamp' }
+  ) : 0;
+  
+  const nameY = nameVisible ? spring({
+    frame: frame - TIMING.S06_TEXT_APPEAR,
+    fps,
+    config: SPRING_CONFIGS.settled,
+  }) : 0;
+
+  // Icons
+  const iconsVisible = frame >= TIMING.S06_ICONS_APPEAR;
+  const iconsOpacity = iconsVisible ? interpolate(
+    frame - TIMING.S06_ICONS_APPEAR,
+    [0, 15],
+    [0, 1],
+    { extrapolateRight: 'clamp' }
+  ) : 0;
+
+  return (
+    <AbsoluteFill style={{ ...backgroundStyle, overflow: 'hidden' }}>
+      {/* Scene 01: Comment Stream */}
+      {s01Active && (
+        <Sequence from={0} durationInFrames={TIMING.S01_END}>
+          {/* Comment Particles */}
+          {s01Particles.map((particle) => (
+            <div
+              key={particle.id}
+              style={{
+                position: 'absolute',
+                left: particle.x,
+                top: particle.y,
+                width: particle.size,
+                height: particle.size,
+                borderRadius: '50%',
+                background: particle.color,
+                opacity: 0.7,
+                boxShadow: `0 0 8px ${particle.color}`,
+              }}
+            />
+          ))}
+
+          {/* Memory Slot */}
+          {memorySlotVisible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '50%',
+                transform: `translate(-50%, -50%) scale(${memorySlotScale})`,
+                width: MEMORY.SINGLE_SLOT_SIZE,
+                height: MEMORY.SINGLE_SLOT_SIZE,
+                borderRadius: minDim * 0.02,
+                background: COLORS.glass,
+                border: `2px solid ${COLORS.glassBorder}`,
+                backdropFilter: 'blur(10px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: fontSize.lg,
+                color: COLORS.text,
+                fontWeight: 600,
+                opacity: s01HeroActive ? 1 : 0.8,
+                boxShadow: s01HeroActive 
+                  ? `0 0 ${MEMORY.GLOW_INTENSITY}px ${COLORS.accent}66` 
+                  : 'none',
+              }}
+            >
+              RAM
+            </div>
+          )}
+
+          {/* Title */}
+          <div
+            style={{
+              position: 'absolute',
+              top: spacing.lg,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: fontSize.xl,
+              fontWeight: 800,
+              color: COLORS.white,
+              textAlign: 'center',
+            }}
+          >
+            Live Stream Giveaway
+          </div>
+
+          {/* Caption */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: spacing.lg,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: fontSize.sm,
+              color: COLORS.muted,
+              textAlign: 'center',
+              maxWidth: width * 0.8,
+              opacity: frame > 100 ? 1 : 0,
+            }}
+          >
+            {frame < TIMING.S01_MEMORY_APPEAR 
+              ? "Millions of comments pouring in..."
+              : frame < TIMING.S01_HERO_START
+              ? "But you can't store them all"
+              : "One slot. Infinite stream."}
+          </div>
+        </Sequence>
+      )}
+
+      {/* Scene 02: Equal Probability */}
+      {s02Active && (
+        <Sequence from={TIMING.S02_START} durationInFrames={TIMING.S02_HERO_END - TIMING.S02_START}>
+          {/* Memory Slot with Pulse */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: `translate(-50%, -50%) scale(${pulseScale})`,
+              width: MEMORY.SINGLE_SLOT_SIZE,
+              height: MEMORY.SINGLE_SLOT_SIZE,
+              borderRadius: minDim * 0.02,
+              background: COLORS.glass,
+              border: `2px solid ${COLORS.glassBorder}`,
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: fontSize.lg,
+              color: COLORS.text,
+              fontWeight: 600,
+              boxShadow: `0 0 ${MEMORY.GLOW_INTENSITY}px ${COLORS.secondary}66`,
+            }}
+          >
+            1x
+          </div>
+
+          {/* First Comment Particle */}
+          {s02FirstParticle && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: firstParticleY,
+                transform: 'translateX(-50%)',
+                width: PARTICLES.PARTICLE_SIZE * 1.2,
+                height: PARTICLES.PARTICLE_SIZE * 1.2,
+                borderRadius: '50%',
+                background: COLORS.comment1,
+                boxShadow: `0 0 12px ${COLORS.comment1}`,
+              }}
+            />
+          )}
+
+          {/* Second (Millionth) Comment Particle */}
+          {s02SecondParticle && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: secondParticleY,
+                transform: 'translateX(-50%)',
+                width: PARTICLES.PARTICLE_SIZE * 1.2,
+                height: PARTICLES.PARTICLE_SIZE * 1.2,
+                borderRadius: '50%',
+                background: COLORS.comment3,
+                boxShadow: `0 0 12px ${COLORS.comment3}`,
+              }}
+            />
+          )}
+
+          {/* Probability Die */}
+          {dieVisible && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '35%',
+                transform: `translate(-50%, -50%) scale(${dieScale})`,
+                width: DIE.SIZE,
+                height: DIE.SIZE,
+                borderRadius: minDim * 0.015,
+                background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: fontSize.md,
+                fontWeight: 800,
+                color: COLORS.white,
+                boxShadow: `0 0 15px ${COLORS.primary}66`,
+              }}
+            >
+              ?
+            </div>
+          )}
+
+          {/* Question */}
+          <div
+            style={{
+              position: 'absolute',
+              top: spacing.lg,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: fontSize.lg,
+              fontWeight: 700,
+              color: COLORS.white,
+              textAlign: 'center',
+            }}
+          >
+            Equal Probability?
+          </div>
+
+          <div
+            style={{
+              position: 'absolute',
+              bottom: spacing.lg,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: fontSize.sm,
+              color: COLORS.muted,
+              textAlign: 'center',
+              maxWidth: width * 0.8,
+            }}
+          >
+            First vs Millionth Comment
+          </div>
+        </Sequence>
+      )}
+
+      {/* Scene 03: Reservoir Sampling Algorithm */}
+      {s03Active && (
+        <Sequence from={TIMING.S03_START} durationInFrames={TIMING.S03_END - TIMING.S03_START}>
+          {/* Memory Slot with Winner */}
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '45%',
+              transform: 'translate(-50%, -50%)',
+              width: MEMORY.SINGLE_SLOT_SIZE,
+              height: MEMORY.SINGLE_SLOT_SIZE,
+              borderRadius: minDim * 0.02,
+              background: COLORS.glass,
+              border: `2px solid ${COLORS.glassBorder}`,
+              backdropFilter: 'blur(10px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'column',
+              fontSize: fontSize.lg,
+              fontWeight: 700,
+              color: COLORS.success,
+              boxShadow: `0 0 20px ${COLORS.success}66`,
+            }}
+          >
+            <div>Winner</div>
+            <div style={{ fontSize: fontSize.xl, fontWeight: 800 }}>
+              {memorySlot.winner ? `#${memorySlot.winner}` : '---'}
+            </div>
+          </div>
+
+          {/* Probability Die with 1/n */}
+          {frame >= TIMING.S03_NTH_COMMENT && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '25%',
+                width: DIE.SIZE * 1.2,
+                height: DIE.SIZE * 1.2,
+                borderRadius: minDim * 0.015,
+                background: dieRolling 
+                  ? `linear-gradient(${frame % 360}deg, ${COLORS.primary}, ${COLORS.accent})`
+                  : `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: fontSize.md,
+                fontWeight: 800,
+                color: COLORS.white,
+                transform: dieRolling 
+                  ? `translate(-50%, -50%) rotate(${dieRollProgress * 360}deg) scale(${1 + dieRollProgress * 0.2})`
+                  : 'translate(-50%, -50%)',
+                boxShadow: `0 0 15px ${COLORS.primary}66`,
+              }}
+            >
+              {dieRolling ? '1/n' : '1/n'}
+            </div>
+          )}
+
+          {/* Incoming comment particles (representing stream) */}
+          {frame >= TIMING.S03_NTH_COMMENT && frame < TIMING.S03_HERO_END && (
+            <>
+              {Array.from({ length: 5 }).map((_, i) => {
+                const particleFrame = TIMING.S03_NTH_COMMENT + i * 20;
+                if (frame < particleFrame || frame > particleFrame + 30) return null;
+                
+                const progress = interpolate(
+                  frame - particleFrame,
+                  [0, 30],
+                  [0, 1],
+                  { extrapolateRight: 'clamp' }
+                );
+                
+                const x = width * 0.3 + progress * width * 0.4;
+                const y = height * 0.65 + Math.sin(progress * Math.PI) * 20;
+                
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      position: 'absolute',
+                      left: x,
+                      top: y,
+                      width: PARTICLES.PARTICLE_SIZE * 0.8,
+                      height: PARTICLES.PARTICLE_SIZE * 0.8,
+                      borderRadius: '50%',
+                      background: COLORS.secondary,
+                      opacity: 0.6,
+                    }}
+                  />
+                );
+              })}
+            </>
+          )}
+
+          {/* Title */}
+          <div
+            style={{
+              position: 'absolute',
+              top: spacing.lg,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: fontSize.xl,
+              fontWeight: 800,
+              color: COLORS.white,
+              textAlign: 'center',
+            }}
+          >
+            Reservoir Sampling
+          </div>
+
+          {/* Algorithm explanation */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: spacing.lg,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: fontSize.sm,
+              color: COLORS.muted,
+              textAlign: 'center',
+              maxWidth: width * 0.8,
+            }}
+          >
+            {frame < TIMING.S03_DIE_ROLL 
+              ? "Keep one current winner"
+              : frame < TIMING.S03_SWAP
+              ? "Roll 1/n die"
+              : frame < TIMING.S03_REPEAT
+              ? "Replace or keep"
+              : "Repeat for every comment"}
+          </div>
+        </Sequence>
+      )}
+
+      {/* Scene 04: Transition (Brief hold) */}
+      {frame >= TIMING.S04_START && frame < TIMING.S05_START && (
+        <Sequence from={TIMING.S04_START} durationInFrames={TIMING.S05_START - TIMING.S04_START}>
+          <div
+            style={{
+              position: 'absolute',
+              left: '50%',
+              top: '50%',
+              transform: 'translate(-50%, -50%)',
+              width: DIE.SIZE * 1.2,
+              height: DIE.SIZE * 1.2,
+              borderRadius: minDim * 0.015,
+              background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: fontSize.xl,
+              fontWeight: 800,
+              color: COLORS.white,
+              boxShadow: `0 0 20px ${COLORS.primary}88`,
+            }}
+          >
+            ?
+          </div>
+        </Sequence>
+      )}
+
+      {/* Scene 05: Multiple Winners Challenge */}
+      {s05Active && (
+        <Sequence from={TIMING.S05_START} durationInFrames={TIMING.S05_HERO_END - TIMING.S05_START}>
+          {/* Five Memory Slots */}
+          {showFiveSlots && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '45%',
+                transform: 'translate(-50%, -50%)',
+                display: 'flex',
+                gap: spacing.sm,
+              }}
+            >
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: MEMORY.MULTI_SLOT_SIZE,
+                    height: MEMORY.MULTI_SLOT_SIZE,
+                    borderRadius: minDim * 0.02,
+                    background: COLORS.glass,
+                    border: `2px solid ${COLORS.glassBorder}`,
+                    backdropFilter: 'blur(10px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: fontSize.md,
+                    fontWeight: 700,
+                    color: COLORS.primary,
+                    opacity: 0.8,
+                    transform: `scale(${slotTransformProgress})`,
+                  }}
+                >
+                  {i + 1}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Probability Die showing 5/n */}
+          {frame >= TIMING.S05_PROBABILITY && (
+            <div
+              style={{
+                position: 'absolute',
+                left: '50%',
+                top: '25%',
+                transform: 'translate(-50%, -50%)',
+                width: DIE.SIZE * 1.2,
+                height: DIE.SIZE * 1.2,
+                borderRadius: minDim * 0.015,
+                background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.secondary})`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: fontSize.md,
+                fontWeight: 800,
+                color: COLORS.white,
+                boxShadow: `0 0 15px ${COLORS.accent}66`,
+              }}
+            >
+              5/n
+            </div>
+          )}
+
+          {/* Rerouted stream particles */}
+          {frame >= TIMING.S05_STREAM_REROUTE && frame < TIMING.S05_HERO_END && (
+            <>
+              {Array.from({ length: 8 }).map((_, i) => {
+                const particleFrame = TIMING.S05_STREAM_REROUTE + i * 10;
+                if (frame < particleFrame || frame > particleFrame + 25) return null;
+                
+                const progress = interpolate(
+                  frame - particleFrame,
+                  [0, 25],
+                  [0, 1],
+                  { extrapolateRight: 'clamp' }
+                );
+                
+                const x = width * 0.25 + progress * width * 0.5;
+                const y = height * 0.65 + Math.sin(progress * Math.PI * 2) * 15;
+                
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      position: 'absolute',
+                      left: x,
+                      top: y,
+                      width: PARTICLES.PARTICLE_SIZE * 0.7,
+                      height: PARTICLES.PARTICLE_SIZE * 0.7,
+                      borderRadius: '50%',
+                      background: COLORS.comment2,
+                      opacity: 0.5,
+                    }}
+                  />
+                );
+              })}
+            </>
+          )}
+
+          {/* Title */}
+          <div
+            style={{
+              position: 'absolute',
+              top: spacing.lg,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: fontSize.xl,
+              fontWeight: 800,
+              color: COLORS.white,
+              textAlign: 'center',
+            }}
+          >
+            Challenge: 5 Winners
+          </div>
+
+          {/* Caption */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: spacing.lg,
+              left: '50%',
+              transform: 'translateX(-50%)',
+              fontSize: fontSize.sm,
+              color: COLORS.muted,
+              textAlign: 'center',
+              maxWidth: width * 0.8,
+            }}
+          >
+            {frame < TIMING.S05_PROBABILITY
+              ? "Multiple memory slots"
+              : "Modified probability: 5/n"}
+          </div>
+        </Sequence>
+      )}
+
+      {/* Scene 06: Outro */}
+      {s06Active && (
+        <Sequence from={TIMING.S06_START} durationInFrames={TIMING.S06_END - TIMING.S06_START}>
+          {/* Speaker Name */}
+          {nameVisible && (
+            <>
+              <div
+                style={{
+                  position: 'absolute',
+                  top: height * 0.35,
+                  left: '50%',
+                  transform: `translate(-50%, ${-50 + nameY * 50}%)`,
+                  fontSize: fontSize.xl,
+                  fontWeight: 800,
+                  color: COLORS.white,
+                  textAlign: 'center',
+                  opacity: nameOpacity,
+                }}
+              >
+                Prasanna
+              </div>
+
+              <div
+                style={{
+                  position: 'absolute',
+                  top: height * 0.42,
+                  left: '50%',
+                  transform: `translate(-50%, ${-50 + nameY * 50}%)`,
+                  fontSize: fontSize.md,
+                  color: COLORS.muted,
+                  textAlign: 'center',
+                  opacity: nameOpacity,
+                }}
+              >
+                Technical Architectures at Zoho
+              </div>
+            </>
+          )}
+
+          {/* Call to Action Icons */}
+          {iconsVisible && (
+            <div
+              style={{
+                position: 'absolute',
+                top: height * 0.55,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                display: 'flex',
+                gap: spacing.lg,
+                opacity: iconsOpacity,
+              }}
+            >
+              {['Follow', 'Share', 'Like'].map((label, i) => (
+                <div
+                  key={label}
+                  style={{
+                    padding: spacing.sm,
+                    minWidth: 80,
+                    borderRadius: minDim * 0.02,
+                    background: COLORS.glass,
+                    border: `2px solid ${COLORS.glassBorder}`,
+                    backdropFilter: 'blur(10px)',
+                    fontSize: fontSize.sm,
+                    fontWeight: 600,
+                    color: COLORS.white,
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {label}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Zoho Logo Placeholder */}
+          {frame >= TIMING.S06_START + 60 && (
+            <div
+              style={{
+                position: 'absolute',
+                top: spacing.lg,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 60,
+                height: 60,
+                borderRadius: '50%',
+                background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`,
+                opacity: 0.6,
+              }}
+            />
+          )}
+
+          {/* Final Caption */}
+          {frame >= TIMING.S06_START + 30 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: spacing.lg,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                fontSize: fontSize.sm,
+                color: COLORS.muted,
+                textAlign: 'center',
+              }}
+            >
+              Follow for more engineering insights
+            </div>
+          )}
+        </Sequence>
+      )}
+    </AbsoluteFill>
+  );
+};

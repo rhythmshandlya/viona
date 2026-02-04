@@ -226,7 +226,10 @@
       "Bash(del \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\src\\\\agents\\\\test_visual_director_llm.py\")",
       "Skill(frontend-design:frontend-design)",
       "Bash(git -C \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\" diff --name-only HEAD)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Bash(copy:*)",
+      "Bash(pip show:*)",
+      "WebFetch(domain:docs.all-hands.dev)"
     ]
   }
 }

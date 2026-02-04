@@ -180,12 +180,22 @@ class TypeScriptValidatorExecutor(ToolExecutor[TypeScriptValidatorAction, TypeSc
         output = result.text if hasattr(result, 'text') else str(result)
 
         # Parse errors and filter to only show errors from src/ (not node_modules)
+        # Also filter out unused variable warnings (TS6133, TS6196) which are noisy
+        IGNORED_ERROR_CODES = {
+            'TS6133',  # 'X' is declared but its value is never read
+            'TS6196',  # 'X' is declared but never used
+        }
+
         errors = []
         for match in self.ERROR_PATTERN.finditer(output):
             file_path, line, column, _, code, message = match.groups()
 
             # Skip errors from node_modules or type definition files
             if 'node_modules' in file_path or file_path.endswith('.d.ts'):
+                continue
+
+            # Skip unused variable warnings - they're noisy and don't affect runtime
+            if code in IGNORED_ERROR_CODES:
                 continue
 
             # Only include errors from the requested path (if specific path given)
@@ -252,7 +262,8 @@ Runs the TypeScript compiler in --noEmit mode to check for:
 - Syntax errors
 - Type errors
 - Import/export issues
-- Unused variables (in strict mode)
+
+Note: Unused variable warnings (TS6133, TS6196) are ignored as they don't affect runtime.
 
 IMPORTANT: This tool auto-regenerates Root.tsx before validation!
 This means:

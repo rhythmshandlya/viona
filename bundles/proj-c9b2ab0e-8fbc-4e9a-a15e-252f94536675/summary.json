@@ -1,0 +1,15 @@
+{
+  "timestamp": "2026-02-04 08:48:49",
+  "project_dir": "/bundles/proj-c9b2ab0e-8fbc-4e9a-a15e-252f94536675",
+  "status": "bundle_failed",
+  "final_score": 0,
+  "quality_threshold": 70,
+  "best_iteration": 0,
+  "total_iterations": 3,
+  "had_visual_plan": true,
+  "bundle_success": false,
+  "video_url": null,
+  "files_written": 0,
+  "model": "xiaomi/mimo-v2-flash",
+  "model_flash": "xiaomi/mimo-v2-flash"
+}

@@ -6,7 +6,7 @@
 
 [llm]
 # Default model - can be overridden via CLI --model flag
-model = "openrouter/x-ai/grok-code-fast-1"
+model = "openrouter/xiaomi/mimo-v2-flash"
 
 # Standard temperature
 temperature = 0.7
@@ -96,12 +96,12 @@ enable_visual_evaluation = true
 
 [agent.generator]
 # Generator agent - creates the Remotion components
-llm_config = "grok-code-fast"
+llm_config = "mimo-flash"
 enable_prompt_extensions = true
 
 [agent.evaluator]
 # Evaluator agent - scores visual quality
-llm_config = "grok-code-fast"
+llm_config = "mimo-flash"
 enable_prompt_extensions = true
 
 [skills]

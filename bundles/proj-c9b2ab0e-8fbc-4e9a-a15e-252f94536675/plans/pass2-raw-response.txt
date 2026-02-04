@@ -1,0 +1,392 @@
+```json
+{
+  "meta": {
+    "project_id": "proj_c9b2ab0e_8fbc_4e9a_a15e_252f94536675",
+    "transcript_summary": "This video explains Reservoir Sampling, a method to pick a random winner from a live stream's endless comments using minimal memory, and then challenges viewers with a variation for multiple winners.",
+    "total_duration_frames": 2334,
+    "fps": 30,
+    "canvas": {
+      "width": 1080,
+      "height": 1920,
+      "orientation": "vertical"
+    },
+    "style_preset": "playful",
+    "layout_mode": "pip"
+  },
+  "concept_analysis": {
+    "core_topic": "Reservoir Sampling for Live Giveaways",
+    "key_entities": [
+      {
+        "name": "Data Stream",
+        "role": "Represents comments flowing in",
+        "visual_importance": "primary"
+      },
+      {
+        "name": "Memory Variable",
+        "role": "Stores the current winner",
+        "visual_importance": "primary"
+      },
+      {
+        "name": "Probability Indicator",
+        "role": "Visualizes the chance of winning",
+        "visual_importance": "secondary"
+      },
+      {
+        "name": "Winner Display",
+        "role": "Shows the selected winner(s)",
+        "visual_importance": "primary"
+      }
+    ],
+    "relationships": [
+      "Data stream feeds into the memory variable",
+      "Probability indicator influences replacement of winner in memory"
+    ],
+    "processes": [
+      "Continuous data flow",
+      "Random selection",
+      "Memory constraint management"
+    ]
+  },
+  "visual_system": {
+    "metaphor_mapping": {
+      "River of data": "Flowing stream of comment bubbles/particles.",
+      "Single drop": "A single comment bubble.",
+      "Random selection": "A visualizer showing probability (e.g., a wobbly indicator, a spinning wheel segment) that dictates replacement.",
+      "Memory": "A distinct, visually contained area (e.g., a bubbly box) holding the 'current winner' drop.",
+      "Unlimited stream": "An endless, cascading flow of comment bubbles from the top.",
+      "Limited memory": "The 'memory' box is clearly defined and cannot hold all drops."
+    },
+    "visual_vocabulary": {
+      "Data Stream": {
+        "type": "Particles/Bubbles",
+        "color": "Primary/Secondary (Orange/Yellow)",
+        "animation": "Cascading, flowing downwards, slightly wiggling."
+      },
+      "Memory Variable": {
+        "type": "Bubbly Container",
+        "color": "Accent (Pink)",
+        "animation": "Slightly pulsing, holding a single 'drop'."
+      },
+      "Probability Indicator": {
+        "type": "Spinning Wheel / Dice / Probability Scale",
+        "color": "Secondary (Yellow)",
+        "animation": "Animated when a new comment arrives, showing the 1/n chance."
+      },
+      "Winner Display": {
+        "type": "Highlighted Drop/Icon",
+        "color": "Success (Green)",
+        "animation": "Appears prominently once selected."
+      },
+      "Overflow": {
+        "type": "Comment bubbles spilling over",
+        "color": "Muted version of data stream colors",
+        "animation": "Falling past the designated 'memory' area."
+      }
+    },
+    "spatial_layout": {
+      "Dominant flow": "Top to bottom for data stream.",
+      "Memory placement": "Central, prominent position.",
+      "Winner display": "Adjacent to or within the memory variable.",
+      "Probability indicator": "Appears contextually during selection."
+    },
+    "motion_principles": {
+      "Entrance": "Bouncy, spring-loaded entrances for new elements.",
+      "Looping": "Continuous, gentle flow of data stream.",
+      "Transitions": "Playful, quick wipes or bounces.",
+      "Emphasis": "Wiggle effect, slight scale-up for key elements (winner, new comment)."
+    }
+  },
+  "scenes": [
+    {
+      "scene_id": "S01",
+      "frame_range": [0, 540],
+      "transcript_segment": "Imagine you're building a giveaway system for a live stream where millions of comments are pouring in nonstop, and you need to pick exactly one random winner. Here is the catch. You cannot store the comments because you'll run out of RAM, and you do not know when the stream will end. So you cannot just pick a random number between one and the total.",
+      "narrative_goal": "Establish the problem: a massive, uncontrollable stream of data (comments) with strict memory and time constraints for selecting a single random winner.",
+      "visual_story": {
+        "setup": {
+          "description": "A chaotic, overwhelming visual of comments flooding the screen, with a clear sense of 'too much' and limited space.",
+          "mood": "Overwhelmed, urgent, chaotic."
+        },
+        "build_sequence": [
+          {
+            "at_frame": 15,
+            "action": "Start a dense, cascading stream of colorful comment bubbles (primary/secondary colors) flowing from top to bottom.",
+            "element": "Data Stream",
+            "technique": "Particle simulation / staggered entrance",
+            "effects": []
+          },
+          {
+            "at_frame": 100,
+            "action": "Introduce a small, pink 'Memory Box' (accent color) in the center, trying to 'catch' one bubble.",
+            "element": "Memory Variable",
+            "technique": "Bouncy entrance, slight pulse",
+            "effects": []
+          },
+          {
+            "at_frame": 250,
+            "action": "Show comment bubbles spilling over the sides of the 'Memory Box' and falling off-screen, representing RAM limitations.",
+            "element": "Overflow",
+            "technique": "Visual spill-over effect",
+            "effects": []
+          },
+          {
+            "at_frame": 450,
+            "action": "Temporarily pause the stream and show a large, unhelpful '?' icon or a broken counter above the memory box, indicating the impossibility of picking a random number.",
+            "element": "Probability Indicator",
+            "technique": "Static icon, then fades to greyed-out '?'",
+            "effects": []
+          }
+        ],
+        "hero_moment": {
+          "what": "The visual peak is the overwhelming flood of comment bubbles cascading down, with some spilling out, emphasizing the scale of the problem and the inadequacy of simple solutions.",
+          "frame_range": [
+            270,
+            330
+          ],
+          "treatment": "Fast-paced animation of bubbles flooding, contrasted with the small, struggling Memory Box and overflowing elements."
+        }
+      },
+      "element_positions": {},
+      "background": {
+        "color": "#1a1a2e"
+      },
+      "transition_to_next": {
+        "effect": "A quick, bouncy wipe from right to left, revealing the next scene.",
+        "duration": 15
+      }
+    },
+    {
+      "scene_id": "S02",
+      "frame_range": [540, 930],
+      "transcript_segment": "How do you ensure the first person and the millionth person have exactly the same mathematical chance of winning by using only one variable of memory? The solution is called reservoir sampling and the math is beautifully simple.",
+      "narrative_goal": "Introduce Reservoir Sampling as the elegant solution that solves the memory and fairness problem.",
+      "visual_story": {
+        "setup": {
+          "description": "Transition from chaos to order. The overflowing stream is still present, but a clear, elegant solution emerges.",
+          "mood": "Hopeful, insightful, elegant."
+        },
+        "build_sequence": [
+          {
+            "at_frame": 570,
+            "action": "The 'Memory Box' (pink) starts to pulse gently, and a green 'Winner Display' icon appears inside it, signifying it's now ready to hold a winner.",
+            "element": "Memory Variable",
+            "technique": "Gentle pulse, scale-up",
+            "effects": []
+          },
+          {
+            "at_frame": 660,
+            "action": "A stylized '1' appears within the Memory Box, representing the single variable of memory.",
+            "element": "Memory Variable",
+            "technique": "Text overlay, bouncy entrance",
+            "effects": []
+          },
+          {
+            "at_frame": 720,
+            "action": "The cascading comment stream slows slightly, and a clean, stylized 'Reservoir Sampling' title appears with a subtle glow.",
+            "element": "Data Stream",
+            "technique": "Slight slowdown, Title Card",
+            "effects": []
+          },
+          {
+            "at_frame": 810,
+            "action": "The 'Probability Indicator' transforms from a '?' into a clean, circular probability scale or a stylized die, ready to be used.",
+            "element": "Probability Indicator",
+            "technique": "Morphing animation",
+            "effects": []
+          }
+        ],
+        "hero_moment": {
+          "what": "The 'Memory Box' prominently displays a single '1' and a green 'Winner' icon, while the 'Reservoir Sampling' title gleams, symbolizing the elegant, simple solution.",
+          "frame_range": [
+            700,
+            800
+          ],
+          "treatment": "Focus on the central Memory Box now containing a clear '1' and a green winner icon, with the title 'Reservoir Sampling' appearing prominently."
+        }
+      },
+      "element_positions": {},
+      "background": {
+        "color": "#1a1a2e"
+      },
+      "transition_to_next": {
+        "effect": "The Probability Indicator spins rapidly and then settles, transitioning into the next scene.",
+        "duration": 15
+      }
+    },
+    {
+      "scene_id": "S03",
+      "frame_range": [930, 1590],
+      "transcript_segment": "You always hold into one current winner. When the nth comment arrives, you roll a die. There is one by n chance you replace the current winner with this new person and the remaining chance you keep the old one. If you do this for every single comment, mathematically every single person in that infinite stream had the exact same probability of being chosen.",
+      "narrative_goal": "Explain the core mechanic of Reservoir Sampling: keep one winner, replace with 1/n probability.",
+      "visual_story": {
+        "setup": {
+          "description": "A clear, step-by-step demonstration of the algorithm in action.",
+          "mood": "Educational, clear, illustrative."
+        },
+        "build_sequence": [
+          {
+            "at_frame": 960,
+            "action": "A comment bubble (e.g., yellow) enters the screen. The 'Memory Box' (pink) holds a green 'Winner' icon.",
+            "element": "Data Stream",
+            "technique": "Single bubble entrance",
+            "effects": []
+          },
+          {
+            "at_frame": 1020,
+            "action": "The 'Probability Indicator' (stylized die) appears next to the Memory Box. A '1/n' (e.g., '1/3') appears on it, with 'n' incrementing visually.",
+            "element": "Probability Indicator",
+            "technique": "Animated text and graphic",
+            "effects": []
+          },
+          {
+            "at_frame": 1110,
+            "action": "The die 'rolls'. If it lands on a 'success' segment (e.g., a small green portion of a spinning wheel), the new yellow comment bubble replaces the green winner in the Memory Box. Otherwise, the green winner stays.",
+            "element": "Memory Variable",
+            "technique": "Conditional replacement animation",
+            "effects": ["Spring animation for bubble movement"]
+          },
+          {
+            "at_frame": 1320,
+            "action": "Repeat the process with subsequent comment bubbles (e.g., orange, then primary color), showing 'n' increasing (1/4, 1/5) and the probability of replacement decreasing. Visually, the green winner icon is highlighted when kept, and replaced when a new bubble takes its place.",
+            "element": "Data Stream",
+            "technique": "Looping animation with incrementing 'n'",
+            "effects": ["Wiggle effect on selected bubble"]
+          }
+        ],
+        "hero_moment": {
+          "what": "A clear visual loop showing a new comment bubble arriving, the probability indicator animating, and then either replacing the existing green winner or the green winner staying, all while 'n' increases.",
+          "frame_range": [
+            1050,
+            1250
+          ],
+          "treatment": "Focus on the interaction between the incoming bubble, the probability indicator, and the Memory Box's decision."
+        }
+      },
+      "element_positions": {},
+      "background": {
+        "color": "#1a1a2e"
+      },
+      "transition_to_next": {
+        "effect": "The 'Memory Box' briefly expands to show a larger capacity, then shrinks back, hinting at the next challenge.",
+        "duration": 15
+      }
+    },
+    {
+      "scene_id": "S04",
+      "frame_range": [1590, 1890],
+      "transcript_segment": "Now here's the challenge for you. The algorithm picks one winner. But how do you modify the probability formula if I asked you to pick exactly five winners without storing the rest?",
+      "narrative_goal": "Pose a new challenge: adapting the algorithm for multiple winners while maintaining low memory.",
+      "visual_story": {
+        "setup": {
+          "description": "The established system is presented, then visually challenged by the new requirement.",
+          "mood": "Challenging, inquisitive, thought-provoking."
+        },
+        "build_sequence": [
+          {
+            "at_frame": 1590,
+            "action": "Show the 'Memory Box' (pink) now containing *five* green 'Winner' icons, instead of one.",
+            "element": "Winner Display",
+            "technique": "Multiple icons appear",
+            "effects": []
+          },
+          {
+            "at_frame": 1650,
+            "action": "A large, stylized question mark appears above the Memory Box, pulsing.",
+            "element": "Probability Indicator",
+            "technique": "Animated question mark",
+            "effects": ["Wiggle effect"]
+          },
+          {
+            "at_frame": 1710,
+            "action": "Comment bubbles (data stream) continue to flow, but now they seem to 'bounce off' the Memory Box, indicating the current 1-winner logic doesn't apply.",
+            "element": "Data Stream",
+            "technique": "Collision/rejection animation",
+            "effects": []
+          },
+          {
+            "at_frame": 1860,
+            "action": "Briefly show the 'Memory Variable' box shrinking, emphasizing the continued constraint of limited memory despite needing multiple winners.",
+            "element": "Memory Variable",
+            "technique": "Scale-down animation",
+            "effects": []
+          }
+        ],
+        "hero_moment": {
+          "what": "The 'Memory Box' is visibly holding five green winner icons, with a large, pulsing question mark hovering above it, and comment bubbles bouncing off, clearly illustrating the new, complex challenge.",
+          "frame_range": [
+            1650,
+            1800
+          ],
+          "treatment": "Focus on the visual conflict: multiple winners in a constrained box, met with a large question mark and continuing data flow."
+        }
+      },
+      "element_positions": {},
+      "background": {
+        "color": "#1a1a2e"
+      },
+      "transition_to_next": {
+        "effect": "The question mark dissolves into a friendly 'pin' icon, hinting at the solution being in the comments.",
+        "duration": 15
+      }
+    },
+    {
+      "scene_id": "S05",
+      "frame_range": [1890, 2334],
+      "transcript_segment": "I'll pin the most elegant solution in the comments. I'm Prasanna. I manage technical architectures at Zoho. And if you want to understand the engineering behind systems you use every day, follow along and share this to a developer who loves a good puzzle. Thank you.",
+      "narrative_goal": "Outro: Speaker identification, call to action (follow, share), and thanks.",
+      "visual_story": {
+        "setup": {
+          "description": "A friendly and informative outro, transitioning from the technical puzzle to personal branding and community building.",
+          "mood": "Friendly, professional, encouraging."
+        },
+        "build_sequence": [
+          {
+            "at_frame": 1890,
+            "action": "A stylized 'pin' icon appears and animates downwards, settling near the bottom of the screen (where comments would be).",
+            "element": "Probability Indicator (repurposed)",
+            "technique": "Animated icon",
+            "effects": []
+          },
+          {
+            "at_frame": 1980,
+            "action": "The speaker's name 'Prasanna' appears in large, friendly text (primary color), with a subtle wiggle.",
+            "element": "Text Label",
+            "technique": "Bouncy entrance",
+            "effects": ["Wiggle"]
+          },
+          {
+            "at_frame": 2010,
+            "action": "The speaker's title 'Technical Architect @ Zoho' appears below their name.",
+            "element": "Text Label",
+            "technique": "Fade-in",
+            "effects": []
+          },
+          {
+            "at_frame": 2070,
+            "action": "Call to action graphics appear: a 'Follow' button (accent color) and a 'Share' icon (secondary color), animating in sequence.",
+            "element": "UI Elements",
+            "technique": "Staggered entrance, bouncy",
+            "effects": ["Spring animation"]
+          }
+        ],
+        "hero_moment": {
+          "what": "The speaker's name 'Prasanna' is displayed prominently with their title, alongside clear 'Follow' and 'Share' call-to-action buttons, creating a strong personal brand and encouraging engagement.",
+          "frame_range": [
+            1980,
+            2200
+          ],
+          "treatment": "Focus on the name and title, with the CTA buttons animating in sequence, reinforcing the message."
+        }
+      },
+      "element_positions": {},
+      "background": {
+        "color": "#1a1a2e"
+      },
+      "transition_to_next": {
+        "effect": "Fade out to black.",
+        "duration": 30
+      }
+    }
+  ]
+}
+```
