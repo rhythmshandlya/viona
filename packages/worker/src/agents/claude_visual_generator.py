@@ -104,42 +104,394 @@ def configure_sdk_auth() -> None:
 
 
 # =============================================================================
+# Skill and Code Example Injection
+# =============================================================================
+
+
+def get_condensed_skills() -> str:
+    """
+    Return condensed, essential skill content to inject directly into prompt.
+    Agents don't reliably read skill files, so we inject critical patterns directly.
+    """
+    return """
+## REQUIRED ANIMATION PATTERNS (USE THESE EXACTLY)
+
+### Spring Configuration (ALWAYS use this)
+```tsx
+const SPRING_CONFIG = { damping: 22, stiffness: 90, mass: 0.9 };
+// Usage:
+const progress = spring({frame: frame - startFrame, fps, config: SPRING_CONFIG});
+```
+
+### Stagger Pattern (REQUIRED for multiple elements)
+```tsx
+// NEVER animate all elements at once. Always stagger by 6+ frames:
+{items.map((item, i) => (
+  <Element key={i} delay={i * 6} />
+))}
+```
+
+### Glassmorphism (for cards/containers)
+```tsx
+const glassStyle = {
+  background: 'rgba(255, 255, 255, 0.1)',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  border: '1px solid rgba(255, 255, 255, 0.2)',
+  borderRadius: 16,
+  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+};
+```
+
+### Flowing Particles (for streams/rivers)
+```tsx
+const FlowingParticles: React.FC = () => {
+  const frame = useCurrentFrame();
+  const {width, height} = useVideoConfig();
+  return (
+    <>
+      {Array.from({length: 30}).map((_, i) => {
+        const x = ((frame * 2 + i * 50) % (width + 100)) - 50;
+        const y = (height * 0.4) + Math.sin((frame + i * 20) * 0.03) * 50;
+        return (
+          <div key={i} style={{
+            position: 'absolute', left: x, top: y,
+            width: 16, height: 16, borderRadius: '50%',
+            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+            opacity: 0.7,
+          }} />
+        );
+      })}
+    </>
+  );
+};
+```
+
+### Particle Emitter (for explosion/radial effects)
+```tsx
+const ParticleEmitter: React.FC<{count: number, startFrame: number}> = ({count, startFrame}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  return (
+    <>
+      {Array.from({length: count}).map((_, i) => {
+        const delay = i * 6;
+        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 22, stiffness: 90}});
+        const angle = (i / count) * Math.PI * 2;
+        const radius = progress * 100;
+        return (
+          <div key={i} style={{
+            position: 'absolute',
+            left: `calc(50% + ${Math.cos(angle) * radius}px)`,
+            top: `calc(50% + ${Math.sin(angle) * radius}px)`,
+            width: 8, height: 8,
+            borderRadius: '50%',
+            background: '#8b5cf6',
+            opacity: interpolate(progress, [0, 0.8, 1], [0, 1, 0]),
+          }} />
+        );
+      })}
+    </>
+  );
+};
+```
+
+### Counter Animation (for numbers)
+```tsx
+const Counter: React.FC<{target: number, start: number}> = ({target, start}) => {
+  const frame = useCurrentFrame();
+  const value = Math.round(interpolate(
+    frame - start, [0, 45], [0, target], {extrapolateRight: 'clamp'}
+  ));
+  return <span style={{fontVariantNumeric: 'tabular-nums'}}>{value}</span>;
+};
+```
+
+### Scale Entrance (for appearing elements)
+```tsx
+const ScaleIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({startFrame, children}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const scale = spring({frame: frame - startFrame, fps, config: {damping: 22, stiffness: 90}});
+  return <div style={{transform: `scale(${scale})`}}>{children}</div>;
+};
+```
+
+### Fade In Animation
+```tsx
+const FadeIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({startFrame, children}) => {
+  const frame = useCurrentFrame();
+  const opacity = interpolate(
+    frame - startFrame,
+    [0, 20],
+    [0, 1],
+    {extrapolateRight: 'clamp'}
+  );
+  return <div style={{opacity}}>{children}</div>;
+};
+```
+
+## PROHIBITED PATTERNS (NEVER DO THESE)
+
+- Math.sin() or Math.cos() on text rotation/position (causes jittery text)
+- damping < 20 in spring config (too bouncy)
+- All elements animating at the same time (no stagger)
+- Plain colored circles instead of proper visuals
+- Instant teleportation (no animation)
+- Static backgrounds with no motion
+- Missing extrapolateRight: 'clamp' in interpolate()
+"""
+
+
+TECHNIQUE_CODE_EXAMPLES = {
+    "particle-emitter": '''
+// ParticleEmitter - Use for particle effects
+const ParticleEmitter: React.FC<{count: number, startFrame: number}> = ({count, startFrame}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  return (
+    <>
+      {Array.from({length: count}).map((_, i) => {
+        const delay = i * 6;
+        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 22, stiffness: 90}});
+        const angle = (i / count) * Math.PI * 2;
+        const radius = progress * 100;
+        return (
+          <div key={i} style={{
+            position: 'absolute',
+            left: `calc(50% + ${Math.cos(angle) * radius}px)`,
+            top: `calc(50% + ${Math.sin(angle) * radius}px)`,
+            width: 8, height: 8,
+            borderRadius: '50%',
+            background: '#8b5cf6',
+            opacity: interpolate(progress, [0, 0.8, 1], [0, 1, 0]),
+          }} />
+        );
+      })}
+    </>
+  );
+};''',
+    "glass-morphism": '''
+// GlassCard - Glassmorphism container
+const GlassCard: React.FC<{children: React.ReactNode}> = ({children}) => (
+  <div style={{
+    background: 'rgba(255, 255, 255, 0.1)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    borderRadius: 16,
+    padding: 24,
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+  }}>
+    {children}
+  </div>
+);''',
+    "flowing-river": '''
+// FlowingRiver - Animated data stream
+const FlowingRiver: React.FC<{startFrame: number}> = ({startFrame}) => {
+  const frame = useCurrentFrame();
+  const {width, height} = useVideoConfig();
+  const particles = Array.from({length: 50}).map((_, i) => {
+    const speed = 2 + (i % 3);
+    const yOffset = (i * 40) % height;
+    const x = ((frame - startFrame) * speed + i * 30) % (width + 100) - 50;
+    const y = yOffset + Math.sin((frame + i * 10) * 0.02) * 30;
+    return (
+      <div key={i} style={{
+        position: 'absolute', left: x, top: y,
+        width: 12 + (i % 8), height: 12 + (i % 8),
+        borderRadius: '50%',
+        background: `linear-gradient(135deg, #3b82f6, #8b5cf6)`,
+        opacity: 0.6 + (i % 4) * 0.1,
+      }} />
+    );
+  });
+  return <>{particles}</>;
+};''',
+    "probability-gate": '''
+// ProbabilityGate - Dice/spinner for random chance visualization
+const ProbabilityGate: React.FC<{n: number, startFrame: number}> = ({n, startFrame}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const spinProgress = spring({frame: frame - startFrame, fps, config: {damping: 15, stiffness: 80}});
+  const rotation = interpolate(spinProgress, [0, 1], [0, 720]);
+  return (
+    <div style={{
+      width: 80, height: 80,
+      background: 'linear-gradient(135deg, #22c55e, #3b82f6)',
+      borderRadius: 12,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      transform: `rotate(${rotation}deg)`,
+      boxShadow: '0 4px 20px rgba(34, 197, 94, 0.4)',
+    }}>
+      <span style={{fontSize: 24, fontWeight: 'bold', color: 'white'}}>1/{n}</span>
+    </div>
+  );
+};''',
+    "scale-spring": '''
+// Scale spring entrance animation
+const scaleEntrance = (frame: number, startFrame: number, fps: number) => {
+  const progress = spring({
+    frame: frame - startFrame,
+    fps,
+    config: { damping: 22, stiffness: 90, mass: 0.9 }
+  });
+  return progress;
+};
+// Usage: transform: `scale(${scaleEntrance(frame, 15, fps)})`''',
+    "counter-animation": '''
+// AnimatedCounter - Number counting up
+const AnimatedCounter: React.FC<{target: number, startFrame: number, duration?: number}> = ({target, startFrame, duration = 45}) => {
+  const frame = useCurrentFrame();
+  const progress = interpolate(frame - startFrame, [0, duration], [0, 1], {extrapolateRight: 'clamp'});
+  const value = Math.round(progress * target);
+  return (
+    <span style={{fontVariantNumeric: 'tabular-nums'}}>{value.toLocaleString()}</span>
+  );
+};''',
+    "staggered-list": '''
+// StaggeredList - Animated list with staggered entries
+const StaggeredList: React.FC<{items: string[], startFrame: number}> = ({items, startFrame}) => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  return (
+    <div>
+      {items.map((item, i) => {
+        const delay = i * 6; // 6 frame stagger
+        const progress = spring({
+          frame: frame - startFrame - delay,
+          fps,
+          config: { damping: 22, stiffness: 90, mass: 0.9 }
+        });
+        return (
+          <div key={i} style={{
+            opacity: progress,
+            transform: `translateY(${interpolate(progress, [0, 1], [20, 0])}px)`
+          }}>
+            {item}
+          </div>
+        );
+      })}
+    </div>
+  );
+};''',
+}
+
+
+def extract_technique_examples(transcript: str) -> str:
+    """
+    Extract relevant code examples based on transcript content.
+    Analyzes transcript for keywords that suggest certain techniques would be useful.
+    """
+    transcript_lower = transcript.lower()
+    examples = []
+
+    # Keywords that suggest certain techniques
+    technique_keywords = {
+        "particle-emitter": ["particle", "explosion", "burst", "radial", "scatter", "emit"],
+        "glass-morphism": ["card", "container", "panel", "box", "glass", "blur", "overlay"],
+        "flowing-river": ["flow", "stream", "river", "data", "continuous", "pipeline", "process"],
+        "probability-gate": ["probability", "chance", "random", "dice", "spin", "lottery", "odds"],
+        "scale-spring": ["appear", "pop", "enter", "show", "reveal", "intro"],
+        "counter-animation": ["count", "number", "statistic", "metric", "percentage", "value"],
+        "staggered-list": ["list", "item", "bullet", "point", "step", "sequence"],
+    }
+
+    for technique, keywords in technique_keywords.items():
+        if any(kw in transcript_lower for kw in keywords):
+            if technique in TECHNIQUE_CODE_EXAMPLES:
+                examples.append(f"### {technique.replace('-', ' ').title()}\n```tsx{TECHNIQUE_CODE_EXAMPLES[technique]}\n```")
+
+    # Always include basic patterns
+    if "scale-spring" not in [e.split("\n")[0] for e in examples]:
+        examples.append(f"### Scale Spring Entrance\n```tsx{TECHNIQUE_CODE_EXAMPLES['scale-spring']}\n```")
+
+    if not examples:
+        return ""
+
+    return f"""
+## CODE EXAMPLES - COPY THESE DIRECTLY
+
+Based on your transcript content, these techniques are likely useful:
+
+{chr(10).join(examples)}
+
+**IMPORTANT**: Copy these implementations directly. Do NOT simplify them.
+"""
+
+
+# =============================================================================
 # System Prompt and User Message Templates
 # =============================================================================
 
 
 SYSTEM_PROMPT = """
+<role>
 You are a Remotion video generator. You create animated educational videos from transcripts.
+Your output must be production-quality TypeScript/React code that compiles without errors.
+</role>
 
-## WORKSPACE
-- Working directory: {workspace_dir}
-- Output: src/{project_id}/index.tsx (single file, all components)
-- Constants: src/{project_id}/constants.ts (colors, timing)
+<workspace>
+Working directory: {workspace_dir}
+Output files:
+- src/{project_id}/constants.ts (colors, timing, spring configs)
+- src/{project_id}/index.tsx (main composition with all scenes)
+</workspace>
 
-## PROCESS
-1. **THINK** (use extended thinking): Plan the visual story
-   - Identify 4-6 key moments from transcript
-   - Design metaphors (abstract concepts → visual representations)
+<process>
+1. PLAN (think thoroughly about this):
+   - Identify 4-6 key moments from the transcript
+   - Design visual metaphors for abstract concepts
    - Plan timing (frames) for each scene
+   - Consider transitions between scenes
 
-2. **WRITE**: Create the Remotion composition
-   - Write constants.ts first (COLORS, TIMING, SIZES)
-   - Write index.tsx with all scenes
+2. WRITE:
+   - Write constants.ts first with COLORS, TIMING, SPRING_CONFIG
+   - Write index.tsx with all scene components and main composition
+   - Use Sequence components for scene timing
 
-3. **VALIDATE**: Run TypeScript check
-   - Execute: npx tsc --noEmit --pretty false
-   - Fix any errors before finishing
+3. VALIDATE:
+   - Run: npx tsc --noEmit --pretty false
+   - Fix ALL errors before finishing
+   - Re-run validation until clean
+</process>
 
-## ANIMATION RULES (CRITICAL)
-- Spring config: {{damping: 22, stiffness: 90, mass: 0.9}}
-- Stagger elements by 6+ frames (never animate all at once)
-- No Math.sin/cos on text positions
-- Use interpolate() with extrapolateRight: 'clamp'
+<animation_rules>
+CRITICAL - Follow these EXACTLY:
 
-## CONSTRAINTS
-- Single file output (no splitting into components/)
-- {width}x{height} resolution, {fps} FPS, {duration_frames} total frames
-- Must pass TypeScript validation before finishing
+Spring Configuration (ALWAYS use):
+  config: {{ damping: 22, stiffness: 90, mass: 0.9 }}
+
+Stagger Rule:
+  - NEVER animate multiple elements at frame 0
+  - Stagger by 6+ frames: startFrame + (index * 6)
+
+Interpolate Rule:
+  - ALWAYS use extrapolateRight: 'clamp'
+  - Example: interpolate(frame, [0, 30], [0, 1], {{extrapolateRight: 'clamp'}})
+
+PROHIBITED:
+  - Math.sin/cos on text positions (causes jitter)
+  - damping < 20 (too bouncy)
+  - Static backgrounds (add subtle motion)
+</animation_rules>
+
+<constraints>
+- Resolution: {width}x{height}
+- Duration: {duration_frames} frames at {fps} FPS
+- Single file per type (no component splitting)
+- MUST pass TypeScript validation
+</constraints>
+
+<quality_checklist>
+Before declaring GENERATION COMPLETE, verify:
+[ ] TypeScript compiles with no errors
+[ ] All spring configs use damping >= 20
+[ ] Elements are staggered (not simultaneous)
+[ ] All interpolate() calls have extrapolateRight: 'clamp'
+[ ] No Math.sin/cos on text elements
+[ ] Scenes have proper Sequence timing
+</quality_checklist>
 """
 
 
@@ -157,11 +509,17 @@ USER_MESSAGE = """
 ## YOUR TASK
 Create a visually engaging Remotion video that explains this content.
 
+Think thoroughly about:
+1. What visual metaphors best represent the concepts?
+2. How should scenes flow and transition?
+3. What animations will enhance understanding?
+
 Requirements:
-1. Plan 4-6 scenes that build understanding progressively
-2. Use visual metaphors (don't just show text)
-3. Include smooth animations with proper spring physics
-4. Ensure all elements are readable at {width}x{height}
+- 4-6 scenes building understanding progressively
+- Visual metaphors (not just text)
+- Smooth spring animations (damping >= 20)
+- Staggered element entrances (6+ frame delays)
+- All elements readable at {width}x{height}
 
 Output files:
 - src/{project_id}/constants.ts
@@ -274,9 +632,14 @@ class ClaudeVisualGenerator:
         duration_frames: int,
         fps: int,
     ) -> str:
-        """Build the user message with transcript and specs."""
+        """Build the user message with transcript, specs, and injected skills/examples."""
         duration_seconds = duration_frames / fps
-        return USER_MESSAGE.format(
+
+        # Get condensed skills and technique examples to inject directly
+        condensed_skills = get_condensed_skills()
+        technique_examples = extract_technique_examples(transcript)
+
+        base_message = USER_MESSAGE.format(
             project_id=self.project_id,
             width=width,
             height=height,
@@ -285,6 +648,9 @@ class ClaudeVisualGenerator:
             fps=fps,
             transcript=transcript,
         )
+
+        # Inject skills and examples directly into prompt (agents don't read skill files reliably)
+        return f"{condensed_skills}\n\n{technique_examples}\n\n{base_message}"
 
     def _write_security_settings(self) -> Path:
         """Write security settings to a temporary file."""

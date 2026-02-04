@@ -229,7 +229,9 @@
       "Bash(git restore:*)",
       "Bash(copy:*)",
       "Bash(pip show:*)",
-      "WebFetch(domain:docs.all-hands.dev)"
+      "WebFetch(domain:docs.all-hands.dev)",
+      "WebFetch(domain:www.anthropic.com)",
+      "WebFetch(domain:docs.anthropic.com)"
     ]
   }
 }
