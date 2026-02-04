@@ -24,18 +24,23 @@ def get_credential_paths() -> list[Path]:
     return paths
 
 
+def is_valid_token(token: str) -> bool:
+    """Check if a token is valid (OAuth or encrypted)."""
+    return token.startswith("sk-ant-oat01-") or token.startswith("enc:")
+
+
 def get_existing_token() -> str | None:
     """Check for existing valid OAuth token."""
     env_token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
-    if env_token.startswith("sk-ant-oat01-"):
+    if is_valid_token(env_token):
         return env_token
 
     for cred_path in get_credential_paths():
         if cred_path.exists():
             try:
-                data = json.loads(cred_path.read_text())
+                data = json.loads(cred_path.read_text(encoding="utf-8"))
                 token = data.get("claudeAiOauth", {}).get("accessToken", "")
-                if token.startswith("sk-ant-oat01-"):
+                if is_valid_token(token):
                     return token
             except (json.JSONDecodeError, KeyError):
                 continue
@@ -60,10 +65,13 @@ def launch_claude_login() -> bool:
         return False
 
     try:
-        result = subprocess.run(["claude"], shell=True)
-        return result.returncode == 0
-    except FileNotFoundError:
-        print("\nError: Claude Code CLI not found.")
+        result = subprocess.run("claude", shell=True)
+        if result.returncode != 0:
+            print("\nError: Claude Code CLI exited with error or not found.")
+            return False
+        return True
+    except Exception as e:
+        print(f"\nError launching Claude CLI: {e}")
         return False
 
 
