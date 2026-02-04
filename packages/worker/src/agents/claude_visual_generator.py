@@ -743,7 +743,9 @@ class ClaudeVisualGenerator:
         """Bundle the Remotion project."""
         import subprocess
 
-        bundle_path = self.bundle_output / self.project_id
+        # TypeScript processor expects dashes, not underscores in bundle path
+        bundle_id = self.project_id.replace("_", "-")
+        bundle_path = self.bundle_output / bundle_id
 
         # Create output directory
         bundle_path.mkdir(parents=True, exist_ok=True)
@@ -884,9 +886,11 @@ class ClaudeVisualGenerator:
 
                 print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
 
+                # Use dashes in bundle URL to match TypeScript processor expectation
+                bundle_id = self.project_id.replace("_", "-")
                 return {
                     "success": True,
-                    "bundleUrl": f"/bundles/{self.project_id}/index.html",
+                    "bundleUrl": f"/bundles/{bundle_id}/index.html",
                     "bundlePath": str(bundle_path),
                     "attempts": attempt + 1,
                 }
