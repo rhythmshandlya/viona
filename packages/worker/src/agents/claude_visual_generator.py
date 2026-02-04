@@ -776,10 +776,24 @@ class ClaudeVisualGenerator:
                     )
                 )
 
-                # Run the agent
-                await client.run(user_message)
+                # Run the agent using query/receive pattern (like Auto-Claude)
+                print(f"[ClaudeGenerator] Sending query to Claude Agent SDK...")
+                await client.query(user_message)
 
-                print(f"[ClaudeGenerator] Agent completed")
+                # Stream and display response
+                response_text = ""
+                async for msg in client.receive_response():
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                response_text += block.text
+                                print(block.text, end="", flush=True)
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[Tool: {block.name}]", flush=True)
+
+                print(f"\n[ClaudeGenerator] Agent completed")
 
                 # Verify output exists
                 index_tsx = self.src_dir / "index.tsx"

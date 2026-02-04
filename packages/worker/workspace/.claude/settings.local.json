@@ -1,0 +1,22 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
+  },
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Read(./**)",
+      "Write(./**)",
+      "Edit(./**)",
+      "Glob(./**)",
+      "Grep(./**)",
+      "Read(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
+      "Write(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
+      "Edit(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
+      "Glob(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
+      "Grep(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
+      "Bash(*)"
+    ]
+  }
+}
