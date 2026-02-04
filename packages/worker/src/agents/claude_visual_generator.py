@@ -30,6 +30,29 @@ except ImportError:
 # =============================================================================
 
 
+def is_safe_npm_command(command: str) -> bool:
+    """
+    Check if a bash command is a safe npm/npx command.
+
+    Rejects commands with shell chaining operators to prevent bypass attacks.
+    The sandbox mode provides defense-in-depth for edge cases.
+    """
+    ALLOWED_PREFIXES = ["npm ", "npx ", "npm.cmd ", "npx.cmd "]
+    FORBIDDEN_OPERATORS = ["&&", "||", ";", "|", "`", "$(", "${"]
+
+    stripped = command.strip()
+
+    # Must start with allowed prefix
+    if not any(stripped.startswith(prefix) for prefix in ALLOWED_PREFIXES):
+        return False
+
+    # Must not contain chaining operators
+    if any(op in command for op in FORBIDDEN_OPERATORS):
+        return False
+
+    return True
+
+
 async def bash_security_hook(
     input_data: dict,
     tool_use_id: str | None = None,
@@ -39,21 +62,21 @@ async def bash_security_hook(
     Security hook to restrict Bash commands to npm/npx only.
 
     Prevents arbitrary command execution while allowing TypeScript/Remotion tooling.
+    Defense-in-depth: sandbox mode provides additional protection.
     """
     if input_data.get("tool_name") != "Bash":
         return {}
 
     command = input_data.get("tool_input", {}).get("command", "")
-    ALLOWED_PREFIXES = ["npm ", "npx ", "npm.cmd ", "npx.cmd "]
 
-    if any(command.strip().startswith(prefix) for prefix in ALLOWED_PREFIXES):
+    if is_safe_npm_command(command):
         return {}
 
     return {
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
-            "permissionDecisionReason": f"Only npm/npx commands allowed. Got: {command[:50]}..."
+            "permissionDecisionReason": f"Only safe npm/npx commands allowed. Got: {command[:100]}..."
         }
     }
 
