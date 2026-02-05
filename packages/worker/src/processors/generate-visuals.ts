@@ -208,17 +208,19 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     // Calculate duration in frames
     const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
 
-    // Prepare transcript text
-    const transcriptText = (transcript.words as any[])
+    // Prepare transcript text and words
+    const words = transcript.words as any[];
+    const transcriptText = words
       .map((w: any) => w.word || w.text || '')
       .join(' ');
 
-    // Run Claude Code generator
+    // Run Claude Code generator (always uses two-phase pipeline)
     const llmModel = config.claudeCode.model;
     const claudeResult = await runClaudeCodeGenerator({
       projectId: compositionId,
       jobId,
       transcript: transcriptText,
+      words,  // Always pass words for two-phase pipeline
       durationFrames,
       fps: project.fps || 30,
       width: dimensions?.width || 1080,
@@ -447,6 +449,7 @@ interface ClaudeCodeOptions {
   projectId: string;
   jobId: string;
   transcript: string;
+  words?: any[];
   durationFrames: number;
   fps: number;
   width: number;
@@ -463,7 +466,7 @@ interface ClaudeCodeOptions {
 async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, durationFrames, fps, width, height, stylePreset } = options;
+  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset } = options;
 
   const pythonPath = config.pythonPath;
   const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
@@ -483,8 +486,15 @@ async function runClaudeCodeGenerator(
   const transcriptPath = join(tmpdir(), `claude-transcript-${jobId}.txt`);
   await writeFile(transcriptPath, transcript, 'utf-8');
 
+  // Write words JSON if available (for two-phase pipeline)
+  let wordsPath: string | null = null;
+  if (words && words.length > 0) {
+    wordsPath = join(tmpdir(), `claude-words-${jobId}.json`);
+    await writeFile(wordsPath, JSON.stringify(words), 'utf-8');
+  }
+
   try {
-    const subprocess = spawn(pythonPath, [
+    const args = [
       agentScript,
       '--workspace', workspacePath,
       '--project-id', projectId,
@@ -495,10 +505,23 @@ async function runClaudeCodeGenerator(
       '--duration', String(durationFrames),
       '--fps', String(fps),
       '--model', config.claudeCode.model,
-    ], {
+    ];
+
+    // Add words JSON path if available (required for two-phase pipeline)
+    if (wordsPath) {
+      args.push('--words-json', wordsPath);
+    }
+
+    // Two-phase pipeline is always used
+    logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
+
+    const subprocess = spawn(pythonPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
+        // Ensure Python uses UTF-8 encoding
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1',
         // Claude SDK will read OAuth token from credential store
       },
     });
@@ -516,15 +539,16 @@ async function runClaudeCodeGenerator(
     let stderr = '';
 
     subprocess.stdout?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
+      const text = chunk.toString('utf-8');
       stdout += text;
-      logger.debug({ projectId, output: text.slice(0, 200) }, 'Claude generator output');
+      // Log more output for debugging
+      logger.info({ projectId, output: text.slice(0, 500) }, 'Claude generator stdout');
     });
 
     subprocess.stderr?.on('data', (chunk: Buffer) => {
-      const text = chunk.toString();
+      const text = chunk.toString('utf-8');
       stderr += text;
-      logger.warn({ projectId, stderr: text.slice(0, 500) }, 'Claude generator stderr');
+      logger.error({ projectId, stderr: text.slice(0, 1000) }, 'Claude generator stderr');
     });
 
     // Wait for completion with timeout
@@ -544,7 +568,9 @@ async function runClaudeCodeGenerator(
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(`Claude Code generator exited with code ${code}: ${stderr}`));
+          // Include both stderr and last part of stdout for debugging
+          const errorOutput = stderr || stdout.slice(-1000);
+          reject(new Error(`Claude Code generator exited with code ${code}: ${errorOutput}`));
         }
       });
 
@@ -559,15 +585,75 @@ async function runClaudeCodeGenerator(
     // Parse result from stdout
     let result: any;
     try {
-      const jsonMatch = stdout.match(/\{[\s\S]*"success"[\s\S]*\}/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[0]);
+      // Find JSON object at the end of output - look for the final result JSON
+      // The Python script outputs: {"success": true, "bundleUrl": ..., "bundlePath": ...}
+      // We need to find this specific JSON, not any random {} in logs
+
+      // Method 1: Look for standalone { on a line (start of JSON object)
+      const lines = stdout.split('\n');
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        // Look for a line that is just "{" or starts with '{"'
+        if (line === '{' || line.startsWith('{"')) {
+          // Collect lines until braces balance
+          let jsonStr = '';
+          let braceCount = 0;
+          for (let j = i; j < lines.length; j++) {
+            jsonStr += lines[j] + '\n';
+            braceCount += (lines[j].match(/\{/g) || []).length;
+            braceCount -= (lines[j].match(/\}/g) || []).length;
+            if (braceCount === 0 && jsonStr.trim().length > 2) {
+              break;
+            }
+          }
+          try {
+            const parsed = JSON.parse(jsonStr.trim());
+            // Verify it's our expected result object
+            if (parsed.success !== undefined && parsed.bundleUrl) {
+              result = parsed;
+              break;
+            }
+          } catch {
+            // Not valid JSON, continue searching backwards
+          }
+        }
       }
-    } catch {
-      // Couldn't parse JSON result
+
+      // Method 2: Fallback - look for JSON block in the last portion of output
+      if (!result) {
+        // Find the last occurrence of '{\n  "success"' pattern
+        const lastJsonStart = stdout.lastIndexOf('{\n  "success"');
+        if (lastJsonStart !== -1) {
+          // Find the matching closing brace
+          let braceCount = 0;
+          let endIndex = lastJsonStart;
+          for (let i = lastJsonStart; i < stdout.length; i++) {
+            if (stdout[i] === '{') braceCount++;
+            if (stdout[i] === '}') braceCount--;
+            if (braceCount === 0) {
+              endIndex = i + 1;
+              break;
+            }
+          }
+          const jsonStr = stdout.slice(lastJsonStart, endIndex);
+          try {
+            result = JSON.parse(jsonStr);
+          } catch {
+            // Still failed
+          }
+        }
+      }
+    } catch (e) {
+      logger.error({ projectId, error: e, stdoutTail: stdout.slice(-2000) }, 'Failed to parse Claude generator JSON output');
     }
 
     if (!result || !result.success) {
+      logger.error({
+        projectId,
+        result,
+        stdoutLength: stdout.length,
+        stdoutTail: stdout.slice(-1000)
+      }, 'Claude Code generator did not produce valid output');
       throw new Error('Claude Code generator did not produce valid output');
     }
 
@@ -593,6 +679,14 @@ async function runClaudeCodeGenerator(
       await rm(transcriptPath);
     } catch {
       // Ignore cleanup errors
+    }
+
+    if (wordsPath) {
+      try {
+        await rm(wordsPath);
+      } catch {
+        // Ignore cleanup errors
+      }
     }
   }
 }

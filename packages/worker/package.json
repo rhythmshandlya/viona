@@ -35,6 +35,7 @@
     "pino": "^10.3.0"
   },
   "devDependencies": {
+    "better-icons": "^1.0.0",
     "@types/fluent-ffmpeg": "^2.1.24",
     "@types/node": "^20.10.6",
     "@types/pg": "^8.10.9",

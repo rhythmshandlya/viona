@@ -16,6 +16,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Add agents directory to path for local imports
+_agents_dir = Path(__file__).parent
+if str(_agents_dir) not in sys.path:
+    sys.path.insert(0, str(_agents_dir))
+
 # Claude Agent SDK imports
 try:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
@@ -23,6 +28,20 @@ try:
 except ImportError:
     print("Error: claude-agent-sdk package not installed. Run: pip install claude-agent-sdk")
     sys.exit(1)
+
+
+# =============================================================================
+# Safe Print Helper (Windows Unicode Fix)
+# =============================================================================
+
+def safe_print(msg: str) -> None:
+    """Print message safely, handling Unicode encoding errors on Windows."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        # Replace non-ASCII characters with ? for Windows console
+        safe_msg = msg.encode('ascii', errors='replace').decode('ascii')
+        print(safe_msg)
 
 
 # =============================================================================
@@ -1601,6 +1620,33 @@ Use simple shapes: rect, circle, path, line, polygon.
 - Custom SVG: Data visualizations, metaphors, animated diagrams
 </icons_and_svg>
 
+<web_search>
+You have access to WebSearch for researching unfamiliar topics.
+
+**When to search:**
+- Unfamiliar technical concepts in the transcript (algorithms, protocols, systems)
+- Domain-specific terminology you don't fully understand
+- Looking for visual metaphor inspiration for abstract concepts
+- Remotion-specific patterns or APIs you're unsure about
+- Current events or recent developments mentioned in content
+
+**How to search effectively:**
+- Use specific, targeted queries: "reservoir sampling algorithm visual explanation"
+- For Remotion help: "remotion [specific feature] example"
+- For visual inspiration: "[concept] infographic design" or "[concept] motion graphics"
+
+**Example searches:**
+- Transcript mentions "B-trees": search "B-tree data structure visual explanation"
+- Transcript mentions "TCP handshake": search "TCP three-way handshake diagram"
+- Unsure about spring physics: search "remotion spring animation examples"
+- Need metaphor for "caching": search "caching visual metaphor infographic"
+
+**DON'T search for:**
+- Basic React/TypeScript syntax (you know this)
+- Things already in this prompt (animation patterns, color theory)
+- Every concept - only when genuinely stuck or unfamiliar
+</web_search>
+
 <svg_animation_patterns>
 **1. Scale & Fade Entry:**
 ```tsx
@@ -1895,6 +1941,9 @@ export const RemotionRoot: React.FC = () => {{
 // CRITICAL: Export MainComposition as default (NOT RemotionRoot!)
 // The frontend player needs the actual video component, not the registration wrapper
 export default MainComposition;
+
+// Register root for Remotion bundler (required for SSR rendering)
+registerRoot(RemotionRoot);
 ```
 
 ### CRITICAL - metadata.json:
@@ -2060,13 +2109,17 @@ class ClaudeVisualGenerator:
 
         return settings_path
 
-    async def _verify_typescript(self) -> bool:
-        """Run TypeScript validation on the generated code."""
+    async def _verify_typescript(self) -> tuple[bool, str]:
+        """Run TypeScript validation on the generated code.
+
+        Returns:
+            Tuple of (success, error_output)
+        """
         import subprocess
 
         try:
             result = subprocess.run(
-                ["npx", "tsc", "--noEmit", "--pretty", "false"],
+                ["npx", "tsc", "--noEmit"],
                 cwd=str(self.workspace),
                 capture_output=True,
                 timeout=60,
@@ -2074,10 +2127,91 @@ class ClaudeVisualGenerator:
                 encoding="utf-8",
                 errors="replace",
             )
-            return result.returncode == 0
+            if result.returncode == 0:
+                return True, ""
+            else:
+                errors = result.stdout + result.stderr
+                print(f"[ClaudeGenerator] TypeScript errors:\n{errors[:2000]}")
+                return False, errors
         except subprocess.TimeoutExpired:
-            return False
-        except Exception:
+            return False, "TypeScript check timed out"
+        except Exception as e:
+            return False, str(e)
+
+    async def _run_self_heal(self, ts_errors: str) -> bool:
+        """Run a mini-agent to fix TypeScript errors.
+
+        Args:
+            ts_errors: The TypeScript error output
+
+        Returns:
+            True if the agent ran successfully (doesn't guarantee errors fixed)
+        """
+        print(f"[ClaudeGenerator] Running self-heal agent...")
+
+        heal_prompt = f"""
+## TASK: Fix TypeScript Errors
+
+The code has TypeScript compilation errors. Your job is to fix them.
+
+### TypeScript Errors:
+```
+{ts_errors[:3000]}
+```
+
+### Instructions:
+1. Read the error messages carefully
+2. Identify the files and line numbers with errors
+3. Read those files to understand the context
+4. Fix each error - common issues are:
+   - Missing imports
+   - Type mismatches
+   - Undefined variables
+   - Syntax errors (missing brackets, etc.)
+5. After fixing, run `npx tsc --noEmit` to verify
+
+### Rules:
+- Fix the MINIMUM needed to resolve errors
+- Do NOT refactor or change working code
+- Do NOT add new features
+- Focus ONLY on making TypeScript compile
+
+When done, respond: "SELF-HEAL COMPLETE"
+"""
+
+        try:
+            client = ClaudeSDKClient(
+                options=ClaudeAgentOptions(
+                    model="claude-sonnet-4-20250514",  # Use Sonnet for speed
+                    system_prompt="You are a TypeScript error fixer. Fix compilation errors quickly and precisely.",
+                    cwd=str(self.workspace),
+                    max_turns=20,
+                    max_thinking_tokens=3000,
+                    allowed_tools=["Read", "Edit", "Bash", "Glob"],
+                )
+            )
+
+            async with client:
+                await client.query(heal_prompt)
+
+                async for msg in client.receive_response():
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                try:
+                                    print(block.text[:200], end="", flush=True)
+                                except UnicodeEncodeError:
+                                    pass
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[SelfHeal Tool: {block.name}]", flush=True)
+
+            print(f"\n[ClaudeGenerator] Self-heal agent completed")
+            return True
+
+        except Exception as e:
+            print(f"[ClaudeGenerator] Self-heal agent error: {e}")
             return False
 
     async def _run_bundle(self) -> Path:
@@ -2091,9 +2225,17 @@ class ClaudeVisualGenerator:
         # Create output directory
         bundle_path.mkdir(parents=True, exist_ok=True)
 
+        # Use project-specific entry point instead of workspace Root.tsx
+        # The generated composition exports RemotionRoot which registers the composition
+        entry_point = self.src_dir / "index.tsx"
+
         try:
             result = subprocess.run(
-                ["npx", "remotion", "bundle", "--out-dir", str(bundle_path)],
+                [
+                    "npx", "remotion", "bundle",
+                    "--entry-point", str(entry_point),
+                    "--out-dir", str(bundle_path),
+                ],
                 cwd=str(self.workspace),
                 capture_output=True,
                 timeout=120,  # 2 min for tsc check
@@ -2119,14 +2261,15 @@ class ClaudeVisualGenerator:
         """
         import subprocess
 
-        index_tsx = self.src_dir / "index.tsx"
-        cjs_output = bundle_path / "composition.cjs.js"
+        # Use absolute paths to avoid issues with cwd
+        index_tsx = (self.src_dir / "index.tsx").resolve()
+        cjs_output = (bundle_path / "composition.cjs.js").resolve()
 
         if not index_tsx.exists():
-            print(f"[ClaudeGenerator] Warning: index.tsx not found, skipping CJS compilation")
+            safe_print(f"[ClaudeGenerator] Warning: index.tsx not found, skipping CJS compilation")
             return
 
-        print(f"[ClaudeGenerator] Compiling composition to CJS: {cjs_output}")
+        safe_print(f"[ClaudeGenerator] Compiling composition to CJS: {cjs_output}")
 
         try:
             # Use esbuild to compile the composition to CommonJS
@@ -2159,17 +2302,17 @@ class ClaudeVisualGenerator:
             )
 
             if result.returncode != 0:
-                print(f"[ClaudeGenerator] CJS compilation warning: {result.stderr}")
+                safe_print(f"[ClaudeGenerator] CJS compilation warning: {result.stderr}")
                 # Don't fail - the browser bundle still works for some use cases
             else:
-                print(f"[ClaudeGenerator] CJS compilation successful")
+                safe_print(f"[ClaudeGenerator] CJS compilation successful")
                 # Post-process to add React keys
                 self._add_react_keys_to_cjs(cjs_output)
 
         except subprocess.TimeoutExpired:
-            print(f"[ClaudeGenerator] CJS compilation timed out")
+            safe_print(f"[ClaudeGenerator] CJS compilation timed out")
         except Exception as e:
-            print(f"[ClaudeGenerator] CJS compilation error: {e}")
+            safe_print(f"[ClaudeGenerator] CJS compilation error: {e}")
 
     def _add_react_keys_to_cjs(self, cjs_path: Path) -> None:
         """
@@ -2220,7 +2363,410 @@ class ClaudeVisualGenerator:
 
         if modified:
             cjs_path.write_text('\n'.join(new_lines), encoding="utf-8")
-            print(f"[ClaudeGenerator] Added {key_counter} React keys to CJS output")
+            safe_print(f"[ClaudeGenerator] Added {key_counter} React keys to CJS output")
+
+    # =========================================================================
+    # Two-Phase Generation Pipeline (Director + Animator)
+    # =========================================================================
+
+    async def _run_director(
+        self,
+        formatted_transcript: str,
+        width: int,
+        height: int,
+        duration_frames: int,
+        fps: int,
+    ) -> dict[str, Any]:
+        """
+        Phase 1: Run the Director agent to create the scene plan.
+
+        The Director analyzes the transcript and creates:
+        - SCENE_PLAN.md: Human-readable plan with visual story
+        - scenes.json: Machine-readable scene data for Animator
+
+        Args:
+            formatted_transcript: Transcript with word-level timestamps
+            width: Video width
+            height: Video height
+            duration_frames: Total frames
+            fps: Frames per second
+
+        Returns:
+            dict with success status and plan file paths
+        """
+        from prompts.director import DIRECTOR_SYSTEM_PROMPT, build_director_user_message
+
+        print(f"[ClaudeGenerator] Phase 1: Director analyzing transcript...")
+
+        director_message = build_director_user_message(
+            project_id=self.project_id,
+            formatted_transcript=formatted_transcript,
+            width=width,
+            height=height,
+            duration_frames=duration_frames,
+            fps=fps,
+        )
+
+        # Director uses Sonnet for fast planning
+        client = ClaudeSDKClient(
+            options=ClaudeAgentOptions(
+                model="claude-sonnet-4-20250514",
+                system_prompt=DIRECTOR_SYSTEM_PROMPT,
+                cwd=str(self.workspace),
+                max_turns=50,  # Enough turns for research + planning + writing
+                max_thinking_tokens=5000,
+                allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch"],
+            )
+        )
+
+        response_text = ""
+        tool_calls_made = []
+        async with client:
+            await client.query(director_message)
+            print(f"[Director] Query sent, waiting for response...", flush=True)
+
+            async for msg in client.receive_response():
+                msg_type = type(msg).__name__
+                print(f"[Director] Received message type: {msg_type}", flush=True)
+
+                if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                    for block in msg.content:
+                        block_type = type(block).__name__
+                        if block_type == "TextBlock" and hasattr(block, "text"):
+                            response_text += block.text
+                            try:
+                                print(block.text, end="", flush=True)
+                            except UnicodeEncodeError:
+                                safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
+                                print(safe_text, end="", flush=True)
+                        elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                            tool_calls_made.append(block.name)
+                            print(f"\n[Director Tool: {block.name}]", flush=True)
+                        elif block_type == "ToolResultBlock":
+                            print(f"\n[Director Tool Result received]", flush=True)
+                        else:
+                            print(f"\n[Director] Unknown block type: {block_type}", flush=True)
+                elif msg_type == "ErrorMessage":
+                    print(f"[Director] ERROR: {msg}", flush=True)
+                elif msg_type == "StopMessage":
+                    print(f"[Director] Stop reason received", flush=True)
+
+        print(f"\n[ClaudeGenerator] Director made {len(tool_calls_made)} tool calls: {tool_calls_made}", flush=True)
+
+        print(f"\n[ClaudeGenerator] Director completed")
+
+        # Verify plan files were created
+        scene_plan = self.src_dir / "SCENE_PLAN.md"
+        scenes_json = self.src_dir / "scenes.json"
+
+        # Debug: List what files exist in the source directory
+        print(f"[ClaudeGenerator] Checking for plan files in: {self.src_dir}")
+        if self.src_dir.exists():
+            existing_files = list(self.src_dir.iterdir())
+            print(f"[ClaudeGenerator] Files in src_dir: {[f.name for f in existing_files]}")
+        else:
+            print(f"[ClaudeGenerator] WARNING: src_dir does not exist!")
+
+        if not scene_plan.exists():
+            return {
+                "success": False,
+                "error": f"Director did not create SCENE_PLAN.md (expected at {scene_plan})",
+            }
+
+        if not scenes_json.exists():
+            return {
+                "success": False,
+                "error": f"Director did not create scenes.json (expected at {scenes_json})",
+            }
+
+        # Validate scenes.json structure
+        try:
+            with open(scenes_json, encoding="utf-8") as f:
+                plan_data = json.load(f)
+
+            if "scenes" not in plan_data or len(plan_data["scenes"]) == 0:
+                return {
+                    "success": False,
+                    "error": "scenes.json has no scenes defined",
+                }
+
+            scene_count = len(plan_data["scenes"])
+            print(f"[ClaudeGenerator] Director created plan with {scene_count} scenes")
+
+        except json.JSONDecodeError as e:
+            return {
+                "success": False,
+                "error": f"scenes.json is invalid JSON: {e}",
+            }
+
+        return {
+            "success": True,
+            "scenePlanPath": str(scene_plan),
+            "scenesJsonPath": str(scenes_json),
+            "sceneCount": scene_count,
+        }
+
+    async def _run_animator(
+        self,
+        width: int,
+        height: int,
+        duration_frames: int,
+        fps: int,
+    ) -> dict[str, Any]:
+        """
+        Phase 2: Run the Animator agent to implement the scene plan.
+
+        The Animator reads SCENE_PLAN.md and scenes.json, then:
+        - Creates TODO list for each scene
+        - Implements each scene with reasoning logged
+        - Validates against the plan
+        - Outputs: constants.ts, index.tsx, metadata.json
+
+        Args:
+            width: Video width
+            height: Video height
+            duration_frames: Total frames
+            fps: Frames per second
+
+        Returns:
+            dict with success status
+        """
+        from prompts.animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message
+
+        print(f"[ClaudeGenerator] Phase 2: Animator implementing scenes...")
+
+        # Get condensed skills and guides for Animator
+        remotion_libraries = get_remotion_libraries_guide()
+        condensed_skills = get_condensed_skills()
+
+        # Build full system prompt with skills
+        full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}\n\n{remotion_libraries}\n\n{condensed_skills}"
+
+        animator_message = build_animator_user_message(self.project_id)
+
+        # Animator uses Opus for high-quality implementation
+        client = ClaudeSDKClient(
+            options=ClaudeAgentOptions(
+                model=self.model,  # Use configured model (Opus)
+                system_prompt=full_system_prompt,
+                cwd=str(self.workspace),
+                max_turns=self.max_turns,
+                max_thinking_tokens=self.max_thinking_tokens,
+                max_buffer_size=10 * 1024 * 1024,
+                enable_file_checkpointing=True,
+                allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWrite"],
+                mcp_servers={
+                    "better-icons": {
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": ["better-icons"]
+                    }
+                },
+                hooks={
+                    "PreToolUse": [
+                        HookMatcher(matcher="Bash", hooks=[bash_security_hook]),
+                    ],
+                },
+            )
+        )
+
+        response_text = ""
+        async with client:
+            await client.query(animator_message)
+
+            async for msg in client.receive_response():
+                msg_type = type(msg).__name__
+                if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                    for block in msg.content:
+                        block_type = type(block).__name__
+                        if block_type == "TextBlock" and hasattr(block, "text"):
+                            response_text += block.text
+                            try:
+                                print(block.text, end="", flush=True)
+                            except UnicodeEncodeError:
+                                safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
+                                print(safe_text, end="", flush=True)
+                        elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                            print(f"\n[Animator Tool: {block.name}]", flush=True)
+
+        print(f"\n[ClaudeGenerator] Animator completed")
+
+        # Verify output files
+        index_tsx = self.src_dir / "index.tsx"
+        if not index_tsx.exists():
+            return {
+                "success": False,
+                "error": "Animator did not create index.tsx",
+            }
+
+        # Check for implementation log (optional but expected)
+        impl_log = self.src_dir / "IMPLEMENTATION_LOG.md"
+        if impl_log.exists():
+            print(f"[ClaudeGenerator] Implementation log created: {impl_log}")
+
+        return {
+            "success": True,
+            "indexPath": str(index_tsx),
+            "hasImplementationLog": impl_log.exists(),
+        }
+
+    async def generate_two_phase(
+        self,
+        transcript: str,
+        words: list[dict] | None = None,
+        width: int = 1920,
+        height: int = 1080,
+        duration_frames: int = 1800,
+        fps: int = 30,
+        timeout_seconds: int = 2400,  # 40 minutes for two phases
+        max_retries: int = 2,
+    ) -> dict[str, Any]:
+        """
+        Generate video using two-phase pipeline: Director + Animator.
+
+        Phase 1 (Director): Analyzes transcript, creates scene plan
+        Phase 2 (Animator): Implements plan scene-by-scene with TODO tracking
+
+        Args:
+            transcript: Plain text transcript
+            words: Optional word-level timestamps from WhisperX
+            width: Video width in pixels
+            height: Video height in pixels
+            duration_frames: Total duration in frames
+            fps: Frames per second
+            timeout_seconds: Total timeout for both phases
+            max_retries: Retry attempts per phase
+
+        Returns:
+            dict with success status and bundle URL
+        """
+        from transcript_formatter import (
+            format_transcript_for_director,
+            format_transcript_with_key_moments,
+        )
+
+        last_error: Exception | None = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                print(f"[ClaudeGenerator] Two-phase attempt {attempt + 1}/{max_retries + 1}")
+
+                if attempt > 0:
+                    base_delay = 10 * (2 ** (attempt - 1))
+                    print(f"[ClaudeGenerator] Waiting {base_delay}s before retry...")
+                    await asyncio.sleep(base_delay)
+
+                # Re-configure OAuth
+                await configure_sdk_auth_async()
+
+                # Clean previous attempt
+                if self.src_dir.exists():
+                    shutil.rmtree(self.src_dir)
+                self.src_dir.mkdir(parents=True)
+
+                # Format transcript with timestamps if available
+                if words:
+                    formatted_transcript = format_transcript_with_key_moments(words, fps)
+                else:
+                    formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
+
+                # Phase 1: Director
+                director_result = await self._run_director(
+                    formatted_transcript=formatted_transcript,
+                    width=width,
+                    height=height,
+                    duration_frames=duration_frames,
+                    fps=fps,
+                )
+
+                if not director_result["success"]:
+                    raise RuntimeError(f"Director failed: {director_result.get('error', 'Unknown error')}")
+
+                print(f"[ClaudeGenerator] Director created {director_result['sceneCount']} scenes")
+
+                # Phase 2: Animator
+                animator_result = await self._run_animator(
+                    width=width,
+                    height=height,
+                    duration_frames=duration_frames,
+                    fps=fps,
+                )
+
+                if not animator_result["success"]:
+                    raise RuntimeError(f"Animator failed: {animator_result.get('error', 'Unknown error')}")
+
+                # Verify TypeScript with self-healing
+                print(f"[ClaudeGenerator] Verifying TypeScript...")
+                ts_success, ts_errors = await self._verify_typescript()
+
+                # Self-healing loop: try to fix TypeScript errors up to 3 times
+                heal_attempts = 0
+                max_heal_attempts = 3
+                while not ts_success and heal_attempts < max_heal_attempts:
+                    heal_attempts += 1
+                    print(f"[ClaudeGenerator] TypeScript failed, self-healing attempt {heal_attempts}/{max_heal_attempts}...")
+
+                    # Run a mini-healing agent to fix the errors
+                    heal_success = await self._run_self_heal(ts_errors)
+                    if not heal_success:
+                        print(f"[ClaudeGenerator] Self-heal agent failed")
+                        break
+
+                    # Re-verify
+                    ts_success, ts_errors = await self._verify_typescript()
+
+                if not ts_success:
+                    raise RuntimeError(f"TypeScript validation failed after {heal_attempts} self-heal attempts")
+
+                print(f"[ClaudeGenerator] TypeScript validation passed")
+
+                # Create metadata.json if not exists
+                metadata_json = self.src_dir / "metadata.json"
+                if not metadata_json.exists():
+                    print("[ClaudeGenerator] Creating fallback metadata.json...")
+                    fallback_metadata = {
+                        "compositionId": self.project_id,
+                        "durationInFrames": duration_frames,
+                        "fps": fps,
+                        "width": width,
+                        "height": height,
+                        "visuals": [
+                            {"startMs": 0, "endMs": int(duration_frames / fps * 1000), "type": "generated", "description": "AI-generated visual"}
+                        ]
+                    }
+                    with open(metadata_json, "w", encoding="utf-8") as f:
+                        json.dump(fallback_metadata, f, indent=2)
+
+                # Fix composition ID
+                index_tsx = self.src_dir / "index.tsx"
+                await self._fix_composition_id(index_tsx, self.project_id)
+
+                # Bundle
+                print(f"[ClaudeGenerator] Bundling project...")
+                bundle_path = await self._run_bundle()
+                print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
+
+                # Compile CJS
+                print(f"[ClaudeGenerator] Compiling CJS...")
+                await self._compile_cjs(bundle_path)
+
+                bundle_id = self.project_id.replace("_", "-")
+                return {
+                    "success": True,
+                    "bundleUrl": f"/bundles/{bundle_id}/index.html",
+                    "bundlePath": str(bundle_path),
+                    "attempts": attempt + 1,
+                    "pipeline": "two-phase",
+                    "scenePlan": director_result.get("scenePlanPath"),
+                    "implementationLog": str(self.src_dir / "IMPLEMENTATION_LOG.md"),
+                }
+
+            except Exception as e:
+                last_error = e
+                print(f"[ClaudeGenerator] Two-phase attempt {attempt + 1} failed: {e}")
+                continue
+
+        raise RuntimeError(f"Two-phase generation failed after {max_retries + 1} attempts: {last_error}")
 
     async def _fix_composition_id(self, index_tsx: Path, expected_id: str) -> None:
         """
@@ -2255,212 +2801,6 @@ class ClaudeVisualGenerator:
 
         index_tsx.write_text(new_content, encoding="utf-8")
 
-    async def generate(
-        self,
-        transcript: str,
-        width: int = 1920,
-        height: int = 1080,
-        duration_frames: int = 1800,
-        fps: int = 30,
-        timeout_seconds: int = 1800,  # 30 minutes (includes bundling)
-        max_retries: int = 4,  # More retries for transient API 500 errors
-    ) -> dict[str, Any]:
-        """
-        Generate a Remotion video composition from a transcript.
-
-        Args:
-            transcript: The transcript text to visualize
-            width: Video width in pixels
-            height: Video height in pixels
-            duration_frames: Total duration in frames
-            fps: Frames per second
-            timeout_seconds: Timeout for generation
-            max_retries: Maximum retry attempts
-
-        Returns:
-            dict with success status and bundle URL
-
-        Raises:
-            ValueError: If OAuth authentication fails
-            RuntimeError: If generation fails after all retries
-        """
-        last_error: Exception | None = None
-        api_error_count = 0  # Track consecutive API errors for backoff
-        response_text = ""  # Track response for error detection
-
-        for attempt in range(max_retries + 1):
-            response_text = ""  # Reset for each attempt
-            try:
-                print(f"[ClaudeGenerator] Attempt {attempt + 1}/{max_retries + 1}")
-
-                # Exponential backoff after failed attempts (especially for API errors)
-                if attempt > 0:
-                    # Base delay: 5s, 15s, 45s for attempts 2, 3, 4
-                    base_delay = 5 * (3 ** (attempt - 1))
-                    # Extra delay for API errors (500s need longer recovery)
-                    if api_error_count > 0:
-                        base_delay = max(base_delay, 30)  # At least 30s for API errors
-                    print(f"[ClaudeGenerator] Waiting {base_delay}s before retry...")
-                    await asyncio.sleep(base_delay)
-
-                # Re-configure OAuth before each attempt (with auto-refresh)
-                await configure_sdk_auth_async()
-
-                # Clean previous attempt
-                if self.src_dir.exists():
-                    shutil.rmtree(self.src_dir)
-                self.src_dir.mkdir(parents=True)
-
-                # Build prompts
-                system_prompt = self._build_system_prompt(
-                    width, height, fps, duration_frames
-                )
-                user_message = self._build_user_message(
-                    transcript, width, height, duration_frames, fps
-                )
-
-                print(f"[ClaudeGenerator] Starting Claude Agent SDK...")
-                print(f"[ClaudeGenerator] Model: {self.model}")
-                print(f"[ClaudeGenerator] Workspace: {self.workspace}")
-
-                # Create Claude SDK client with security hook
-                # Note: Removed 'settings' param - security handled by bash_security_hook
-                client = ClaudeSDKClient(
-                    options=ClaudeAgentOptions(
-                        model=self.model,
-                        system_prompt=system_prompt,
-                        cwd=str(self.workspace),
-                        max_turns=self.max_turns,
-                        max_thinking_tokens=self.max_thinking_tokens,
-                        max_buffer_size=10 * 1024 * 1024,  # 10MB for large tool results
-                        enable_file_checkpointing=True,
-                        allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash"],
-                        mcp_servers={
-                            "better-icons": {
-                                "type": "stdio",
-                                "command": "npx",
-                                "args": ["better-icons"]
-                            }
-                        },
-                        hooks={
-                            "PreToolUse": [
-                                HookMatcher(matcher="Bash", hooks=[bash_security_hook]),
-                            ],
-                        },
-                    )
-                )
-
-                # Run the agent using async context manager (like Auto-Claude)
-                print(f"[ClaudeGenerator] Sending query to Claude Agent SDK...")
-                async with client:
-                    await client.query(user_message)
-
-                    # Stream and display response (response_text initialized before loop)
-                    async for msg in client.receive_response():
-                        msg_type = type(msg).__name__
-                        if msg_type == "AssistantMessage" and hasattr(msg, "content"):
-                            for block in msg.content:
-                                block_type = type(block).__name__
-                                if block_type == "TextBlock" and hasattr(block, "text"):
-                                    response_text += block.text
-                                    # Handle Windows console Unicode issues
-                                    try:
-                                        print(block.text, end="", flush=True)
-                                    except UnicodeEncodeError:
-                                        safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
-                                        print(safe_text, end="", flush=True)
-                                elif block_type == "ToolUseBlock" and hasattr(block, "name"):
-                                    print(f"\n[Tool: {block.name}]", flush=True)
-
-                print(f"\n[ClaudeGenerator] Agent completed")
-
-                # Verify required output files exist
-                index_tsx = self.src_dir / "index.tsx"
-                constants_ts = self.src_dir / "constants.ts"
-                metadata_json = self.src_dir / "metadata.json"
-
-                if not index_tsx.exists():
-                    raise RuntimeError(
-                        f"index.tsx not found at {index_tsx}. "
-                        "Agent may not have generated the expected output."
-                    )
-
-                # Create metadata.json if agent didn't (fallback)
-                if not metadata_json.exists():
-                    print("[ClaudeGenerator] Creating fallback metadata.json...")
-                    fallback_metadata = {
-                        "compositionId": self.project_id,
-                        "durationInFrames": duration_frames,
-                        "fps": fps,
-                        "width": width,
-                        "height": height,
-                        "visuals": [
-                            {"startMs": 0, "endMs": int(duration_frames / fps * 1000), "type": "generated", "description": "AI-generated visual"}
-                        ]
-                    }
-                    with open(metadata_json, "w", encoding="utf-8") as f:
-                        json.dump(fallback_metadata, f, indent=2)
-
-                # Fix composition ID if agent used a different one
-                print(f"[ClaudeGenerator] Verifying composition ID...")
-                await self._fix_composition_id(index_tsx, self.project_id)
-
-                # Verify TypeScript
-                print(f"[ClaudeGenerator] Verifying TypeScript...")
-                if not await self._verify_typescript():
-                    raise RuntimeError(
-                        "TypeScript validation failed. "
-                        "Generated code has type errors."
-                    )
-
-                print(f"[ClaudeGenerator] TypeScript validation passed")
-
-                # Bundle
-                print(f"[ClaudeGenerator] Bundling project...")
-                bundle_path = await self._run_bundle()
-
-                print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
-
-                # Compile to CommonJS for frontend dynamic loading
-                print(f"[ClaudeGenerator] Compiling CJS for frontend...")
-                await self._compile_cjs(bundle_path)
-
-                # Use dashes in bundle URL to match TypeScript processor expectation
-                bundle_id = self.project_id.replace("_", "-")
-                return {
-                    "success": True,
-                    "bundleUrl": f"/bundles/{bundle_id}/index.html",
-                    "bundlePath": str(bundle_path),
-                    "attempts": attempt + 1,
-                }
-
-            except ValueError:
-                # Authentication errors should not be retried
-                raise
-
-            except Exception as e:
-                last_error = e
-                error_str = str(e)
-                print(f"[ClaudeGenerator] Attempt {attempt + 1} failed: {e}")
-
-                # Track API errors for extended backoff
-                # API 500 errors cause early termination, resulting in "index.tsx not found"
-                if "API Error" in error_str or "Internal server error" in error_str or "500" in error_str:
-                    api_error_count += 1
-                    print(f"[ClaudeGenerator] API error detected (count: {api_error_count})")
-                elif "index.tsx not found" in error_str and response_text and "API Error" in response_text:
-                    api_error_count += 1
-                    print(f"[ClaudeGenerator] API error caused incomplete generation (count: {api_error_count})")
-                else:
-                    # Non-API error, reset counter
-                    api_error_count = 0
-
-                continue
-
-        raise RuntimeError(
-            f"Generation failed after {max_retries + 1} attempts: {last_error}"
-        )
-
 
 # =============================================================================
 # CLI Entry Point
@@ -2476,6 +2816,7 @@ async def main():
     parser.add_argument("--project-id", required=True, help="Project ID")
     parser.add_argument("--bundle-output", required=True, help="Bundle output directory")
     parser.add_argument("--transcript", required=True, help="Transcript text or file path")
+    parser.add_argument("--words-json", help="Path to words JSON file with timestamps")
     parser.add_argument("--width", type=int, default=1920, help="Video width")
     parser.add_argument("--height", type=int, default=1080, help="Video height")
     parser.add_argument("--duration", type=int, default=1800, help="Duration in frames")
@@ -2490,6 +2831,12 @@ async def main():
         with open(transcript, encoding="utf-8") as f:
             transcript = f.read()
 
+    # Load words if provided
+    words = None
+    if args.words_json and os.path.exists(args.words_json):
+        with open(args.words_json, encoding="utf-8") as f:
+            words = json.load(f)
+
     # Create generator
     generator = ClaudeVisualGenerator(
         workspace=Path(args.workspace),
@@ -2498,9 +2845,11 @@ async def main():
         model=args.model,
     )
 
-    # Generate
-    result = await generator.generate(
+    # Generate using two-phase pipeline (Director + Animator)
+    print("[ClaudeGenerator] Using two-phase pipeline (Director + Animator)")
+    result = await generator.generate_two_phase(
         transcript=transcript,
+        words=words,
         width=args.width,
         height=args.height,
         duration_frames=args.duration,

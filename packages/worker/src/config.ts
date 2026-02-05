@@ -16,15 +16,15 @@ export const config = {
   // Claude Code visual generator (uses Claude Agent SDK with OAuth)
   claudeCode: {
     // Model for visual generation
-    model: process.env.CLAUDE_CODE_MODEL || 'claude-sonnet-4-20250514',
+    model: process.env.CLAUDE_CODE_MODEL || 'claude-opus-4-5-20251101',
     // Extended thinking tokens for planning
     maxThinkingTokens: parseInt(process.env.CLAUDE_CODE_MAX_THINKING_TOKENS || '10000', 10),
     // Maximum agent turns
     maxTurns: parseInt(process.env.CLAUDE_CODE_MAX_TURNS || '100', 10),
-    // Timeout for generation (5 minutes default)
-    timeoutSeconds: parseInt(process.env.CLAUDE_CODE_TIMEOUT || '300', 10),
-    // Maximum retries on failure
-    maxRetries: parseInt(process.env.CLAUDE_CODE_MAX_RETRIES || '2', 10),
+    // Timeout for generation (30 minutes default - includes bundling)
+    timeoutSeconds: parseInt(process.env.CLAUDE_CODE_TIMEOUT || '1800', 10),
+    // Maximum retries on failure (more for transient API errors)
+    maxRetries: parseInt(process.env.CLAUDE_CODE_MAX_RETRIES || '4', 10),
   },
 
   database: {

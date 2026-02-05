@@ -11,11 +11,11 @@
       "Edit(./**)",
       "Glob(./**)",
       "Grep(./**)",
-      "Read(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
-      "Write(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
-      "Edit(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
-      "Glob(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
-      "Grep(C:\\Users\\armaa\\Documents\\cllipify\\packages\\worker\\workspace/**)",
+      "Read(workspace/**)",
+      "Write(workspace/**)",
+      "Edit(workspace/**)",
+      "Glob(workspace/**)",
+      "Grep(workspace/**)",
       "Bash(*)"
     ]
   }

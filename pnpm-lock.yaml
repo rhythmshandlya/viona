@@ -6,7 +6,7 @@ settings:
 
 patchedDependencies:
   claude-max-api-proxy:
-    hash: 21413c04e53779cc536a5a92a485625bf8e5101e6140e32224a46b40ce080cf5
+    hash: a5c764eba6cb4ea6563df7938d59f084d74f4f41f28ef3d6bde21672cf951fab
     path: patches/claude-max-api-proxy.patch
 
 importers:
@@ -138,6 +138,9 @@ importers:
         version: 4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@remotion/media-utils':
         specifier: ^4.0.315
+        version: 4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@remotion/noise':
+        specifier: 4.0.409
         version: 4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@remotion/paths':
         specifier: ^4.0.315
@@ -494,9 +497,12 @@ importers:
       '@types/pg':
         specifier: ^8.10.9
         version: 8.16.0
+      better-icons:
+        specifier: ^1.0.0
+        version: 1.0.4(hono@4.11.6)(typescript@5.9.3)(zod@3.22.3)
       claude-max-api-proxy:
         specifier: ^1.0.0
-        version: 1.0.0(patch_hash=21413c04e53779cc536a5a92a485625bf8e5101e6140e32224a46b40ce080cf5)
+        version: 1.0.0(patch_hash=a5c764eba6cb4ea6563df7938d59f084d74f4f41f28ef3d6bde21672cf951fab)
       pino-pretty:
         specifier: ^13.1.3
         version: 13.1.3
@@ -621,6 +627,14 @@ packages:
     engines: {node: '>=14.21.3'}
     cpu: [x64]
     os: [win32]
+
+  '@clack/core@0.3.5':
+    resolution: {integrity: sha512-5cfhQNH+1VQ2xLQlmzXMqUoiaH0lRBq9/CLW9lTyMbuKLC3+xEK01tHVvyut++mLOn5urSHmkm6I0Lg9MaJSTQ==}
+
+  '@clack/prompts@0.7.0':
+    resolution: {integrity: sha512-0MhX9/B4iL6Re04jPrttDm+BsP8y6mS7byuv0BvXgdXhbV5PdlsHt55dvNsuBCPZ7xq1oTAOOuotR9NFbQyMSA==}
+    bundledDependencies:
+      - is-unicode-supported
 
   '@designcombo/animations@5.5.8':
     resolution: {integrity: sha512-D8eMxJxF9MDDkaO4ijDSe53XkSvl5aH8SssF3kDnmasN7rlUCq72aGdfwxJWPV3kiv7zBzuAkxF7baGteByYUQ==}
@@ -2488,6 +2502,9 @@ packages:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
 
+  '@remotion/noise@4.0.409':
+    resolution: {integrity: sha512-972zBBuA6ShVE+8xcmK8dLb10MUn7sx5x+VuqDb8A9es6bJbpYaGxtQVGAYzus0uebwTkn/5DUjDVL6iBjohPw==}
+
   '@remotion/paths@4.0.340':
     resolution: {integrity: sha512-cOKj+SDnh+r8yQZ6WR5hHDPFW5rCdttzH19xvlWd9sRYuE/QnU63CQsaqkiPOkhwu57v9BxkcKTkQ+pWetgPCA==}
 
@@ -3278,6 +3295,13 @@ packages:
     resolution: {integrity: sha512-e23vBV1ZLfjb9apvfPk4rHVu2ry6RIr2Wfs+O324okSidrX7pTAnEJPCh/O5BtRlr7QtZI7ktOP3vsqr7Z5XoA==}
     hasBin: true
 
+  better-icons@1.0.4:
+    resolution: {integrity: sha512-VivhTcSKAyoOAJV7CntwkNPi+CKeemjB7Rli5kOfoyGJr+I36UN9g2EyRodr7wmfGIkQ4AIZOZxL6phJKSj34Q==}
+    engines: {node: '>=18'}
+    hasBin: true
+    peerDependencies:
+      typescript: ^5
+
   big.js@5.2.2:
     resolution: {integrity: sha512-vyL2OymJxmarO8gxMr0mhChsO9QGwhynfuu4+MHTAW6czfq9humCB7rKpUjDd9YUiDPU4mzpyupFSvOClAwbmQ==}
 
@@ -3482,6 +3506,10 @@ packages:
 
   comma-separated-tokens@2.0.3:
     resolution: {integrity: sha512-Fu4hJdvzeylCfQPp9SGWidpzrMs7tTrlu6Vb8XGaRGck8QSNZJJp538Wrb60Lax4fPwR64ViY468OIUTbRlGZg==}
+
+  commander@12.1.0:
+    resolution: {integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==}
+    engines: {node: '>=18'}
 
   commander@2.20.3:
     resolution: {integrity: sha512-GpVkmM8vF2vQUkj2LvZmD35JxeJOLCwJ9cUkugyk2nuhbv3+mJvpLYYt+0+USMxE+oj+ey/lJEnhZw75x/OMcQ==}
@@ -6031,6 +6059,9 @@ packages:
   simple-get@3.1.1:
     resolution: {integrity: sha512-CQ5LTKGfCpvE1K0n2us+kuMPbk/q0EKl82s4aheV9oXjFEz6W/Y7oQFVJuU6QG77hRT4Ghb5RURteF5vnWjupA==}
 
+  simplex-noise@4.0.1:
+    resolution: {integrity: sha512-zl/+bdSqW7HJOQ0oDbxrNYaF4F5ik0i7M6YOYmEoIJNtg16NpvWaTTM1Y7oV/7T0jFljawLgYPS81Uu2rsfo1A==}
+
   sisteransi@1.0.5:
     resolution: {integrity: sha512-bLGGlR1QxBcynn2d5YmDX4MGjlZvy2MRBDRNHLJ8VI6l6+9FUiyTFNJ0IveOSP0bcXgVDPRcfGqA0pjaqUpfVg==}
 
@@ -6895,6 +6926,17 @@ snapshots:
   '@biomejs/cli-win32-x64@1.9.4':
     optional: true
 
+  '@clack/core@0.3.5':
+    dependencies:
+      picocolors: 1.1.1
+      sisteransi: 1.0.5
+
+  '@clack/prompts@0.7.0':
+    dependencies:
+      '@clack/core': 0.3.5
+      picocolors: 1.1.1
+      sisteransi: 1.0.5
+
   '@designcombo/animations@5.5.8(@designcombo/events@1.0.2)(@designcombo/types@5.5.8)(react@19.2.3)(remotion@4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3))':
     dependencies:
       '@designcombo/events': 1.0.2
@@ -7665,6 +7707,28 @@ snapshots:
       - encoding
       - supports-color
     optional: true
+
+  '@modelcontextprotocol/sdk@1.25.3(hono@4.11.6)(zod@3.22.3)':
+    dependencies:
+      '@hono/node-server': 1.19.9(hono@4.11.6)
+      ajv: 8.17.1
+      ajv-formats: 3.0.1(ajv@8.17.1)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 7.5.1(express@5.2.1)
+      jose: 6.1.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 3.22.3
+      zod-to-json-schema: 3.25.1(zod@3.22.3)
+    transitivePeerDependencies:
+      - hono
+      - supports-color
 
   '@modelcontextprotocol/sdk@1.25.3(hono@4.11.6)(zod@3.25.76)':
     dependencies:
@@ -8605,6 +8669,14 @@ snapshots:
       react-dom: 19.2.3(react@19.2.3)
       remotion: 4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
 
+  '@remotion/noise@4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+    dependencies:
+      remotion: 4.0.409(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      simplex-noise: 4.0.1
+    transitivePeerDependencies:
+      - react
+      - react-dom
+
   '@remotion/paths@4.0.340': {}
 
   '@remotion/paths@4.0.409': {}
@@ -9370,7 +9442,6 @@ snapshots:
     dependencies:
       mime-types: 3.0.2
       negotiator: 1.0.0
-    optional: true
 
   acorn-globals@7.0.1:
     dependencies:
@@ -9507,6 +9578,19 @@ snapshots:
 
   baseline-browser-mapping@2.9.18: {}
 
+  better-icons@1.0.4(hono@4.11.6)(typescript@5.9.3)(zod@3.22.3):
+    dependencies:
+      '@clack/prompts': 0.7.0
+      '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.6)(zod@3.22.3)
+      chalk: 5.6.2
+      commander: 12.1.0
+      typescript: 5.9.3
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - hono
+      - supports-color
+      - zod
+
   big.js@5.2.2: {}
 
   bignumber.js@9.3.1: {}
@@ -9545,7 +9629,6 @@ snapshots:
       type-is: 2.0.1
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   brace-expansion@1.1.12:
     dependencies:
@@ -9679,7 +9762,7 @@ snapshots:
     dependencies:
       clsx: 2.1.1
 
-  claude-max-api-proxy@1.0.0(patch_hash=21413c04e53779cc536a5a92a485625bf8e5101e6140e32224a46b40ce080cf5):
+  claude-max-api-proxy@1.0.0(patch_hash=a5c764eba6cb4ea6563df7938d59f084d74f4f41f28ef3d6bde21672cf951fab):
     dependencies:
       express: 4.22.1
       uuid: 11.1.0
@@ -9727,6 +9810,8 @@ snapshots:
 
   comma-separated-tokens@2.0.3: {}
 
+  commander@12.1.0: {}
+
   commander@2.20.3: {}
 
   commander@4.1.1: {}
@@ -9746,8 +9831,7 @@ snapshots:
     dependencies:
       safe-buffer: 5.2.1
 
-  content-disposition@1.0.1:
-    optional: true
+  content-disposition@1.0.1: {}
 
   content-type@1.0.5: {}
 
@@ -9755,8 +9839,7 @@ snapshots:
 
   cookie-signature@1.0.7: {}
 
-  cookie-signature@1.2.2:
-    optional: true
+  cookie-signature@1.2.2: {}
 
   cookie@0.7.2: {}
 
@@ -9768,7 +9851,6 @@ snapshots:
     dependencies:
       object-assign: 4.1.1
       vary: 1.1.2
-    optional: true
 
   cosmiconfig@7.1.0:
     dependencies:
@@ -10287,13 +10369,11 @@ snapshots:
 
   events@3.3.0: {}
 
-  eventsource-parser@3.0.6:
-    optional: true
+  eventsource-parser@3.0.6: {}
 
   eventsource@3.0.7:
     dependencies:
       eventsource-parser: 3.0.6
-    optional: true
 
   execa@5.1.1:
     dependencies:
@@ -10324,7 +10404,6 @@ snapshots:
   express-rate-limit@7.5.1(express@5.2.1):
     dependencies:
       express: 5.2.1
-    optional: true
 
   express@4.22.1:
     dependencies:
@@ -10394,7 +10473,6 @@ snapshots:
       vary: 1.1.2
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   ext@1.7.0:
     dependencies:
@@ -10544,7 +10622,6 @@ snapshots:
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   find-my-way@8.2.2:
     dependencies:
@@ -10626,8 +10703,7 @@ snapshots:
 
   fresh@0.5.2: {}
 
-  fresh@2.0.0:
-    optional: true
+  fresh@2.0.0: {}
 
   fs-minipass@2.1.0:
     dependencies:
@@ -10940,7 +11016,6 @@ snapshots:
   iconv-lite@0.7.2:
     dependencies:
       safer-buffer: 2.1.2
-    optional: true
 
   icss-utils@5.1.0(postcss@8.5.6):
     dependencies:
@@ -11048,8 +11123,7 @@ snapshots:
 
   is-promise@2.2.2: {}
 
-  is-promise@4.0.0:
-    optional: true
+  is-promise@4.0.0: {}
 
   is-regex@1.2.1:
     dependencies:
@@ -11095,8 +11169,7 @@ snapshots:
 
   jiti@2.6.1: {}
 
-  jose@6.1.3:
-    optional: true
+  jose@6.1.3: {}
 
   joycon@3.1.1: {}
 
@@ -11166,8 +11239,7 @@ snapshots:
 
   json-schema-traverse@1.0.0: {}
 
-  json-schema-typed@8.0.2:
-    optional: true
+  json-schema-typed@8.0.2: {}
 
   json-stable-stringify-without-jsonify@1.0.1: {}
 
@@ -11493,8 +11565,7 @@ snapshots:
 
   media-typer@0.3.0: {}
 
-  media-typer@1.1.0:
-    optional: true
+  media-typer@1.1.0: {}
 
   mediabunny@1.29.0:
     dependencies:
@@ -11518,8 +11589,7 @@ snapshots:
 
   merge-descriptors@1.0.3: {}
 
-  merge-descriptors@2.0.0:
-    optional: true
+  merge-descriptors@2.0.0: {}
 
   merge-stream@2.0.0: {}
 
@@ -11727,8 +11797,7 @@ snapshots:
 
   mime-db@1.52.0: {}
 
-  mime-db@1.54.0:
-    optional: true
+  mime-db@1.54.0: {}
 
   mime-types@2.1.35:
     dependencies:
@@ -11737,7 +11806,6 @@ snapshots:
   mime-types@3.0.2:
     dependencies:
       mime-db: 1.54.0
-    optional: true
 
   mime@1.6.0: {}
 
@@ -11879,8 +11947,7 @@ snapshots:
 
   negotiator@0.6.3: {}
 
-  negotiator@1.0.0:
-    optional: true
+  negotiator@1.0.0: {}
 
   neo-async@2.6.2: {}
 
@@ -12076,8 +12143,7 @@ snapshots:
 
   path-to-regexp@0.1.12: {}
 
-  path-to-regexp@8.3.0:
-    optional: true
+  path-to-regexp@8.3.0: {}
 
   path-type@4.0.0: {}
 
@@ -12182,8 +12248,7 @@ snapshots:
 
   pirates@4.0.7: {}
 
-  pkce-challenge@5.0.1:
-    optional: true
+  pkce-challenge@5.0.1: {}
 
   pkg-types@1.3.1:
     dependencies:
@@ -12351,7 +12416,6 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.2
       unpipe: 1.0.0
-    optional: true
 
   react-dom@18.3.1(react@18.3.1):
     dependencies:
@@ -12633,7 +12697,6 @@ snapshots:
       path-to-regexp: 8.3.0
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   run-parallel@1.2.0:
     dependencies:
@@ -12731,7 +12794,6 @@ snapshots:
       statuses: 2.0.2
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   serialize-javascript@6.0.2:
     dependencies:
@@ -12754,7 +12816,6 @@ snapshots:
       send: 1.2.1
     transitivePeerDependencies:
       - supports-color
-    optional: true
 
   set-blocking@2.0.0:
     optional: true
@@ -12864,6 +12925,8 @@ snapshots:
       once: 1.4.0
       simple-concat: 1.0.1
     optional: true
+
+  simplex-noise@4.0.1: {}
 
   sisteransi@1.0.5: {}
 
@@ -13058,7 +13121,7 @@ snapshots:
       yallist: 4.0.0
     optional: true
 
-  terser-webpack-plugin@5.3.16(esbuild@0.25.0)(webpack@5.96.1(esbuild@0.25.0)):
+  terser-webpack-plugin@5.3.16(esbuild@0.25.0)(webpack@5.96.1(esbuild@0.27.2)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
@@ -13213,7 +13276,6 @@ snapshots:
       content-type: 1.0.5
       media-typer: 1.1.0
       mime-types: 3.0.2
-    optional: true
 
   type@2.7.3: {}
 
@@ -13437,7 +13499,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 3.3.0
       tapable: 2.3.0
-      terser-webpack-plugin: 5.3.16(esbuild@0.25.0)(webpack@5.96.1(esbuild@0.25.0))
+      terser-webpack-plugin: 5.3.16(esbuild@0.25.0)(webpack@5.96.1(esbuild@0.27.2))
       watchpack: 2.5.1
       webpack-sources: 3.3.3
     transitivePeerDependencies:
@@ -13550,6 +13612,10 @@ snapshots:
       fd-slicer: 1.1.0
 
   yocto-queue@0.1.0: {}
+
+  zod-to-json-schema@3.25.1(zod@3.22.3):
+    dependencies:
+      zod: 3.22.3
 
   zod-to-json-schema@3.25.1(zod@3.25.76):
     dependencies:
