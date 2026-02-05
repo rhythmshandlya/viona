@@ -243,7 +243,10 @@
       "Bash(cat:*)",
       "Bash(docker-compose config:*)",
       "Bash(git log:*)",
-      "Bash(npx next build:*)"
+      "Bash(npx next build:*)",
+      "Bash(jq:*)",
+      "Bash(mc alias set:*)",
+      "Bash(mc cp:*)"
     ]
   }
 }

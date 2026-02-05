@@ -204,6 +204,12 @@ class ApiClient {
     });
   }
 
+  async resetProjectStatus(projectId: string): Promise<{ success: boolean; message: string; previousStatus: string }> {
+    return this.request(`/api/projects/${projectId}/reset-status`, {
+      method: 'POST',
+    });
+  }
+
   // Jobs
   async getJob(jobId: string): Promise<Job> {
     return this.request(`/api/jobs/${jobId}`);

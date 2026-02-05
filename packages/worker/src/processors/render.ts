@@ -260,20 +260,20 @@ async function renderWithFFmpeg(options: RenderOptions): Promise<void> {
     logger.info({ assPath, captionCount: captions.length }, 'Generated ASS subtitle file');
   }
 
-  // Build FFmpeg args - start simple
-  const args: string[] = [
-    '-y',                    // Overwrite output
-    '-i', videoPath,         // Main video input
-  ];
+  // Build FFmpeg args
+  const args: string[] = ['-y']; // Overwrite output
 
-  // Add visual input if available
+  // Input 0: Main video (talking head)
+  args.push('-i', videoPath);
+
+  // Input 1: Visual video (if available)
   const visualPath = hasVisuals ? visuals[0]?.localPath : null;
   if (visualPath) {
     args.push('-i', visualPath);
     logger.info({ visualPath }, 'Adding visual input');
   }
 
-  // Add enhanced audio input if available
+  // Input 2 (or 1): Enhanced audio (if available)
   const audioPath = hasEnhancedAudio ? audios[0]?.localPath : null;
   const audioInputIndex = audioPath ? (visualPath ? 2 : 1) : -1;
   if (audioPath) {
@@ -281,20 +281,40 @@ async function renderWithFFmpeg(options: RenderOptions): Promise<void> {
     logger.info({ audioPath, audioInputIndex }, 'Adding audio input');
   }
 
-  // Build video filter - start simple, just scale/pad
-  const vf = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`;
-  args.push('-vf', vf);
+  // Build filter complex for compositing
+  if (visualPath) {
+    // PiP layout: visual full screen, talking head small in bottom-right corner
+    // PiP size: 25% of width, with 3% margin from edges
+    const pipWidth = Math.round(width * 0.25);
+    const pipHeight = Math.round(pipWidth * (height / width)); // Maintain aspect ratio
+    const pipMargin = Math.round(width * 0.03);
+    const pipX = width - pipWidth - pipMargin;
+    const pipY = height - pipHeight - pipMargin;
 
-  // TODO: Add subtitle support after basic rendering works
-  // The subtitle filter requires special path escaping that varies by platform
-  if (assPath) {
-    logger.info({ assPath, captionCount: captions.length }, 'Subtitles generated but skipped for now - will add in next iteration');
+    // Filter complex to composite videos
+    // [0:v] = talking head (PiP), [1:v] = visual animation (background)
+    const filterComplex = [
+      // Scale visual to full screen (background)
+      `[1:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1[bg]`,
+      // Scale talking head to PiP size with rounded corners
+      `[0:v]scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=decrease,pad=${pipWidth}:${pipHeight}:(ow-iw)/2:(oh-ih)/2,setsar=1[pip]`,
+      // Overlay PiP on background (bottom-right corner)
+      `[bg][pip]overlay=${pipX}:${pipY}[outv]`
+    ].join(';');
+
+    args.push('-filter_complex', filterComplex);
+    args.push('-map', '[outv]');
+  } else {
+    // No visuals - just scale the main video
+    const vf = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`;
+    args.push('-vf', vf);
   }
 
   // Audio mapping
   if (audioInputIndex >= 0) {
-    args.push('-map', '0:v');
     args.push('-map', `${audioInputIndex}:a`);
+  } else {
+    args.push('-map', '0:a?');
   }
 
   // Video encoding settings

@@ -22,6 +22,7 @@ interface ExportModalProps {
   projectId: string;
   projectStatus: string;
   hasOutputKey: boolean;
+  onProjectRefresh?: () => void;
 }
 
 type ExportState = 'idle' | 'rendering' | 'complete' | 'error';
@@ -32,6 +33,7 @@ export function ExportModal({
   projectId,
   projectStatus,
   hasOutputKey,
+  onProjectRefresh,
 }: ExportModalProps) {
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
@@ -138,11 +140,6 @@ export function ExportModal({
   }, [open, exportState]);
 
   const handleStartExport = async () => {
-    if (projectStatus !== 'ready') {
-      setError('Project is not ready for export. Please wait for processing to complete.');
-      return;
-    }
-
     setExportState('rendering');
     setProgress(0);
     setStatusMessage('Starting export...');
@@ -150,6 +147,12 @@ export function ExportModal({
     setDownloadUrl(null);
 
     try {
+      // Auto-reset project status if not ready (e.g., after previous export)
+      if (projectStatus === 'complete' || projectStatus === 'failed') {
+        await api.resetProjectStatus(projectId);
+        onProjectRefresh?.();
+      }
+
       const { jobId: newJobId } = await api.renderProject(projectId);
       setJobId(newJobId);
     } catch (err) {
@@ -168,14 +171,6 @@ export function ExportModal({
     onOpenChange(false);
   };
 
-  const handleExportAgain = () => {
-    setExportState('idle');
-    setJobId(null);
-    setProgress(0);
-    setStatusMessage('');
-    setError(null);
-    setDownloadUrl(null);
-  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -224,18 +219,18 @@ export function ExportModal({
               <div className="pt-2">
                 <button
                   onClick={handleStartExport}
-                  disabled={projectStatus !== 'ready'}
+                  disabled={projectStatus === 'processing' || projectStatus === 'rendering'}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
                              bg-[var(--editor-accent)] text-[var(--editor-bg-base)] font-medium
                              hover:bg-[var(--editor-accent-hover)] transition-colors
                              disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Download className="w-4 h-4" />
-                  Start Export
+                  Export
                 </button>
-                {projectStatus !== 'ready' && (
+                {(projectStatus === 'processing' || projectStatus === 'rendering') && (
                   <p className="mt-2 text-xs text-amber-500 text-center">
-                    Project status: {projectStatus}. Export requires "ready" status.
+                    Please wait for current processing to complete.
                   </p>
                 )}
               </div>
@@ -316,13 +311,13 @@ export function ExportModal({
                   Download Video
                 </button>
                 <button
-                  onClick={handleExportAgain}
+                  onClick={handleStartExport}
                   className="px-4 py-2.5 rounded-lg
                              bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)] font-medium
                              hover:bg-[var(--editor-bg-hover)] transition-colors
                              border border-[var(--editor-border-default)]"
                 >
-                  Export Again
+                  Export
                 </button>
               </div>
             </div>
@@ -346,13 +341,13 @@ export function ExportModal({
               </div>
 
               <button
-                onClick={handleExportAgain}
+                onClick={handleStartExport}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
                            bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)] font-medium
                            hover:bg-[var(--editor-bg-hover)] transition-colors
                            border border-[var(--editor-border-default)]"
               >
-                Try Again
+                Export
               </button>
             </div>
           )}

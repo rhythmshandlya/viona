@@ -695,6 +695,7 @@ export function Editor({ projectId }: EditorProps) {
         projectId={project.id}
         projectStatus={project.status}
         hasOutputKey={!!project.outputKey}
+        onProjectRefresh={() => loadProject(project.id)}
       />
     </div>
   );
