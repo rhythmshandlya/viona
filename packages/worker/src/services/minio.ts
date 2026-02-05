@@ -24,3 +24,15 @@ export async function uploadFile(bucket: string, key: string, srcPath: string): 
 export async function getObjectStream(bucket: string, key: string) {
   return minioClient.getObject(bucket, key);
 }
+
+export async function objectExists(bucket: string, key: string): Promise<boolean> {
+  try {
+    await minioClient.statObject(bucket, key);
+    return true;
+  } catch (err: any) {
+    if (err.code === 'NotFound' || err.code === 'NoSuchKey') {
+      return false;
+    }
+    throw err;
+  }
+}

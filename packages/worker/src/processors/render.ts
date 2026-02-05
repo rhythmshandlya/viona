@@ -1,19 +1,45 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm } from 'fs/promises';
+import { mkdir, rm, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
+import { spawn } from 'child_process';
 import { db, projects, tracks, timelineItems, jobs } from '../db/index.js';
-import { downloadFile, uploadFile } from '../services/minio.js';
+import { downloadFile, uploadFile, objectExists } from '../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
-import { renderVideo, SubtitleItem, SubtitleStyle } from '@reelify/renderer';
 
 export interface RenderJobData {
   projectId: string;
   jobId: string;
+}
+
+interface VisualItem {
+  id: string;
+  startMs: number;
+  endMs: number;
+  videoUrl: string;
+  localPath?: string;
+}
+
+interface AudioItem {
+  id: string;
+  startMs: number;
+  endMs: number;
+  src: string;
+  volume: number;
+  localPath?: string;
+}
+
+interface CaptionItem {
+  id: string;
+  startMs: number;
+  endMs: number;
+  text: string;
+  words: Array<{ text: string; startMs: number; endMs: number }>;
+  style: any;
 }
 
 export async function processRenderJob(job: Job<RenderJobData>) {
@@ -44,82 +70,119 @@ export async function processRenderJob(job: Job<RenderJobData>) {
     });
 
     // Get all timeline items for all tracks
-    const allItems = [];
+    const allItems: any[] = [];
     for (const track of projectTracks) {
       const items = await db.select().from(timelineItems)
         .where(eq(timelineItems.trackId, track.id));
       allItems.push(...items);
     }
 
-    await publishJobProgress(jobId, 10, 'Downloading video...');
+    await publishJobProgress(jobId, 10, 'Downloading assets...');
 
     // Download original video
     const videoPath = join(workDir, 'input.mp4');
     await downloadFile(config.minio.buckets.uploads, project.videoKey!, videoPath);
 
-    await publishJobProgress(jobId, 20, 'Preparing render...');
+    // Separate items by type
+    const visualItems = allItems.filter(item => item.type === 'visual');
+    const audioItems = allItems.filter(item => item.type === 'audio');
+    const captionItems = allItems.filter(item => item.type === 'caption' || item.type === 'subtitle');
 
-    // Convert timeline items to subtitle format
-    const subtitles = convertToSubtitles(allItems);
-    const outputPath = join(workDir, 'output.mp4');
+    // Download visual videos if they exist
+    const visuals: VisualItem[] = [];
+    for (let i = 0; i < visualItems.length; i++) {
+      const item = visualItems[i];
+      const data = item.data as any;
+      if (data.videoUrl) {
+        const visualPath = join(workDir, `visual_${i}.mp4`);
+        // videoUrl is like /bundles/proj-xxx/video.mp4, need to extract the key
+        const videoKey = data.videoUrl.replace(/^\//, ''); // Remove leading slash
 
-    // Check if we have subtitles to render
-    if (subtitles.length === 0) {
-      // No subtitles, just copy the video using FFmpeg
-      await publishJobProgress(jobId, 30, 'Copying video (no subtitles)...');
-      await copyVideo(videoPath, outputPath);
-    } else {
-      // Render with Remotion for animated subtitles
-      await publishJobProgress(jobId, 30, 'Rendering with animated subtitles...');
-
-      const durationMs = project.durationMs || 60000; // Default 60s if not set
-      const width = project.sourceWidth || 1920;
-      const height = project.sourceHeight || 1080;
-      const fps = project.fps || 30;
-
-      // Default subtitle style
-      const defaultSubtitleStyle: SubtitleStyle = {
-        fontFamily: 'Inter, system-ui, sans-serif',
-        fontSize: Math.round(height / 22), // Scale font to video size
-        fontWeight: 700,
-        color: '#ffffff',
-        activeColor: '#ffff00',
-        position: 'bottom',
-        animation: 'highlight',
-      };
-
-      try {
-        // Normalize paths for Windows - use forward slashes and proper file:// URL format
-        const normalizedVideoPath = videoPath.replace(/\\/g, '/');
-        const normalizedOutputPath = outputPath.replace(/\\/g, '/');
-        // On Windows, file:// URLs need three slashes: file:///C:/path/to/file
-        const videoFileUrl = process.platform === 'win32'
-          ? `file:///${normalizedVideoPath}`
-          : `file://${normalizedVideoPath}`;
-
-        await renderVideo({
-          videoUrl: videoFileUrl,
-          subtitles,
-          outputPath: normalizedOutputPath,
-          width,
-          height,
-          fps,
-          durationMs,
-          defaultSubtitleStyle,
-          onProgress: async (progress) => {
-            // Map Remotion progress (0-100) to our progress range (30-80)
-            const mappedProgress = 30 + Math.round(progress * 0.5);
-            await publishJobProgress(jobId, mappedProgress, `Rendering... ${progress}%`);
-          },
-        });
-      } catch (renderError) {
-        logger.error({ err: renderError }, 'Remotion render failed, falling back to FFmpeg');
-        // Fallback to FFmpeg subtitle burning
-        await renderSubtitlesWithFFmpeg(videoPath, outputPath, allItems, project);
+        try {
+          // Check if the visual video exists in outputs bucket
+          const exists = await objectExists(config.minio.buckets.outputs, videoKey);
+          if (exists) {
+            await downloadFile(config.minio.buckets.outputs, videoKey, visualPath);
+            visuals.push({
+              id: item.id,
+              startMs: item.startMs,
+              endMs: item.endMs,
+              videoUrl: data.videoUrl,
+              localPath: visualPath,
+            });
+          } else {
+            logger.warn({ videoKey }, 'Visual video not found, skipping');
+          }
+        } catch (err) {
+          logger.warn({ err, videoKey }, 'Failed to download visual video, skipping');
+        }
       }
     }
 
-    await publishJobProgress(jobId, 85, 'Uploading result...');
+    // Download enhanced audio if it exists
+    const audios: AudioItem[] = [];
+    for (let i = 0; i < audioItems.length; i++) {
+      const item = audioItems[i];
+      const data = item.data as any;
+      if (data.src) {
+        const audioPath = join(workDir, `audio_${i}.m4a`);
+        // src is like /media/uploads/xxx/audio.m4a
+        const audioKey = data.src.replace(/^\/media\/[^/]+\//, ''); // Extract key after /media/bucket/
+
+        try {
+          await downloadFile(config.minio.buckets.uploads, audioKey, audioPath);
+          audios.push({
+            id: item.id,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            src: data.src,
+            volume: data.volume || 1,
+            localPath: audioPath,
+          });
+        } catch (err) {
+          logger.warn({ err, audioKey }, 'Failed to download audio, will use video audio');
+        }
+      }
+    }
+
+    // Convert captions
+    const captions: CaptionItem[] = captionItems.map(item => {
+      const data = item.data as any;
+      return {
+        id: item.id,
+        startMs: item.startMs,
+        endMs: item.endMs,
+        text: data.text || '',
+        words: data.words || [],
+        style: data.style || {},
+      };
+    });
+
+    await publishJobProgress(jobId, 25, 'Rendering video...');
+
+    const outputPath = join(workDir, 'output.mp4');
+    const durationMs = project.durationMs || 60000;
+    const width = project.canvasWidth || project.sourceWidth || 1080;
+    const height = project.canvasHeight || project.sourceHeight || 1920;
+
+    // Render with FFmpeg
+    await renderWithFFmpeg({
+      videoPath,
+      outputPath,
+      visuals,
+      audios,
+      captions,
+      width,
+      height,
+      durationMs,
+      workDir,
+      onProgress: async (progress) => {
+        const mappedProgress = 25 + Math.round(progress * 0.6);
+        await publishJobProgress(jobId, mappedProgress, `Rendering... ${Math.round(progress)}%`);
+      },
+    });
+
+    await publishJobProgress(jobId, 90, 'Uploading result...');
 
     // Upload output
     const outputKey = `${nanoid()}/output.mp4`;
@@ -168,97 +231,136 @@ export async function processRenderJob(job: Job<RenderJobData>) {
   }
 }
 
-function convertToSubtitles(items: any[]): SubtitleItem[] {
-  return items
-    .filter(item => item.type === 'subtitle')
-    .map(item => {
-      const data = item.data as any;
-      return {
-        id: item.id,
-        startMs: item.startMs,
-        endMs: item.endMs,
-        text: data.text || '',
-        words: data.words || [{ text: data.text || '', startMs: item.startMs, endMs: item.endMs }],
-        style: data.style,
-      };
-    });
+interface RenderOptions {
+  videoPath: string;
+  outputPath: string;
+  visuals: VisualItem[];
+  audios: AudioItem[];
+  captions: CaptionItem[];
+  width: number;
+  height: number;
+  durationMs: number;
+  workDir: string;
+  onProgress?: (progress: number) => Promise<void>;
 }
 
-async function copyVideo(inputPath: string, outputPath: string): Promise<void> {
-  const ffmpeg = (await import('fluent-ffmpeg')).default;
+async function renderWithFFmpeg(options: RenderOptions): Promise<void> {
+  const { videoPath, outputPath, visuals, audios, captions, width, height, durationMs, workDir, onProgress } = options;
 
-  // Normalize paths for FFmpeg on Windows (use forward slashes)
-  const normalizedInput = inputPath.replace(/\\/g, '/');
-  const normalizedOutput = outputPath.replace(/\\/g, '/');
+  const hasVisuals = visuals.length > 0 && visuals.some(v => v.localPath);
+  const hasEnhancedAudio = audios.length > 0 && audios.some(a => a.localPath);
+  const hasCaptions = captions.length > 0;
 
-  return new Promise((resolve, reject) => {
-    ffmpeg(normalizedInput)
-      .outputOptions(['-c', 'copy'])
-      .output(normalizedOutput)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err))
-      .run();
-  });
-}
-
-// Fallback: FFmpeg subtitle burning for when Remotion fails
-async function renderSubtitlesWithFFmpeg(
-  inputPath: string,
-  outputPath: string,
-  items: any[],
-  project: any
-): Promise<void> {
-  const ffmpeg = (await import('fluent-ffmpeg')).default;
-
-  // Filter subtitle items
-  const subtitles = items.filter(item => item.type === 'subtitle');
-
-  if (subtitles.length === 0) {
-    // No subtitles, just copy the video
-    // Normalize paths for FFmpeg on Windows
-    const normalizedInput = inputPath.replace(/\\/g, '/');
-    const normalizedOutput = outputPath.replace(/\\/g, '/');
-    return new Promise((resolve, reject) => {
-      ffmpeg(normalizedInput)
-        .outputOptions(['-c', 'copy'])
-        .output(normalizedOutput)
-        .on('end', () => resolve())
-        .on('error', (err) => reject(err))
-        .run();
-    });
+  // Generate ASS subtitle file if we have captions
+  let assPath: string | null = null;
+  if (hasCaptions) {
+    assPath = join(workDir, 'subtitles.ass');
+    const assContent = generateASSSubtitles(captions, width, height);
+    await writeFile(assPath, assContent, 'utf-8');
+    logger.info({ assPath, captionCount: captions.length }, 'Generated ASS subtitle file');
   }
 
-  // Create ASS subtitle file for FFmpeg
-  const assPath = inputPath.replace('.mp4', '.ass');
-  const assContent = generateASSSubtitles(subtitles, project);
+  // Build FFmpeg args - start simple
+  const args: string[] = [
+    '-y',                    // Overwrite output
+    '-i', videoPath,         // Main video input
+  ];
 
-  const { writeFile } = await import('fs/promises');
-  await writeFile(assPath, assContent, 'utf-8');
+  // Add visual input if available
+  const visualPath = hasVisuals ? visuals[0]?.localPath : null;
+  if (visualPath) {
+    args.push('-i', visualPath);
+    logger.info({ visualPath }, 'Adding visual input');
+  }
 
-  // Burn subtitles into video
-  // Normalize paths for FFmpeg on Windows
-  const normalizedInput = inputPath.replace(/\\/g, '/');
-  const normalizedOutput = outputPath.replace(/\\/g, '/');
-  const normalizedAss = assPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+  // Add enhanced audio input if available
+  const audioPath = hasEnhancedAudio ? audios[0]?.localPath : null;
+  const audioInputIndex = audioPath ? (visualPath ? 2 : 1) : -1;
+  if (audioPath) {
+    args.push('-i', audioPath);
+    logger.info({ audioPath, audioInputIndex }, 'Adding audio input');
+  }
+
+  // Build video filter - start simple, just scale/pad
+  const vf = `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`;
+  args.push('-vf', vf);
+
+  // TODO: Add subtitle support after basic rendering works
+  // The subtitle filter requires special path escaping that varies by platform
+  if (assPath) {
+    logger.info({ assPath, captionCount: captions.length }, 'Subtitles generated but skipped for now - will add in next iteration');
+  }
+
+  // Audio mapping
+  if (audioInputIndex >= 0) {
+    args.push('-map', '0:v');
+    args.push('-map', `${audioInputIndex}:a`);
+  }
+
+  // Video encoding settings
+  args.push(
+    '-c:v', 'libx264',
+    '-preset', 'fast',       // Faster preset for testing
+    '-crf', '23',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-movflags', '+faststart',
+    outputPath
+  );
+
+  logger.info({
+    cmd: 'ffmpeg ' + args.map(a => a.includes(' ') ? `"${a}"` : a).join(' '),
+    hasVisuals,
+    hasEnhancedAudio,
+    hasCaptions,
+    width,
+    height
+  }, 'Running FFmpeg command');
 
   return new Promise((resolve, reject) => {
-    ffmpeg(normalizedInput)
-      .outputOptions([
-        '-vf', `ass=${normalizedAss}`,
-        '-c:a', 'copy',
-      ])
-      .output(normalizedOutput)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err))
-      .run();
+    const ffmpegProcess = spawn('ffmpeg', args);
+
+    let stderr = '';
+    let lastProgress = 0;
+
+    ffmpegProcess.stderr.on('data', (data: Buffer) => {
+      const text = data.toString();
+      stderr += text;
+
+      // Parse progress from FFmpeg output
+      const timeMatch = text.match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+      if (timeMatch && onProgress) {
+        const hours = parseInt(timeMatch[1], 10);
+        const minutes = parseInt(timeMatch[2], 10);
+        const seconds = parseInt(timeMatch[3], 10);
+        const currentMs = (hours * 3600 + minutes * 60 + seconds) * 1000;
+        const progress = Math.min(100, (currentMs / durationMs) * 100);
+        if (progress > lastProgress) {
+          lastProgress = progress;
+          onProgress(progress).catch(() => {});
+        }
+      }
+    });
+
+    ffmpegProcess.on('close', (code: number) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        logger.error({ code, stderr }, 'FFmpeg failed');
+        reject(new Error(`FFmpeg exited with code ${code}: ${stderr.slice(-500)}`));
+      }
+    });
+
+    ffmpegProcess.on('error', (err: Error) => {
+      logger.error({ err, stderr }, 'FFmpeg spawn error');
+      reject(err);
+    });
   });
 }
 
-function generateASSSubtitles(subtitles: any[], project: any): string {
-  const width = project.sourceWidth || 1920;
-  const height = project.sourceHeight || 1080;
+function generateASSSubtitles(captions: CaptionItem[], width: number, height: number): string {
+  const fontSize = Math.round(height / 25);
 
-  // ASS header
   let ass = `[Script Info]
 Title: Reelify Subtitles
 ScriptType: v4.00+
@@ -269,18 +371,16 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Inter,48,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,1,2,10,10,50,1
+Style: Default,Inter,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,2,2,10,10,50,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
 
-  // Add dialogue entries
-  for (const subtitle of subtitles) {
-    const data = subtitle.data as any;
-    const startTime = formatASSTime(subtitle.startMs);
-    const endTime = formatASSTime(subtitle.endMs);
-    const text = (data.text || '').replace(/\n/g, '\\N');
+  for (const caption of captions) {
+    const startTime = formatASSTime(caption.startMs);
+    const endTime = formatASSTime(caption.endMs);
+    const text = caption.text.replace(/\n/g, '\\N');
 
     ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${text}\n`;
   }

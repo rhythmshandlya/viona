@@ -170,6 +170,8 @@ const moduleCache = new Map<string, React.ComponentType>();
 let remotionThreeModule: Record<string, unknown> | null = null;
 let threeModule: Record<string, unknown> | null = null;
 let fiberModule: Record<string, unknown> | null = null;
+let dreiModule: Record<string, unknown> | null = null;
+let reactSpringThreeModule: Record<string, unknown> | null = null;
 
 export function DynamicVisualLoader({
   bundleUrl,
@@ -218,6 +220,8 @@ export function DynamicVisualLoader({
       const usesThreeJs = code.includes('@remotion/three') ||
                           code.includes("'three'") ||
                           code.includes('@react-three/fiber');
+      const usesDrei = code.includes('@react-three/drei');
+      const usesReactSpring = code.includes('@react-spring/three');
 
       if (usesThreeJs && !remotionThreeModule) {
         const [rThree, three, fiber] = await Promise.all([
@@ -228,6 +232,18 @@ export function DynamicVisualLoader({
         remotionThreeModule = rThree as unknown as Record<string, unknown>;
         threeModule = three as unknown as Record<string, unknown>;
         fiberModule = fiber as unknown as Record<string, unknown>;
+      }
+
+      // Load drei for advanced 3D helpers (Float, Text3D, MeshWobbleMaterial, etc.)
+      if (usesDrei && !dreiModule) {
+        const drei = await import('@react-three/drei');
+        dreiModule = drei as unknown as Record<string, unknown>;
+      }
+
+      // Load react-spring/three for physics-based 3D animations
+      if (usesReactSpring && !reactSpringThreeModule) {
+        const springThree = await import('@react-spring/three');
+        reactSpringThreeModule = springThree as unknown as Record<string, unknown>;
       }
 
       // Create a custom require function that provides React and Remotion
@@ -265,6 +281,8 @@ export function DynamicVisualLoader({
         if (moduleName === '@remotion/three') return remotionThreeModule;
         if (moduleName === 'three') return threeModule;
         if (moduleName === '@react-three/fiber') return fiberModule;
+        if (moduleName === '@react-three/drei') return dreiModule;
+        if (moduleName === '@react-spring/three') return reactSpringThreeModule;
         throw new Error(`Unknown module: ${moduleName}`);
       };
 
@@ -287,6 +305,22 @@ export function DynamicVisualLoader({
         threeVals = threeKeys.map(k => remotionThreeModule![k]);
       }
 
+      // Inject @react-three/drei exports (Float, Text3D, MeshWobbleMaterial, etc.)
+      let dreiKeys: string[] = [];
+      let dreiVals: unknown[] = [];
+      if (usesDrei && dreiModule) {
+        dreiKeys = Object.keys(dreiModule);
+        dreiVals = dreiKeys.map(k => dreiModule![k]);
+      }
+
+      // Inject @react-spring/three exports (animated, useSpring, etc.)
+      let springKeys: string[] = [];
+      let springVals: unknown[] = [];
+      if (usesReactSpring && reactSpringThreeModule) {
+        springKeys = Object.keys(reactSpringThreeModule);
+        springVals = springKeys.map(k => reactSpringThreeModule![k]);
+      }
+
       // Inject animation components as scope globals for compositions that
       // reference them without proper imports (fallback for buggy generated code)
       const animationKeys = Object.keys(AnimationComponents);
@@ -303,6 +337,8 @@ export function DynamicVisualLoader({
         'React',
         ...remotionKeys,
         ...threeKeys,
+        ...dreiKeys,
+        ...springKeys,
         ...animationKeys,
         code
       );
@@ -313,6 +349,8 @@ export function DynamicVisualLoader({
         React,
         ...remotionValues,
         ...threeVals,
+        ...dreiVals,
+        ...springVals,
         ...animationValues
       );
 

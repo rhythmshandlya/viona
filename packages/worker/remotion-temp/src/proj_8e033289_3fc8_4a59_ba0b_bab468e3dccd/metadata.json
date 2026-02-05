@@ -1,0 +1,81 @@
+{
+  "compositionId": "proj_8e033289_3fc8_4a59_ba0b_bab468e3dccd",
+  "durationInFrames": 1437,
+  "fps": 24,
+  "width": 1080,
+  "height": 1920,
+  "visualPlan": {
+    "coreConcept": "Postel's Law (Robustness Principle) applied to API design: strict output validation and flexible input parsing.",
+    "visualMetaphor": "A central API processing gateway represented as a rigid 'Validation Lens' for outgoing data and a flexible 'Normalization Funnel' for incoming data.",
+    "colorScheme": {
+      "primary": "#3B82F6",
+      "secondary": "#10B981",
+      "accent": "#F59E0B",
+      "background": "#0F172A"
+    }
+  },
+  "scenes": [
+    {
+      "id": "scene_1",
+      "startMs": 0,
+      "endMs": 9000,
+      "startFrame": 0,
+      "endFrame": 216,
+      "visualFocus": "The central API Gateway",
+      "visualAction": "The API Gateway appears. On the 'Send' side (right to left), a rigid, narrow laser-grid appears. On the 'Accept' side (left to right), a wide, soft-edged funnel appears."
+    },
+    {
+      "id": "scene_2",
+      "startMs": 9000,
+      "endMs": 15000,
+      "startFrame": 216,
+      "endFrame": 360,
+      "visualFocus": "Data packets labeled 'Profile'",
+      "visualAction": "A 'User Profile' object (JSON-like structure) appears on the left (Frontend) and right (Database)."
+    },
+    {
+      "id": "scene_3",
+      "startMs": 15000,
+      "endMs": 33000,
+      "startFrame": 360,
+      "endFrame": 792,
+      "visualFocus": "Outgoing data (Right to Left flow)",
+      "visualAction": "Data packets move from DB through the API. As they pass the 'Conservative' grid, missing fields are flagged with red 'X' and filled; invalid URLs are highlighted and corrected. The data emerges as perfectly uniform blocks."
+    },
+    {
+      "id": "scene_4",
+      "startMs": 33000,
+      "endMs": 44000,
+      "startFrame": 792,
+      "endFrame": 1056,
+      "visualFocus": "Incoming data (Left to Right flow)",
+      "visualAction": "A 'Bio' packet that is physically too wide for the standard slot approaches the wide funnel. The funnel 'squeezes' it, a blade icon trims the excess, and it fits perfectly into the DB slot."
+    },
+    {
+      "id": "scene_5",
+      "startMs": 44000,
+      "endMs": 52000,
+      "startFrame": 1056,
+      "endFrame": 1248,
+      "visualFocus": "Username data packet",
+      "visualAction": "A packet with 'USER_NAME' (all caps) enters the funnel. Inside the API, a 'Lowercase' filter scrolls over it, transforming it to 'user_name' before it hits the DB."
+    },
+    {
+      "id": "scene_6",
+      "startMs": 52000,
+      "endMs": 59907,
+      "startFrame": 1248,
+      "endFrame": 1438,
+      "visualFocus": "The entire balanced system",
+      "visualAction": "The camera zooms out to show the constant loop: messy inputs being cleaned (Liberal) and internal data being strictly verified (Conservative). The phrase 'Postel's Law' glows above the API."
+    }
+  ],
+  "visuals": [
+    {
+      "startMs": 0,
+      "endMs": 59875,
+      "type": "modern",
+      "description": "A central API processing gateway represented as a rigid 'Validation Lens' for outgoing data and a flexible 'Normalization Funnel' for incoming data. - 6 scenes"
+    }
+  ]
+}

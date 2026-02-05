@@ -37,6 +37,9 @@
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
   },
-  "pnpm": {
+  "pnpm": {},
+  "dependencies": {
+    "@react-spring/three": "^10.0.3",
+    "@react-three/drei": "^10.7.7"
   }
 }

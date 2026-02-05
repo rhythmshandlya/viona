@@ -178,23 +178,90 @@ Without this, they render as invisible empty boxes.
 <circle cx={50} cy={50} r={20} fill="red" />
 \`\`\`
 
-## PROFESSIONAL SVG ICONS (always inside <svg> wrapper)
+## 🎨 ICONS & SVGs - ALWAYS USE FROM INTERNET!
 
-### Arrow Right
+**CRITICAL: NEVER hand-draw SVG paths. ALWAYS fetch icons/graphics from the internet.**
+
+For ANY visual element you need (icons, illustrations, diagrams, logos), use these CDN sources:
+
+### 1. Lucide Icons (General Purpose - 1000+ icons)
 \`\`\`tsx
-<svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke={color} strokeWidth="2">
-  <path d="M5 12h14M12 5l7 7-7 7"/>
-</svg>
+<img
+  src="https://unpkg.com/lucide-static@latest/icons/{ICON_NAME}.svg"
+  width={size}
+  height={size}
+  style={{ filter: 'brightness(0) invert(1)' }} // Makes it white
+/>
+\`\`\`
+Browse: https://lucide.dev/icons - Search for ANY concept and use the icon name in the URL.
+
+### 2. Heroicons (UI Icons)
+\`\`\`tsx
+<img src="https://unpkg.com/heroicons@2.0.18/24/outline/{ICON_NAME}.svg" />
+<img src="https://unpkg.com/heroicons@2.0.18/24/solid/{ICON_NAME}.svg" />
 \`\`\`
 
-### Database
+### 3. Simple Icons (Brand/Tech Logos - 2800+ brands)
 \`\`\`tsx
-<svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke={color} strokeWidth="2">
-  <ellipse cx="12" cy="5" rx="9" ry="3"/>
-  <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
-  <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-</svg>
+<img src="https://cdn.simpleicons.org/{BRAND_NAME}/{HEX_COLOR}" />
+// Examples: react, nodejs, python, docker, kubernetes, aws, google, github, linux, redis, mongodb, postgresql
 \`\`\`
+Browse: https://simpleicons.org - Every tech brand logo available.
+
+### 4. SVG Repo (Massive Collection - 500,000+ SVGs)
+\`\`\`tsx
+// Search svgrepo.com for ANY concept, then use the direct SVG URL
+<img src="https://www.svgrepo.com/show/{ID}/{name}.svg" width={size} height={size} />
+\`\`\`
+
+### 5. Tabler Icons (4000+ icons)
+\`\`\`tsx
+<img src="https://unpkg.com/@tabler/icons@latest/icons/{ICON_NAME}.svg" />
+\`\`\`
+
+### 6. Phosphor Icons (6000+ icons, multiple weights)
+\`\`\`tsx
+<img src="https://unpkg.com/@phosphor-icons/core@latest/assets/{weight}/{ICON_NAME}.svg" />
+// weights: thin, light, regular, bold, fill, duotone
+\`\`\`
+
+### 7. Iconify (200,000+ icons from 150+ sets)
+\`\`\`tsx
+<img src="https://api.iconify.design/{SET}/{ICON}.svg?color=%23ffffff" />
+// Sets: mdi, fa6-solid, carbon, tabler, heroicons, etc.
+// Example: https://api.iconify.design/mdi/database.svg?color=%233b82f6
+\`\`\`
+
+### HOW TO CHOOSE AN ICON:
+1. Think about what concept you're visualizing
+2. Pick the most appropriate source:
+   - **UI/Actions**: Lucide, Heroicons, Tabler
+   - **Tech/Brands**: Simple Icons
+   - **Anything else**: SVG Repo, Iconify
+
+### Styling Icons
+\`\`\`tsx
+// White icon on dark background
+style={{ filter: 'brightness(0) invert(1)' }}
+
+// Colored icon (use CSS filter or Iconify color param)
+<img src="https://api.iconify.design/mdi/server.svg?color=%233b82f6" />
+\`\`\`
+
+### Icon with Animation
+\`\`\`tsx
+<BounceIn delay={10}>
+  <img
+    src="https://unpkg.com/lucide-static@latest/icons/zap.svg"
+    width={minDim * 0.08}
+    height={minDim * 0.08}
+    style={{ filter: 'brightness(0) invert(1)' }}
+  />
+</BounceIn>
+\`\`\`
+
+### For Complex Illustrations
+If you need a more complex illustration (not just an icon), search SVG Repo or use Iconify's larger icon sets like \`flat-color-icons\` or \`noto\` (emoji-style).
 
 ### Tree Node (div-based, no SVG needed)
 \`\`\`tsx
@@ -249,9 +316,10 @@ If you won't use a variable, DON'T DECLARE IT.
 3. KEY PROPS - every \`.map()\` needs \`key\`
 4. EASING - always use easing via spring() or interpolate()
 5. EDUCATIONAL - every element should help explain the concept
-6. SVG WRAPPER - ALL SVG elements MUST be inside an <svg> tag
+6. SVG WRAPPER - ALL SVG elements MUST be inside an <svg> tag (but prefer CDN icons!)
 7. SHOW THE MECHANISM - Visualize HOW the concept WORKS
 8. NO UNUSED VARIABLES - only declare what you use
+9. **NEVER HAND-DRAW SVGs** - ALWAYS use \`<img src="CDN_URL">\` for icons/graphics from Lucide, Heroicons, Simple Icons, SVG Repo, or Iconify
 
 ## OUTPUT
 - ONLY TypeScript/React code
@@ -283,6 +351,8 @@ ${styleGuideline}
 import { ThreeCanvas } from '@remotion/three';
 import { AbsoluteFill, useVideoConfig, useCurrentFrame, interpolate, spring, Sequence } from 'remotion';
 import * as THREE from 'three';
+// Optional: Use drei for fun, engaging 3D animations
+import { Float, MeshWobbleMaterial, MeshDistortMaterial, RoundedBox, Text3D, Center } from '@react-three/drei';
 \`\`\`
 
 ## ⛔ MANDATORY: ThreeCanvas Wrapper
@@ -309,6 +379,53 @@ return (
 Every scene MUST have at minimum:
 - \`<ambientLight intensity={0.5} />\`
 - \`<directionalLight position={[10, 10, 5]} intensity={1} />\`
+
+## 🎨 DREI ANIMATION HELPERS (Highly Recommended for Fun Visuals!)
+
+Use these open-source drei components for engaging, playful animations:
+
+### Float - Gentle floating/bobbing motion
+\`\`\`tsx
+<Float speed={2} rotationIntensity={0.5} floatIntensity={1}>
+  <mesh>
+    <sphereGeometry args={[0.5, 32, 32]} />
+    <meshStandardMaterial color="#4f46e5" />
+  </mesh>
+</Float>
+\`\`\`
+
+### MeshWobbleMaterial - Wobbly jelly-like effect
+\`\`\`tsx
+<mesh>
+  <boxGeometry args={[1, 1, 1]} />
+  <MeshWobbleMaterial color="#06b6d4" factor={0.5} speed={2} />
+</mesh>
+\`\`\`
+
+### MeshDistortMaterial - Organic morphing distortion
+\`\`\`tsx
+<mesh>
+  <sphereGeometry args={[1, 64, 64]} />
+  <MeshDistortMaterial color="#10b981" distort={0.4} speed={2} />
+</mesh>
+\`\`\`
+
+### RoundedBox - Smooth rounded corners
+\`\`\`tsx
+<RoundedBox args={[1, 1, 1]} radius={0.1} smoothness={4}>
+  <meshStandardMaterial color="#f59e0b" />
+</RoundedBox>
+\`\`\`
+
+### Combine for maximum effect!
+\`\`\`tsx
+<Float speed={1.5} floatIntensity={0.5}>
+  <mesh>
+    <sphereGeometry args={[0.8, 64, 64]} />
+    <MeshDistortMaterial color="#8b5cf6" distort={0.3} speed={1.5} />
+  </mesh>
+</Float>
+\`\`\`
 
 ## 3D MESH SYNTAX (Declarative JSX)
 
@@ -346,7 +463,7 @@ const posY = interpolate(frame, [0, 60], [-2, 0], { extrapolateRight: 'clamp' })
 \`\`\`
 
 ## CAMERA POSITIONING
-Use the \`<ThreeCanvas>\` camera prop or a manual \`<perspectiveCamera>\`:
+Use the \`<ThreeCanvas>\` camera prop:
 \`\`\`tsx
 <ThreeCanvas width={width} height={height} camera={{ position: [0, 0, 5], fov: 75 }}>
 \`\`\`
@@ -362,9 +479,28 @@ Use the \`<ThreeCanvas>\` camera prop or a manual \`<perspectiveCamera>\`:
 </div>
 \`\`\`
 
+## 🎨 2D ICONS & SVGs - ALWAYS FROM INTERNET! (Use in overlays outside ThreeCanvas)
+
+**NEVER hand-draw SVG paths. ALWAYS fetch from CDN:**
+
+\`\`\`tsx
+// Lucide (1000+ icons) - https://lucide.dev/icons
+<img src="https://unpkg.com/lucide-static@latest/icons/{NAME}.svg" style={{ filter: 'brightness(0) invert(1)' }} />
+
+// Simple Icons (2800+ brand logos) - https://simpleicons.org
+<img src="https://cdn.simpleicons.org/{BRAND}/{COLOR}" />
+
+// Iconify (200,000+ icons) - https://icon-sets.iconify.design
+<img src="https://api.iconify.design/{SET}/{ICON}.svg?color=%23ffffff" />
+
+// SVG Repo (500,000+ SVGs) - https://svgrepo.com
+<img src="https://www.svgrepo.com/show/{ID}/{name}.svg" />
+\`\`\`
+
+Search these sites for ANY concept you need to visualize!
+
 ## ⛔ RESTRICTIONS
 - NO external models (GLTF, OBJ, FBX) — procedural geometry ONLY
-- NO @react-three/drei — keep dependencies minimal
 - NO useFrame from @react-three/fiber — use useCurrentFrame from remotion
 - ALL sizes relative to dimensions (width * 0.01, not hardcoded pixels)
 - NO unused variable declarations
@@ -390,11 +526,12 @@ This is NOT a separate scene - it's a MOMENT in ONE flowing animation.
 ## RULES
 1. ThreeCanvas wrapper is MANDATORY for all 3D content
 2. LIGHTING is MANDATORY (ambient + directional minimum)
-3. RELATIVE SIZING for 2D overlays
-4. KEY PROPS - every .map() needs \`key\`
-5. EDUCATIONAL - every element should help explain the concept
-6. PROCEDURAL GEOMETRY ONLY - no external models
-7. NO UNUSED VARIABLES - only declare what you use
+3. USE DREI for fun animations (Float, MeshWobbleMaterial, MeshDistortMaterial)
+4. RELATIVE SIZING for 2D overlays
+5. KEY PROPS - every .map() needs \`key\`
+6. EDUCATIONAL - every element should help explain the concept
+7. PROCEDURAL GEOMETRY ONLY - no external models
+8. NO UNUSED VARIABLES - only declare what you use
 
 ## OUTPUT
 - ONLY TypeScript/React code
@@ -708,6 +845,7 @@ async function createCompositionCjs(
       '--bundle', '--format=cjs', '--platform=browser', '--target=es2020',
       '--external:react', '--external:react/jsx-runtime', '--external:react/jsx-dev-runtime', '--external:remotion',
       '--external:@remotion/three', '--external:three', '--external:@react-three/fiber',
+      '--external:@react-three/drei', '--external:@react-spring/three',
       `--outfile=${outputPath}`,
     ], {
       cwd: workspace,
