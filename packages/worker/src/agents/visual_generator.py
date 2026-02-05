@@ -1688,6 +1688,9 @@ def compile_to_cjs(workspace: str, project_id: str, bundle_dir: Path) -> bool:
                 "--platform=browser",
                 "--external:react",
                 "--external:remotion",
+                "--external:@remotion/three",
+                "--external:three",
+                "--external:@react-three/fiber",
                 f"--outfile={cjs_file}"
             ],
             capture_output=True,

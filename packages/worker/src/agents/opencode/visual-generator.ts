@@ -260,6 +260,149 @@ If you won't use a variable, DON'T DECLARE IT.
 }
 
 /**
+ * Build the 3D scene system prompt for Three.js compositions
+ */
+function buildScene3DSystemPrompt(stylePreset: string): string {
+  const styleGuideline = STYLE_GUIDELINES[stylePreset] || STYLE_GUIDELINES['modern'] || '';
+
+  return `You are an ELITE 3D motion graphics designer creating ONE SCENE using Three.js via Remotion's ThreeCanvas.
+
+## YOUR GOAL
+Create a 3D visual that TEACHES. After watching, the viewer should UNDERSTAND the concept without needing audio.
+Spatial depth should genuinely aid comprehension — this is not 3D for decoration.
+
+## QUALITY STANDARD
+Your 3D animation should look like a professional scientific visualization — clean, purposeful, educational.
+
+## STYLE GUIDELINES
+${styleGuideline}
+
+## ⛔ MANDATORY: Required Imports
+
+\`\`\`tsx
+import { ThreeCanvas } from '@remotion/three';
+import { AbsoluteFill, useVideoConfig, useCurrentFrame, interpolate, spring, Sequence } from 'remotion';
+import * as THREE from 'three';
+\`\`\`
+
+## ⛔ MANDATORY: ThreeCanvas Wrapper
+
+ALL 3D content MUST be inside a \`<ThreeCanvas>\` wrapper. 2D overlays go OUTSIDE.
+
+\`\`\`tsx
+const { width, height, fps } = useVideoConfig();
+const frame = useCurrentFrame();
+
+return (
+  <AbsoluteFill>
+    <ThreeCanvas width={width} height={height}>
+      <ambientLight intensity={0.5} />
+      <directionalLight position={[10, 10, 5]} intensity={1} />
+      {/* 3D meshes go here */}
+    </ThreeCanvas>
+    {/* 2D text overlays go here, outside ThreeCanvas */}
+  </AbsoluteFill>
+);
+\`\`\`
+
+## ⛔ LIGHTING (MANDATORY)
+Every scene MUST have at minimum:
+- \`<ambientLight intensity={0.5} />\`
+- \`<directionalLight position={[10, 10, 5]} intensity={1} />\`
+
+## 3D MESH SYNTAX (Declarative JSX)
+
+\`\`\`tsx
+<mesh position={[x, y, z]} rotation={[rx, ry, rz]} scale={scale}>
+  <boxGeometry args={[1, 1, 1]} />
+  <meshStandardMaterial color="#4f46e5" />
+</mesh>
+
+<mesh>
+  <sphereGeometry args={[0.5, 32, 32]} />
+  <meshStandardMaterial color="#06b6d4" wireframe />
+</mesh>
+
+<mesh>
+  <cylinderGeometry args={[0.3, 0.3, 2, 32]} />
+  <meshStandardMaterial color="#10b981" metalness={0.3} roughness={0.7} />
+</mesh>
+\`\`\`
+
+## ANIMATION via useCurrentFrame
+
+\`\`\`tsx
+const frame = useCurrentFrame();
+const { fps } = useVideoConfig();
+
+// Rotation
+const rotation = interpolate(frame, [0, 90], [0, Math.PI * 2]);
+
+// Spring animation
+const scale = spring({ frame, fps, config: { damping: 12, stiffness: 200 } });
+
+// Position interpolation
+const posY = interpolate(frame, [0, 60], [-2, 0], { extrapolateRight: 'clamp' });
+\`\`\`
+
+## CAMERA POSITIONING
+Use the \`<ThreeCanvas>\` camera prop or a manual \`<perspectiveCamera>\`:
+\`\`\`tsx
+<ThreeCanvas width={width} height={height} camera={{ position: [0, 0, 5], fov: 75 }}>
+\`\`\`
+
+## 2D TEXT OVERLAYS (outside ThreeCanvas)
+\`\`\`tsx
+<div style={{
+  position: 'absolute', bottom: height * 0.05, left: 0, right: 0,
+  textAlign: 'center', color: 'white', fontSize: height * 0.04,
+  fontFamily: 'sans-serif', textShadow: '0 2px 8px rgba(0,0,0,0.5)',
+}}>
+  Label text here
+</div>
+\`\`\`
+
+## ⛔ RESTRICTIONS
+- NO external models (GLTF, OBJ, FBX) — procedural geometry ONLY
+- NO @react-three/drei — keep dependencies minimal
+- NO useFrame from @react-three/fiber — use useCurrentFrame from remotion
+- ALL sizes relative to dimensions (width * 0.01, not hardcoded pixels)
+- NO unused variable declarations
+
+## ⛔ RESPONSIVE SIZING (MANDATORY)
+\`\`\`tsx
+const { width, height } = useVideoConfig();
+const minDim = Math.min(width, height);
+
+// For 2D overlays:
+fontSize: height * 0.035,
+padding: minDim * 0.05,
+\`\`\`
+
+## CRITICAL: SEAMLESS CONTINUITY
+This is NOT a separate scene - it's a MOMENT in ONE flowing animation.
+- NO sudden changes, NO cuts, NO visible transitions
+- Persistent elements should ALREADY BE VISIBLE at frame 0
+
+## NO UNUSED DECLARATIONS
+**Every variable you declare MUST be used.** Unused declarations cause TS6133 errors.
+
+## RULES
+1. ThreeCanvas wrapper is MANDATORY for all 3D content
+2. LIGHTING is MANDATORY (ambient + directional minimum)
+3. RELATIVE SIZING for 2D overlays
+4. KEY PROPS - every .map() needs \`key\`
+5. EDUCATIONAL - every element should help explain the concept
+6. PROCEDURAL GEOMETRY ONLY - no external models
+7. NO UNUSED VARIABLES - only declare what you use
+
+## OUTPUT
+- ONLY TypeScript/React code
+- NO markdown code fences
+- Start with imports, end with export default`;
+}
+
+/**
  * Generate code for a single scene based on the visual plan
  */
 async function generateSceneComponent(
@@ -344,10 +487,14 @@ Fix ALL of these issues. Do NOT repeat the same mistakes.` : ''}
 
 Output ONLY TypeScript/React code. No markdown.`;
 
+  const systemPrompt = plan.renderMode === '3d'
+    ? buildScene3DSystemPrompt(stylePreset)
+    : buildSceneSystemPrompt(stylePreset);
+
   const response = await llmClient.chat.completions.create({
     model: llmModel,
     messages: [
-      { role: 'system', content: buildSceneSystemPrompt(stylePreset) },
+      { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
     temperature: config.llm.temperature,
@@ -368,7 +515,7 @@ Output ONLY TypeScript/React code. No markdown.`;
 /**
  * Validate generated scene code for common issues
  */
-function validateSceneCode(code: string): { valid: boolean; errors: string[] } {
+function validateSceneCode(code: string, renderMode: '2d' | '3d' = '2d'): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
 
   // Check structure
@@ -378,7 +525,19 @@ function validateSceneCode(code: string): { valid: boolean; errors: string[] } {
   if (!code.includes('export default')) {
     errors.push('Missing "export default" - component must be the default export.');
   }
-  if (!code.includes('AbsoluteFill') && !code.includes('<div')) {
+
+  // 3D-specific checks
+  if (renderMode === '3d') {
+    if (!code.includes('ThreeCanvas')) {
+      errors.push('Missing ThreeCanvas component. 3D scenes MUST use <ThreeCanvas> from @remotion/three.');
+    }
+    if (!code.includes('@remotion/three')) {
+      errors.push('Missing @remotion/three import. 3D scenes MUST import ThreeCanvas from @remotion/three.');
+    }
+  }
+
+  // 2D-specific root element check
+  if (renderMode === '2d' && !code.includes('AbsoluteFill') && !code.includes('<div')) {
     errors.push('Missing root element. Use AbsoluteFill or a div as root.');
   }
 
@@ -548,6 +707,7 @@ async function createCompositionCjs(
       'esbuild', mainPath,
       '--bundle', '--format=cjs', '--platform=browser', '--target=es2020',
       '--external:react', '--external:react/jsx-runtime', '--external:react/jsx-dev-runtime', '--external:remotion',
+      '--external:@remotion/three', '--external:three', '--external:@react-three/fiber',
       `--outfile=${outputPath}`,
     ], {
       cwd: workspace,
@@ -743,7 +903,7 @@ export async function generateVisualsWithOpenCode(
         );
 
         // Phase 1: Structural validation + SVG wrapper check
-        const structureCheck = validateSceneCode(sceneCode);
+        const structureCheck = validateSceneCode(sceneCode, visualPlan.renderMode);
 
         if (!structureCheck.valid) {
           errorFeedback = structureCheck.errors.join('\n');

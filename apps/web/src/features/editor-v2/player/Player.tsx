@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, startTransition } from 'react';
 import { Player as RemotionPlayer, PlayerRef, CallbackListener } from '@remotion/player';
 import { Composition } from './Composition';
 import {
@@ -59,6 +59,14 @@ export function Player({ className }: PlayerProps) {
     player.seekTo(frame);
   }, [currentTimeMs, fps, isPlaying]);
 
+  // Throttle time-store updates during playback.
+  // 10+ components subscribe to currentTimeMs — updating the store at
+  // 30 fps causes 300+ re-renders/sec, which stalls playback after ~30 s.
+  // We throttle to every 250 ms AND wrap in startTransition so React
+  // treats the resulting re-renders as low-priority / interruptible,
+  // keeping the main thread free for Remotion's video decode loop.
+  const lastStoreUpdateRef = useRef(0);
+
   // Listen to Remotion player events
   useEffect(() => {
     const player = playerRef.current;
@@ -68,13 +76,18 @@ export function Player({ className }: PlayerProps) {
       const frame = data.detail.frame;
       const timeMs = (frame / fps) * 1000;
 
-      isInternalUpdate.current = true;
-      setCurrentTime(timeMs);
+      const now = performance.now();
+      if (now - lastStoreUpdateRef.current < 250) return;
+      lastStoreUpdateRef.current = now;
 
-      // Reset flag after a short delay
-      requestAnimationFrame(() => {
-        isInternalUpdate.current = false;
+      isInternalUpdate.current = true;
+      startTransition(() => {
+        setCurrentTime(timeMs);
       });
+
+      setTimeout(() => {
+        isInternalUpdate.current = false;
+      }, 0);
     };
 
     const handlePlay: CallbackListener<'play'> = () => {

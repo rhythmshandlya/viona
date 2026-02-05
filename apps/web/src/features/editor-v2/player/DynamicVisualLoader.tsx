@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as Remotion from 'remotion';
-import { AbsoluteFill } from 'remotion';
+import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 
 interface DynamicVisualLoaderProps {
   bundleUrl: string;
@@ -15,8 +15,161 @@ interface DynamicVisualLoaderProps {
   className?: string;
 }
 
+// ============================================================================
+// FALLBACK ANIMATION COMPONENTS
+// These are injected as globals for dynamically loaded compositions that
+// might reference animations without proper imports.
+// ============================================================================
+
+const SPRING_CONFIGS = {
+  minimal: { damping: 20, stiffness: 60, mass: 1 },
+  modern: { damping: 12, stiffness: 80, mass: 1 },
+  playful: { damping: 8, stiffness: 200, mass: 1 },
+  bold: { damping: 15, stiffness: 150, mass: 1 },
+  classic: { damping: 25, stiffness: 50, mass: 1 },
+} as const;
+
+type StylePreset = keyof typeof SPRING_CONFIGS;
+
+interface AnimationProps {
+  children: React.ReactNode;
+  delay?: number;
+  duration?: number;
+  style?: StylePreset;
+  speed?: 'fast' | 'normal' | 'slow';
+  distance?: number;
+}
+
+const PREMIUM_DURATIONS: Record<StylePreset, Record<'fast' | 'normal' | 'slow', number>> = {
+  minimal: { fast: 20, normal: 30, slow: 45 },
+  modern: { fast: 18, normal: 25, slow: 40 },
+  playful: { fast: 15, normal: 22, slow: 35 },
+  bold: { fast: 12, normal: 20, slow: 30 },
+  classic: { fast: 25, normal: 35, slow: 50 },
+};
+
+// FadeIn - Simple opacity fade
+const FadeIn: React.FC<AnimationProps> = ({ children, delay = 0, duration = 20 }) => {
+  const frame = useCurrentFrame();
+  const opacity = interpolate(frame - delay, [0, duration], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+  return <div style={{ opacity }}>{children}</div>;
+};
+
+// FadeInUp - Elegant upward reveal
+const FadeInUp: React.FC<AnimationProps> = ({ children, delay = 0, duration, style = 'modern', speed = 'normal', distance = 40 }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const dur = duration || PREMIUM_DURATIONS[style][speed];
+  const config = SPRING_CONFIGS[style];
+  if (frame < delay) return <div style={{ opacity: 0 }}>{children}</div>;
+  const progress = spring({ frame: frame - delay, fps, config, durationInFrames: dur });
+  const translateY = interpolate(progress, [0, 1], [distance, 0]);
+  const opacity = interpolate(progress, [0, 0.6], [0, 1], { extrapolateRight: 'clamp' });
+  return <div style={{ transform: `translateY(${translateY}px)`, opacity }}>{children}</div>;
+};
+
+// FadeInDown - Downward fade entrance
+const FadeInDown: React.FC<AnimationProps> = ({ children, delay = 0, duration, style = 'modern', speed = 'normal', distance = 40 }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const dur = duration || PREMIUM_DURATIONS[style][speed];
+  const config = SPRING_CONFIGS[style];
+  if (frame < delay) return <div style={{ opacity: 0 }}>{children}</div>;
+  const progress = spring({ frame: frame - delay, fps, config, durationInFrames: dur });
+  const translateY = interpolate(progress, [0, 1], [-distance, 0]);
+  const opacity = interpolate(progress, [0, 0.6], [0, 1], { extrapolateRight: 'clamp' });
+  return <div style={{ transform: `translateY(${translateY}px)`, opacity }}>{children}</div>;
+};
+
+// SlideUp - Slide from bottom
+const SlideUp: React.FC<AnimationProps> = ({ children, delay = 0, duration = 25, style = 'modern', distance = 30 }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const config = SPRING_CONFIGS[style];
+  if (frame < delay) return <div style={{ opacity: 0 }}>{children}</div>;
+  const progress = spring({ frame: frame - delay, fps, config, durationInFrames: duration });
+  const translateY = interpolate(progress, [0, 1], [distance, 0]);
+  const opacity = interpolate(progress, [0, 0.5], [0, 1], { extrapolateRight: 'clamp' });
+  return <div style={{ transform: `translateY(${translateY}px)`, opacity }}>{children}</div>;
+};
+
+// ScaleIn - Scale entrance
+const ScaleIn: React.FC<AnimationProps> = ({ children, delay = 0, duration = 20, style = 'modern' }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const config = SPRING_CONFIGS[style];
+  if (frame < delay) return <div style={{ opacity: 0, transform: 'scale(0.8)' }}>{children}</div>;
+  const progress = spring({ frame: frame - delay, fps, config, durationInFrames: duration });
+  const scale = interpolate(progress, [0, 1], [0.8, 1]);
+  const opacity = interpolate(progress, [0, 0.5], [0, 1], { extrapolateRight: 'clamp' });
+  return <div style={{ transform: `scale(${scale})`, opacity }}>{children}</div>;
+};
+
+// BounceIn - Dramatic bouncy entrance
+const BounceIn: React.FC<AnimationProps> = ({ children, delay = 0, duration, style = 'playful', speed = 'normal' }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const dur = duration || PREMIUM_DURATIONS[style][speed];
+  if (frame < delay) return <div style={{ opacity: 0, transform: 'scale(0.3)' }}>{children}</div>;
+  const progress = spring({ frame: frame - delay, fps, config: { damping: 8, stiffness: 200, mass: 1 }, durationInFrames: dur });
+  const scale = interpolate(progress, [0, 0.5, 0.75, 1], [0.3, 1.1, 0.95, 1]);
+  const opacity = interpolate(progress, [0, 0.3], [0, 1], { extrapolateRight: 'clamp' });
+  return <div style={{ transform: `scale(${scale})`, opacity }}>{children}</div>;
+};
+
+// ZoomIn - Dramatic zoom from small
+const ZoomIn: React.FC<AnimationProps> = ({ children, delay = 0, duration, style = 'bold', speed = 'normal' }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const dur = duration || PREMIUM_DURATIONS[style][speed];
+  const config = SPRING_CONFIGS[style];
+  if (frame < delay) return <div style={{ opacity: 0, transform: 'scale(0.3)' }}>{children}</div>;
+  const progress = spring({ frame: frame - delay, fps, config, durationInFrames: dur });
+  const scale = interpolate(progress, [0, 1], [0.3, 1]);
+  const opacity = interpolate(progress, [0, 0.4], [0, 1], { extrapolateRight: 'clamp' });
+  return <div style={{ transform: `scale(${scale})`, opacity }}>{children}</div>;
+};
+
+// Pulse - Breathing scale effect
+const Pulse: React.FC<AnimationProps & { intensity?: number }> = ({ children, delay = 0, duration = 30, intensity = 1.08 }) => {
+  const frame = useCurrentFrame();
+  if (frame < delay) return <div>{children}</div>;
+  const loopFrame = (frame - delay) % duration;
+  const scale = interpolate(loopFrame, [0, duration / 2, duration], [1, intensity, 1]);
+  return <div style={{ transform: `scale(${scale})` }}>{children}</div>;
+};
+
+// GlowPulse - Pulsing glow effect
+const GlowPulse: React.FC<AnimationProps & { color?: string; intensity?: number }> = ({ children, delay = 0, duration = 40, color = '#3b82f6', intensity = 20 }) => {
+  const frame = useCurrentFrame();
+  if (frame < delay) return <div>{children}</div>;
+  const loopFrame = (frame - delay) % duration;
+  const glowSize = interpolate(loopFrame, [0, duration / 2, duration], [0, intensity, 0]);
+  return <div style={{ filter: `drop-shadow(0 0 ${glowSize}px ${color})` }}>{children}</div>;
+};
+
+// Collect all animation components for injection
+const AnimationComponents = {
+  FadeIn,
+  FadeInUp,
+  FadeInDown,
+  SlideUp,
+  ScaleIn,
+  BounceIn,
+  ZoomIn,
+  Pulse,
+  GlowPulse,
+  SPRING_CONFIGS,
+  PREMIUM_DURATIONS,
+};
+
 // Module cache to avoid re-fetching
 const moduleCache = new Map<string, React.ComponentType>();
+
+// Lazy-loaded Three.js module caches
+let remotionThreeModule: Record<string, unknown> | null = null;
+let threeModule: Record<string, unknown> | null = null;
+let fiberModule: Record<string, unknown> | null = null;
 
 export function DynamicVisualLoader({
   bundleUrl,
@@ -61,30 +214,85 @@ export function DynamicVisualLoader({
       }
       const code = await response.text();
 
+      // Detect Three.js usage and lazy-import if needed
+      const usesThreeJs = code.includes('@remotion/three') ||
+                          code.includes("'three'") ||
+                          code.includes('@react-three/fiber');
+
+      if (usesThreeJs && !remotionThreeModule) {
+        const [rThree, three, fiber] = await Promise.all([
+          import('@remotion/three'),
+          import('three'),
+          import('@react-three/fiber'),
+        ]);
+        remotionThreeModule = rThree as unknown as Record<string, unknown>;
+        threeModule = three as unknown as Record<string, unknown>;
+        fiberModule = fiber as unknown as Record<string, unknown>;
+      }
+
       // Create a custom require function that provides React and Remotion
       const customRequire = (moduleName: string) => {
         if (moduleName === 'react') return React;
         if (moduleName === 'react/jsx-runtime') {
-          // Provide JSX runtime for React 17+ JSX transform
+          // JSX runtime: jsx(type, props, key) – key is the 3rd arg.
+          // React.createElement(type, props, ...children) – 3rd+ args are children.
+          // We must merge the key into props before forwarding.
+          const jsxShim = (type: any, props: any, key?: any) => {
+            if (key !== undefined) {
+              return React.createElement(type, { ...props, key });
+            }
+            return React.createElement(type, props);
+          };
           return {
-            jsx: React.createElement,
-            jsxs: React.createElement,
+            jsx: jsxShim,
+            jsxs: jsxShim,
             Fragment: React.Fragment,
           };
         }
         if (moduleName === 'react/jsx-dev-runtime') {
-          // Dev runtime uses same functions
+          const jsxDEVShim = (type: any, props: any, key?: any) => {
+            if (key !== undefined) {
+              return React.createElement(type, { ...props, key });
+            }
+            return React.createElement(type, props);
+          };
           return {
-            jsxDEV: React.createElement,
+            jsxDEV: jsxDEVShim,
             Fragment: React.Fragment,
           };
         }
         if (moduleName === 'remotion') return Remotion;
+        if (moduleName === '@remotion/three') return remotionThreeModule;
+        if (moduleName === 'three') return threeModule;
+        if (moduleName === '@react-three/fiber') return fiberModule;
         throw new Error(`Unknown module: ${moduleName}`);
       };
 
       // Create module and exports objects
       const moduleObj: { exports: Record<string, unknown> } = { exports: {} };
+
+      // Inject all Remotion exports as scope variables so generated code
+      // works even if it references them as bare globals (e.g. `Sequence`)
+      // instead of using `require('remotion')`.
+      const remotionKeys = Object.keys(Remotion);
+      const remotionValues = remotionKeys.map(
+        (key) => (Remotion as Record<string, unknown>)[key]
+      );
+
+      // Inject @remotion/three exports as scope globals for 3D compositions
+      let threeKeys: string[] = [];
+      let threeVals: unknown[] = [];
+      if (usesThreeJs && remotionThreeModule) {
+        threeKeys = Object.keys(remotionThreeModule);
+        threeVals = threeKeys.map(k => remotionThreeModule![k]);
+      }
+
+      // Inject animation components as scope globals for compositions that
+      // reference them without proper imports (fallback for buggy generated code)
+      const animationKeys = Object.keys(AnimationComponents);
+      const animationValues = animationKeys.map(
+        (key) => (AnimationComponents as Record<string, unknown>)[key]
+      );
 
       // Execute the CommonJS module
       // eslint-disable-next-line no-new-func
@@ -92,9 +300,21 @@ export function DynamicVisualLoader({
         'module',
         'exports',
         'require',
+        'React',
+        ...remotionKeys,
+        ...threeKeys,
+        ...animationKeys,
         code
       );
-      moduleFunction(moduleObj, moduleObj.exports, customRequire);
+      moduleFunction(
+        moduleObj,
+        moduleObj.exports,
+        customRequire,
+        React,
+        ...remotionValues,
+        ...threeVals,
+        ...animationValues
+      );
 
       // Find the composition component - try various export names
       const exports = moduleObj.exports;

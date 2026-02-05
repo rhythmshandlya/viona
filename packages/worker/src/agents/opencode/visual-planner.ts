@@ -33,6 +33,9 @@ export interface VisualPlan {
     background: string;
   };
 
+  // Render mode
+  renderMode: '2d' | '3d';
+
   // Scene breakdown
   scenes: PlannedScene[];
 }
@@ -103,6 +106,18 @@ The video must feel like ONE FLOWING ANIMATION - not separate scenes cutting tog
 - The visual EVOLVES continuously
 - Elements MORPH, GROW, MOVE - they don't disappear and reappear
 
+### 2D vs 3D Decision
+Set renderMode to "3d" ONLY when spatial depth genuinely helps understanding:
+- Molecular/atomic structures, protein folding
+- 3D geometry (rotations, cross-sections, volumes)
+- Physics (orbits, force fields, wave propagation)
+- Architecture, mechanical systems
+
+Default to "2d" for everything else:
+- Data structures, algorithms, flowcharts
+- System architecture, processes
+- Statistics, charts, timelines
+
 ## Your Process
 
 ### Step 1: Deeply Understand the Content
@@ -136,6 +151,7 @@ Each moment focuses on a different ASPECT of the same visual:
 Return a JSON object with:
 - coreConcept: One sentence summary
 - targetAudience: Who this is for
+- renderMode: "2d" or "3d" (default "2d")
 - visualMetaphor: The SINGLE evolving visual (e.g., "A heap data structure that builds up and reorganizes")
 - visualDescription: How this ONE visual evolves throughout the video
 - persistentElements: Elements that are ALWAYS visible (the core structure)
@@ -238,10 +254,25 @@ Output the visual plan as JSON.`;
 
     const plan = JSON.parse(content) as VisualPlan;
 
-    // Add frame calculations to scenes
+    // Normalize renderMode — default to '2d' unless explicitly '3d'
+    plan.renderMode = plan.renderMode === '3d' ? '3d' : '2d';
+
+    // Normalize persistentElements — the AI sometimes returns a string instead of an array
+    if (!Array.isArray(plan.persistentElements)) {
+      plan.persistentElements = typeof plan.persistentElements === 'string'
+        ? (plan.persistentElements as string).split(',').map((s: string) => s.trim()).filter(Boolean)
+        : [];
+    }
+
+    // Add frame calculations to scenes and normalize keyElements
     plan.scenes = plan.scenes.map((scene, index) => ({
       ...scene,
       id: scene.id || `scene_${index + 1}`,
+      keyElements: Array.isArray(scene.keyElements)
+        ? scene.keyElements
+        : typeof scene.keyElements === 'string'
+          ? (scene.keyElements as string).split(',').map((s: string) => s.trim()).filter(Boolean)
+          : [],
       startFrame: Math.floor((scene.startMs / 1000) * fps),
       endFrame: Math.ceil((scene.endMs / 1000) * fps),
       durationFrames: Math.ceil(((scene.endMs - scene.startMs) / 1000) * fps),

@@ -75,6 +75,7 @@ export const visuals = pgTable('visuals', {
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
   compositionId: varchar('composition_id', { length: 255 }).notNull(),
   bundleUrl: varchar('bundle_url', { length: 500 }).notNull(),
+  videoUrl: varchar('video_url', { length: 500 }),
   durationFrames: integer('duration_frames').notNull(),
   fps: integer('fps').notNull().default(30),
   width: integer('width').notNull().default(1920),

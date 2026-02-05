@@ -242,7 +242,8 @@
       "Bash(npx remotion:*)",
       "Bash(cat:*)",
       "Bash(docker-compose config:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(npx next build:*)"
     ]
   }
 }
