@@ -65,12 +65,14 @@ The agent currently generates 2D Remotion compositions. This design adds:
 {
   "dependencies": {
     "@remotion/three": "4.0.414",
-    "@react-three/fiber": "^8.15.0",
-    "@react-three/drei": "^9.88.0",
-    "three": "^0.160.0"
+    "@react-three/fiber": "^9.0.0",
+    "@react-three/drei": "^10.0.0",
+    "three": "^0.170.0"
   }
 }
 ```
+
+**Note:** React 19 requires fiber v9 and drei v10 (see [R3F v9 Migration Guide](https://r3f.docs.pmnd.rs/tutorials/v9-migration-guide)).
 
 **Run in remotion-template:**
 ```bash
