@@ -60,6 +60,8 @@ export const config = {
 
   enhance: {
     scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
+    // Set DISABLE_AUDIO_ENHANCEMENT=true to skip the enhancement pipeline entirely
+    disabled: process.env.DISABLE_AUDIO_ENHANCEMENT === 'true',
   },
 
   remotion: {
