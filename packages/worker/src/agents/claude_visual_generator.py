@@ -11,10 +11,16 @@ Reference: Auto-Claude apps/backend/core/auth.py, client.py
 import asyncio
 import json
 import os
+import platform
 import shutil
 import sys
 from pathlib import Path
 from typing import Any
+
+# Platform detection for subprocess shell parameter
+# Windows requires shell=True for npx commands (npx.cmd)
+# Mac/Linux work better with shell=False
+IS_WINDOWS = platform.system() == "Windows"
 
 # Add agents directory to path for local imports
 _agents_dir = Path(__file__).parent
@@ -2123,7 +2129,7 @@ class ClaudeVisualGenerator:
                 cwd=str(self.workspace),
                 capture_output=True,
                 timeout=60,
-                shell=True,
+                shell=IS_WINDOWS,
                 encoding="utf-8",
                 errors="replace",
             )
@@ -2244,7 +2250,7 @@ When done, respond: "SELF-HEAL COMPLETE"
                 cwd=str(self.workspace),
                 capture_output=True,
                 timeout=120,  # 2 min for tsc check
-                shell=True,
+                shell=IS_WINDOWS,
                 encoding="utf-8",
                 errors="replace",
             )
@@ -2301,7 +2307,7 @@ When done, respond: "SELF-HEAL COMPLETE"
                 cwd=str(self.workspace),
                 capture_output=True,
                 timeout=60,
-                shell=True,
+                shell=IS_WINDOWS,
                 encoding="utf-8",
                 errors="replace",
             )
@@ -2580,12 +2586,26 @@ When done, respond: "SELF-HEAL COMPLETE"
                 max_buffer_size=10 * 1024 * 1024,
                 enable_file_checkpointing=True,
                 setting_sources=["project"],  # Load skills from .claude/skills/
-                allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWrite", "Skill"],
+                allowed_tools=[
+                    "Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWrite", "Skill",
+                    # MCP tools from better-icons server
+                    "mcp__better-icons__search_icons",
+                    "mcp__better-icons__get_icon",
+                    # MCP tools from lottiefiles server
+                    "mcp__lottiefiles__search_animations",
+                    "mcp__lottiefiles__get_animation_details",
+                    "mcp__lottiefiles__get_popular_animations",
+                ],
                 mcp_servers={
                     "better-icons": {
                         "type": "stdio",
                         "command": "npx",
                         "args": ["better-icons"]
+                    },
+                    "lottiefiles": {
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": ["-y", "mcp-server-lottiefiles"]
                     }
                 },
                 hooks={

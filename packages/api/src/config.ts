@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { join } from 'path';
 
 export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
@@ -25,6 +26,6 @@ export const config = {
 
   bundles: {
     // IMPORTANT: This must match the worker's remotion.bundleOutputDir config (set BUNDLE_OUTPUT_DIR in .env)
-    dir: process.env.BUNDLE_OUTPUT_DIR || 'C:/Users/armaa/Documents/cllipify/bundles',
+    dir: process.env.BUNDLE_OUTPUT_DIR || join(process.cwd(), '..', '..', 'bundles'),
   },
 } as const;

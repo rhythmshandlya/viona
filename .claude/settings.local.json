@@ -32,7 +32,27 @@
       "Bash(pnpm install)",
       "Bash(pnpm install:*)",
       "Bash(npm install:*)",
-      "WebFetch(domain:developers.lottiefiles.com)"
+      "WebFetch(domain:developers.lottiefiles.com)",
+      "Bash(pnpm db:migrate:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: add physics baking design for realistic animations\n\nIntroduces Matter.js integration with Remotion using a \"baking\" pattern\nwhere physics simulations are pre-computed and stored for frame-by-frame\nplayback. Includes API design, presets, and AI agent guidance.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Skill(superpowers:using-git-worktrees)",
+      "Bash(pnpm build:*)",
+      "Bash(pnpm --filter @reelify/api build:*)",
+      "Skill(superpowers:writing-plans)",
+      "Bash(git commit:*)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Bash(pnpm --filter @reelify/physics build:*)",
+      "Bash(start \"\" \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\.worktrees\\\\physics-baking\\\\packages\\\\worker\\\\remotion-template\\\\out\\\\physics-test.mp4\")",
+      "Bash(git worktree:*)",
+      "Bash(npx better-icons:*)",
+      "Bash(npx -y mcp-server-lottiefiles search \"loading\")",
+      "Bash(npx:*)",
+      "Bash(printf:*)",
+      "Bash(npm view:*)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }

@@ -14,8 +14,27 @@
 ## File Structure
 ```
 src/proj_<id>/
-├── constants.ts   # COLORS, TIMING, SPRING_CONFIG
-└── index.tsx      # Main composition with all scenes
+├── index.tsx           # Main composition - imports and assembles scenes
+├── constants.ts        # COLORS, TIMING, SPRING_CONFIG
+├── metadata.json       # Composition metadata for renderer
+├── components/         # Reusable components
+│   ├── Background.tsx  # Animated background
+│   └── ...             # Shared icons, shapes, etc.
+└── scenes/             # Individual scene components
+    ├── Scene1.tsx
+    ├── Scene2.tsx
+    └── ...
+```
+
+### Import Pattern
+```tsx
+// In scenes/Scene1.tsx
+import { COLORS, SPRING_CONFIG } from '../constants';
+import { Background } from '../components/Background';
+
+// In index.tsx
+import { Scene1 } from './scenes/Scene1';
+import { Background } from './components/Background';
 ```
 
 ## Common Gotchas
