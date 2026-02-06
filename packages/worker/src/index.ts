@@ -5,6 +5,7 @@ import { processTranscribeJob, TranscribeJobData } from './processors/transcribe
 import { processRenderJob, RenderJobData } from './processors/render.js';
 import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhance-audio.js';
 import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
+import { initializeWorkspace, getWorkerId } from './workspace.js';
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {
@@ -19,9 +20,19 @@ function parseRedisUrl(url: string) {
 const connection = parseRedisUrl(config.redis.url);
 
 async function main() {
-  logger.info('Starting Reelify worker...');
+  const workerId = getWorkerId();
+  logger.info({ workerId }, 'Starting Reelify worker...');
 
-  // Validate environment for visual generation (Python + OpenHands)
+  // Initialize workspace for Claude Code generator
+  logger.info({ workerId }, 'Initializing workspace for Claude Code generator...');
+  try {
+    await initializeWorkspace();
+    logger.info({ workerId }, 'Workspace initialized successfully');
+  } catch (err) {
+    logger.error({ err, workerId }, 'Failed to initialize workspace - visual generation will not work');
+  }
+
+  // Validate environment for visual generation (Python + Claude Agent SDK)
   const envCheck = await validateEnvironment();
   if (!envCheck.valid) {
     logger.warn({ error: envCheck.error }, 'Visual generation environment not configured - generate-visuals jobs will fail');

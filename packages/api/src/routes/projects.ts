@@ -381,6 +381,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         width: z.number().int().min(100).max(4096),
         height: z.number().int().min(100).max(4096),
       }),
+      styleGuide: z.string().max(2000).optional(),
     }).parse(request.body);
 
     const project = await db.query.projects.findFirst({
@@ -419,6 +420,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       stylePreset: body.stylePreset,
       layoutMode: body.layoutMode,
       dimensions: body.dimensions,
+      styleGuide: body.styleGuide,
     });
 
     return { jobId: job.id };

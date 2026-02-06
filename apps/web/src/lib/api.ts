@@ -110,6 +110,7 @@ export interface GenerateVisualsOptions {
   stylePreset: StylePreset;
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
+  styleGuide?: string;
 }
 
 export interface GenerateVisualsResponse {

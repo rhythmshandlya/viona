@@ -39,15 +39,19 @@ interface WhisperXOutput {
 }
 
 async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
+  // Normalize paths for FFmpeg on Windows (use forward slashes)
+  const normalizedInput = videoPath.replace(/\\/g, '/');
+  const normalizedOutput = audioPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg(videoPath)
+    ffmpeg(normalizedInput)
       .outputOptions([
         '-vn',           // No video
         '-acodec', 'pcm_s16le',  // 16-bit PCM
         '-ar', '16000',  // 16kHz sample rate
         '-ac', '1',      // Mono
       ])
-      .output(audioPath)
+      .output(normalizedOutput)
       .on('end', () => resolve())
       .on('error', (err) => reject(err))
       .run();
@@ -55,8 +59,11 @@ async function extractAudio(videoPath: string, audioPath: string): Promise<void>
 }
 
 async function getVideoDuration(videoPath: string): Promise<number> {
+  // Normalize path for FFmpeg on Windows
+  const normalizedPath = videoPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(videoPath, (err, metadata) => {
+    ffmpeg.ffprobe(normalizedPath, (err, metadata) => {
       if (err) {
         reject(err);
         return;
@@ -68,8 +75,11 @@ async function getVideoDuration(videoPath: string): Promise<number> {
 }
 
 async function getVideoMetadata(videoPath: string): Promise<{ width: number; height: number; fps: number }> {
+  // Normalize path for FFmpeg on Windows
+  const normalizedPath = videoPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(videoPath, (err, metadata) => {
+    ffmpeg.ffprobe(normalizedPath, (err, metadata) => {
       if (err) {
         reject(err);
         return;

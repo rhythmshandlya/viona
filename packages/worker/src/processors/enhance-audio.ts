@@ -25,15 +25,19 @@ export interface EnhanceAudioJobData {
  * Extract audio from video as 48kHz WAV mono
  */
 function extractAudio48k(videoPath: string, audioPath: string): Promise<void> {
+  // Normalize paths for FFmpeg on Windows (use forward slashes)
+  const normalizedInput = videoPath.replace(/\\/g, '/');
+  const normalizedOutput = audioPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg(videoPath)
+    ffmpeg(normalizedInput)
       .outputOptions([
         '-vn',
         '-acodec', 'pcm_s16le',
         '-ar', '48000',
         '-ac', '1',
       ])
-      .output(audioPath)
+      .output(normalizedOutput)
       .on('end', () => resolve())
       .on('error', (err) => reject(err))
       .run();
@@ -44,14 +48,18 @@ function extractAudio48k(videoPath: string, audioPath: string): Promise<void> {
  * Transcode WAV to AAC m4a
  */
 function transcodeToAac(inputPath: string, outputPath: string): Promise<void> {
+  // Normalize paths for FFmpeg on Windows (use forward slashes)
+  const normalizedInput = inputPath.replace(/\\/g, '/');
+  const normalizedOutput = outputPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
+    ffmpeg(normalizedInput)
       .outputOptions([
         '-c:a', 'aac',
         '-b:a', '192k',
         '-ar', '48000',
       ])
-      .output(outputPath)
+      .output(normalizedOutput)
       .on('end', () => resolve())
       .on('error', (err) => reject(err))
       .run();
@@ -141,8 +149,10 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
     await extractAudio48k(videoPath, rawAudioPath);
 
     // Probe actual video duration so the audio item gets the correct endMs
+    // Normalize path for FFmpeg on Windows
+    const normalizedVideoPath = videoPath.replace(/\\/g, '/');
     const durationMs: number = await new Promise((res, rej) => {
-      ffmpeg.ffprobe(videoPath, (err, meta) => {
+      ffmpeg.ffprobe(normalizedVideoPath, (err, meta) => {
         if (err) return rej(err);
         res(Math.round((meta.format.duration || 0) * 1000));
       });

@@ -8,6 +8,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as Remotion from 'remotion';
 import { AbsoluteFill } from 'remotion';
+import * as RemotionNoise from '@remotion/noise';
+import * as RemotionShapes from '@remotion/shapes';
+import * as RemotionPaths from '@remotion/paths';
+import * as RemotionThree from '@remotion/three';
 
 interface DynamicVisualLoaderProps {
   bundleUrl: string;
@@ -61,25 +65,44 @@ export function DynamicVisualLoader({
       }
       const code = await response.text();
 
-      // Create a custom require function that provides React and Remotion
+      // Create a custom require function that provides React, Remotion, and Remotion packages
       const customRequire = (moduleName: string) => {
         if (moduleName === 'react') return React;
         if (moduleName === 'react/jsx-runtime') {
           // Provide JSX runtime for React 17+ JSX transform
+          // IMPORTANT: jsx/jsxs signature is (type, props, key) NOT (type, props, ...children)
+          // We need to move the key from the 3rd argument into props
+          const jsx = (type: any, props: any, key?: string) => {
+            if (key !== undefined) {
+              return React.createElement(type, { ...props, key });
+            }
+            return React.createElement(type, props);
+          };
           return {
-            jsx: React.createElement,
-            jsxs: React.createElement,
+            jsx,
+            jsxs: jsx,
             Fragment: React.Fragment,
           };
         }
         if (moduleName === 'react/jsx-dev-runtime') {
-          // Dev runtime uses same functions
+          // Dev runtime - jsxDEV has signature (type, props, key, isStatic, source, self)
+          const jsxDEV = (type: any, props: any, key?: string) => {
+            if (key !== undefined) {
+              return React.createElement(type, { ...props, key });
+            }
+            return React.createElement(type, props);
+          };
           return {
-            jsxDEV: React.createElement,
+            jsxDEV,
             Fragment: React.Fragment,
           };
         }
         if (moduleName === 'remotion') return Remotion;
+        // Remotion sub-packages used by generated compositions
+        if (moduleName === '@remotion/noise') return RemotionNoise;
+        if (moduleName === '@remotion/shapes') return RemotionShapes;
+        if (moduleName === '@remotion/paths') return RemotionPaths;
+        if (moduleName === '@remotion/three') return RemotionThree;
         throw new Error(`Unknown module: ${moduleName}`);
       };
 

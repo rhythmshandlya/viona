@@ -1,7 +1,32 @@
 import 'dotenv/config';
 import { join } from 'path';
+import { hostname } from 'os';
 
 export const config = {
+  // Worker identification and workspace
+  worker: {
+    // Unique worker ID (defaults to hostname)
+    id: process.env.WORKER_ID || hostname(),
+    // Base path for worker workspace (each worker gets a dedicated directory)
+    workspacePath: process.env.WORKSPACE_PATH || join(process.cwd(), 'workspace'),
+    // Template directory for Remotion project
+    templatePath: process.env.WORKSPACE_TEMPLATE_PATH || join(process.cwd(), 'remotion-template'),
+  },
+
+  // Claude Agent SDK visual generator (uses OAuth authentication)
+  claudeAgent: {
+    // Model for visual generation
+    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-5-20251101',
+    // Extended thinking tokens for planning
+    maxThinkingTokens: parseInt(process.env.CLAUDE_AGENT_MAX_THINKING_TOKENS || '10000', 10),
+    // Maximum agent turns
+    maxTurns: parseInt(process.env.CLAUDE_AGENT_MAX_TURNS || '100', 10),
+    // Timeout for generation (45 minutes default - includes Director + Animator + retries)
+    timeoutSeconds: parseInt(process.env.CLAUDE_AGENT_TIMEOUT || '2700', 10),
+    // Maximum retries on failure (more for transient API errors)
+    maxRetries: parseInt(process.env.CLAUDE_AGENT_MAX_RETRIES || '4', 10),
+  },
+
   database: {
     url: process.env.DATABASE_URL || 'postgresql://reelify:reelify123@localhost:5432/reelify',
   },
@@ -41,42 +66,5 @@ export const config = {
     projectDir: process.env.REMOTION_PROJECT_DIR || 'C:/Users/armaa/test',
     // IMPORTANT: This must match the API's bundles.dir config (set BUNDLE_OUTPUT_DIR in .env)
     bundleOutputDir: process.env.BUNDLE_OUTPUT_DIR || 'C:/Users/armaa/Documents/cllipify/bundles',
-  },
-
-  openHands: {
-    // Python path for OpenHands (requires Python 3.12+)
-    pythonPath: process.env.OPENHANDS_PYTHON_PATH || 'python',
-    // Use Docker sandbox for isolation (recommended for production)
-    useDocker: process.env.OPENHANDS_USE_DOCKER === 'true',
-    // Docker image with Python, Node.js, Chromium, Remotion
-    dockerImage: process.env.OPENHANDS_DOCKER_IMAGE || 'clipify-openhands-sandbox:latest',
-    // Container resource limits
-    memoryLimit: process.env.OPENHANDS_MEMORY_LIMIT || '4g',
-    cpuLimit: process.env.OPENHANDS_CPU_LIMIT || '2',
-  },
-
-  llm: {
-    // LLM provider: 'claude-max' (via local proxy) or 'openrouter' (default)
-    provider: (process.env.LLM_PROVIDER || 'openrouter') as 'claude-max' | 'openrouter',
-
-    // Claude Max settings (requires claude-max-api-proxy running locally)
-    claudeMax: {
-      proxyUrl: process.env.CLAUDE_MAX_PROXY_URL || 'http://localhost:3456/v1',
-      model: process.env.CLAUDE_MAX_MODEL || 'claude-opus-4-5-20251101',
-      modelFlash: process.env.CLAUDE_MAX_MODEL_FLASH || 'claude-haiku-4-5-20251001',
-      apiKey: 'not-needed', // Proxy uses Claude Max subscription
-    },
-
-    // OpenRouter settings
-    openrouter: {
-      baseUrl: 'https://openrouter.ai/api/v1',
-      apiKey: process.env.OPENROUTER_API_KEY || '',
-      // Use MiMo v2 Flash - fast reasoning model
-      model: 'xiaomi/mimo-v2-flash',
-      modelFlash: 'xiaomi/mimo-v2-flash',
-    },
-
-    // Shared settings
-    temperature: 0.7, // Standard temperature for MiMo
   },
 } as const;

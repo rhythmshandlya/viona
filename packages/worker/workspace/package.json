@@ -1,0 +1,49 @@
+{
+  "name": "remotion-workspace",
+  "version": "1.0.0",
+  "description": "Remotion workspace for Claude Code visual generation",
+  "repository": {},
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@react-three/drei": "^10.0.0",
+    "@react-three/fiber": "^9.0.0",
+    "@remotion/cli": "4.0.414",
+    "@remotion/gif": "4.0.414",
+    "@remotion/google-fonts": "^4.0.419",
+    "@remotion/media-utils": "4.0.414",
+    "@remotion/motion-blur": "4.0.414",
+    "@remotion/noise": "4.0.414",
+    "@remotion/paths": "4.0.414",
+    "@remotion/shapes": "4.0.414",
+    "@remotion/tailwind-v4": "4.0.414",
+    "@remotion/three": "4.0.414",
+    "@remotion/transitions": "4.0.414",
+    "@remotion/zod-types": "4.0.414",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.414",
+    "tailwindcss": "4.0.0",
+    "three": "^0.170.0",
+    "zod": "3.22.3"
+  },
+  "devDependencies": {
+    "@remotion/eslint-config-flat": "4.0.414",
+    "@types/react": "19.2.7",
+    "@types/web": "0.0.166",
+    "eslint": "9.19.0",
+    "prettier": "3.6.0",
+    "typescript": "5.9.3"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "render": "remotion render",
+    "upgrade": "remotion upgrade",
+    "lint": "eslint src && tsc",
+    "typecheck": "tsc --noEmit --pretty false"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}
