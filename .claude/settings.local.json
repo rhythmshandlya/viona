@@ -31,7 +31,8 @@
       "Bash(npx skills find:*)",
       "Bash(pnpm install)",
       "Bash(pnpm install:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "WebFetch(domain:developers.lottiefiles.com)"
     ]
   }
 }
