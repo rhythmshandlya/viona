@@ -112,7 +112,7 @@ CLAUDE_OAUTH_REFRESH_TOKEN={tokens_dict.get('refreshToken', '')}
 CLAUDE_OAUTH_EXPIRES_AT={tokens_dict.get('expiresAt', 0)}
 
 # For the visual generator, set this:
-CLAUDE_CODE_OAUTH_TOKEN={tokens_dict['accessToken']}
+CLAUDE_AGENT_OAUTH_TOKEN={tokens_dict['accessToken']}
 """
 
 

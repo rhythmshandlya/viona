@@ -19,7 +19,19 @@
       "Bash(node:*)",
       "Bash(npx remotion:*)",
       "Bash(timeout:*)",
-      "Bash(npx esbuild:*)"
+      "Bash(npx esbuild:*)",
+      "Bash(grep:*)",
+      "Skill(superpowers:brainstorming)",
+      "Bash(xcopy:*)",
+      "Bash(copy /Y \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\remotion-template\\\\.claude\\\\CLAUDE.md\" \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\packages\\\\worker\\\\workspace\\\\.claude\\\\CLAUDE.md\")",
+      "WebFetch(domain:www.humanlayer.dev)",
+      "WebFetch(domain:www.gend.co)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:skillsmp.com)",
+      "Bash(npx skills find:*)",
+      "Bash(pnpm install)",
+      "Bash(pnpm install:*)",
+      "Bash(npm install:*)"
     ]
   }
 }

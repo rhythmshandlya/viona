@@ -31,7 +31,7 @@ def is_valid_token(token: str) -> bool:
 
 def get_existing_token() -> str | None:
     """Check for existing valid OAuth token."""
-    env_token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
+    env_token = os.environ.get("CLAUDE_AGENT_OAUTH_TOKEN", "")
     if is_valid_token(env_token):
         return env_token
 

@@ -74,7 +74,14 @@ You MUST create two files:
 2. **scenes.json** - Machine-readable for the Animator agent
 
 The Animator will read these files and implement your vision.
-Be SPECIFIC. Not "particles appear" but "30 blue particles flow left-to-right at 2px/frame, representing data stream"
+
+Be SPECIFIC but RESPONSIVE:
+- BAD: "Text at position (100, 200) with size 48px"
+- GOOD: "Title centered horizontally, 15% from top, font size = 5% of canvas height"
+- BAD: "Box 400px wide"
+- GOOD: "Box 60% of canvas width, centered"
+
+All measurements should be percentages or relative to canvas dimensions.
 </output_format>
 
 <quality_criteria>
@@ -85,6 +92,8 @@ Before finishing, verify your plan passes these tests:
 [ ] SYNC TEST: Are key visuals aligned to specific transcript words?
 [ ] UNIQUENESS TEST: Is this plan specific to THIS content, not generic?
 [ ] CONNECTION TEST: Does each scene build from the previous?
+[ ] RESPONSIVE TEST: Are all positions/sizes relative, not absolute pixels?
+[ ] SAFE AREA TEST: Is critical content within 80% of canvas (10% margins)?
 </quality_criteria>
 
 <visual_metaphors>
@@ -200,6 +209,67 @@ Research BEFORE planning to create more informed, visually compelling scene desi
 """
 
 
+import math
+
+STYLE_PRESET_DESCRIPTIONS = {
+    "minimal": "Clean lines, whitespace, monochrome with single accent color. Focus on simplicity and negative space.",
+    "modern": "Gradients, rounded corners, vibrant colors. Contemporary feel with smooth transitions.",
+    "playful": "Bright colors, bouncy animations, friendly feel. Fun and energetic with playful motion.",
+    "bold": "High contrast, large text, dramatic impact. Strong visual statements with stark contrasts.",
+    "classic": "Traditional charts, serif fonts, professional tones. Timeless and business-appropriate.",
+}
+
+
+def get_aspect_ratio_name(width: int, height: int) -> str:
+    """Get a human-readable aspect ratio name."""
+    ratio = width / height
+
+    # Common aspect ratios
+    if abs(ratio - 9/16) < 0.05:
+        return "9:16 (vertical/mobile)"
+    elif abs(ratio - 16/9) < 0.05:
+        return "16:9 (horizontal/desktop)"
+    elif abs(ratio - 1) < 0.05:
+        return "1:1 (square)"
+    elif abs(ratio - 4/3) < 0.05:
+        return "4:3 (standard)"
+    elif abs(ratio - 3/4) < 0.05:
+        return "3:4 (vertical)"
+    elif ratio < 1:
+        return f"vertical ({width}:{height})"
+    else:
+        return f"horizontal ({width}:{height})"
+
+
+def get_layout_context(layout_mode: str, width: int, height: int) -> str:
+    """Get layout-specific design guidance based on dimensions."""
+    aspect = get_aspect_ratio_name(width, height)
+
+    if layout_mode == "pip":
+        return f"""Picture-in-Picture (Full Canvas)
+- Your visuals fill the ENTIRE screen at {width}x{height}px ({aspect})
+- The speaker video will be overlaid as a small picture-in-picture window
+- Design for FULL-SCREEN IMPACT - use the entire canvas
+- This is a {'tall vertical format - stack elements vertically, large text for mobile viewing' if height > width else 'wide horizontal format - use horizontal layouts'}"""
+
+    elif layout_mode == "split-horizontal":
+        return f"""Split Screen (Top/Bottom)
+- Your visuals appear in the TOP portion: {width}x{height}px ({aspect})
+- The speaker video appears BELOW your visuals
+- Design for a {'wide horizontal strip' if width > height else 'compact area'} - elements should be horizontally arranged
+- Keep important content centered, avoid edges that might feel cramped"""
+
+    elif layout_mode == "split-vertical":
+        return f"""Split Screen (Left/Right)
+- Your visuals appear in the LEFT portion: {width}x{height}px ({aspect})
+- The speaker video appears to the RIGHT of your visuals
+- Design for a {'tall vertical strip' if height > width else 'compact area'} - stack elements vertically
+- Keep important content centered, avoid edges near the split"""
+
+    else:
+        return f"Custom layout: {width}x{height}px ({aspect})"
+
+
 def build_director_user_message(
     project_id: str,
     formatted_transcript: str,
@@ -207,19 +277,57 @@ def build_director_user_message(
     height: int,
     duration_frames: int,
     fps: int,
+    style_preset: str = "modern",
+    layout_mode: str = "pip",
+    style_guide: str | None = None,
 ) -> str:
     """Build the user message for the Director agent."""
 
     duration_seconds = duration_frames / fps
 
+    # Get descriptions for selected options
+    style_desc = STYLE_PRESET_DESCRIPTIONS.get(style_preset, STYLE_PRESET_DESCRIPTIONS["modern"])
+    layout_context = get_layout_context(layout_mode, width, height)
+    aspect_ratio = get_aspect_ratio_name(width, height)
+
+    # Build optional user style guide section
+    user_guide_section = ""
+    if style_guide and style_guide.strip():
+        user_guide_section = f"""
+## ADDITIONAL USER GUIDANCE
+The user has provided the following specific guidance:
+
+{style_guide}
+
+Incorporate these preferences into your scene planning while maintaining quality standards.
+
+"""
+
     return f"""
 ## PROJECT: {project_id}
 
-## VIDEO SPECS
-- Resolution: {width}x{height}
+## CANVAS SPECIFICATIONS
+- Dimensions: {width}x{height}px
+- Aspect Ratio: {aspect_ratio}
 - Duration: {duration_frames} frames ({duration_seconds:.1f}s)
 - FPS: {fps}
 
+## LAYOUT MODE
+{layout_context}
+
+## RESPONSIVE DESIGN REQUIREMENTS
+All visuals MUST be designed responsively for the {width}x{height}px canvas:
+- Use RELATIVE positioning (percentages, flex, centered layouts) - never hardcoded pixel positions
+- Text sizes must be proportional to canvas height (e.g., title = 5% of height, body = 3% of height)
+- Maintain safe margins (10% padding from edges) to prevent content clipping
+- Elements should scale proportionally - if canvas is {'tall and narrow' if height > width else 'wide'}, design accordingly
+- Test mental model: "Would this look good if the canvas was 50% smaller or larger?"
+
+## VISUAL STYLE: {style_preset.upper()}
+{style_desc}
+
+Your visuals MUST follow this style preset. Use colors, typography, and animation patterns that match this aesthetic.
+{user_guide_section}
 {formatted_transcript}
 
 ## YOUR TASK
@@ -275,6 +383,12 @@ Machine-readable with this structure:
   "primaryMetaphor": "description",
   "colorPalette": "palette name",
   "visualContinuity": "what persists across scenes",
+  "responsive": {{
+    "safeMargin": "10%",
+    "titleSize": "5% of height",
+    "bodySize": "3% of height",
+    "maxContentWidth": "80%"
+  }},
   "scenes": [
     {{
       "id": 1,
@@ -287,7 +401,11 @@ Machine-readable with this structure:
         "frame": frameNumber,
         "visualEvent": "what happens"
       }},
-      "visual": "detailed description",
+      "visual": "detailed description with RELATIVE positioning (percentages)",
+      "layout": {{
+        "primary": {{ "x": "center", "y": "20%", "width": "60%", "height": "auto" }},
+        "secondary": {{ "x": "center", "y": "60%", "width": "80%", "height": "auto" }}
+      }},
       "emotion": "what viewer feels",
       "buildsFrom": "previous scene connection or null",
       "connectsTo": "next scene connection",
@@ -297,6 +415,8 @@ Machine-readable with this structure:
   ]
 }}
 ```
+
+**CRITICAL: All positions use percentages or "center"/"auto". Never use pixel values.**
 
 ## REMEMBER
 - Maximum 8 scenes (one per narrative beat, not per line)

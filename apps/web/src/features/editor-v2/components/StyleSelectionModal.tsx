@@ -158,6 +158,7 @@ export function StyleSelectionModal({
   const [selectedStyle, setSelectedStyle] = useState<StylePreset>('modern');
   const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('pip');
   const [splitRatio, setSplitRatio] = useState(50); // Percentage for visuals
+  const [styleGuide, setStyleGuide] = useState('');
 
   const dimensions = calculateVisualsDimensions(canvasWidth, canvasHeight, layoutMode, splitRatio);
 
@@ -166,6 +167,7 @@ export function StyleSelectionModal({
       stylePreset: selectedStyle,
       layoutMode,
       dimensions,
+      styleGuide: styleGuide.trim() || undefined,
     });
   };
 
@@ -482,6 +484,27 @@ export function StyleSelectionModal({
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Style Guide Input */}
+        <div className="space-y-2 py-2 border-t border-zinc-800">
+          <label className="text-sm font-medium text-zinc-300">Style & Layout Guide (Optional)</label>
+          <textarea
+            value={styleGuide}
+            onChange={(e) => setStyleGuide(e.target.value)}
+            disabled={isLoading}
+            placeholder="Describe your visual preferences, e.g.: 'Use dark purple theme with geometric shapes', 'Make it feel energetic with fast transitions', 'Include data visualizations for the statistics mentioned'..."
+            className={cn(
+              'w-full h-24 px-3 py-2 rounded-lg border text-sm resize-none',
+              'bg-zinc-800/50 border-zinc-700 text-white placeholder-zinc-500',
+              'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent',
+              isLoading && 'opacity-50 cursor-not-allowed'
+            )}
+            maxLength={2000}
+          />
+          <p className="text-xs text-zinc-500">
+            {styleGuide.length}/2000 characters
+          </p>
         </div>
 
         <DialogFooter>

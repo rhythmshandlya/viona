@@ -517,13 +517,13 @@ def require_oauth_token() -> str:
 def configure_sdk_auth() -> None:
     """Configure environment for Claude Agent SDK authentication."""
     token = require_oauth_token()
-    os.environ["CLAUDE_CODE_OAUTH_TOKEN"] = token
+    os.environ["CLAUDE_AGENT_OAUTH_TOKEN"] = token
 
 
 async def configure_sdk_auth_async() -> None:
     """Configure environment for Claude Agent SDK authentication (async, with refresh)."""
     token = await async_require_oauth_token()
-    os.environ["CLAUDE_CODE_OAUTH_TOKEN"] = token
+    os.environ["CLAUDE_AGENT_OAUTH_TOKEN"] = token
 
 
 # =============================================================================
@@ -2183,11 +2183,16 @@ When done, respond: "SELF-HEAL COMPLETE"
             client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
                     model="claude-sonnet-4-20250514",  # Use Sonnet for speed
-                    system_prompt="You are a TypeScript error fixer. Fix compilation errors quickly and precisely.",
+                    system_prompt={
+                        "type": "preset",
+                        "preset": "claude_code",
+                        "append": "You are a TypeScript error fixer. Fix compilation errors quickly and precisely."
+                    },
                     cwd=str(self.workspace),
                     max_turns=20,
                     max_thinking_tokens=3000,
-                    allowed_tools=["Read", "Edit", "Bash", "Glob"],
+                    setting_sources=["project"],  # Load skills from .claude/skills/
+                    allowed_tools=["Read", "Edit", "Bash", "Glob", "Skill"],
                 )
             )
 
@@ -2376,6 +2381,9 @@ When done, respond: "SELF-HEAL COMPLETE"
         height: int,
         duration_frames: int,
         fps: int,
+        style_preset: str = "modern",
+        layout_mode: str = "pip",
+        style_guide: str | None = None,
     ) -> dict[str, Any]:
         """
         Phase 1: Run the Director agent to create the scene plan.
@@ -2390,6 +2398,9 @@ When done, respond: "SELF-HEAL COMPLETE"
             height: Video height
             duration_frames: Total frames
             fps: Frames per second
+            style_preset: Visual style preset (minimal, modern, playful, bold, classic)
+            layout_mode: Layout mode (pip, split-horizontal, split-vertical)
+            style_guide: Optional user-provided style/layout guidance
 
         Returns:
             dict with success status and plan file paths
@@ -2405,17 +2416,26 @@ When done, respond: "SELF-HEAL COMPLETE"
             height=height,
             duration_frames=duration_frames,
             fps=fps,
+            style_preset=style_preset,
+            layout_mode=layout_mode,
+            style_guide=style_guide,
         )
 
         # Director uses Sonnet for fast planning
+        # Use claude_code preset with append to preserve TodoWrite functionality
         client = ClaudeSDKClient(
             options=ClaudeAgentOptions(
                 model="claude-sonnet-4-20250514",
-                system_prompt=DIRECTOR_SYSTEM_PROMPT,
+                system_prompt={
+                    "type": "preset",
+                    "preset": "claude_code",
+                    "append": DIRECTOR_SYSTEM_PROMPT
+                },
                 cwd=str(self.workspace),
                 max_turns=50,  # Enough turns for research + planning + writing
                 max_thinking_tokens=5000,
-                allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch"],
+                setting_sources=["project"],  # Load skills from .claude/skills/
+                allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch", "Skill", "TodoWrite"],
             )
         )
 
@@ -2545,16 +2565,22 @@ When done, respond: "SELF-HEAL COMPLETE"
         animator_message = build_animator_user_message(self.project_id)
 
         # Animator uses Opus for high-quality implementation
+        # Use claude_code preset with append to preserve TodoWrite functionality
         client = ClaudeSDKClient(
             options=ClaudeAgentOptions(
                 model=self.model,  # Use configured model (Opus)
-                system_prompt=full_system_prompt,
+                system_prompt={
+                    "type": "preset",
+                    "preset": "claude_code",
+                    "append": full_system_prompt
+                },
                 cwd=str(self.workspace),
                 max_turns=self.max_turns,
                 max_thinking_tokens=self.max_thinking_tokens,
                 max_buffer_size=10 * 1024 * 1024,
                 enable_file_checkpointing=True,
-                allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWrite"],
+                setting_sources=["project"],  # Load skills from .claude/skills/
+                allowed_tools=["Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWrite", "Skill"],
                 mcp_servers={
                     "better-icons": {
                         "type": "stdio",
@@ -2620,6 +2646,9 @@ When done, respond: "SELF-HEAL COMPLETE"
         fps: int = 30,
         timeout_seconds: int = 2400,  # 40 minutes for two phases
         max_retries: int = 2,
+        style_preset: str = "modern",
+        layout_mode: str = "pip",
+        style_guide: str | None = None,
     ) -> dict[str, Any]:
         """
         Generate video using two-phase pipeline: Director + Animator.
@@ -2636,6 +2665,9 @@ When done, respond: "SELF-HEAL COMPLETE"
             fps: Frames per second
             timeout_seconds: Total timeout for both phases
             max_retries: Retry attempts per phase
+            style_preset: Visual style preset (minimal, modern, playful, bold, classic)
+            layout_mode: Layout mode (pip, split-horizontal, split-vertical)
+            style_guide: Optional user-provided style/layout guidance
 
         Returns:
             dict with success status and bundle URL
@@ -2677,6 +2709,9 @@ When done, respond: "SELF-HEAL COMPLETE"
                     height=height,
                     duration_frames=duration_frames,
                     fps=fps,
+                    style_preset=style_preset,
+                    layout_mode=layout_mode,
+                    style_guide=style_guide,
                 )
 
                 if not director_result["success"]:
@@ -2817,6 +2852,9 @@ async def main():
     parser.add_argument("--bundle-output", required=True, help="Bundle output directory")
     parser.add_argument("--transcript", required=True, help="Transcript text or file path")
     parser.add_argument("--words-json", help="Path to words JSON file with timestamps")
+    parser.add_argument("--style-guide", help="Path to user style guide text file")
+    parser.add_argument("--style-preset", default="modern", help="Visual style preset (minimal, modern, playful, bold, classic)")
+    parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, split-horizontal, split-vertical)")
     parser.add_argument("--width", type=int, default=1920, help="Video width")
     parser.add_argument("--height", type=int, default=1080, help="Video height")
     parser.add_argument("--duration", type=int, default=1800, help="Duration in frames")
@@ -2837,6 +2875,12 @@ async def main():
         with open(args.words_json, encoding="utf-8") as f:
             words = json.load(f)
 
+    # Load style guide if provided
+    style_guide = None
+    if args.style_guide and os.path.exists(args.style_guide):
+        with open(args.style_guide, encoding="utf-8") as f:
+            style_guide = f.read().strip()
+
     # Create generator
     generator = ClaudeVisualGenerator(
         workspace=Path(args.workspace),
@@ -2854,6 +2898,9 @@ async def main():
         height=args.height,
         duration_frames=args.duration,
         fps=args.fps,
+        style_preset=args.style_preset,
+        layout_mode=args.layout_mode,
+        style_guide=style_guide,
     )
 
     print(json.dumps(result, indent=2))

@@ -85,6 +85,7 @@ export interface GenerateVisualsJobData {
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
+  styleGuide?: string;
 }
 
 export const generateVisualsQueue = new Queue('generate-visuals', { connection });

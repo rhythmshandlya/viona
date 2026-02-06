@@ -13,18 +13,18 @@ export const config = {
     templatePath: process.env.WORKSPACE_TEMPLATE_PATH || join(process.cwd(), 'remotion-template'),
   },
 
-  // Claude Code visual generator (uses Claude Agent SDK with OAuth)
-  claudeCode: {
+  // Claude Agent SDK visual generator (uses OAuth authentication)
+  claudeAgent: {
     // Model for visual generation
-    model: process.env.CLAUDE_CODE_MODEL || 'claude-opus-4-5-20251101',
+    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-5-20251101',
     // Extended thinking tokens for planning
-    maxThinkingTokens: parseInt(process.env.CLAUDE_CODE_MAX_THINKING_TOKENS || '10000', 10),
+    maxThinkingTokens: parseInt(process.env.CLAUDE_AGENT_MAX_THINKING_TOKENS || '10000', 10),
     // Maximum agent turns
-    maxTurns: parseInt(process.env.CLAUDE_CODE_MAX_TURNS || '100', 10),
-    // Timeout for generation (30 minutes default - includes bundling)
-    timeoutSeconds: parseInt(process.env.CLAUDE_CODE_TIMEOUT || '1800', 10),
+    maxTurns: parseInt(process.env.CLAUDE_AGENT_MAX_TURNS || '100', 10),
+    // Timeout for generation (45 minutes default - includes Director + Animator + retries)
+    timeoutSeconds: parseInt(process.env.CLAUDE_AGENT_TIMEOUT || '2700', 10),
     // Maximum retries on failure (more for transient API errors)
-    maxRetries: parseInt(process.env.CLAUDE_CODE_MAX_RETRIES || '4', 10),
+    maxRetries: parseInt(process.env.CLAUDE_AGENT_MAX_RETRIES || '4', 10),
   },
 
   database: {

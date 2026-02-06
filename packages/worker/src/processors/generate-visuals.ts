@@ -113,6 +113,8 @@ export interface GenerateVisualsJobData {
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
+  /** User-provided style/layout guidance for the Director agent */
+  styleGuide?: string;
   /** Enable verbose logging for debugging */
   verbose?: boolean;
 }
@@ -153,7 +155,7 @@ interface ClaudeCodeResult {
 }
 
 export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>) {
-  const { projectId, jobId, stylePreset, layoutMode, dimensions } = job.data;
+  const { projectId, jobId, stylePreset, layoutMode, dimensions, styleGuide } = job.data;
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
 
   try {
@@ -214,8 +216,8 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       .map((w: any) => w.word || w.text || '')
       .join(' ');
 
-    // Run Claude Code generator (always uses two-phase pipeline)
-    const llmModel = config.claudeCode.model;
+    // Run Claude Agent generator (always uses two-phase pipeline)
+    const llmModel = config.claudeAgent.model;
     const claudeResult = await runClaudeCodeGenerator({
       projectId: compositionId,
       jobId,
@@ -226,6 +228,8 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       width: dimensions?.width || 1080,
       height: dimensions?.height || 1920,
       stylePreset: stylePreset || 'modern',
+      layoutMode: layoutMode || 'pip',
+      styleGuide,
     });
 
     // Store metrics in job (no token cost for OAuth)
@@ -455,6 +459,8 @@ interface ClaudeCodeOptions {
   width: number;
   height: number;
   stylePreset: string;
+  layoutMode: string;
+  styleGuide?: string;
 }
 
 /**
@@ -466,7 +472,7 @@ interface ClaudeCodeOptions {
 async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset } = options;
+  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide } = options;
 
   const pythonPath = config.pythonPath;
   const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
@@ -477,8 +483,8 @@ async function runClaudeCodeGenerator(
     projectId,
     jobId,
     workspacePath,
-    model: config.claudeCode.model,
-  }, 'Starting Claude Code visual generator...');
+    model: config.claudeAgent.model,
+  }, 'Starting Claude Agent visual generator...');
 
   const startTime = Date.now();
 
@@ -493,6 +499,13 @@ async function runClaudeCodeGenerator(
     await writeFile(wordsPath, JSON.stringify(words), 'utf-8');
   }
 
+  // Write style guide to temp file if provided
+  let styleGuidePath: string | null = null;
+  if (styleGuide && styleGuide.trim()) {
+    styleGuidePath = join(tmpdir(), `claude-styleguide-${jobId}.txt`);
+    await writeFile(styleGuidePath, styleGuide, 'utf-8');
+  }
+
   try {
     const args = [
       agentScript,
@@ -504,12 +517,19 @@ async function runClaudeCodeGenerator(
       '--height', String(height),
       '--duration', String(durationFrames),
       '--fps', String(fps),
-      '--model', config.claudeCode.model,
+      '--model', config.claudeAgent.model,
+      '--style-preset', stylePreset,
+      '--layout-mode', layoutMode,
     ];
 
     // Add words JSON path if available (required for two-phase pipeline)
     if (wordsPath) {
       args.push('--words-json', wordsPath);
+    }
+
+    // Add style guide path if provided
+    if (styleGuidePath) {
+      args.push('--style-guide', styleGuidePath);
     }
 
     // Two-phase pipeline is always used
@@ -560,8 +580,8 @@ async function runClaudeCodeGenerator(
             subprocess.kill('SIGKILL');
           }
         }, 10000);
-        reject(new Error(`Claude Code generator timed out after ${config.claudeCode.timeoutSeconds} seconds`));
-      }, config.claudeCode.timeoutSeconds * 1000);
+        reject(new Error(`Claude Agent generator timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
+      }, config.claudeAgent.timeoutSeconds * 1000);
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
@@ -684,6 +704,14 @@ async function runClaudeCodeGenerator(
     if (wordsPath) {
       try {
         await rm(wordsPath);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+
+    if (styleGuidePath) {
+      try {
+        await rm(styleGuidePath);
       } catch {
         // Ignore cleanup errors
       }

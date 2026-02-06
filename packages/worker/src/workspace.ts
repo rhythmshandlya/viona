@@ -41,7 +41,8 @@ function copyDirSync(src: string, dest: string, exclude: string[] = ['node_modul
  *
  * 1. Create workspace directory if it doesn't exist
  * 2. Copy template files (excluding node_modules)
- * 3. Install dependencies if node_modules doesn't exist
+ * 3. Always sync .claude/ directory (skills, CLAUDE.md) from template
+ * 4. Install dependencies if node_modules doesn't exist
  *
  * This should be called once on worker startup.
  */
@@ -72,6 +73,10 @@ export async function initializeWorkspace(): Promise<void> {
     copyDirSync(templatePath, workspacePath);
   }
 
+  // Always sync .claude/ directory from template (skills, CLAUDE.md)
+  // This ensures skills are always up-to-date even if workspace already exists
+  syncClaudeDirectory(templatePath, workspacePath);
+
   // Install dependencies if node_modules doesn't exist
   if (!existsSync(nodeModulesPath)) {
     console.log('[Workspace] Installing dependencies (this may take a while)...');
@@ -96,6 +101,55 @@ export async function initializeWorkspace(): Promise<void> {
   }
 
   console.log('[Workspace] Workspace initialized successfully');
+}
+
+/**
+ * Sync .claude/ directory from template to workspace.
+ *
+ * This copies CLAUDE.md and skills/ from the template while preserving
+ * workspace-specific files like settings.local.json (which contains permissions).
+ * CLAUDE.md is also copied to the workspace root for better visibility.
+ */
+function syncClaudeDirectory(templatePath: string, workspacePath: string): void {
+  const templateClaudePath = join(templatePath, '.claude');
+  const workspaceClaudePath = join(workspacePath, '.claude');
+
+  // Check if template has .claude directory
+  if (!existsSync(templateClaudePath)) {
+    console.log('[Workspace] No .claude directory in template, skipping sync');
+    return;
+  }
+
+  // Create .claude directory in workspace if it doesn't exist
+  if (!existsSync(workspaceClaudePath)) {
+    mkdirSync(workspaceClaudePath, { recursive: true });
+  }
+
+  // Copy CLAUDE.md if it exists in template
+  const templateClaudeMd = join(templateClaudePath, 'CLAUDE.md');
+  const workspaceClaudeMd = join(workspaceClaudePath, 'CLAUDE.md');
+  const workspaceRootClaudeMd = join(workspacePath, 'CLAUDE.md');
+  if (existsSync(templateClaudeMd)) {
+    // Copy to .claude/ directory
+    copyFileSync(templateClaudeMd, workspaceClaudeMd);
+    // Also copy to workspace root for better visibility
+    copyFileSync(templateClaudeMd, workspaceRootClaudeMd);
+    console.log('[Workspace] Synced CLAUDE.md to .claude/ and workspace root');
+  }
+
+  // Copy skills/ directory if it exists in template
+  const templateSkillsPath = join(templateClaudePath, 'skills');
+  const workspaceSkillsPath = join(workspaceClaudePath, 'skills');
+  if (existsSync(templateSkillsPath)) {
+    // Remove existing skills directory to ensure clean sync
+    if (existsSync(workspaceSkillsPath)) {
+      rmSync(workspaceSkillsPath, { recursive: true, force: true });
+    }
+    copyDirSync(templateSkillsPath, workspaceSkillsPath);
+    console.log('[Workspace] Synced skills/ from template');
+  }
+
+  // Note: settings.local.json is NOT overwritten - it's workspace-specific
 }
 
 /**
