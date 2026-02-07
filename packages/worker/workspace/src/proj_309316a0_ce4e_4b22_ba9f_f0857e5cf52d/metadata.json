@@ -1,0 +1,27 @@
+{
+  "compositionId": "proj_309316a0_ce4e_4b22_ba9f_f0857e5cf52d",
+  "durationInFrames": 73,
+  "fps": 24,
+  "width": 1080,
+  "height": 1920,
+  "visuals": [
+    {
+      "startMs": 0,
+      "endMs": 1375,
+      "type": "generated",
+      "description": "Scene 1: Anticipation - Three luminous orbs materialize at center with gentle floating"
+    },
+    {
+      "startMs": 1417,
+      "endMs": 2125,
+      "type": "generated",
+      "description": "Scene 2: High - Orbs ascend to upper third with cool indigo colors and intensified glow"
+    },
+    {
+      "startMs": 2167,
+      "endMs": 3042,
+      "type": "generated",
+      "description": "Scene 3: And Low - Orbs descend to lower third with warm coral/gold colors and softened glow"
+    }
+  ]
+}

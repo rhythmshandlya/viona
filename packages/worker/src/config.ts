@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { join } from 'path';
+import { join, resolve } from 'path';
 import { hostname } from 'os';
 
 export const config = {
@@ -63,8 +63,8 @@ export const config = {
   },
 
   remotion: {
-    projectDir: process.env.REMOTION_PROJECT_DIR || 'C:/Users/armaa/test',
+    projectDir: resolve(process.env.REMOTION_PROJECT_DIR || join(process.cwd(), 'remotion-temp')),
     // IMPORTANT: This must match the API's bundles.dir config (set BUNDLE_OUTPUT_DIR in .env)
-    bundleOutputDir: process.env.BUNDLE_OUTPUT_DIR || 'C:/Users/armaa/Documents/cllipify/bundles',
+    bundleOutputDir: resolve(process.env.BUNDLE_OUTPUT_DIR || join(process.cwd(), 'bundles')),
   },
 } as const;
