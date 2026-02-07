@@ -53,3 +53,8 @@ remotion-*.zip
 
 # Worktrees
 .worktrees/
+
+# Worker generated files
+packages/worker/workspace/bundles/
+packages/worker/workspace/src/
+packages/worker/bundles/
