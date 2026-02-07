@@ -37,6 +37,70 @@ except ImportError:
 
 
 # =============================================================================
+# Windows Command Line Length Fix (GitHub Issue #238)
+# Windows cmd.exe has 8191 char limit. Long prompts exceed this.
+# Workaround: Write long arguments to temp files, use @filepath syntax.
+# =============================================================================
+
+if IS_WINDOWS:
+    import tempfile
+    try:
+        from claude_agent_sdk._internal.transport.subprocess_cli import SubprocessCLITransport
+
+        _original_build_command = SubprocessCLITransport._build_command
+        _temp_files_to_cleanup = []
+
+        def _write_to_temp_file(content: str, suffix: str = '.txt') -> str:
+            """Write content to a temp file and return the path."""
+            temp_file = tempfile.NamedTemporaryFile(
+                mode='w',
+                suffix=suffix,
+                delete=False,
+                encoding='utf-8'
+            )
+            temp_file.write(content)
+            temp_file.close()
+            _temp_files_to_cleanup.append(temp_file.name)
+            return temp_file.name
+
+        def _patched_build_command(self):
+            """Patched build_command that handles Windows command line length limits."""
+            cmd = _original_build_command(self)
+
+            # Windows limit is 8191 chars total - be aggressive with file offloading
+            MAX_ARG_LENGTH = 2000
+
+            # Arguments that can be long and need file-based passing
+            # NOTE: --append-system-prompt is used when system_prompt has type="preset" with append
+            long_args = [
+                '--system-prompt',
+                '--append-system-prompt',  # Used with preset + append pattern
+                '--agents',
+                '--mcp-config',
+                '--settings',
+                '--json-schema',
+            ]
+
+            for arg_name in long_args:
+                if arg_name in cmd:
+                    idx = cmd.index(arg_name)
+                    if idx + 1 < len(cmd):
+                        arg_value = cmd[idx + 1]
+                        if len(arg_value) > MAX_ARG_LENGTH:
+                            suffix = '.json' if arg_value.strip().startswith(('{', '[')) else '.txt'
+                            temp_path = _write_to_temp_file(arg_value, suffix)
+                            cmd[idx + 1] = f"@{temp_path}"
+                            print(f"[Windows Fix] Wrote {arg_name} ({len(arg_value)} chars) to temp file")
+
+            return cmd
+
+        SubprocessCLITransport._build_command = _patched_build_command
+        print("[Windows Fix] Applied monkey patch for command line length limit")
+    except ImportError:
+        print("[Windows Fix] Could not import SubprocessCLITransport, skipping patch")
+
+
+# =============================================================================
 # Safe Print Helper (Windows Unicode Fix)
 # =============================================================================
 
@@ -48,6 +112,56 @@ def safe_print(msg: str) -> None:
         # Replace non-ASCII characters with ? for Windows console
         safe_msg = msg.encode('ascii', errors='replace').decode('ascii')
         print(safe_msg)
+
+
+def get_claude_cli_path() -> str | None:
+    """
+    Find the Claude CLI executable path.
+
+    The Claude Agent SDK needs to spawn the CLI as a subprocess, but it may not
+    be in PATH when running from a GUI app or subprocess. This function checks
+    common installation locations.
+    """
+    # First try shutil.which (checks PATH)
+    cli_path = shutil.which("claude")
+    if cli_path:
+        safe_print(f"[CLI] Found claude in PATH: {cli_path}")
+        return cli_path
+
+    # Windows-specific locations
+    if IS_WINDOWS:
+        user_home = os.environ.get("USERPROFILE", "")
+        possible_paths = [
+            os.path.join(user_home, "AppData", "Roaming", "npm", "claude.cmd"),
+            os.path.join(user_home, "AppData", "Roaming", "npm", "claude"),
+            os.path.join(user_home, ".npm-global", "bin", "claude.cmd"),
+            os.path.join(user_home, ".npm-global", "bin", "claude"),
+            os.path.join(user_home, "node_modules", ".bin", "claude.cmd"),
+            os.path.join(user_home, "node_modules", ".bin", "claude"),
+        ]
+        for path in possible_paths:
+            if os.path.isfile(path):
+                safe_print(f"[CLI] Found claude at: {path}")
+                return path
+    else:
+        # macOS/Linux locations
+        possible_paths = [
+            os.path.expanduser("~/.npm-global/bin/claude"),
+            "/usr/local/bin/claude",
+            "/opt/homebrew/bin/claude",
+            os.path.expanduser("~/node_modules/.bin/claude"),
+        ]
+        for path in possible_paths:
+            if os.path.isfile(path):
+                safe_print(f"[CLI] Found claude at: {path}")
+                return path
+
+    safe_print("[CLI] WARNING: Claude CLI not found in PATH or common locations")
+    return None
+
+
+# Get CLI path once at module load
+CLAUDE_CLI_PATH = get_claude_cli_path()
 
 
 # =============================================================================
@@ -2199,6 +2313,7 @@ When done, respond: "SELF-HEAL COMPLETE"
                     max_thinking_tokens=3000,
                     setting_sources=["project"],  # Load skills from .claude/skills/
                     allowed_tools=["Read", "Edit", "Bash", "Glob", "Skill"],
+                    cli_path=CLAUDE_CLI_PATH,
                 )
             )
 
@@ -2442,6 +2557,7 @@ When done, respond: "SELF-HEAL COMPLETE"
                 max_thinking_tokens=5000,
                 setting_sources=["project"],  # Load skills from .claude/skills/
                 allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch", "Skill", "TodoWrite"],
+                cli_path=CLAUDE_CLI_PATH,
             )
         )
 
@@ -2613,6 +2729,7 @@ When done, respond: "SELF-HEAL COMPLETE"
                         HookMatcher(matcher="Bash", hooks=[bash_security_hook]),
                     ],
                 },
+                cli_path=CLAUDE_CLI_PATH,
             )
         )
 

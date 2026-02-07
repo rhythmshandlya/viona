@@ -619,13 +619,25 @@ export const COLORS = {{
 // Standard spring config
 export const SPRING_CONFIG = {{ damping: 22, stiffness: 90, mass: 0.9 }};
 
-// Timing constants from scenes.json
+// CRITICAL: These values come from scenes.json - DO NOT CHANGE THEM
 export const TIMING = {{
+  // Video specs from scenes.json (MUST MATCH EXACTLY)
+  totalFrames: /* from scenes.json.totalFrames */,
+  fps: /* from scenes.json.fps */,
+  width: /* from project specs */,
+  height: /* from project specs */,
+
+  // Scene timing from scenes.json.scenes[].frames
   scene1Start: 0,
-  scene1End: 90,
-  // ... etc
+  scene1End: /* from scenes.json.scenes[0].frames[1] */,
+  scene2Start: /* from scenes.json.scenes[1].frames[0] */,
+  scene2End: /* from scenes.json.scenes[1].frames[1] */,
+  // ... etc for all scenes
 }};
 ```
+
+**CRITICAL:** The `totalFrames` value in TIMING MUST match `scenes.json.totalFrames` exactly.
+The Animator does NOT decide the video duration - it comes from the Director's plan.
 
 ### components/Background.tsx (example)
 ```tsx
@@ -710,10 +722,10 @@ export const RemotionRoot: React.FC = () => {{
     <Composition
       id="{project_id}"
       component={{MainComposition}}
-      durationInFrames={{/* from plan */}}
-      fps={{/* from plan */}}
-      width={{/* from plan */}}
-      height={{/* from plan */}}
+      durationInFrames={{TIMING.totalFrames}}
+      fps={{TIMING.fps}}
+      width={{TIMING.width}}
+      height={{TIMING.height}}
     />
   );
 }};
@@ -726,15 +738,16 @@ registerRoot(RemotionRoot);
 ```
 
 ### metadata.json
+**MUST match scenes.json values exactly:**
 ```json
 {{
   "compositionId": "{project_id}",
-  "durationInFrames": ...,
-  "fps": ...,
-  "width": ...,
-  "height": ...,
+  "durationInFrames": /* MUST equal scenes.json.totalFrames */,
+  "fps": /* MUST equal scenes.json.fps */,
+  "width": /* from project specs */,
+  "height": /* from project specs */,
   "visuals": [
-    {{"startMs": 0, "endMs": ..., "type": "generated", "description": "AI-generated visual"}}
+    {{"startMs": 0, "endMs": /* totalFrames / fps * 1000 */, "type": "generated", "description": "AI-generated visual"}}
   ]
 }}
 ```
