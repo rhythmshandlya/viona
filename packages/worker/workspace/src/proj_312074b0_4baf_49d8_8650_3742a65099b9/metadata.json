@@ -1,0 +1,21 @@
+{
+  "compositionId": "proj_312074b0_4baf_49d8_8650_3742a65099b9",
+  "durationInFrames": 73,
+  "fps": 24,
+  "width": 1080,
+  "height": 1920,
+  "visuals": [
+    {
+      "startMs": 0,
+      "endMs": 1708,
+      "type": "generated",
+      "description": "High State - Coral sphere at 80% height with energy particle burst"
+    },
+    {
+      "startMs": 1708,
+      "endMs": 3042,
+      "type": "generated",
+      "description": "Low State - Sphere descends with color shift to blue, trailing particles"
+    }
+  ]
+}

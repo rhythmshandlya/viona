@@ -1,0 +1,104 @@
+{
+  "projectId": "test-123",
+  "fps": 30,
+  "totalScenes": 4,
+  "primaryMetaphor": "Digital Document Transformation - clean container that evolves from empty to filled to emphasized",
+  "colorPalette": "Soft Gradient (Calm/Educational)",
+  "visualContinuity": "Rounded container frame persists and transforms throughout, showing progression from empty → content → emphasis → completion",
+  "responsive": {
+    "safeMargin": "10%",
+    "titleSize": "5% of height",
+    "bodySize": "3.5% of height",
+    "maxContentWidth": "80%"
+  },
+  "scenes": [
+    {
+      "id": 1,
+      "name": "Title Emergence",
+      "frames": [0, 60],
+      "timestampRange": [0.0, 2.0],
+      "keySync": {
+        "word": "test",
+        "timestamp": 0.67,
+        "frame": 20,
+        "visualEvent": "container fully materializes with title"
+      },
+      "visual": "Rounded container materializes at center-top (20% from top, 60% width, centered horizontally). 'TEST TRANSCRIPT' appears with smooth gradient text. Background establishes indigo-purple gradient mood. Clean, professional emergence with spring animation.",
+      "layout": {
+        "primary": { "x": "center", "y": "20%", "width": "60%", "height": "auto" },
+        "background": { "x": "0%", "y": "0%", "width": "100%", "height": "100%" }
+      },
+      "emotion": "anticipation, clean professionalism",
+      "buildsFrom": null,
+      "connectsTo": "container expands and prepares for content",
+      "requires3D": false,
+      "icons": []
+    },
+    {
+      "id": 2,
+      "name": "Content Materialization",
+      "frames": [61, 140],
+      "timestampRange": [2.03, 4.67],
+      "keySync": {
+        "word": "transcript",
+        "timestamp": 4.0,
+        "frame": 100,
+        "visualEvent": "word 'transcript' completes typing animation"
+      },
+      "visual": "Container expands to center screen (40% from top, 80% width). Text 'This is a test transcript.' types in progressively with each word appearing with subtle bounce. Sky blue accents on key words. Typing effect creates engagement.",
+      "layout": {
+        "primary": { "x": "center", "y": "40%", "width": "80%", "height": "auto" },
+        "content": { "x": "center", "y": "45%", "width": "70%", "height": "auto" }
+      },
+      "emotion": "clarity, information delivery",
+      "buildsFrom": "title container expands and repositions",
+      "connectsTo": "text remains while receiving emphasis treatments",
+      "requires3D": false,
+      "icons": []
+    },
+    {
+      "id": 3,
+      "name": "Emphasis & Understanding",
+      "frames": [141, 220],
+      "timestampRange": [4.7, 7.33],
+      "keySync": {
+        "word": "test",
+        "timestamp": 6.0,
+        "frame": 180,
+        "visualEvent": "words 'test' and 'transcript' receive highlight glow effects"
+      },
+      "visual": "Key words 'test' and 'transcript' receive sky blue glow treatment and scale emphasis. Container subtly shifts to show comprehension with color accent borders. Gentle pulsing effects on important concepts draw visual focus.",
+      "layout": {
+        "primary": { "x": "center", "y": "40%", "width": "80%", "height": "auto" },
+        "emphasis": { "x": "center", "y": "50%", "width": "75%", "height": "auto" }
+      },
+      "emotion": "understanding, insight",
+      "buildsFrom": "content text receives overlay treatments",
+      "connectsTo": "emphasized elements settle into completion state",
+      "requires3D": false,
+      "icons": []
+    },
+    {
+      "id": 4,
+      "name": "Completion State",
+      "frames": [221, 300],
+      "timestampRange": [7.37, 10.0],
+      "keySync": {
+        "word": "complete",
+        "timestamp": 8.67,
+        "frame": 260,
+        "visualEvent": "gentle celebration particles emit and final state achieved"
+      },
+      "visual": "All elements settle into polished final positions. Gentle particle emission from container corners celebrates completion. Clean, professional finish with soft indigo-purple gradient background. Text remains clearly readable in final state.",
+      "layout": {
+        "primary": { "x": "center", "y": "45%", "width": "80%", "height": "auto" },
+        "particles": { "x": "center", "y": "40%", "width": "90%", "height": "20%" }
+      },
+      "emotion": "satisfaction, completion",
+      "buildsFrom": "emphasis effects fade to clean completion",
+      "connectsTo": null,
+      "requires3D": false,
+      "icons": []
+    }
+  ]
+}

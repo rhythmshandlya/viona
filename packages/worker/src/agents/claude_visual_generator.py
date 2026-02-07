@@ -2166,8 +2166,8 @@ class ClaudeVisualGenerator:
         self.max_thinking_tokens = max_thinking_tokens
         self.max_turns = max_turns
 
-        # Configure OAuth authentication
-        configure_sdk_auth()
+        # SDK automatically uses Claude Code CLI authentication
+        # No manual configuration needed
 
     def _build_system_prompt(
         self,
@@ -2357,20 +2357,17 @@ When done, respond: "SELF-HEAL COMPLETE"
 
         try:
             result = subprocess.run(
-                [
-                    "npx", "remotion", "bundle",
-                    "--entry-point", str(entry_point),
-                    "--out-dir", str(bundle_path),
-                ],
+                ["npx", "remotion", "bundle", "--entry-point", str(entry_point), "--out-dir", str(bundle_path)],
                 cwd=str(self.workspace),
                 capture_output=True,
-                timeout=120,  # 2 min for tsc check
+                timeout=300,  # 5 min for bundling
                 shell=IS_WINDOWS,
                 encoding="utf-8",
                 errors="replace",
             )
 
             if result.returncode != 0:
+                print(f"[ClaudeGenerator] Bundle stderr: {result.stderr}")
                 raise RuntimeError(f"Bundle failed: {result.stderr}")
 
             return bundle_path
@@ -2824,9 +2821,6 @@ When done, respond: "SELF-HEAL COMPLETE"
                     base_delay = 10 * (2 ** (attempt - 1))
                     print(f"[ClaudeGenerator] Waiting {base_delay}s before retry...")
                     await asyncio.sleep(base_delay)
-
-                # Re-configure OAuth
-                await configure_sdk_auth_async()
 
                 # Clean previous attempt
                 if self.src_dir.exists():
