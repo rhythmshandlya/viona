@@ -1,0 +1,57 @@
+{
+  "compositionId": "proj_52679ede_22c5_4f0a_a231_c91da8c72538",
+  "durationInFrames": 2967,
+  "fps": 30,
+  "width": 1080,
+  "height": 1920,
+  "visuals": [
+    {
+      "startMs": 0,
+      "endMs": 4000,
+      "type": "generated",
+      "description": "Scene 1: Challenge Introduction - System Design Challenge box with network particles"
+    },
+    {
+      "startMs": 4000,
+      "endMs": 20090,
+      "type": "generated",
+      "description": "Scene 2: The Obvious Solution - Split screen with task orbs and binary heap"
+    },
+    {
+      "startMs": 20090,
+      "endMs": 38910,
+      "type": "generated",
+      "description": "Scene 3: The Trap Revealed - Stressed heap with warnings and performance graph"
+    },
+    {
+      "startMs": 38910,
+      "endMs": 42270,
+      "type": "generated",
+      "description": "Scene 4: Solution Emergence - Timing wheel emerges with particle explosion"
+    },
+    {
+      "startMs": 42270,
+      "endMs": 54520,
+      "type": "generated",
+      "description": "Scene 5: Clock Face Visualization - 60-slot wheel with task insertion"
+    },
+    {
+      "startMs": 54520,
+      "endMs": 75280,
+      "type": "generated",
+      "description": "Scene 6: Hierarchical Genius - Dual-wheel system with cascade mechanism"
+    },
+    {
+      "startMs": 75280,
+      "endMs": 88180,
+      "type": "generated",
+      "description": "Scene 7: Real Implementation - Kafka and Netty validation"
+    },
+    {
+      "startMs": 88180,
+      "endMs": 98900,
+      "type": "generated",
+      "description": "Scene 8: Call to Action - Follow button and personal branding"
+    }
+  ]
+}
