@@ -58,6 +58,12 @@ export const config = {
       useSSL: !isInternalConnection && (!!process.env.BUCKET_ENDPOINT || process.env.S3_USE_SSL === 'true'),
       bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
       region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
+      // Prefixes for organizing objects within single bucket
+      prefixes: {
+        uploads: 'uploads/',
+        outputs: 'outputs/',
+        templates: 'templates/',
+      },
     };
   })(),
 
