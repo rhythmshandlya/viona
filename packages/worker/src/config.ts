@@ -99,8 +99,11 @@ export const config = {
 
   remotion: {
     projectDir: resolve(process.env.REMOTION_PROJECT_DIR || join(process.cwd(), 'remotion-temp')),
-    // IMPORTANT: This must match the API's bundles.dir config (set BUNDLE_OUTPUT_DIR in .env)
-    bundleOutputDir: resolve(process.env.BUNDLE_OUTPUT_DIR || join(process.cwd(), 'bundles')),
+    // IMPORTANT: In production, use /tmp/bundles (ephemeral but uploaded to S3)
+    // In development, use local bundles directory
+    bundleOutputDir: resolve(process.env.BUNDLE_OUTPUT_DIR || (
+      process.env.RAILWAY_ENVIRONMENT ? '/tmp/bundles' : join(process.cwd(), 'bundles')
+    )),
   },
 
   // Python path for running Python scripts (transcription, enhancement)
