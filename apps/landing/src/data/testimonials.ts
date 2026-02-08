@@ -8,48 +8,48 @@ export interface Testimonial {
 
 export const testimonials: Testimonial[] = [
   {
-    quote: "Cllipify has completely transformed how we create marketing content. What used to take days now takes minutes.",
-    author: "Sarah Chen",
-    role: "Marketing Director",
-    company: "TechFlow",
+    quote: "I used to spend 4 hours editing each video. Now I upload, review the AI visuals, and export in 20 minutes. My audience says my videos are clearer than ever.",
+    author: "James Park",
+    role: "Course Creator",
+    company: "CodeMentor Academy",
   },
   {
-    quote: "The AI understands exactly what I need. It's like having a professional video editor on demand, 24/7.",
-    author: "Marcus Rodriguez",
-    role: "Content Creator",
-    company: "Creator Studio",
+    quote: "The AI actually understands what I'm explaining and creates matching diagrams. Not generic stock footage—real, contextual visuals that help my viewers learn.",
+    author: "Dr. Lisa Chen",
+    role: "EdTech Founder",
+    company: "MedLearn Pro",
   },
   {
-    quote: "We've increased our video output by 10x while cutting costs in half. Cllipify is a game-changer for agencies.",
-    author: "Emily Watson",
-    role: "Agency Owner",
-    company: "Pixel Perfect",
+    quote: "We produce 30+ explainer videos a month for clients. Cllipify cut our production time in half while making the videos more professional.",
+    author: "Marcus Webb",
+    role: "Creative Director",
+    company: "Explainer Studio",
   },
 ];
 
 export const faqs = [
   {
-    question: "How does Cllipify's AI video generation work?",
-    answer: "Simply describe your video idea in plain text, and our AI analyzes your prompt to generate a professional video. You can specify style, mood, duration, and other parameters to customize the output.",
+    question: "How does Cllipify understand what visuals to create?",
+    answer: "Our AI analyzes your transcript to identify concepts, processes, comparisons, and data points. It then generates contextually relevant visuals—like a flowchart when you explain a process, or a chart when you mention statistics—synced exactly to when you discuss each topic.",
   },
   {
-    question: "What video formats and resolutions are supported?",
-    answer: "We support all major formats including MP4, MOV, and WebM. Resolution options range from 720p for the free tier up to 4K and beyond for Pro and Enterprise plans.",
+    question: "What types of visuals can Cllipify generate?",
+    answer: "We support flowcharts, timelines, step sequences, 2x2 matrices, Venn diagrams, bar charts, line graphs, stat cards, side-by-side comparisons, text callouts, and more. The AI chooses the best format based on your content.",
   },
   {
-    question: "Can I use Cllipify videos for commercial purposes?",
-    answer: "Yes! All videos created with a paid plan can be used for commercial purposes. Free tier videos include a watermark that can be removed by upgrading.",
+    question: "What video formats can I upload?",
+    answer: "We accept MP4, MOV, and WebM files up to 60 minutes long. The video should have clear audio for best transcription results.",
   },
   {
-    question: "How does team collaboration work?",
-    answer: "Pro and Enterprise plans include real-time collaboration features. Team members can work on projects simultaneously, leave comments, and share assets in a centralized workspace.",
+    question: "Can I edit the AI-generated visuals?",
+    answer: "Yes! You can accept, reject, or refine any visual. Just type what you want changed—like 'make this chart blue' or 'use a pie chart instead'—and the AI will regenerate it.",
   },
   {
-    question: "What happens if I exceed my monthly video limit?",
-    answer: "You can purchase additional video credits or upgrade to a higher tier. We'll notify you when you're approaching your limit so you can plan accordingly.",
+    question: "What about the subtitle styling options?",
+    answer: "Choose from 15+ animation presets including viral styles (bounce, shake, color-wipe), cinematic styles (fade-rise, typewriter), and display modes (karaoke, word-by-word). You can also customize fonts, colors, and positioning.",
   },
   {
-    question: "Is there a free trial for paid plans?",
-    answer: "Yes! We offer a 14-day free trial for our Pro plan with full access to all features. No credit card required to start.",
+    question: "Is there a free trial?",
+    answer: "Yes! The Starter plan is free forever with 5 videos per month at 720p. Upgrade to Pro for more videos, 4K quality, and no watermark.",
   },
 ];

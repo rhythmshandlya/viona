@@ -2,20 +2,20 @@
 const steps = [
   {
     number: "1",
-    title: "Enter Your Text",
-    description: "Type or paste your script, article, or idea.",
+    title: "Upload Your Video",
+    description: "Drag and drop your talking-head video. We accept MP4, MOV, and WebM up to 60 minutes.",
     gradient: "from-blue-100 to-blue-200",
   },
   {
     number: "2",
-    title: "Choose a Style",
-    description: "Select from templates, voices, and visual styles.",
+    title: "AI Does the Work",
+    description: "We transcribe, remove filler words, and generate visuals that match your explanations.",
     gradient: "from-amber-100 to-amber-200",
   },
   {
     number: "3",
-    title: "Generate & Share",
-    description: "Click generate and share your video instantly.",
+    title: "Review & Export",
+    description: "Accept or refine the AI visuals, style your subtitles, and export in any format.",
     gradient: "from-rose-100 to-rose-200",
   },
 ];
@@ -26,11 +26,11 @@ const steps = [
     <!-- Header -->
     <div class="text-center mb-16">
       <h2 class="text-3xl sm:text-4xl font-semibold leading-tight">
-        Turn Your Ideas into Videos in
-        <br /><span class="text-orange wavy-underline">3 Simple Steps</span>
+        From Raw Footage to
+        <br /><span class="text-orange wavy-underline">Polished Video</span>
       </h2>
       <p class="text-muted-foreground mt-4 max-w-lg mx-auto">
-        Share documents, assign tasks, and communicate in real time — whether you learn in the office or working remotely.
+        No editing skills required. Upload, review, and export—our AI handles the rest.
       </p>
     </div>
 
@@ -41,34 +41,47 @@ const steps = [
           <!-- Step image placeholder -->
           <div class={`bg-gradient-to-br ${step.gradient} rounded-xl aspect-[4/3] mb-6 relative overflow-hidden`}>
             {index === 0 && (
-              <div class="absolute bottom-4 left-4 right-4 bg-white rounded-lg p-3 shadow-sm">
-                <div class="flex items-center gap-2 mb-2">
-                  <div class="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center">
-                    <span class="text-xs">Hi</span>
-                  </div>
-                  <span class="text-xs text-muted-foreground">Hi Jane...</span>
+              <div class="absolute inset-4 flex items-center justify-center">
+                <div class="bg-white rounded-lg p-4 shadow-sm text-center">
+                  <svg class="w-8 h-8 mx-auto mb-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                  </svg>
+                  <span class="text-xs text-muted-foreground">Drop video here</span>
                 </div>
-                <div class="h-2 bg-gray-100 rounded w-3/4"></div>
               </div>
             )}
             {index === 1 && (
               <div class="absolute inset-4 flex items-center justify-center">
-                <div class="bg-white rounded-lg p-2 shadow-sm">
-                  <div class="text-xs font-medium mb-1">Choose a Style</div>
-                  <div class="flex gap-1">
-                    <div class="w-8 h-8 bg-blue-100 rounded"></div>
-                    <div class="w-8 h-8 bg-green-100 rounded border-2 border-primary"></div>
-                    <div class="w-8 h-8 bg-purple-100 rounded"></div>
+                <div class="bg-white rounded-lg p-3 shadow-sm w-full max-w-[140px]">
+                  <div class="space-y-2">
+                    <div class="flex items-center gap-2">
+                      <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span class="text-[10px]">Transcribing...</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <div class="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span class="text-[10px]">Removing fillers...</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <div class="w-3 h-3 bg-primary rounded-full"></div>
+                      <span class="text-[10px]">Generating visuals...</span>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
             {index === 2 && (
               <div class="absolute inset-4 flex items-center justify-center">
-                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg">
-                  <svg class="w-6 h-6 text-primary" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
+                <div class="bg-white rounded-lg p-3 shadow-sm">
+                  <div class="flex gap-2 mb-2">
+                    <button class="px-2 py-1 bg-green-100 text-green-700 rounded text-[10px]">Accept</button>
+                    <button class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-[10px]">Edit</button>
+                  </div>
+                  <div class="w-20 h-12 bg-gray-100 rounded flex items-center justify-center">
+                    <svg class="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
                 </div>
               </div>
             )}

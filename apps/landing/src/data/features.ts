@@ -6,33 +6,33 @@ export interface Feature {
 
 export const features: Feature[] = [
   {
+    icon: "mic",
+    title: "Auto Transcription",
+    description: "Word-level speech-to-text with 95%+ accuracy. Edit your video by editing the transcript.",
+  },
+  {
     icon: "sparkles",
-    title: "AI-Powered Generation",
-    description: "Transform your text prompts into stunning videos with our advanced AI. No editing skills required.",
+    title: "AI Visual Generation",
+    description: "Automatically creates flowcharts, diagrams, charts, and graphics that match what you're explaining.",
   },
   {
-    icon: "zap",
-    title: "Lightning Fast",
-    description: "Generate professional-quality videos in minutes, not hours. Perfect for tight deadlines.",
+    icon: "scissors",
+    title: "Filler Word Removal",
+    description: "Automatically removes \"um\", \"uh\", \"like\", and awkward pauses. Clean audio, zero effort.",
   },
   {
-    icon: "layers",
-    title: "Template Library",
-    description: "Choose from hundreds of professionally designed templates for any occasion or industry.",
+    icon: "captions",
+    title: "Animated Subtitles",
+    description: "15+ animation presets including karaoke, typewriter, and word-by-word highlighting.",
   },
   {
-    icon: "wand",
-    title: "Smart Editing",
-    description: "Our intuitive editor lets you fine-tune every detail with AI-assisted suggestions.",
+    icon: "layout",
+    title: "Smart Layouts",
+    description: "Picture-in-picture, split screen, or fullscreen visuals. One click to switch between them.",
   },
   {
-    icon: "users",
-    title: "Team Collaboration",
-    description: "Work together seamlessly with real-time collaboration and shared project spaces.",
-  },
-  {
-    icon: "globe",
-    title: "Multi-Language Support",
-    description: "Create videos in 50+ languages with automatic translation and voice-over capabilities.",
+    icon: "download",
+    title: "Export Anywhere",
+    description: "Download in 1080p or 4K. Vertical for TikTok/Reels, square for LinkedIn, widescreen for YouTube.",
   },
 ];

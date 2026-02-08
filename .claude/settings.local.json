@@ -83,7 +83,10 @@
       "Bash(BUCKET_ENDPOINT=storage-production-9827.up.railway.app BUCKET_ACCESS_KEY_ID=cllipify BUCKET_SECRET_ACCESS_KEY=cllipify-secret-key-2024 BUCKET_NAME=cllipify S3_USE_SSL=true pnpm --filter @reelify/worker run upload-template:*)",
       "Bash(echo:*)",
       "Bash(ls:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "mcp__railway-mcp-server__list-services",
+      "mcp__railway-mcp-server__link-service",
+      "mcp__railway-mcp-server__deploy"
     ]
   }
 }

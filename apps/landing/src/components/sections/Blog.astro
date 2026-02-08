@@ -1,15 +1,15 @@
 ---
 const articles = [
   {
-    title: "Automate Short Tracking",
+    title: "How AI Visuals Boost Viewer Retention",
     image: "from-amber-100 to-amber-200",
   },
   {
-    title: "Omnichannel Integration",
+    title: "Filler Words: Why Removing Them Matters",
     image: "from-rose-100 to-rose-200",
   },
   {
-    title: "Actionable Insights",
+    title: "Subtitle Styles That Go Viral",
     image: "from-blue-100 to-blue-200",
   },
 ];
@@ -18,18 +18,18 @@ const articles = [
 <section class="py-20">
   <div class="max-w-6xl mx-auto px-6">
     <!-- Header -->
-    <div class="animate-on-scroll flex items-center justify-between mb-12">
+    <div class="flex items-center justify-between mb-12">
       <h2 class="text-3xl sm:text-4xl font-semibold">
-        Stay Ahead with AI Video
-        <br /><span class="text-orange">Trends & Tips</span>
+        Tips for Better
+        <br /><span class="text-orange">Explainer Videos</span>
       </h2>
       <div class="hidden sm:flex items-center gap-2">
-        <button class="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted transition-colors">
+        <button class="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
         </button>
-        <button class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors">
+        <button class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
@@ -38,12 +38,12 @@ const articles = [
     </div>
 
     <!-- Blog cards -->
-    <div class="grid md:grid-cols-3 gap-6 stagger-children">
+    <div class="grid md:grid-cols-3 gap-6">
       {articles.map((article) => (
         <a href="#" class="blog-card group">
           <div class={`bg-gradient-to-br ${article.image} aspect-[4/3]`}></div>
           <div class="p-6">
-            <h3 class="font-semibold group-hover:text-primary transition-colors">{article.title}</h3>
+            <h3 class="font-semibold group-hover:text-primary">{article.title}</h3>
           </div>
         </a>
       ))}

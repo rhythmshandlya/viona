@@ -1,7 +1,7 @@
 export const siteConfig = {
   name: "Cllipify",
-  title: "Cllipify - Transform Your Ideas Into Stunning Videos",
-  description: "AI-powered video generation for the next generation of creators. Create professional videos in minutes with our intuitive platform.",
+  title: "Cllipify - You Explain It. We Illustrate It.",
+  description: "Transform your talking-head videos into visually-rich content. AI automatically generates charts, diagrams, and graphics synced to your explanations.",
   url: "https://cllipify.com",
   appUrl: "https://app.cllipify.com",
   ogImage: "/og-image.png",
@@ -13,7 +13,7 @@ export const siteConfig = {
     { label: "Features", href: "#features" },
     { label: "How it Works", href: "#how-it-works" },
     { label: "Pricing", href: "/pricing" },
-    { label: "FAQ", href: "#faq" },
+    { label: "About", href: "/about" },
   ],
   footer: {
     product: [
