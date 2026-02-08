@@ -21,6 +21,11 @@
     "db:migrate": "pnpm --filter @reelify/api db:migrate",
     "db:seed": "pnpm --filter @reelify/api db:seed",
     "setup": "pnpm install && pnpm docker:up && pnpm db:migrate",
+    "deploy": "pwsh -ExecutionPolicy Bypass -File ./scripts/deploy.ps1",
+    "deploy:web": "railway up --service web --detach",
+    "deploy:api": "railway up --service api --detach",
+    "deploy:worker": "railway up --service worker --detach",
+    "deploy:all": "railway up --service web --detach && railway up --service api --detach && railway up --service worker --detach",
     "lint": "pnpm run --parallel lint",
     "typecheck": "pnpm run --parallel typecheck"
   },
