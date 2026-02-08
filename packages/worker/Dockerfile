@@ -28,8 +28,7 @@ COPY packages/renderer/package.json ./packages/renderer/
 COPY packages/worker/package.json ./packages/worker/
 
 # Install dependencies
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter @reelify/worker...
+RUN pnpm install --frozen-lockfile --filter @reelify/worker...
 
 # ============================================
 # Build stage
@@ -56,7 +55,7 @@ RUN pnpm --filter @reelify/shared build && \
 # ============================================
 # Production stage
 # ============================================
-FROM node:20-slim AS runner
+FROM base AS runner
 
 WORKDIR /app
 
@@ -79,6 +78,22 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY packages/worker/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy package files for production install
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY patches ./patches/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/renderer/package.json ./packages/renderer/
+COPY packages/worker/package.json ./packages/worker/
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --filter @reelify/worker... --prod
+
+# Copy built files
+COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
+COPY --from=builder /app/packages/worker/src/agents ./packages/worker/src/agents
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/renderer/dist ./packages/renderer/dist
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 worker
@@ -89,15 +104,7 @@ RUN mkdir -p /tmp/workspace /tmp/template && \
 
 USER worker
 
-# Copy built files
-COPY --from=builder --chown=worker:nodejs /app/packages/worker/dist ./dist
-COPY --from=builder --chown=worker:nodejs /app/packages/worker/package.json ./package.json
-COPY --from=builder --chown=worker:nodejs /app/packages/worker/src/agents ./src/agents
-COPY --from=builder --chown=worker:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=worker:nodejs /app/packages/shared/dist ./node_modules/@reelify/shared/dist
-COPY --from=builder --chown=worker:nodejs /app/packages/shared/package.json ./node_modules/@reelify/shared/package.json
-COPY --from=builder --chown=worker:nodejs /app/packages/renderer/dist ./node_modules/@reelify/renderer/dist
-COPY --from=builder --chown=worker:nodejs /app/packages/renderer/package.json ./node_modules/@reelify/renderer/package.json
+WORKDIR /app/packages/worker
 
 # Set Python path for Claude Agent SDK
 ENV PYTHON_PATH="/opt/venv/bin/python3"

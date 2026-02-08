@@ -3,6 +3,9 @@ import { resolve, join } from 'path';
 
 // Determine if running on Railway (production)
 const isRailway = !!process.env.BUCKET_ENDPOINT || !!process.env.RAILWAY_ENVIRONMENT;
+// Internal Railway connections (*.railway.internal) use HTTP, not HTTPS
+const storageEndpoint = process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost';
+const isInternalConnection = storageEndpoint.includes('.railway.internal');
 
 export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
@@ -24,11 +27,11 @@ export const config = {
   // Storage configuration - single bucket with prefixes
   // Railway Bucket vars take precedence (auto-injected in prod)
   storage: {
-    endpoint: process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost',
-    port: isRailway ? undefined : parseInt(process.env.S3_PORT || '9000', 10),
+    endpoint: storageEndpoint,
+    port: process.env.BUCKET_PORT ? parseInt(process.env.BUCKET_PORT, 10) : parseInt(process.env.S3_PORT || '9000', 10),
     accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
     secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
-    useSSL: isRailway || process.env.S3_USE_SSL === 'true',
+    useSSL: isRailway && !isInternalConnection ? true : process.env.S3_USE_SSL === 'true',
     bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
     region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
     // Prefixes for organizing objects within single bucket

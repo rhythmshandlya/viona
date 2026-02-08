@@ -26,8 +26,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/api/package.json ./packages/api/
 
 # Install dependencies
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter @reelify/api...
+RUN pnpm install --frozen-lockfile --filter @reelify/api...
 
 # ============================================
 # Build stage
@@ -51,23 +50,31 @@ RUN pnpm --filter @reelify/shared build && \
 # ============================================
 # Production stage
 # ============================================
-FROM node:20-slim AS runner
+FROM base AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
+
+# Copy package files for production install
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY patches ./patches/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/api/package.json ./packages/api/
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --filter @reelify/api... --prod
+
+# Copy built files
+COPY --from=builder /app/packages/api/dist ./packages/api/dist
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 api
 USER api
 
-# Copy built files
-COPY --from=builder --chown=api:nodejs /app/packages/api/dist ./dist
-COPY --from=builder --chown=api:nodejs /app/packages/api/package.json ./package.json
-COPY --from=builder --chown=api:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=api:nodejs /app/packages/shared/dist ./node_modules/@reelify/shared/dist
-COPY --from=builder --chown=api:nodejs /app/packages/shared/package.json ./node_modules/@reelify/shared/package.json
+WORKDIR /app/packages/api
 
 EXPOSE 4000
 

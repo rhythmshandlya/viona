@@ -45,16 +45,21 @@ export const config = {
   // Storage configuration is now handled by @reelify/shared StorageService
   // This config is kept for backwards compatibility with existing code
   // Use: import { getStorage } from '@reelify/shared/storage';
-  storage: {
+  storage: (() => {
     // Railway Bucket vars take precedence (auto-injected in prod)
-    endpoint: process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost',
-    port: process.env.BUCKET_ENDPOINT ? undefined : parseInt(process.env.S3_PORT || '9000', 10),
-    accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
-    secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
-    useSSL: !!process.env.BUCKET_ENDPOINT || process.env.S3_USE_SSL === 'true',
-    bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
-    region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
-  },
+    const endpoint = process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost';
+    // Internal Railway connections (*.railway.internal) use HTTP, not HTTPS
+    const isInternalConnection = endpoint.includes('.railway.internal');
+    return {
+      endpoint,
+      port: process.env.BUCKET_PORT ? parseInt(process.env.BUCKET_PORT, 10) : parseInt(process.env.S3_PORT || '9000', 10),
+      accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
+      secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
+      useSSL: !isInternalConnection && (!!process.env.BUCKET_ENDPOINT || process.env.S3_USE_SSL === 'true'),
+      bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
+      region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
+    };
+  })(),
 
   // Legacy alias for backwards compatibility
   get minio() {

@@ -32,9 +32,14 @@ export function createStorageConfigFromEnv(): StorageConfig {
   const isRailway = !!process.env.BUCKET_ENDPOINT || !!process.env.RAILWAY_ENVIRONMENT;
 
   if (isRailway) {
+    // Internal Railway connections (*.railway.internal) use HTTP, not HTTPS
+    const endpoint = process.env.BUCKET_ENDPOINT || 'storage.railway.internal';
+    const isInternalConnection = endpoint.includes('.railway.internal');
+
     return {
-      endpoint: process.env.BUCKET_ENDPOINT || 'storage.railway.app',
-      useSSL: true,
+      endpoint,
+      port: process.env.BUCKET_PORT ? parseInt(process.env.BUCKET_PORT, 10) : undefined,
+      useSSL: !isInternalConnection, // Use HTTP for internal, HTTPS for external
       accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || '',
       secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || '',
       bucket: process.env.BUCKET_NAME || process.env.BUCKET || '',

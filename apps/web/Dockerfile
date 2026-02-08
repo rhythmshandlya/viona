@@ -27,8 +27,7 @@ COPY packages/renderer/package.json ./packages/renderer/
 COPY apps/web/package.json ./apps/web/
 
 # Install dependencies
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --filter web...
+RUN pnpm install --frozen-lockfile --filter web...
 
 # ============================================
 # Build stage
