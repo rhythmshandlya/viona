@@ -193,7 +193,7 @@ async function runWhisperX(
 
 /**
  * Run OpenAI Whisper API for transcription.
- * Uses the OpenAI API to transcribe audio with word-level timestamps.
+ * Uses the OpenAI SDK to transcribe audio with word-level timestamps.
  */
 async function runOpenAIWhisper(
   audioPath: string,
@@ -207,30 +207,20 @@ async function runOpenAIWhisper(
 
   logger.info({ projectId }, 'Starting OpenAI Whisper transcription');
 
-  // OpenAI Whisper API requires file to be < 25MB, so we use the extracted WAV
-  const FormData = (await import('form-data')).default;
-  const form = new FormData();
-  form.append('file', createReadStream(audioPath));
-  form.append('model', 'whisper-1');
-  form.append('response_format', 'verbose_json');
-  form.append('timestamp_granularities[]', 'word');
-  form.append('language', config.whisperx.language || 'en');
+  // Use OpenAI SDK for proper file upload handling
+  const OpenAI = (await import('openai')).default;
+  const openai = new OpenAI({ apiKey });
 
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      ...form.getHeaders(),
-    },
-    body: form as any,
+  const transcription = await openai.audio.transcriptions.create({
+    file: createReadStream(audioPath),
+    model: 'whisper-1',
+    response_format: 'verbose_json',
+    timestamp_granularities: ['word'],
+    language: config.whisperx.language || 'en',
   });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-  }
-
-  const result = await response.json() as {
+  // The SDK returns typed response
+  const result = transcription as {
     text: string;
     words?: Array<{ word: string; start: number; end: number }>;
     segments?: Array<{ text: string; start: number; end: number }>;
