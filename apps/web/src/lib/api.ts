@@ -1,8 +1,23 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+// Helper to get session token from cookies
+function getSessionToken(): string | null {
+  if (typeof document === 'undefined') return null;
+
+  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+    const [key, value] = cookie.trim().split('=');
+    acc[key] = value;
+    return acc;
+  }, {} as Record<string, string>);
+
+  // Prefer JWT for faster validation
+  return cookies['stytch_session_jwt'] || cookies['stytch_session_token'] || null;
+}
+
 export interface CreateProjectResponse {
   projectId: string;
   uploadUrl: string;
+  videoKey: string;
 }
 
 export interface ProcessProjectResponse {
@@ -110,10 +125,30 @@ export interface GenerateVisualsOptions {
   stylePreset: StylePreset;
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
+  styleGuide?: string;
 }
 
 export interface GenerateVisualsResponse {
   jobId: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+}
+
+export interface UserProject {
+  id: string;
+  title: string | null;
+  status: string;
+  videoKey: string | null;
+  thumbnailKey: string | null;
+  durationMs: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 class ApiClient {
@@ -128,12 +163,23 @@ class ApiClient {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
+
+    // Get auth token
+    const token = getSessionToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> || {}),
+    };
+
+    // Add Authorization header if we have a token
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(url, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options.headers,
-      },
+      headers,
+      credentials: 'include', // Include cookies
     });
 
     if (!response.ok) {
@@ -145,11 +191,21 @@ class ApiClient {
   }
 
   // Projects
-  async createProject(filename: string): Promise<CreateProjectResponse> {
+  async createProject(filename: string, title?: string): Promise<CreateProjectResponse> {
     return this.request('/api/projects', {
       method: 'POST',
-      body: JSON.stringify({ filename }),
+      body: JSON.stringify({ filename, title }),
     });
+  }
+
+  async deleteProject(projectId: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/api/projects/${projectId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  getThumbnailUrl(projectId: string): string {
+    return `${this.baseUrl}/api/projects/${projectId}/thumbnail`;
   }
 
   async getProject(projectId: string): Promise<Project> {
@@ -204,6 +260,28 @@ class ApiClient {
     });
   }
 
+  // Users
+  async getCurrentUser(): Promise<UserProfile> {
+    return this.request('/api/users/me');
+  }
+
+  async updateCurrentUser(updates: { name?: string; avatarUrl?: string }): Promise<UserProfile> {
+    return this.request('/api/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  }
+
+  async getCurrentUserProjects(): Promise<UserProject[]> {
+    return this.request('/api/users/me/projects');
+  }
+
+  async deleteCurrentUser(): Promise<{ success: boolean; message: string }> {
+    return this.request('/api/users/me', {
+      method: 'DELETE',
+    });
+  }
+
   // Jobs
   async getJob(jobId: string): Promise<Job> {
     return this.request(`/api/jobs/${jobId}`);
@@ -215,7 +293,7 @@ class ApiClient {
     });
   }
 
-  // Upload helper
+  // Upload helper - direct to presigned URL (may have CORS issues in some environments)
   async uploadToPresignedUrl(
     uploadUrl: string,
     file: File,
@@ -246,6 +324,56 @@ class ApiClient {
       xhr.open('PUT', uploadUrl);
       xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
       xhr.send(file);
+    });
+  }
+
+  // Proxy upload - uploads through API server, bypasses CORS issues
+  async uploadViaProxy(
+    projectId: string,
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          let errorMessage = `Upload failed: ${xhr.status}`;
+          try {
+            const response = JSON.parse(xhr.responseText);
+            errorMessage = response.error || errorMessage;
+          } catch {
+            // ignore parse error
+          }
+          reject(new Error(errorMessage));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
+
+      xhr.open('POST', `${this.baseUrl}/api/projects/${projectId}/upload`);
+
+      // Add auth header
+      const token = getSessionToken();
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.withCredentials = true;
+      xhr.send(formData);
     });
   }
 }

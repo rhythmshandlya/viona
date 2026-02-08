@@ -1,0 +1,28 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  variant?: "default" | "primary" | "secondary" | "fun";
+  class?: string;
+}
+
+const {
+  variant = "default",
+  class: className,
+} = Astro.props;
+
+const variants = {
+  default: "bg-muted text-foreground border border-border",
+  primary: "bg-primary/10 text-primary border border-primary/20",
+  secondary: "bg-secondary/10 text-secondary border border-secondary/20",
+  fun: "bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10 text-primary border border-primary/20",
+};
+---
+
+<span class={cn(
+  "inline-flex items-center gap-2 px-4 py-1.5 text-sm font-semibold rounded-full hover-wiggle",
+  variants[variant],
+  className
+)}>
+  <slot />
+</span>

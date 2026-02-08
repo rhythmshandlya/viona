@@ -1,0 +1,27 @@
+---
+import { faqs } from "@/data/testimonials";
+---
+
+<section id="faq" class="py-20 lg:py-28 border-t border-border">
+  <div class="max-w-2xl mx-auto px-6">
+    <div class="mb-16">
+      <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
+        Questions
+      </h2>
+      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
+        Everything you need to know.
+      </p>
+    </div>
+
+    <div class="stagger-children">
+      {faqs.map((faq) => (
+        <details>
+          <summary>{faq.question}</summary>
+          <div>
+            <p class="text-sm text-muted-foreground leading-relaxed">{faq.answer}</p>
+          </div>
+        </details>
+      ))}
+    </div>
+  </div>
+</section>

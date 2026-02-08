@@ -1,0 +1,94 @@
+---
+import { siteConfig } from "@/data/site";
+---
+
+<header class="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <nav class="flex items-center justify-between h-16">
+      <!-- Logo -->
+      <a href="/" class="flex items-center gap-2">
+        <div class="flex items-center">
+          <svg class="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z"/>
+          </svg>
+          <span class="text-lg font-semibold ml-1">{siteConfig.name}</span>
+        </div>
+      </a>
+
+      <!-- Desktop Nav -->
+      <div class="hidden md:flex items-center gap-8">
+        {siteConfig.nav.map((item) => (
+          <a
+            href={item.href}
+            class="text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {item.label}
+          </a>
+        ))}
+      </div>
+
+      <!-- CTA + Mobile Menu -->
+      <div class="flex items-center gap-3">
+        <a
+          href={siteConfig.appUrl}
+          class="text-sm text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
+        >
+          Login
+        </a>
+        <a
+          href={siteConfig.appUrl}
+          class="btn-primary text-sm !py-2 !px-4"
+        >
+          Get Started
+        </a>
+
+        <!-- Mobile menu button -->
+        <button
+          id="mobile-menu-btn"
+          class="md:hidden p-2 -mr-2 text-muted-foreground hover:text-foreground"
+          aria-label="Open menu"
+        >
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- Mobile menu -->
+  <div id="mobile-menu" class="hidden md:hidden bg-background border-t border-border">
+    <div class="px-4 py-4 space-y-3">
+      {siteConfig.nav.map((item) => (
+        <a
+          href={item.href}
+          class="block py-2 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          {item.label}
+        </a>
+      ))}
+      <a
+        href={siteConfig.appUrl}
+        class="block py-2 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        Login
+      </a>
+    </div>
+  </div>
+</header>
+
+<script>
+  const btn = document.getElementById('mobile-menu-btn');
+  const menu = document.getElementById('mobile-menu');
+
+  btn?.addEventListener('click', () => {
+    menu?.classList.toggle('hidden');
+  });
+
+  // Close menu when clicking a link
+  menu?.querySelectorAll('a').forEach(link => {
+    link.addEventListener('click', () => {
+      menu?.classList.add('hidden');
+    });
+  });
+</script>

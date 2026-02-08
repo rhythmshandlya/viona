@@ -1,6 +1,7 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { mkdir, rm, readFile } from 'fs/promises';
+import { createReadStream } from 'fs';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
@@ -39,15 +40,19 @@ interface WhisperXOutput {
 }
 
 async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
+  // Normalize paths for FFmpeg on Windows (use forward slashes)
+  const normalizedInput = videoPath.replace(/\\/g, '/');
+  const normalizedOutput = audioPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg(videoPath)
+    ffmpeg(normalizedInput)
       .outputOptions([
         '-vn',           // No video
         '-acodec', 'pcm_s16le',  // 16-bit PCM
         '-ar', '16000',  // 16kHz sample rate
         '-ac', '1',      // Mono
       ])
-      .output(audioPath)
+      .output(normalizedOutput)
       .on('end', () => resolve())
       .on('error', (err) => reject(err))
       .run();
@@ -55,8 +60,11 @@ async function extractAudio(videoPath: string, audioPath: string): Promise<void>
 }
 
 async function getVideoDuration(videoPath: string): Promise<number> {
+  // Normalize path for FFmpeg on Windows
+  const normalizedPath = videoPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(videoPath, (err, metadata) => {
+    ffmpeg.ffprobe(normalizedPath, (err, metadata) => {
       if (err) {
         reject(err);
         return;
@@ -68,8 +76,11 @@ async function getVideoDuration(videoPath: string): Promise<number> {
 }
 
 async function getVideoMetadata(videoPath: string): Promise<{ width: number; height: number; fps: number }> {
+  // Normalize path for FFmpeg on Windows
+  const normalizedPath = videoPath.replace(/\\/g, '/');
+
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(videoPath, (err, metadata) => {
+    ffmpeg.ffprobe(normalizedPath, (err, metadata) => {
       if (err) {
         reject(err);
         return;
@@ -181,6 +192,78 @@ async function runWhisperX(
 }
 
 /**
+ * Run OpenAI Whisper API for transcription.
+ * Uses the OpenAI SDK to transcribe audio with word-level timestamps.
+ */
+async function runOpenAIWhisper(
+  audioPath: string,
+  jobId: string,
+  projectId: string,
+): Promise<WhisperXOutput> {
+  const apiKey = config.transcription.openaiApiKey;
+  if (!apiKey) {
+    throw new Error('OPENAI_API_KEY is required for API transcription mode');
+  }
+
+  logger.info({ projectId }, 'Starting OpenAI Whisper transcription');
+
+  // Use OpenAI SDK for proper file upload handling
+  const OpenAI = (await import('openai')).default;
+  const openai = new OpenAI({ apiKey });
+
+  const transcription = await openai.audio.transcriptions.create({
+    file: createReadStream(audioPath),
+    model: 'whisper-1',
+    response_format: 'verbose_json',
+    timestamp_granularities: ['word'],
+    language: config.whisperx.language || 'en',
+  });
+
+  // The SDK returns typed response
+  const result = transcription as {
+    text: string;
+    words?: Array<{ word: string; start: number; end: number }>;
+    segments?: Array<{ text: string; start: number; end: number }>;
+  };
+
+  // Convert OpenAI format to WhisperX format
+  const words: WhisperXWord[] = (result.words || []).map(w => ({
+    text: w.word.trim(),
+    startMs: Math.round(w.start * 1000),
+    endMs: Math.round(w.end * 1000),
+    confidence: 1.0, // OpenAI doesn't provide confidence scores
+  }));
+
+  const segments: WhisperXSegment[] = (result.segments || []).map(s => ({
+    text: s.text.trim(),
+    startMs: Math.round(s.start * 1000),
+    endMs: Math.round(s.end * 1000),
+  }));
+
+  logger.info({ projectId, wordCount: words.length }, 'OpenAI Whisper transcription complete');
+
+  return {
+    words,
+    segments,
+    language: config.whisperx.language || 'en',
+  };
+}
+
+/**
+ * Run transcription using the configured mode (local or api).
+ */
+async function runTranscription(
+  audioPath: string,
+  jobId: string,
+  projectId: string,
+): Promise<WhisperXOutput> {
+  if (config.transcription.mode === 'api') {
+    return runOpenAIWhisper(audioPath, jobId, projectId);
+  }
+  return runWhisperX(audioPath, jobId, projectId);
+}
+
+/**
  * Group words into caption pages (TikTok-style).
  * Groups words that are within `gapMs` of each other, up to `maxWords` per page.
  */
@@ -242,7 +325,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
 
     // Step 1: Download video (10%)
     await publishJobProgress(jobId, 5, 'Downloading video...', pubExtras);
-    await downloadFile(config.minio.buckets.uploads, videoKey, videoPath);
+    await downloadFile('uploads', videoKey, videoPath);
     await publishJobProgress(jobId, 10, 'Video downloaded', pubExtras);
 
     // Step 2: Get video metadata
@@ -266,9 +349,10 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     await extractAudio(videoPath, audioPath);
     await publishJobProgress(jobId, 20, 'Audio extracted', pubExtras);
 
-    // Step 4: Run WhisperX (25% - 70%)
-    await publishJobProgress(jobId, 25, 'Starting WhisperX transcription...', pubExtras);
-    const whisperxOutput = await runWhisperX(audioPath, jobId, projectId);
+    // Step 4: Run transcription (25% - 70%)
+    const transcriptionMode = config.transcription.mode;
+    await publishJobProgress(jobId, 25, `Starting ${transcriptionMode === 'api' ? 'OpenAI Whisper' : 'WhisperX'} transcription...`, pubExtras);
+    const whisperxOutput = await runTranscription(audioPath, jobId, projectId);
     await publishJobProgress(jobId, 70, 'Transcription complete', pubExtras);
 
     // Step 5: Process captions (75%)
