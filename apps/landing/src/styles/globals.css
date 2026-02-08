@@ -66,51 +66,6 @@ body {
   border-radius: 2px;
 }
 
-/* Animations */
-.animate-on-scroll {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
-}
-
-.animate-on-scroll.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.stagger-children > * {
-  opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.5s ease, transform 0.5s ease;
-}
-
-.stagger-children.visible > *:nth-child(1) { transition-delay: 0s; opacity: 1; transform: none; }
-.stagger-children.visible > *:nth-child(2) { transition-delay: 0.08s; opacity: 1; transform: none; }
-.stagger-children.visible > *:nth-child(3) { transition-delay: 0.16s; opacity: 1; transform: none; }
-.stagger-children.visible > *:nth-child(4) { transition-delay: 0.24s; opacity: 1; transform: none; }
-.stagger-children.visible > *:nth-child(5) { transition-delay: 0.32s; opacity: 1; transform: none; }
-.stagger-children.visible > *:nth-child(6) { transition-delay: 0.4s; opacity: 1; transform: none; }
-
-/* Image grid animation */
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-10px); }
-}
-
-.float-animation {
-  animation: float 4s ease-in-out infinite;
-}
-
-.float-animation-delayed {
-  animation: float 4s ease-in-out infinite;
-  animation-delay: 1s;
-}
-
-.float-animation-delayed-2 {
-  animation: float 4s ease-in-out infinite;
-  animation-delay: 2s;
-}
-
 /* Gradient blob */
 .hero-gradient {
   position: absolute;
@@ -123,12 +78,6 @@ body {
   z-index: 0;
 }
 
-/* Stats bar sparkle */
-.sparkle {
-  display: inline-block;
-  color: var(--color-primary);
-}
-
 /* Button styles */
 .btn-primary {
   background: var(--color-foreground);
@@ -137,7 +86,6 @@ body {
   border-radius: 0.5rem;
   font-weight: 500;
   font-size: 0.875rem;
-  transition: all 0.2s ease;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -145,7 +93,6 @@ body {
 
 .btn-primary:hover {
   background: #333;
-  transform: translateY(-1px);
 }
 
 .btn-outline {
@@ -156,7 +103,6 @@ body {
   font-weight: 500;
   font-size: 0.875rem;
   border: 1px solid var(--color-border);
-  transition: all 0.2s ease;
 }
 
 .btn-outline:hover {
@@ -196,7 +142,6 @@ body {
   border-radius: 0.375rem;
   font-weight: 500;
   font-size: 0.875rem;
-  transition: all 0.2s ease;
 }
 
 .email-input-group button:hover {
@@ -234,20 +179,6 @@ body {
   border-radius: 1rem;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-}
-
-.image-grid-item:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
-}
-
-/* Testimonial card on dark bg */
-.testimonial-card {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 1rem;
-  padding: 2rem;
 }
 
 /* Blog card */
@@ -256,11 +187,9 @@ body {
   border-radius: 1rem;
   overflow: hidden;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .blog-card:hover {
-  transform: translateY(-4px);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
@@ -287,11 +216,10 @@ details summary::after {
   content: "+";
   font-size: 1.25rem;
   color: var(--color-muted-foreground);
-  transition: transform 0.2s ease;
 }
 
 details[open] summary::after {
-  transform: rotate(45deg);
+  content: "−";
 }
 
 details > div {
@@ -304,15 +232,10 @@ details > div {
   height: 8px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.3);
-  transition: all 0.2s ease;
 }
 
 .nav-dot.active {
   background: var(--color-primary);
-}
-
-.nav-dot:hover {
-  background: rgba(255, 255, 255, 0.5);
 }
 
 /* Orange text */

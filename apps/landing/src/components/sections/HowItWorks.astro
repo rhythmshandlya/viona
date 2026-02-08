@@ -24,7 +24,7 @@ const steps = [
 <section id="how-it-works" class="py-20">
   <div class="max-w-6xl mx-auto px-6">
     <!-- Header -->
-    <div class="animate-on-scroll text-center mb-16">
+    <div class="text-center mb-16">
       <h2 class="text-3xl sm:text-4xl font-semibold leading-tight">
         Turn Your Ideas into Videos in
         <br /><span class="text-orange wavy-underline">3 Simple Steps</span>
@@ -35,12 +35,11 @@ const steps = [
     </div>
 
     <!-- Steps grid -->
-    <div class="grid md:grid-cols-3 gap-6 stagger-children">
+    <div class="grid md:grid-cols-3 gap-6">
       {steps.map((step, index) => (
         <div class="card-elevated p-6">
           <!-- Step image placeholder -->
           <div class={`bg-gradient-to-br ${step.gradient} rounded-xl aspect-[4/3] mb-6 relative overflow-hidden`}>
-            <!-- Floating UI elements -->
             {index === 0 && (
               <div class="absolute bottom-4 left-4 right-4 bg-white rounded-lg p-3 shadow-sm">
                 <div class="flex items-center gap-2 mb-2">
