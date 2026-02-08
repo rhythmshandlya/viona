@@ -1,34 +1,27 @@
 ---
 import { faqs } from "@/data/testimonials";
-import Container from "@/components/ui/Container.astro";
 ---
 
-<section id="faq" class="py-24 lg:py-32">
-  <Container size="narrow">
-    <!-- Section Header -->
-    <div class="text-center mb-16">
-      <span class="inline-block text-sm font-medium text-primary uppercase tracking-wider mb-4">FAQ</span>
-      <h2 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl mb-6">
-        Frequently asked
-        <span class="text-primary italic">questions</span>
+<section id="faq" class="py-20 lg:py-28 border-t border-border">
+  <div class="max-w-2xl mx-auto px-6">
+    <div class="mb-16">
+      <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
+        Questions
       </h2>
-      <p class="animate-on-scroll text-lg text-muted-foreground font-sans" style="animation-delay: 0.1s;">
-        Everything you need to know about Cllipify.
+      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
+        Everything you need to know.
       </p>
     </div>
 
-    <!-- FAQ Accordion -->
     <div class="stagger-children">
       {faqs.map((faq) => (
-        <details class="group">
-          <summary>
-            {faq.question}
-          </summary>
+        <details>
+          <summary>{faq.question}</summary>
           <div>
-            <p class="text-muted-foreground leading-relaxed">{faq.answer}</p>
+            <p class="text-sm text-muted-foreground leading-relaxed">{faq.answer}</p>
           </div>
         </details>
       ))}
     </div>
-  </Container>
+  </div>
 </section>

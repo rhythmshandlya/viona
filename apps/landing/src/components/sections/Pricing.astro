@@ -1,71 +1,52 @@
 ---
 import { pricingTiers } from "@/data/pricing";
 import { siteConfig } from "@/data/site";
-import Container from "@/components/ui/Container.astro";
-import Button from "@/components/ui/Button.astro";
-import Badge from "@/components/ui/Badge.astro";
 ---
 
-<section id="pricing" class="py-24 lg:py-32 bg-muted/30">
-  <Container>
-    <!-- Section Header -->
-    <div class="max-w-3xl mx-auto text-center mb-20">
-      <span class="inline-block text-sm font-medium text-primary uppercase tracking-wider mb-4">Pricing</span>
-      <h2 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl mb-6">
-        Simple, transparent
-        <span class="text-primary italic">pricing</span>
+<section id="pricing" class="py-20 lg:py-28 bg-muted">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="max-w-2xl mb-16">
+      <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
+        Simple pricing
       </h2>
-      <p class="animate-on-scroll text-lg text-muted-foreground font-sans" style="animation-delay: 0.1s;">
-        Start free and scale as you grow. No hidden fees, no surprises.
+      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
+        Start free and scale as you grow.
       </p>
     </div>
 
-    <!-- Pricing Cards -->
-    <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto stagger-children">
+    <div class="grid md:grid-cols-3 gap-8 max-w-4xl stagger-children">
       {pricingTiers.map((tier) => (
-        <div
-          class={`relative card-elevated ${tier.popular ? 'border-2 border-primary shadow-xl ring-1 ring-primary/10' : ''}`}
-        >
-          {tier.popular && (
-            <div class="absolute -top-4 left-1/2 -translate-x-1/2">
-              <Badge variant="primary">Most Popular</Badge>
+        <div class={`bg-background p-8 rounded-lg ${tier.popular ? 'ring-1 ring-foreground' : 'border border-border'}`}>
+          <div class="mb-6">
+            <h3 class="font-medium mb-2">{tier.name}</h3>
+            <div class="flex items-baseline gap-1 mb-2">
+              <span class="text-3xl font-semibold">{tier.price}</span>
+              <span class="text-sm text-muted-foreground">/{tier.period}</span>
             </div>
-          )}
-
-          <div class="p-8">
-            <!-- Header -->
-            <div class="mb-8">
-              <h3 class="text-xl font-semibold mb-2 font-sans">{tier.name}</h3>
-              <div class="flex items-baseline gap-1 mb-2">
-                <span class="text-5xl font-bold font-display price-highlight">{tier.price}</span>
-                <span class="text-muted-foreground">/{tier.period}</span>
-              </div>
-              <p class="text-sm text-muted-foreground">{tier.description}</p>
-            </div>
-
-            <!-- Features -->
-            <ul class="space-y-4 mb-8">
-              {tier.features.map((feature) => (
-                <li class="flex items-start gap-3">
-                  <svg class="w-5 h-5 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span class="text-muted-foreground">{feature}</span>
-                </li>
-              ))}
-            </ul>
-
-            <!-- CTA -->
-            <Button
-              href={siteConfig.appUrl}
-              variant={tier.popular ? "primary" : "outline"}
-              class="w-full"
-            >
-              {tier.cta}
-            </Button>
+            <p class="text-sm text-muted-foreground">{tier.description}</p>
           </div>
+
+          <ul class="space-y-3 mb-8">
+            {tier.features.map((feature) => (
+              <li class="text-sm text-muted-foreground flex items-start gap-2">
+                <span class="text-foreground">✓</span>
+                {feature}
+              </li>
+            ))}
+          </ul>
+
+          <a
+            href={siteConfig.appUrl}
+            class={`block text-center text-sm font-medium px-4 py-2.5 rounded-md transition-colors ${
+              tier.popular
+                ? 'bg-foreground text-background hover:opacity-90'
+                : 'border border-border hover:bg-muted'
+            }`}
+          >
+            {tier.cta}
+          </a>
         </div>
       ))}
     </div>
-  </Container>
+  </div>
 </section>

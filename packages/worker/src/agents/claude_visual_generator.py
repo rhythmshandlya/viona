@@ -395,6 +395,53 @@ class DatabaseTokenStorage(TokenStorage):
             print(f"[TokenStorage] Error saving to DB: {e}")
 
 
+class EnvTokenStorage(TokenStorage):
+    """
+    Store tokens in environment variables (for Railway/server deployment).
+
+    Set these environment variables:
+    - CLAUDE_OAUTH_ACCESS_TOKEN: The OAuth access token
+    - CLAUDE_OAUTH_REFRESH_TOKEN: The OAuth refresh token (optional)
+    - CLAUDE_OAUTH_EXPIRES_AT: Token expiry timestamp in ms (optional)
+    """
+
+    def load(self) -> OAuthTokens | None:
+        """Load tokens from environment variables."""
+        access_token = os.environ.get("CLAUDE_OAUTH_ACCESS_TOKEN")
+        if not access_token:
+            return None
+
+        refresh_token = os.environ.get("CLAUDE_OAUTH_REFRESH_TOKEN")
+        expires_at = os.environ.get("CLAUDE_OAUTH_EXPIRES_AT")
+
+        return OAuthTokens(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            expires_at=int(expires_at) if expires_at else None,
+            scopes=None,
+            subscription_type=os.environ.get("CLAUDE_SUBSCRIPTION_TYPE", "max"),
+        )
+
+    def save(self, tokens: OAuthTokens) -> None:
+        """Cannot save to env vars, but store in memory for session."""
+        os.environ["CLAUDE_OAUTH_ACCESS_TOKEN"] = tokens.access_token
+        if tokens.refresh_token:
+            os.environ["CLAUDE_OAUTH_REFRESH_TOKEN"] = tokens.refresh_token
+        if tokens.expires_at:
+            os.environ["CLAUDE_OAUTH_EXPIRES_AT"] = str(tokens.expires_at)
+        print("[TokenStorage] Tokens updated in environment")
+
+
+def _get_default_storage() -> TokenStorage:
+    """Get the appropriate token storage based on environment."""
+    # Check for env var tokens first (Railway/server deployment)
+    if os.environ.get("CLAUDE_OAUTH_ACCESS_TOKEN"):
+        print("[TokenStorage] Using environment variable tokens")
+        return EnvTokenStorage()
+    # Fall back to file storage (local development)
+    return FileTokenStorage()
+
+
 class OAuthTokenManager:
     """
     Manages OAuth tokens with automatic refresh.
@@ -402,6 +449,9 @@ class OAuthTokenManager:
     Usage:
         # Local development (uses Claude's credential file)
         manager = OAuthTokenManager()
+
+        # Server deployment with env vars (set CLAUDE_OAUTH_ACCESS_TOKEN)
+        manager = OAuthTokenManager()  # Auto-detects env vars
 
         # Server deployment (uses database)
         manager = OAuthTokenManager(
@@ -416,7 +466,7 @@ class OAuthTokenManager:
     """
 
     def __init__(self, storage: TokenStorage | None = None):
-        self.storage = storage or FileTokenStorage()
+        self.storage = storage or _get_default_storage()
         self._tokens: OAuthTokens | None = None
         self._http_client: httpx.AsyncClient | None = None
 

@@ -1,49 +1,30 @@
 ---
 import { testimonials } from "@/data/testimonials";
-import Container from "@/components/ui/Container.astro";
 ---
 
-<section class="py-24 lg:py-32">
-  <Container>
-    <!-- Section Header -->
-    <div class="max-w-3xl mx-auto text-center mb-20">
-      <span class="inline-block text-sm font-medium text-primary uppercase tracking-wider mb-4">Testimonials</span>
-      <h2 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl mb-6">
-        Loved by creators
-        <span class="text-primary italic">worldwide</span>
+<section class="py-20 lg:py-28 border-t border-border">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="max-w-2xl mb-16">
+      <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
+        What creators say
       </h2>
-      <p class="animate-on-scroll text-lg text-muted-foreground font-sans" style="animation-delay: 0.1s;">
-        See what our community has to say about transforming their creative workflow.
+      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
+        Trusted by thousands of creators worldwide.
       </p>
     </div>
 
-    <!-- Testimonials Grid -->
     <div class="grid md:grid-cols-3 gap-8 stagger-children">
       {testimonials.map((testimonial) => (
-        <div class="card-elevated p-8 relative">
-          <!-- Quote mark -->
-          <div class="quote-mark absolute -top-4 left-6">"</div>
-
-          <!-- Content -->
-          <blockquote class="text-lg mb-8 relative z-10 leading-relaxed">
-            "{testimonial.quote}"
-          </blockquote>
-
-          <!-- Author -->
-          <div class="flex items-center gap-4">
-            <!-- Avatar -->
-            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold text-sm">
-              {testimonial.author.split(' ').map(n => n[0]).join('')}
-            </div>
-            <div>
-              <div class="font-semibold">{testimonial.author}</div>
-              <div class="text-sm text-muted-foreground">
-                {testimonial.role}, {testimonial.company}
-              </div>
+        <div class="space-y-6">
+          <p class="text-sm leading-relaxed">"{testimonial.quote}"</p>
+          <div>
+            <div class="font-medium text-sm">{testimonial.author}</div>
+            <div class="text-sm text-muted-foreground">
+              {testimonial.role}, {testimonial.company}
             </div>
           </div>
         </div>
       ))}
     </div>
-  </Container>
+  </div>
 </section>

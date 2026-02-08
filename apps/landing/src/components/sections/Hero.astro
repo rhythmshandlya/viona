@@ -1,187 +1,34 @@
 ---
 import { siteConfig } from "@/data/site";
-import Container from "@/components/ui/Container.astro";
-import Button from "@/components/ui/Button.astro";
-import Badge from "@/components/ui/Badge.astro";
 ---
 
-<section class="relative pt-36 pb-24 lg:pt-44 lg:pb-32 overflow-hidden">
-  <!-- Fun floating shapes -->
-  <div class="absolute top-32 left-10 w-20 h-20 bg-primary/20 rounded-2xl rotate-12 float" style="animation-delay: 0s;"></div>
-  <div class="absolute top-40 right-20 w-16 h-16 bg-secondary/20 rounded-full float-delayed" style="animation-delay: 1s;"></div>
-  <div class="absolute bottom-40 left-1/4 w-12 h-12 bg-accent/20 rounded-xl -rotate-12 float-slow" style="animation-delay: 2s;"></div>
-  <div class="absolute top-1/2 right-10 w-8 h-8 bg-orange-400/20 rounded-lg rotate-45 float" style="animation-delay: 0.5s;"></div>
-  <div class="absolute bottom-32 right-1/4 w-14 h-14 bg-lime-400/20 rounded-2xl float-delayed" style="animation-delay: 1.5s;"></div>
+<section class="pt-32 pb-20 lg:pt-40 lg:pb-28">
+  <div class="max-w-3xl mx-auto px-6 text-center">
+    <p class="animate-on-scroll text-sm text-muted-foreground mb-6">
+      AI-Powered Video Generation
+    </p>
 
-  <!-- Spinning decoration -->
-  <div class="absolute top-1/4 left-5 hidden lg:block">
-    <svg class="w-16 h-16 text-primary/20 spin-slow" viewBox="0 0 100 100">
-      <polygon points="50,5 95,25 95,75 50,95 5,75 5,25" fill="none" stroke="currentColor" stroke-width="2"/>
-    </svg>
-  </div>
+    <h1 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-6" style="animation-delay: 0.05s;">
+      Create videos from text in seconds
+    </h1>
 
-  <Container>
-    <div class="relative z-10 max-w-5xl mx-auto text-center">
-      <!-- Badge with emoji -->
-      <div class="animate-on-scroll flex justify-center mb-8">
-        <Badge variant="fun">
-          <span class="emoji-bounce">🎬</span>
-          Now in Public Beta — Try it free!
-          <span class="emoji-bounce" style="animation-delay: 0.5s;">✨</span>
-        </Badge>
-      </div>
+    <p class="animate-on-scroll text-lg text-muted-foreground max-w-xl mx-auto mb-10" style="animation-delay: 0.1s;">
+      Describe what you want, and our AI generates professional videos. No editing skills required.
+    </p>
 
-      <!-- Fun headline with gradient -->
-      <h1 class="animate-on-scroll text-5xl sm:text-6xl lg:text-8xl font-extrabold tracking-tight mb-6" style="animation-delay: 0.1s;">
-        <span class="block mb-2">Create Videos</span>
-        <span class="block text-gradient underline-rainbow">Like Magic</span>
-        <span class="inline-block ml-4 text-6xl sm:text-7xl lg:text-8xl emoji-bounce">🪄</span>
-      </h1>
-
-      <!-- Subheadline -->
-      <p class="animate-on-scroll text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mt-8 mb-12" style="animation-delay: 0.2s;">
-        AI-powered video generation that's actually fun to use.
-        <span class="text-primary font-semibold">No editing skills needed</span> — just describe what you want! 🎉
-      </p>
-
-      <!-- CTA Buttons with fun styling -->
-      <div class="animate-on-scroll flex flex-col sm:flex-row items-center justify-center gap-4 mb-16" style="animation-delay: 0.3s;">
-        <Button href={siteConfig.appUrl} variant="fun" size="lg">
-          <span class="text-xl">🚀</span>
-          Start Creating Free
-        </Button>
-        <Button href="#how-it-works" variant="outline" size="lg">
-          <span class="text-xl">▶️</span>
-          Watch Demo
-        </Button>
-      </div>
-
-      <!-- Fun stats row -->
-      <div class="animate-on-scroll flex flex-wrap items-center justify-center gap-8 mb-16" style="animation-delay: 0.35s;">
-        <div class="flex items-center gap-2">
-          <span class="text-2xl">⚡</span>
-          <span class="font-semibold">10x Faster</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-2xl">🎨</span>
-          <span class="font-semibold">100+ Templates</span>
-        </div>
-        <div class="flex items-center gap-2">
-          <span class="text-2xl">💜</span>
-          <span class="font-semibold">50k+ Creators</span>
-        </div>
-      </div>
-
-      <!-- Product Preview with fun styling -->
-      <div class="animate-on-scroll relative" style="animation-delay: 0.4s;">
-        <!-- Gradient glow behind -->
-        <div class="absolute inset-0 bg-gradient-to-r from-primary/30 via-secondary/30 to-accent/30 blur-3xl rounded-3xl scale-95"></div>
-
-        <!-- Main preview card -->
-        <div class="relative border-gradient p-1 rounded-3xl">
-          <div class="bg-card rounded-[22px] overflow-hidden shadow-2xl">
-            <!-- Browser-like header with fun colors -->
-            <div class="flex items-center gap-2 px-5 py-4 bg-gradient-to-r from-muted to-muted/50 border-b border-border">
-              <div class="flex gap-2">
-                <div class="w-3 h-3 rounded-full bg-red-400 hover:scale-110 transition-transform cursor-pointer"></div>
-                <div class="w-3 h-3 rounded-full bg-yellow-400 hover:scale-110 transition-transform cursor-pointer"></div>
-                <div class="w-3 h-3 rounded-full bg-green-400 hover:scale-110 transition-transform cursor-pointer"></div>
-              </div>
-              <div class="flex-1 mx-4">
-                <div class="bg-background rounded-lg px-4 py-1.5 text-sm text-muted-foreground text-center max-w-xs mx-auto border border-border flex items-center justify-center gap-2">
-                  <span class="text-green-500">🔒</span>
-                  app.cllipify.com
-                </div>
-              </div>
-            </div>
-
-            <!-- Preview content -->
-            <div class="relative aspect-[16/9] bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5">
-              <!-- Simulated editor UI -->
-              <div class="absolute inset-0 p-4 lg:p-8">
-                <div class="h-full flex gap-4 lg:gap-6">
-                  <!-- Left sidebar -->
-                  <div class="hidden md:flex flex-col gap-3 w-52 lg:w-64">
-                    <div class="bg-card rounded-xl p-4 border border-border shadow-sm hover:shadow-md transition-shadow">
-                      <div class="flex items-center gap-2 mb-3">
-                        <span>🎯</span>
-                        <div class="h-3 w-16 bg-muted rounded"></div>
-                      </div>
-                      <div class="space-y-2">
-                        <div class="h-2 w-full bg-gradient-to-r from-primary/20 to-secondary/20 rounded"></div>
-                        <div class="h-2 w-4/5 bg-muted rounded"></div>
-                      </div>
-                    </div>
-                    <div class="bg-card rounded-xl p-4 border border-border flex-1 shadow-sm">
-                      <div class="flex items-center gap-2 mb-4">
-                        <span>🎨</span>
-                        <div class="h-3 w-14 bg-muted rounded"></div>
-                      </div>
-                      <div class="grid grid-cols-2 gap-2">
-                        <div class="aspect-video bg-gradient-to-br from-primary/20 to-secondary/20 rounded-lg hover:scale-105 transition-transform cursor-pointer"></div>
-                        <div class="aspect-video bg-gradient-to-br from-secondary/20 to-accent/20 rounded-lg hover:scale-105 transition-transform cursor-pointer"></div>
-                        <div class="aspect-video bg-gradient-to-br from-accent/20 to-orange-400/20 rounded-lg hover:scale-105 transition-transform cursor-pointer"></div>
-                        <div class="aspect-video bg-gradient-to-br from-orange-400/20 to-lime-400/20 rounded-lg hover:scale-105 transition-transform cursor-pointer"></div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Main content -->
-                  <div class="flex-1 flex flex-col gap-4">
-                    <!-- Video preview area -->
-                    <div class="flex-1 bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 rounded-2xl border-2 border-dashed border-primary/30 flex items-center justify-center relative overflow-hidden group">
-                      <!-- Animated background -->
-                      <div class="absolute inset-0 opacity-50">
-                        <div class="absolute top-4 left-4 w-20 h-20 bg-primary/20 rounded-full blur-xl float"></div>
-                        <div class="absolute bottom-4 right-4 w-16 h-16 bg-secondary/20 rounded-full blur-xl float-delayed"></div>
-                      </div>
-
-                      <div class="relative text-center">
-                        <div class="w-24 h-24 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg group-hover:scale-110 group-hover:rotate-3 transition-all cursor-pointer">
-                          <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5.14v14l11-7-11-7z" />
-                          </svg>
-                        </div>
-                        <p class="text-muted-foreground text-sm font-medium">Click to preview ✨</p>
-                      </div>
-                    </div>
-
-                    <!-- Timeline -->
-                    <div class="bg-card rounded-xl p-4 border border-border shadow-sm">
-                      <div class="flex items-center gap-4">
-                        <button class="w-10 h-10 rounded-xl bg-gradient-to-r from-primary to-secondary flex items-center justify-center text-white shadow-md hover:shadow-lg hover:scale-105 transition-all">
-                          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M8 5.14v14l11-7-11-7z" />
-                          </svg>
-                        </button>
-                        <div class="flex-1 h-3 bg-muted rounded-full overflow-hidden">
-                          <div class="h-full w-2/5 bg-gradient-to-r from-primary via-secondary to-accent rounded-full relative">
-                            <div class="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow-md border-2 border-primary"></div>
-                          </div>
-                        </div>
-                        <span class="text-xs text-muted-foreground font-mono bg-muted px-2 py-1 rounded">0:42 / 2:15</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Floating elements -->
-              <div class="absolute top-4 right-4 bg-card rounded-full px-4 py-2 shadow-lg border border-border flex items-center gap-2 text-sm font-semibold float">
-                <span class="flex h-2 w-2">
-                  <span class="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-green-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>
-                AI Ready
-              </div>
-
-              <div class="absolute bottom-20 left-4 bg-gradient-to-r from-primary to-secondary text-white rounded-full px-4 py-2 shadow-lg text-sm font-semibold float-delayed">
-                ✨ Magic happening...
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div class="animate-on-scroll flex flex-col sm:flex-row items-center justify-center gap-4" style="animation-delay: 0.15s;">
+      <a
+        href={siteConfig.appUrl}
+        class="w-full sm:w-auto text-sm font-medium bg-foreground text-background px-6 py-3 rounded-md hover:opacity-90 transition-opacity"
+      >
+        Start Creating — Free
+      </a>
+      <a
+        href="#how-it-works"
+        class="w-full sm:w-auto text-sm font-medium text-foreground px-6 py-3 rounded-md border border-border hover:bg-muted transition-colors"
+      >
+        See How It Works
+      </a>
     </div>
-  </Container>
+  </div>
 </section>

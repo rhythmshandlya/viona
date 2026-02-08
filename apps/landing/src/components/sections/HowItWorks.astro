@@ -1,73 +1,47 @@
 ---
-import Container from "@/components/ui/Container.astro";
-
 const steps = [
   {
-    number: "01",
-    title: "Describe Your Vision",
-    description: "Tell our AI what you want to create. Describe the mood, style, and content of your video in natural language.",
+    number: "1",
+    title: "Describe your vision",
+    description: "Tell our AI what you want to create using natural language.",
   },
   {
-    number: "02",
-    title: "AI Generates Your Video",
-    description: "Our advanced AI processes your prompt and generates a stunning video complete with visuals, transitions, and effects.",
+    number: "2",
+    title: "AI generates your video",
+    description: "Our AI processes your prompt and creates a video with visuals and effects.",
   },
   {
-    number: "03",
-    title: "Customize & Refine",
-    description: "Use our intuitive editor to fine-tune every detail. Adjust timing, add music, or tweak the style to perfection.",
+    number: "3",
+    title: "Customize and refine",
+    description: "Fine-tune every detail with our intuitive editor.",
   },
   {
-    number: "04",
-    title: "Export & Share",
-    description: "Download your video in any format or share directly to social media platforms with one click.",
+    number: "4",
+    title: "Export and share",
+    description: "Download in any format or share directly to social media.",
   },
 ];
 ---
 
-<section id="how-it-works" class="py-24 lg:py-32 bg-muted/30 relative overflow-hidden">
-  <!-- Decorative elements -->
-  <div class="geo-circle w-[500px] h-[500px] -top-60 -left-60 opacity-30"></div>
-
-  <Container>
-    <!-- Section Header -->
-    <div class="max-w-3xl mx-auto text-center mb-20">
-      <span class="inline-block text-sm font-medium text-primary uppercase tracking-wider mb-4">How it works</span>
-      <h2 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl mb-6">
-        From idea to video in
-        <span class="text-primary italic">four</span> simple steps
+<section id="how-it-works" class="py-20 lg:py-28 bg-muted">
+  <div class="max-w-6xl mx-auto px-6">
+    <div class="max-w-2xl mb-16">
+      <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
+        How it works
       </h2>
-      <p class="animate-on-scroll text-lg text-muted-foreground font-sans" style="animation-delay: 0.1s;">
-        No complex software to learn. No hours of editing. Just describe what you want and let AI do the rest.
+      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
+        From idea to video in four simple steps.
       </p>
     </div>
 
-    <!-- Steps -->
-    <div class="max-w-4xl mx-auto">
-      <div class="grid md:grid-cols-2 gap-8 lg:gap-12">
-        {steps.map((step, index) => (
-          <div
-            class="animate-on-scroll relative"
-            style={`animation-delay: ${index * 0.1}s;`}
-          >
-            <div class="card-elevated p-8 h-full">
-              <!-- Number -->
-              <div class="number-badge mb-6">
-                {step.number}
-              </div>
-
-              <!-- Content -->
-              <h3 class="text-2xl mb-3 font-sans font-semibold">{step.title}</h3>
-              <p class="text-muted-foreground leading-relaxed">{step.description}</p>
-            </div>
-
-            <!-- Connector line (visible on desktop) -->
-            {index < steps.length - 1 && index !== 1 && (
-              <div class="hidden md:block absolute top-1/2 -right-6 lg:-right-8 w-12 lg:w-16 h-px bg-border"></div>
-            )}
-          </div>
-        ))}
-      </div>
+    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 stagger-children">
+      {steps.map((step) => (
+        <div class="space-y-3">
+          <div class="text-sm text-muted-foreground">{step.number}</div>
+          <h3 class="font-medium">{step.title}</h3>
+          <p class="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+        </div>
+      ))}
     </div>
-  </Container>
+  </div>
 </section>

@@ -88,6 +88,9 @@ COPY packages/worker/package.json ./packages/worker/
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --filter @reelify/worker... --prod
 
+# Install Claude Code CLI globally for visual generation OAuth
+RUN npm install -g @anthropic-ai/claude-code
+
 # Copy built files
 COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
 # Copy agents folder to where the compiled JS expects it (../agents from dist/)

@@ -1,39 +1,21 @@
 ---
 import { siteConfig } from "@/data/site";
-import Container from "@/components/ui/Container.astro";
-import Button from "@/components/ui/Button.astro";
 ---
 
-<section class="py-24 lg:py-32 relative overflow-hidden">
-  <!-- Background -->
-  <div class="absolute inset-0 bg-secondary"></div>
-
-  <!-- Decorative elements -->
-  <div class="absolute inset-0 bg-grid opacity-10"></div>
-  <div class="geo-circle w-[400px] h-[400px] -top-40 -right-40 border-white/10"></div>
-  <div class="geo-circle w-[300px] h-[300px] -bottom-20 -left-20 border-white/10"></div>
-
-  <Container>
-    <div class="relative z-10 text-center max-w-3xl mx-auto">
-      <h2 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl text-white mb-6">
-        Ready to transform your
-        <span class="italic text-accent">creative workflow?</span>
-      </h2>
-      <p class="animate-on-scroll text-lg text-white/70 mb-10 font-sans" style="animation-delay: 0.1s;">
-        Join thousands of creators who are already using Cllipify to bring their ideas to life.
-        Start creating stunning videos today.
-      </p>
-      <div class="animate-on-scroll flex flex-col sm:flex-row items-center justify-center gap-4" style="animation-delay: 0.2s;">
-        <Button href={siteConfig.appUrl} size="lg" class="bg-white text-secondary hover:bg-white/90 shadow-xl">
-          Start Creating Free
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-        </Button>
-        <p class="text-sm text-white/50">
-          No credit card required
-        </p>
-      </div>
-    </div>
-  </Container>
+<section class="py-20 lg:py-28 bg-foreground text-background">
+  <div class="max-w-2xl mx-auto px-6 text-center">
+    <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
+      Ready to start?
+    </h2>
+    <p class="animate-on-scroll text-background/70 mb-8" style="animation-delay: 0.05s;">
+      Join thousands of creators making videos with AI.
+    </p>
+    <a
+      href={siteConfig.appUrl}
+      class="animate-on-scroll inline-block text-sm font-medium bg-background text-foreground px-6 py-3 rounded-md hover:opacity-90 transition-opacity"
+      style="animation-delay: 0.1s;"
+    >
+      Start Creating — Free
+    </a>
+  </div>
 </section>
