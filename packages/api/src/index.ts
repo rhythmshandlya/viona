@@ -2,11 +2,13 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
-import { mkdir } from 'fs/promises';
+import { existsSync, mkdirSync } from 'fs';
 import { config } from './config.js';
 import { ensureBuckets } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
 import { setupWebSocket } from './ws/handler.js';
+
+const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
 async function main() {
   const fastify = Fastify({
@@ -26,13 +28,19 @@ async function main() {
 
   await fastify.register(websocket);
 
-  // Ensure bundles directory exists and serve static files
-  await mkdir(config.bundles.dir, { recursive: true });
-  await fastify.register(fastifyStatic, {
-    root: config.bundles.dir,
-    prefix: '/bundles/',
-    decorateReply: false, // Don't conflict with other static plugins
-  });
+  // Serve bundles statically (local development only)
+  // In production (Railway), bundles are on separate worker containers
+  if (!isProduction) {
+    if (!existsSync(config.bundles.dir)) {
+      mkdirSync(config.bundles.dir, { recursive: true });
+    }
+    await fastify.register(fastifyStatic, {
+      root: config.bundles.dir,
+      prefix: '/bundles/',
+      decorateReply: false,
+    });
+    fastify.log.info(`Serving bundles from: ${config.bundles.dir}`);
+  }
 
   // Health check
   fastify.get('/health', async () => ({ status: 'ok' }));
@@ -43,13 +51,13 @@ async function main() {
   // Setup WebSocket
   await setupWebSocket(fastify);
 
-  // Ensure MinIO buckets exist
+  // Ensure storage bucket exists
   try {
     await ensureBuckets();
-    fastify.log.info('MinIO buckets ready');
+    fastify.log.info('Storage bucket ready');
   } catch (err) {
-    fastify.log.error(err, 'Failed to ensure MinIO buckets');
-    // Continue anyway, buckets might already exist
+    fastify.log.error(err, 'Failed to ensure storage bucket');
+    // Continue anyway, bucket might already exist
   }
 
   // Start server

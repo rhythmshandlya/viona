@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { eq, inArray } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
-import { config } from '../config.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, publishJobCancel } from '../services/queue.js';
 import type { ProjectStatus } from '@reelify/shared';
@@ -52,10 +51,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     });
 
     // Get presigned upload URL
-    const uploadUrl = await getPresignedUploadUrl(
-      config.minio.buckets.uploads,
-      videoKey
-    );
+    const uploadUrl = await getPresignedUploadUrl('uploads', videoKey);
 
     return {
       projectId: project.id,
@@ -115,14 +111,14 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }
 
     // Check if video exists
-    const exists = await objectExists(config.minio.buckets.uploads, project.videoKey);
+    const exists = await objectExists('uploads', project.videoKey);
     if (!exists) {
       return reply.status(404).send({ error: 'Video not found in storage' });
     }
 
     try {
       // Get object metadata for content-type and size
-      const stat = await getObjectStat(config.minio.buckets.uploads, project.videoKey);
+      const stat = await getObjectStat('uploads', project.videoKey);
 
       // Determine content type from file extension
       const ext = project.videoKey.split('.').pop()?.toLowerCase();
@@ -143,7 +139,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         const chunkSize = end - start + 1;
 
         const stream = await getPartialObjectStream(
-          config.minio.buckets.uploads,
+          'uploads',
           project.videoKey,
           start,
           chunkSize,
@@ -159,7 +155,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
 
       // Full file request
-      const stream = await getObjectStream(config.minio.buckets.uploads, project.videoKey);
+      const stream = await getObjectStream('uploads', project.videoKey);
 
       reply.header('Content-Type', contentType);
       reply.header('Content-Length', stat.size);
@@ -236,8 +232,8 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'No video uploaded' });
     }
 
-    // Check if video exists in MinIO
-    const exists = await objectExists(config.minio.buckets.uploads, project.videoKey);
+    // Check if video exists in storage
+    const exists = await objectExists('uploads', project.videoKey);
     if (!exists) {
       return reply.status(400).send({ error: 'Video not found in storage' });
     }
@@ -565,37 +561,37 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(400).send({ error: 'No rendered output available' });
     }
 
-    const url = await getPresignedDownloadUrl(
-      config.minio.buckets.outputs,
-      project.outputKey
-    );
+    const url = await getPresignedDownloadUrl('outputs', project.outputKey);
 
     const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour
 
     return { url, expiresAt };
   });
 
-  // Stream a media file from MinIO (used for enhanced/original audio)
-  fastify.get('/media/:bucket/*', async (request, reply) => {
-    const { bucket } = request.params as { bucket: string };
+  // Stream a media file from storage (used for enhanced/original audio)
+  // URL format: /media/:prefix/* where prefix is 'uploads' or 'outputs'
+  fastify.get('/media/:prefix/*', async (request, reply) => {
+    const { prefix } = request.params as { prefix: string };
     const key = (request.params as Record<string, string>)['*'];
 
     if (!key) {
       return reply.status(400).send({ error: 'Missing key' });
     }
 
-    // Only allow known buckets
-    const allowedBuckets = [config.minio.buckets.uploads, config.minio.buckets.outputs];
-    if (!allowedBuckets.includes(bucket)) {
-      return reply.status(403).send({ error: 'Bucket not allowed' });
+    // Only allow known prefixes
+    const allowedPrefixes = ['uploads', 'outputs'] as const;
+    if (!allowedPrefixes.includes(prefix as typeof allowedPrefixes[number])) {
+      return reply.status(403).send({ error: 'Prefix not allowed' });
     }
 
-    const exists = await objectExists(bucket, key);
+    const storagePrefix = prefix as 'uploads' | 'outputs';
+
+    const exists = await objectExists(storagePrefix, key);
     if (!exists) {
       return reply.status(404).send({ error: 'File not found' });
     }
 
-    const stat = await getObjectStat(bucket, key);
+    const stat = await getObjectStat(storagePrefix, key);
     const totalSize = stat.size;
     const ext = key.split('.').pop()?.toLowerCase();
     const contentTypes: Record<string, string> = {
@@ -617,7 +613,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         const end = match[2] ? parseInt(match[2], 10) : totalSize - 1;
         const chunkSize = end - start + 1;
 
-        const stream = await getPartialObjectStream(bucket, key, start, chunkSize);
+        const stream = await getPartialObjectStream(storagePrefix, key, start, chunkSize);
         reply.status(206);
         reply.header('Content-Type', contentType);
         reply.header('Content-Length', chunkSize);
@@ -628,7 +624,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }
 
     // Full file response
-    const stream = await getObjectStream(bucket, key);
+    const stream = await getObjectStream(storagePrefix, key);
     reply.header('Content-Type', contentType);
     reply.header('Content-Length', totalSize);
     reply.header('Accept-Ranges', 'bytes');

@@ -6,6 +6,7 @@ import { processRenderJob, RenderJobData } from './processors/render.js';
 import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhance-audio.js';
 import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
+import { ensureTemplate } from './utils/template.js';
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {
@@ -22,6 +23,15 @@ const connection = parseRedisUrl(config.redis.url);
 async function main() {
   const workerId = getWorkerId();
   logger.info({ workerId }, 'Starting Reelify worker...');
+
+  // Ensure remotion template is available (downloads from S3 in prod)
+  logger.info({ workerId }, 'Ensuring remotion template is available...');
+  try {
+    await ensureTemplate();
+    logger.info({ workerId }, 'Template ready');
+  } catch (err) {
+    logger.error({ err, workerId }, 'Failed to ensure template - visual generation will not work');
+  }
 
   // Initialize workspace for Claude Code generator
   logger.info({ workerId }, 'Initializing workspace for Claude Code generator...');

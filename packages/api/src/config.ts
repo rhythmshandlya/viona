@@ -1,8 +1,17 @@
 import 'dotenv/config';
-import { join, resolve } from 'path';
+import { resolve, join } from 'path';
+
+// Determine if running on Railway (production)
+const isRailway = !!process.env.BUCKET_ENDPOINT || !!process.env.RAILWAY_ENVIRONMENT;
 
 export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
+
+  // Bundle output directory (shared with worker for local development)
+  // In Railway, bundles are ephemeral on worker containers
+  bundles: {
+    dir: resolve(process.env.BUNDLE_OUTPUT_DIR || join(process.cwd(), '..', 'worker', 'bundles')),
+  },
 
   database: {
     url: process.env.DATABASE_URL || 'postgresql://reelify:reelify123@localhost:5432/reelify',
@@ -12,27 +21,26 @@ export const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
 
-  // Storage (S3-compatible: MinIO for dev, Railway Simple S3 for prod)
+  // Storage configuration - single bucket with prefixes
+  // Railway Bucket vars take precedence (auto-injected in prod)
   storage: {
-    endpoint: process.env.S3_ENDPOINT || process.env.MINIO_ENDPOINT || 'localhost',
-    port: parseInt(process.env.S3_PORT || process.env.MINIO_PORT || '9000', 10),
-    accessKey: process.env.S3_ACCESS_KEY || process.env.MINIO_ACCESS_KEY || 'reelify',
-    secretKey: process.env.S3_SECRET_KEY || process.env.MINIO_SECRET_KEY || 'reelify123',
-    useSSL: (process.env.S3_USE_SSL || process.env.MINIO_USE_SSL) === 'true',
-    buckets: {
-      uploads: process.env.S3_BUCKET_UPLOADS || process.env.MINIO_BUCKET_UPLOADS || 'uploads',
-      outputs: process.env.S3_BUCKET_OUTPUTS || process.env.MINIO_BUCKET_OUTPUTS || 'outputs',
-      templates: process.env.S3_BUCKET_TEMPLATES || 'templates',
+    endpoint: process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost',
+    port: isRailway ? undefined : parseInt(process.env.S3_PORT || '9000', 10),
+    accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
+    secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
+    useSSL: isRailway || process.env.S3_USE_SSL === 'true',
+    bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
+    region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
+    // Prefixes for organizing objects within single bucket
+    prefixes: {
+      uploads: 'uploads/',
+      outputs: 'outputs/',
+      templates: 'templates/',
     },
   },
 
   // Legacy alias for backwards compatibility
   get minio() {
     return this.storage;
-  },
-
-  bundles: {
-    // IMPORTANT: This must match the worker's remotion.bundleOutputDir config (set BUNDLE_OUTPUT_DIR in .env)
-    dir: resolve(process.env.BUNDLE_OUTPUT_DIR || join(process.cwd(), '..', 'worker', 'bundles')),
   },
 } as const;

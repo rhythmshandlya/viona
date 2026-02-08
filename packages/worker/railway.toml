@@ -1,0 +1,10 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "packages/worker/Dockerfile"
+# Build from repo root to include workspace dependencies
+watchPatterns = ["packages/worker/**", "packages/shared/**", "packages/renderer/**"]
+
+[deploy]
+# Worker doesn't expose HTTP, just processes jobs from Redis
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

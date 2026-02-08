@@ -8,9 +8,16 @@ export const config = {
     // Unique worker ID (defaults to hostname)
     id: process.env.WORKER_ID || hostname(),
     // Base path for worker workspace (each worker gets a dedicated directory)
-    workspacePath: process.env.WORKSPACE_PATH || join(process.cwd(), 'workspace'),
-    // Template directory for Remotion project
-    templatePath: process.env.WORKSPACE_TEMPLATE_PATH || join(process.cwd(), 'remotion-template'),
+    // Uses /tmp in prod (Railway ephemeral), local dir in dev
+    workspacePath: process.env.WORKSPACE_PATH || (
+      process.env.RAILWAY_ENVIRONMENT ? '/tmp/workspace' : join(process.cwd(), 'workspace')
+    ),
+    // Template directory - downloaded from S3 on startup
+    templatePath: process.env.WORKSPACE_TEMPLATE_PATH || (
+      process.env.RAILWAY_ENVIRONMENT ? '/tmp/template' : join(process.cwd(), 'remotion-template')
+    ),
+    // Template name in S3 storage
+    templateName: process.env.TEMPLATE_NAME || 'remotion-template.zip',
   },
 
   // Claude Agent SDK visual generator (uses OAuth authentication)
@@ -35,18 +42,18 @@ export const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
 
-  // Storage (S3-compatible: MinIO for dev, Railway Simple S3 for prod)
+  // Storage configuration is now handled by @reelify/shared StorageService
+  // This config is kept for backwards compatibility with existing code
+  // Use: import { getStorage } from '@reelify/shared/storage';
   storage: {
-    endpoint: process.env.S3_ENDPOINT || process.env.MINIO_ENDPOINT || 'localhost',
-    port: parseInt(process.env.S3_PORT || process.env.MINIO_PORT || '9000', 10),
-    accessKey: process.env.S3_ACCESS_KEY || process.env.MINIO_ACCESS_KEY || 'reelify',
-    secretKey: process.env.S3_SECRET_KEY || process.env.MINIO_SECRET_KEY || 'reelify123',
-    useSSL: (process.env.S3_USE_SSL || process.env.MINIO_USE_SSL) === 'true',
-    buckets: {
-      uploads: process.env.S3_BUCKET_UPLOADS || process.env.MINIO_BUCKET_UPLOADS || 'uploads',
-      outputs: process.env.S3_BUCKET_OUTPUTS || process.env.MINIO_BUCKET_OUTPUTS || 'outputs',
-      templates: process.env.S3_BUCKET_TEMPLATES || 'templates',
-    },
+    // Railway Bucket vars take precedence (auto-injected in prod)
+    endpoint: process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost',
+    port: process.env.BUCKET_ENDPOINT ? undefined : parseInt(process.env.S3_PORT || '9000', 10),
+    accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
+    secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
+    useSSL: !!process.env.BUCKET_ENDPOINT || process.env.S3_USE_SSL === 'true',
+    bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
+    region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
   },
 
   // Legacy alias for backwards compatibility

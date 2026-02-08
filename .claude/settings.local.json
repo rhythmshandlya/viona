@@ -48,7 +48,14 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(pnpm run dev:*)",
       "Bash(pkill:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(claude mcp add:*)",
+      "Bash(pnpm --filter @reelify/shared build:*)",
+      "Bash(pnpm --filter @reelify/worker build:*)",
+      "WebFetch(domain:docs.railway.com)",
+      "Bash(pnpm run build:*)",
+      "Bash(pnpm --filter @reelify/renderer build:*)",
+      "Bash(pnpm --filter web build:*)"
     ]
   }
 }

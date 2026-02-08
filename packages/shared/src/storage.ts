@@ -1,30 +1,65 @@
 import { Client } from 'minio';
 import { Readable } from 'stream';
 
+/**
+ * Storage configuration supporting both:
+ * - Local MinIO (multiple buckets: uploads, outputs, templates)
+ * - Railway Buckets (single bucket with prefixes: uploads/, outputs/, templates/)
+ */
 export interface StorageConfig {
   endpoint: string;
-  port: number;
+  port?: number;  // Optional - Railway doesn't use port
   useSSL: boolean;
   accessKey: string;
   secretKey: string;
-  buckets: {
+  bucket: string;  // Single bucket name
+  region?: string;
+
+  // Prefixes for organizing objects within the bucket
+  prefixes: {
     uploads: string;
     outputs: string;
     templates: string;
   };
 }
 
+/**
+ * Create storage config from environment variables.
+ * Supports both Railway Bucket vars and legacy MinIO vars.
+ */
 export function createStorageConfigFromEnv(): StorageConfig {
+  // Railway Bucket uses these auto-injected vars
+  const isRailway = !!process.env.BUCKET_ENDPOINT || !!process.env.RAILWAY_ENVIRONMENT;
+
+  if (isRailway) {
+    return {
+      endpoint: process.env.BUCKET_ENDPOINT || 'storage.railway.app',
+      useSSL: true,
+      accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.AWS_ACCESS_KEY_ID || '',
+      secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.AWS_SECRET_ACCESS_KEY || '',
+      bucket: process.env.BUCKET_NAME || process.env.BUCKET || '',
+      region: process.env.BUCKET_REGION || process.env.AWS_REGION || 'us-east-1',
+      prefixes: {
+        uploads: 'uploads/',
+        outputs: 'outputs/',
+        templates: 'templates/',
+      },
+    };
+  }
+
+  // Local MinIO / S3-compatible storage
   return {
     endpoint: process.env.S3_ENDPOINT || 'localhost',
     port: parseInt(process.env.S3_PORT || '9000', 10),
     useSSL: process.env.S3_USE_SSL === 'true',
     accessKey: process.env.S3_ACCESS_KEY || 'reelify',
     secretKey: process.env.S3_SECRET_KEY || 'reelify123',
-    buckets: {
-      uploads: process.env.S3_BUCKET_UPLOADS || 'uploads',
-      outputs: process.env.S3_BUCKET_OUTPUTS || 'outputs',
-      templates: process.env.S3_BUCKET_TEMPLATES || 'templates',
+    bucket: process.env.S3_BUCKET || 'cllipify',
+    region: process.env.S3_REGION || 'us-east-1',
+    prefixes: {
+      uploads: 'uploads/',
+      outputs: 'outputs/',
+      templates: 'templates/',
     },
   };
 }
@@ -35,45 +70,75 @@ export class StorageService {
 
   constructor(config: StorageConfig) {
     this.config = config;
-    this.client = new Client({
+
+    const clientConfig: any = {
       endPoint: config.endpoint,
-      port: config.port,
       useSSL: config.useSSL,
       accessKey: config.accessKey,
       secretKey: config.secretKey,
-    });
+    };
+
+    // Only set port for non-Railway (local MinIO)
+    if (config.port) {
+      clientConfig.port = config.port;
+    }
+
+    // Set region if provided
+    if (config.region) {
+      clientConfig.region = config.region;
+    }
+
+    this.client = new Client(clientConfig);
   }
 
   // ============ Bucket Management ============
 
-  async ensureBuckets(): Promise<void> {
-    const buckets = Object.values(this.config.buckets);
-    for (const bucket of buckets) {
-      const exists = await this.client.bucketExists(bucket);
+  async ensureBucket(): Promise<void> {
+    try {
+      const exists = await this.client.bucketExists(this.config.bucket);
       if (!exists) {
-        await this.client.makeBucket(bucket);
-        console.log(`[Storage] Created bucket: ${bucket}`);
+        await this.client.makeBucket(this.config.bucket, this.config.region || 'us-east-1');
+        console.log(`[Storage] Created bucket: ${this.config.bucket}`);
+      }
+    } catch (error: any) {
+      // Railway Buckets are pre-created, ignore "already exists" errors
+      if (!error.message?.includes('already exists') && !error.message?.includes('BucketAlreadyOwnedByYou')) {
+        throw error;
       }
     }
   }
 
+  // ============ Key Helpers ============
+
+  private uploadsKey(key: string): string {
+    return `${this.config.prefixes.uploads}${key}`;
+  }
+
+  private outputsKey(key: string): string {
+    return `${this.config.prefixes.outputs}${key}`;
+  }
+
+  private templatesKey(key: string): string {
+    return `${this.config.prefixes.templates}${key}`;
+  }
+
   // ============ Generic Operations ============
 
-  async uploadBuffer(bucket: string, key: string, data: Buffer, contentType?: string): Promise<void> {
+  async uploadBuffer(key: string, data: Buffer, contentType?: string): Promise<void> {
     const metadata = contentType ? { 'Content-Type': contentType } : {};
-    await this.client.putObject(bucket, key, data, data.length, metadata);
+    await this.client.putObject(this.config.bucket, key, data, data.length, metadata);
   }
 
-  async uploadStream(bucket: string, key: string, stream: Readable, size?: number): Promise<void> {
-    await this.client.putObject(bucket, key, stream, size);
+  async uploadStream(key: string, stream: Readable, size?: number): Promise<void> {
+    await this.client.putObject(this.config.bucket, key, stream, size);
   }
 
-  async uploadFile(bucket: string, key: string, filePath: string): Promise<void> {
-    await this.client.fPutObject(bucket, key, filePath);
+  async uploadFile(key: string, filePath: string): Promise<void> {
+    await this.client.fPutObject(this.config.bucket, key, filePath);
   }
 
-  async downloadBuffer(bucket: string, key: string): Promise<Buffer> {
-    const stream = await this.client.getObject(bucket, key);
+  async downloadBuffer(key: string): Promise<Buffer> {
+    const stream = await this.client.getObject(this.config.bucket, key);
     const chunks: Buffer[] = [];
     for await (const chunk of stream) {
       chunks.push(chunk);
@@ -81,52 +146,52 @@ export class StorageService {
     return Buffer.concat(chunks);
   }
 
-  async downloadFile(bucket: string, key: string, destPath: string): Promise<void> {
-    await this.client.fGetObject(bucket, key, destPath);
+  async downloadFile(key: string, destPath: string): Promise<void> {
+    await this.client.fGetObject(this.config.bucket, key, destPath);
   }
 
-  async getObjectStream(bucket: string, key: string): Promise<Readable> {
-    return this.client.getObject(bucket, key);
+  async getObjectStream(key: string): Promise<Readable> {
+    return this.client.getObject(this.config.bucket, key);
   }
 
-  async getPartialObjectStream(bucket: string, key: string, offset: number, length?: number): Promise<Readable> {
+  async getPartialObjectStream(key: string, offset: number, length?: number): Promise<Readable> {
     return length !== undefined
-      ? this.client.getPartialObject(bucket, key, offset, length)
-      : this.client.getPartialObject(bucket, key, offset);
+      ? this.client.getPartialObject(this.config.bucket, key, offset, length)
+      : this.client.getPartialObject(this.config.bucket, key, offset);
   }
 
-  async deleteObject(bucket: string, key: string): Promise<void> {
-    await this.client.removeObject(bucket, key);
+  async deleteObject(key: string): Promise<void> {
+    await this.client.removeObject(this.config.bucket, key);
   }
 
-  async objectExists(bucket: string, key: string): Promise<boolean> {
+  async objectExists(key: string): Promise<boolean> {
     try {
-      await this.client.statObject(bucket, key);
+      await this.client.statObject(this.config.bucket, key);
       return true;
     } catch {
       return false;
     }
   }
 
-  async getObjectStat(bucket: string, key: string) {
-    return this.client.statObject(bucket, key);
+  async getObjectStat(key: string) {
+    return this.client.statObject(this.config.bucket, key);
   }
 
   // ============ Presigned URLs ============
 
-  async getPresignedUploadUrl(bucket: string, key: string, expirySeconds = 3600): Promise<string> {
-    return this.client.presignedPutObject(bucket, key, expirySeconds);
+  async getPresignedUploadUrl(key: string, expirySeconds = 3600): Promise<string> {
+    return this.client.presignedPutObject(this.config.bucket, key, expirySeconds);
   }
 
-  async getPresignedDownloadUrl(bucket: string, key: string, expirySeconds = 3600): Promise<string> {
-    return this.client.presignedGetObject(bucket, key, expirySeconds);
+  async getPresignedDownloadUrl(key: string, expirySeconds = 3600): Promise<string> {
+    return this.client.presignedGetObject(this.config.bucket, key, expirySeconds);
   }
 
   // ============ List Operations ============
 
-  async listObjects(bucket: string, prefix?: string): Promise<string[]> {
+  async listObjects(prefix?: string): Promise<string[]> {
     const objects: string[] = [];
-    const stream = this.client.listObjects(bucket, prefix, true);
+    const stream = this.client.listObjects(this.config.bucket, prefix, true);
     for await (const obj of stream) {
       if (obj.name) {
         objects.push(obj.name);
@@ -135,82 +200,122 @@ export class StorageService {
     return objects;
   }
 
-  async deleteObjects(bucket: string, keys: string[]): Promise<void> {
+  async deleteObjects(keys: string[]): Promise<void> {
     if (keys.length === 0) return;
-    await this.client.removeObjects(bucket, keys);
+    await this.client.removeObjects(this.config.bucket, keys);
+  }
+
+  // ============ Uploads Operations ============
+
+  async uploadUserFile(key: string, filePath: string): Promise<string> {
+    const fullKey = this.uploadsKey(key);
+    await this.uploadFile(fullKey, filePath);
+    return fullKey;
+  }
+
+  async downloadUserFile(key: string, destPath: string): Promise<void> {
+    const fullKey = key.startsWith(this.config.prefixes.uploads) ? key : this.uploadsKey(key);
+    await this.downloadFile(fullKey, destPath);
+  }
+
+  async getUserFileUrl(key: string, expirySeconds = 3600): Promise<string> {
+    const fullKey = key.startsWith(this.config.prefixes.uploads) ? key : this.uploadsKey(key);
+    return this.getPresignedDownloadUrl(fullKey, expirySeconds);
+  }
+
+  async getUploadPresignedUrl(key: string, expirySeconds = 3600): Promise<string> {
+    const fullKey = this.uploadsKey(key);
+    return this.getPresignedUploadUrl(fullKey, expirySeconds);
   }
 
   // ============ Template Operations ============
 
-  get templatesBucket(): string {
-    return this.config.buckets.templates;
+  async uploadTemplate(name: string, filePath: string): Promise<string> {
+    const key = this.templatesKey(name);
+    await this.uploadFile(key, filePath);
+    console.log(`[Storage] Uploaded template: ${key}`);
+    return key;
   }
 
-  async uploadTemplate(key: string, filePath: string): Promise<void> {
-    await this.uploadFile(this.config.buckets.templates, key, filePath);
+  async downloadTemplate(name: string, destPath: string): Promise<void> {
+    const key = this.templatesKey(name);
+    await this.downloadFile(key, destPath);
+    console.log(`[Storage] Downloaded template: ${key}`);
   }
 
-  async downloadTemplate(key: string, destPath: string): Promise<void> {
-    await this.downloadFile(this.config.buckets.templates, key, destPath);
+  async templateExists(name: string): Promise<boolean> {
+    const key = this.templatesKey(name);
+    return this.objectExists(key);
   }
 
-  async templateExists(key: string): Promise<boolean> {
-    return this.objectExists(this.config.buckets.templates, key);
-  }
-
-  async listTemplates(prefix?: string): Promise<string[]> {
-    return this.listObjects(this.config.buckets.templates, prefix);
+  async listTemplates(): Promise<string[]> {
+    const objects = await this.listObjects(this.config.prefixes.templates);
+    return objects.map(obj => obj.replace(this.config.prefixes.templates, ''));
   }
 
   // ============ Bundle Operations ============
 
-  get outputsBucket(): string {
-    return this.config.buckets.outputs;
-  }
-
   async uploadBundle(projectId: string, filePath: string): Promise<string> {
-    const key = `bundles/${projectId}.zip`;
-    await this.uploadFile(this.config.buckets.outputs, key, filePath);
+    const key = this.outputsKey(`bundles/${projectId}.zip`);
+    await this.uploadFile(key, filePath);
+    console.log(`[Storage] Uploaded bundle: ${key}`);
     return key;
   }
 
   async downloadBundle(projectId: string, destPath: string): Promise<void> {
-    const key = `bundles/${projectId}.zip`;
-    await this.downloadFile(this.config.buckets.outputs, key, destPath);
+    const key = this.outputsKey(`bundles/${projectId}.zip`);
+    await this.downloadFile(key, destPath);
   }
 
   async getBundleUrl(projectId: string, expirySeconds = 3600): Promise<string> {
-    const key = `bundles/${projectId}.zip`;
-    return this.getPresignedDownloadUrl(this.config.buckets.outputs, key, expirySeconds);
+    const key = this.outputsKey(`bundles/${projectId}.zip`);
+    return this.getPresignedDownloadUrl(key, expirySeconds);
   }
 
   async bundleExists(projectId: string): Promise<boolean> {
-    const key = `bundles/${projectId}.zip`;
-    return this.objectExists(this.config.buckets.outputs, key);
+    const key = this.outputsKey(`bundles/${projectId}.zip`);
+    return this.objectExists(key);
   }
 
-  // ============ Upload Operations ============
-
-  get uploadsBucket(): string {
-    return this.config.buckets.uploads;
+  async deleteBundle(projectId: string): Promise<void> {
+    const key = this.outputsKey(`bundles/${projectId}.zip`);
+    await this.deleteObject(key);
   }
 
-  async getUploadUrl(key: string, expirySeconds = 3600): Promise<string> {
-    return this.getPresignedUploadUrl(this.config.buckets.uploads, key, expirySeconds);
+  // ============ Output Operations ============
+
+  async uploadOutput(key: string, filePath: string): Promise<string> {
+    const fullKey = this.outputsKey(key);
+    await this.uploadFile(fullKey, filePath);
+    return fullKey;
   }
 
-  async getDownloadUrl(key: string, expirySeconds = 3600): Promise<string> {
-    return this.getPresignedDownloadUrl(this.config.buckets.uploads, key, expirySeconds);
+  async downloadOutput(key: string, destPath: string): Promise<void> {
+    const fullKey = key.startsWith(this.config.prefixes.outputs) ? key : this.outputsKey(key);
+    await this.downloadFile(fullKey, destPath);
+  }
+
+  async getOutputUrl(key: string, expirySeconds = 3600): Promise<string> {
+    const fullKey = key.startsWith(this.config.prefixes.outputs) ? key : this.outputsKey(key);
+    return this.getPresignedDownloadUrl(fullKey, expirySeconds);
   }
 
   // ============ Accessors ============
 
-  get buckets() {
-    return this.config.buckets;
+  get bucketName(): string {
+    return this.config.bucket;
+  }
+
+  get prefixes() {
+    return this.config.prefixes;
   }
 
   getClient(): Client {
     return this.client;
+  }
+
+  isRailway(): boolean {
+    return this.config.endpoint === 'storage.railway.app';
   }
 }
 

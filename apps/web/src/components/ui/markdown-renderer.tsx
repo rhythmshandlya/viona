@@ -231,11 +231,12 @@ const COMPONENTS = {
   hr: withClass("hr", "border-foreground/20")
 };
 
-function withClass(Tag: keyof JSX.IntrinsicElements, classes: string) {
-  const Component = ({ node, ...props }: any) => (
-    <Tag className={classes} {...props} />
-  );
-  Component.displayName = Tag;
+function withClass(tag: keyof JSX.IntrinsicElements, classes: string) {
+  const Component = ({ node, ...props }: any) => {
+    const Tag = tag as React.ElementType;
+    return <Tag className={classes} {...props} />;
+  };
+  Component.displayName = tag;
   return Component;
 }
 
