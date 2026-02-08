@@ -1,5 +1,6 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import cookie from '@fastify/cookie';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
@@ -8,6 +9,7 @@ import { pipeline } from 'stream/promises';
 import { config } from './config.js';
 import { ensureBuckets, getObjectStream, objectExists } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
+import { userRoutes } from './routes/users.js';
 import { setupWebSocket } from './ws/handler.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
@@ -26,6 +28,10 @@ async function main() {
   await fastify.register(cors, {
     origin: true, // Allow all origins in development
     credentials: true,
+  });
+
+  await fastify.register(cookie, {
+    secret: process.env.COOKIE_SECRET || 'cllipify-dev-secret-change-in-production',
   });
 
   await fastify.register(multipart, {
@@ -103,6 +109,7 @@ async function main() {
 
   // Register routes
   await fastify.register(projectRoutes, { prefix: '/api' });
+  await fastify.register(userRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);

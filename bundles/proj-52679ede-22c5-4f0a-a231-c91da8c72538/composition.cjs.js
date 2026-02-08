@@ -24,65 +24,58 @@ __export(index_exports, {
   default: () => index_default
 });
 module.exports = __toCommonJS(index_exports);
-var import_remotion10 = require("remotion");
+var import_remotion9 = require("remotion");
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/constants.ts
 var COLORS = {
-  primary: "#00f5d4",
-  // Cyan - timing wheels and positive elements
-  secondary: "#7b2cbf",
-  // Purple - background depth
-  accent: "#f72585",
-  // Magenta - problems and warnings
-  success: "#00ff88",
-  // Bright Green - solution highlights
-  dark: "#0a0a0f",
-  // Deep background
-  white: "#ffffff",
-  gray: "#4a4a5a"
+  primary: "#00D4FF",
+  // Electric blue
+  secondary: "#6366F1",
+  // Deep purple
+  accent: "#FF6B35",
+  // Vibrant orange
+  background: "#0F172A",
+  // Dark gradient start
+  backgroundEnd: "#1E293B",
+  // Dark gradient end
+  white: "#FFFFFF",
+  success: "#22C55E",
+  // Green for O(1) success
+  warning: "#EF4444"
+  // Red for stress/warning
 };
 var SPRING_CONFIG = { damping: 22, stiffness: 90, mass: 0.9 };
 var TIMING = {
-  scene1Start: 0,
-  scene1End: 120,
-  scene2Start: 120,
-  scene2End: 602,
-  scene3Start: 602,
-  scene3End: 1167,
-  scene4Start: 1167,
-  scene4End: 1268,
-  scene5Start: 1268,
-  scene5End: 1635,
-  scene6Start: 1635,
-  scene6End: 2258,
-  scene7Start: 2258,
-  scene7End: 2645,
-  scene8Start: 2645,
-  scene8End: 2967
-};
-var KEY_SYNCS = {
-  challenge: 43,
-  // "challenge" word - box materializes
-  binary: 404,
-  // "binary" - heap assembles
-  but: 611,
-  // "But" - scene shifts, warnings appear
-  yes: 1193,
-  // "Yes" - timing wheel emerges
-  picture: 1279,
-  // "Picture" - clock face assembles
-  what: 1642,
-  // "What" - second wheel slides in
-  this: 2423,
-  // "This" - logos appear
-  follow: 2770
-  // "Follow" - button pulses
-};
-var VIDEO_CONFIG = {
+  // Video specs from scenes.json (MUST MATCH EXACTLY)
+  totalFrames: 2967,
   fps: 30,
   width: 1080,
   height: 1920,
-  durationInFrames: 2967
+  // Scene timing from scenes.json.scenes[].frames
+  scene1Start: 0,
+  scene1End: 630,
+  scene2Start: 630,
+  scene2End: 1140,
+  scene3Start: 1140,
+  scene3End: 1260,
+  scene4Start: 1260,
+  scene4End: 1530,
+  scene5Start: 1530,
+  scene5End: 2340,
+  scene6Start: 2340,
+  scene6End: 2760,
+  scene7Start: 2760,
+  scene7End: 2967
+};
+var TYPOGRAPHY = {
+  hero: 96,
+  // 5% of canvas height
+  section: 67,
+  // 3.5% of canvas height
+  body: 58,
+  // 3% of canvas height
+  caption: 38
+  // 2% of canvas height
 };
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/components/Background.tsx
@@ -90,8 +83,19 @@ var import_remotion = require("remotion");
 var import_jsx_runtime = require("react/jsx-runtime");
 var Background = () => {
   const frame = (0, import_remotion.useCurrentFrame)();
-  const { width, height } = (0, import_remotion.useVideoConfig)();
-  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_remotion.AbsoluteFill, { style: { backgroundColor: COLORS.dark }, children: [
+  const rotation = (0, import_remotion.interpolate)(
+    frame,
+    [0, TIMING.totalFrames],
+    [0, 360],
+    { extrapolateRight: "clamp" }
+  );
+  const pulseOpacity = (0, import_remotion.interpolate)(
+    frame % 60,
+    [0, 30, 60],
+    [0.03, 0.06, 0.03],
+    { extrapolateRight: "clamp" }
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(import_remotion.AbsoluteFill, { children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       "div",
       {
@@ -99,359 +103,265 @@ var Background = () => {
           position: "absolute",
           width: "100%",
           height: "100%",
-          background: `radial-gradient(ellipse at 50% 30%, ${COLORS.secondary}22 0%, transparent 60%)`
+          background: `linear-gradient(135deg, ${COLORS.background} 0%, ${COLORS.backgroundEnd} 50%, ${COLORS.background} 100%)`
         }
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
-      "svg",
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "div",
       {
         style: {
           position: "absolute",
           width: "100%",
           height: "100%",
-          opacity: 0.08
-        },
-        children: [
-          Array.from({ length: 12 }).map((_, i) => {
-            const x = width / 12 * (i + 0.5);
-            const yOffset = (frame * 0.5 + i * 20) % 60 - 30;
-            return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-              "line",
-              {
-                x1: x,
-                y1: 0,
-                x2: x,
-                y2: height,
-                stroke: COLORS.primary,
-                strokeWidth: 1,
-                strokeDasharray: "4 8",
-                transform: `translate(0, ${yOffset})`
-              },
-              `v-${i}`
-            );
-          }),
-          Array.from({ length: 20 }).map((_, i) => {
-            const y = height / 20 * (i + 0.5);
-            const xOffset = (frame * 0.3 + i * 15) % 40 - 20;
-            return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-              "line",
-              {
-                x1: 0,
-                y1: y,
-                x2: width,
-                y2: y,
-                stroke: COLORS.secondary,
-                strokeWidth: 1,
-                strokeDasharray: "2 12",
-                transform: `translate(${xOffset}, 0)`
-              },
-              `h-${i}`
-            );
-          })
-        ]
+          background: `radial-gradient(ellipse at 50% 40%, ${COLORS.primary}15 0%, transparent 50%)`,
+          opacity: 0.5
+        }
       }
     ),
-    Array.from({ length: 20 }).map((_, i) => {
-      const baseX = i * 137.5 % width;
-      const baseY = i * 89.3 % height;
-      const floatX = (0, import_remotion.interpolate)(
-        (frame + i * 30) % 180,
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          width: "200%",
+          height: "200%",
+          left: "-50%",
+          top: "-50%",
+          transform: `rotate(${rotation * 0.1}deg)`,
+          backgroundImage: `
+            linear-gradient(${COLORS.secondary}08 1px, transparent 1px),
+            linear-gradient(90deg, ${COLORS.secondary}08 1px, transparent 1px)
+          `,
+          backgroundSize: "60px 60px",
+          opacity: pulseOpacity * 10
+        }
+      }
+    ),
+    [...Array(20)].map((_, i) => {
+      const yPos = 5 + i * 5;
+      const lineWidth = (0, import_remotion.interpolate)(
+        (frame + i * 17) % 180,
         [0, 90, 180],
-        [0, 20, 0],
+        [10, 40, 10],
         { extrapolateRight: "clamp" }
       );
-      const floatY = (0, import_remotion.interpolate)(
-        (frame + i * 45) % 240,
-        [0, 120, 240],
-        [0, -30, 0],
-        { extrapolateRight: "clamp" }
-      );
-      const opacity = (0, import_remotion.interpolate)(
-        (frame + i * 20) % 120,
+      const lineOpacity = (0, import_remotion.interpolate)(
+        (frame + i * 23) % 120,
         [0, 60, 120],
-        [0.1, 0.4, 0.1],
+        [0.02, 0.05, 0.02],
         { extrapolateRight: "clamp" }
       );
-      const size = 3 + i % 4 * 2;
       return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         "div",
         {
           style: {
             position: "absolute",
-            left: baseX + floatX,
-            top: baseY + floatY,
-            width: size,
-            height: size,
-            borderRadius: "50%",
-            background: i % 2 === 0 ? COLORS.primary : COLORS.secondary,
-            opacity,
-            boxShadow: `0 0 ${size * 2}px ${i % 2 === 0 ? COLORS.primary : COLORS.secondary}`
+            left: "10%",
+            top: `${yPos}%`,
+            width: `${lineWidth}%`,
+            height: 2,
+            background: `linear-gradient(90deg, ${COLORS.primary}${Math.round(lineOpacity * 255).toString(16).padStart(2, "0")}, transparent)`,
+            borderRadius: 1
           }
         },
-        `particle-${i}`
+        i
       );
-    }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          width: "100%",
-          height: "100%",
-          background: `radial-gradient(ellipse at center, transparent 40%, ${COLORS.dark}dd 100%)`,
-          pointerEvents: "none"
-        }
-      }
-    )
+    })
   ] });
 };
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene1.tsx
 var import_remotion2 = require("remotion");
-
-// src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/components/Icons.tsx
 var import_jsx_runtime2 = require("react/jsx-runtime");
-var GearIcon = ({ size = 24, color = "currentColor" }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { fill: color, d: "M12 15.5A3.5 3.5 0 0 1 8.5 12A3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5a3.5 3.5 0 0 1-3.5 3.5m7.43-2.53c.04-.32.07-.64.07-.97s-.03-.66-.07-1l2.11-1.63c.19-.15.24-.42.12-.64l-2-3.46c-.12-.22-.39-.31-.61-.22l-2.49 1c-.52-.39-1.06-.73-1.69-.98l-.37-2.65A.506.506 0 0 0 14 2h-4c-.25 0-.46.18-.5.42l-.37 2.65c-.63.25-1.17.59-1.69.98l-2.49-1c-.22-.09-.49 0-.61.22l-2 3.46c-.13.22-.07.49.12.64L4.57 11c-.04.34-.07.67-.07 1s.03.65.07.97l-2.11 1.66c-.19.15-.25.42-.12.64l2 3.46c.12.22.39.3.61.22l2.49-1.01c.52.4 1.06.74 1.69.99l.37 2.65c.04.24.25.42.5.42h4c.25 0 .46-.18.5-.42l.37-2.65c.63-.26 1.17-.59 1.69-.99l2.49 1.01c.22.08.49 0 .61-.22l2-3.46c.12-.22.07-.49-.12-.64z" }) });
-var WarningIcon = ({ size = 24, color = "currentColor" }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 16 16", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { fill: color, d: "M14.57 13.54L8.39 1.63c-.34-.67-1.43-.67-1.78 0L.43 13.54c-.16.31-.15.68.03.98s.51.48.86.48h12.36c.35 0 .67-.18.85-.48s.2-.67.04-.98M7 6c0-.28.22-.5.5-.5s.5.22.5.5v3.5c0 .28-.22.5-.5.5S7 9.78 7 9.5zm.5 7c-.55 0-1-.45-1-1s.45-1 1-1s1 .45 1 1s-.45 1-1 1" }) });
-var CheckCircleIcon = ({ size = 24, color = "currentColor" }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { fill: color, d: "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10s10-4.5 10-10S17.5 2 12 2m-2 15l-5-5l1.41-1.41L10 14.17l7.59-7.59L19 8z" }) });
-var ClockIcon = ({ size = 24, color = "currentColor" }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { fill: color, d: "M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10s10-4.5 10-10S17.5 2 12 2m.5 11H11V7h1.5z" }) });
-var NetworkNodeIcon = ({ size = 24, color = "currentColor" }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { fill: color, d: "M5.5 22q-1.45 0-2.475-1.025T2 18.5t1.025-2.475T5.5 15q.45 0 .875.112t.8.313L11 11.6V8.85q-1.1-.325-1.8-1.237T8.5 5.5q0-1.45 1.025-2.475T12 2t2.475 1.025T15.5 5.5q0 1.2-.7 2.113T13 8.85v2.75l3.85 3.825q.375-.2.788-.312T18.5 15q1.45 0 2.475 1.025T22 18.5t-1.025 2.475T18.5 22t-2.475-1.025T15 18.5q0-.45.112-.875t.313-.8L12 13.4l-3.425 3.425q.2.375.313.8T9 18.5q0 1.45-1.025 2.475T5.5 22m13-2q.625 0 1.063-.437T20 18.5t-.437-1.062T18.5 17t-1.062.438T17 18.5t.438 1.063T18.5 20M12 7q.625 0 1.063-.437T13.5 5.5t-.437-1.062T12 4t-1.062.438T10.5 5.5t.438 1.063T12 7M5.5 20q.625 0 1.063-.437T7 18.5t-.437-1.062T5.5 17t-1.062.438T4 18.5t.438 1.063T5.5 20" }) });
-var FollowIcon = ({ size = 24, color = "currentColor" }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: [
-  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("circle", { fill: color, cx: "12", cy: "8", r: "4" }),
-  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { fill: color, d: "M12 14c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z" }),
-  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { fill: color, d: "M20 9v2h2V9h-2zm0 4v2h2v-2h-2z", opacity: "0.6" })
-] });
-
-// src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene1.tsx
-var import_jsx_runtime3 = require("react/jsx-runtime");
-var RotatingGear = ({ x, y, size, speed, delay, opacity }) => {
-  const frame = (0, import_remotion2.useCurrentFrame)();
-  const rotation = (frame + delay) * speed;
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+var ServerIcon = ({ color, size }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("g", { fill: "none", stroke: color, strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", children: [
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { width: "20", height: "8", x: "2", y: "2", rx: "2", ry: "2" }),
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { width: "20", height: "8", x: "2", y: "14", rx: "2", ry: "2" }),
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M6 6h.01M6 18h.01" })
+] }) });
+var DatabaseIcon = ({ color, size }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("g", { fill: "none", stroke: color, strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", children: [
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("ellipse", { cx: "12", cy: "5", rx: "9", ry: "3" }),
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M3 5v14a9 3 0 0 0 18 0V5" }),
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M3 12a9 3 0 0 0 18 0" })
+] }) });
+var ClockIcon = ({ color, size }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("g", { fill: "none", stroke: color, strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", children: [
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("circle", { cx: "12", cy: "12", r: "10" }),
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M12 6v6l4 2" })
+] }) });
+var NetworkIcon = ({ color, size }) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("svg", { xmlns: "http://www.w3.org/2000/svg", width: size, height: size, viewBox: "0 0 24 24", children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)("g", { fill: "none", stroke: color, strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: "2", children: [
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { width: "6", height: "6", x: "16", y: "16", rx: "1" }),
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { width: "6", height: "6", x: "2", y: "16", rx: "1" }),
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("rect", { width: "6", height: "6", x: "9", y: "2", rx: "1" }),
+  /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("path", { d: "M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3m-7-4V8" })
+] }) });
+var Particle = ({ frame, delay, startX, speed, size, opacity }) => {
+  const adjustedFrame = Math.max(0, frame - delay);
+  const yOffset = adjustedFrame * speed;
+  const fadeIn = (0, import_remotion2.interpolate)(adjustedFrame, [0, 30], [0, opacity], {
+    extrapolateRight: "clamp"
+  });
+  const drift = Math.sin(adjustedFrame * 0.02 + startX) * 20;
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
     "div",
     {
       style: {
         position: "absolute",
-        left: x,
-        top: y,
-        transform: `rotate(${rotation}deg)`,
-        opacity
-      },
-      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(GearIcon, { size, color: COLORS.secondary })
+        left: `${startX}%`,
+        bottom: `${-5 + yOffset % 120}%`,
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: `radial-gradient(circle, ${COLORS.primary}, ${COLORS.secondary})`,
+        opacity: fadeIn * (1 - yOffset % 120 / 120),
+        transform: `translateX(${drift}px)`
+      }
     }
   );
 };
-var NetworkParticle = ({ index }) => {
-  const frame = (0, import_remotion2.useCurrentFrame)();
-  const { width, height } = (0, import_remotion2.useVideoConfig)();
-  const baseX = index * 97 % width;
-  const speed = 1 + index % 3 * 0.5;
-  const yPosition = (frame * speed + index * 150) % (height + 100) - 50;
-  const opacity = (0, import_remotion2.interpolate)(
-    yPosition,
-    [0, height * 0.3, height * 0.7, height],
-    [0, 0.6, 0.6, 0],
-    { extrapolateRight: "clamp" }
-  );
-  const size = 12 + index % 4 * 4;
-  const xOffset = (0, import_remotion2.interpolate)(
-    (frame + index * 20) % 60,
-    [0, 30, 60],
-    [-10, 10, -10],
-    { extrapolateRight: "clamp" }
-  );
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        left: baseX + xOffset,
-        top: yPosition,
-        opacity
-      },
-      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NetworkNodeIcon, { size, color: COLORS.primary })
-    }
-  );
-};
-var ChallengeBox = () => {
+var Scene1 = ({ startFrame }) => {
   const frame = (0, import_remotion2.useCurrentFrame)();
   const { fps } = (0, import_remotion2.useVideoConfig)();
-  const scaleProgress = (0, import_remotion2.spring)({
-    frame,
+  const localFrame = frame - startFrame;
+  const titleProgress = (0, import_remotion2.spring)({
+    frame: localFrame,
     fps,
-    config: { ...SPRING_CONFIG, stiffness: 120 }
+    config: { ...SPRING_CONFIG, stiffness: 120 },
+    durationInFrames: 50
   });
-  const impactPulse = (0, import_remotion2.interpolate)(
-    frame,
-    [KEY_SYNCS.challenge - 3, KEY_SYNCS.challenge, KEY_SYNCS.challenge + 10],
-    [0, 1, 0],
+  const glowIntensity = (0, import_remotion2.interpolate)(
+    localFrame,
+    [30, 43, 80],
+    [0, 1, 0.3],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  const glowIntensity = (0, import_remotion2.interpolate)(
-    frame,
-    [0, 20, KEY_SYNCS.challenge, 60],
-    [0, 0.5, 1, 0.7],
-    { extrapolateRight: "clamp" }
-  );
-  const boxWidth = 60;
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        top: "30%",
-        left: "50%",
-        transform: `translateX(-50%) scale(${scaleProgress * (1 + impactPulse * 0.08)})`,
-        width: `${boxWidth}%`,
-        padding: "40px 30px",
-        background: `linear-gradient(135deg, ${COLORS.dark}ee, ${COLORS.secondary}33)`,
-        backdropFilter: "blur(20px)",
-        border: `3px solid ${COLORS.primary}`,
-        borderRadius: 20,
-        boxShadow: `
-          0 0 ${20 + impactPulse * 40}px ${COLORS.primary}${Math.round(glowIntensity * 99).toString().padStart(2, "0")},
-          0 0 ${40 + impactPulse * 60}px ${COLORS.primary}55,
-          inset 0 0 30px ${COLORS.primary}22
-        `,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 20
+  const subtitleProgress = (0, import_remotion2.spring)({
+    frame: localFrame - 60,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const icons = [
+    { Icon: ServerIcon, delay: 90, x: 15 },
+    { Icon: DatabaseIcon, delay: 98, x: 35 },
+    { Icon: ClockIcon, delay: 106, x: 55 },
+    { Icon: NetworkIcon, delay: 114, x: 75 }
+  ];
+  const particles = Array.from({ length: 30 }, (_, i) => ({
+    id: i,
+    startX: 10 + i * 2.7,
+    delay: i * 8,
+    speed: 0.3 + i % 5 * 0.1,
+    size: 4 + i % 4 * 3,
+    opacity: 0.3 + i % 3 * 0.2
+  }));
+  return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_remotion2.AbsoluteFill, { children: [
+    particles.map((p) => /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      Particle,
+      {
+        frame: localFrame,
+        delay: p.delay,
+        startX: p.startX,
+        speed: p.speed,
+        size: p.size,
+        opacity: p.opacity
       },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              top: -2,
-              left: -2,
-              width: 40,
-              height: 40,
-              borderTop: `4px solid ${COLORS.accent}`,
-              borderLeft: `4px solid ${COLORS.accent}`,
-              borderRadius: "20px 0 0 0"
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              top: -2,
-              right: -2,
-              width: 40,
-              height: 40,
-              borderTop: `4px solid ${COLORS.accent}`,
-              borderRight: `4px solid ${COLORS.accent}`,
-              borderRadius: "0 20px 0 0"
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              bottom: -2,
-              left: -2,
-              width: 40,
-              height: 40,
-              borderBottom: `4px solid ${COLORS.accent}`,
-              borderLeft: `4px solid ${COLORS.accent}`,
-              borderRadius: "0 0 0 20px"
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              bottom: -2,
-              right: -2,
-              width: 40,
-              height: 40,
-              borderBottom: `4px solid ${COLORS.accent}`,
-              borderRight: `4px solid ${COLORS.accent}`,
-              borderRadius: "0 0 20px 0"
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-          "div",
-          {
-            style: {
-              fontSize: 56,
-              fontWeight: 900,
-              fontFamily: "system-ui, sans-serif",
-              color: COLORS.white,
-              textAlign: "center",
-              textTransform: "uppercase",
-              letterSpacing: 4,
-              textShadow: `
-            0 0 10px ${COLORS.primary},
-            0 0 20px ${COLORS.primary}88
-          `
-            },
-            children: "System Design"
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
-          "div",
-          {
-            style: {
-              fontSize: 72,
-              fontWeight: 900,
-              fontFamily: "system-ui, sans-serif",
-              color: COLORS.primary,
-              textAlign: "center",
-              textTransform: "uppercase",
-              letterSpacing: 6,
-              textShadow: `
-            0 0 15px ${COLORS.primary},
-            0 0 30px ${COLORS.primary}88,
-            0 0 45px ${COLORS.primary}44
-          `
-            },
-            children: "Challenge"
-          }
-        )
-      ]
-    }
-  );
-};
-var Scene1 = ({ startFrame = 0 }) => {
-  const frame = (0, import_remotion2.useCurrentFrame)();
-  (0, import_remotion2.useVideoConfig)();
-  const fadeIn = (0, import_remotion2.interpolate)(frame, [0, 15], [0, 1], { extrapolateRight: "clamp" });
-  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_remotion2.AbsoluteFill, { style: { opacity: fadeIn }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotatingGear, { x: 80, y: 200, size: 80, speed: 0.5, delay: 0, opacity: 0.15 }, "gear1"),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotatingGear, { x: 920, y: 350, size: 60, speed: -0.3, delay: 20, opacity: 0.12 }, "gear2"),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotatingGear, { x: 150, y: 1400, size: 100, speed: 0.4, delay: 40, opacity: 0.1 }, "gear3"),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotatingGear, { x: 850, y: 1200, size: 70, speed: -0.6, delay: 60, opacity: 0.15 }, "gear4"),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(RotatingGear, { x: 500, y: 1600, size: 90, speed: 0.35, delay: 80, opacity: 0.08 }, "gear5"),
-    Array.from({ length: 15 }).map((_, i) => /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(NetworkParticle, { index: i }, `net-${i}`)),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(ChallengeBox, {}),
-    /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+      p.id
+    )),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
       "div",
       {
         style: {
           position: "absolute",
-          bottom: "25%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 28,
-          fontWeight: 500,
-          fontFamily: "system-ui, sans-serif",
-          color: COLORS.gray,
-          textAlign: "center",
-          opacity: (0, import_remotion2.interpolate)(frame, [30, 50], [0, 0.8], { extrapolateRight: "clamp" })
+          top: "20%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center"
         },
-        children: "How do you handle millions of connections?"
+        children: /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.hero,
+              fontWeight: 800,
+              color: COLORS.white,
+              textTransform: "uppercase",
+              letterSpacing: 4,
+              lineHeight: 1.2,
+              transform: `scale(${0.5 + titleProgress * 0.5})`,
+              opacity: titleProgress,
+              textShadow: `
+              0 0 ${20 + glowIntensity * 40}px ${COLORS.primary}${Math.round(glowIntensity * 200).toString(16).padStart(2, "0")},
+              0 0 ${40 + glowIntensity * 60}px ${COLORS.primary}${Math.round(glowIntensity * 150).toString(16).padStart(2, "0")},
+              0 0 ${60 + glowIntensity * 80}px ${COLORS.secondary}${Math.round(glowIntensity * 100).toString(16).padStart(2, "0")}
+            `
+            },
+            children: [
+              "System Design",
+              /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("br", {}),
+              "Challenge"
+            ]
+          }
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "55%",
+          left: "10%",
+          right: "10%",
+          height: "25%"
+        },
+        children: icons.map(({ Icon, delay, x }, i) => {
+          const iconProgress = (0, import_remotion2.spring)({
+            frame: localFrame - delay,
+            fps,
+            config: SPRING_CONFIG
+          });
+          const floatOffset = (0, import_remotion2.interpolate)(
+            (localFrame - delay) % 60,
+            [0, 30, 60],
+            [0, -15, 0],
+            { extrapolateRight: "clamp" }
+          );
+          return /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                left: `${x}%`,
+                top: "50%",
+                transform: `
+                  translateX(-50%)
+                  translateY(${-50 + (1 - iconProgress) * 100 + floatOffset}%)
+                  scale(${iconProgress})
+                `,
+                opacity: iconProgress
+              },
+              children: /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Icon, { color: COLORS.primary, size: 64 })
+            },
+            i
+          );
+        })
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "85%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          fontSize: TYPOGRAPHY.body,
+          fontWeight: 500,
+          color: COLORS.white,
+          opacity: subtitleProgress * 0.9,
+          transform: `translateY(${(1 - subtitleProgress) * 30}px)`
+        },
+        children: "Handling millions of delayed tasks"
       }
     )
   ] });
@@ -459,349 +369,308 @@ var Scene1 = ({ startFrame = 0 }) => {
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene2.tsx
 var import_remotion3 = require("remotion");
-var import_jsx_runtime4 = require("react/jsx-runtime");
-var TaskOrb = ({ index, panelHeight, panelWidth }) => {
-  const frame = (0, import_remotion3.useCurrentFrame)();
-  const speed = 2 + index % 3;
-  const startY = -50 - index * 40 % 200;
-  const y = startY + frame * speed;
-  const wrappedY = (y % (panelHeight + 100) + panelHeight + 100) % (panelHeight + 100) - 50;
-  const x = 60 + index * 47 % (panelWidth - 120);
-  const xWobble = (0, import_remotion3.interpolate)(
-    (frame + index * 15) % 40,
-    [0, 20, 40],
-    [-8, 8, -8],
-    { extrapolateRight: "clamp" }
-  );
-  const size = 14 + index % 4 * 4;
-  const opacity = (0, import_remotion3.interpolate)(
-    wrappedY,
-    [0, 100, panelHeight - 100, panelHeight],
-    [0, 0.9, 0.9, 0.3],
-    { extrapolateRight: "clamp" }
-  );
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+var import_jsx_runtime3 = require("react/jsx-runtime");
+var TreeNode = ({ x, y, value, stress, pulse, scale }) => {
+  const baseColor = (0, import_remotion3.interpolate)(stress, [0, 1], [0, 1], { extrapolateRight: "clamp" });
+  const nodeColor = `rgb(${Math.round(0 + baseColor * 239)}, ${Math.round(212 - baseColor * 143)}, ${Math.round(255 - baseColor * 186)})`;
+  const glowColor = stress > 0.5 ? COLORS.warning : COLORS.primary;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
     "div",
     {
       style: {
         position: "absolute",
-        left: x + xWobble,
-        top: wrappedY,
-        width: size,
-        height: size,
+        left: `${x}%`,
+        top: `${y}%`,
+        transform: `translate(-50%, -50%) scale(${scale * (1 + pulse * 0.1)})`,
+        width: 70,
+        height: 70,
         borderRadius: "50%",
-        background: `radial-gradient(circle at 30% 30%, ${COLORS.primary}, ${COLORS.secondary})`,
-        boxShadow: `0 0 ${size}px ${COLORS.primary}88`,
-        opacity
-      }
-    }
-  );
-};
-var HeapNode = ({ x, y, size, delay, value, isPulsing = false }) => {
-  const frame = (0, import_remotion3.useCurrentFrame)();
-  const { fps } = (0, import_remotion3.useVideoConfig)();
-  const scaleProgress = (0, import_remotion3.spring)({
-    frame: frame - delay,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const pulseScale = isPulsing ? (0, import_remotion3.interpolate)((frame - delay) % 30, [0, 15, 30], [1, 1.15, 1], { extrapolateRight: "clamp" }) : 1;
-  const scale = Math.max(0, scaleProgress) * pulseScale;
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        left: x - size / 2,
-        top: y - size / 2,
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: `radial-gradient(circle at 30% 30%, ${COLORS.secondary}, ${COLORS.accent}88)`,
-        border: `2px solid ${COLORS.secondary}`,
-        boxShadow: isPulsing ? `0 0 20px ${COLORS.accent}88` : `0 0 10px ${COLORS.secondary}66`,
-        transform: `scale(${scale})`,
+        background: `radial-gradient(circle at 30% 30%, ${nodeColor}, ${COLORS.secondary})`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: size * 0.4,
+        fontSize: 24,
         fontWeight: 700,
         color: COLORS.white,
-        fontFamily: "system-ui, sans-serif"
+        boxShadow: `0 0 ${15 + stress * 25}px ${glowColor}${Math.round((0.3 + stress * 0.5) * 255).toString(16).padStart(2, "0")}`,
+        border: `3px solid ${nodeColor}`
       },
       children: value
     }
   );
 };
-var HeapConnection = ({ x1, y1, x2, y2, delay }) => {
-  const frame = (0, import_remotion3.useCurrentFrame)();
-  const { fps } = (0, import_remotion3.useVideoConfig)();
-  const progress = (0, import_remotion3.spring)({
-    frame: frame - delay,
-    fps,
-    config: { ...SPRING_CONFIG, damping: 30 }
-  });
-  const opacity = Math.max(0, progress);
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-    "line",
-    {
-      x1,
-      y1,
-      x2: x1 + (x2 - x1) * progress,
-      y2: y1 + (y2 - y1) * progress,
-      stroke: COLORS.secondary,
-      strokeWidth: 3,
-      opacity: opacity * 0.7
-    }
-  );
-};
-var BinaryHeapTree = ({ width, height }) => {
-  const frame = (0, import_remotion3.useCurrentFrame)();
-  const heapValues = [1, 3, 2, 7, 6, 4, 5, 15, 12, 9, 8];
-  const nodeSize = 50;
-  const levelHeight = 90;
-  const centerX = width / 2;
-  const startY = 80;
-  const getNodePosition = (index) => {
-    const level = Math.floor(Math.log2(index + 1));
-    const levelStart = Math.pow(2, level) - 1;
-    const positionInLevel = index - levelStart;
-    const nodesInLevel = Math.pow(2, level);
-    const levelWidth = width * 0.85;
-    const spacing = levelWidth / nodesInLevel;
-    const x = centerX - levelWidth / 2 + spacing * (positionInLevel + 0.5);
-    const y = startY + level * levelHeight;
-    return { x, y };
-  };
-  const pulsingNode = Math.floor(frame / 20 % heapValues.length);
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("div", { style: { position: "relative", width: "100%", height: "100%" }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-      "svg",
-      {
-        style: {
-          position: "absolute",
-          width: "100%",
-          height: "100%"
-        },
-        children: heapValues.slice(0, -1).map((_, i) => {
-          const leftChild = 2 * i + 1;
-          const rightChild = 2 * i + 2;
-          const parent = getNodePosition(i);
-          return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)("g", { children: [
-            leftChild < heapValues.length && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-              HeapConnection,
-              {
-                x1: parent.x,
-                y1: parent.y + nodeSize / 2,
-                x2: getNodePosition(leftChild).x,
-                y2: getNodePosition(leftChild).y - nodeSize / 2,
-                delay: i * 8 + 20
-              }
-            ),
-            rightChild < heapValues.length && /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-              HeapConnection,
-              {
-                x1: parent.x,
-                y1: parent.y + nodeSize / 2,
-                x2: getNodePosition(rightChild).x,
-                y2: getNodePosition(rightChild).y - nodeSize / 2,
-                delay: i * 8 + 24
-              }
-            )
-          ] }, `conn-${i}`);
-        })
-      }
-    ),
-    heapValues.map((value, i) => {
-      const pos = getNodePosition(i);
-      return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-        HeapNode,
-        {
-          x: pos.x,
-          y: pos.y,
-          size: nodeSize,
-          delay: i * 8,
-          value,
-          isPulsing: i === pulsingNode && frame > 60
-        },
-        `node-${i}`
-      );
-    }),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          bottom: 40,
-          left: "50%",
-          transform: "translateX(-50%)",
-          padding: "12px 24px",
-          background: `${COLORS.dark}cc`,
-          border: `2px solid ${COLORS.accent}`,
-          borderRadius: 12,
-          fontSize: 28,
-          fontWeight: 700,
-          fontFamily: "monospace",
-          color: COLORS.accent
-        },
-        children: "O(log n) per insert"
-      }
-    )
-  ] });
-};
-var TaskCounter = () => {
-  const frame = (0, import_remotion3.useCurrentFrame)();
-  const count = Math.round(
-    (0, import_remotion3.interpolate)(frame, [0, 300], [0, 1e6], { extrapolateRight: "clamp" })
-  );
-  const formattedCount = count.toLocaleString();
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
-    "div",
+var TreeEdge = ({ x1, y1, x2, y2, stress, opacity }) => {
+  const edgeColor = (0, import_remotion3.interpolate)(stress, [0, 1], [0, 1], { extrapolateRight: "clamp" });
+  const color = `rgb(${Math.round(99 + edgeColor * 140)}, ${Math.round(102 - edgeColor * 33)}, ${Math.round(241 - edgeColor * 172)})`;
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+    "svg",
     {
       style: {
         position: "absolute",
-        top: "5%",
-        left: "50%",
-        transform: "translateX(-50%)",
-        padding: "16px 40px",
-        background: `linear-gradient(135deg, ${COLORS.dark}ee, ${COLORS.secondary}22)`,
-        border: `2px solid ${COLORS.primary}`,
-        borderRadius: 16,
-        fontSize: 36,
-        fontWeight: 700,
-        fontFamily: "system-ui, sans-serif",
-        color: COLORS.white,
-        textAlign: "center",
-        boxShadow: `0 0 20px ${COLORS.primary}44`
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        pointerEvents: "none"
       },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { style: { color: COLORS.gray, fontSize: 24 }, children: "TASKS: " }),
-        /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { style: { fontVariantNumeric: "tabular-nums", color: COLORS.primary }, children: formattedCount })
-      ]
+      children: /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+        "line",
+        {
+          x1: `${x1}%`,
+          y1: `${y1}%`,
+          x2: `${x2}%`,
+          y2: `${y2}%`,
+          stroke: color,
+          strokeWidth: 3,
+          opacity
+        }
+      )
     }
   );
 };
-var Scene2 = ({ startFrame = 0 }) => {
+var Scene2 = ({ startFrame }) => {
   const frame = (0, import_remotion3.useCurrentFrame)();
-  const { fps, width, height } = (0, import_remotion3.useVideoConfig)();
-  const splitProgress = (0, import_remotion3.spring)({
-    frame,
+  const { fps } = (0, import_remotion3.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const keySyncFrame = 112;
+  const entranceProgress = (0, import_remotion3.spring)({
+    frame: localFrame,
     fps,
-    config: { ...SPRING_CONFIG, stiffness: 60 }
+    config: SPRING_CONFIG,
+    durationInFrames: 45
   });
-  const panelWidth = width * 0.45;
-  const panelHeight = height * 0.65;
-  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_remotion3.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(TaskCounter, {}),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+  const stress = (0, import_remotion3.interpolate)(
+    localFrame,
+    [0, keySyncFrame - 30, keySyncFrame, keySyncFrame + 60],
+    [0, 0.3, 1, 0.8],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const shakeIntensity = (0, import_remotion3.interpolate)(
+    localFrame,
+    [keySyncFrame - 10, keySyncFrame, keySyncFrame + 30],
+    [0, 8, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const shakeX = Math.sin(localFrame * 1.5) * shakeIntensity;
+  const shakeY = Math.cos(localFrame * 2) * shakeIntensity * 0.5;
+  const getPulse = (offset) => (0, import_remotion3.interpolate)(
+    (localFrame + offset * 7) % 30,
+    [0, 15, 30],
+    [0, 1, 0],
+    { extrapolateRight: "clamp" }
+  );
+  const treeData = [
+    // Level 0
+    { id: 0, x: 50, y: 15, value: 1, parent: null },
+    // Level 1
+    { id: 1, x: 30, y: 35, value: 3, parent: 0 },
+    { id: 2, x: 70, y: 35, value: 5, parent: 0 },
+    // Level 2
+    { id: 3, x: 18, y: 55, value: 7, parent: 1 },
+    { id: 4, x: 42, y: 55, value: 9, parent: 1 },
+    { id: 5, x: 58, y: 55, value: 11, parent: 2 },
+    { id: 6, x: 82, y: 55, value: 13, parent: 2 },
+    // Level 3 (partial)
+    { id: 7, x: 12, y: 75, value: 15, parent: 3 },
+    { id: 8, x: 24, y: 75, value: 17, parent: 3 },
+    { id: 9, x: 36, y: 75, value: 19, parent: 4 },
+    { id: 10, x: 48, y: 75, value: 21, parent: 4 }
+  ];
+  const rebalancePhase = Math.floor((localFrame + 20) / 45) % 4;
+  const rebalanceProgress = (0, import_remotion3.interpolate)(
+    (localFrame + 20) % 45,
+    [0, 15, 30, 45],
+    [0, 1, 1, 0],
+    { extrapolateRight: "clamp" }
+  );
+  const getNodePosition = (node) => {
+    const offsetX = rebalancePhase === node.id % 4 ? rebalanceProgress * 8 - 4 : 0;
+    const offsetY = rebalancePhase === (node.id + 2) % 4 ? rebalanceProgress * 6 - 3 : 0;
+    return { x: node.x + offsetX, y: node.y + offsetY };
+  };
+  const complexityOpacity = (0, import_remotion3.spring)({
+    frame: localFrame - 30,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const descriptionOpacity = (0, import_remotion3.spring)({
+    frame: localFrame - 60,
+    fps,
+    config: SPRING_CONFIG
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(import_remotion3.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
       "div",
       {
         style: {
           position: "absolute",
-          left: `${2.5 + (1 - splitProgress) * 50}%`,
-          top: "18%",
-          width: panelWidth,
-          height: panelHeight,
-          overflow: "hidden",
-          borderRadius: 20,
-          background: `${COLORS.dark}88`,
-          border: `1px solid ${COLORS.primary}44`,
-          opacity: splitProgress
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                top: 20,
-                left: 20,
-                fontSize: 24,
-                fontWeight: 600,
-                color: COLORS.primary,
-                fontFamily: "system-ui, sans-serif"
-              },
-              children: "Incoming Tasks"
-            }
-          ),
-          Array.from({ length: 25 }).map((_, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-            TaskOrb,
-            {
-              index: i,
-              panelHeight,
-              panelWidth
-            },
-            `orb-${i}`
-          ))
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          left: "50%",
-          top: "15%",
-          width: 2,
-          height: "70%",
-          background: `linear-gradient(to bottom, transparent, ${COLORS.primary}88, ${COLORS.primary}88, transparent)`,
-          transform: `scaleY(${splitProgress})`,
-          transformOrigin: "top"
-        }
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          right: `${2.5 + (1 - splitProgress) * 50}%`,
-          top: "18%",
-          width: panelWidth,
-          height: panelHeight,
-          overflow: "hidden",
-          borderRadius: 20,
-          background: `${COLORS.dark}88`,
-          border: `1px solid ${COLORS.secondary}44`,
-          opacity: splitProgress
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                top: 20,
-                left: 20,
-                fontSize: 24,
-                fontWeight: 600,
-                color: COLORS.secondary,
-                fontFamily: "system-ui, sans-serif"
-              },
-              children: "Priority Queue (Binary Heap)"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(BinaryHeapTree, { width: panelWidth, height: panelHeight })
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          bottom: "8%",
+          top: "8%",
           left: "50%",
           transform: "translateX(-50%)",
-          fontSize: 26,
-          fontWeight: 500,
-          color: COLORS.gray,
-          textAlign: "center",
-          fontFamily: "system-ui, sans-serif",
-          opacity: (0, import_remotion3.interpolate)(frame, [60, 90], [0, 1], { extrapolateRight: "clamp" })
+          opacity: complexityOpacity
         },
-        children: "The intuitive solution: sort tasks by expiration time"
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.section,
+                fontWeight: 700,
+                color: (0, import_remotion3.interpolate)(stress, [0, 0.5, 1], [0, 0, 1], { extrapolateRight: "clamp" }) > 0.5 ? COLORS.warning : COLORS.primary,
+                textAlign: "center",
+                textShadow: `0 0 20px ${stress > 0.5 ? COLORS.warning : COLORS.primary}80`
+              },
+              children: "O(log n)"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.caption,
+                color: COLORS.white,
+                opacity: 0.7,
+                textAlign: "center",
+                marginTop: 8
+              },
+              children: "Priority Queue Complexity"
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "18%",
+          left: "10%",
+          right: "10%",
+          height: "55%",
+          transform: `translate(${shakeX}px, ${shakeY}px) scale(${entranceProgress})`,
+          opacity: entranceProgress
+        },
+        children: [
+          treeData.map((node) => {
+            if (node.parent === null) return null;
+            const parentNode = treeData[node.parent];
+            const nodePos = getNodePosition(node);
+            const parentPos = getNodePosition(parentNode);
+            return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              TreeEdge,
+              {
+                x1: parentPos.x,
+                y1: parentPos.y + 5,
+                x2: nodePos.x,
+                y2: nodePos.y - 5,
+                stress,
+                opacity: entranceProgress * 0.8
+              },
+              `edge-${node.id}`
+            );
+          }),
+          treeData.map((node, i) => {
+            const nodePos = getNodePosition(node);
+            const nodeDelay = i * 3;
+            const nodeScale = (0, import_remotion3.spring)({
+              frame: localFrame - nodeDelay,
+              fps,
+              config: SPRING_CONFIG
+            });
+            return /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+              TreeNode,
+              {
+                x: nodePos.x,
+                y: nodePos.y,
+                value: node.value,
+                stress: stress * (0.5 + node.id % 3 * 0.25),
+                pulse: getPulse(node.id),
+                scale: nodeScale
+              },
+              node.id
+            );
+          }),
+          localFrame > 80 && /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(import_jsx_runtime3.Fragment, { children: [0, 1, 2].map((i) => {
+            const taskProgress = (localFrame - 80 + i * 40) % 120 / 120;
+            const taskOpacity = (0, import_remotion3.interpolate)(
+              taskProgress,
+              [0, 0.1, 0.9, 1],
+              [0, 0.8, 0.8, 0],
+              { extrapolateRight: "clamp" }
+            );
+            return /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  left: `${20 + i * 25}%`,
+                  top: `${-10 + taskProgress * 30}%`,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 8,
+                  background: COLORS.accent,
+                  opacity: taskOpacity,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: COLORS.white,
+                  transform: "translate(-50%, -50%)"
+                },
+                children: [
+                  "+",
+                  Math.floor(Math.random() * 100)
+                ]
+              },
+              i
+            );
+          }) })
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          bottom: "10%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          opacity: descriptionOpacity,
+          transform: `translateY(${(1 - descriptionOpacity) * 20}px)`
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.body,
+                fontWeight: 600,
+                color: COLORS.white,
+                marginBottom: 12
+              },
+              children: "Binary Heap: The Obvious Choice"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime3.jsxs)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.caption,
+                color: COLORS.white,
+                opacity: 0.7
+              },
+              children: [
+                "Always returns the most immediate task...",
+                /* @__PURE__ */ (0, import_jsx_runtime3.jsx)("br", {}),
+                "but at what cost?"
+              ]
+            }
+          )
+        ]
       }
     )
   ] });
@@ -809,618 +678,618 @@ var Scene2 = ({ startFrame = 0 }) => {
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene3.tsx
 var import_remotion4 = require("remotion");
-var import_jsx_runtime5 = require("react/jsx-runtime");
-var StressedHeapNode = ({ x, y, size, value, stressLevel }) => {
-  const frame = (0, import_remotion4.useCurrentFrame)();
-  const shakeX = stressLevel > 0.3 ? (0, import_remotion4.interpolate)(frame * 3 % 8, [0, 2, 4, 6, 8], [-3, 3, -2, 2, -3]) * stressLevel : 0;
-  const shakeY = stressLevel > 0.3 ? (0, import_remotion4.interpolate)((frame * 3 + 2) % 8, [0, 2, 4, 6, 8], [-2, 2, -3, 3, -2]) * stressLevel : 0;
-  const nodeColor = stressLevel > 0.5 ? COLORS.accent : COLORS.secondary;
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+var import_jsx_runtime4 = require("react/jsx-runtime");
+var CrackedNode = ({ x, y, targetX, targetY, value, morphProgress, crackIntensity }) => {
+  const currentX = (0, import_remotion4.interpolate)(morphProgress, [0, 1], [x, targetX], { extrapolateRight: "clamp" });
+  const currentY = (0, import_remotion4.interpolate)(morphProgress, [0, 1], [y, targetY], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
     "div",
     {
       style: {
         position: "absolute",
-        left: x - size / 2 + shakeX,
-        top: y - size / 2 + shakeY,
-        width: size,
-        height: size,
+        left: `${currentX}%`,
+        top: `${currentY}%`,
+        transform: "translate(-50%, -50%)",
+        width: 60,
+        height: 60,
         borderRadius: "50%",
-        background: `radial-gradient(circle at 30% 30%, ${nodeColor}, ${COLORS.accent}88)`,
-        border: `2px solid ${nodeColor}`,
-        boxShadow: stressLevel > 0.5 ? `0 0 ${20 + stressLevel * 20}px ${COLORS.accent}aa` : `0 0 10px ${COLORS.secondary}66`,
+        background: `radial-gradient(circle at 30% 30%, ${COLORS.warning}, #991B1B)`,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontSize: size * 0.35,
+        fontSize: 22,
         fontWeight: 700,
         color: COLORS.white,
-        fontFamily: "system-ui, sans-serif"
-      },
-      children: value
-    }
-  );
-};
-var GrindingGear = ({ x, y, size, speed, stressLevel }) => {
-  const frame = (0, import_remotion4.useCurrentFrame)();
-  const baseRotation = frame * speed;
-  const stutter = stressLevel > 0.5 ? (0, import_remotion4.interpolate)(frame * 2 % 10, [0, 3, 5, 7, 10], [0, -5, 0, 5, 0]) : 0;
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        left: x,
-        top: y,
-        transform: `rotate(${baseRotation + stutter}deg)`,
-        opacity: 0.4 + stressLevel * 0.3
-      },
-      children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(GearIcon, { size, color: stressLevel > 0.5 ? COLORS.accent : COLORS.secondary })
-    }
-  );
-};
-var WarningIndicator = ({ x, y, delay }) => {
-  const frame = (0, import_remotion4.useCurrentFrame)();
-  const { fps } = (0, import_remotion4.useVideoConfig)();
-  const appear = (0, import_remotion4.spring)({
-    frame: frame - delay,
-    fps,
-    config: { ...SPRING_CONFIG, stiffness: 150 }
-  });
-  const pulse = (0, import_remotion4.interpolate)(
-    (frame - delay) % 20,
-    [0, 10, 20],
-    [1, 1.2, 1],
-    { extrapolateRight: "clamp" }
-  );
-  if (appear <= 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        left: x,
-        top: y,
-        transform: `scale(${appear * pulse})`,
-        filter: `drop-shadow(0 0 10px ${COLORS.accent})`
-      },
-      children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(WarningIcon, { size: 50, color: COLORS.accent })
-    }
-  );
-};
-var PerformanceGraph = ({ stressLevel }) => {
-  const frame = (0, import_remotion4.useCurrentFrame)();
-  const { fps } = (0, import_remotion4.useVideoConfig)();
-  const graphAppear = (0, import_remotion4.spring)({
-    frame: frame - 30,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const lineProgress = (0, import_remotion4.interpolate)(frame, [30, 200], [0, 1], { extrapolateRight: "clamp" });
-  const graphWidth = 600;
-  const graphHeight = 200;
-  const points = [];
-  for (let i = 0; i <= 50; i++) {
-    const x = i / 50 * graphWidth;
-    const normalizedX = i / 50;
-    const y = graphHeight - Math.log(normalizedX * 10 + 1) / Math.log(11) * graphHeight * 0.85 * Math.min(1, lineProgress * 2);
-    if (i <= lineProgress * 50) {
-      points.push(`${x},${y}`);
-    }
-  }
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        bottom: "12%",
-        left: "50%",
-        transform: `translateX(-50%) scale(${graphAppear})`,
-        width: graphWidth + 100,
-        height: graphHeight + 80,
-        background: `${COLORS.dark}dd`,
-        border: `2px solid ${COLORS.accent}44`,
-        borderRadius: 16,
-        padding: 20
+        boxShadow: `0 0 ${20 + crackIntensity * 30}px ${COLORS.warning}`,
+        border: `3px solid ${COLORS.warning}`
       },
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-          "div",
+        value,
+        crackIntensity > 0.3 && /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+          "svg",
           {
             style: {
-              fontSize: 22,
-              fontWeight: 600,
-              color: COLORS.accent,
-              fontFamily: "system-ui, sans-serif",
-              marginBottom: 10,
-              textAlign: "center"
+              position: "absolute",
+              width: "120%",
+              height: "120%",
+              left: "-10%",
+              top: "-10%",
+              pointerEvents: "none"
             },
-            children: "Time Complexity: O(log n) per operation"
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "line",
+                {
+                  x1: "20%",
+                  y1: "20%",
+                  x2: "80%",
+                  y2: "80%",
+                  stroke: COLORS.warning,
+                  strokeWidth: 2,
+                  opacity: crackIntensity
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                "line",
+                {
+                  x1: "80%",
+                  y1: "30%",
+                  x2: "30%",
+                  y2: "70%",
+                  stroke: COLORS.warning,
+                  strokeWidth: 2,
+                  opacity: crackIntensity * 0.8
+                }
+              )
+            ]
           }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("svg", { width: graphWidth + 60, height: graphHeight + 20, style: { marginLeft: 20 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: 30, y1: graphHeight, x2: graphWidth + 30, y2: graphHeight, stroke: COLORS.gray, strokeWidth: 2 }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("line", { x1: 30, y1: 0, x2: 30, y2: graphHeight, stroke: COLORS.gray, strokeWidth: 2 }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("text", { x: graphWidth / 2 + 30, y: graphHeight + 18, fill: COLORS.gray, fontSize: 14, textAnchor: "middle", children: "Number of Tasks" }),
-          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("text", { x: 10, y: graphHeight / 2, fill: COLORS.gray, fontSize: 14, textAnchor: "middle", transform: `rotate(-90, 10, ${graphHeight / 2})`, children: "Time" }),
-          points.length > 1 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-            "polyline",
-            {
-              points: points.map((p) => {
-                const [px, py] = p.split(",").map(Number);
-                return `${px + 30},${py}`;
-              }).join(" "),
-              fill: "none",
-              stroke: COLORS.accent,
-              strokeWidth: 4,
-              strokeLinecap: "round",
-              strokeLinejoin: "round"
-            }
-          ),
-          lineProgress > 0.7 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-            "rect",
-            {
-              x: graphWidth * 0.7 + 30,
-              y: 0,
-              width: graphWidth * 0.3,
-              height: graphHeight,
-              fill: `${COLORS.accent}22`,
-              opacity: stressLevel
-            }
-          )
-        ] })
+        )
       ]
     }
   );
 };
-var BottleneckOrbs = ({ stressLevel }) => {
-  const frame = (0, import_remotion4.useCurrentFrame)();
-  const orbCount = Math.floor((0, import_remotion4.interpolate)(frame, [0, 200], [0, 20], { extrapolateRight: "clamp" }));
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_jsx_runtime5.Fragment, { children: Array.from({ length: orbCount }).map((_, i) => {
-    const row = Math.floor(i / 5);
-    const col = i % 5;
-    const baseX = 440 + col * 45;
-    const baseY = 700 + row * 40;
-    const jitterX = stressLevel > 0.5 ? (0, import_remotion4.interpolate)((frame + i * 7) % 6, [0, 3, 6], [-3, 3, -3]) : 0;
-    const jitterY = stressLevel > 0.5 ? (0, import_remotion4.interpolate)((frame + i * 5) % 6, [0, 3, 6], [-2, 2, -2]) : 0;
-    return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          left: baseX + jitterX,
-          top: baseY + jitterY,
-          width: 30,
-          height: 30,
-          borderRadius: "50%",
-          background: `radial-gradient(circle at 30% 30%, ${COLORS.primary}, ${COLORS.accent}88)`,
-          boxShadow: `0 0 12px ${COLORS.primary}66`,
-          opacity: 0.8
-        }
-      },
-      `bottleneck-${i}`
-    );
-  }) });
-};
-var Scene3 = ({ startFrame = 0 }) => {
-  const frame = (0, import_remotion4.useCurrentFrame)();
-  const { width } = (0, import_remotion4.useVideoConfig)();
-  const stressLevel = (0, import_remotion4.interpolate)(frame, [0, 400], [0.2, 1], { extrapolateRight: "clamp" });
-  const flashOpacity = (0, import_remotion4.interpolate)(
-    frame,
-    [6, 9, 15, 25],
-    [0, 0.4, 0.2, 0],
+var CrackLine = ({ angle, length, opacity, delay, frame }) => {
+  const progress = (0, import_remotion4.interpolate)(
+    frame - delay,
+    [0, 15],
+    [0, 1],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  const screenShake = frame < 30 ? (0, import_remotion4.interpolate)(frame, [6, 9, 20, 30], [0, 1, 0.5, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) : 0;
-  const shakeX = screenShake * (0, import_remotion4.interpolate)(frame * 4 % 8, [0, 4, 8], [-8, 8, -8]);
-  const shakeY = screenShake * (0, import_remotion4.interpolate)((frame * 4 + 2) % 8, [0, 4, 8], [-5, 5, -5]);
-  const heapValues = [1, 3, 2, 7, 6, 4, 5, 15, 12, 9];
-  const nodeSize = 55;
-  const centerX = width / 2;
-  const startY = 180;
-  const levelHeight = 100;
-  const getNodePosition = (index) => {
-    const level = Math.floor(Math.log2(index + 1));
-    const levelStart = Math.pow(2, level) - 1;
-    const positionInLevel = index - levelStart;
-    const nodesInLevel = Math.pow(2, level);
-    const levelWidth = width * 0.65;
-    const spacing = levelWidth / nodesInLevel;
-    const x = centerX - levelWidth / 2 + spacing * (positionInLevel + 0.5);
-    const y = startY + level * levelHeight;
-    return { x, y };
-  };
-  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_remotion4.AbsoluteFill, { style: { transform: `translate(${shakeX}px, ${shakeY}px)` }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+  const x2 = 50 + Math.cos(angle * Math.PI / 180) * length * progress;
+  const y2 = 50 + Math.sin(angle * Math.PI / 180) * length * progress;
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+    "line",
+    {
+      x1: "50%",
+      y1: "50%",
+      x2: `${x2}%`,
+      y2: `${y2}%`,
+      stroke: COLORS.warning,
+      strokeWidth: 3,
+      opacity: opacity * progress,
+      strokeLinecap: "round"
+    }
+  );
+};
+var Scene3 = ({ startFrame }) => {
+  const frame = (0, import_remotion4.useCurrentFrame)();
+  const { fps } = (0, import_remotion4.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const keySyncFrame = 27;
+  const crackIntensity = (0, import_remotion4.interpolate)(
+    localFrame,
+    [0, keySyncFrame - 5, keySyncFrame, 120],
+    [0.2, 0.6, 1, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const morphProgress = (0, import_remotion4.interpolate)(
+    localFrame,
+    [keySyncFrame, 120],
+    [0, 0.6],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const shakeIntensity = (0, import_remotion4.interpolate)(
+    localFrame,
+    [0, keySyncFrame, keySyncFrame + 10, 120],
+    [5, 15, 8, 3],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const shakeX = Math.sin(localFrame * 2.5) * shakeIntensity;
+  const shakeY = Math.cos(localFrame * 3) * shakeIntensity * 0.7;
+  const warningProgress = (0, import_remotion4.spring)({
+    frame: localFrame - 5,
+    fps,
+    config: { ...SPRING_CONFIG, stiffness: 150 }
+  });
+  const scaleProgress = (0, import_remotion4.spring)({
+    frame: localFrame - 15,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const treeNodes = [
+    { id: 0, x: 50, y: 30, targetX: 50, targetY: 15, value: 1 },
+    { id: 1, x: 30, y: 45, targetX: 25, targetY: 35, value: 3 },
+    { id: 2, x: 70, y: 45, targetX: 75, targetY: 35, value: 5 },
+    { id: 3, x: 20, y: 60, targetX: 15, targetY: 55, value: 7 },
+    { id: 4, x: 40, y: 60, targetX: 35, targetY: 70, value: 9 },
+    { id: 5, x: 60, y: 60, targetX: 65, targetY: 70, value: 11 },
+    { id: 6, x: 80, y: 60, targetX: 85, targetY: 55, value: 13 }
+  ];
+  const crackAngles = [0, 45, 90, 135, 180, 225, 270, 315];
+  return /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(import_remotion4.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
       "div",
       {
         style: {
           position: "absolute",
-          width: "100%",
-          height: "100%",
-          background: COLORS.accent,
-          opacity: flashOpacity,
-          pointerEvents: "none",
-          zIndex: 100
-        }
+          top: "8%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          transform: `scale(${0.5 + warningProgress * 0.5})`,
+          opacity: warningProgress
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.section,
+              fontWeight: 800,
+              color: COLORS.warning,
+              textTransform: "uppercase",
+              letterSpacing: 3,
+              textShadow: `0 0 30px ${COLORS.warning}`
+            },
+            children: "The Problem"
+          }
+        )
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
       "div",
       {
         style: {
           position: "absolute",
-          top: "5%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 42,
-          fontWeight: 800,
-          color: COLORS.accent,
-          fontFamily: "system-ui, sans-serif",
-          textShadow: `0 0 20px ${COLORS.accent}88`,
-          opacity: (0, import_remotion4.interpolate)(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" })
+          top: "20%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          transform: `scale(${scaleProgress}) translateY(${(1 - scaleProgress) * 30}px)`,
+          opacity: scaleProgress
         },
-        children: "THE BOTTLENECK"
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.hero * 0.9,
+                fontWeight: 900,
+                color: COLORS.white,
+                letterSpacing: 2,
+                textShadow: `0 0 40px ${COLORS.warning}80`
+              },
+              children: "10 MILLION"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.body,
+                fontWeight: 600,
+                color: COLORS.accent,
+                marginTop: 8
+              },
+              children: "CONNECTIONS"
+            }
+          )
+        ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(GrindingGear, { x: 100, y: 300, size: 100, speed: 0.8, stressLevel }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(GrindingGear, { x: 880, y: 250, size: 80, speed: -0.6, stressLevel }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(GrindingGear, { x: 150, y: 600, size: 70, speed: 0.5, stressLevel }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(GrindingGear, { x: 850, y: 550, size: 90, speed: -0.7, stressLevel }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(WarningIndicator, { x: 300, y: 200, delay: 15 }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(WarningIndicator, { x: 700, y: 180, delay: 25 }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(WarningIndicator, { x: 200, y: 450, delay: 35 }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(WarningIndicator, { x: 820, y: 400, delay: 45 }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-      "svg",
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+      "div",
       {
         style: {
           position: "absolute",
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none"
+          top: "35%",
+          left: "15%",
+          right: "15%",
+          height: "45%",
+          transform: `translate(${shakeX}px, ${shakeY}px)`
         },
-        children: heapValues.slice(0, -1).map((_, i) => {
-          const leftChild = 2 * i + 1;
-          const rightChild = 2 * i + 2;
-          const parent = getNodePosition(i);
-          return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("g", { children: [
-            leftChild < heapValues.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-              "line",
-              {
-                x1: parent.x,
-                y1: parent.y + nodeSize / 2,
-                x2: getNodePosition(leftChild).x,
-                y2: getNodePosition(leftChild).y - nodeSize / 2,
-                stroke: stressLevel > 0.6 ? COLORS.accent : COLORS.secondary,
-                strokeWidth: 3,
-                opacity: 0.6
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+            "svg",
+            {
+              style: {
+                position: "absolute",
+                width: "100%",
+                height: "100%",
+                pointerEvents: "none"
+              },
+              children: crackAngles.map((angle, i) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+                CrackLine,
+                {
+                  angle,
+                  length: 30 + i % 3 * 10,
+                  opacity: crackIntensity,
+                  delay: i * 3,
+                  frame: localFrame
+                },
+                angle
+              ))
+            }
+          ),
+          treeNodes.map((node) => /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+            CrackedNode,
+            {
+              x: node.x,
+              y: node.y,
+              targetX: node.targetX,
+              targetY: node.targetY,
+              value: node.value,
+              morphProgress,
+              crackIntensity
+            },
+            node.id
+          )),
+          /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                left: "50%",
+                top: "50%",
+                transform: "translate(-50%, -50%)",
+                width: 120,
+                height: 120,
+                borderRadius: "50%",
+                border: `4px solid ${COLORS.warning}`,
+                opacity: crackIntensity * 0.6,
+                animation: "none",
+                boxShadow: `0 0 ${50 * crackIntensity}px ${COLORS.warning}`
               }
-            ),
-            rightChild < heapValues.length && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-              "line",
-              {
-                x1: parent.x,
-                y1: parent.y + nodeSize / 2,
-                x2: getNodePosition(rightChild).x,
-                y2: getNodePosition(rightChild).y - nodeSize / 2,
-                stroke: stressLevel > 0.6 ? COLORS.accent : COLORS.secondary,
-                strokeWidth: 3,
-                opacity: 0.6
-              }
-            )
-          ] }, `conn-${i}`);
-        })
+            }
+          )
+        ]
       }
     ),
-    heapValues.map((value, i) => {
-      const pos = getNodePosition(i);
-      return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
-        StressedHeapNode,
-        {
-          x: pos.x,
-          y: pos.y,
-          size: nodeSize,
-          value,
-          stressLevel
+    /* @__PURE__ */ (0, import_jsx_runtime4.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          bottom: "8%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center"
         },
-        `stressed-node-${i}`
-      );
-    }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(BottleneckOrbs, { stressLevel }),
-    /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(PerformanceGraph, { stressLevel })
+        children: /* @__PURE__ */ (0, import_jsx_runtime4.jsxs)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.body,
+              fontWeight: 600,
+              color: COLORS.white,
+              opacity: (0, import_remotion4.interpolate)(localFrame, [40, 60], [0, 1], { extrapolateRight: "clamp" })
+            },
+            children: [
+              "Logarithmic time becomes a",
+              " ",
+              /* @__PURE__ */ (0, import_jsx_runtime4.jsx)("span", { style: { color: COLORS.warning }, children: "bottleneck" })
+            ]
+          }
+        )
+      }
+    )
   ] });
 };
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene4.tsx
 var import_remotion5 = require("remotion");
-var import_jsx_runtime6 = require("react/jsx-runtime");
-var DissolveParticle = ({ index, centerX, centerY }) => {
-  const frame = (0, import_remotion5.useCurrentFrame)();
-  const angle = index / 30 * Math.PI * 2;
-  const speed = 8 + index % 5 * 2;
-  const distance = frame * speed;
-  const x = centerX + distance * Math.cos(angle);
-  const y = centerY + distance * Math.sin(angle);
-  const opacity = (0, import_remotion5.interpolate)(frame, [0, 5, 30], [0, 1, 0], { extrapolateRight: "clamp" });
-  const size = (0, import_remotion5.interpolate)(frame, [0, 30], [15, 5], { extrapolateRight: "clamp" });
-  if (opacity <= 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+var import_jsx_runtime5 = require("react/jsx-runtime");
+var ClockSlot = ({ index, angle, radius, isActive, progress, hasTask }) => {
+  const radians = (angle - 90) * (Math.PI / 180);
+  const x = 50 + Math.cos(radians) * radius;
+  const y = 50 + Math.sin(radians) * radius;
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
     "div",
     {
       style: {
         position: "absolute",
-        left: x - size / 2,
-        top: y - size / 2,
-        width: size,
-        height: size,
+        left: `${x}%`,
+        top: `${y}%`,
+        transform: `translate(-50%, -50%) scale(${progress})`,
+        width: index % 5 === 0 ? 28 : 18,
+        height: index % 5 === 0 ? 28 : 18,
         borderRadius: "50%",
-        background: index % 2 === 0 ? COLORS.accent : COLORS.secondary,
-        opacity,
-        boxShadow: `0 0 ${size}px ${index % 2 === 0 ? COLORS.accent : COLORS.secondary}`
-      }
-    }
-  );
-};
-var TimingWheel = ({ size, rotation, scale, glowIntensity }) => {
-  const slotCount = 60;
-  const outerRadius = size / 2;
-  const innerRadius = outerRadius * 0.75;
-  const tickLength = outerRadius - innerRadius - 10;
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        left: "50%",
-        top: "40%",
-        transform: `translate(-50%, -50%) scale(${scale}) rotateZ(${rotation}deg)`,
-        width: size,
-        height: size,
-        transformStyle: "preserve-3d",
-        perspective: 1e3
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              width: "100%",
-              height: "100%",
-              borderRadius: "50%",
-              border: `4px solid ${COLORS.primary}`,
-              boxShadow: `
-            0 0 ${20 + glowIntensity * 40}px ${COLORS.primary}aa,
-            0 0 ${40 + glowIntensity * 60}px ${COLORS.primary}55,
-            inset 0 0 ${30 + glowIntensity * 30}px ${COLORS.primary}33
-          `,
-              background: `radial-gradient(circle at center, ${COLORS.dark}ee, ${COLORS.secondary}22)`
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              width: innerRadius * 2,
-              height: innerRadius * 2,
-              borderRadius: "50%",
-              border: `2px solid ${COLORS.primary}66`,
-              background: `radial-gradient(circle at center, ${COLORS.dark}, ${COLORS.secondary}11)`
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-          "svg",
-          {
-            style: {
-              position: "absolute",
-              width: "100%",
-              height: "100%"
-            },
-            viewBox: `0 0 ${size} ${size}`,
-            children: Array.from({ length: slotCount }).map((_, i) => {
-              const angle = i / slotCount * 360 - 90;
-              const radians = angle * Math.PI / 180;
-              const isMajor = i % 5 === 0;
-              const tickStart = outerRadius - 8;
-              const tickEnd = tickStart - (isMajor ? tickLength : tickLength * 0.5);
-              const x1 = outerRadius + tickStart * Math.cos(radians);
-              const y1 = outerRadius + tickStart * Math.sin(radians);
-              const x2 = outerRadius + tickEnd * Math.cos(radians);
-              const y2 = outerRadius + tickEnd * Math.sin(radians);
-              return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-                "line",
-                {
-                  x1,
-                  y1,
-                  x2,
-                  y2,
-                  stroke: COLORS.primary,
-                  strokeWidth: isMajor ? 3 : 1.5,
-                  opacity: isMajor ? 1 : 0.6
-                },
-                `tick-${i}`
-              );
-            })
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              width: 30,
-              height: 30,
-              borderRadius: "50%",
-              background: COLORS.primary,
-              boxShadow: `0 0 20px ${COLORS.primary}`
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: 4,
-              height: innerRadius * 0.8,
-              background: `linear-gradient(to top, ${COLORS.primary}, ${COLORS.success})`,
-              borderRadius: 2,
-              transformOrigin: "bottom center",
-              transform: "translateX(-50%) translateY(-100%)",
-              boxShadow: `0 0 10px ${COLORS.primary}`
-            }
-          }
-        )
-      ]
-    }
-  );
-};
-var SuccessIndicator = ({ appear }) => {
-  if (appear <= 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        top: "18%",
-        left: "50%",
-        transform: `translateX(-50%) scale(${appear})`,
+        background: hasTask ? COLORS.accent : isActive ? COLORS.success : `${COLORS.primary}40`,
+        border: `2px solid ${isActive ? COLORS.success : COLORS.primary}`,
+        boxShadow: isActive ? `0 0 15px ${COLORS.success}` : hasTask ? `0 0 10px ${COLORS.accent}` : "none",
         display: "flex",
         alignItems: "center",
-        gap: 16,
-        padding: "16px 32px",
-        background: `${COLORS.dark}ee`,
-        border: `2px solid ${COLORS.success}`,
-        borderRadius: 16,
-        boxShadow: `0 0 30px ${COLORS.success}44`
+        justifyContent: "center",
+        fontSize: 10,
+        fontWeight: 600,
+        color: COLORS.white
       },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(CheckCircleIcon, { size: 40, color: COLORS.success }),
-        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: 32,
-              fontWeight: 700,
-              color: COLORS.success,
-              fontFamily: "system-ui, sans-serif"
-            },
-            children: "O(1) Insertion!"
-          }
-        )
-      ]
+      children: index % 5 === 0 && index
     }
   );
 };
-var Scene4 = ({ startFrame = 0 }) => {
-  const frame = (0, import_remotion5.useCurrentFrame)();
-  const { fps, width, height } = (0, import_remotion5.useVideoConfig)();
-  const centerX = width / 2;
-  const centerY = height * 0.4;
-  const wheelScale = (0, import_remotion5.spring)({
-    frame: frame - 15,
+var DroppingTask = ({ targetSlot, delay, frame, fps }) => {
+  const localFrame = frame - delay;
+  if (localFrame < 0) return null;
+  const dropProgress = (0, import_remotion5.spring)({
+    frame: localFrame,
     fps,
-    config: { ...SPRING_CONFIG, stiffness: 80 }
+    config: { ...SPRING_CONFIG, stiffness: 200 }
   });
-  const rotation = (0, import_remotion5.interpolate)(frame, [15, 100], [0, 30], { extrapolateRight: "clamp" });
-  const glowIntensity = (0, import_remotion5.interpolate)(
-    frame,
-    [20, 26, 40, 60],
-    [0.3, 1, 0.7, 0.5],
+  const radians = (targetSlot * 6 - 90) * (Math.PI / 180);
+  const targetX = 50 + Math.cos(radians) * 32;
+  const targetY = 50 + Math.sin(radians) * 32;
+  const currentY = (0, import_remotion5.interpolate)(dropProgress, [0, 1], [0, targetY], {
+    extrapolateRight: "clamp"
+  });
+  const currentX = (0, import_remotion5.interpolate)(dropProgress, [0, 1], [50, targetX], {
+    extrapolateRight: "clamp"
+  });
+  const opacity = (0, import_remotion5.interpolate)(dropProgress, [0, 0.2, 0.9, 1], [0, 1, 1, 0], {
+    extrapolateRight: "clamp"
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: `${currentX}%`,
+        top: `${currentY}%`,
+        transform: "translate(-50%, -50%)",
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        background: COLORS.accent,
+        opacity,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontSize: 12,
+        fontWeight: 700,
+        color: COLORS.white,
+        boxShadow: `0 0 15px ${COLORS.accent}`
+      },
+      children: "T"
+    }
+  );
+};
+var Scene4 = ({ startFrame }) => {
+  const frame = (0, import_remotion5.useCurrentFrame)();
+  const { fps } = (0, import_remotion5.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const keySyncFrame = 77;
+  const rotation = (0, import_remotion5.interpolate)(localFrame, [0, 270], [0, 60], {
+    extrapolateRight: "clamp"
+  });
+  const activeSlot = Math.floor(rotation) % 60;
+  const getSlotProgress = (index) => {
+    const buildDelay = index * 1.2 % 60;
+    return (0, import_remotion5.spring)({
+      frame: localFrame - buildDelay,
+      fps,
+      config: SPRING_CONFIG
+    });
+  };
+  const keySyncGlow = (0, import_remotion5.interpolate)(
+    localFrame,
+    [keySyncFrame - 5, keySyncFrame, keySyncFrame + 20],
+    [0, 1, 0.3],
     { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
   );
-  const successAppear = (0, import_remotion5.spring)({
-    frame: frame - 35,
+  const complexityProgress = (0, import_remotion5.spring)({
+    frame: localFrame - 20,
     fps,
     config: SPRING_CONFIG
   });
-  const flashOpacity = (0, import_remotion5.interpolate)(
-    frame,
-    [22, 26, 35],
-    [0, 0.3, 0],
-    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-  );
-  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(import_remotion5.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+  const explanationProgress = (0, import_remotion5.spring)({
+    frame: localFrame - 100,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const slots = Array.from({ length: 60 }, (_, i) => ({
+    index: i,
+    angle: i * 6,
+    // 360/60 = 6 degrees per slot
+    hasTask: i === 15 || i === 30 || i === 45 || i === 52
+  }));
+  const droppingTasks = [
+    { targetSlot: 15, delay: 90 },
+    { targetSlot: 30, delay: 120 },
+    { targetSlot: 45, delay: 150 },
+    { targetSlot: 52, delay: 180 },
+    { targetSlot: 8, delay: 210 },
+    { targetSlot: 23, delay: 240 }
+  ];
+  return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_remotion5.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
       "div",
       {
         style: {
           position: "absolute",
-          width: "100%",
-          height: "100%",
-          background: COLORS.primary,
-          opacity: flashOpacity,
-          pointerEvents: "none",
-          zIndex: 50
-        }
-      }
-    ),
-    Array.from({ length: 30 }).map((_, i) => /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-      DissolveParticle,
-      {
-        index: i,
-        centerX,
-        centerY
-      },
-      `dissolve-${i}`
-    )),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-      TimingWheel,
-      {
-        size: 500,
-        rotation,
-        scale: Math.max(0, wheelScale),
-        glowIntensity
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(SuccessIndicator, { appear: Math.max(0, successAppear) }),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          bottom: "20%",
+          top: "6%",
           left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 48,
-          fontWeight: 800,
-          color: COLORS.primary,
-          fontFamily: "system-ui, sans-serif",
-          textAlign: "center",
-          textShadow: `0 0 20px ${COLORS.primary}88`,
-          opacity: (0, import_remotion5.interpolate)(frame, [40, 60], [0, 1], { extrapolateRight: "clamp" })
+          transform: `translateX(-50%) scale(${complexityProgress})`,
+          opacity: complexityProgress,
+          textAlign: "center"
         },
-        children: "TIMING WHEEL"
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.hero,
+                fontWeight: 800,
+                color: COLORS.success,
+                textShadow: `0 0 ${30 + keySyncGlow * 40}px ${COLORS.success}`
+              },
+              children: "O(1)"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.caption,
+                color: COLORS.white,
+                opacity: 0.8,
+                marginTop: 4
+              },
+              children: "Constant Time!"
+            }
+          )
+        ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
       "div",
       {
         style: {
           position: "absolute",
-          bottom: "12%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 28,
-          fontWeight: 500,
-          color: COLORS.gray,
-          fontFamily: "system-ui, sans-serif",
-          textAlign: "center",
-          opacity: (0, import_remotion5.interpolate)(frame, [55, 75], [0, 1], { extrapolateRight: "clamp" })
+          top: "22%",
+          left: "15%",
+          right: "15%",
+          height: "55%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
         },
-        children: "No sorting. Just placement."
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                width: "90%",
+                height: 0,
+                paddingBottom: "90%",
+                borderRadius: "50%",
+                background: `radial-gradient(circle at 50% 50%, ${COLORS.backgroundEnd}, ${COLORS.background})`,
+                border: `4px solid ${COLORS.primary}40`,
+                boxShadow: `
+              inset 0 0 60px ${COLORS.primary}20,
+              0 0 ${30 + keySyncGlow * 50}px ${COLORS.primary}${Math.round(keySyncGlow * 100).toString(16).padStart(2, "0")}
+            `
+              }
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                width: "90%",
+                height: 0,
+                paddingBottom: "90%"
+              },
+              children: [
+                slots.map((slot) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  ClockSlot,
+                  {
+                    index: slot.index,
+                    angle: slot.angle,
+                    radius: 42,
+                    isActive: slot.index === activeSlot,
+                    progress: getSlotProgress(slot.index),
+                    hasTask: slot.hasTask && localFrame > 100
+                  },
+                  slot.index
+                )),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "div",
+                  {
+                    style: {
+                      position: "absolute",
+                      left: "50%",
+                      top: "50%",
+                      width: 4,
+                      height: "35%",
+                      background: `linear-gradient(to top, ${COLORS.primary}, ${COLORS.accent})`,
+                      transformOrigin: "center top",
+                      transform: `translateX(-50%) rotate(${rotation * 6}deg)`,
+                      borderRadius: 2,
+                      boxShadow: `0 0 15px ${COLORS.primary}`
+                    }
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  "div",
+                  {
+                    style: {
+                      position: "absolute",
+                      left: "50%",
+                      top: "50%",
+                      transform: "translate(-50%, -50%)",
+                      width: 30,
+                      height: 30,
+                      borderRadius: "50%",
+                      background: `radial-gradient(circle at 30% 30%, ${COLORS.primary}, ${COLORS.secondary})`,
+                      border: `3px solid ${COLORS.white}`,
+                      boxShadow: `0 0 20px ${COLORS.primary}`
+                    }
+                  }
+                ),
+                droppingTasks.map((task, i) => /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+                  DroppingTask,
+                  {
+                    targetSlot: task.targetSlot,
+                    delay: task.delay,
+                    frame: localFrame,
+                    fps
+                  },
+                  i
+                ))
+              ]
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          bottom: "8%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          opacity: explanationProgress,
+          transform: `translateY(${(1 - explanationProgress) * 20}px)`
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.body,
+                fontWeight: 600,
+                color: COLORS.white
+              },
+              children: "The Timing Wheel"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.caption,
+                color: COLORS.white,
+                opacity: 0.7,
+                marginTop: 8
+              },
+              children: "60 slots \u2022 Direct placement \u2022 No sorting required"
+            }
+          )
+        ]
       }
     )
   ] });
@@ -1428,377 +1297,416 @@ var Scene4 = ({ startFrame = 0 }) => {
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene5.tsx
 var import_remotion6 = require("remotion");
-var import_jsx_runtime7 = require("react/jsx-runtime");
-var DroppingTask = ({ targetSlot, startFrame, wheelRadius, centerX, centerY }) => {
-  const frame = (0, import_remotion6.useCurrentFrame)();
-  const { fps } = (0, import_remotion6.useVideoConfig)();
-  const localFrame = frame - startFrame;
-  if (localFrame < 0) return null;
-  const angle = (targetSlot / 60 * 360 - 90) * (Math.PI / 180);
-  const slotRadius = wheelRadius * 0.65;
-  const targetX = centerX + slotRadius * Math.cos(angle);
-  const targetY = centerY + slotRadius * Math.sin(angle);
-  const dropProgress = (0, import_remotion6.spring)({
-    frame: localFrame,
-    fps,
-    config: { ...SPRING_CONFIG, stiffness: 100 }
-  });
-  const startY = centerY - wheelRadius - 100;
-  const currentX = centerX + (targetX - centerX) * dropProgress;
-  const currentY = startY + (targetY - startY) * dropProgress;
-  const glowIntensity = (0, import_remotion6.interpolate)(
-    localFrame,
-    [20, 30, 50],
-    [0, 1, 0.3],
-    { extrapolateRight: "clamp" }
-  );
-  const opacity = (0, import_remotion6.interpolate)(localFrame, [0, 5], [0, 1], { extrapolateRight: "clamp" });
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_jsx_runtime7.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-      "div",
+var import_three = require("@remotion/three");
+var import_jsx_runtime6 = require("react/jsx-runtime");
+var TimingWheel = ({ radius, tubeRadius, rotation, color, opacity, yOffset }) => {
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("mesh", { rotation: [Math.PI / 2, 0, rotation], position: [0, yOffset, 0], children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("torusGeometry", { args: [radius, tubeRadius, 16, 60] }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      "meshStandardMaterial",
       {
-        style: {
-          position: "absolute",
-          left: currentX - 15,
-          top: currentY - 15,
-          width: 30,
-          height: 30,
-          borderRadius: "50%",
-          background: `radial-gradient(circle at 30% 30%, ${COLORS.primary}, ${COLORS.secondary})`,
-          boxShadow: `0 0 ${15 + glowIntensity * 25}px ${COLORS.primary}`,
-          opacity,
-          zIndex: 20
-        }
-      }
-    ),
-    dropProgress > 0.9 && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          left: targetX - 25,
-          top: targetY - 25,
-          width: 50,
-          height: 50,
-          borderRadius: "50%",
-          border: `3px solid ${COLORS.success}`,
-          opacity: glowIntensity,
-          boxShadow: `0 0 20px ${COLORS.success}88`
-        }
+        color,
+        transparent: true,
+        opacity,
+        metalness: 0.3,
+        roughness: 0.4
       }
     )
   ] });
 };
-var DetailedTimingWheel = ({ size, rotation, assemblyProgress }) => {
-  const frame = (0, import_remotion6.useCurrentFrame)();
-  const slotCount = 60;
-  const outerRadius = size / 2;
-  const innerRadius = outerRadius * 0.5;
-  const slotRadius = outerRadius * 0.65;
-  const handRotation = frame * 0.5 % 360;
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        left: "50%",
-        top: "42%",
-        transform: `translate(-50%, -50%) scale(${assemblyProgress})`,
-        width: size,
-        height: size
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "div",
+var WheelSlots = ({ radius, count, rotation, color, yOffset }) => {
+  const slots = [];
+  for (let i = 0; i < count; i++) {
+    const angle = i / count * Math.PI * 2 + rotation;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+    slots.push(
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("mesh", { position: [x, yOffset, z], children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("sphereGeometry", { args: [0.08, 8, 8] }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          "meshStandardMaterial",
           {
-            style: {
-              position: "absolute",
-              width: "100%",
-              height: "100%",
-              borderRadius: "50%",
-              border: `5px solid ${COLORS.primary}`,
-              boxShadow: `
-            0 0 30px ${COLORS.primary}66,
-            inset 0 0 40px ${COLORS.primary}22
-          `,
-              background: `radial-gradient(circle at center, ${COLORS.dark}ee, ${COLORS.secondary}15)`
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "svg",
-          {
-            style: {
-              position: "absolute",
-              width: "100%",
-              height: "100%"
-            },
-            viewBox: `0 0 ${size} ${size}`,
-            children: Array.from({ length: slotCount }).map((_, i) => {
-              const angle = (i / slotCount * 360 - 90) * (Math.PI / 180);
-              const isMajor = i % 5 === 0;
-              const tickStart = outerRadius - 10;
-              const tickEnd = tickStart - (isMajor ? 25 : 12);
-              const x1 = outerRadius + tickStart * Math.cos(angle);
-              const y1 = outerRadius + tickStart * Math.sin(angle);
-              const x2 = outerRadius + tickEnd * Math.cos(angle);
-              const y2 = outerRadius + tickEnd * Math.sin(angle);
-              const numRadius = outerRadius - 55;
-              const numX = outerRadius + numRadius * Math.cos(angle);
-              const numY = outerRadius + numRadius * Math.sin(angle);
-              const stagger = i * 0.5;
-              const tickOpacity = (0, import_remotion6.interpolate)(
-                assemblyProgress,
-                [0.3 + stagger / 100, 0.5 + stagger / 100],
-                [0, 1],
-                { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
-              );
-              return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("g", { opacity: tickOpacity, children: [
-                /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                  "line",
-                  {
-                    x1,
-                    y1,
-                    x2,
-                    y2,
-                    stroke: isMajor ? COLORS.primary : COLORS.gray,
-                    strokeWidth: isMajor ? 3 : 1.5
-                  }
-                ),
-                isMajor && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-                  "text",
-                  {
-                    x: numX,
-                    y: numY,
-                    fill: COLORS.primary,
-                    fontSize: 18,
-                    fontWeight: 600,
-                    fontFamily: "system-ui, sans-serif",
-                    textAnchor: "middle",
-                    dominantBaseline: "middle",
-                    children: i
-                  }
-                )
-              ] }, `slot-${i}`);
-            })
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              width: innerRadius * 2,
-              height: innerRadius * 2,
-              borderRadius: "50%",
-              border: `2px dashed ${COLORS.primary}44`,
-              background: `radial-gradient(circle at center, ${COLORS.dark}dd, transparent)`
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, -50%)",
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
-              background: `radial-gradient(circle at 30% 30%, ${COLORS.primary}, ${COLORS.secondary})`,
-              boxShadow: `0 0 20px ${COLORS.primary}`
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              width: 6,
-              height: slotRadius,
-              background: `linear-gradient(to top, ${COLORS.primary}, ${COLORS.success})`,
-              borderRadius: 3,
-              transformOrigin: "bottom center",
-              transform: `translateX(-50%) translateY(-100%) rotate(${handRotation}deg)`,
-              boxShadow: `0 0 15px ${COLORS.primary}88`
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              left: "50%",
-              top: "50%",
-              transform: "translate(-50%, 60px)",
-              fontSize: 28,
-              fontWeight: 800,
-              color: COLORS.success,
-              fontFamily: "monospace",
-              textShadow: `0 0 15px ${COLORS.success}88`,
-              opacity: assemblyProgress > 0.8 ? 1 : 0
-            },
-            children: "O(1)"
+            color: i % 5 === 0 ? COLORS.accent : color,
+            emissive: i % 5 === 0 ? COLORS.accent : color,
+            emissiveIntensity: 0.3
           }
         )
-      ]
-    }
-  );
+      ] }, i)
+    );
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children: slots });
 };
-var Scene5 = ({ startFrame = 0 }) => {
+var GearConnector = ({ innerRadius, outerRadius, rotation, opacity }) => {
+  const connectors = [];
+  for (let i = 0; i < 4; i++) {
+    const angle = i / 4 * Math.PI * 2 + rotation * 0.5;
+    const midRadius = (innerRadius + outerRadius) / 2;
+    const x = Math.cos(angle) * midRadius;
+    const z = Math.sin(angle) * midRadius;
+    connectors.push(
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("mesh", { position: [x, 0, z], rotation: [0, angle, 0], children: [
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("boxGeometry", { args: [0.1, 0.15, outerRadius - innerRadius - 0.3] }),
+        /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          "meshStandardMaterial",
+          {
+            color: COLORS.secondary,
+            transparent: true,
+            opacity: opacity * 0.8,
+            metalness: 0.5,
+            roughness: 0.3
+          }
+        )
+      ] }, i)
+    );
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(import_jsx_runtime6.Fragment, { children: connectors });
+};
+var CascadingTask = ({ startAngle, progress, innerRadius, outerRadius }) => {
+  const currentRadius = (0, import_remotion6.interpolate)(progress, [0, 1], [outerRadius, innerRadius], {
+    extrapolateRight: "clamp"
+  });
+  const spiralAngle = startAngle + progress * Math.PI * 0.5;
+  const x = Math.cos(spiralAngle) * currentRadius;
+  const z = Math.sin(spiralAngle) * currentRadius;
+  const y = (0, import_remotion6.interpolate)(progress, [0, 0.5, 1], [0.3, 0.15, 0], {
+    extrapolateRight: "clamp"
+  });
+  const scale = (0, import_remotion6.interpolate)(progress, [0, 0.1, 0.9, 1], [0, 1, 1, 0.5], {
+    extrapolateRight: "clamp"
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("mesh", { position: [x, y, z], scale: [scale, scale, scale], children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("boxGeometry", { args: [0.15, 0.15, 0.15] }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      "meshStandardMaterial",
+      {
+        color: COLORS.accent,
+        emissive: COLORS.accent,
+        emissiveIntensity: 0.5
+      }
+    )
+  ] });
+};
+var Scene5Content = ({
+  localFrame,
+  fps
+}) => {
+  const keySyncFrame = 643;
+  const entranceProgress = (0, import_remotion6.spring)({
+    frame: localFrame,
+    fps,
+    config: { ...SPRING_CONFIG, stiffness: 60 },
+    durationInFrames: 90
+  });
+  const outerRotation = localFrame * 5e-3 * entranceProgress;
+  const innerRotation = localFrame * 0.025 * entranceProgress;
+  const cascadeActive = localFrame > keySyncFrame - 60;
+  const cascadeProgress = (0, import_remotion6.interpolate)(
+    localFrame,
+    [keySyncFrame - 60, keySyncFrame, keySyncFrame + 60],
+    [0, 0.5, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const cameraY = 2.5 + Math.sin(localFrame * 0.01) * 0.1;
+  const cameraZ = 4 + (0, import_remotion6.interpolate)(localFrame, [0, 200], [1, 0], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(import_jsx_runtime6.Fragment, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("perspectiveCamera", { position: [0, cameraY, cameraZ], fov: 50 }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("ambientLight", { intensity: 0.4 }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("directionalLight", { position: [5, 8, 5], intensity: 0.8, color: "#ffffff" }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("pointLight", { position: [0, 2, 0], intensity: 0.5, color: COLORS.primary }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      TimingWheel,
+      {
+        radius: 2,
+        tubeRadius: 0.12,
+        rotation: outerRotation,
+        color: COLORS.secondary,
+        opacity: entranceProgress * 0.9,
+        yOffset: 0.3
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      WheelSlots,
+      {
+        radius: 2,
+        count: 12,
+        rotation: outerRotation,
+        color: COLORS.primary,
+        yOffset: 0.3
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      TimingWheel,
+      {
+        radius: 1.2,
+        tubeRadius: 0.1,
+        rotation: innerRotation,
+        color: COLORS.primary,
+        opacity: entranceProgress * 0.9,
+        yOffset: 0
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      WheelSlots,
+      {
+        radius: 1.2,
+        count: 60,
+        rotation: innerRotation,
+        color: COLORS.secondary,
+        yOffset: 0
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      GearConnector,
+      {
+        innerRadius: 1.2,
+        outerRadius: 2,
+        rotation: outerRotation,
+        opacity: entranceProgress
+      }
+    ),
+    cascadeActive && /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(import_jsx_runtime6.Fragment, { children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        CascadingTask,
+        {
+          startAngle: 0,
+          progress: cascadeProgress,
+          innerRadius: 1.2,
+          outerRadius: 2
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        CascadingTask,
+        {
+          startAngle: Math.PI * 0.5,
+          progress: Math.max(0, cascadeProgress - 0.15),
+          innerRadius: 1.2,
+          outerRadius: 2
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        CascadingTask,
+        {
+          startAngle: Math.PI,
+          progress: Math.max(0, cascadeProgress - 0.3),
+          innerRadius: 1.2,
+          outerRadius: 2
+        }
+      ),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        CascadingTask,
+        {
+          startAngle: Math.PI * 1.5,
+          progress: Math.max(0, cascadeProgress - 0.45),
+          innerRadius: 1.2,
+          outerRadius: 2
+        }
+      )
+    ] }),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("mesh", { position: [0, 0.15, 0], children: [
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("cylinderGeometry", { args: [0.25, 0.25, 0.5, 32] }),
+      /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+        "meshStandardMaterial",
+        {
+          color: COLORS.primary,
+          metalness: 0.6,
+          roughness: 0.2
+        }
+      )
+    ] })
+  ] });
+};
+var Scene5 = ({ startFrame }) => {
   const frame = (0, import_remotion6.useCurrentFrame)();
   const { fps, width, height } = (0, import_remotion6.useVideoConfig)();
-  const centerX = width / 2;
-  const centerY = height * 0.42;
-  const wheelRadius = 280;
-  const assemblyProgress = (0, import_remotion6.spring)({
-    frame,
+  const localFrame = frame - startFrame;
+  const keySyncFrame = 643;
+  const titleProgress = (0, import_remotion6.spring)({
+    frame: localFrame - 30,
     fps,
-    config: { ...SPRING_CONFIG, stiffness: 60 }
+    config: SPRING_CONFIG
   });
-  const taskDrops = [
-    { slot: 12, startFrame: 50 },
-    { slot: 35, startFrame: 100 },
-    { slot: 7, startFrame: 150 },
-    { slot: 48, startFrame: 200 },
-    { slot: 22, startFrame: 250 }
-  ];
-  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_remotion6.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+  const cascadeLabel = (0, import_remotion6.interpolate)(
+    localFrame,
+    [keySyncFrame - 10, keySyncFrame, keySyncFrame + 60],
+    [0, 1, 0.8],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const explanationProgress = (0, import_remotion6.spring)({
+    frame: localFrame - 120,
+    fps,
+    config: SPRING_CONFIG
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(import_remotion6.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
       "div",
       {
         style: {
           position: "absolute",
           top: "5%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 40,
-          fontWeight: 800,
-          color: COLORS.primary,
-          fontFamily: "system-ui, sans-serif",
-          textShadow: `0 0 20px ${COLORS.primary}66`,
-          opacity: (0, import_remotion6.interpolate)(frame, [0, 20], [0, 1], { extrapolateRight: "clamp" })
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          opacity: titleProgress,
+          transform: `translateY(${(1 - titleProgress) * -20}px)`
         },
-        children: "60-SLOT TIMING WHEEL"
+        children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.section,
+              fontWeight: 700,
+              color: COLORS.white,
+              textShadow: `0 0 20px ${COLORS.primary}80`
+            },
+            children: "Hierarchical Timing Wheels"
+          }
+        )
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-      DetailedTimingWheel,
-      {
-        size: wheelRadius * 2,
-        rotation: 0,
-        assemblyProgress: Math.max(0, assemblyProgress)
-      }
-    ),
-    taskDrops.map((task, i) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-      DroppingTask,
-      {
-        targetSlot: task.slot,
-        startFrame: task.startFrame,
-        wheelRadius,
-        centerX,
-        centerY
-      },
-      `task-${i}`
-    )),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
       "div",
       {
         style: {
           position: "absolute",
-          bottom: "18%",
+          top: "12%",
+          left: "5%",
+          right: "5%",
+          height: "60%"
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          import_three.ThreeCanvas,
+          {
+            width: width * 0.9,
+            height: height * 0.6,
+            camera: { position: [0, 2.5, 5], fov: 50 },
+            children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(Scene5Content, { localFrame, fps })
+          }
+        )
+      }
+    ),
+    cascadeLabel > 0 && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "45%",
           left: "50%",
           transform: "translateX(-50%)",
-          width: "80%",
-          padding: "20px 30px",
-          background: `${COLORS.dark}dd`,
-          border: `2px solid ${COLORS.primary}44`,
-          borderRadius: 16,
-          opacity: (0, import_remotion6.interpolate)(frame, [60, 90], [0, 1], { extrapolateRight: "clamp" })
+          opacity: cascadeLabel
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.body,
+              fontWeight: 700,
+              color: COLORS.accent,
+              textShadow: `0 0 20px ${COLORS.accent}`,
+              textAlign: "center"
+            },
+            children: "CASCADE!"
+          }
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "72%",
+          left: "10%",
+          right: "10%",
+          display: "flex",
+          justifyContent: "space-around",
+          opacity: explanationProgress
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            "div",
-            {
-              style: {
-                fontSize: 26,
-                fontWeight: 600,
-                color: COLORS.white,
-                fontFamily: "system-ui, sans-serif",
-                textAlign: "center",
-                marginBottom: 12
-              },
-              children: "Direct Placement"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
-            "div",
-            {
-              style: {
-                fontSize: 22,
-                color: COLORS.gray,
-                fontFamily: "system-ui, sans-serif",
-                textAlign: "center"
-              },
-              children: "Tasks go directly to their time slot - no sorting needed!"
-            }
-          )
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: { textAlign: "center" }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+              "div",
+              {
+                style: {
+                  fontSize: TYPOGRAPHY.caption,
+                  fontWeight: 600,
+                  color: COLORS.secondary
+                },
+                children: "Outer Wheel"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+              "div",
+              {
+                style: {
+                  fontSize: TYPOGRAPHY.caption * 0.8,
+                  color: COLORS.white,
+                  opacity: 0.7
+                },
+                children: "Hour Scale"
+              }
+            )
+          ] }),
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)("div", { style: { textAlign: "center" }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+              "div",
+              {
+                style: {
+                  fontSize: TYPOGRAPHY.caption,
+                  fontWeight: 600,
+                  color: COLORS.primary
+                },
+                children: "Inner Wheel"
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+              "div",
+              {
+                style: {
+                  fontSize: TYPOGRAPHY.caption * 0.8,
+                  color: COLORS.white,
+                  opacity: 0.7
+                },
+                children: "Second Scale"
+              }
+            )
+          ] })
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+    /* @__PURE__ */ (0, import_jsx_runtime6.jsxs)(
       "div",
       {
         style: {
           position: "absolute",
-          bottom: "8%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          display: "flex",
-          gap: 40
+          bottom: "6%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          opacity: explanationProgress,
+          transform: `translateY(${(1 - explanationProgress) * 20}px)`
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
             "div",
             {
               style: {
-                padding: "12px 24px",
-                background: `${COLORS.dark}ee`,
-                border: `2px solid ${COLORS.success}`,
-                borderRadius: 12,
-                fontSize: 20,
+                fontSize: TYPOGRAPHY.body,
                 fontWeight: 600,
-                color: COLORS.success,
-                fontFamily: "monospace",
-                opacity: (0, import_remotion6.interpolate)(frame, [100, 130], [0, 1], { extrapolateRight: "clamp" })
+                color: COLORS.white
               },
-              children: "Insert: O(1)"
+              children: "Tasks cascade from outer to inner wheel"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
             "div",
             {
               style: {
-                padding: "12px 24px",
-                background: `${COLORS.dark}ee`,
-                border: `2px solid ${COLORS.success}`,
-                borderRadius: 12,
-                fontSize: 20,
-                fontWeight: 600,
-                color: COLORS.success,
-                fontFamily: "monospace",
-                opacity: (0, import_remotion6.interpolate)(frame, [120, 150], [0, 1], { extrapolateRight: "clamp" })
+                fontSize: TYPOGRAPHY.caption,
+                color: COLORS.white,
+                opacity: 0.7,
+                marginTop: 8
               },
-              children: "Remove: O(1)"
+              children: "Each wheel handles a different time scale"
             }
           )
         ]
@@ -1809,19 +1717,481 @@ var Scene5 = ({ startFrame = 0 }) => {
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene6.tsx
 var import_remotion7 = require("remotion");
+var import_jsx_runtime7 = require("react/jsx-runtime");
+var IndustrialWheel = ({
+  rotation,
+  opacity
+}) => {
+  const slots = 24;
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: "50%",
+        top: "40%",
+        transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+        width: "70%",
+        height: 0,
+        paddingBottom: "70%",
+        opacity
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              width: "100%",
+              height: "100%",
+              borderRadius: "50%",
+              border: `6px solid ${COLORS.secondary}30`,
+              boxShadow: `inset 0 0 80px ${COLORS.primary}10`
+            }
+          }
+        ),
+        Array.from({ length: slots }, (_, i) => {
+          const angle = i / slots * 360;
+          const radians = (angle - 90) * Math.PI / 180;
+          const x = 50 + Math.cos(radians) * 46;
+          const y = 50 + Math.sin(radians) * 46;
+          return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                left: `${x}%`,
+                top: `${y}%`,
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                background: COLORS.primary,
+                opacity: 0.4,
+                transform: "translate(-50%, -50%)"
+              }
+            },
+            i
+          );
+        }),
+        Array.from({ length: 12 }, (_, i) => {
+          const angle = i / 12 * 360;
+          const radians = (angle - 90) * Math.PI / 180;
+          const x = 50 + Math.cos(radians) * 30;
+          const y = 50 + Math.sin(radians) * 30;
+          return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                left: `${x}%`,
+                top: `${y}%`,
+                width: 20,
+                height: 8,
+                background: COLORS.secondary,
+                opacity: 0.3,
+                transform: `translate(-50%, -50%) rotate(${angle}deg)`,
+                borderRadius: 2
+              }
+            },
+            `gear-${i}`
+          );
+        })
+      ]
+    }
+  );
+};
+var LogoBadge = ({ name, color, x, progress, fromLeft }) => {
+  const slideOffset = fromLeft ? -100 : 100;
+  const currentX = (0, import_remotion7.interpolate)(progress, [0, 1], [slideOffset, 0], {
+    extrapolateRight: "clamp"
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: `${x}%`,
+        transform: `translateX(${currentX}px)`,
+        opacity: progress
+      },
+      children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+        "div",
+        {
+          style: {
+            background: `linear-gradient(135deg, ${color}20, ${color}40)`,
+            border: `2px solid ${color}`,
+            borderRadius: 16,
+            padding: "16px 28px",
+            textAlign: "center",
+            boxShadow: `0 0 30px ${color}30`
+          },
+          children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "div",
+              {
+                style: {
+                  fontSize: TYPOGRAPHY.body * 0.8,
+                  fontWeight: 700,
+                  color: COLORS.white,
+                  letterSpacing: 1
+                },
+                children: name
+              }
+            ),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+              "div",
+              {
+                style: {
+                  fontSize: TYPOGRAPHY.caption * 0.8,
+                  color: COLORS.white,
+                  opacity: 0.7,
+                  marginTop: 4
+                },
+                children: "Uses Timing Wheels"
+              }
+            )
+          ]
+        }
+      )
+    }
+  );
+};
+var MetricDisplay = ({ label, value, color, progress, delay }) => {
+  const adjustedProgress = Math.max(0, progress - delay);
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+    "div",
+    {
+      style: {
+        textAlign: "center",
+        opacity: adjustedProgress,
+        transform: `scale(${0.8 + adjustedProgress * 0.2})`
+      },
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.section,
+              fontWeight: 800,
+              color,
+              textShadow: `0 0 20px ${color}80`
+            },
+            children: value
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.caption,
+              color: COLORS.white,
+              opacity: 0.8,
+              marginTop: 4
+            },
+            children: label
+          }
+        )
+      ]
+    }
+  );
+};
+var Scene6 = ({ startFrame }) => {
+  const frame = (0, import_remotion7.useCurrentFrame)();
+  const { fps } = (0, import_remotion7.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const keySyncFrame = 178;
+  const wheelRotation = localFrame * 0.15;
+  const wheelOpacity = (0, import_remotion7.interpolate)(localFrame, [0, 60], [0, 0.3], {
+    extrapolateRight: "clamp"
+  });
+  const titleProgress = (0, import_remotion7.spring)({
+    frame: localFrame - 20,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const metricsProgress = (0, import_remotion7.spring)({
+    frame: localFrame - 60,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const logoProgress = (0, import_remotion7.spring)({
+    frame: localFrame - (keySyncFrame - 30),
+    fps,
+    config: { ...SPRING_CONFIG, stiffness: 80 }
+  });
+  const architectureGlow = (0, import_remotion7.interpolate)(
+    localFrame,
+    [keySyncFrame - 5, keySyncFrame, keySyncFrame + 30],
+    [0, 1, 0.6],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const bottomProgress = (0, import_remotion7.spring)({
+    frame: localFrame - 250,
+    fps,
+    config: SPRING_CONFIG
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(import_remotion7.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(IndustrialWheel, { rotation: wheelRotation, opacity: wheelOpacity }),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "6%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          opacity: titleProgress,
+          transform: `translateY(${(1 - titleProgress) * -20}px)`
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.section,
+              fontWeight: 700,
+              color: COLORS.white,
+              textShadow: `0 0 20px ${COLORS.primary}60`
+            },
+            children: "Real-World Implementation"
+          }
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "16%",
+          left: "10%",
+          right: "10%",
+          display: "flex",
+          justifyContent: "space-around"
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            MetricDisplay,
+            {
+              label: "Throughput",
+              value: "MASSIVE",
+              color: COLORS.success,
+              progress: metricsProgress,
+              delay: 0
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            MetricDisplay,
+            {
+              label: "Latency",
+              value: "NO LAG",
+              color: COLORS.primary,
+              progress: metricsProgress,
+              delay: 0.1
+            }
+          )
+        ]
+      }
+    ),
+    architectureGlow > 0 && /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "38%",
+          left: "50%",
+          transform: "translateX(-50%)",
+          opacity: architectureGlow
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.body,
+              fontWeight: 700,
+              color: COLORS.accent,
+              textShadow: `0 0 ${20 + architectureGlow * 30}px ${COLORS.accent}`,
+              letterSpacing: 3
+            },
+            children: "PRODUCTION ARCHITECTURE"
+          }
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "55%",
+          left: "10%",
+          right: "10%",
+          display: "flex",
+          justifyContent: "space-around"
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            LogoBadge,
+            {
+              name: "Apache Kafka",
+              color: "#FF6B35",
+              x: 20,
+              progress: logoProgress,
+              fromLeft: true
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            LogoBadge,
+            {
+              name: "Netty",
+              color: "#00D4FF",
+              x: 65,
+              progress: logoProgress,
+              fromLeft: false
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "svg",
+      {
+        style: {
+          position: "absolute",
+          width: "100%",
+          height: "100%",
+          pointerEvents: "none"
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("defs", { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("linearGradient", { id: "lineGradient", x1: "0%", y1: "0%", x2: "100%", y2: "0%", children: [
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("stop", { offset: "0%", stopColor: COLORS.accent, stopOpacity: logoProgress * 0.5 }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("stop", { offset: "50%", stopColor: COLORS.primary, stopOpacity: logoProgress * 0.8 }),
+            /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("stop", { offset: "100%", stopColor: COLORS.accent, stopOpacity: logoProgress * 0.5 })
+          ] }) }),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            "line",
+            {
+              x1: "25%",
+              y1: "62%",
+              x2: "50%",
+              y2: "45%",
+              stroke: "url(#lineGradient)",
+              strokeWidth: 2,
+              strokeDasharray: "8 4"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            "line",
+            {
+              x1: "75%",
+              y1: "62%",
+              x2: "50%",
+              y2: "45%",
+              stroke: "url(#lineGradient)",
+              strokeWidth: 2,
+              strokeDasharray: "8 4"
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          bottom: "8%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          opacity: bottomProgress,
+          transform: `translateY(${(1 - bottomProgress) * 20}px)`
+        },
+        children: [
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.body,
+                fontWeight: 600,
+                color: COLORS.white
+              },
+              children: "Powering Enterprise Scale"
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.caption,
+                color: COLORS.white,
+                opacity: 0.7,
+                marginTop: 8
+              },
+              children: "Proven at millions of operations per second"
+            }
+          )
+        ]
+      }
+    )
+  ] });
+};
+
+// src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene7.tsx
+var import_remotion8 = require("remotion");
 var import_jsx_runtime8 = require("react/jsx-runtime");
-var WheelRing = ({ size, rotation, slotCount, color, label, opacity }) => {
-  const outerRadius = size / 2;
+var PulsingArrow = ({ pulse }) => {
+  const scale = 1 + pulse * 0.15;
+  const glow = pulse * 30;
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+    "div",
+    {
+      style: {
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        transform: `scale(${scale}) translateX(${pulse * 10}px)`
+      },
+      children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+        "svg",
+        {
+          width: "48",
+          height: "48",
+          viewBox: "0 0 24 24",
+          fill: "none",
+          style: {
+            filter: `drop-shadow(0 0 ${glow}px ${COLORS.primary})`
+          },
+          children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+            "path",
+            {
+              d: "M5 12h14m-7-7l7 7-7 7",
+              stroke: COLORS.primary,
+              strokeWidth: "2.5",
+              strokeLinecap: "round",
+              strokeLinejoin: "round"
+            }
+          )
+        }
+      )
+    }
+  );
+};
+var BackgroundWheel = ({
+  rotation,
+  opacity
+}) => {
   return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
     "div",
     {
       style: {
         position: "absolute",
         left: "50%",
-        top: "45%",
+        top: "50%",
         transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
-        width: size,
-        height: size,
+        width: "120%",
+        height: 0,
+        paddingBottom: "120%",
         opacity
       },
       children: [
@@ -1833,1012 +2203,343 @@ var WheelRing = ({ size, rotation, slotCount, color, label, opacity }) => {
               width: "100%",
               height: "100%",
               borderRadius: "50%",
-              border: `4px solid ${color}`,
-              boxShadow: `0 0 25px ${color}55, inset 0 0 20px ${color}22`,
-              background: "transparent"
+              border: `2px solid ${COLORS.secondary}15`
             }
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-          "svg",
-          {
-            style: {
-              position: "absolute",
-              width: "100%",
-              height: "100%"
+        Array.from({ length: 12 }, (_, i) => {
+          const angle = i / 12 * 360;
+          const radians = (angle - 90) * Math.PI / 180;
+          const x = 50 + Math.cos(radians) * 48;
+          const y = 50 + Math.sin(radians) * 48;
+          return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+            "div",
+            {
+              style: {
+                position: "absolute",
+                left: `${x}%`,
+                top: `${y}%`,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: COLORS.primary,
+                opacity: 0.15,
+                transform: "translate(-50%, -50%)"
+              }
             },
-            viewBox: `0 0 ${size} ${size}`,
-            children: Array.from({ length: slotCount }).map((_, i) => {
-              const angle = (i / slotCount * 360 - 90) * (Math.PI / 180);
-              const isMajor = i % (slotCount / 12) === 0;
-              const tickStart = outerRadius - 5;
-              const tickEnd = tickStart - (isMajor ? 20 : 10);
-              const x1 = outerRadius + tickStart * Math.cos(angle);
-              const y1 = outerRadius + tickStart * Math.sin(angle);
-              const x2 = outerRadius + tickEnd * Math.cos(angle);
-              const y2 = outerRadius + tickEnd * Math.sin(angle);
-              return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-                "line",
-                {
-                  x1,
-                  y1,
-                  x2,
-                  y2,
-                  stroke: color,
-                  strokeWidth: isMajor ? 3 : 1.5,
-                  opacity: isMajor ? 1 : 0.5
-                },
-                `tick-${i}`
-              );
-            })
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-          "div",
-          {
-            style: {
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: `translate(-50%, -50%) rotate(${-rotation}deg)`,
-              fontSize: size * 0.08,
-              fontWeight: 700,
-              color,
-              fontFamily: "system-ui, sans-serif",
-              textTransform: "uppercase",
-              letterSpacing: 2,
-              textShadow: `0 0 10px ${color}88`,
-              whiteSpace: "nowrap"
-            },
-            children: label
-          }
-        )
+            i
+          );
+        })
       ]
     }
   );
 };
-var CascadeParticle = ({ startFrame, outerRadius, innerRadius, sourceSlot, targetSlot }) => {
-  const frame = (0, import_remotion7.useCurrentFrame)();
-  const { fps } = (0, import_remotion7.useVideoConfig)();
+var Scene7 = ({ startFrame }) => {
+  const frame = (0, import_remotion8.useCurrentFrame)();
+  const { fps } = (0, import_remotion8.useVideoConfig)();
   const localFrame = frame - startFrame;
-  if (localFrame < 0 || localFrame > 60) return null;
-  const progress = (0, import_remotion7.spring)({
-    frame: localFrame,
+  const keySyncFrame = 10;
+  const wheelRotation = localFrame * 0.1;
+  const wheelOpacity = 0.15;
+  const speakerProgress = (0, import_remotion8.spring)({
+    frame: localFrame - 5,
     fps,
-    config: { ...SPRING_CONFIG, stiffness: 60 }
+    config: { ...SPRING_CONFIG, stiffness: 120 }
   });
-  const sourceAngle = (sourceSlot / 12 * 360 - 90) * (Math.PI / 180);
-  const sourceX = Math.cos(sourceAngle) * outerRadius * 0.85;
-  const sourceY = Math.sin(sourceAngle) * outerRadius * 0.85;
-  const targetAngle = (targetSlot / 60 * 360 - 90) * (Math.PI / 180);
-  const targetX = Math.cos(targetAngle) * innerRadius * 0.65;
-  const targetY = Math.sin(targetAngle) * innerRadius * 0.65;
-  const x = sourceX + (targetX - sourceX) * progress;
-  const y = sourceY + (targetY - sourceY) * progress;
-  const opacity = (0, import_remotion7.interpolate)(localFrame, [0, 10, 50, 60], [0, 1, 1, 0], { extrapolateRight: "clamp" });
-  const size = 20 + (1 - progress) * 10;
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        left: `calc(50% + ${x}px)`,
-        top: `calc(45% + ${y}px)`,
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: `radial-gradient(circle at 30% 30%, ${COLORS.success}, ${COLORS.primary})`,
-        boxShadow: `0 0 ${size}px ${COLORS.success}88`,
-        transform: "translate(-50%, -50%)",
-        opacity,
-        zIndex: 30
-      }
-    }
+  const followProgress = (0, import_remotion8.spring)({
+    frame: localFrame - keySyncFrame,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const arrowPulse = (0, import_remotion8.interpolate)(
+    (localFrame - keySyncFrame) % 30,
+    [0, 15, 30],
+    [0, 1, 0],
+    { extrapolateRight: "clamp" }
   );
-};
-var Scene6 = ({ startFrame = 0 }) => {
-  const frame = (0, import_remotion7.useCurrentFrame)();
-  const { fps, width } = (0, import_remotion7.useVideoConfig)();
-  const innerWheelSize = width * 0.4;
-  const outerWheelSize = width * 0.75;
-  const outerWheelAppear = (0, import_remotion7.spring)({
-    frame,
+  const pinnedProgress = (0, import_remotion8.spring)({
+    frame: localFrame - 60,
     fps,
-    config: { ...SPRING_CONFIG, stiffness: 50 }
+    config: SPRING_CONFIG
   });
-  const innerWheelOpacity = (0, import_remotion7.interpolate)(frame, [0, 20], [0.5, 1], { extrapolateRight: "clamp" });
-  const innerRotation = frame * 0.3 % 360;
-  const outerRotation = frame * 0.1 % 360;
-  const cascadeEvents = [
-    { startFrame: 80, sourceSlot: 0, targetSlot: 0 },
-    { startFrame: 180, sourceSlot: 3, targetSlot: 15 },
-    { startFrame: 280, sourceSlot: 6, targetSlot: 30 },
-    { startFrame: 380, sourceSlot: 9, targetSlot: 45 }
-  ];
-  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_remotion7.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: "4%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 38,
-          fontWeight: 800,
-          color: COLORS.primary,
-          fontFamily: "system-ui, sans-serif",
-          textShadow: `0 0 20px ${COLORS.primary}66`,
-          opacity: (0, import_remotion7.interpolate)(frame, [20, 50], [0, 1], { extrapolateRight: "clamp" }),
-          textAlign: "center"
-        },
-        children: "HIERARCHICAL TIMING WHEELS"
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-      WheelRing,
-      {
-        size: outerWheelSize,
-        rotation: outerRotation,
-        slotCount: 12,
-        color: COLORS.secondary,
-        label: "MINUTES",
-        opacity: Math.max(0, outerWheelAppear)
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-      WheelRing,
-      {
-        size: innerWheelSize,
-        rotation: innerRotation,
-        slotCount: 60,
-        color: COLORS.primary,
-        label: "SECONDS",
-        opacity: innerWheelOpacity
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          left: "50%",
-          top: "45%",
-          transform: "translate(-50%, -50%)",
-          width: 50,
-          height: 50,
-          borderRadius: "50%",
-          background: `radial-gradient(circle at 30% 30%, ${COLORS.primary}, ${COLORS.secondary})`,
-          boxShadow: `0 0 30px ${COLORS.primary}`,
-          zIndex: 20
-        }
-      }
-    ),
-    cascadeEvents.map((event, i) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-      CascadeParticle,
-      {
-        startFrame: event.startFrame,
-        outerRadius: outerWheelSize / 2,
-        innerRadius: innerWheelSize / 2,
-        sourceSlot: event.sourceSlot,
-        targetSlot: event.targetSlot
-      },
-      `cascade-${i}`
-    )),
+  const fadeOut = (0, import_remotion8.interpolate)(
+    localFrame,
+    [180, 207],
+    [1, 0],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(import_remotion8.AbsoluteFill, { style: { opacity: fadeOut }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(BackgroundWheel, { rotation: wheelRotation, opacity: wheelOpacity }),
     /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-      "svg",
-      {
-        style: {
-          position: "absolute",
-          width: "100%",
-          height: "100%",
-          pointerEvents: "none",
-          opacity: (0, import_remotion7.interpolate)(frame, [50, 80], [0, 0.6], { extrapolateRight: "clamp" })
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("defs", { children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "marker",
-            {
-              id: "arrowhead",
-              markerWidth: "10",
-              markerHeight: "7",
-              refX: "9",
-              refY: "3.5",
-              orient: "auto",
-              children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("polygon", { points: "0 0, 10 3.5, 0 7", fill: COLORS.success })
-            }
-          ) }),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "line",
-            {
-              x1: "50%",
-              y1: `calc(45% - ${outerWheelSize / 2 - 30}px)`,
-              x2: "50%",
-              y2: `calc(45% - ${innerWheelSize / 2 + 20}px)`,
-              stroke: COLORS.success,
-              strokeWidth: 3,
-              markerEnd: "url(#arrowhead)",
-              strokeDasharray: "8 4"
-            }
-          )
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          bottom: "10%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "85%",
-          padding: "24px 30px",
-          background: `${COLORS.dark}ee`,
-          border: `2px solid ${COLORS.success}44`,
-          borderRadius: 16,
-          opacity: (0, import_remotion7.interpolate)(frame, [100, 140], [0, 1], { extrapolateRight: "clamp" })
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-            "div",
-            {
-              style: {
-                fontSize: 26,
-                fontWeight: 700,
-                color: COLORS.success,
-                fontFamily: "system-ui, sans-serif",
-                textAlign: "center",
-                marginBottom: 12
-              },
-              children: "Cascade Mechanism"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
-            "div",
-            {
-              style: {
-                fontSize: 20,
-                color: COLORS.gray,
-                fontFamily: "system-ui, sans-serif",
-                textAlign: "center",
-                lineHeight: 1.5
-              },
-              children: [
-                "When the minute wheel ticks, tasks cascade down to the second wheel.",
-                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("br", {}),
-                "Handle any duration with constant-time operations!"
-              ]
-            }
-          )
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          right: "5%",
-          top: "25%",
-          padding: "12px 20px",
-          background: `${COLORS.secondary}33`,
-          border: `2px solid ${COLORS.secondary}`,
-          borderRadius: 12,
-          fontSize: 18,
-          fontWeight: 600,
-          color: COLORS.secondary,
-          fontFamily: "system-ui, sans-serif",
-          opacity: (0, import_remotion7.interpolate)(frame, [60, 90], [0, 1], { extrapolateRight: "clamp" })
-        },
-        children: "1-60 minutes"
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          left: "5%",
-          top: "50%",
-          padding: "12px 20px",
-          background: `${COLORS.primary}33`,
-          border: `2px solid ${COLORS.primary}`,
-          borderRadius: 12,
-          fontSize: 18,
-          fontWeight: 600,
-          color: COLORS.primary,
-          fontFamily: "system-ui, sans-serif",
-          opacity: (0, import_remotion7.interpolate)(frame, [40, 70], [0, 1], { extrapolateRight: "clamp" })
-        },
-        children: "0-59 seconds"
-      }
-    )
-  ] });
-};
-
-// src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene7.tsx
-var import_remotion8 = require("remotion");
-var import_jsx_runtime9 = require("react/jsx-runtime");
-var LogoCard = ({ name, description, color, delay }) => {
-  const frame = (0, import_remotion8.useCurrentFrame)();
-  const { fps } = (0, import_remotion8.useVideoConfig)();
-  const appear = (0, import_remotion8.spring)({
-    frame: frame - delay,
-    fps,
-    config: SPRING_CONFIG
-  });
-  if (appear <= 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-    "div",
-    {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 16,
-        transform: `scale(${appear})`
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-          "div",
-          {
-            style: {
-              width: 120,
-              height: 120,
-              borderRadius: 24,
-              background: `linear-gradient(135deg, ${color}33, ${color}11)`,
-              border: `3px solid ${color}`,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: `0 0 30px ${color}44`
-            },
-            children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ClockIcon, { size: 60, color })
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-          "div",
-          {
-            style: {
-              fontSize: 32,
-              fontWeight: 800,
-              color: COLORS.white,
-              fontFamily: "system-ui, sans-serif"
-            },
-            children: name
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-          "div",
-          {
-            style: {
-              fontSize: 18,
-              color: COLORS.gray,
-              fontFamily: "system-ui, sans-serif",
-              textAlign: "center",
-              maxWidth: 200
-            },
-            children: description
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 8 }, children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CheckCircleIcon, { size: 24, color: COLORS.success }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { fontSize: 16, color: COLORS.success, fontWeight: 600 }, children: "Uses Timing Wheels" })
-        ] })
-      ]
-    }
-  );
-};
-var PerformanceBar = ({ label, value, maxValue, color, delay }) => {
-  const frame = (0, import_remotion8.useCurrentFrame)();
-  const { fps } = (0, import_remotion8.useVideoConfig)();
-  const progress = (0, import_remotion8.spring)({
-    frame: frame - delay,
-    fps,
-    config: { ...SPRING_CONFIG, stiffness: 60 }
-  });
-  const barWidth = Math.max(0, progress) * (value / maxValue) * 100;
-  const displayValue = Math.round(progress * value);
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { marginBottom: 24 }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-      "div",
-      {
-        style: {
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: 8
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-            "span",
-            {
-              style: {
-                fontSize: 20,
-                fontWeight: 600,
-                color: COLORS.white,
-                fontFamily: "system-ui, sans-serif"
-              },
-              children: label
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-            "span",
-            {
-              style: {
-                fontSize: 20,
-                fontWeight: 700,
-                color,
-                fontFamily: "monospace"
-              },
-              children: [
-                displayValue.toLocaleString(),
-                " ops/sec"
-              ]
-            }
-          )
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-      "div",
-      {
-        style: {
-          width: "100%",
-          height: 30,
-          background: `${COLORS.dark}`,
-          borderRadius: 8,
-          overflow: "hidden",
-          border: `1px solid ${COLORS.gray}44`
-        },
-        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-          "div",
-          {
-            style: {
-              width: `${barWidth}%`,
-              height: "100%",
-              background: `linear-gradient(90deg, ${color}88, ${color})`,
-              borderRadius: 8,
-              boxShadow: `0 0 15px ${color}66`
-            }
-          }
-        )
-      }
-    )
-  ] });
-};
-var Scene7 = ({ startFrame = 0 }) => {
-  const frame = (0, import_remotion8.useCurrentFrame)();
-  (0, import_remotion8.useVideoConfig)();
-  const titleOpacity = (0, import_remotion8.interpolate)(frame, [0, 30], [0, 1], { extrapolateRight: "clamp" });
-  const logosDelay = 30;
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_remotion8.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: "5%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 42,
-          fontWeight: 800,
-          color: COLORS.success,
-          fontFamily: "system-ui, sans-serif",
-          textShadow: `0 0 20px ${COLORS.success}66`,
-          opacity: titleOpacity,
-          textAlign: "center"
-        },
-        children: "REAL-WORLD VALIDATION"
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: "10%",
-          left: "50%",
-          transform: "translateX(-50%)",
-          fontSize: 24,
-          color: COLORS.gray,
-          fontFamily: "system-ui, sans-serif",
-          opacity: (0, import_remotion8.interpolate)(frame, [20, 50], [0, 1], { extrapolateRight: "clamp" })
-        },
-        children: "Production systems using timing wheels"
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: "18%",
-          left: "0",
-          right: "0",
-          display: "flex",
-          justifyContent: "space-around",
-          padding: "0 10%"
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-            LogoCard,
-            {
-              name: "Apache Kafka",
-              description: "Distributed event streaming platform",
-              color: COLORS.primary,
-              delay: logosDelay
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-            LogoCard,
-            {
-              name: "Netty",
-              description: "Async event-driven network framework",
-              color: COLORS.secondary,
-              delay: logosDelay + 15
-            }
-          )
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          bottom: "12%",
-          left: "10%",
-          right: "10%",
-          padding: "30px",
-          background: `${COLORS.dark}ee`,
-          border: `2px solid ${COLORS.primary}44`,
-          borderRadius: 20,
-          opacity: (0, import_remotion8.interpolate)(frame, [80, 110], [0, 1], { extrapolateRight: "clamp" })
-        },
-        children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-            "div",
-            {
-              style: {
-                fontSize: 26,
-                fontWeight: 700,
-                color: COLORS.white,
-                fontFamily: "system-ui, sans-serif",
-                marginBottom: 24,
-                textAlign: "center"
-              },
-              children: "Throughput Comparison"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-            PerformanceBar,
-            {
-              label: "Binary Heap",
-              value: 5e4,
-              maxValue: 5e5,
-              color: COLORS.accent,
-              delay: 120
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-            PerformanceBar,
-            {
-              label: "Timing Wheel",
-              value: 5e5,
-              maxValue: 5e5,
-              color: COLORS.success,
-              delay: 140
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-            "div",
-            {
-              style: {
-                textAlign: "center",
-                marginTop: 20,
-                fontSize: 28,
-                fontWeight: 800,
-                color: COLORS.success,
-                opacity: (0, import_remotion8.interpolate)(frame, [180, 210], [0, 1], { extrapolateRight: "clamp" })
-              },
-              children: "10x Performance Improvement!"
-            }
-          )
-        ]
-      }
-    )
-  ] });
-};
-
-// src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/scenes/Scene8.tsx
-var import_remotion9 = require("remotion");
-var import_jsx_runtime10 = require("react/jsx-runtime");
-var CelebrationParticle = ({ index }) => {
-  const frame = (0, import_remotion9.useCurrentFrame)();
-  const { width, height } = (0, import_remotion9.useVideoConfig)();
-  const baseX = index * 83 % width;
-  const baseY = index * 137 % height;
-  const floatX = (0, import_remotion9.interpolate)(
-    (frame + index * 20) % 120,
-    [0, 60, 120],
-    [-15, 15, -15],
-    { extrapolateRight: "clamp" }
-  );
-  const floatY = (0, import_remotion9.interpolate)(
-    (frame + index * 30) % 150,
-    [0, 75, 150],
-    [0, -20, 0],
-    { extrapolateRight: "clamp" }
-  );
-  const opacity = (0, import_remotion9.interpolate)(
-    (frame + index * 25) % 100,
-    [0, 50, 100],
-    [0.2, 0.6, 0.2],
-    { extrapolateRight: "clamp" }
-  );
-  const size = 6 + index % 5 * 3;
-  const colors = [COLORS.primary, COLORS.secondary, COLORS.success, COLORS.accent];
-  const color = colors[index % colors.length];
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        left: baseX + floatX,
-        top: baseY + floatY,
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        background: color,
-        opacity,
-        boxShadow: `0 0 ${size * 2}px ${color}`
-      }
-    }
-  );
-};
-var FollowButton = ({ pulseFrame }) => {
-  const frame = (0, import_remotion9.useCurrentFrame)();
-  const { fps } = (0, import_remotion9.useVideoConfig)();
-  const appear = (0, import_remotion9.spring)({
-    frame: frame - 40,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const isPulseActive = frame >= pulseFrame && frame < pulseFrame + 40;
-  const pulseScale = isPulseActive ? (0, import_remotion9.interpolate)(
-    (frame - pulseFrame) % 20,
-    [0, 10, 20],
-    [1, 1.1, 1],
-    { extrapolateRight: "clamp" }
-  ) : 1;
-  const glowIntensity = isPulseActive ? 1.5 : 1;
-  if (appear <= 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
-    "div",
-    {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 16,
-        padding: "24px 60px",
-        background: `linear-gradient(135deg, ${COLORS.accent}, ${COLORS.secondary})`,
-        borderRadius: 50,
-        transform: `scale(${appear * pulseScale})`,
-        boxShadow: `
-          0 0 ${30 * glowIntensity}px ${COLORS.accent}88,
-          0 10px 40px ${COLORS.dark}88
-        `,
-        cursor: "pointer"
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(FollowIcon, { size: 36, color: COLORS.white }),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: 36,
-              fontWeight: 800,
-              color: COLORS.white,
-              fontFamily: "system-ui, sans-serif",
-              letterSpacing: 2,
-              textTransform: "uppercase"
-            },
-            children: "Follow"
-          }
-        )
-      ]
-    }
-  );
-};
-var PinnedComment = () => {
-  const frame = (0, import_remotion9.useCurrentFrame)();
-  const { fps } = (0, import_remotion9.useVideoConfig)();
-  const appear = (0, import_remotion9.spring)({
-    frame: frame - 80,
-    fps,
-    config: SPRING_CONFIG
-  });
-  if (appear <= 0) return null;
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
-    "div",
-    {
-      style: {
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "16px 28px",
-        background: `${COLORS.dark}ee`,
-        border: `2px solid ${COLORS.primary}44`,
-        borderRadius: 16,
-        transform: `scale(${appear})`
-      },
-      children: [
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-          "div",
-          {
-            style: {
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: COLORS.success,
-              boxShadow: `0 0 10px ${COLORS.success}`
-            }
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: 22,
-              color: COLORS.gray,
-              fontFamily: "system-ui, sans-serif"
-            },
-            children: "Check the pinned comment for resources!"
-          }
-        )
-      ]
-    }
-  );
-};
-var Scene8 = ({ startFrame = 0 }) => {
-  const frame = (0, import_remotion9.useCurrentFrame)();
-  (0, import_remotion9.useVideoConfig)();
-  const pulseFrame = 125;
-  const introOpacity = (0, import_remotion9.interpolate)(frame, [0, 30], [0, 1], { extrapolateRight: "clamp" });
-  return /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(import_remotion9.AbsoluteFill, { children: [
-    Array.from({ length: 25 }).map((_, i) => /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(CelebrationParticle, { index: i }, `particle-${i}`)),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
       "div",
       {
         style: {
           position: "absolute",
           top: "20%",
-          left: "50%",
-          transform: "translateX(-50%)",
+          left: "10%",
+          right: "10%",
           textAlign: "center",
-          opacity: introOpacity
+          opacity: speakerProgress,
+          transform: `translateY(${(1 - speakerProgress) * -30}px)`
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
             "div",
             {
               style: {
-                width: 120,
-                height: 120,
-                borderRadius: "50%",
-                background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`,
-                margin: "0 auto 24px",
-                border: `4px solid ${COLORS.primary}`,
-                boxShadow: `0 0 30px ${COLORS.primary}44`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 48,
-                fontWeight: 800,
-                color: COLORS.white,
-                fontFamily: "system-ui, sans-serif"
-              },
-              children: "P"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-            "div",
-            {
-              style: {
-                fontSize: 48,
-                fontWeight: 800,
-                color: COLORS.white,
-                fontFamily: "system-ui, sans-serif",
-                marginBottom: 12
+                fontSize: TYPOGRAPHY.section,
+                fontWeight: 700,
+                color: COLORS.white
               },
               children: "Prasanna"
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
             "div",
             {
               style: {
-                fontSize: 24,
-                color: COLORS.gray,
-                fontFamily: "system-ui, sans-serif",
-                marginBottom: 8
-              },
-              children: "System Design Expert"
-            }
-          ),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-            "div",
-            {
-              style: {
-                fontSize: 20,
-                color: COLORS.secondary,
-                fontFamily: "system-ui, sans-serif"
+                fontSize: TYPOGRAPHY.caption,
+                color: COLORS.primary,
+                marginTop: 8,
+                fontWeight: 600
               },
               children: "@ Zoho"
             }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: TYPOGRAPHY.caption * 0.9,
+                color: COLORS.white,
+                opacity: 0.7,
+                marginTop: 12
+              },
+              children: "System Design Engineer"
+            }
           )
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
       "div",
       {
         style: {
           position: "absolute",
-          top: "55%",
-          left: "50%",
-          transform: "translateX(-50%)"
-        },
-        children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(FollowButton, { pulseFrame })
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: "70%",
-          left: "50%",
-          transform: "translateX(-50%)"
-        },
-        children: /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(PinnedComment, {})
-      }
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime10.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          bottom: "10%",
-          left: "50%",
-          transform: "translateX(-50%)",
+          top: "48%",
+          left: "10%",
+          right: "10%",
           textAlign: "center",
-          opacity: (0, import_remotion9.interpolate)(frame, [100, 130], [0, 1], { extrapolateRight: "clamp" })
+          opacity: followProgress,
+          transform: `scale(${0.8 + followProgress * 0.2})`
         },
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
             "div",
             {
               style: {
-                fontSize: 28,
-                fontWeight: 600,
-                color: COLORS.primary,
-                fontFamily: "system-ui, sans-serif",
-                marginBottom: 8
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 16
               },
-              children: "More System Design Content"
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+                  "span",
+                  {
+                    style: {
+                      fontSize: TYPOGRAPHY.body,
+                      fontWeight: 700,
+                      color: COLORS.white,
+                      textShadow: `0 0 20px ${COLORS.primary}50`
+                    },
+                    children: "Follow for more"
+                  }
+                ),
+                /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(PulsingArrow, { pulse: arrowPulse })
+              ]
             }
           ),
-          /* @__PURE__ */ (0, import_jsx_runtime10.jsx)(
+          /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
             "div",
             {
               style: {
-                fontSize: 20,
-                color: COLORS.gray,
-                fontFamily: "system-ui, sans-serif"
+                fontSize: TYPOGRAPHY.section,
+                fontWeight: 800,
+                color: COLORS.primary,
+                marginTop: 16,
+                textShadow: `0 0 30px ${COLORS.primary}60`,
+                letterSpacing: 2
               },
-              children: "Every week on this channel"
+              children: "ENGINEERING INSIGHTS"
             }
           )
         ]
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: "68%",
+          left: "10%",
+          right: "10%",
+          opacity: pinnedProgress,
+          transform: `translateY(${(1 - pinnedProgress) * 20}px)`
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+          "div",
+          {
+            style: {
+              background: `linear-gradient(135deg, ${COLORS.backgroundEnd}, ${COLORS.background})`,
+              border: `2px solid ${COLORS.secondary}40`,
+              borderRadius: 16,
+              padding: "20px 24px",
+              textAlign: "center"
+            },
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+                "div",
+                {
+                  style: {
+                    fontSize: TYPOGRAPHY.caption,
+                    fontWeight: 600,
+                    color: COLORS.accent,
+                    marginBottom: 8
+                  },
+                  children: "\u{1F4CC} PINNED COMMENT"
+                }
+              ),
+              /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+                "div",
+                {
+                  style: {
+                    fontSize: TYPOGRAPHY.caption,
+                    color: COLORS.white,
+                    opacity: 0.9
+                  },
+                  children: [
+                    "Check the pinned comment for",
+                    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("br", {}),
+                    "deep-dive resources & code examples"
+                  ]
+                }
+              )
+            ]
+          }
+        )
+      }
+    ),
+    /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          bottom: "8%",
+          left: "10%",
+          right: "10%",
+          textAlign: "center",
+          opacity: pinnedProgress * 0.8
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: TYPOGRAPHY.caption * 0.9,
+              color: COLORS.white,
+              opacity: 0.5
+            },
+            children: "System Design \u2022 Algorithms \u2022 Engineering"
+          }
+        )
       }
     )
   ] });
 };
 
 // src/proj_52679ede_22c5_4f0a_a231_c91da8c72538/index.tsx
-var import_jsx_runtime11 = require("react/jsx-runtime");
+var import_jsx_runtime9 = require("react/jsx-runtime");
 var MainComposition = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_remotion10.AbsoluteFill, { style: { backgroundColor: COLORS.dark }, children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Background, {}, "bg"),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      import_remotion10.Sequence,
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_remotion9.AbsoluteFill, { style: { backgroundColor: COLORS.background }, children: [
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Background, {}, "bg"),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      import_remotion9.Sequence,
       {
         from: TIMING.scene1Start,
         durationInFrames: TIMING.scene1End - TIMING.scene1Start,
-        children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Scene1, {})
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Scene1, { startFrame: 0 })
       },
       "scene1"
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      import_remotion10.Sequence,
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      import_remotion9.Sequence,
       {
         from: TIMING.scene2Start,
         durationInFrames: TIMING.scene2End - TIMING.scene2Start,
-        children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Scene2, {})
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Scene2, { startFrame: 0 })
       },
       "scene2"
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      import_remotion10.Sequence,
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      import_remotion9.Sequence,
       {
         from: TIMING.scene3Start,
         durationInFrames: TIMING.scene3End - TIMING.scene3Start,
-        children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Scene3, {})
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Scene3, { startFrame: 0 })
       },
       "scene3"
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      import_remotion10.Sequence,
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      import_remotion9.Sequence,
       {
         from: TIMING.scene4Start,
         durationInFrames: TIMING.scene4End - TIMING.scene4Start,
-        children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Scene4, {})
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Scene4, { startFrame: 0 })
       },
       "scene4"
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      import_remotion10.Sequence,
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      import_remotion9.Sequence,
       {
         from: TIMING.scene5Start,
         durationInFrames: TIMING.scene5End - TIMING.scene5Start,
-        children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Scene5, {})
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Scene5, { startFrame: 0 })
       },
       "scene5"
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      import_remotion10.Sequence,
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      import_remotion9.Sequence,
       {
         from: TIMING.scene6Start,
         durationInFrames: TIMING.scene6End - TIMING.scene6Start,
-        children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Scene6, {})
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Scene6, { startFrame: 0 })
       },
       "scene6"
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      import_remotion10.Sequence,
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+      import_remotion9.Sequence,
       {
         from: TIMING.scene7Start,
         durationInFrames: TIMING.scene7End - TIMING.scene7Start,
-        children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Scene7, {})
+        children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Scene7, { startFrame: 0 })
       },
       "scene7"
-    ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-      import_remotion10.Sequence,
-      {
-        from: TIMING.scene8Start,
-        durationInFrames: TIMING.scene8End - TIMING.scene8Start,
-        children: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(Scene8, {})
-      },
-      "scene8"
     )
   ] });
 };
 var RemotionRoot = () => {
-  return /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-    import_remotion10.Composition,
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    import_remotion9.Composition,
     {
       id: "proj_52679ede_22c5_4f0a_a231_c91da8c72538",
       component: MainComposition,
-      durationInFrames: VIDEO_CONFIG.durationInFrames,
-      fps: VIDEO_CONFIG.fps,
-      width: VIDEO_CONFIG.width,
-      height: VIDEO_CONFIG.height
+      durationInFrames: TIMING.totalFrames,
+      fps: TIMING.fps,
+      width: TIMING.width,
+      height: TIMING.height
     }
   );
 };
 var index_default = MainComposition;
-(0, import_remotion10.registerRoot)(RemotionRoot);
+(0, import_remotion9.registerRoot)(RemotionRoot);

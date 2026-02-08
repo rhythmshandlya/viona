@@ -93,7 +93,14 @@
       "mcp__railway-mcp-server__list-deployments",
       "Bash(pnpm dev:landing:*)",
       "WebFetch(domain:landing-production-da1b.up.railway.app)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "WebFetch(domain:stytch.com)",
+      "Bash(pnpm --filter web add:*)",
+      "Bash(pnpm typecheck:*)",
+      "Skill(find-skills)",
+      "Bash(claude mcp:*)",
+      "Bash(pnpm --filter @reelify/api db:migrate:*)",
+      "Bash(pnpm list:*)"
     ]
   }
 }

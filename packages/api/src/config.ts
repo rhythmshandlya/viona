@@ -46,4 +46,10 @@ export const config = {
   get minio() {
     return this.storage;
   },
+
+  // Stytch authentication
+  stytch: {
+    projectId: process.env.STYTCH_PROJECT_ID || '',
+    secret: process.env.STYTCH_SECRET || '',
+  },
 } as const;

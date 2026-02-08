@@ -1,4 +1,4 @@
-import { Geist_Mono, Geist } from "next/font/google";
+import { Geist_Mono, Geist, DM_Sans, Outfit } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { baseUrl, createMetadata } from "@/utils/metadata";
 import {
@@ -6,8 +6,8 @@ import {
   BackgroundUploadRunner
 } from "@/components/store-initializer";
 import { QueryProvider } from "@/components/query-provider";
+import { StytchProvider } from "@/components/stytch-provider";
 import { Analytics } from "@vercel/analytics/react";
-import { Outfit } from "next/font/google";
 
 import "./globals.css";
 
@@ -28,12 +28,18 @@ const outfit = Outfit({
   weight: ["300", "400", "500", "600", "700"]
 });
 
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"]
+});
+
 export const metadata = createMetadata({
   title: {
-    template: "%s | Combo",
-    default: "Combo"
+    template: "%s | Cllipify",
+    default: "Cllipify"
   },
-  description: "AI Video generator for the next gen web.",
+  description: "Transform your explainer videos with AI-generated visuals, auto-transcription, and animated subtitles.",
   metadataBase: baseUrl
 });
 
@@ -45,15 +51,17 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistMono.variable} ${geist.variable} ${outfit.variable} antialiased dark font-sans bg-muted`}
+        className={`${geistMono.variable} ${geist.variable} ${outfit.variable} ${dmSans.variable} antialiased font-sans bg-background`}
         suppressHydrationWarning
       >
-        <QueryProvider>
-          {children}
-          <StoreInitializer />
-          <BackgroundUploadRunner />
-          <Toaster />
-        </QueryProvider>
+        <StytchProvider>
+          <QueryProvider>
+            {children}
+            <StoreInitializer />
+            <BackgroundUploadRunner />
+            <Toaster />
+          </QueryProvider>
+        </StytchProvider>
         <Analytics />
       </body>
     </html>

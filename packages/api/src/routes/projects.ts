@@ -5,15 +5,18 @@ import { eq, inArray } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, publishJobCancel } from '../services/queue.js';
+import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@reelify/shared';
 
 // Validation schemas
 const createProjectSchema = z.object({
   filename: z.string().min(1),
+  title: z.string().max(255).optional(),
   contentType: z.string().optional(),
 });
 
 const updateProjectSchema = z.object({
+  title: z.string().max(255).optional(),
   tracks: z.array(z.object({
     id: z.string(),
     name: z.string().optional(),
@@ -28,18 +31,28 @@ const updateProjectSchema = z.object({
   })).optional(),
 });
 
+// Helper to check if a user owns a project
+function checkProjectOwnership(projectUserId: string | null, userId: string | undefined): boolean {
+  // If project has no owner (legacy data), allow access for now
+  if (!projectUserId) return true;
+  // Otherwise check if user owns the project
+  return projectUserId === userId;
+}
+
 export async function projectRoutes(fastify: FastifyInstance) {
   // Create a new project
-  fastify.post('/projects', async (request, reply) => {
+  fastify.post('/projects', { preHandler: authMiddleware }, async (request, reply) => {
     const body = createProjectSchema.parse(request.body);
 
     // Generate video key
     const videoKey = `${nanoid()}/${body.filename}`;
 
-    // Create project in database
+    // Create project in database with user ownership
     const [project] = await db.insert(projects).values({
       status: 'uploading' as ProjectStatus,
+      title: body.title || null,
       videoKey,
+      userId: request.user!.id, // Associate with authenticated user
     }).returning();
 
     // Create default video track
@@ -62,7 +75,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Proxy upload endpoint - bypasses CORS issues with direct S3 uploads
-  fastify.post('/projects/:id/upload', async (request, reply) => {
+  fastify.post('/projects/:id/upload', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const project = await db.query.projects.findFirst({
@@ -71,6 +84,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (!project.videoKey) {
@@ -100,7 +118,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Get a project with all data
-  fastify.get('/projects/:id', async (request, reply) => {
+  fastify.get('/projects/:id', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const project = await db.query.projects.findFirst({
@@ -109,6 +127,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     const projectTracks = await db.query.tracks.findMany({
@@ -135,7 +158,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Stream video file
-  fastify.get('/projects/:id/video', async (request, reply) => {
+  fastify.get('/projects/:id/video', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const project = await db.query.projects.findFirst({
@@ -144,6 +167,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (!project.videoKey) {
@@ -209,7 +237,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Update a project
-  fastify.patch('/projects/:id', async (request, reply) => {
+  fastify.patch('/projects/:id', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = updateProjectSchema.parse(request.body);
 
@@ -219,6 +247,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     // Update tracks if provided
@@ -248,16 +281,20 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Update project timestamp
+    // Update project (title and timestamp)
+    const updateData: { updatedAt: Date; title?: string } = { updatedAt: new Date() };
+    if (body.title !== undefined) {
+      updateData.title = body.title;
+    }
     await db.update(projects)
-      .set({ updatedAt: new Date() })
+      .set(updateData)
       .where(eq(projects.id, id));
 
     return { success: true };
   });
 
   // Start processing (transcription + audio enhancement in parallel)
-  fastify.post('/projects/:id/process', async (request, reply) => {
+  fastify.post('/projects/:id/process', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const project = await db.query.projects.findFirst({
@@ -266,6 +303,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (!project.videoKey) {
@@ -345,7 +387,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Reset project status to ready (for recovery from failed state)
-  fastify.post('/projects/:id/reset-status', async (request, reply) => {
+  fastify.post('/projects/:id/reset-status', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const project = await db.query.projects.findFirst({
@@ -354,6 +396,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     // Only allow reset from failed or complete states
@@ -371,7 +418,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Start rendering
-  fastify.post('/projects/:id/render', async (request, reply) => {
+  fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const project = await db.query.projects.findFirst({
@@ -380,6 +427,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (project.status !== 'ready') {
@@ -408,7 +460,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Generate AI visuals
-  fastify.post('/projects/:id/generate-visuals', async (request, reply) => {
+  fastify.post('/projects/:id/generate-visuals', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
       stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic']),
@@ -426,6 +478,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     // Check for transcript
@@ -463,7 +520,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Delete generated visuals for a project (for re-testing)
-  fastify.delete('/projects/:id/visuals', async (request, reply) => {
+  fastify.delete('/projects/:id/visuals', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     try {
@@ -473,6 +530,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
       if (!project) {
         return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      // Check ownership
+      if (!checkProjectOwnership(project.userId, request.user?.id)) {
+        return reply.status(403).send({ error: 'Access denied' });
       }
 
       // Get all visuals for this project
@@ -518,7 +580,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Separate audio from video and enhance
-  fastify.post('/projects/:id/separate-audio', async (request, reply) => {
+  fastify.post('/projects/:id/separate-audio', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
       videoItemId: z.string(),
@@ -530,6 +592,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (!project.videoKey) {
@@ -586,7 +653,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Get download URL
-  fastify.get('/projects/:id/download', async (request, reply) => {
+  fastify.get('/projects/:id/download', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const project = await db.query.projects.findFirst({
@@ -595,6 +662,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (!project.outputKey) {
@@ -606,6 +678,71 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const expiresAt = new Date(Date.now() + 3600 * 1000); // 1 hour
 
     return { url, expiresAt };
+  });
+
+  // Delete a project
+  fastify.delete('/projects/:id', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    // Delete project (cascade will handle tracks, items, jobs, transcripts, visuals)
+    await db.delete(projects).where(eq(projects.id, id));
+
+    // Note: We're not deleting files from storage here for simplicity
+    // Could add cleanup job later if needed
+
+    return { success: true, message: 'Project deleted' };
+  });
+
+  // Get project thumbnail
+  fastify.get('/projects/:id/thumbnail', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    if (!project.thumbnailKey) {
+      // Return 204 No Content if no thumbnail
+      return reply.status(204).send();
+    }
+
+    // Check if thumbnail exists
+    const exists = await objectExists('uploads', project.thumbnailKey);
+    if (!exists) {
+      return reply.status(204).send();
+    }
+
+    try {
+      const stream = await getObjectStream('uploads', project.thumbnailKey);
+      reply.header('Content-Type', 'image/jpeg');
+      reply.header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      return reply.send(stream);
+    } catch (err) {
+      fastify.log.error(err, 'Failed to get thumbnail');
+      return reply.status(500).send({ error: 'Failed to get thumbnail' });
+    }
   });
 
   // Stream a media file from storage (used for enhanced/original audio)
@@ -672,7 +809,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   });
 
   // Get job status
-  fastify.get('/jobs/:id', async (request, reply) => {
+  fastify.get('/jobs/:id', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const job = await db.query.jobs.findFirst({
@@ -683,11 +820,20 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Job not found' });
     }
 
+    // Verify job belongs to user's project
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, job.projectId),
+    });
+
+    if (!project || !checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
     return job;
   });
 
   // Cancel a job
-  fastify.post('/jobs/:id/cancel', async (request, reply) => {
+  fastify.post('/jobs/:id/cancel', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
     const job = await db.query.jobs.findFirst({
@@ -696,6 +842,15 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!job) {
       return reply.status(404).send({ error: 'Job not found' });
+    }
+
+    // Verify job belongs to user's project
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, job.projectId),
+    });
+
+    if (!project || !checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (job.status !== 'processing' && job.status !== 'pending') {

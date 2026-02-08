@@ -497,6 +497,219 @@ cllipify/
 
 ---
 
+## Extended Troubleshooting
+
+### Windows-Specific Issues
+
+#### PowerShell Execution Policy
+```powershell
+# If scripts won't run, allow execution:
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+#### Long Path Names
+Windows has a 260 character path limit. Enable long paths:
+```powershell
+# Run as Administrator
+New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+```
+
+#### Docker Desktop Not Starting
+1. Ensure WSL2 is installed: `wsl --install`
+2. Restart Docker Desktop
+3. Check Windows features: Hyper-V, WSL2, Containers enabled
+
+#### Line Ending Issues
+Git may convert line endings. Fix with:
+```bash
+git config --global core.autocrlf input
+```
+
+### macOS-Specific Issues
+
+#### Xcode Command Line Tools
+```bash
+xcode-select --install
+```
+
+#### Homebrew Python Conflicts
+```bash
+# Use Miniconda instead of Homebrew Python
+brew uninstall python  # Optional
+# Install Miniconda from https://docs.conda.io/en/latest/miniconda.html
+```
+
+#### Port 5432 Already in Use (Local PostgreSQL)
+```bash
+# Check what's using the port
+lsof -i :5432
+
+# Stop local PostgreSQL
+brew services stop postgresql
+```
+
+### Linux-Specific Issues
+
+#### Docker Permission Denied
+```bash
+# Add user to docker group
+sudo usermod -aG docker $USER
+# Log out and back in
+```
+
+#### Missing Dependencies
+```bash
+# Ubuntu/Debian
+sudo apt update
+sudo apt install -y build-essential python3-dev ffmpeg
+
+# Fedora
+sudo dnf install -y gcc python3-devel ffmpeg
+```
+
+### Node.js Issues
+
+#### pnpm Install Fails
+```bash
+# Clear cache and retry
+pnpm store prune
+rm -rf node_modules
+pnpm install
+```
+
+#### Memory Issues During Build
+```bash
+# Increase Node memory limit
+export NODE_OPTIONS="--max-old-space-size=8192"
+pnpm build
+```
+
+#### Wrong Node Version
+```bash
+# Install nvm and switch versions
+# https://github.com/nvm-sh/nvm
+nvm install 20
+nvm use 20
+```
+
+### Python Issues
+
+#### Wrong Python Version
+```bash
+# Check version
+python --version
+
+# If < 3.10, install newer version
+# Use Miniconda or pyenv for version management
+```
+
+#### pip Install Permission Denied
+```bash
+# Use virtual environment instead of system Python
+python -m venv .venv
+source .venv/bin/activate  # Linux/macOS
+.venv\Scripts\activate     # Windows
+pip install -r requirements.txt
+```
+
+#### CUDA Out of Memory
+```bash
+# Use smaller model
+WHISPER_MODEL=base
+
+# Or use CPU mode
+WHISPER_DEVICE=cpu
+```
+
+### Docker Issues
+
+#### Containers Won't Start
+```bash
+# Check Docker is running
+docker info
+
+# Remove old containers and volumes
+docker-compose down -v
+docker system prune -f
+docker-compose up -d
+```
+
+#### MinIO Access Denied
+```bash
+# Reset MinIO data
+docker-compose down
+rm -rf .minio-data
+docker-compose up -d
+```
+
+#### Container Logs
+```bash
+# View specific service logs
+docker-compose logs -f postgres
+docker-compose logs -f minio
+docker-compose logs -f redis
+```
+
+### Visual Generation Issues
+
+#### "Not logged in" Error (Claude CLI)
+In production, set these environment variables:
+```bash
+CLAUDE_OAUTH_ACCESS_TOKEN=your-token
+CLAUDE_OAUTH_REFRESH_TOKEN=your-refresh-token
+CLAUDE_OAUTH_EXPIRES_AT=timestamp
+```
+
+#### Bundle Permission Denied
+Check workspace permissions:
+```bash
+# Development
+chmod -R 755 packages/worker/workspace
+chmod -R 755 packages/worker/bundles
+```
+
+#### TypeScript Errors in Generated Code
+The worker has a self-heal phase that automatically fixes TypeScript errors. If it fails:
+1. Check the error in worker logs
+2. The template may need updates
+
+### Network Issues
+
+#### CORS Errors
+Check API CORS configuration in `packages/api/src/index.ts`
+
+#### WebSocket Connection Failed
+```bash
+# Ensure API is running
+curl http://localhost:4000/health
+
+# Check WebSocket URL in web app
+NEXT_PUBLIC_WS_URL=ws://localhost:4000
+```
+
+---
+
+## Docker Compose Variables
+
+You can customize docker-compose with environment variables:
+
+```bash
+# In your .env or shell
+POSTGRES_PORT=5433          # Default: 5432
+POSTGRES_USER=myuser        # Default: reelify
+POSTGRES_PASSWORD=mypass    # Default: reelify123
+POSTGRES_DB=mydb            # Default: reelify
+
+MINIO_API_PORT=9002         # Default: 9000
+MINIO_CONSOLE_PORT=9003     # Default: 9001
+MINIO_ROOT_USER=myadmin     # Default: reelify
+MINIO_ROOT_PASSWORD=mypass  # Default: reelify123
+
+REDIS_PORT=6380             # Default: 6379
+```
+
+---
+
 ## Next Steps
 
 1. **Upload a test video** at http://localhost:3000

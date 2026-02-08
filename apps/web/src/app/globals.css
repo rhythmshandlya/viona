@@ -122,7 +122,7 @@
   --sidebar-border: #e5e5e5;
   --sidebar-ring: #F97316;
   --destructive-foreground: #ffffff;
-  --font-sans: "DM Sans", Outfit, sans-serif;
+  --font-sans: var(--font-dm-sans), var(--font-outfit), system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: monospace;
   --shadow-color: #000000;
@@ -184,7 +184,7 @@
   --sidebar-ring: #F97316;
   --destructive-foreground: #FAFAFA;
   --radius: 0.5rem;
-  --font-sans: "DM Sans", Outfit, sans-serif;
+  --font-sans: var(--font-dm-sans), var(--font-outfit), system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: monospace;
   --shadow-color: #000000;
@@ -229,8 +229,8 @@
 }
 
 .selecto-selection {
-  background: rgba(0, 216, 214, 0.1) !important;
-  border: 1px solid rgba(0, 216, 214, 1) !important;
+  background: rgba(249, 115, 22, 0.1) !important;
+  border: 1px solid rgba(249, 115, 22, 1) !important;
 }
 
 @layer utilities {
@@ -256,13 +256,13 @@
 
 .moveable-line.moveable-guideline.moveable-horizontal {
   height: 1px !important;
-  background: #00d8d6 !important;
+  background: #F97316 !important;
   opacity: 0.8 !important;
 }
 
 .moveable-line.moveable-guideline.moveable-vertical {
   width: 1px !important;
-  background: #00d8d6 !important;
+  background: #F97316 !important;
   opacity: 0.8 !important;
 }
 
@@ -340,13 +340,13 @@
 
 .moveable-line.moveable-guideline.moveable-horizontal {
   height: 1px !important;
-  background: #00d8d6 !important;
+  background: #F97316 !important;
   opacity: 0.8 !important;
 }
 
 .moveable-line.moveable-guideline.moveable-vertical {
   width: 1px !important;
-  background: #00d8d6 !important;
+  background: #F97316 !important;
   opacity: 0.8 !important;
 }
 
