@@ -1,7 +1,7 @@
 import { Client } from 'minio';
 import { config } from '../config.js';
 
-// Build MinIO client configuration
+// Build MinIO client configuration for internal operations
 const clientConfig: {
   endPoint: string;
   port?: number;
@@ -23,6 +23,24 @@ if (config.storage.port) {
 }
 
 export const minioClient = new Client(clientConfig);
+
+// Public endpoint for presigned URLs (browsers need public access)
+const publicEndpoint = process.env.BUCKET_PUBLIC_ENDPOINT || process.env.RAILWAY_SERVICE_STORAGE_URL;
+const isInternalEndpoint = config.storage.endpoint.includes('.railway.internal');
+
+/**
+ * Convert internal presigned URL to public URL for browser access
+ */
+function toPublicUrl(url: string): string {
+  if (!isInternalEndpoint || !publicEndpoint) {
+    return url;
+  }
+  // Replace internal endpoint with public endpoint
+  // Internal: http://storage.railway.internal:9000/...
+  // Public: https://storage-production-xxxx.up.railway.app/...
+  const internalPattern = new RegExp(`http://${config.storage.endpoint}:${config.storage.port || 9000}`);
+  return url.replace(internalPattern, `https://${publicEndpoint}`);
+}
 
 // Single bucket name
 const BUCKET = config.storage.bucket;
@@ -68,7 +86,8 @@ export async function getPresignedUploadUrl(
   expirySeconds = 3600
 ): Promise<string> {
   const fullKey = `${PREFIXES[prefix]}${key}`;
-  return minioClient.presignedPutObject(BUCKET, fullKey, expirySeconds);
+  const url = await minioClient.presignedPutObject(BUCKET, fullKey, expirySeconds);
+  return toPublicUrl(url);
 }
 
 export async function getPresignedDownloadUrl(
@@ -77,7 +96,8 @@ export async function getPresignedDownloadUrl(
   expirySeconds = 3600
 ): Promise<string> {
   const fullKey = `${PREFIXES[prefix]}${key}`;
-  return minioClient.presignedGetObject(BUCKET, fullKey, expirySeconds);
+  const url = await minioClient.presignedGetObject(BUCKET, fullKey, expirySeconds);
+  return toPublicUrl(url);
 }
 
 export async function deleteObject(prefix: 'uploads' | 'outputs' | 'templates', key: string): Promise<void> {
@@ -125,7 +145,8 @@ export async function getPresignedUploadUrlLegacy(
   expirySeconds = 3600
 ): Promise<string> {
   // Determine prefix from key or default to uploads
-  return minioClient.presignedPutObject(BUCKET, key, expirySeconds);
+  const url = await minioClient.presignedPutObject(BUCKET, key, expirySeconds);
+  return toPublicUrl(url);
 }
 
 export async function getPresignedDownloadUrlLegacy(
@@ -133,5 +154,21 @@ export async function getPresignedDownloadUrlLegacy(
   key: string,
   expirySeconds = 3600
 ): Promise<string> {
-  return minioClient.presignedGetObject(BUCKET, key, expirySeconds);
+  const url = await minioClient.presignedGetObject(BUCKET, key, expirySeconds);
+  return toPublicUrl(url);
+}
+
+/**
+ * Upload a stream directly to storage (used for proxy uploads)
+ */
+export async function uploadStream(
+  prefix: 'uploads' | 'outputs' | 'templates',
+  key: string,
+  stream: NodeJS.ReadableStream,
+  size?: number,
+  contentType?: string
+): Promise<void> {
+  const fullKey = `${PREFIXES[prefix]}${key}`;
+  const metaData = contentType ? { 'Content-Type': contentType } : {};
+  await minioClient.putObject(BUCKET, fullKey, stream, size, metaData);
 }

@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
+import multipart from '@fastify/multipart';
 import { existsSync, mkdirSync } from 'fs';
 import { config } from './config.js';
 import { ensureBuckets } from './services/minio.js';
@@ -24,6 +25,12 @@ async function main() {
   await fastify.register(cors, {
     origin: true, // Allow all origins in development
     credentials: true,
+  });
+
+  await fastify.register(multipart, {
+    limits: {
+      fileSize: 500 * 1024 * 1024, // 500MB max file size
+    },
   });
 
   await fastify.register(websocket);

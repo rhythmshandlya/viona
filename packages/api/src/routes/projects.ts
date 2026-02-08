@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { eq, inArray } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
-import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat } from '../services/minio.js';
+import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, publishJobCancel } from '../services/queue.js';
 import type { ProjectStatus } from '@reelify/shared';
 
@@ -56,7 +56,47 @@ export async function projectRoutes(fastify: FastifyInstance) {
     return {
       projectId: project.id,
       uploadUrl,
+      // Also return videoKey for proxy upload
+      videoKey,
     };
+  });
+
+  // Proxy upload endpoint - bypasses CORS issues with direct S3 uploads
+  fastify.post('/projects/:id/upload', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!project.videoKey) {
+      return reply.status(400).send({ error: 'Project has no video key' });
+    }
+
+    try {
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({ error: 'No file uploaded' });
+      }
+
+      // Stream the file directly to MinIO
+      await uploadStream(
+        'uploads',
+        project.videoKey,
+        data.file,
+        undefined, // size unknown for streams
+        data.mimetype
+      );
+
+      return { success: true, videoKey: project.videoKey };
+    } catch (err) {
+      fastify.log.error(err, 'Failed to upload file');
+      return reply.status(500).send({ error: 'Failed to upload file' });
+    }
   });
 
   // Get a project with all data

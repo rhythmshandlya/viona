@@ -35,12 +35,12 @@ export default function UploadPage() {
     setStatusMessage("Creating project...");
 
     try {
-      // Step 1: Create project and get presigned URL
-      const { projectId, uploadUrl } = await api.createProject(file.name);
+      // Step 1: Create project
+      const { projectId } = await api.createProject(file.name);
       setStatusMessage("Uploading video...");
 
-      // Step 2: Upload file to MinIO
-      await api.uploadToPresignedUrl(uploadUrl, file, (uploadProgress) => {
+      // Step 2: Upload file via proxy (bypasses CORS issues)
+      await api.uploadViaProxy(projectId, file, (uploadProgress) => {
         setProgress(uploadProgress);
       });
 

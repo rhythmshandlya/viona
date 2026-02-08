@@ -3,6 +3,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 export interface CreateProjectResponse {
   projectId: string;
   uploadUrl: string;
+  videoKey: string;
 }
 
 export interface ProcessProjectResponse {
@@ -216,7 +217,7 @@ class ApiClient {
     });
   }
 
-  // Upload helper
+  // Upload helper - direct to presigned URL (may have CORS issues in some environments)
   async uploadToPresignedUrl(
     uploadUrl: string,
     file: File,
@@ -247,6 +248,48 @@ class ApiClient {
       xhr.open('PUT', uploadUrl);
       xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
       xhr.send(file);
+    });
+  }
+
+  // Proxy upload - uploads through API server, bypasses CORS issues
+  async uploadViaProxy(
+    projectId: string,
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable && onProgress) {
+          const progress = Math.round((event.loaded / event.total) * 100);
+          onProgress(progress);
+        }
+      });
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve();
+        } else {
+          let errorMessage = `Upload failed: ${xhr.status}`;
+          try {
+            const response = JSON.parse(xhr.responseText);
+            errorMessage = response.error || errorMessage;
+          } catch {
+            // ignore parse error
+          }
+          reject(new Error(errorMessage));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
+
+      xhr.open('POST', `${this.baseUrl}/api/projects/${projectId}/upload`);
+      xhr.send(formData);
     });
   }
 }
