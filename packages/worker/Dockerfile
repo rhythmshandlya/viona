@@ -109,8 +109,11 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 worker
 
 # Create directories with correct permissions
-RUN mkdir -p /tmp/workspace /tmp/template && \
-    chown -R worker:nodejs /tmp/workspace /tmp/template
+RUN mkdir -p /tmp/workspace /tmp/template /home/worker && \
+    chown -R worker:nodejs /tmp/workspace /tmp/template /home/worker
+
+# Set home directory for npm cache
+ENV HOME="/home/worker"
 
 USER worker
 
