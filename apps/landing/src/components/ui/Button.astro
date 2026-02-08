@@ -1,0 +1,48 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  variant?: "default" | "secondary" | "outline" | "ghost";
+  size?: "sm" | "default" | "lg";
+  href?: string;
+  class?: string;
+  glow?: boolean;
+  [key: string]: any;
+}
+
+const {
+  variant = "default",
+  size = "default",
+  href,
+  class: className,
+  glow = false,
+  ...props
+} = Astro.props;
+
+const baseStyles = "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:pointer-events-none disabled:opacity-50";
+
+const variants = {
+  default: "bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg",
+  secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+  outline: "border border-border bg-transparent hover:bg-card hover:border-primary/50",
+  ghost: "hover:bg-card hover:text-foreground",
+};
+
+const sizes = {
+  sm: "h-9 px-4 text-sm",
+  default: "h-11 px-6 text-sm",
+  lg: "h-12 px-8 text-base",
+};
+
+const glowStyles = glow ? "glow-primary hover:shadow-[0_0_60px_oklch(0.8348_0.1302_160.908_/_0.5)]" : "";
+
+const Element = href ? "a" : "button";
+---
+
+<Element
+  href={href}
+  class={cn(baseStyles, variants[variant], sizes[size], glowStyles, className)}
+  {...props}
+>
+  <slot />
+</Element>

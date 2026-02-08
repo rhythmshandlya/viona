@@ -252,7 +252,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
 
     // Step 1: Download video (10%)
     await publishJobProgress(jobId, 5, 'Downloading video...', pubExtras);
-    await downloadFile(config.minio.buckets.uploads, videoKey, videoPath);
+    await downloadFile('uploads', videoKey, videoPath);
     await publishJobProgress(jobId, 10, 'Video downloaded', pubExtras);
 
     // Step 2: Get video metadata

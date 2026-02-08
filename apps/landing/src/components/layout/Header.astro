@@ -1,0 +1,100 @@
+---
+import { siteConfig } from "@/data/site";
+import Container from "@/components/ui/Container.astro";
+import Button from "@/components/ui/Button.astro";
+---
+
+<header class="fixed top-0 left-0 right-0 z-50">
+  <div class="glass border-b border-border/50">
+    <Container>
+      <nav class="flex items-center justify-between h-16">
+        <!-- Logo -->
+        <a href="/" class="flex items-center gap-2 text-xl font-bold">
+          <svg class="w-8 h-8" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" class="fill-primary" />
+            <path d="M10 12L22 16L10 20V12Z" fill="currentColor" class="text-primary-foreground" />
+          </svg>
+          <span class="text-gradient">{siteConfig.name}</span>
+        </a>
+
+        <!-- Desktop Nav -->
+        <div class="hidden md:flex items-center gap-8">
+          {siteConfig.nav.map((item) => (
+            <a
+              href={item.href}
+              class="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {item.label}
+            </a>
+          ))}
+        </div>
+
+        <!-- CTA Buttons -->
+        <div class="flex items-center gap-3">
+          <a
+            href={siteConfig.appUrl}
+            class="hidden sm:inline-flex text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Sign In
+          </a>
+          <Button href={siteConfig.appUrl} size="sm">
+            Get Started
+          </Button>
+        </div>
+
+        <!-- Mobile Menu Button -->
+        <button
+          class="md:hidden p-2 text-muted-foreground hover:text-foreground"
+          aria-label="Open menu"
+          id="mobile-menu-btn"
+        >
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+      </nav>
+    </Container>
+  </div>
+
+  <!-- Mobile Menu -->
+  <div
+    id="mobile-menu"
+    class="hidden md:hidden fixed inset-0 top-16 bg-background/95 backdrop-blur-lg z-40"
+  >
+    <Container>
+      <nav class="flex flex-col gap-4 py-8">
+        {siteConfig.nav.map((item) => (
+          <a
+            href={item.href}
+            class="text-lg text-muted-foreground hover:text-foreground transition-colors py-2"
+          >
+            {item.label}
+          </a>
+        ))}
+        <hr class="border-border my-4" />
+        <a href={siteConfig.appUrl} class="text-lg text-muted-foreground hover:text-foreground py-2">
+          Sign In
+        </a>
+        <Button href={siteConfig.appUrl} size="lg" class="mt-4">
+          Get Started Free
+        </Button>
+      </nav>
+    </Container>
+  </div>
+</header>
+
+<script>
+  const menuBtn = document.getElementById("mobile-menu-btn");
+  const mobileMenu = document.getElementById("mobile-menu");
+
+  menuBtn?.addEventListener("click", () => {
+    mobileMenu?.classList.toggle("hidden");
+  });
+
+  // Close menu on link click
+  mobileMenu?.querySelectorAll("a").forEach((link) => {
+    link.addEventListener("click", () => {
+      mobileMenu?.classList.add("hidden");
+    });
+  });
+</script>

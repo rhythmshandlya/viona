@@ -1,0 +1,65 @@
+---
+import { siteConfig } from "@/data/site";
+
+interface Props {
+  type?: "WebSite" | "Organization" | "SoftwareApplication";
+}
+
+const { type = "WebSite" } = Astro.props;
+
+const websiteSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: siteConfig.name,
+  url: siteConfig.url,
+  description: siteConfig.description,
+  potentialAction: {
+    "@type": "SearchAction",
+    target: {
+      "@type": "EntryPoint",
+      urlTemplate: `${siteConfig.url}/search?q={search_term_string}`,
+    },
+    "query-input": "required name=search_term_string",
+  },
+};
+
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: siteConfig.name,
+  url: siteConfig.url,
+  logo: `${siteConfig.url}/favicon.svg`,
+  sameAs: [
+    siteConfig.links.twitter,
+    siteConfig.links.github,
+  ],
+};
+
+const softwareSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: siteConfig.name,
+  operatingSystem: "Web",
+  applicationCategory: "MultimediaApplication",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+  },
+  aggregateRating: {
+    "@type": "AggregateRating",
+    ratingValue: "4.8",
+    ratingCount: "1250",
+  },
+};
+
+const schemas = {
+  WebSite: websiteSchema,
+  Organization: organizationSchema,
+  SoftwareApplication: softwareSchema,
+};
+
+const schema = schemas[type];
+---
+
+<script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />

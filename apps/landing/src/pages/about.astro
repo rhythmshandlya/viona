@@ -1,0 +1,74 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import Container from "@/components/ui/Container.astro";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="About"
+  description="Learn about Cllipify's mission to democratize video creation with AI-powered tools."
+>
+  <!-- Hero Section -->
+  <section class="pt-32 pb-16 lg:pt-40 lg:pb-24">
+    <Container size="narrow">
+      <div class="text-center">
+        <h1 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+          Making video creation
+          <span class="text-gradient">accessible to everyone</span>
+        </h1>
+        <p class="animate-on-scroll text-lg text-muted-foreground max-w-2xl mx-auto" style="animation-delay: 0.1s;">
+          We believe everyone should be able to bring their ideas to life through video,
+          regardless of technical skill or budget.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  <!-- Mission Section -->
+  <section class="py-16 lg:py-24">
+    <Container size="narrow">
+      <div class="space-y-12 animate-on-scroll">
+        <div>
+          <h2 class="text-2xl font-bold mb-4">Our Mission</h2>
+          <p class="text-muted-foreground text-lg leading-relaxed">
+            Cllipify was founded with a simple mission: to democratize video creation.
+            We saw how powerful video content could be for communication, marketing, and
+            storytelling, but also how inaccessible traditional video production remained
+            for most people and businesses.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-2xl font-bold mb-4">The Problem We Solve</h2>
+          <p class="text-muted-foreground text-lg leading-relaxed">
+            Creating professional videos traditionally requires expensive software,
+            specialized skills, and hours of editing time. For small businesses, content
+            creators, and teams without dedicated video production resources, this creates
+            a significant barrier to entry.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-2xl font-bold mb-4">Our Approach</h2>
+          <p class="text-muted-foreground text-lg leading-relaxed">
+            By combining cutting-edge AI with an intuitive interface, we've made it possible
+            for anyone to create stunning videos in minutes. Simply describe what you want,
+            and our AI handles the rest - from generating visuals to adding transitions
+            and effects.
+          </p>
+        </div>
+
+        <div>
+          <h2 class="text-2xl font-bold mb-4">Looking Forward</h2>
+          <p class="text-muted-foreground text-lg leading-relaxed">
+            We're constantly improving our AI models and adding new features based on
+            community feedback. Our goal is to make Cllipify the go-to platform for
+            anyone who wants to create professional video content quickly and easily.
+          </p>
+        </div>
+      </div>
+    </Container>
+  </section>
+
+  <CTA />
+</BaseLayout>

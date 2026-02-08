@@ -68,7 +68,17 @@
       "mcp__Railway__generate-domain",
       "mcp__Railway__list-deployments",
       "mcp__Railway__get-logs",
-      "mcp__Railway__set-variables"
+      "mcp__Railway__set-variables",
+      "Bash(ls \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\apps\"\" && ls \"C:UsersarmaaDocumentscllipifypackages\"\")",
+      "WebFetch(domain:min.io)",
+      "Bash(pnpm --filter @reelify/api add:*)",
+      "Skill(frontend-design:frontend-design)",
+      "Bash(git push)",
+      "WebFetch(domain:runwayml.com)",
+      "WebFetch(domain:www.descript.com)",
+      "WebFetch(domain:www.loom.com)",
+      "WebFetch(domain:www.saasframe.io)",
+      "Bash(pnpm build:landing:*)"
     ]
   }
 }

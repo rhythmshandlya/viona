@@ -1,0 +1,38 @@
+---
+import { siteConfig } from "@/data/site";
+import Container from "@/components/ui/Container.astro";
+import Button from "@/components/ui/Button.astro";
+---
+
+<section class="py-24 lg:py-32 relative overflow-hidden">
+  <!-- Background gradient -->
+  <div class="absolute inset-0 bg-gradient-to-r from-primary/10 via-secondary/10 to-accent/10"></div>
+
+  <!-- Floating orbs -->
+  <div class="floating-orb w-64 h-64 bg-primary/30 -top-32 -left-32 animate-float"></div>
+  <div class="floating-orb w-48 h-48 bg-secondary/30 -bottom-24 -right-24 animate-float" style="animation-delay: 3s;"></div>
+
+  <Container>
+    <div class="relative z-10 text-center max-w-3xl mx-auto">
+      <h2 class="animate-on-scroll text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-6">
+        Ready to transform your
+        <span class="text-gradient-hero">creative workflow?</span>
+      </h2>
+      <p class="animate-on-scroll text-lg text-muted-foreground mb-10" style="animation-delay: 0.1s;">
+        Join thousands of creators who are already using Cllipify to bring their ideas to life.
+        Start creating stunning videos today.
+      </p>
+      <div class="animate-on-scroll flex flex-col sm:flex-row items-center justify-center gap-4" style="animation-delay: 0.2s;">
+        <Button href={siteConfig.appUrl} size="lg" glow>
+          Start Creating Free
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </Button>
+        <p class="text-sm text-muted-foreground">
+          No credit card required
+        </p>
+      </div>
+    </div>
+  </Container>
+</section>

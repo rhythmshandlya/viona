@@ -1,0 +1,51 @@
+---
+import { features } from "@/data/features";
+import Container from "@/components/ui/Container.astro";
+import Card from "@/components/ui/Card.astro";
+
+const icons: Record<string, string> = {
+  sparkles: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />`,
+  zap: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />`,
+  layers: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />`,
+  wand: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />`,
+  users: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />`,
+  globe: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />`,
+};
+---
+
+<section id="features" class="py-24 lg:py-32">
+  <Container>
+    <!-- Section Header -->
+    <div class="text-center max-w-3xl mx-auto mb-16">
+      <h2 class="animate-on-scroll text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4">
+        Everything you need to create
+        <span class="text-gradient">amazing videos</span>
+      </h2>
+      <p class="animate-on-scroll text-lg text-muted-foreground" style="animation-delay: 0.1s;">
+        Powerful features designed for creators who want to move fast without sacrificing quality.
+      </p>
+    </div>
+
+    <!-- Features Grid -->
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-children">
+      {features.map((feature, index) => (
+        <Card variant="glass" class="group hover:border-primary/30 transition-all duration-300">
+          <!-- Icon -->
+          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+            <svg
+              class="w-6 h-6 text-primary"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              set:html={icons[feature.icon]}
+            />
+          </div>
+
+          <!-- Content -->
+          <h3 class="text-xl font-semibold mb-2">{feature.title}</h3>
+          <p class="text-muted-foreground">{feature.description}</p>
+        </Card>
+      ))}
+    </div>
+  </Container>
+</section>

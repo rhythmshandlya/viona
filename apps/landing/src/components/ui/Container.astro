@@ -1,0 +1,25 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  size?: "default" | "narrow" | "wide";
+  class?: string;
+  [key: string]: any;
+}
+
+const {
+  size = "default",
+  class: className,
+  ...props
+} = Astro.props;
+
+const sizes = {
+  narrow: "max-w-3xl",
+  default: "max-w-6xl",
+  wide: "max-w-7xl",
+};
+---
+
+<div class={cn("mx-auto px-4 sm:px-6 lg:px-8", sizes[size], className)} {...props}>
+  <slot />
+</div>

@@ -1,0 +1,32 @@
+---
+import BaseLayout from "@/layouts/BaseLayout.astro";
+import Container from "@/components/ui/Container.astro";
+import PricingSection from "@/components/sections/Pricing.astro";
+import FAQ from "@/components/sections/FAQ.astro";
+import CTA from "@/components/sections/CTA.astro";
+---
+
+<BaseLayout
+  title="Pricing"
+  description="Simple, transparent pricing for Cllipify. Start free and scale as you grow."
+>
+  <!-- Page Header -->
+  <section class="pt-32 pb-12 lg:pt-40">
+    <Container>
+      <div class="text-center max-w-3xl mx-auto">
+        <h1 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+          Choose your
+          <span class="text-gradient">plan</span>
+        </h1>
+        <p class="animate-on-scroll text-lg text-muted-foreground" style="animation-delay: 0.1s;">
+          Start with our free tier and upgrade when you're ready.
+          All plans include our core AI video generation features.
+        </p>
+      </div>
+    </Container>
+  </section>
+
+  <PricingSection />
+  <FAQ />
+  <CTA />
+</BaseLayout>

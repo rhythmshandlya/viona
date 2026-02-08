@@ -56,7 +56,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
     // Download original video
     const videoPath = join(workDir, 'input.mp4');
-    await downloadFile(config.minio.buckets.uploads, project.videoKey!, videoPath);
+    await downloadFile('uploads', project.videoKey!, videoPath);
 
     await publishJobProgress(jobId, 20, 'Preparing render...');
 
@@ -82,7 +82,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         const audioKey = audioKeyMatch[1];
         enhancedAudioPath = join(workDir, 'enhanced.m4a');
         try {
-          await downloadFile(config.minio.buckets.outputs, audioKey, enhancedAudioPath);
+          await downloadFile('outputs', audioKey, enhancedAudioPath);
           logger.info({ audioKey, enhancedAudioPath }, 'Downloaded enhanced audio');
         } catch (err) {
           logger.warn({ err, audioKey }, 'Failed to download enhanced audio, using original');
@@ -166,7 +166,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
     // Upload output
     const outputKey = `${nanoid()}/output.mp4`;
-    await uploadFile(config.minio.buckets.outputs, outputKey, outputPath);
+    await uploadFile('outputs', outputKey, outputPath);
 
     // Update project
     await db.update(projects)

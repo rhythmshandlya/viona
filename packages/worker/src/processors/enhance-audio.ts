@@ -141,7 +141,7 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
 
     // Step 1: Download video (0-10%)
     await publishJobProgress(jobId, 2, 'Downloading video...', pubExtras);
-    await downloadFile(config.minio.buckets.uploads, videoKey, videoPath);
+    await downloadFile('uploads', videoKey, videoPath);
     await publishJobProgress(jobId, 10, 'Video downloaded', pubExtras);
 
     // Step 2: Extract audio as 48kHz WAV (10-15%)
@@ -192,9 +192,9 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
     const enhancedKey = `${projectId}/audio/enhanced-${nanoid(8)}.m4a`;
 
     await publishJobProgress(jobId, 87, 'Uploading original audio...', pubExtras);
-    await uploadFile(config.minio.buckets.outputs, originalKey, originalM4aPath);
+    await uploadFile('outputs', originalKey, originalM4aPath);
     await publishJobProgress(jobId, 90, 'Uploading enhanced audio...', pubExtras);
-    await uploadFile(config.minio.buckets.outputs, enhancedKey, enhancedM4aPath);
+    await uploadFile('outputs', enhancedKey, enhancedM4aPath);
     await publishJobProgress(jobId, 95, 'Upload complete', pubExtras);
 
     // Step 6: Update database (95-100%)

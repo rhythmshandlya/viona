@@ -1,0 +1,33 @@
+---
+import { faqs } from "@/data/testimonials";
+import Container from "@/components/ui/Container.astro";
+---
+
+<section id="faq" class="py-24 lg:py-32">
+  <Container size="narrow">
+    <!-- Section Header -->
+    <div class="text-center mb-16">
+      <h2 class="animate-on-scroll text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4">
+        Frequently asked
+        <span class="text-gradient">questions</span>
+      </h2>
+      <p class="animate-on-scroll text-lg text-muted-foreground" style="animation-delay: 0.1s;">
+        Everything you need to know about Cllipify.
+      </p>
+    </div>
+
+    <!-- FAQ Accordion -->
+    <div class="space-y-4 stagger-children">
+      {faqs.map((faq, index) => (
+        <details class="group glass-card rounded-xl overflow-hidden">
+          <summary class="flex items-center justify-between p-6 cursor-pointer">
+            <h3 class="text-lg font-medium pr-8">{faq.question}</h3>
+          </summary>
+          <div class="px-6 pb-6 pt-0">
+            <p class="text-muted-foreground">{faq.answer}</p>
+          </div>
+        </details>
+      ))}
+    </div>
+  </Container>
+</section>

@@ -1,0 +1,27 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  variant?: "default" | "glass" | "gradient-border";
+  class?: string;
+  [key: string]: any;
+}
+
+const {
+  variant = "default",
+  class: className,
+  ...props
+} = Astro.props;
+
+const baseStyles = "rounded-xl p-6";
+
+const variants = {
+  default: "bg-card border border-border",
+  glass: "glass-card",
+  "gradient-border": "gradient-border bg-card",
+};
+---
+
+<div class={cn(baseStyles, variants[variant], className)} {...props}>
+  <slot />
+</div>
