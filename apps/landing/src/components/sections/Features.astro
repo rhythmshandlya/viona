@@ -1,25 +1,93 @@
 ---
-import { features } from "@/data/features";
+import { siteConfig } from "@/data/site";
 ---
 
-<section id="features" class="py-20 lg:py-28 border-t border-border">
+<section id="features" class="py-20">
   <div class="max-w-6xl mx-auto px-6">
-    <div class="max-w-2xl mb-16">
-      <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
-        Everything you need
-      </h2>
-      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
-        Powerful features designed for creators who want to move fast.
-      </p>
-    </div>
+    <div class="grid lg:grid-cols-2 gap-12 items-center">
+      <!-- Left: Product mockup -->
+      <div class="animate-on-scroll relative">
+        <!-- Main mockup card -->
+        <div class="relative">
+          <!-- Audio waveform mockup -->
+          <div class="absolute -top-4 -left-4 bg-white rounded-xl shadow-lg p-4 z-10">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                <svg class="w-5 h-5 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+              </div>
+              <div class="flex items-center gap-0.5">
+                {[...Array(20)].map((_, i) => (
+                  <div
+                    class="w-1 bg-primary rounded-full"
+                    style={`height: ${8 + Math.sin(i * 0.5) * 16}px;`}
+                  ></div>
+                ))}
+              </div>
+            </div>
+          </div>
 
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8 stagger-children">
-      {features.map((feature) => (
-        <div class="space-y-3">
-          <h3 class="font-medium">{feature.title}</h3>
-          <p class="text-sm text-muted-foreground leading-relaxed">{feature.description}</p>
+          <!-- Main image card -->
+          <div class="bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl aspect-[4/5] w-48 sm:w-56 mx-auto"></div>
+
+          <!-- Video player mockup -->
+          <div class="absolute -bottom-4 -right-4 lg:right-8 bg-white rounded-xl shadow-lg p-3 w-48">
+            <div class="bg-gray-100 rounded-lg aspect-video mb-2"></div>
+            <div class="flex items-center justify-between">
+              <div class="flex gap-2">
+                <span class="text-xs text-muted-foreground">16:9</span>
+                <span class="text-xs text-muted-foreground">1:1</span>
+                <span class="text-xs text-muted-foreground">4:5</span>
+              </div>
+              <div class="flex gap-1">
+                <div class="w-4 h-4 bg-gray-200 rounded"></div>
+                <div class="w-4 h-4 bg-primary rounded"></div>
+              </div>
+            </div>
+          </div>
         </div>
-      ))}
+      </div>
+
+      <!-- Right: Content -->
+      <div class="animate-on-scroll" style="animation-delay: 0.1s;">
+        <h2 class="text-3xl sm:text-4xl font-semibold leading-tight mb-6">
+          <span class="text-orange">AI-Powered</span> Tools
+          <br />to Bring Your <span class="orange-underline">Vision</span>
+          <br />to Life
+        </h2>
+
+        <p class="text-muted-foreground mb-8">
+          Convert your script into a video instantly. Choose from lifelike AI voices in multiple languages. Access stock images, music.
+        </p>
+
+        <!-- Feature list -->
+        <div class="space-y-4 mb-8">
+          <div class="flex items-center gap-3">
+            <div class="feature-check">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <span class="font-medium">Text-to-Video Automation</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="feature-check">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <span class="font-medium">One-Click Editing</span>
+          </div>
+        </div>
+
+        <a href={siteConfig.appUrl} class="btn-primary">
+          Get Started
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+          </svg>
+        </a>
+      </div>
     </div>
   </div>
 </section>

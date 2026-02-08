@@ -2,29 +2,43 @@
 import { testimonials } from "@/data/testimonials";
 ---
 
-<section class="py-20 lg:py-28 border-t border-border">
+<section class="py-20 bg-dark text-white">
   <div class="max-w-6xl mx-auto px-6">
-    <div class="max-w-2xl mb-16">
-      <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
-        What creators say
-      </h2>
-      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
-        Trusted by thousands of creators worldwide.
-      </p>
+    <!-- Header -->
+    <div class="animate-on-scroll mb-12">
+      <h2 class="text-3xl sm:text-4xl font-semibold">What Our Users Say</h2>
     </div>
 
-    <div class="grid md:grid-cols-3 gap-8 stagger-children">
-      {testimonials.map((testimonial) => (
-        <div class="space-y-6">
-          <p class="text-sm leading-relaxed">"{testimonial.quote}"</p>
-          <div>
-            <div class="font-medium text-sm">{testimonial.author}</div>
-            <div class="text-sm text-muted-foreground">
-              {testimonial.role}, {testimonial.company}
-            </div>
-          </div>
-        </div>
+    <!-- Avatar row -->
+    <div class="animate-on-scroll flex items-center gap-4 mb-8" style="animation-delay: 0.1s;">
+      {testimonials.map((t, i) => (
+        <div class={`w-14 h-14 rounded-xl bg-gradient-to-br from-gray-600 to-gray-700 ${i === 0 ? 'ring-2 ring-primary' : ''}`}></div>
       ))}
+    </div>
+
+    <!-- Testimonial content -->
+    <div class="animate-on-scroll max-w-3xl" style="animation-delay: 0.2s;">
+      <blockquote class="text-lg sm:text-xl leading-relaxed text-white/80 mb-8">
+        "I applied for a personal loan and was amazed by the quick approval process. The online tracking feature kept me updated at every stage. The entire journey reflects a customer-first mindset."
+      </blockquote>
+
+      <div class="flex items-center justify-between">
+        <div>
+          <div class="font-semibold">{testimonials[0]?.author || "Sarah Johnson"}</div>
+          <div class="text-sm text-white/60">{testimonials[0]?.role || "Content Creator"}</div>
+        </div>
+
+        <!-- Navigation dots -->
+        <div class="flex items-center gap-3">
+          <button class="nav-dot active"></button>
+          <button class="nav-dot"></button>
+          <button class="w-8 h-8 rounded-full bg-primary flex items-center justify-center hover:bg-primary/90 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </section>

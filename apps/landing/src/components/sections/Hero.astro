@@ -2,33 +2,81 @@
 import { siteConfig } from "@/data/site";
 ---
 
-<section class="pt-32 pb-20 lg:pt-40 lg:pb-28">
-  <div class="max-w-3xl mx-auto px-6 text-center">
-    <p class="animate-on-scroll text-sm text-muted-foreground mb-6">
-      AI-Powered Video Generation
+<section class="relative pt-28 pb-16 lg:pt-32 lg:pb-20 overflow-hidden">
+  <!-- Orange gradient blob -->
+  <div class="hero-gradient"></div>
+
+  <div class="max-w-6xl mx-auto px-6 relative z-10">
+    <!-- Version badge -->
+    <div class="animate-on-scroll flex justify-center mb-8">
+      <a href="#" class="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-border bg-white text-sm hover:border-foreground/30 transition-colors">
+        <span class="text-muted-foreground">Version 2.0 is here</span>
+        <span class="font-medium">Read more →</span>
+      </a>
+    </div>
+
+    <!-- Headline -->
+    <div class="text-center mb-8">
+      <h1 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight leading-tight" style="animation-delay: 0.1s;">
+        Create Stunning <span class="wavy-underline">Videos</span>
+        <br />with AI in Minutes
+      </h1>
+    </div>
+
+    <!-- Image Grid -->
+    <div class="animate-on-scroll relative max-w-4xl mx-auto mb-8" style="animation-delay: 0.2s;">
+      <div class="flex items-end justify-center gap-3 sm:gap-4">
+        <!-- Image 1 - tall left -->
+        <div class="image-grid-item w-24 sm:w-32 lg:w-40 float-animation">
+          <div class="aspect-[3/4] bg-gradient-to-br from-gray-200 to-gray-300 rounded-2xl"></div>
+        </div>
+
+        <!-- Image 2 -->
+        <div class="image-grid-item w-20 sm:w-28 lg:w-36 float-animation-delayed">
+          <div class="aspect-square bg-gradient-to-br from-rose-200 to-rose-300 rounded-2xl"></div>
+        </div>
+
+        <!-- Image 3 - center large -->
+        <div class="image-grid-item w-28 sm:w-36 lg:w-44 float-animation-delayed-2">
+          <div class="aspect-[4/5] bg-gradient-to-br from-amber-200 to-amber-300 rounded-2xl"></div>
+        </div>
+
+        <!-- Image 4 -->
+        <div class="image-grid-item w-24 sm:w-32 lg:w-40 float-animation-delayed">
+          <div class="aspect-[3/4] bg-gradient-to-br from-emerald-200 to-emerald-300 rounded-2xl"></div>
+        </div>
+
+        <!-- Image 5 -->
+        <div class="image-grid-item w-20 sm:w-28 lg:w-36 float-animation">
+          <div class="aspect-square bg-gradient-to-br from-violet-200 to-violet-300 rounded-2xl"></div>
+        </div>
+
+        <!-- Image 6 - tall right -->
+        <div class="image-grid-item w-24 sm:w-32 lg:w-40 float-animation-delayed-2">
+          <div class="aspect-[3/4] bg-gradient-to-br from-sky-200 to-sky-300 rounded-2xl"></div>
+        </div>
+      </div>
+
+      <!-- AI badge floating -->
+      <div class="absolute -right-4 bottom-1/3 bg-white rounded-lg shadow-lg px-3 py-2 text-sm font-medium hidden lg:flex items-center gap-2">
+        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        AI<sup class="text-primary">+</sup>
+      </div>
+    </div>
+
+    <!-- Subheadline -->
+    <p class="animate-on-scroll text-center text-muted-foreground max-w-lg mx-auto mb-8" style="animation-delay: 0.3s;">
+      Turn your text, images, and voice into captivating videos instantly.
     </p>
 
-    <h1 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl font-semibold tracking-tight mb-6" style="animation-delay: 0.05s;">
-      Create videos from text in seconds
-    </h1>
-
-    <p class="animate-on-scroll text-lg text-muted-foreground max-w-xl mx-auto mb-10" style="animation-delay: 0.1s;">
-      Describe what you want, and our AI generates professional videos. No editing skills required.
-    </p>
-
-    <div class="animate-on-scroll flex flex-col sm:flex-row items-center justify-center gap-4" style="animation-delay: 0.15s;">
-      <a
-        href={siteConfig.appUrl}
-        class="w-full sm:w-auto text-sm font-medium bg-foreground text-background px-6 py-3 rounded-md hover:opacity-90 transition-opacity"
-      >
-        Start Creating — Free
-      </a>
-      <a
-        href="#how-it-works"
-        class="w-full sm:w-auto text-sm font-medium text-foreground px-6 py-3 rounded-md border border-border hover:bg-muted transition-colors"
-      >
-        See How It Works
-      </a>
+    <!-- Email capture -->
+    <div class="animate-on-scroll flex justify-center" style="animation-delay: 0.4s;">
+      <form class="email-input-group">
+        <input type="email" placeholder="What's your work email?" />
+        <button type="submit">Get Started</button>
+      </form>
     </div>
   </div>
 </section>

@@ -2,44 +2,83 @@
 const steps = [
   {
     number: "1",
-    title: "Describe your vision",
-    description: "Tell our AI what you want to create using natural language.",
+    title: "Enter Your Text",
+    description: "Type or paste your script, article, or idea.",
+    gradient: "from-blue-100 to-blue-200",
   },
   {
     number: "2",
-    title: "AI generates your video",
-    description: "Our AI processes your prompt and creates a video with visuals and effects.",
+    title: "Choose a Style",
+    description: "Select from templates, voices, and visual styles.",
+    gradient: "from-amber-100 to-amber-200",
   },
   {
     number: "3",
-    title: "Customize and refine",
-    description: "Fine-tune every detail with our intuitive editor.",
-  },
-  {
-    number: "4",
-    title: "Export and share",
-    description: "Download in any format or share directly to social media.",
+    title: "Generate & Share",
+    description: "Click generate and share your video instantly.",
+    gradient: "from-rose-100 to-rose-200",
   },
 ];
 ---
 
-<section id="how-it-works" class="py-20 lg:py-28 bg-muted">
+<section id="how-it-works" class="py-20">
   <div class="max-w-6xl mx-auto px-6">
-    <div class="max-w-2xl mb-16">
-      <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
-        How it works
+    <!-- Header -->
+    <div class="animate-on-scroll text-center mb-16">
+      <h2 class="text-3xl sm:text-4xl font-semibold leading-tight">
+        Turn Your Ideas into Videos in
+        <br /><span class="text-orange wavy-underline">3 Simple Steps</span>
       </h2>
-      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
-        From idea to video in four simple steps.
+      <p class="text-muted-foreground mt-4 max-w-lg mx-auto">
+        Share documents, assign tasks, and communicate in real time — whether you learn in the office or working remotely.
       </p>
     </div>
 
-    <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 stagger-children">
-      {steps.map((step) => (
-        <div class="space-y-3">
-          <div class="text-sm text-muted-foreground">{step.number}</div>
-          <h3 class="font-medium">{step.title}</h3>
-          <p class="text-sm text-muted-foreground leading-relaxed">{step.description}</p>
+    <!-- Steps grid -->
+    <div class="grid md:grid-cols-3 gap-6 stagger-children">
+      {steps.map((step, index) => (
+        <div class="card-elevated p-6">
+          <!-- Step image placeholder -->
+          <div class={`bg-gradient-to-br ${step.gradient} rounded-xl aspect-[4/3] mb-6 relative overflow-hidden`}>
+            <!-- Floating UI elements -->
+            {index === 0 && (
+              <div class="absolute bottom-4 left-4 right-4 bg-white rounded-lg p-3 shadow-sm">
+                <div class="flex items-center gap-2 mb-2">
+                  <div class="w-6 h-6 bg-primary/10 rounded-full flex items-center justify-center">
+                    <span class="text-xs">Hi</span>
+                  </div>
+                  <span class="text-xs text-muted-foreground">Hi Jane...</span>
+                </div>
+                <div class="h-2 bg-gray-100 rounded w-3/4"></div>
+              </div>
+            )}
+            {index === 1 && (
+              <div class="absolute inset-4 flex items-center justify-center">
+                <div class="bg-white rounded-lg p-2 shadow-sm">
+                  <div class="text-xs font-medium mb-1">Choose a Style</div>
+                  <div class="flex gap-1">
+                    <div class="w-8 h-8 bg-blue-100 rounded"></div>
+                    <div class="w-8 h-8 bg-green-100 rounded border-2 border-primary"></div>
+                    <div class="w-8 h-8 bg-purple-100 rounded"></div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {index === 2 && (
+              <div class="absolute inset-4 flex items-center justify-center">
+                <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg">
+                  <svg class="w-6 h-6 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <!-- Step content -->
+          <div class="text-sm text-muted-foreground mb-2">Step {step.number}</div>
+          <h3 class="text-lg font-semibold mb-2">{step.title}</h3>
+          <p class="text-sm text-muted-foreground">{step.description}</p>
         </div>
       ))}
     </div>

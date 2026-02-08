@@ -1,7 +1,7 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
-import PricingSection from "@/components/sections/Pricing.astro";
-import FAQ from "@/components/sections/FAQ.astro";
+import { pricingTiers } from "@/data/pricing";
+import { siteConfig } from "@/data/site";
 import CTA from "@/components/sections/CTA.astro";
 ---
 
@@ -9,18 +9,56 @@ import CTA from "@/components/sections/CTA.astro";
   title="Pricing"
   description="Simple, transparent pricing for Cllipify. Start free and scale as you grow."
 >
-  <section class="pt-32 pb-12 lg:pt-40">
-    <div class="max-w-2xl mx-auto px-6 text-center">
-      <h1 class="animate-on-scroll text-4xl sm:text-5xl font-semibold tracking-tight mb-4">
-        Pricing
-      </h1>
-      <p class="animate-on-scroll text-muted-foreground" style="animation-delay: 0.05s;">
-        Start free. Upgrade when you're ready.
-      </p>
+  <section class="pt-32 pb-20 lg:pt-40">
+    <div class="max-w-6xl mx-auto px-6">
+      <!-- Header -->
+      <div class="text-center mb-16">
+        <h1 class="animate-on-scroll text-4xl sm:text-5xl font-semibold tracking-tight mb-4">
+          Simple <span class="wavy-underline">Pricing</span>
+        </h1>
+        <p class="animate-on-scroll text-muted-foreground max-w-lg mx-auto" style="animation-delay: 0.1s;">
+          Start free and scale as you grow. No hidden fees.
+        </p>
+      </div>
+
+      <!-- Pricing cards -->
+      <div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto stagger-children">
+        {pricingTiers.map((tier) => (
+          <div class={`card-elevated p-8 ${tier.popular ? 'ring-2 ring-primary' : ''}`}>
+            {tier.popular && (
+              <div class="text-xs font-medium text-primary mb-4">Most Popular</div>
+            )}
+            <h3 class="font-semibold mb-2">{tier.name}</h3>
+            <div class="flex items-baseline gap-1 mb-4">
+              <span class="text-4xl font-semibold">{tier.price}</span>
+              <span class="text-muted-foreground">/{tier.period}</span>
+            </div>
+            <p class="text-sm text-muted-foreground mb-6">{tier.description}</p>
+
+            <ul class="space-y-3 mb-8">
+              {tier.features.map((feature) => (
+                <li class="flex items-start gap-3 text-sm">
+                  <div class="feature-check mt-0.5">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  </div>
+                  <span class="text-muted-foreground">{feature}</span>
+                </li>
+              ))}
+            </ul>
+
+            <a
+              href={siteConfig.appUrl}
+              class={tier.popular ? 'btn-primary w-full justify-center' : 'btn-outline w-full justify-center block text-center'}
+            >
+              {tier.cta}
+            </a>
+          </div>
+        ))}
+      </div>
     </div>
   </section>
 
-  <PricingSection />
-  <FAQ />
   <CTA />
 </BaseLayout>

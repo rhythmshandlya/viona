@@ -2,13 +2,20 @@
 import { siteConfig } from "@/data/site";
 ---
 
-<header class="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-sm border-b border-border">
+<header class="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm">
   <div class="max-w-6xl mx-auto px-6">
     <nav class="flex items-center justify-between h-16">
-      <a href="/" class="font-semibold text-lg">
-        {siteConfig.name}
+      <!-- Logo -->
+      <a href="/" class="flex items-center gap-2">
+        <div class="flex items-center">
+          <svg class="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z"/>
+          </svg>
+          <span class="text-lg font-semibold ml-1">{siteConfig.name}</span>
+        </div>
       </a>
 
+      <!-- Desktop Nav -->
       <div class="hidden md:flex items-center gap-8">
         {siteConfig.nav.map((item) => (
           <a
@@ -20,16 +27,17 @@ import { siteConfig } from "@/data/site";
         ))}
       </div>
 
+      <!-- CTA -->
       <div class="flex items-center gap-4">
         <a
           href={siteConfig.appUrl}
           class="text-sm text-muted-foreground hover:text-foreground transition-colors hidden sm:block"
         >
-          Sign in
+          Login
         </a>
         <a
           href={siteConfig.appUrl}
-          class="text-sm font-medium bg-foreground text-background px-4 py-2 rounded-md hover:opacity-90 transition-opacity"
+          class="btn-primary text-sm"
         >
           Get Started
         </a>
