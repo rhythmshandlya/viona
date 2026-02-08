@@ -1,10 +1,14 @@
 import { FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
+import { eq } from 'drizzle-orm';
 import { redisSub, CHANNELS } from '../services/redis.js';
+import { validateSession, validateSessionJwt } from '../services/stytch.js';
+import { db, users, projects } from '../db/index.js';
 
 interface WSConnection {
   socket: WebSocket;
   projectId: string;
+  userId?: string;
   jobIds: Set<string>;
 }
 
@@ -57,12 +61,55 @@ export async function setupWebSocket(fastify: FastifyInstance) {
   await redisSub.psubscribe('job:*:*', 'project:*:*');
 
   // WebSocket route
-  fastify.get('/ws', { websocket: true }, (socket, request) => {
+  fastify.get('/ws', { websocket: true }, async (socket, request) => {
     const url = new URL(request.url, `http://${request.headers.host}`);
     const projectId = url.searchParams.get('projectId');
+    const token = url.searchParams.get('token');
 
     if (!projectId) {
       socket.close(4000, 'projectId is required');
+      return;
+    }
+
+    if (!token) {
+      socket.close(4001, 'Authentication token is required');
+      return;
+    }
+
+    // Validate session token
+    const isJwt = token.startsWith('eyJ');
+    const session = isJwt
+      ? await validateSessionJwt(token)
+      : await validateSession(token);
+
+    if (!session) {
+      socket.close(4002, 'Invalid or expired session');
+      return;
+    }
+
+    // Find user in our database
+    const user = await db.query.users.findFirst({
+      where: eq(users.stytchUserId, session.userId),
+    });
+
+    if (!user) {
+      socket.close(4003, 'User not found');
+      return;
+    }
+
+    // Verify user owns this project
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+    });
+
+    if (!project) {
+      socket.close(4004, 'Project not found');
+      return;
+    }
+
+    // Allow access if project has no owner (legacy) or user owns it
+    if (project.userId && project.userId !== user.id) {
+      socket.close(4005, 'Access denied');
       return;
     }
 
@@ -70,11 +117,12 @@ export async function setupWebSocket(fastify: FastifyInstance) {
     const conn: WSConnection = {
       socket,
       projectId,
+      userId: user.id,
       jobIds: new Set(),
     };
     connections.set(socket, conn);
 
-    console.log(`WebSocket connected for project: ${projectId}`);
+    console.log(`WebSocket connected for project: ${projectId}, user: ${user.id}`);
 
     // Handle incoming messages
     socket.on('message', (rawMessage: Buffer) => {

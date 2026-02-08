@@ -1,0 +1,52 @@
+---
+const articles = [
+  {
+    title: "How AI Visuals Boost Viewer Retention",
+    image: "from-amber-100 to-amber-200",
+  },
+  {
+    title: "Filler Words: Why Removing Them Matters",
+    image: "from-rose-100 to-rose-200",
+  },
+  {
+    title: "Subtitle Styles That Go Viral",
+    image: "from-blue-100 to-blue-200",
+  },
+];
+---
+
+<section class="py-12 sm:py-16 lg:py-20">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6 sm:mb-8 lg:mb-12">
+      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold">
+        Tips for Better
+        <br /><span class="text-orange">Explainer Videos</span>
+      </h2>
+      <div class="hidden sm:flex items-center gap-2">
+        <button class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <button class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Blog cards - horizontal scroll on mobile -->
+    <div class="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 md:grid-cols-3 sm:gap-6 sm:overflow-visible sm:pb-0">
+      {articles.map((article) => (
+        <a href="#" class="blog-card group flex-shrink-0 w-[280px] sm:w-auto">
+          <div class={`bg-gradient-to-br ${article.image} aspect-[4/3]`}></div>
+          <div class="p-4 sm:p-6">
+            <h3 class="font-semibold text-sm sm:text-base group-hover:text-primary">{article.title}</h3>
+          </div>
+        </a>
+      ))}
+    </div>
+  </div>
+</section>

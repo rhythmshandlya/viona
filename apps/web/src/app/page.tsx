@@ -8,8 +8,8 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to upload page
-    router.push("/upload");
+    // Redirect to projects dashboard
+    router.push("/projects");
   }, [router]);
 
   return (

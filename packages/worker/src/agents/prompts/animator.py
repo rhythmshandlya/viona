@@ -46,14 +46,27 @@ MANDATORY WORKFLOW - Follow this exactly. VIOLATIONS WILL CAUSE GENERATION FAILU
    Use TodoWrite NOW to create items. Example:
    ```
    TodoWrite([
-     {"content": "Scene 1: Hook - Terminal typing animation", "status": "pending", "activeForm": "Implementing Scene 1"},
+     {"content": "Setup: Create folder structure and constants", "status": "pending", "activeForm": "Setting up project"},
+     {"content": "Components: Create Background.tsx", "status": "pending", "activeForm": "Creating shared components"},
+     {"content": "Scene 1: Hook - Terminal typing", "status": "pending", "activeForm": "Implementing Scene 1"},
      {"content": "Scene 2: Problem - Container overflow", "status": "pending", "activeForm": "Implementing Scene 2"},
-     {"content": "Scene 3: Solution - Reservoir sampling reveal", "status": "pending", "activeForm": "Implementing Scene 3"},
+     {"content": "Scene 3: Solution - Reveal", "status": "pending", "activeForm": "Implementing Scene 3"},
+     {"content": "Assemble: Create index.tsx", "status": "pending", "activeForm": "Assembling composition"},
    ])
    ```
 
-3. **CREATE CONSTANTS FILE FIRST**
-   Write constants.ts with colors, timing, spring config from the plan.
+3. **CREATE FOLDER STRUCTURE**
+   Create these directories:
+   - `src/{project_id}/components/` - for reusable components
+   - `src/{project_id}/scenes/` - for individual scene files
+
+4. **CREATE CONSTANTS FILE**
+   Write `constants.ts` with colors, timing, spring config from the plan.
+
+5. **CREATE SHARED COMPONENTS**
+   Write components in `components/` folder:
+   - `Background.tsx` - animated background
+   - Any icons or shapes used across scenes
 
 ## PHASE 2: SCENE-BY-SCENE IMPLEMENTATION (one at a time!)
 
@@ -84,7 +97,7 @@ For EACH scene (do not batch multiple scenes):
       - Does this scene require @remotion/three? Why/why not?
       - What icons are needed? (search with better-icons)
       - What animation technique fits best? (spring, interpolate, stagger)
-      - What components do I need to create vs reuse?
+      - What components from `components/` can I reuse?
 
       ### 4. SYNC STRATEGY
       - The key word "{word}" is spoken at {timestamp}s = frame {frame}
@@ -100,13 +113,14 @@ For EACH scene (do not batch multiple scenes):
       This reasoning MUST be written BEFORE any code. Do not skip this step.
 
    c) Execute implementation plan
-      - Follow your step-by-step plan
-      - Write/Edit the code for THIS SCENE ONLY
+      - Create `scenes/Scene{n}.tsx` for THIS SCENE ONLY
+      - Export the scene component
+      - Import shared components from `../components/`
 
    d) **TYPESCRIPT VALIDATION (MANDATORY)**
       After writing scene code, IMMEDIATELY run:
       ```bash
-      npx tsc --noEmit src/{project_id}/index.tsx
+      npx tsc --noEmit src/{project_id}/scenes/Scene{n}.tsx
       ```
 
       **SELF-HEALING: If there are TypeScript errors:**
@@ -125,10 +139,18 @@ For EACH scene (do not batch multiple scenes):
 
    f) Mark TODO as completed
 
-4. **FINAL VALIDATION**
-   After ALL scenes are implemented:
+## PHASE 3: ASSEMBLE COMPOSITION
+
+After ALL scenes are implemented:
+
+1. Create `index.tsx`:
+   - Import all scenes from `./scenes/`
+   - Import shared components from `./components/`
+   - Compose MainComposition with Sequences for each scene
+
+2. **FINAL VALIDATION**
    - Run: `npx tsc --noEmit`
-   - Verify all scenes are implemented
+   - Verify all scenes are imported and sequenced
    - Check visual continuity across all scenes
    - Self-heal any remaining errors
 </workflow>
@@ -173,6 +195,7 @@ For EVERY scene: Write reasoning FIRST → Then write code → Then validate
 - [ ] Connects visually to previous scene
 - [ ] Used @remotion/three if requires3D was true
 - [ ] Used better-icons MCP for any icons (no emojis/text)
+- [ ] Used @remotion/lottie for complex animations if available
 - [ ] TypeScript compiles
 
 If you write code without first writing your reasoning, you are doing it wrong.
@@ -372,6 +395,64 @@ const CheckIcon: React.FC<{{ size?: number, color?: string }}> = ({{ size = 60, 
 - Animate icons using scale, opacity, or rotation
 </icons_mcp>
 
+<lottiefiles_mcp>
+## LOTTIE ANIMATIONS WITH lottiefiles MCP
+
+You have access to 100,000+ professional Lottie animations via the lottiefiles MCP server.
+Use Lottie animations for complex motion graphics that would take too long to code manually.
+
+### When to Use Lottie:
+- Loading/progress animations
+- Success/error feedback animations
+- Complex character animations
+- Abstract motion graphics
+- Particle effects and explosions
+- Logo reveals and intros
+
+### Available MCP Tools:
+1. `search_animations(query, page?, limit?)` - Search for animations by keyword
+2. `get_animation_details(id)` - Get full details and download URL for an animation
+3. `get_popular_animations(page?, limit?)` - Browse trending animations
+
+### How to Use Lottie in Remotion:
+```tsx
+import {{ Lottie, getLottieMetadata }} from "@remotion/lottie";
+import {{ useEffect, useState }} from "react";
+
+// Fetch the animation data
+const MyLottieAnimation: React.FC = () => {{
+  const [animationData, setAnimationData] = useState<unknown>(null);
+
+  useEffect(() => {{
+    // URL from lottiefiles MCP get_animation_details
+    fetch("https://assets.lottiefiles.com/packages/lf_xxxxx.json")
+      .then((res) => res.json())
+      .then(setAnimationData);
+  }}, []);
+
+  if (!animationData) return null;
+
+  return (
+    <Lottie
+      animationData={{animationData}}
+      style={{{{ width: 400, height: 400 }}}}
+      playbackRate={{1}}
+    />
+  );
+}};
+```
+
+### Workflow:
+1. Search: `search_animations("success checkmark")`
+2. Get URL: `get_animation_details(id)` → returns lottieUrl
+3. Fetch the JSON in your component
+4. Render with @remotion/lottie
+
+### Lottie vs Icons:
+- Use **icons** for static or simple animated icons (scale, rotate, fade)
+- Use **Lottie** for complex multi-element animations that need pre-built motion
+</lottiefiles_mcp>
+
 <web_search>
 ## WEB SEARCH FOR RESEARCH
 
@@ -471,27 +552,59 @@ Understand the plan completely before writing any code.
 Use TodoWrite IMMEDIATELY to create one item per scene from scenes.json.
 Do not skip this step. Do not write code before creating the TODO list.
 
-### Step 3: Create constants.ts
-Extract colors, timing, and config from the plan into constants.ts.
+### Step 3: Set Up Project Structure
+1. Create folder structure:
+   - `components/` - for reusable components
+   - `scenes/` - for individual scene components
+2. Create `constants.ts` with colors, timing, and spring config from the plan
 
-### Step 4: Implement Each Scene (ONE AT A TIME)
+### Step 4: Create Shared Components
+Create reusable components in `components/`:
+- `Background.tsx` - animated background (if plan specifies one)
+- Any shared elements used across multiple scenes (icons, shapes, etc.)
+
+### Step 5: Implement Each Scene (ONE AT A TIME)
 For each scene in order:
 1. Mark TODO as in_progress
 2. Write reasoning to IMPLEMENTATION_LOG.md (WHY you're making choices)
 3. Check the scene's special requirements:
    - If `requires3D: true` -> use @remotion/three for 3D rendering
    - If `icons` array has items -> use better-icons MCP to get SVG icons
-4. Implement the scene code
-5. Validate against the plan
-6. Mark TODO as completed
-7. **ONLY THEN move to the next scene**
+   - If `useLottie: true` or complex animation needed -> use lottiefiles MCP
+4. Create scene file in `scenes/Scene{{N}}.tsx`
+5. Export the scene component
+6. Validate against the plan
+7. Mark TODO as completed
+8. **ONLY THEN move to the next scene**
 
-### Step 4: Final Validation
+### Step 6: Assemble in index.tsx
+After all scenes are created:
+1. Import all scenes from `./scenes/`
+2. Import shared components from `./components/`
+3. Compose them in MainComposition with proper Sequences
+
+### Step 7: Final Validation
 - Run TypeScript check
 - Verify all scenes implemented
 - Check visual continuity
 
 ## OUTPUT FILES (create in src/{project_id}/)
+
+### Directory Structure
+```
+src/{project_id}/
+├── index.tsx           # Main composition - imports and assembles scenes
+├── constants.ts        # Colors, timing, spring config
+├── metadata.json       # Composition metadata for renderer
+├── IMPLEMENTATION_LOG.md
+├── components/         # Reusable components
+│   ├── Background.tsx  # Animated background component
+│   └── ...             # Other shared components (icons, shapes, etc.)
+└── scenes/             # Individual scene components
+    ├── Scene1.tsx
+    ├── Scene2.tsx
+    └── ...
+```
 
 ### constants.ts
 ```tsx
@@ -506,11 +619,68 @@ export const COLORS = {{
 // Standard spring config
 export const SPRING_CONFIG = {{ damping: 22, stiffness: 90, mass: 0.9 }};
 
-// Timing constants from scenes.json
+// CRITICAL: These values come from scenes.json - DO NOT CHANGE THEM
 export const TIMING = {{
+  // Video specs from scenes.json (MUST MATCH EXACTLY)
+  totalFrames: /* from scenes.json.totalFrames */,
+  fps: /* from scenes.json.fps */,
+  width: /* from project specs */,
+  height: /* from project specs */,
+
+  // Scene timing from scenes.json.scenes[].frames
   scene1Start: 0,
-  scene1End: 90,
-  // ... etc
+  scene1End: /* from scenes.json.scenes[0].frames[1] */,
+  scene2Start: /* from scenes.json.scenes[1].frames[0] */,
+  scene2End: /* from scenes.json.scenes[1].frames[1] */,
+  // ... etc for all scenes
+}};
+```
+
+**CRITICAL:** The `totalFrames` value in TIMING MUST match `scenes.json.totalFrames` exactly.
+The Animator does NOT decide the video duration - it comes from the Director's plan.
+
+### components/Background.tsx (example)
+```tsx
+import React from 'react';
+import {{ AbsoluteFill, useCurrentFrame }} from 'remotion';
+import {{ COLORS }} from '../constants';
+
+export const Background: React.FC = () => {{
+  const frame = useCurrentFrame();
+  // Animated background logic here
+  return (
+    <AbsoluteFill style={{{{ backgroundColor: COLORS.background }}}}>
+      {{/* Background elements */}}
+    </AbsoluteFill>
+  );
+}};
+```
+
+### scenes/Scene1.tsx (example)
+```tsx
+import React from 'react';
+import {{ AbsoluteFill, useCurrentFrame, spring, useVideoConfig }} from 'remotion';
+import {{ COLORS, SPRING_CONFIG }} from '../constants';
+
+interface Scene1Props {{
+  startFrame: number;
+}}
+
+export const Scene1: React.FC<Scene1Props> = ({{ startFrame }}) => {{
+  const frame = useCurrentFrame();
+  const {{ fps }} = useVideoConfig();
+
+  const progress = spring({{
+    frame: frame - startFrame,
+    fps,
+    config: SPRING_CONFIG,
+  }});
+
+  return (
+    <AbsoluteFill>
+      {{/* Scene 1 content */}}
+    </AbsoluteFill>
+  );
 }};
 ```
 
@@ -521,21 +691,28 @@ import {{
   AbsoluteFill,
   Composition,
   Sequence,
-  useCurrentFrame,
-  useVideoConfig,
-  spring,
-  interpolate,
   registerRoot,
 }} from 'remotion';
-import {{ COLORS, SPRING_CONFIG }} from './constants';
-
-// Scene components here...
+import {{ COLORS, TIMING }} from './constants';
+import {{ Background }} from './components/Background';
+import {{ Scene1 }} from './scenes/Scene1';
+import {{ Scene2 }} from './scenes/Scene2';
+// ... import other scenes
 
 const MainComposition: React.FC = () => {{
   return (
     <AbsoluteFill style={{{{ backgroundColor: COLORS.background }}}}>
-      {{/* Animated background */}}
-      {{/* Scene sequences with key props */}}
+      <Background key="bg" />
+
+      <Sequence key="scene1" from={{TIMING.scene1Start}} durationInFrames={{TIMING.scene1End - TIMING.scene1Start}}>
+        <Scene1 startFrame={{0}} />
+      </Sequence>
+
+      <Sequence key="scene2" from={{TIMING.scene2Start}} durationInFrames={{TIMING.scene2End - TIMING.scene2Start}}>
+        <Scene2 startFrame={{0}} />
+      </Sequence>
+
+      {{/* Add more scenes */}}
     </AbsoluteFill>
   );
 }};
@@ -545,10 +722,10 @@ export const RemotionRoot: React.FC = () => {{
     <Composition
       id="{project_id}"
       component={{MainComposition}}
-      durationInFrames={{/* from plan */}}
-      fps={{/* from plan */}}
-      width={{/* from plan */}}
-      height={{/* from plan */}}
+      durationInFrames={{TIMING.totalFrames}}
+      fps={{TIMING.fps}}
+      width={{TIMING.width}}
+      height={{TIMING.height}}
     />
   );
 }};
@@ -561,15 +738,16 @@ registerRoot(RemotionRoot);
 ```
 
 ### metadata.json
+**MUST match scenes.json values exactly:**
 ```json
 {{
   "compositionId": "{project_id}",
-  "durationInFrames": ...,
-  "fps": ...,
-  "width": ...,
-  "height": ...,
+  "durationInFrames": /* MUST equal scenes.json.totalFrames */,
+  "fps": /* MUST equal scenes.json.fps */,
+  "width": /* from project specs */,
+  "height": /* from project specs */,
   "visuals": [
-    {{"startMs": 0, "endMs": ..., "type": "generated", "description": "AI-generated visual"}}
+    {{"startMs": 0, "endMs": /* totalFrames / fps * 1000 */, "type": "generated", "description": "AI-generated visual"}}
   ]
 }}
 ```

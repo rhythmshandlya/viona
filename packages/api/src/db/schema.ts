@@ -1,10 +1,22 @@
 import { pgTable, uuid, varchar, integer, boolean, timestamp, jsonb, text } from 'drizzle-orm/pg-core';
 
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  stytchUserId: varchar('stytch_user_id', { length: 255 }).unique().notNull(),
+  email: varchar('email', { length: 255 }).notNull(),
+  name: varchar('name', { length: 255 }),
+  avatarUrl: varchar('avatar_url', { length: 500 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
 export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
-  userId: uuid('user_id'),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  title: varchar('title', { length: 255 }),
   status: varchar('status', { length: 50 }).notNull().default('uploading'),
   videoKey: varchar('video_key', { length: 255 }),
+  thumbnailKey: varchar('thumbnail_key', { length: 255 }),
   outputKey: varchar('output_key', { length: 255 }),
   durationMs: integer('duration_ms'),
   fps: integer('fps').default(30),
@@ -87,6 +99,8 @@ export const visuals = pgTable('visuals', {
 });
 
 // Type exports for Drizzle
+export type User = typeof users.$inferSelect;
+export type NewUser = typeof users.$inferInsert;
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
 export type Track = typeof tracks.$inferSelect;

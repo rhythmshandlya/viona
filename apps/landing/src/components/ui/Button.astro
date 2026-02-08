@@ -1,0 +1,55 @@
+---
+import { cn } from "@/lib/utils";
+
+interface Props {
+  variant?: "primary" | "secondary" | "outline" | "ghost" | "fun";
+  size?: "sm" | "default" | "lg";
+  href?: string;
+  class?: string;
+  [key: string]: any;
+}
+
+const {
+  variant = "primary",
+  size = "default",
+  href,
+  class: className,
+  ...props
+} = Astro.props;
+
+const baseStyles = "inline-flex items-center justify-center gap-2.5 whitespace-nowrap font-semibold transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 btn-fun";
+
+const variants = {
+  primary: "bg-gradient-to-r from-primary via-secondary to-primary bg-[length:200%_100%] text-white rounded-full shadow-lg hover:shadow-xl",
+  secondary: "bg-secondary text-white rounded-full hover:bg-secondary/90",
+  outline: "border-2 border-primary text-primary rounded-full hover:bg-primary hover:text-white",
+  ghost: "rounded-xl hover:bg-muted text-foreground",
+  fun: "bg-gradient-to-r from-primary via-secondary to-orange rounded-full text-white shadow-lg hover:shadow-xl animate-gradient-x bg-[length:200%_100%]",
+};
+
+const sizes = {
+  sm: "h-10 px-5 text-sm",
+  default: "h-12 px-7 text-sm",
+  lg: "h-14 px-9 text-base",
+};
+
+const Element = href ? "a" : "button";
+---
+
+<Element
+  href={href}
+  class={cn(baseStyles, variants[variant], sizes[size], className)}
+  {...props}
+>
+  <slot />
+</Element>
+
+<style>
+  @keyframes gradient-x {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .animate-gradient-x {
+    animation: gradient-x 3s ease infinite;
+  }
+</style>

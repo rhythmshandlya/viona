@@ -1,0 +1,134 @@
+---
+import { siteConfig } from "@/data/site";
+---
+
+<section id="features" class="py-12 sm:py-16 lg:py-20">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+      <!-- Left: Product mockup - Hidden on mobile, shown on lg+ -->
+      <div class="relative hidden lg:block">
+        <div class="relative">
+          <!-- Transcript mockup -->
+          <div class="absolute -top-4 -left-4 bg-white rounded-xl shadow-lg p-4 z-10 w-56">
+            <div class="text-xs font-medium mb-2 text-muted-foreground">Transcript</div>
+            <div class="space-y-2 text-sm">
+              <p><span class="bg-red-100 text-red-600 line-through px-1 rounded">um</span> So today we'll cover</p>
+              <p>the <span class="bg-primary/20 text-primary px-1 rounded">three main steps</span></p>
+              <p>of the process...</p>
+            </div>
+          </div>
+
+          <!-- Main visual preview -->
+          <div class="bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl aspect-[4/5] w-56 mx-auto flex items-center justify-center">
+            <!-- Flowchart mockup -->
+            <div class="bg-white rounded-lg p-3 shadow-sm w-36">
+              <div class="text-xs font-medium mb-2 text-center">Process Flow</div>
+              <div class="space-y-2">
+                <div class="h-6 bg-primary/20 rounded flex items-center justify-center text-xs">Step 1</div>
+                <div class="flex justify-center">
+                  <div class="w-0.5 h-2 bg-gray-300"></div>
+                </div>
+                <div class="h-6 bg-primary/30 rounded flex items-center justify-center text-xs">Step 2</div>
+                <div class="flex justify-center">
+                  <div class="w-0.5 h-2 bg-gray-300"></div>
+                </div>
+                <div class="h-6 bg-primary/40 rounded flex items-center justify-center text-xs">Step 3</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Video player mockup -->
+          <div class="absolute -bottom-4 right-8 bg-white rounded-xl shadow-lg p-3 w-48">
+            <div class="bg-gray-100 rounded-lg aspect-video mb-2 relative">
+              <div class="absolute bottom-1 left-1 right-1 bg-black/70 rounded px-2 py-1">
+                <span class="text-[10px] text-white">three main steps of the process</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-muted-foreground">Karaoke style</span>
+              <div class="flex gap-1">
+                <div class="w-4 h-4 bg-gray-200 rounded"></div>
+                <div class="w-4 h-4 bg-primary rounded"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mobile mockup - Simplified version for mobile -->
+      <div class="lg:hidden flex justify-center mb-6">
+        <div class="bg-white rounded-xl shadow-lg p-4 w-full max-w-sm">
+          <div class="flex gap-3">
+            <!-- Transcript mini -->
+            <div class="flex-1 bg-gray-50 rounded-lg p-3">
+              <div class="text-[10px] font-medium mb-1 text-muted-foreground">Transcript</div>
+              <div class="space-y-1 text-xs">
+                <p><span class="bg-red-100 text-red-600 line-through px-0.5 rounded text-[10px]">um</span> So today...</p>
+                <p>the <span class="bg-primary/20 text-primary px-0.5 rounded text-[10px]">three steps</span></p>
+              </div>
+            </div>
+            <!-- Flowchart mini -->
+            <div class="flex-1 bg-gray-50 rounded-lg p-3">
+              <div class="text-[10px] font-medium mb-1 text-center">Process</div>
+              <div class="space-y-1">
+                <div class="h-4 bg-primary/20 rounded flex items-center justify-center text-[9px]">Step 1</div>
+                <div class="h-4 bg-primary/30 rounded flex items-center justify-center text-[9px]">Step 2</div>
+                <div class="h-4 bg-primary/40 rounded flex items-center justify-center text-[9px]">Step 3</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Content -->
+      <div>
+        <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold leading-tight mb-4 sm:mb-6">
+          <span class="text-orange">AI-Generated</span> Visuals
+          <br />That Match Your
+          <br /><span class="orange-underline">Explanations</span>
+        </h2>
+
+        <p class="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8">
+          Upload your talking-head video. Our AI listens, understands the concepts,
+          and generates relevant charts, diagrams, and graphics—synced perfectly
+          to your narration.
+        </p>
+
+        <!-- Feature list -->
+        <div class="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+          <div class="flex items-center gap-3">
+            <div class="feature-check">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <span class="text-sm sm:text-base font-medium">Flowcharts, timelines, and diagrams</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="feature-check">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <span class="text-sm sm:text-base font-medium">Bar charts, stats, and comparisons</span>
+          </div>
+          <div class="flex items-center gap-3">
+            <div class="feature-check">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <span class="text-sm sm:text-base font-medium">Auto filler word removal</span>
+          </div>
+        </div>
+
+        <a href={siteConfig.appUrl} class="btn-primary">
+          Try It Free
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>

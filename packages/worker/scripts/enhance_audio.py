@@ -46,14 +46,18 @@ def run_demucs(input_path: str, output_dir: str) -> str:
     Removes coughs, impacts, music, and other non-speech transients.
     Returns the path to the extracted vocals WAV file.
     """
+    import gc
     import torch
     import torchaudio
     from demucs.pretrained import get_model
     from demucs.apply import apply_model
 
+    # Force CPU to avoid GPU memory issues, use float32 for stability
+    device = torch.device("cpu")
+
     model = get_model("htdemucs")
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
+    model.eval()
 
     # Load audio as float32 tensor [channels, samples]
     waveform, sr = torchaudio.load(input_path)
@@ -67,14 +71,47 @@ def run_demucs(input_path: str, output_dir: str) -> str:
     if waveform.shape[0] == 1:
         waveform = waveform.repeat(2, 1)
 
-    # Run separation: output shape [batch, sources, channels, samples]
+    # Store original length before padding (for trimming output later)
+    original_length = waveform.shape[1]
+
+    # Use smaller segments to reduce memory usage
+    # 5 seconds is a good balance between quality and memory
+    segment_seconds = 5.0
+    segment_samples = int(segment_seconds * model_sr)
+
+    # Pad audio to be a multiple of segment_samples for clean chunk processing
+    remainder = waveform.shape[1] % segment_samples
+    if remainder != 0:
+        pad_amount = segment_samples - remainder
+        waveform = torch.nn.functional.pad(waveform, (0, pad_amount))
+
+    # Normalize for stable processing
     ref = waveform.mean(0)
-    waveform = (waveform - ref.mean()) / ref.std()
-    sources = apply_model(model, waveform[None], device=device)[0]
-    sources = sources * ref.std() + ref.mean()
+    ref_mean = ref.mean()
+    ref_std = ref.std()
+    waveform = (waveform - ref_mean) / ref_std
+
+    # Run separation with small chunks and minimal overlap to save memory
+    with torch.no_grad():
+        sources = apply_model(
+            model,
+            waveform[None],
+            device=device,
+            split=True,
+            overlap=0.1,  # Reduced overlap to save memory
+            segment=segment_seconds,
+            shifts=0,
+            progress=False,
+        )[0]
+
+    # Denormalize
+    sources = sources * ref_std + ref_mean
 
     # htdemucs sources: drums, bass, other, vocals — vocals is index 3
     vocals = sources[model.sources.index("vocals")]
+
+    # Trim back to original length (remove padding)
+    vocals = vocals[:, :original_length]
 
     # Convert back to mono and resample to original rate
     vocals_mono = vocals.mean(dim=0, keepdim=True)
@@ -82,7 +119,20 @@ def run_demucs(input_path: str, output_dir: str) -> str:
         vocals_mono = torchaudio.functional.resample(vocals_mono, model_sr, sr)
 
     vocals_path = os.path.join(output_dir, "vocals.wav")
-    torchaudio.save(vocals_path, vocals_mono, sr)
+    torchaudio.save(vocals_path, vocals_mono.cpu(), sr)
+
+    # Aggressively free memory
+    del model, sources, waveform, vocals, vocals_mono, ref
+    gc.collect()
+    torch.cuda.empty_cache() if torch.cuda.is_available() else None
+
+    # Force MKL memory release
+    try:
+        import ctypes
+        mkl_rt = ctypes.CDLL('mkl_rt.dll' if sys.platform == 'win32' else 'libmkl_rt.so')
+        mkl_rt.mkl_free_buffers()
+    except:
+        pass  # MKL not available or already freed
 
     return vocals_path
 

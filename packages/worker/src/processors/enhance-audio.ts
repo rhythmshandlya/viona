@@ -141,7 +141,7 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
 
     // Step 1: Download video (0-10%)
     await publishJobProgress(jobId, 2, 'Downloading video...', pubExtras);
-    await downloadFile(config.minio.buckets.uploads, videoKey, videoPath);
+    await downloadFile('uploads', videoKey, videoPath);
     await publishJobProgress(jobId, 10, 'Video downloaded', pubExtras);
 
     // Step 2: Extract audio as 48kHz WAV (10-15%)
@@ -166,18 +166,25 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
 
     await publishJobProgress(jobId, 15, 'Audio extracted', pubExtras);
 
-    // Step 3: Run Python enhancement pipeline (15-75%)
-    await runEnhancementScript(rawAudioPath, enhancedWavPath, (percent, message) => {
-      const mappedProgress = 15 + Math.round(percent * 0.6); // 15-75%
-      publishJobProgress(jobId, mappedProgress, message, pubExtras);
-    });
-    await publishJobProgress(jobId, 75, 'Enhancement complete', pubExtras);
+    // Step 3: Run Python enhancement pipeline (15-75%) - or skip if disabled
+    if (config.enhance.disabled) {
+      logger.info({ projectId }, 'Audio enhancement disabled via DISABLE_AUDIO_ENHANCEMENT, skipping');
+      await publishJobProgress(jobId, 75, 'Enhancement skipped (disabled)', pubExtras);
+    } else {
+      await runEnhancementScript(rawAudioPath, enhancedWavPath, (percent, message) => {
+        const mappedProgress = 15 + Math.round(percent * 0.6); // 15-75%
+        publishJobProgress(jobId, mappedProgress, message, pubExtras);
+      });
+      await publishJobProgress(jobId, 75, 'Enhancement complete', pubExtras);
+    }
 
     // Step 4: Transcode to AAC (75-85%)
     await publishJobProgress(jobId, 77, 'Transcoding original to AAC...', pubExtras);
     await transcodeToAac(rawAudioPath, originalM4aPath);
     await publishJobProgress(jobId, 80, 'Transcoding enhanced to AAC...', pubExtras);
-    await transcodeToAac(enhancedWavPath, enhancedM4aPath);
+    // When enhancement is disabled, use raw audio as "enhanced"
+    const sourceForEnhanced = config.enhance.disabled ? rawAudioPath : enhancedWavPath;
+    await transcodeToAac(sourceForEnhanced, enhancedM4aPath);
     await publishJobProgress(jobId, 85, 'Transcoding complete', pubExtras);
 
     // Step 5: Upload to MinIO (85-95%)
@@ -185,9 +192,9 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
     const enhancedKey = `${projectId}/audio/enhanced-${nanoid(8)}.m4a`;
 
     await publishJobProgress(jobId, 87, 'Uploading original audio...', pubExtras);
-    await uploadFile(config.minio.buckets.outputs, originalKey, originalM4aPath);
+    await uploadFile('outputs', originalKey, originalM4aPath);
     await publishJobProgress(jobId, 90, 'Uploading enhanced audio...', pubExtras);
-    await uploadFile(config.minio.buckets.outputs, enhancedKey, enhancedM4aPath);
+    await uploadFile('outputs', enhancedKey, enhancedM4aPath);
     await publishJobProgress(jobId, 95, 'Upload complete', pubExtras);
 
     // Step 6: Update database (95-100%)
@@ -200,10 +207,10 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
           src: enhancedKey,
           originalSrc: originalKey,
           enhancedSrc: enhancedKey,
-          isEnhanced: true,
+          isEnhanced: !config.enhance.disabled,
           sourceVideoItemId: videoItemId,
           volume: 1,
-          enhancementStatus: 'complete',
+          enhancementStatus: config.enhance.disabled ? 'skipped' : 'complete',
           enhancementProgress: 100,
         },
         updatedAt: new Date(),

@@ -1,0 +1,11 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "packages/api/Dockerfile"
+# Build from repo root to include workspace dependencies
+watchPatterns = ["packages/api/**", "packages/shared/**"]
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

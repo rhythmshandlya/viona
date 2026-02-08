@@ -17,6 +17,7 @@ import { publishJobProgress, publishJobComplete, publishJobError, registerCancel
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
+import { uploadFile } from '../services/minio.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -98,6 +99,32 @@ export function cancelJob(jobId: string): boolean {
 
 export function getRunningJobs(): string[] {
   return Array.from(runningProcesses.keys());
+}
+
+/**
+ * Upload bundle directory to S3 storage.
+ * Uploads all files in the bundle directory to outputs/bundles/{compositionId}/
+ */
+async function uploadBundleToStorage(bundleDir: string, compositionId: string): Promise<void> {
+  const files = await readdir(bundleDir, { recursive: true, withFileTypes: true });
+
+  for (const file of files) {
+    if (file.isFile()) {
+      // Get relative path from bundle dir
+      const parentPath = file.parentPath || file.path;
+      const relativePath = parentPath.replace(bundleDir, '').replace(/^[\\/]/, '');
+      const fileName = file.name;
+      const relativeFilePath = relativePath ? `${relativePath}/${fileName}` : fileName;
+
+      // Upload to S3: outputs/bundles/{compositionId}/{relativePath}
+      const s3Key = `bundles/${compositionId}/${relativeFilePath}`.replace(/\\/g, '/');
+      const localPath = join(parentPath, fileName);
+
+      await uploadFile('outputs', s3Key, localPath);
+    }
+  }
+
+  logger.info({ compositionId, bundleDir }, 'Bundle uploaded to S3');
 }
 
 export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
@@ -324,7 +351,12 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       throw new Error(`Bundle not found at ${bundleDir}. Generator may have failed to create it.`);
     }
 
-    const bundleUrl = `/bundles/${bundleCompositionId}/index.html`;
+    // Upload bundle to S3 for production persistence
+    await publishJobProgress(jobId, 82, 'Uploading bundle to storage...');
+    await uploadBundleToStorage(bundleDir, bundleCompositionId);
+
+    // Bundle URL points to API route that serves from S3
+    const bundleUrl = `/api/bundles/${bundleCompositionId}/index.html`;
 
     await publishJobProgress(jobId, 85, 'Registering visual...');
 

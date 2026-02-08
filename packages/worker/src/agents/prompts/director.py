@@ -379,6 +379,8 @@ Machine-readable with this structure:
 {{
   "projectId": "{project_id}",
   "fps": {fps},
+  "totalFrames": {duration_frames},
+  "durationSeconds": {duration_seconds:.1f},
   "totalScenes": N,
   "primaryMetaphor": "description",
   "colorPalette": "palette name",
@@ -418,11 +420,19 @@ Machine-readable with this structure:
 
 **CRITICAL: All positions use percentages or "center"/"auto". Never use pixel values.**
 
+**CRITICAL DURATION CONSTRAINT:**
+- The video is EXACTLY {duration_frames} frames ({duration_seconds:.1f} seconds) at {fps} FPS
+- Scene 1 MUST start at frame 0
+- The LAST scene MUST end at frame {duration_frames}
+- Scene frames MUST match transcript timestamps: frame = timestamp_seconds * {fps}
+- DO NOT invent your own duration. Use the EXACT frame count given.
+
 ## REMEMBER
 - Maximum 8 scenes (one per narrative beat, not per line)
 - Every scene needs a keySync point
 - Visual continuity: same element transforms across scenes
 - Be SPECIFIC about visuals, not generic
+- **TOTAL FRAMES MUST EQUAL {duration_frames}**
 
 ## FINAL CHECKLIST
 Before responding "PLANNING COMPLETE":

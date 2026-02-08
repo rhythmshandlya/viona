@@ -1,0 +1,43 @@
+---
+import { ClientRouter } from "astro:transitions";
+import SEO from "@/components/seo/SEO.astro";
+import StructuredData from "@/components/seo/StructuredData.astro";
+import Header from "@/components/layout/Header.astro";
+import Footer from "@/components/layout/Footer.astro";
+import "@/styles/globals.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+  image?: string;
+}
+
+const { title, description, image } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- DM Sans font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
+
+    <SEO title={title} description={description} image={image} />
+    <StructuredData type="WebSite" />
+    <StructuredData type="Organization" />
+    <StructuredData type="SoftwareApplication" />
+    <ClientRouter />
+  </head>
+  <body class="min-h-screen bg-background text-foreground">
+    <Header />
+    <main>
+      <slot />
+    </main>
+    <Footer />
+  </body>
+</html>

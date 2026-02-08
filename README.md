@@ -462,15 +462,15 @@ stateDiagram-v2
 - **Node.js** >= 20.0.0
 - **pnpm** >= 9.0.0
 - **Docker** & Docker Compose
-- **Python** 3.12+ (for WhisperX and OpenHands)
+- **Python** 3.10+ (for Claude Agent SDK)
 - **FFmpeg** (for audio/video processing)
 
 ### Quick Start
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/clipify.git
-cd clipify
+git clone https://github.com/your-org/cllipify.git
+cd cllipify
 
 # 2. Install dependencies
 pnpm install
@@ -478,10 +478,15 @@ pnpm install
 # 3. Start infrastructure (PostgreSQL, Redis, MinIO)
 docker-compose up -d
 
-# 4. Run database migrations
+# 4. Copy environment files
+cp .env.example .env
+cp packages/api/.env.example packages/api/.env
+cp packages/worker/.env.example packages/worker/.env
+
+# 5. Run database migrations
 pnpm db:migrate
 
-# 5. Start development servers
+# 6. Start development servers (bucket auto-created on first start)
 pnpm dev
 ```
 
@@ -490,87 +495,33 @@ This starts:
 - **API**: http://localhost:4000
 - **MinIO Console**: http://localhost:9001 (user: reelify, pass: reelify123)
 
-### Docker Images
+### Detailed Setup
 
-Build the AI sandbox images for visual generation:
+For comprehensive setup instructions including:
+- Python/Miniconda configuration
+- WhisperX local transcription
+- Audio enhancement
+- Claude Agent SDK
+- Troubleshooting
 
-```bash
-# Build OpenHands sandbox (includes Node.js, Python, Chromium)
-pnpm docker:build-sandbox
+See **[docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)**
 
-# Test the sandbox
-pnpm docker:test-sandbox
-```
+### Production Deployment
 
-### Python Setup (for transcription)
+For Railway deployment with 3 services (Web, API, Worker):
 
-```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-
-# Install WhisperX
-pip install whisperx
-
-# Install audio enhancement dependencies
-pip install pyloudnorm soundfile numpy
-```
-
-### Claude Max Proxy Setup (for AI visual generation)
-
-The worker supports two LLM providers for AI visual generation:
-
-1. **Claude Max** (recommended) - Uses your Claude Max subscription via a local proxy
-2. **OpenRouter** - Uses OpenRouter API with Gemini models
-
-#### Using Claude Max
-
-Claude Max requires the `claude-max-api-proxy` to expose an OpenAI-compatible API.
-
-**First time setup:**
-```bash
-# Install dependencies (includes claude-max-api-proxy)
-pnpm install
-
-# Verify Claude CLI is authenticated
-claude --version
-```
-
-**Start the proxy (do this after every PC restart):**
-```bash
-# Terminal 1: Start the proxy (runs on port 3456)
-pnpm --filter @reelify/worker proxy
-```
-
-```bash
-# Terminal 2: Start the worker
-pnpm --filter @reelify/worker dev
-```
-
-The proxy exposes:
-- Health check: `http://localhost:3456/health`
-- Models: `http://localhost:3456/v1/models`
-- Chat completions: `http://localhost:3456/v1/chat/completions`
-
-Configure the worker to use Claude Max:
-```bash
-LLM_PROVIDER=claude-max
-CLAUDE_MAX_PROXY_URL=http://localhost:3456/v1
-```
-
-Docker containers automatically use `host.docker.internal:3456` to reach the proxy.
-
-#### Using OpenRouter
-
-Alternatively, use OpenRouter with your API key:
-```bash
-LLM_PROVIDER=openrouter
-OPENROUTER_API_KEY=sk-or-v1-xxx
-```
+See **[docs/RAILWAY_DEPLOYMENT.md](docs/RAILWAY_DEPLOYMENT.md)**
 
 ---
 
 ## Environment Variables
+
+### Storage Configuration
+
+The project uses a single S3-compatible bucket with prefixes:
+- `uploads/` - User uploaded videos
+- `outputs/` - Generated outputs (videos, bundles)
+- `templates/` - Remotion template files
 
 ### API (packages/api/.env)
 
@@ -579,17 +530,14 @@ PORT=4000
 DATABASE_URL=postgresql://reelify:reelify123@localhost:5432/reelify
 REDIS_URL=redis://localhost:6379
 
-# MinIO Configuration
-MINIO_ENDPOINT=localhost
-MINIO_PORT=9000
-MINIO_ACCESS_KEY=reelify
-MINIO_SECRET_KEY=reelify123
-MINIO_USE_SSL=false
-MINIO_BUCKET_UPLOADS=uploads
-MINIO_BUCKET_OUTPUTS=outputs
-
-# Bundle output directory
-BUNDLE_OUTPUT_DIR=./bundles
+# Storage (S3-compatible, single bucket with prefixes)
+S3_ENDPOINT=localhost
+S3_PORT=9000
+S3_ACCESS_KEY=reelify
+S3_SECRET_KEY=reelify123
+S3_USE_SSL=false
+S3_BUCKET=cllipify
+S3_REGION=us-east-1
 ```
 
 ### Worker (packages/worker/.env)
@@ -598,38 +546,29 @@ BUNDLE_OUTPUT_DIR=./bundles
 DATABASE_URL=postgresql://reelify:reelify123@localhost:5432/reelify
 REDIS_URL=redis://localhost:6379
 
-# MinIO Configuration
-MINIO_ENDPOINT=localhost
-MINIO_PORT=9000
-MINIO_ACCESS_KEY=reelify
-MINIO_SECRET_KEY=reelify123
+# Storage (same as API)
+S3_ENDPOINT=localhost
+S3_PORT=9000
+S3_ACCESS_KEY=reelify
+S3_SECRET_KEY=reelify123
+S3_USE_SSL=false
+S3_BUCKET=cllipify
 
-# Python & WhisperX
-PYTHON_PATH=python
-WHISPER_MODEL=base
+# Transcription: "local" (WhisperX) or "api" (OpenAI Whisper API)
+TRANSCRIPTION_MODE=local
+WHISPER_MODEL=large-v2
 WHISPER_LANGUAGE=en
 WHISPER_DEVICE=auto
 WHISPER_COMPUTE_TYPE=float16
 
-# Remotion
-REMOTION_PROJECT_DIR=./
-BUNDLE_OUTPUT_DIR=./bundles
+# Audio Enhancement
+AUDIO_ENHANCEMENT_ENABLED=true
 
-# OpenHands (AI Visual Generation)
-OPENHANDS_PYTHON_PATH=python
-OPENHANDS_USE_DOCKER=true
-OPENHANDS_DOCKER_IMAGE=clipify-openhands-sandbox:latest
-
-# LLM Provider: 'claude-max' or 'openrouter'
-LLM_PROVIDER=claude-max
-
-# Claude Max settings (requires claude-max-api-proxy running)
-CLAUDE_MAX_PROXY_URL=http://localhost:3456/v1
-CLAUDE_MAX_MODEL=claude-opus-4-5-20251101
-CLAUDE_MAX_MODEL_FLASH=claude-haiku-4-5-20251001
-
-# OpenRouter settings (alternative to Claude Max)
-OPENROUTER_API_KEY=your_api_key_here
+# Claude Agent SDK (for AI visual generation)
+ANTHROPIC_API_KEY=sk-ant-...
+CLAUDE_AGENT_MODEL=claude-sonnet-4-20250514
+CLAUDE_AGENT_MAX_THINKING_TOKENS=10000
+CLAUDE_AGENT_MAX_TURNS=100
 ```
 
 ### Web (apps/web/.env.local)
@@ -638,6 +577,8 @@ OPENROUTER_API_KEY=your_api_key_here
 NEXT_PUBLIC_API_URL=http://localhost:4000
 NEXT_PUBLIC_WS_URL=ws://localhost:4000
 ```
+
+For complete environment variable reference, see [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md#environment-variables-reference).
 
 ---
 

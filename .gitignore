@@ -41,15 +41,27 @@ temp/
 # Python virtual environments
 .venv/
 venv-enhance/
+__pycache__/
+*.py[cod]
+*$py.class
 
 # Whisper models (large files)
 *.bin
 
-# MinIO local data (if not using Docker volumes)
+# MinIO local data
 .minio/
+.minio-data/
 
 # Remotion
 remotion-*.zip
+packages/worker/remotion-template/node_modules/
 
 # Worktrees
 .worktrees/
+
+# Worker generated files
+packages/worker/workspace/
+packages/worker/bundles/
+
+# Conda environments
+conda-env/
