@@ -79,7 +79,10 @@
       "WebFetch(domain:www.loom.com)",
       "WebFetch(domain:www.saasframe.io)",
       "Bash(pnpm build:landing:*)",
-      "Bash(pnpm --filter @reelify/worker add:*)"
+      "Bash(pnpm --filter @reelify/worker add:*)",
+      "Bash(BUCKET_ENDPOINT=storage-production-9827.up.railway.app BUCKET_ACCESS_KEY_ID=cllipify BUCKET_SECRET_ACCESS_KEY=cllipify-secret-key-2024 BUCKET_NAME=cllipify S3_USE_SSL=true pnpm --filter @reelify/worker run upload-template:*)",
+      "Bash(echo:*)",
+      "Bash(ls:*)"
     ]
   }
 }
