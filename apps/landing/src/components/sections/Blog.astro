@@ -15,21 +15,21 @@ const articles = [
 ];
 ---
 
-<section class="py-20">
-  <div class="max-w-6xl mx-auto px-6">
+<section class="py-12 sm:py-16 lg:py-20">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-12">
-      <h2 class="text-3xl sm:text-4xl font-semibold">
+    <div class="flex items-center justify-between mb-6 sm:mb-8 lg:mb-12">
+      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold">
         Tips for Better
         <br /><span class="text-orange">Explainer Videos</span>
       </h2>
       <div class="hidden sm:flex items-center gap-2">
-        <button class="w-10 h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted">
+        <button class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
         </button>
-        <button class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90">
+        <button class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
@@ -37,13 +37,13 @@ const articles = [
       </div>
     </div>
 
-    <!-- Blog cards -->
-    <div class="grid md:grid-cols-3 gap-6">
+    <!-- Blog cards - horizontal scroll on mobile -->
+    <div class="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 md:grid-cols-3 sm:gap-6 sm:overflow-visible sm:pb-0">
       {articles.map((article) => (
-        <a href="#" class="blog-card group">
+        <a href="#" class="blog-card group flex-shrink-0 w-[280px] sm:w-auto">
           <div class={`bg-gradient-to-br ${article.image} aspect-[4/3]`}></div>
-          <div class="p-6">
-            <h3 class="font-semibold group-hover:text-primary">{article.title}</h3>
+          <div class="p-4 sm:p-6">
+            <h3 class="font-semibold text-sm sm:text-base group-hover:text-primary">{article.title}</h3>
           </div>
         </a>
       ))}

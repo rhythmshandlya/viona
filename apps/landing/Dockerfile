@@ -7,41 +7,35 @@
 # Build stage
 FROM node:20-slim AS builder
 
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
 WORKDIR /app
 
-# Copy workspace config files
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY apps/landing/package.json ./apps/landing/
+# Copy package files
+COPY package.json ./
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --filter landing
+RUN npm install
 
 # Copy source files
-COPY apps/landing ./apps/landing
+COPY . .
 
 # Build the static site
-RUN pnpm --filter landing build
+RUN npm run build
 
 # ============================================
 # Production stage - Nginx
 # ============================================
 FROM nginx:alpine AS runner
 
-# Copy nginx config
-COPY apps/landing/nginx.conf /etc/nginx/conf.d/default.conf
+# Copy nginx template (will be processed at runtime)
+COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Copy built static files
-COPY --from=builder /app/apps/landing/dist /usr/share/nginx/html
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Expose port
-EXPOSE 80
+# Railway uses PORT env var - default to 80 for local
+ENV PORT=80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost/health || exit 1
+# Expose dynamic port
+EXPOSE ${PORT}
 
-CMD ["nginx", "-g", "daemon off;"]
+CMD ["/bin/sh", "-c", "envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]

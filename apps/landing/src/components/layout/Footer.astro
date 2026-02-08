@@ -2,29 +2,29 @@
 import { siteConfig } from "@/data/site";
 ---
 
-<footer class="py-16 border-t border-border">
-  <div class="max-w-6xl mx-auto px-6">
-    <div class="grid grid-cols-2 md:grid-cols-5 gap-8 mb-12">
+<footer class="py-12 sm:py-16 border-t border-border">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8 mb-8 sm:mb-12">
       <!-- Brand -->
-      <div class="col-span-2 md:col-span-1">
+      <div class="col-span-2 sm:col-span-3 lg:col-span-1 mb-4 lg:mb-0">
         <a href="/" class="flex items-center gap-2 mb-4">
           <svg class="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="currentColor">
             <path d="M4 4h4v4H4V4zm6 0h4v4h-4V4zm6 0h4v4h-4V4zM4 10h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4zM4 16h4v4H4v-4zm6 0h4v4h-4v-4zm6 0h4v4h-4v-4z"/>
           </svg>
           <span class="font-semibold">{siteConfig.name}</span>
         </a>
-        <p class="text-sm text-muted-foreground mb-4">
-          Your tool seamlessly integrates with popular software. Click third party workflows.
+        <p class="text-xs sm:text-sm text-muted-foreground mb-4">
+          Transform your explainer videos with AI-generated visuals.
         </p>
       </div>
 
       <!-- Navigation -->
       <div>
-        <h4 class="text-sm font-semibold text-primary mb-4">Navigation</h4>
-        <ul class="space-y-3">
+        <h4 class="text-xs sm:text-sm font-semibold text-primary mb-3 sm:mb-4">Navigation</h4>
+        <ul class="space-y-2 sm:space-y-3">
           {siteConfig.footer.product.map((item) => (
             <li>
-              <a href={item.href} class="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <a href={item.href} class="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
                 {item.label}
               </a>
             </li>
@@ -34,11 +34,11 @@ import { siteConfig } from "@/data/site";
 
       <!-- Company -->
       <div>
-        <h4 class="text-sm font-semibold text-primary mb-4">Company</h4>
-        <ul class="space-y-3">
+        <h4 class="text-xs sm:text-sm font-semibold text-primary mb-3 sm:mb-4">Company</h4>
+        <ul class="space-y-2 sm:space-y-3">
           {siteConfig.footer.company.map((item) => (
             <li>
-              <a href={item.href} class="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <a href={item.href} class="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
                 {item.label}
               </a>
             </li>
@@ -48,11 +48,11 @@ import { siteConfig } from "@/data/site";
 
       <!-- Legal -->
       <div>
-        <h4 class="text-sm font-semibold text-primary mb-4">Legal</h4>
-        <ul class="space-y-3">
+        <h4 class="text-xs sm:text-sm font-semibold text-primary mb-3 sm:mb-4">Legal</h4>
+        <ul class="space-y-2 sm:space-y-3">
           {siteConfig.footer.legal.map((item) => (
             <li>
-              <a href={item.href} class="text-sm text-muted-foreground hover:text-foreground transition-colors">
+              <a href={item.href} class="text-xs sm:text-sm text-muted-foreground hover:text-foreground transition-colors">
                 {item.label}
               </a>
             </li>
@@ -61,15 +61,15 @@ import { siteConfig } from "@/data/site";
       </div>
 
       <!-- Newsletter -->
-      <div>
-        <h4 class="text-sm font-semibold text-primary mb-4">Get the latest information</h4>
+      <div class="col-span-2 sm:col-span-1">
+        <h4 class="text-xs sm:text-sm font-semibold text-primary mb-3 sm:mb-4">Stay updated</h4>
         <div class="flex gap-2">
           <input
             type="email"
-            placeholder="Email Address"
-            class="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-transparent focus:outline-none focus:border-primary"
+            placeholder="Email"
+            class="flex-1 min-w-0 px-3 py-2 text-xs sm:text-sm border border-border rounded-lg bg-transparent focus:outline-none focus:border-primary"
           />
-          <button class="w-10 h-10 bg-primary text-white rounded-lg flex items-center justify-center hover:bg-primary/90 transition-colors">
+          <button class="w-9 h-9 sm:w-10 sm:h-10 bg-primary text-white rounded-lg flex items-center justify-center hover:bg-primary/90 transition-colors flex-shrink-0">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
             </svg>
@@ -79,9 +79,9 @@ import { siteConfig } from "@/data/site";
     </div>
 
     <!-- Bottom bar -->
-    <div class="pt-8 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4">
-      <p class="text-sm text-muted-foreground">
-        Copyright © {new Date().getFullYear()} {siteConfig.name} All Rights Reserved.
+    <div class="pt-6 sm:pt-8 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4">
+      <p class="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
+        © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
       </p>
       <div class="flex gap-4">
         <a href={siteConfig.links.twitter} class="text-muted-foreground hover:text-foreground transition-colors">

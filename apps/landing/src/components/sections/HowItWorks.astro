@@ -21,25 +21,25 @@ const steps = [
 ];
 ---
 
-<section id="how-it-works" class="py-20">
-  <div class="max-w-6xl mx-auto px-6">
+<section id="how-it-works" class="py-12 sm:py-16 lg:py-20">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <!-- Header -->
-    <div class="text-center mb-16">
-      <h2 class="text-3xl sm:text-4xl font-semibold leading-tight">
+    <div class="text-center mb-8 sm:mb-12 lg:mb-16">
+      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold leading-tight">
         From Raw Footage to
         <br /><span class="text-orange wavy-underline">Polished Video</span>
       </h2>
-      <p class="text-muted-foreground mt-4 max-w-lg mx-auto">
+      <p class="text-sm sm:text-base text-muted-foreground mt-3 sm:mt-4 max-w-lg mx-auto px-2">
         No editing skills required. Upload, review, and export—our AI handles the rest.
       </p>
     </div>
 
     <!-- Steps grid -->
-    <div class="grid md:grid-cols-3 gap-6">
+    <div class="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6">
       {steps.map((step, index) => (
-        <div class="card-elevated p-6">
+        <div class="card-elevated p-4 sm:p-6">
           <!-- Step image placeholder -->
-          <div class={`bg-gradient-to-br ${step.gradient} rounded-xl aspect-[4/3] mb-6 relative overflow-hidden`}>
+          <div class={`bg-gradient-to-br ${step.gradient} rounded-xl aspect-[4/3] mb-4 sm:mb-6 relative overflow-hidden`}>
             {index === 0 && (
               <div class="absolute inset-4 flex items-center justify-center">
                 <div class="bg-white rounded-lg p-4 shadow-sm text-center">
@@ -88,9 +88,9 @@ const steps = [
           </div>
 
           <!-- Step content -->
-          <div class="text-sm text-muted-foreground mb-2">Step {step.number}</div>
-          <h3 class="text-lg font-semibold mb-2">{step.title}</h3>
-          <p class="text-sm text-muted-foreground">{step.description}</p>
+          <div class="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">Step {step.number}</div>
+          <h3 class="text-base sm:text-lg font-semibold mb-1 sm:mb-2">{step.title}</h3>
+          <p class="text-xs sm:text-sm text-muted-foreground">{step.description}</p>
         </div>
       ))}
     </div>

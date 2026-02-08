@@ -25,6 +25,9 @@ const imageUrl = new URL(image, siteConfig.url).href;
 <title>{fullTitle}</title>
 <meta name="title" content={fullTitle} />
 <meta name="description" content={description} />
+<meta name="robots" content="index, follow" />
+<meta name="author" content={siteConfig.name} />
+<meta name="theme-color" content="#F97316" />
 <link rel="canonical" href={canonical} />
 
 <!-- Open Graph / Facebook -->
@@ -36,8 +39,8 @@ const imageUrl = new URL(image, siteConfig.url).href;
 <meta property="og:site_name" content={siteConfig.name} />
 
 <!-- Twitter -->
-<meta property="twitter:card" content="summary_large_image" />
-<meta property="twitter:url" content={canonical} />
-<meta property="twitter:title" content={fullTitle} />
-<meta property="twitter:description" content={description} />
-<meta property="twitter:image" content={imageUrl} />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:url" content={canonical} />
+<meta name="twitter:title" content={fullTitle} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={imageUrl} />
