@@ -78,7 +78,8 @@
       "WebFetch(domain:www.descript.com)",
       "WebFetch(domain:www.loom.com)",
       "WebFetch(domain:www.saasframe.io)",
-      "Bash(pnpm build:landing:*)"
+      "Bash(pnpm build:landing:*)",
+      "Bash(pnpm --filter @reelify/worker add:*)"
     ]
   }
 }

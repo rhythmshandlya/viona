@@ -25,42 +25,46 @@ const steps = [
 ];
 ---
 
-<section id="how-it-works" class="py-24 lg:py-32 relative">
-  <!-- Background accent -->
-  <div class="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-transparent pointer-events-none"></div>
+<section id="how-it-works" class="py-24 lg:py-32 bg-muted/30 relative overflow-hidden">
+  <!-- Decorative elements -->
+  <div class="geo-circle w-[500px] h-[500px] -top-60 -left-60 opacity-30"></div>
 
   <Container>
     <!-- Section Header -->
-    <div class="text-center max-w-3xl mx-auto mb-16">
-      <h2 class="animate-on-scroll text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4">
+    <div class="max-w-3xl mx-auto text-center mb-20">
+      <span class="inline-block text-sm font-medium text-primary uppercase tracking-wider mb-4">How it works</span>
+      <h2 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl mb-6">
         From idea to video in
-        <span class="text-gradient">four simple steps</span>
+        <span class="text-primary italic">four</span> simple steps
       </h2>
-      <p class="animate-on-scroll text-lg text-muted-foreground" style="animation-delay: 0.1s;">
+      <p class="animate-on-scroll text-lg text-muted-foreground font-sans" style="animation-delay: 0.1s;">
         No complex software to learn. No hours of editing. Just describe what you want and let AI do the rest.
       </p>
     </div>
 
     <!-- Steps -->
-    <div class="relative max-w-4xl mx-auto">
-      <!-- Connecting line -->
-      <div class="absolute left-8 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-primary/50 via-secondary/50 to-accent/50 hidden sm:block"></div>
-
-      <div class="space-y-12 md:space-y-16">
+    <div class="max-w-4xl mx-auto">
+      <div class="grid md:grid-cols-2 gap-8 lg:gap-12">
         {steps.map((step, index) => (
-          <div class={`animate-on-scroll relative flex flex-col md:flex-row items-start gap-6 md:gap-12 ${index % 2 === 1 ? 'md:flex-row-reverse' : ''}`} style={`animation-delay: ${index * 0.15}s;`}>
-            <!-- Number bubble -->
-            <div class="flex-shrink-0 relative z-10">
-              <div class="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-primary-foreground font-bold text-xl shadow-lg glow-primary">
+          <div
+            class="animate-on-scroll relative"
+            style={`animation-delay: ${index * 0.1}s;`}
+          >
+            <div class="card-elevated p-8 h-full">
+              <!-- Number -->
+              <div class="number-badge mb-6">
                 {step.number}
               </div>
+
+              <!-- Content -->
+              <h3 class="text-2xl mb-3 font-sans font-semibold">{step.title}</h3>
+              <p class="text-muted-foreground leading-relaxed">{step.description}</p>
             </div>
 
-            <!-- Content -->
-            <div class={`flex-1 ${index % 2 === 1 ? 'md:text-right' : ''}`}>
-              <h3 class="text-2xl font-semibold mb-2">{step.title}</h3>
-              <p class="text-muted-foreground max-w-md">{step.description}</p>
-            </div>
+            <!-- Connector line (visible on desktop) -->
+            {index < steps.length - 1 && index !== 1 && (
+              <div class="hidden md:block absolute top-1/2 -right-6 lg:-right-8 w-12 lg:w-16 h-px bg-border"></div>
+            )}
           </div>
         ))}
       </div>

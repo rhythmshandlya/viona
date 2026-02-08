@@ -91,6 +91,7 @@ RUN pnpm install --frozen-lockfile --filter @reelify/worker... --prod
 # Copy built files
 COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
 COPY --from=builder /app/packages/worker/src/agents ./packages/worker/src/agents
+COPY --from=builder /app/packages/worker/scripts ./packages/worker/scripts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/renderer/dist ./packages/renderer/dist
 

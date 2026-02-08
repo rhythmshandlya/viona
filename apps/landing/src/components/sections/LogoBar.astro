@@ -1,16 +1,17 @@
 ---
 import Container from "@/components/ui/Container.astro";
+
+const logos = ["TechFlow", "CreatorStudio", "MediaPro", "PixelPerfect", "Streamline"];
 ---
 
-<section class="py-12 border-y border-border/30">
+<section class="py-16 border-y border-border bg-muted/30">
   <Container>
-    <p class="text-center text-sm text-muted-foreground mb-8">
-      Trusted by creators and teams at
+    <p class="text-center text-sm font-medium text-muted-foreground mb-10 uppercase tracking-wider">
+      Trusted by teams at leading companies
     </p>
-    <div class="flex flex-wrap items-center justify-center gap-8 md:gap-16 opacity-60">
-      <!-- Placeholder logos - replace with actual client logos -->
-      {["TechFlow", "CreatorStudio", "MediaPro", "PixelPerfect", "Streamline"].map((name) => (
-        <div class="text-lg font-semibold text-muted-foreground">
+    <div class="flex flex-wrap items-center justify-center gap-x-16 gap-y-8">
+      {logos.map((name) => (
+        <div class="text-xl font-semibold text-foreground/40 hover:text-foreground/60 transition-colors cursor-default">
           {name}
         </div>
       ))}

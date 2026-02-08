@@ -1,50 +1,48 @@
 ---
 import { testimonials } from "@/data/testimonials";
 import Container from "@/components/ui/Container.astro";
-import Card from "@/components/ui/Card.astro";
 ---
 
 <section class="py-24 lg:py-32">
   <Container>
     <!-- Section Header -->
-    <div class="text-center max-w-3xl mx-auto mb-16">
-      <h2 class="animate-on-scroll text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4">
+    <div class="max-w-3xl mx-auto text-center mb-20">
+      <span class="inline-block text-sm font-medium text-primary uppercase tracking-wider mb-4">Testimonials</span>
+      <h2 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl mb-6">
         Loved by creators
-        <span class="text-gradient">worldwide</span>
+        <span class="text-primary italic">worldwide</span>
       </h2>
-      <p class="animate-on-scroll text-lg text-muted-foreground" style="animation-delay: 0.1s;">
+      <p class="animate-on-scroll text-lg text-muted-foreground font-sans" style="animation-delay: 0.1s;">
         See what our community has to say about transforming their creative workflow.
       </p>
     </div>
 
     <!-- Testimonials Grid -->
-    <div class="grid md:grid-cols-3 gap-6 stagger-children">
-      {testimonials.map((testimonial, index) => (
-        <Card variant="gradient-border" class="bg-card relative overflow-hidden">
-          <!-- Quote icon -->
-          <svg class="absolute top-4 right-4 w-8 h-8 text-primary/20" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M14.017 21v-7.391c0-5.704 3.731-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 9-10.609l.996 2.151c-2.433.917-3.996 3.638-3.996 5.849h3.983v10h-9.983z" />
-          </svg>
+    <div class="grid md:grid-cols-3 gap-8 stagger-children">
+      {testimonials.map((testimonial) => (
+        <div class="card-elevated p-8 relative">
+          <!-- Quote mark -->
+          <div class="quote-mark absolute -top-4 left-6">"</div>
 
           <!-- Content -->
-          <blockquote class="text-lg mb-6 relative z-10">
+          <blockquote class="text-lg mb-8 relative z-10 leading-relaxed">
             "{testimonial.quote}"
           </blockquote>
 
           <!-- Author -->
           <div class="flex items-center gap-4">
-            <!-- Avatar placeholder -->
-            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-primary-foreground font-semibold">
+            <!-- Avatar -->
+            <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white font-semibold text-sm">
               {testimonial.author.split(' ').map(n => n[0]).join('')}
             </div>
             <div>
               <div class="font-semibold">{testimonial.author}</div>
               <div class="text-sm text-muted-foreground">
-                {testimonial.role} at {testimonial.company}
+                {testimonial.role}, {testimonial.company}
               </div>
             </div>
           </div>
-        </Card>
+        </div>
       ))}
     </div>
   </Container>

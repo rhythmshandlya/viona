@@ -1,7 +1,6 @@
 ---
 import { features } from "@/data/features";
 import Container from "@/components/ui/Container.astro";
-import Card from "@/components/ui/Card.astro";
 
 const icons: Record<string, string> = {
   sparkles: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />`,
@@ -16,24 +15,25 @@ const icons: Record<string, string> = {
 <section id="features" class="py-24 lg:py-32">
   <Container>
     <!-- Section Header -->
-    <div class="text-center max-w-3xl mx-auto mb-16">
-      <h2 class="animate-on-scroll text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-4">
+    <div class="max-w-3xl mx-auto text-center mb-20">
+      <span class="inline-block text-sm font-medium text-primary uppercase tracking-wider mb-4">Features</span>
+      <h2 class="animate-on-scroll text-4xl sm:text-5xl lg:text-6xl mb-6">
         Everything you need to create
-        <span class="text-gradient">amazing videos</span>
+        <span class="text-primary italic">amazing</span> videos
       </h2>
-      <p class="animate-on-scroll text-lg text-muted-foreground" style="animation-delay: 0.1s;">
+      <p class="animate-on-scroll text-lg text-muted-foreground font-sans" style="animation-delay: 0.1s;">
         Powerful features designed for creators who want to move fast without sacrificing quality.
       </p>
     </div>
 
     <!-- Features Grid -->
-    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-children">
-      {features.map((feature, index) => (
-        <Card variant="glass" class="group hover:border-primary/30 transition-all duration-300">
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 stagger-children">
+      {features.map((feature) => (
+        <div class="group card-elevated p-8 hover:border-primary/30">
           <!-- Icon -->
-          <div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+          <div class="feature-icon mb-6">
             <svg
-              class="w-6 h-6 text-primary"
+              class="w-6 h-6"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -42,9 +42,9 @@ const icons: Record<string, string> = {
           </div>
 
           <!-- Content -->
-          <h3 class="text-xl font-semibold mb-2">{feature.title}</h3>
-          <p class="text-muted-foreground">{feature.description}</p>
-        </Card>
+          <h3 class="text-xl font-semibold mb-3 font-sans">{feature.title}</h3>
+          <p class="text-muted-foreground leading-relaxed">{feature.description}</p>
+        </div>
       ))}
     </div>
   </Container>

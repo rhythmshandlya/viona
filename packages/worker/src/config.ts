@@ -91,6 +91,10 @@ export const config = {
     scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
     // Set AUDIO_ENHANCEMENT_ENABLED=false to skip the enhancement pipeline
     enabled: process.env.AUDIO_ENHANCEMENT_ENABLED !== 'false',
+    // Inverse of enabled for backwards compatibility
+    get disabled() {
+      return !this.enabled;
+    },
   },
 
   remotion: {
@@ -98,4 +102,7 @@ export const config = {
     // IMPORTANT: This must match the API's bundles.dir config (set BUNDLE_OUTPUT_DIR in .env)
     bundleOutputDir: resolve(process.env.BUNDLE_OUTPUT_DIR || join(process.cwd(), 'bundles')),
   },
+
+  // Python path for running Python scripts (transcription, enhancement)
+  pythonPath: process.env.PYTHON_PATH || 'python3',
 } as const;

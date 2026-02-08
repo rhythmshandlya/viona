@@ -5,16 +5,21 @@ import Button from "@/components/ui/Button.astro";
 ---
 
 <header class="fixed top-0 left-0 right-0 z-50">
-  <div class="glass border-b border-border/50">
+  <div class="bg-background/80 backdrop-blur-xl border-b border-border/50">
     <Container>
-      <nav class="flex items-center justify-between h-16">
-        <!-- Logo -->
-        <a href="/" class="flex items-center gap-2 text-xl font-bold">
-          <svg class="w-8 h-8" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect width="32" height="32" rx="8" class="fill-primary" />
-            <path d="M10 12L22 16L10 20V12Z" fill="currentColor" class="text-primary-foreground" />
-          </svg>
-          <span class="text-gradient">{siteConfig.name}</span>
+      <nav class="flex items-center justify-between h-20">
+        <!-- Logo with fun animation -->
+        <a href="/" class="flex items-center gap-3 group">
+          <div class="relative">
+            <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-primary via-secondary to-accent flex items-center justify-center shadow-lg group-hover:shadow-xl transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
+              <svg class="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5.14v14l11-7-11-7z" />
+              </svg>
+            </div>
+            <!-- Fun sparkle -->
+            <div class="absolute -top-1 -right-1 w-3 h-3 bg-accent rounded-full animate-pulse"></div>
+          </div>
+          <span class="text-xl font-bold tracking-tight">{siteConfig.name}</span>
         </a>
 
         <!-- Desktop Nav -->
@@ -22,29 +27,31 @@ import Button from "@/components/ui/Button.astro";
           {siteConfig.nav.map((item) => (
             <a
               href={item.href}
-              class="text-sm text-muted-foreground hover:text-foreground transition-colors"
+              class="text-sm font-medium text-muted-foreground hover:text-primary transition-all duration-300 hover:scale-105 relative group"
             >
               {item.label}
+              <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-gradient-to-r from-primary to-secondary rounded-full transition-all group-hover:w-full"></span>
             </a>
           ))}
         </div>
 
         <!-- CTA Buttons -->
-        <div class="flex items-center gap-3">
+        <div class="hidden sm:flex items-center gap-4">
           <a
             href={siteConfig.appUrl}
-            class="hidden sm:inline-flex text-sm text-muted-foreground hover:text-foreground transition-colors"
+            class="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
           >
             Sign In
           </a>
           <Button href={siteConfig.appUrl} size="sm">
             Get Started
+            <span class="text-lg">✨</span>
           </Button>
         </div>
 
         <!-- Mobile Menu Button -->
         <button
-          class="md:hidden p-2 text-muted-foreground hover:text-foreground"
+          class="sm:hidden p-2 -mr-2 text-muted-foreground hover:text-primary rounded-xl hover:bg-muted transition-all hover-wiggle"
           aria-label="Open menu"
           id="mobile-menu-btn"
         >
@@ -59,25 +66,27 @@ import Button from "@/components/ui/Button.astro";
   <!-- Mobile Menu -->
   <div
     id="mobile-menu"
-    class="hidden md:hidden fixed inset-0 top-16 bg-background/95 backdrop-blur-lg z-40"
+    class="hidden sm:hidden fixed inset-0 top-20 bg-background/95 backdrop-blur-xl z-40"
   >
     <Container>
-      <nav class="flex flex-col gap-4 py-8">
-        {siteConfig.nav.map((item) => (
+      <nav class="flex flex-col gap-2 py-6">
+        {siteConfig.nav.map((item, i) => (
           <a
             href={item.href}
-            class="text-lg text-muted-foreground hover:text-foreground transition-colors py-2"
+            class="text-lg font-semibold text-muted-foreground hover:text-primary transition-all py-4 border-b border-border hover:translate-x-2"
+            style={`animation-delay: ${i * 0.1}s`}
           >
             {item.label}
           </a>
         ))}
-        <hr class="border-border my-4" />
-        <a href={siteConfig.appUrl} class="text-lg text-muted-foreground hover:text-foreground py-2">
+        <a href={siteConfig.appUrl} class="text-lg font-semibold text-muted-foreground hover:text-primary py-4 border-b border-border">
           Sign In
         </a>
-        <Button href={siteConfig.appUrl} size="lg" class="mt-4">
-          Get Started Free
-        </Button>
+        <div class="pt-6">
+          <Button href={siteConfig.appUrl} size="lg" class="w-full">
+            Get Started Free ✨
+          </Button>
+        </div>
       </nav>
     </Container>
   </div>
@@ -89,12 +98,13 @@ import Button from "@/components/ui/Button.astro";
 
   menuBtn?.addEventListener("click", () => {
     mobileMenu?.classList.toggle("hidden");
+    document.body.classList.toggle("overflow-hidden");
   });
 
-  // Close menu on link click
   mobileMenu?.querySelectorAll("a").forEach((link) => {
     link.addEventListener("click", () => {
       mobileMenu?.classList.add("hidden");
+      document.body.classList.remove("overflow-hidden");
     });
   });
 </script>

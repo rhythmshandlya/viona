@@ -2,26 +2,37 @@
 import { cn } from "@/lib/utils";
 
 interface Props {
-  variant?: "default" | "glass" | "gradient-border";
+  variant?: "elevated" | "flat" | "bordered" | "gradient";
+  hover?: boolean;
   class?: string;
   [key: string]: any;
 }
 
 const {
-  variant = "default",
+  variant = "elevated",
+  hover = true,
   class: className,
   ...props
 } = Astro.props;
 
-const baseStyles = "rounded-xl p-6";
+const baseStyles = "rounded-2xl p-6 lg:p-8";
 
 const variants = {
-  default: "bg-card border border-border",
-  glass: "glass-card",
-  "gradient-border": "gradient-border bg-card",
+  elevated: "bg-card border border-border shadow-md",
+  flat: "bg-muted",
+  bordered: "bg-card border-2 border-border",
+  gradient: "border-gradient bg-card p-[2px]",
 };
+
+const hoverStyles = hover ? "hover:shadow-lg hover:-translate-y-1 transition-all duration-300" : "";
 ---
 
-<div class={cn(baseStyles, variants[variant], className)} {...props}>
-  <slot />
+<div class={cn(baseStyles, variants[variant], hoverStyles, className)} {...props}>
+  {variant === "gradient" ? (
+    <div class="bg-card rounded-[14px] p-6 lg:p-8 h-full">
+      <slot />
+    </div>
+  ) : (
+    <slot />
+  )}
 </div>
