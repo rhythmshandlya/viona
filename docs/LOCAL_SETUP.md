@@ -24,19 +24,15 @@ pnpm install
 # 2. Start infrastructure
 docker-compose up -d
 
-# 3. Create bucket in MinIO
-# Open http://localhost:9001, login (reelify/reelify123)
-# Create bucket named "cllipify"
-
-# 4. Copy environment files
+# 3. Copy environment files
 cp .env.example .env
 cp packages/api/.env.example packages/api/.env
 cp packages/worker/.env.example packages/worker/.env
 
-# 5. Run database migrations
+# 4. Run database migrations
 pnpm db:migrate
 
-# 6. Start all services
+# 5. Start all services (bucket is auto-created on first API start)
 pnpm dev
 ```
 
@@ -90,18 +86,17 @@ docker-compose logs -f
 | MinIO API | 9000 | reelify / reelify123 |
 | MinIO Console | 9001 | reelify / reelify123 |
 
-### Step 4: Create MinIO Bucket
+### Step 4: MinIO Bucket (Auto-Created)
 
+The `cllipify` bucket is **automatically created** when the API starts for the first time.
+
+You can view it in the MinIO Console:
 1. Open http://localhost:9001
 2. Login with `reelify` / `reelify123`
-3. Click "Create Bucket"
-4. Name: `cllipify`
-5. Click "Create Bucket"
-
-The bucket uses prefixes for organization:
-- `uploads/` - User uploaded videos
-- `outputs/` - Generated outputs (videos, bundles)
-- `templates/` - Remotion template files
+3. The bucket uses prefixes for organization:
+   - `uploads/` - User uploaded videos
+   - `outputs/` - Generated outputs (videos, bundles)
+   - `templates/` - Remotion template files
 
 ### Step 5: Configure Environment
 
@@ -342,10 +337,10 @@ NEXT_PUBLIC_WS_URL=ws://localhost:4000
 
 ### "Bucket not found" Error
 
-Create the `cllipify` bucket in MinIO:
-1. Open http://localhost:9001
-2. Login: reelify / reelify123
-3. Create bucket: `cllipify`
+The bucket should be auto-created when the API starts. If not:
+1. Check MinIO is running: `docker-compose ps`
+2. Restart MinIO: `docker-compose restart minio`
+3. Restart API: The bucket is created on API startup
 
 ### "Python not found" Error
 

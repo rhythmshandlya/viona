@@ -55,7 +55,8 @@
       "WebFetch(domain:docs.railway.com)",
       "Bash(pnpm run build:*)",
       "Bash(pnpm --filter @reelify/renderer build:*)",
-      "Bash(pnpm --filter web build:*)"
+      "Bash(pnpm --filter web build:*)",
+      "Bash(claude mcp list:*)"
     ]
   }
 }
