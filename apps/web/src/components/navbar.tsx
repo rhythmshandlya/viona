@@ -36,10 +36,10 @@ export function Navbar() {
   const initials = userName.slice(0, 2).toUpperCase();
 
   return (
-    <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-14 items-center justify-between">
+    <nav className="sticky top-0 z-50 border-b border-border bg-background/90 backdrop-blur-sm">
+      <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 flex h-16 items-center justify-between">
         {/* Logo */}
-        <Link href="/upload" className="flex items-center space-x-2">
+        <Link href="/projects" className="flex items-center space-x-2">
           <span className="text-xl font-bold text-primary">Cllipify</span>
         </Link>
 
@@ -57,15 +57,15 @@ export function Navbar() {
         {/* User Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-primary text-primary-foreground">
+            <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="bg-primary text-white font-medium">
                   {initials}
                 </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end" forceMount>
+          <DropdownMenuContent className="w-56 shadow-card-hover" align="end" forceMount>
             <div className="flex items-center justify-start gap-2 p-2">
               <div className="flex flex-col space-y-1 leading-none">
                 <p className="font-medium">{userName}</p>

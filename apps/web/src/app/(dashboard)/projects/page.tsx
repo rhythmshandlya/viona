@@ -33,6 +33,7 @@ import {
   CheckCircle,
   AlertCircle,
   Sparkles,
+  Play,
 } from "lucide-react";
 
 // ============================================
@@ -106,7 +107,7 @@ function DeleteDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md shadow-card-hover">
         <DialogHeader>
           <DialogTitle className="text-xl">Delete project?</DialogTitle>
         </DialogHeader>
@@ -134,11 +135,11 @@ function DeleteDialog({
 function ProjectCard({
   project,
   onDelete,
-  style,
+  className,
 }: {
   project: UserProject;
   onDelete: (project: UserProject) => void;
-  style?: React.CSSProperties;
+  className?: string;
 }) {
   const router = useRouter();
   const status = getStatusConfig(project.status);
@@ -146,12 +147,12 @@ function ProjectCard({
 
   return (
     <div
-      className="group relative bg-card rounded-2xl border border-border/50 overflow-hidden transition-all duration-300 hover:border-border hover:shadow-lg hover:-translate-y-1 cursor-pointer"
-      style={style}
+      className={`group bg-white rounded-2xl shadow-card hover:shadow-card-hover
+                  transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden ${className || ""}`}
       onClick={() => router.push(`/project/${project.id}`)}
     >
       {/* Thumbnail Area */}
-      <div className="aspect-video bg-gradient-to-br from-muted/50 to-muted relative overflow-hidden">
+      <div className="aspect-video bg-gradient-to-br from-orange-50 to-amber-50 relative overflow-hidden">
         {project.thumbnailKey ? (
           <img
             src={api.getThumbnailUrl(project.id)}
@@ -171,8 +172,12 @@ function ProjectCard({
           {status.label}
         </div>
 
-        {/* Hover Overlay */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+        {/* Play Button Overlay (on hover) */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="w-14 h-14 rounded-full bg-white shadow-lg flex items-center justify-center">
+            <Play className="w-6 h-6 text-primary ml-1" fill="currentColor" />
+          </div>
+        </div>
 
         {/* Three Dot Menu */}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
@@ -182,7 +187,7 @@ function ProjectCard({
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuContent align="end" className="shadow-card-hover" onClick={(e) => e.stopPropagation()}>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive cursor-pointer"
                 onClick={(e) => {
@@ -200,17 +205,10 @@ function ProjectCard({
 
       {/* Content */}
       <div className="p-4">
-        <h3 className="font-semibold text-foreground truncate mb-2">{projectName}</h3>
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5" />
-            {formatDuration(project.durationMs)}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <Calendar className="h-3.5 w-3.5" />
-            {formatDate(project.createdAt)}
-          </div>
-        </div>
+        <h3 className="font-semibold text-foreground truncate mb-1">{projectName}</h3>
+        <p className="text-sm text-muted-foreground">
+          {formatDate(project.createdAt)}
+        </p>
       </div>
     </div>
   );
@@ -292,10 +290,10 @@ function UploadZone({
           {...getRootProps()}
           className={`
             relative border-2 border-dashed rounded-2xl p-12 text-center
-            transition-all duration-300 cursor-pointer group
+            transition-all duration-300 cursor-pointer group bg-white shadow-card
             ${isDragActive
-              ? "border-primary bg-primary/5 scale-[1.02]"
-              : "border-border/50 hover:border-primary/50 hover:bg-muted/30"
+              ? "border-primary bg-primary/5 scale-[1.02] shadow-card-hover"
+              : "border-border hover:border-primary/50 hover:shadow-card-hover"
             }
           `}
         >
@@ -319,7 +317,7 @@ function UploadZone({
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-border/50 bg-card p-8 space-y-6">
+        <div className="rounded-2xl bg-white shadow-card p-8 space-y-6">
           {/* File Preview */}
           <div className="flex items-center gap-4">
             <div className={`
@@ -492,7 +490,7 @@ function NewProjectModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-xl" showCloseButton={uploadState === "idle" || uploadState === "error"}>
+      <DialogContent className="sm:max-w-xl shadow-card-hover" showCloseButton={uploadState === "idle" || uploadState === "error"}>
         <DialogHeader>
           <DialogTitle className="text-2xl font-bold">New Project</DialogTitle>
         </DialogHeader>
@@ -605,21 +603,22 @@ function EmptyState() {
   );
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] max-w-xl mx-auto px-4">
-      {/* Header */}
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-          <Sparkles className="w-4 h-4" />
-          Get started
-        </div>
-        <h1 className="text-3xl font-bold mb-3">Create your first project</h1>
-        <p className="text-muted-foreground text-lg">
-          Upload a video and let AI generate stunning visuals
-        </p>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 md:px-8 lg:px-12 py-12">
+      {/* Badge */}
+      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6 animate-fade-in-up">
+        <Sparkles className="w-4 h-4" />
+        Get started
       </div>
 
+      <h1 className="text-4xl font-bold mb-4 animate-fade-in-up stagger-1">
+        Create your first project
+      </h1>
+      <p className="text-muted-foreground text-lg max-w-md mb-8 animate-fade-in-up stagger-2">
+        Upload a video and let AI generate stunning visuals
+      </p>
+
       {/* Upload Zone */}
-      <div className="w-full">
+      <div className="w-full max-w-lg animate-fade-in-up stagger-3">
         <UploadZone
           projectName={projectName}
           onProjectNameChange={setProjectName}
@@ -682,7 +681,7 @@ export default function ProjectsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex items-center justify-center min-h-[60vh] px-6 md:px-8 lg:px-12">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">Loading your projects...</p>
@@ -693,7 +692,7 @@ export default function ProjectsPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 md:px-8 lg:px-12 py-12">
         <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-4">
           <AlertCircle className="w-8 h-8 text-red-500" />
         </div>
@@ -708,8 +707,14 @@ export default function ProjectsPage() {
     return <EmptyState />;
   }
 
+  // Helper to get stagger class based on index
+  const getStaggerClass = (index: number) => {
+    const staggerNum = Math.min(index + 1, 6);
+    return `stagger-${staggerNum}`;
+  };
+
   return (
-    <div className="container py-10 max-w-6xl">
+    <div className="container py-12 px-6 md:px-8 lg:px-12 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-10">
         <div>
@@ -718,24 +723,24 @@ export default function ProjectsPage() {
             {projects.length} project{projects.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <Button onClick={() => setIsNewProjectOpen(true)} size="lg" className="gap-2">
+        <Button
+          onClick={() => setIsNewProjectOpen(true)}
+          size="lg"
+          className="bg-primary hover:bg-primary/90 gap-2"
+        >
           <Plus className="h-5 w-5" />
           New Project
         </Button>
       </div>
 
       {/* Project Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
         {projects.map((project, index) => (
           <ProjectCard
             key={project.id}
             project={project}
             onDelete={setDeleteTarget}
-            style={{
-              animationDelay: `${index * 50}ms`,
-              animation: "fadeInUp 0.4s ease-out forwards",
-              opacity: 0,
-            }}
+            className={`animate-fade-in-up ${getStaggerClass(index)}`}
           />
         ))}
       </div>
@@ -751,20 +756,6 @@ export default function ProjectsPage() {
         onConfirm={handleDelete}
         isDeleting={isDeleting}
       />
-
-      {/* Animation styles */}
-      <style jsx global>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
     </div>
   );
 }
