@@ -35,19 +35,30 @@ export const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
 
-  minio: {
-    endpoint: process.env.MINIO_ENDPOINT || 'localhost',
-    port: parseInt(process.env.MINIO_PORT || '9000', 10),
-    accessKey: process.env.MINIO_ACCESS_KEY || 'reelify',
-    secretKey: process.env.MINIO_SECRET_KEY || 'reelify123',
-    useSSL: process.env.MINIO_USE_SSL === 'true',
+  // Storage (S3-compatible: MinIO for dev, Railway Simple S3 for prod)
+  storage: {
+    endpoint: process.env.S3_ENDPOINT || process.env.MINIO_ENDPOINT || 'localhost',
+    port: parseInt(process.env.S3_PORT || process.env.MINIO_PORT || '9000', 10),
+    accessKey: process.env.S3_ACCESS_KEY || process.env.MINIO_ACCESS_KEY || 'reelify',
+    secretKey: process.env.S3_SECRET_KEY || process.env.MINIO_SECRET_KEY || 'reelify123',
+    useSSL: (process.env.S3_USE_SSL || process.env.MINIO_USE_SSL) === 'true',
     buckets: {
-      uploads: process.env.MINIO_BUCKET_UPLOADS || 'uploads',
-      outputs: process.env.MINIO_BUCKET_OUTPUTS || 'outputs',
+      uploads: process.env.S3_BUCKET_UPLOADS || process.env.MINIO_BUCKET_UPLOADS || 'uploads',
+      outputs: process.env.S3_BUCKET_OUTPUTS || process.env.MINIO_BUCKET_OUTPUTS || 'outputs',
+      templates: process.env.S3_BUCKET_TEMPLATES || 'templates',
     },
   },
 
-  pythonPath: process.env.PYTHON_PATH || 'python',
+  // Legacy alias for backwards compatibility
+  get minio() {
+    return this.storage;
+  },
+
+  // Transcription mode: "local" (WhisperX) or "api" (OpenAI Whisper API)
+  transcription: {
+    mode: (process.env.TRANSCRIPTION_MODE || 'local') as 'local' | 'api',
+    openaiApiKey: process.env.OPENAI_API_KEY,
+  },
 
   whisperx: {
     scriptPath: process.env.WHISPERX_SCRIPT_PATH || './scripts/whisperx_transcribe.py',
@@ -60,8 +71,8 @@ export const config = {
 
   enhance: {
     scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
-    // Set DISABLE_AUDIO_ENHANCEMENT=true to skip the enhancement pipeline entirely
-    disabled: process.env.DISABLE_AUDIO_ENHANCEMENT === 'true',
+    // Set AUDIO_ENHANCEMENT_ENABLED=false to skip the enhancement pipeline
+    enabled: process.env.AUDIO_ENHANCEMENT_ENABLED !== 'false',
   },
 
   remotion: {

@@ -21,7 +21,7 @@ services:
       MINIO_ROOT_PASSWORD: reelify123
     command: server /data --console-address ":9001"
     volumes:
-      - minio_data:/data
+      - ./.minio-data:/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 5s
@@ -46,5 +46,4 @@ services:
 
 volumes:
   redis_data:
-  minio_data:
   postgres_data:
