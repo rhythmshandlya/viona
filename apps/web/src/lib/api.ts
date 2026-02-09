@@ -28,6 +28,7 @@ export interface ProcessProjectResponse {
 
 export interface Project {
   id: string;
+  title: string | null;
   status: string;
   videoKey: string | null;
   outputKey: string | null;
