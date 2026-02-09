@@ -154,13 +154,18 @@ export async function projectRoutes(fastify: FastifyInstance) {
     let videoPresignedUrl: string | null = null;
     if (project.videoKey) {
       try {
+        fastify.log.info({ videoKey: project.videoKey }, 'Checking if video exists for presigned URL');
         const exists = await objectExists('uploads', project.videoKey);
+        fastify.log.info({ videoKey: project.videoKey, exists }, 'Video exists check result');
         if (exists) {
           videoPresignedUrl = await getPresignedDownloadUrl('uploads', project.videoKey, 3600);
+          fastify.log.info({ videoKey: project.videoKey, urlGenerated: !!videoPresignedUrl, videoPresignedUrl }, 'Presigned URL generated');
         }
       } catch (err) {
         fastify.log.warn({ err, videoKey: project.videoKey }, 'Failed to generate presigned URL for video');
       }
+    } else {
+      fastify.log.info({ projectId: id }, 'No videoKey for project, skipping presigned URL');
     }
 
     return {

@@ -1,6 +1,10 @@
 import { Client } from 'minio';
 import { config } from '../config.js';
 
+// Public endpoint for presigned URLs (browsers need public access)
+const publicEndpoint = process.env.BUCKET_PUBLIC_ENDPOINT || process.env.RAILWAY_SERVICE_STORAGE_URL;
+const isInternalEndpoint = config.storage.endpoint.includes('.railway.internal');
+
 // Build MinIO client configuration for internal operations
 const clientConfig: {
   endPoint: string;
@@ -24,23 +28,18 @@ if (config.storage.port) {
 
 export const minioClient = new Client(clientConfig);
 
-// Public endpoint for presigned URLs (browsers need public access)
-const publicEndpoint = process.env.BUCKET_PUBLIC_ENDPOINT || process.env.RAILWAY_SERVICE_STORAGE_URL;
-const isInternalEndpoint = config.storage.endpoint.includes('.railway.internal');
-
-/**
- * Convert internal presigned URL to public URL for browser access
- */
-function toPublicUrl(url: string): string {
-  if (!isInternalEndpoint || !publicEndpoint) {
-    return url;
-  }
-  // Replace internal endpoint with public endpoint
-  // Internal: http://storage.railway.internal:9000/...
-  // Public: https://storage-production-xxxx.up.railway.app/...
-  const internalPattern = new RegExp(`http://${config.storage.endpoint}:${config.storage.port || 9000}`);
-  return url.replace(internalPattern, `https://${publicEndpoint}`);
-}
+// Create a separate client for presigned URLs that uses the public endpoint
+// This is needed because presigned URL signatures include the hostname
+// If we sign with internal hostname and serve from public hostname, signature fails
+const presignedClient = (isInternalEndpoint && publicEndpoint)
+  ? new Client({
+      endPoint: publicEndpoint,
+      useSSL: true, // Public endpoint always uses HTTPS
+      accessKey: config.storage.accessKey,
+      secretKey: config.storage.secretKey,
+      region: config.storage.region,
+    })
+  : minioClient;
 
 // Single bucket name
 const BUCKET = config.storage.bucket;
@@ -86,8 +85,9 @@ export async function getPresignedUploadUrl(
   expirySeconds = 3600
 ): Promise<string> {
   const fullKey = `${PREFIXES[prefix]}${key}`;
-  const url = await minioClient.presignedPutObject(BUCKET, fullKey, expirySeconds);
-  return toPublicUrl(url);
+  // Use presignedClient which is configured with public endpoint for correct signatures
+  const url = await presignedClient.presignedPutObject(BUCKET, fullKey, expirySeconds);
+  return url;
 }
 
 export async function getPresignedDownloadUrl(
@@ -96,8 +96,9 @@ export async function getPresignedDownloadUrl(
   expirySeconds = 3600
 ): Promise<string> {
   const fullKey = `${PREFIXES[prefix]}${key}`;
-  const url = await minioClient.presignedGetObject(BUCKET, fullKey, expirySeconds);
-  return toPublicUrl(url);
+  // Use presignedClient which is configured with public endpoint for correct signatures
+  const url = await presignedClient.presignedGetObject(BUCKET, fullKey, expirySeconds);
+  return url;
 }
 
 export async function deleteObject(prefix: 'uploads' | 'outputs' | 'templates', key: string): Promise<void> {
@@ -144,9 +145,9 @@ export async function getPresignedUploadUrlLegacy(
   key: string,
   expirySeconds = 3600
 ): Promise<string> {
-  // Determine prefix from key or default to uploads
-  const url = await minioClient.presignedPutObject(BUCKET, key, expirySeconds);
-  return toPublicUrl(url);
+  // Use presignedClient which is configured with public endpoint for correct signatures
+  const url = await presignedClient.presignedPutObject(BUCKET, key, expirySeconds);
+  return url;
 }
 
 export async function getPresignedDownloadUrlLegacy(
@@ -154,8 +155,9 @@ export async function getPresignedDownloadUrlLegacy(
   key: string,
   expirySeconds = 3600
 ): Promise<string> {
-  const url = await minioClient.presignedGetObject(BUCKET, key, expirySeconds);
-  return toPublicUrl(url);
+  // Use presignedClient which is configured with public endpoint for correct signatures
+  const url = await presignedClient.presignedGetObject(BUCKET, key, expirySeconds);
+  return url;
 }
 
 /**
