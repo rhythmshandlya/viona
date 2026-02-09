@@ -2112,8 +2112,7 @@ export const RemotionRoot: React.FC = () => {{
 // The frontend player needs the actual video component, not the registration wrapper
 export default MainComposition;
 
-// Register root for Remotion bundler (required for SSR rendering)
-registerRoot(RemotionRoot);
+// NOTE: Do NOT call registerRoot here - the workspace index.ts handles registration
 ```
 
 ### CRITICAL - metadata.json:
@@ -2254,8 +2253,12 @@ class ClaudeVisualGenerator:
         condensed_skills = get_condensed_skills()
         technique_examples = extract_technique_examples(transcript)
 
+        # Composition ID must use dashes (Remotion requirement), folder uses underscores
+        composition_id = self.project_id.replace("_", "-")
+
         base_message = USER_MESSAGE.format(
             project_id=self.project_id,
+            composition_id=composition_id,
             width=width,
             height=height,
             duration_frames=duration_frames,
@@ -2401,13 +2404,26 @@ When done, respond: "SELF-HEAL COMPLETE"
         # Create output directory
         bundle_path.mkdir(parents=True, exist_ok=True)
 
-        # Use project-specific entry point instead of workspace Root.tsx
-        # The generated composition exports RemotionRoot which registers the composition
-        entry_point = self.src_dir / "index.tsx"
+        # Update src/index.ts to import from the generated project instead of Root.tsx
+        # This is needed because Remotion's --entry-point doesn't work reliably
+        index_ts_path = self.workspace / "src" / "index.ts"
+        original_index_ts = index_ts_path.read_text() if index_ts_path.exists() else ""
+
+        # Create new index.ts that imports from the generated project
+        new_index_ts = f'''/**
+ * Auto-generated entry point for project: {self.project_id}
+ */
+import {{ registerRoot }} from "remotion";
+import {{ RemotionRoot }} from "./{self.project_id}/index";
+
+registerRoot(RemotionRoot);
+'''
+        index_ts_path.write_text(new_index_ts)
+        print(f"[ClaudeGenerator] Updated src/index.ts to import from {self.project_id}")
 
         try:
             result = subprocess.run(
-                ["npx", "remotion", "bundle", "--entry-point", str(entry_point), "--out-dir", str(bundle_path)],
+                ["npx", "remotion", "bundle", "--out-dir", str(bundle_path)],
                 cwd=str(self.workspace),
                 capture_output=True,
                 timeout=300,  # 5 min for bundling
@@ -2424,6 +2440,9 @@ When done, respond: "SELF-HEAL COMPLETE"
 
         except subprocess.TimeoutExpired:
             raise RuntimeError("Bundle timed out after 5 minutes")
+        finally:
+            # Restore original index.ts for next project
+            index_ts_path.write_text(original_index_ts)
 
     async def _compile_cjs(self, bundle_path: Path) -> None:
         """

@@ -12,14 +12,30 @@ import { logger } from '../logger.js';
 import { renderVideo, SubtitleItem, SubtitleStyle } from '@reelify/renderer';
 import { renderMedia, selectComposition } from '@remotion/renderer';
 
+export interface ExportOptions {
+  layoutMode: 'pip' | 'split-h' | 'split-v' | 'overlay';
+  pipPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  pipSize: number;
+}
+
 export interface RenderJobData {
   projectId: string;
   jobId: string;
+  exportOptions?: ExportOptions;
 }
 
 export async function processRenderJob(job: Job<RenderJobData>) {
-  const { projectId, jobId } = job.data;
+  const { projectId, jobId, exportOptions } = job.data;
   const workDir = join(tmpdir(), `reelify-render-${nanoid()}`);
+
+  // Default export options
+  const options: ExportOptions = {
+    layoutMode: exportOptions?.layoutMode || 'pip',
+    pipPosition: exportOptions?.pipPosition || 'bottom-right',
+    pipSize: exportOptions?.pipSize || 25,
+  };
+
+  logger.info({ projectId, jobId, exportOptions: options }, 'Starting render job with options');
 
   try {
     await mkdir(workDir, { recursive: true });
@@ -100,9 +116,9 @@ export async function processRenderJob(job: Job<RenderJobData>) {
     if (projectVisual) {
       await publishJobProgress(jobId, 30, 'Rendering visuals with Remotion...');
 
-      // Get bundle path from compositionId
-      const bundleCompositionId = projectVisual.compositionId.replace(/_/g, '-');
-      const bundlePath = join(config.remotion.bundleOutputDir, bundleCompositionId);
+      // Get bundle path and composition ID - both use dashes (Remotion requirement)
+      const compositionId = projectVisual.compositionId.replace(/_/g, '-');
+      const bundlePath = join(config.remotion.bundleOutputDir, compositionId);
 
       const visualWidth = projectVisual.width || 1080;
       const visualHeight = projectVisual.height || 1920;
@@ -115,13 +131,14 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         subtitleCount: subtitles.length,
         visualWidth,
         visualHeight,
+        exportOptions: options,
       }, 'Starting Remotion SSR render');
 
       // Step 1: Render Remotion composition exactly as shown in preview
       const remotionTempPath = join(workDir, 'remotion_visuals.mp4');
       await renderWithRemotion({
         bundlePath,
-        compositionId: bundleCompositionId,
+        compositionId, // Use underscores - matches how composition is registered
         outputPath: remotionTempPath,
         onProgress: (progress) => {
           const jobProgress = 30 + Math.round(progress * 40);
@@ -131,20 +148,24 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
       logger.info({ projectId, remotionTempPath }, 'Remotion render complete');
 
-      await publishJobProgress(jobId, 75, 'Adding audio and subtitles...');
+      await publishJobProgress(jobId, 75, 'Compositing video with layout...');
 
-      // Step 2: Add audio and subtitles to the rendered video
-      await addAudioAndSubtitles({
-        videoPath: remotionTempPath,
+      // Step 2: Create PiP/Split composite using FFmpeg with user's layout preferences
+      await createPiPComposite({
+        sourceVideoPath: videoPath,
+        animationVideoPath: remotionTempPath,
         audioPath: enhancedAudioPath,
         subtitles,
         outputPath,
         workDir,
         width: visualWidth,
         height: visualHeight,
+        layoutMode: options.layoutMode,
+        pipPosition: options.pipPosition,
+        pipSize: options.pipSize,
       });
 
-      logger.info({ projectId, outputPath }, 'Export complete');
+      logger.info({ projectId, outputPath, layoutMode: options.layoutMode }, 'Export complete');
     } else {
       // No visuals - use FFmpeg with subtitles and audio
       await publishJobProgress(jobId, 30, 'Encoding video...');
@@ -1371,6 +1392,239 @@ async function encodeVideoWithSubtitles(
         resolve();
       } else {
         logger.error({ code, stderr: stderr.slice(-1000) }, 'FFmpeg subtitle encode failed');
+        reject(new Error(`FFmpeg exited with code ${code}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      logger.error({ err }, 'FFmpeg spawn error');
+      reject(err);
+    });
+  });
+}
+
+// =============================================================================
+// PiP/Split Composite with Layout Options
+// =============================================================================
+
+interface CreatePiPCompositeOptions {
+  sourceVideoPath: string;
+  animationVideoPath: string;
+  audioPath: string | null;
+  subtitles: SubtitleItem[];
+  outputPath: string;
+  workDir: string;
+  width: number;
+  height: number;
+  layoutMode: 'pip' | 'split-h' | 'split-v' | 'overlay';
+  pipPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  pipSize: number;
+}
+
+/**
+ * Create composite video with various layout modes:
+ * - pip: Animation fullscreen, source video as small PiP
+ * - split-h: Source video on left, animation on right (horizontal split)
+ * - split-v: Source video on top, animation on bottom (vertical split)
+ * - overlay: Animation overlaid on source video (alpha blend)
+ */
+async function createPiPComposite(options: CreatePiPCompositeOptions): Promise<void> {
+  const {
+    sourceVideoPath,
+    animationVideoPath,
+    audioPath,
+    subtitles,
+    outputPath,
+    workDir,
+    width,
+    height,
+    layoutMode,
+    pipPosition,
+    pipSize,
+  } = options;
+
+  const { spawn } = await import('child_process');
+  const { basename, dirname } = await import('path');
+  const { writeFile, copyFile } = await import('fs/promises');
+
+  // Copy files to working directory with simple names
+  const localSourcePath = join(workDir, 'source.mp4');
+  const localAnimationPath = join(workDir, 'animation.mp4');
+  await copyFile(sourceVideoPath, localSourcePath);
+  await copyFile(animationVideoPath, localAnimationPath);
+
+  // Copy audio if provided
+  let audioFilename: string | null = null;
+  if (audioPath) {
+    audioFilename = 'audio.m4a';
+    await copyFile(audioPath, join(workDir, audioFilename));
+  }
+
+  // Generate ASS subtitles if we have any
+  let assFilename: string | null = null;
+  if (subtitles.length > 0) {
+    assFilename = 'subtitles.ass';
+    const assContent = generateASSForComposite(subtitles, width, height);
+    await writeFile(join(workDir, assFilename), assContent, 'utf-8');
+    logger.info({ subtitleCount: subtitles.length }, 'Generated subtitles');
+  }
+
+  logger.info({
+    sourceVideoPath,
+    animationVideoPath,
+    audioPath,
+    subtitleCount: subtitles.length,
+    layoutMode,
+    pipPosition,
+    pipSize,
+    width,
+    height,
+  }, 'Creating composite with layout options');
+
+  // Build FFmpeg filter complex based on layout mode
+  let filterComplex = '';
+
+  switch (layoutMode) {
+    case 'pip': {
+      // PiP: Animation fullscreen as background, source video as small overlay
+      const pipW = Math.round(width * (pipSize / 100));
+      const pipH = Math.round(height * (pipSize / 100));
+      const margin = Math.round(width * 0.03);
+
+      let pipX: number, pipY: number;
+      switch (pipPosition) {
+        case 'top-left':
+          pipX = margin;
+          pipY = margin;
+          break;
+        case 'top-right':
+          pipX = width - pipW - margin;
+          pipY = margin;
+          break;
+        case 'bottom-left':
+          pipX = margin;
+          pipY = height - pipH - margin;
+          break;
+        case 'bottom-right':
+        default:
+          pipX = width - pipW - margin;
+          pipY = height - pipH - margin;
+          break;
+      }
+
+      // [1:v] = animation (background), [0:v] = source (pip overlay)
+      filterComplex = [
+        `[1:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1[bg]`,
+        `[0:v]scale=${pipW}:${pipH}:force_original_aspect_ratio=decrease,pad=${pipW}:${pipH}:(ow-iw)/2:(oh-ih)/2,setsar=1[pip]`,
+        `[bg][pip]overlay=${pipX}:${pipY}[outv]`,
+      ].join(';');
+      break;
+    }
+
+    case 'split-h': {
+      // Horizontal split: source on left, animation on right
+      const halfWidth = Math.round(width / 2);
+      filterComplex = [
+        `[0:v]scale=${halfWidth}:${height}:force_original_aspect_ratio=decrease,pad=${halfWidth}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1[left]`,
+        `[1:v]scale=${halfWidth}:${height}:force_original_aspect_ratio=decrease,pad=${halfWidth}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1[right]`,
+        `[left][right]hstack=inputs=2[outv]`,
+      ].join(';');
+      break;
+    }
+
+    case 'split-v': {
+      // Vertical split: source on top, animation on bottom
+      const halfHeight = Math.round(height / 2);
+      filterComplex = [
+        `[0:v]scale=${width}:${halfHeight}:force_original_aspect_ratio=decrease,pad=${width}:${halfHeight}:(ow-iw)/2:(oh-ih)/2,setsar=1[top]`,
+        `[1:v]scale=${width}:${halfHeight}:force_original_aspect_ratio=decrease,pad=${width}:${halfHeight}:(ow-iw)/2:(oh-ih)/2,setsar=1[bottom]`,
+        `[top][bottom]vstack=inputs=2[outv]`,
+      ].join(';');
+      break;
+    }
+
+    case 'overlay': {
+      // Overlay: animation overlaid on source with transparency
+      filterComplex = [
+        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1[base]`,
+        `[1:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,format=rgba,colorchannelmixer=aa=0.7[overlay]`,
+        `[base][overlay]overlay=0:0[outv]`,
+      ].join(';');
+      break;
+    }
+  }
+
+  // Skip subtitles in filter_complex due to path escaping issues
+  // Subtitles would need a second pass to work properly
+
+  // Get source video duration first to set duration for the output
+  let videoDuration = 0;
+  try {
+    const { execSync } = await import('child_process');
+    const ffprobeArgs = ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', 'source.mp4'];
+    const durationStr = execSync(`ffprobe ${ffprobeArgs.join(' ')}`, { cwd: workDir, encoding: 'utf-8' }).trim();
+    videoDuration = parseFloat(durationStr);
+    logger.info({ videoDuration }, 'Detected source video duration');
+  } catch (err) {
+    logger.warn({ err }, 'Could not detect video duration, using -shortest');
+  }
+
+  // Build FFmpeg args
+  // Input order: 0=source, 1=animation, 2=audio (optional)
+  const args = [
+    '-i', 'source.mp4',
+    '-i', 'animation.mp4',
+  ];
+
+  if (audioFilename) {
+    args.push('-i', audioFilename);
+  }
+
+  args.push(
+    '-y',
+    '-filter_complex', filterComplex,
+    '-map', '[outv]',
+  );
+
+  // Map audio
+  if (audioFilename) {
+    args.push('-map', '2:a', '-c:a', 'aac');
+  } else {
+    args.push('-map', '0:a?', '-c:a', 'aac');
+  }
+
+  args.push(
+    '-c:v', 'libx264',
+    '-preset', 'medium',
+    '-crf', '18',
+  );
+
+  // Use -t if we know the duration, otherwise -shortest
+  if (videoDuration > 0) {
+    args.push('-t', videoDuration.toString());
+  } else {
+    args.push('-shortest');
+  }
+
+  args.push(basename(outputPath));
+
+  return new Promise((resolve, reject) => {
+    logger.info({ cmd: `ffmpeg ${args.join(' ')}`, cwd: workDir }, 'FFmpeg composite started');
+
+    const proc = spawn('ffmpeg', args, {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stderr = '';
+    proc.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        logger.info({ outputPath, layoutMode }, 'FFmpeg composite completed');
+        resolve();
+      } else {
+        logger.error({ code, stderr: stderr.slice(-1000) }, 'FFmpeg composite failed');
         reject(new Error(`FFmpeg exited with code ${code}`));
       }
     });

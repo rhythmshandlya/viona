@@ -229,10 +229,14 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string): Promise<ProcessProjectResponse> {
+  async renderProject(projectId: string, options?: {
+    layoutMode?: 'pip' | 'split-h' | 'split-v' | 'overlay';
+    pipPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+    pipSize?: number;
+  }): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(options || {}),
     });
   }
 

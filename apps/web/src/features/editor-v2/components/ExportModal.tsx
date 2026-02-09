@@ -26,6 +26,15 @@ interface ExportModalProps {
 
 type ExportState = 'idle' | 'rendering' | 'complete' | 'error';
 
+export type LayoutMode = 'pip' | 'split-h' | 'split-v' | 'overlay';
+export type PipPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+export interface ExportOptions {
+  layoutMode: LayoutMode;
+  pipPosition: PipPosition;
+  pipSize: number;
+}
+
 export function ExportModal({
   open,
   onOpenChange,
@@ -39,6 +48,11 @@ export function ExportModal({
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+
+  // Export options
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('pip');
+  const [pipPosition, setPipPosition] = useState<PipPosition>('bottom-right');
+  const [pipSize, setPipSize] = useState(25);
 
   // WebSocket for real-time progress
   const { isConnected, subscribeToJob, unsubscribeFromJob } = useJobWebSocket(
@@ -150,7 +164,12 @@ export function ExportModal({
     setDownloadUrl(null);
 
     try {
-      const { jobId: newJobId } = await api.renderProject(projectId);
+      const options: ExportOptions = {
+        layoutMode,
+        pipPosition,
+        pipSize,
+      };
+      const { jobId: newJobId } = await api.renderProject(projectId, options);
       setJobId(newJobId);
     } catch (err) {
       setExportState('error');
@@ -192,29 +211,86 @@ export function ExportModal({
           {exportState === 'idle' && (
             <>
               <div className="space-y-3">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--editor-bg-surface)] border border-[var(--editor-border-subtle)]">
-                  <div className="flex items-center gap-3">
-                    <Settings className="w-4 h-4 text-[var(--editor-text-muted)]" />
-                    <div>
-                      <div className="text-sm font-medium text-[var(--editor-text-primary)]">
-                        Output Format
-                      </div>
-                      <div className="text-xs text-[var(--editor-text-muted)]">
-                        MP4 (H.264)
-                      </div>
-                    </div>
+                {/* Layout Mode */}
+                <div className="p-3 rounded-lg bg-[var(--editor-bg-surface)] border border-[var(--editor-border-subtle)]">
+                  <div className="text-sm font-medium text-[var(--editor-text-primary)] mb-2">
+                    Layout Mode
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'pip', label: 'Picture in Picture' },
+                      { value: 'split-h', label: 'Split Horizontal' },
+                      { value: 'split-v', label: 'Split Vertical' },
+                      { value: 'overlay', label: 'Overlay' },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => setLayoutMode(option.value as LayoutMode)}
+                        className={`px-3 py-2 text-xs rounded-md transition-colors ${
+                          layoutMode === option.value
+                            ? 'bg-[var(--editor-accent)] text-[var(--editor-bg-base)]'
+                            : 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-secondary)] hover:bg-[var(--editor-bg-elevated)]'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
+                {/* PiP Options - only show when pip mode is selected */}
+                {layoutMode === 'pip' && (
+                  <div className="p-3 rounded-lg bg-[var(--editor-bg-surface)] border border-[var(--editor-border-subtle)]">
+                    <div className="text-sm font-medium text-[var(--editor-text-primary)] mb-2">
+                      Video Position
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { value: 'top-left', label: 'Top Left' },
+                        { value: 'top-right', label: 'Top Right' },
+                        { value: 'bottom-left', label: 'Bottom Left' },
+                        { value: 'bottom-right', label: 'Bottom Right' },
+                      ].map((option) => (
+                        <button
+                          key={option.value}
+                          onClick={() => setPipPosition(option.value as PipPosition)}
+                          className={`px-3 py-2 text-xs rounded-md transition-colors ${
+                            pipPosition === option.value
+                              ? 'bg-[var(--editor-accent)] text-[var(--editor-bg-base)]'
+                              : 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-secondary)] hover:bg-[var(--editor-bg-elevated)]'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3">
+                      <div className="flex justify-between text-xs text-[var(--editor-text-muted)] mb-1">
+                        <span>Video Size</span>
+                        <span>{pipSize}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="15"
+                        max="50"
+                        value={pipSize}
+                        onChange={(e) => setPipSize(Number(e.target.value))}
+                        className="w-full accent-[var(--editor-accent)]"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Output info */}
                 <div className="flex items-center justify-between p-3 rounded-lg bg-[var(--editor-bg-surface)] border border-[var(--editor-border-subtle)]">
                   <div className="flex items-center gap-3">
                     <Settings className="w-4 h-4 text-[var(--editor-text-muted)]" />
                     <div>
                       <div className="text-sm font-medium text-[var(--editor-text-primary)]">
-                        Quality
+                        Output
                       </div>
                       <div className="text-xs text-[var(--editor-text-muted)]">
-                        High (Original Resolution)
+                        MP4 (H.264) • High Quality
                       </div>
                     </div>
                   </div>

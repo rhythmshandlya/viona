@@ -421,6 +421,14 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
+    // Parse export options from request body
+    const exportOptionsSchema = z.object({
+      layoutMode: z.enum(['pip', 'split-h', 'split-v', 'overlay']).optional().default('pip'),
+      pipPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).optional().default('bottom-right'),
+      pipSize: z.number().min(15).max(50).optional().default(25),
+    });
+    const exportOptions = exportOptionsSchema.parse(request.body || {});
+
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
     });
@@ -450,10 +458,15 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job
+    // Queue the job with export options
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
+      exportOptions: {
+        layoutMode: exportOptions.layoutMode,
+        pipPosition: exportOptions.pipPosition,
+        pipSize: exportOptions.pipSize,
+      },
     });
 
     return { jobId: job.id };

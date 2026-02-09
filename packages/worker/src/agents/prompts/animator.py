@@ -691,7 +691,10 @@ import {{
   AbsoluteFill,
   Composition,
   Sequence,
-  registerRoot,
+  useCurrentFrame,
+  useVideoConfig,
+  spring,
+  interpolate,
 }} from 'remotion';
 import {{ COLORS, TIMING }} from './constants';
 import {{ Background }} from './components/Background';
@@ -720,7 +723,7 @@ const MainComposition: React.FC = () => {{
 export const RemotionRoot: React.FC = () => {{
   return (
     <Composition
-      id="{project_id}"
+      id="{composition_id}"
       component={{MainComposition}}
       durationInFrames={{TIMING.totalFrames}}
       fps={{TIMING.fps}}
@@ -733,15 +736,14 @@ export const RemotionRoot: React.FC = () => {{
 // CRITICAL: Export MainComposition as default (NOT RemotionRoot!)
 export default MainComposition;
 
-// Register root for Remotion bundler (required for SSR rendering)
-registerRoot(RemotionRoot);
+// NOTE: Do NOT call registerRoot here - the workspace index.ts handles registration
 ```
 
 ### metadata.json
 **MUST match scenes.json values exactly:**
 ```json
 {{
-  "compositionId": "{project_id}",
+  "compositionId": "{composition_id}",
   "durationInFrames": /* MUST equal scenes.json.totalFrames */,
   "fps": /* MUST equal scenes.json.fps */,
   "width": /* from project specs */,
