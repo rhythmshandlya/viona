@@ -2940,8 +2940,10 @@ When done, respond: "SELF-HEAL COMPLETE"
                 metadata_json = self.src_dir / "metadata.json"
                 if not metadata_json.exists():
                     print("[ClaudeGenerator] Creating fallback metadata.json...")
+                    # Use hyphens in composition ID (Remotion doesn't allow underscores)
+                    composition_id = self.project_id.replace("_", "-")
                     fallback_metadata = {
-                        "compositionId": self.project_id,
+                        "compositionId": composition_id,
                         "durationInFrames": duration_frames,
                         "fps": fps,
                         "width": width,
@@ -2988,8 +2990,14 @@ When done, respond: "SELF-HEAL COMPLETE"
         """
         Ensure the Composition id in index.tsx matches the expected project_id.
         The agent sometimes uses descriptive names instead of the project ID.
+
+        IMPORTANT: Remotion only allows a-z, A-Z, 0-9, CJK characters, and hyphens in IDs.
+        Underscores are NOT allowed, so we convert them to hyphens.
         """
         import re
+
+        # Remotion requires hyphens, not underscores in composition IDs
+        expected_id = expected_id.replace("_", "-")
 
         content = index_tsx.read_text(encoding="utf-8")
 

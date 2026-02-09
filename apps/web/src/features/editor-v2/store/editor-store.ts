@@ -38,6 +38,18 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+// Debounce utility for auto-save
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+const debouncedSave = (saveFn: () => Promise<void>, delay = 1000) => {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+  saveTimeout = setTimeout(() => {
+    saveFn();
+    saveTimeout = null;
+  }, delay);
+};
+
 // Initial state
 const initialState: EditorState = {
   // Project
@@ -112,12 +124,12 @@ function migrateAnimationLegacy(legacy: string): AnimationConfig {
  * Track heights per type — taller for video/audio, compact for text-based tracks
  */
 const TRACK_HEIGHTS: Record<string, number> = {
-  video: 64,
-  audio: 48,
-  caption: 36,
-  text: 36,
-  overlay: 36,
-  visual: 64, // Visual tracks are taller to show content
+  video: 48,
+  audio: 36,
+  caption: 28,
+  text: 28,
+  overlay: 28,
+  visual: 48,
 };
 
 /**
@@ -508,6 +520,8 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      // Auto-save caption styles to database
+      debouncedSave(() => get().saveProject());
     },
 
     updateSelectedCaptionStyles: (ids: string[], styleUpdates: Partial<CaptionStyle>) => {
@@ -524,6 +538,8 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      // Auto-save caption styles to database
+      debouncedSave(() => get().saveProject());
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {

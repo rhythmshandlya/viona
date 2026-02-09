@@ -121,7 +121,14 @@
       "Bash(type:*)",
       "Bash(findstr:*)",
       "Bash(tasklist:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(dir \"C:\\\\Users\\\\armaa\\\\Documents\\\\cllipify\\\\bundles\")",
+      "Bash(dir:*)",
+      "Bash(npm ls:*)",
+      "Bash(psql:*)",
+      "Bash(pnpm --filter @reelify/worker exec node -e:*)",
+      "Bash(PGPASSWORD=reelify123 psql:*)",
+      "Bash(docker logs:*)"
     ]
   }
 }

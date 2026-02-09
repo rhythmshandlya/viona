@@ -294,6 +294,11 @@ export function Editor({ projectId }: EditorProps) {
             console.error('Failed to fetch job metrics:', err);
           }
 
+          // Reload project to get new visual track and timeline items
+          if (project?.id) {
+            loadProject(project.id);
+          }
+
           setVisualsJobId(null);
           setShowStyleModal(true); // Re-open modal to show completion
         }
@@ -337,6 +342,11 @@ export function Editor({ projectId }: EditorProps) {
           // Set metrics from job
           if (job.metrics) {
             setVisualsMetrics(job.metrics);
+          }
+
+          // Reload project to get new visual track and timeline items
+          if (project?.id) {
+            loadProject(project.id);
           }
 
           setVisualsJobId(null);

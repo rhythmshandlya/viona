@@ -62,13 +62,27 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV RAILWAY_ENVIRONMENT=true
 
-# Install Python 3.10+ for Claude Agent SDK
+# Install Python 3.10+ for Claude Agent SDK, FFmpeg, and fonts for subtitle rendering
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-venv \
     ffmpeg \
+    fontconfig \
+    fonts-liberation \
+    fonts-dejavu-core \
+    curl \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Inter font for subtitle rendering
+# Download from Google Fonts for reliable access
+RUN mkdir -p /usr/share/fonts/truetype/inter && \
+    curl -L "https://fonts.google.com/download?family=Inter" -o /tmp/inter.zip && \
+    unzip /tmp/inter.zip -d /tmp/inter && \
+    find /tmp/inter -name "*.ttf" -exec cp {} /usr/share/fonts/truetype/inter/ \; && \
+    rm -rf /tmp/inter /tmp/inter.zip && \
+    fc-cache -fv
 
 # Create virtual environment and install Python deps
 RUN python3 -m venv /opt/venv
