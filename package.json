@@ -27,7 +27,9 @@
     "deploy:worker": "railway up --service worker --detach",
     "deploy:all": "railway up --service web --detach && railway up --service api --detach && railway up --service worker --detach",
     "lint": "pnpm run --parallel lint",
-    "typecheck": "pnpm run --parallel typecheck"
+    "typecheck": "pnpm run --parallel typecheck",
+    "push-tokens": "pnpm --filter @reelify/worker push-tokens",
+    "reauth": "claude login && pnpm push-tokens"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
