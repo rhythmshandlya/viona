@@ -76,9 +76,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Inter font for subtitle rendering
-# Download from Google Fonts for reliable access
+# Download from GitHub releases (more reliable than Google Fonts API)
 RUN mkdir -p /usr/share/fonts/truetype/inter && \
-    curl -L "https://fonts.google.com/download?family=Inter" -o /tmp/inter.zip && \
+    curl -L "https://github.com/rsms/inter/releases/download/v4.0/Inter-4.0.zip" -o /tmp/inter.zip && \
     unzip /tmp/inter.zip -d /tmp/inter && \
     find /tmp/inter -name "*.ttf" -exec cp {} /usr/share/fonts/truetype/inter/ \; && \
     rm -rf /tmp/inter /tmp/inter.zip && \
