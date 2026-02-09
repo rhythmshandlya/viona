@@ -2959,8 +2959,10 @@ registerRoot(RemotionRoot);
                 metadata_json = self.src_dir / "metadata.json"
                 if not metadata_json.exists():
                     print("[ClaudeGenerator] Creating fallback metadata.json...")
+                    # Composition ID must use dashes (Remotion requirement)
+                    fallback_composition_id = self.project_id.replace("_", "-")
                     fallback_metadata = {
-                        "compositionId": self.project_id,
+                        "compositionId": fallback_composition_id,
                         "durationInFrames": duration_frames,
                         "fps": fps,
                         "width": width,
@@ -2972,9 +2974,10 @@ registerRoot(RemotionRoot);
                     with open(metadata_json, "w", encoding="utf-8") as f:
                         json.dump(fallback_metadata, f, indent=2)
 
-                # Fix composition ID
+                # Fix composition ID (must use dashes, not underscores - Remotion requirement)
                 index_tsx = self.src_dir / "index.tsx"
-                await self._fix_composition_id(index_tsx, self.project_id)
+                composition_id_with_dashes = self.project_id.replace("_", "-")
+                await self._fix_composition_id(index_tsx, composition_id_with_dashes)
 
                 # Bundle
                 print(f"[ClaudeGenerator] Bundling project...")
@@ -3005,11 +3008,18 @@ registerRoot(RemotionRoot);
 
     async def _fix_composition_id(self, index_tsx: Path, expected_id: str) -> None:
         """
-        Ensure the Composition id in index.tsx matches the expected project_id.
-        The agent sometimes uses descriptive names instead of the project ID.
+        Ensure the Composition id in index.tsx and metadata.json use dashes (Remotion requirement).
+        The agent sometimes uses underscores or descriptive names instead of the correct format.
+
+        Remotion only allows: a-z, A-Z, 0-9, CJK characters and -
+        Underscores are NOT allowed.
         """
         import re
 
+        # Ensure expected_id uses dashes (defensive check)
+        expected_id = expected_id.replace("_", "-")
+
+        # Fix index.tsx
         content = index_tsx.read_text(encoding="utf-8")
 
         # Find all Composition id= values
@@ -3018,23 +3028,38 @@ registerRoot(RemotionRoot);
 
         if not matches:
             print(f"[ClaudeGenerator] Warning: No Composition found in index.tsx")
-            return
+        else:
+            current_id = matches[0]
+            if current_id == expected_id:
+                print(f"[ClaudeGenerator] Composition ID is correct: {current_id}")
+            else:
+                # Replace the composition ID
+                print(f"[ClaudeGenerator] Fixing composition ID in index.tsx: {current_id} -> {expected_id}")
+                new_content = re.sub(
+                    r'(<Composition\s+id=")([^"]+)(")',
+                    f'\\g<1>{expected_id}\\g<3>',
+                    content,
+                    count=1  # Only replace the first one
+                )
+                index_tsx.write_text(new_content, encoding="utf-8")
 
-        current_id = matches[0]
-        if current_id == expected_id:
-            print(f"[ClaudeGenerator] Composition ID is correct: {current_id}")
-            return
+        # Fix metadata.json
+        metadata_json = self.src_dir / "metadata.json"
+        if metadata_json.exists():
+            try:
+                with open(metadata_json, encoding="utf-8") as f:
+                    metadata = json.load(f)
 
-        # Replace the composition ID
-        print(f"[ClaudeGenerator] Fixing composition ID: {current_id} -> {expected_id}")
-        new_content = re.sub(
-            r'(<Composition\s+id=")([^"]+)(")',
-            f'\\g<1>{expected_id}\\g<3>',
-            content,
-            count=1  # Only replace the first one
-        )
-
-        index_tsx.write_text(new_content, encoding="utf-8")
+                current_comp_id = metadata.get("compositionId", "")
+                if current_comp_id != expected_id:
+                    print(f"[ClaudeGenerator] Fixing compositionId in metadata.json: {current_comp_id} -> {expected_id}")
+                    metadata["compositionId"] = expected_id
+                    with open(metadata_json, "w", encoding="utf-8") as f:
+                        json.dump(metadata, f, indent=2)
+                else:
+                    print(f"[ClaudeGenerator] metadata.json compositionId is correct: {current_comp_id}")
+            except Exception as e:
+                print(f"[ClaudeGenerator] Warning: Could not fix metadata.json: {e}")
 
 
 # =============================================================================
