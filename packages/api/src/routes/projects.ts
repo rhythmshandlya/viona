@@ -403,10 +403,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    // Only allow reset from failed or complete states
-    if (project.status !== 'failed' && project.status !== 'complete') {
+    // Only allow reset from failed, complete, or processing states (processing can get stuck)
+    if (project.status !== 'failed' && project.status !== 'complete' && project.status !== 'processing') {
       return reply.status(400).send({
-        error: `Cannot reset project in '${project.status}' state. Only 'failed' or 'complete' projects can be reset.`
+        error: `Cannot reset project in '${project.status}' state. Only 'failed', 'complete', or 'processing' projects can be reset.`
       });
     }
 

@@ -25,6 +25,12 @@ export interface TranscribeJobData {
   videoKey: string;
 }
 
+export interface ExportOptions {
+  layoutMode: 'pip' | 'split-h' | 'split-v' | 'overlay';
+  pipPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  pipSize: number;
+}
+
 export interface RenderJobData {
   projectId: string;
   jobId: string;

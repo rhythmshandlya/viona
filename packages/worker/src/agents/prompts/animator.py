@@ -517,23 +517,34 @@ interpolate(frame, [0, 30], [0, 1], {{extrapolateRight: 'clamp'}})
 
 def build_animator_user_message(project_id: str) -> str:
     """Build the user message for the Animator agent."""
+    # Composition ID must use dashes (Remotion requirement), folder uses underscores
+    composition_id = project_id.replace("_", "-")
 
     return f"""
 ## CRITICAL: READ THIS FIRST
 
+**⚠️ WARNING: DO NOT EXIT AFTER JUST READING FILES ⚠️**
+
+Reading SCENE_PLAN.md and scenes.json is NOT completion.
+You MUST WRITE index.tsx with actual implementation code.
+If you exit without creating index.tsx, the task FAILS.
+
 **YOU MUST WORK ONE SCENE AT A TIME.**
 
 The correct workflow is:
-1. Read the plan files
+1. Read the plan files (THIS IS JUST THE BEGINNING, NOT THE END)
 2. Create TODO list with TodoWrite (BEFORE any code)
-3. For EACH scene:
+3. Write constants.ts with colors/timing
+4. For EACH scene:
    - Mark TODO in_progress
    - Write reasoning to IMPLEMENTATION_LOG.md
-   - THEN write the code for that ONE scene
+   - THEN write the code for that ONE scene to index.tsx
    - Mark TODO completed
-4. Move to next scene
+5. Write metadata.json
+6. Run TypeScript validation
 
 **DO NOT write all scenes in one file at once. This is wrong.**
+**DO NOT exit after just reading - you must WRITE files.**
 
 ---
 
@@ -691,7 +702,10 @@ import {{
   AbsoluteFill,
   Composition,
   Sequence,
-  registerRoot,
+  useCurrentFrame,
+  useVideoConfig,
+  spring,
+  interpolate,
 }} from 'remotion';
 import {{ COLORS, TIMING }} from './constants';
 import {{ Background }} from './components/Background';
@@ -720,7 +734,7 @@ const MainComposition: React.FC = () => {{
 export const RemotionRoot: React.FC = () => {{
   return (
     <Composition
-      id="{project_id}"
+      id="{composition_id}"
       component={{MainComposition}}
       durationInFrames={{TIMING.totalFrames}}
       fps={{TIMING.fps}}
@@ -733,15 +747,14 @@ export const RemotionRoot: React.FC = () => {{
 // CRITICAL: Export MainComposition as default (NOT RemotionRoot!)
 export default MainComposition;
 
-// Register root for Remotion bundler (required for SSR rendering)
-registerRoot(RemotionRoot);
+// NOTE: Do NOT call registerRoot here - the workspace index.ts handles registration
 ```
 
 ### metadata.json
 **MUST match scenes.json values exactly:**
 ```json
 {{
-  "compositionId": "{project_id}",
+  "compositionId": "{composition_id}",
   "durationInFrames": /* MUST equal scenes.json.totalFrames */,
   "fps": /* MUST equal scenes.json.fps */,
   "width": /* from project specs */,
@@ -757,11 +770,23 @@ Your reasoning trail - document WHY you made each choice.
 
 ## COMPLETION
 
-When TypeScript validation passes and all files exist, respond:
+**CRITICAL: DO NOT EXIT EARLY**
+
+You MUST NOT send your final response or stop working until ALL of these are true:
+1. constants.ts file has been WRITTEN (not just read)
+2. index.tsx file has been WRITTEN with ALL scenes implemented
+3. metadata.json file has been WRITTEN
+4. TypeScript validation has PASSED (run `npx tsc --noEmit`)
+
+**If you only READ files and did not WRITE index.tsx, you have NOT completed the task.**
+**Reading the plan is NOT completion. You must IMPLEMENT the plan.**
+
+ONLY when ALL files are written AND TypeScript passes, respond:
 
 "GENERATION COMPLETE"
+- Files created: constants.ts, index.tsx, metadata.json
 - Scenes implemented: X/Y
-- All key syncs verified: Yes/No
-- Visual continuity maintained: Yes/No
 - TypeScript status: Clean
+
+**DO NOT respond with "GENERATION COMPLETE" if index.tsx does not exist.**
 """
