@@ -199,6 +199,7 @@ export interface VideoSettings {
 
 export interface Project {
   id: string;
+  title: string | null;
   status: string;
   videoKey: string | null;
   videoUrl: string | null;
