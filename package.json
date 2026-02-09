@@ -28,7 +28,9 @@
     "deploy:worker": "cp packages/worker/railway.toml railway.toml && railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s worker -e production && railway up -d",
     "deploy:all": "pnpm deploy:web && pnpm deploy:api && pnpm deploy:worker",
     "lint": "pnpm run --parallel lint",
-    "typecheck": "pnpm run --parallel typecheck"
+    "typecheck": "pnpm run --parallel typecheck",
+    "push-tokens": "pnpm --filter @reelify/worker push-tokens",
+    "reauth": "claude login && pnpm push-tokens"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

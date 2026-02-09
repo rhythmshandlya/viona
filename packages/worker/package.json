@@ -16,7 +16,8 @@
     "enhance:setup": "bash ./scripts/setup-enhance.sh",
     "enhance:setup:win": ".\\scripts\\setup-enhance.bat",
     "upload-template": "tsx scripts/upload-template.ts",
-    "download-template": "tsx scripts/download-template.ts"
+    "download-template": "tsx scripts/download-template.ts",
+    "push-tokens": "node scripts/push-claude-tokens.js"
   },
   "dependencies": {
     "@reelify/renderer": "workspace:*",

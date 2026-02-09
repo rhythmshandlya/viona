@@ -2880,6 +2880,15 @@ registerRoot(RemotionRoot);
             format_transcript_with_key_moments,
         )
 
+        # Ensure OAuth token is valid before starting (auto-refreshes if needed)
+        try:
+            manager = get_token_manager()
+            await manager.get_valid_token()
+            print("[ClaudeGenerator] OAuth token validated/refreshed successfully")
+        except Exception as e:
+            print(f"[ClaudeGenerator] WARNING: OAuth token refresh failed: {e}")
+            # Continue anyway - the Claude SDK might still work with cached credentials
+
         last_error: Exception | None = None
 
         for attempt in range(max_retries + 1):

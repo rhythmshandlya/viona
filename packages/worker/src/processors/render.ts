@@ -739,7 +739,7 @@ async function compositeVideos(
 
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'medium',
+    '-preset', 'fast',
     '-crf', '18',
     '-c:a', 'aac',
     '-shortest',
@@ -922,7 +922,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
   // Add subtitles filter if we have them, otherwise copy video
   if (assFilename) {
     args.push('-vf', `subtitles=${assFilename}`);
-    args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '18');
+    args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18');
   } else {
     args.push('-c:v', 'copy');
   }
@@ -1306,7 +1306,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
 
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'medium',
+    '-preset', 'fast',
     '-crf', '18',
     '-c:a', 'aac',
     '-shortest',
@@ -1425,7 +1425,7 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
 
   // Encoding settings (only if we have subtitles to burn)
   if (assFilename) {
-    args.push('-c:v', 'libx264', '-preset', 'medium', '-crf', '18');
+    args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18');
   }
 
   args.push('-shortest', basename(outputPath));
@@ -1562,7 +1562,7 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
 
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'medium',
+    '-preset', 'fast',
     '-crf', '18',
     '-c:a', 'aac',
     '-shortest',
@@ -1949,7 +1949,7 @@ async function encodeVideoWithSubtitles(
 
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'medium',
+    '-preset', 'fast',
     '-crf', '18',
     '-c:a', 'aac',
     '-shortest',

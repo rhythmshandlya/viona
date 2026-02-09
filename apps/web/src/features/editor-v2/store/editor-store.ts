@@ -395,10 +395,10 @@ export const useEditorStore = create<EditorStore>()(
       try {
         const apiProject = await api.getProject(projectId);
 
-        // Construct video URL
-        const videoUrl = apiProject.videoKey
-          ? `${API_URL}/api/projects/${projectId}/video`
-          : '';
+        // Use presigned URL from API (allows cross-origin video loading without cookies)
+        // Fall back to direct URL for backwards compatibility
+        const videoUrl = (apiProject as any).videoPresignedUrl
+          || (apiProject.videoKey ? `${API_URL}/api/projects/${projectId}/video` : '');
 
         const { project, tracks, items, itemIds, duration } = convertApiProject(
           apiProject,

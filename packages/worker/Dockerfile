@@ -120,6 +120,8 @@ COPY --from=builder /app/packages/worker/remotion-template/tsconfig.json ./packa
 COPY --from=builder /app/packages/worker/remotion-template/remotion.config.ts ./packages/worker/remotion-template/
 COPY --from=builder /app/packages/worker/remotion-template/postcss.config.mjs ./packages/worker/remotion-template/
 COPY --from=builder /app/packages/worker/remotion-template/src ./packages/worker/remotion-template/src
+# Copy .claude directory with CLAUDE.md and skills
+COPY --from=builder /app/packages/worker/remotion-template/.claude ./packages/worker/remotion-template/.claude
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
@@ -128,6 +130,10 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Create directories with correct permissions
 RUN mkdir -p /tmp/workspace /tmp/template /tmp/bundles /home/worker && \
     chown -R worker:nodejs /tmp/workspace /tmp/template /tmp/bundles /home/worker
+
+# Create .remotion cache directory with correct permissions for Remotion bundler
+RUN mkdir -p /app/packages/worker/node_modules/.remotion && \
+    chown -R worker:nodejs /app/packages/worker/node_modules/.remotion
 
 # Set home directory for npm cache
 ENV HOME="/home/worker"
