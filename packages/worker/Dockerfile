@@ -120,6 +120,8 @@ COPY --from=builder /app/packages/worker/remotion-template/tsconfig.json ./packa
 COPY --from=builder /app/packages/worker/remotion-template/remotion.config.ts ./packages/worker/remotion-template/
 COPY --from=builder /app/packages/worker/remotion-template/postcss.config.mjs ./packages/worker/remotion-template/
 COPY --from=builder /app/packages/worker/remotion-template/src ./packages/worker/remotion-template/src
+# Copy .claude directory with CLAUDE.md and skills
+COPY --from=builder /app/packages/worker/remotion-template/.claude ./packages/worker/remotion-template/.claude
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \

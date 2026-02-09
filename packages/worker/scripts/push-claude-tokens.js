@@ -86,6 +86,15 @@ function pushToRailway(credentials) {
     const minutesRemaining = Math.round((expiresAt - now) / 1000 / 60);
     console.log(`Token expires in ${minutesRemaining} minutes (${expiresAt.toLocaleString()})`);
   }
+
+  // Redeploy worker to pick up new tokens
+  console.log('\nRedeploying worker service...');
+  try {
+    execSync('railway up --detach', { stdio: 'inherit' });
+    console.log('\nWorker redeployment triggered!');
+  } catch (e) {
+    console.error('Failed to trigger redeployment. Run manually: railway up');
+  }
 }
 
 // Main
@@ -118,11 +127,8 @@ function main() {
   console.log(`  Subscription: ${credentials.subscriptionType}`);
   console.log('');
 
-  // Push to Railway
+  // Push to Railway and redeploy
   pushToRailway(credentials);
-
-  console.log('\nTo redeploy the worker with new tokens:');
-  console.log('  railway service worker && railway up');
 }
 
 main();
