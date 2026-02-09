@@ -78,6 +78,11 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
     // Convert timeline items to subtitle format
     const subtitles = convertToSubtitles(allItems);
+    logger.info({
+      totalItems: allItems.length,
+      subtitleCount: subtitles.length,
+      itemTypes: allItems.map((i: any) => i.type),
+    }, 'Timeline items loaded');
     const outputPath = join(workDir, 'output.mp4');
 
     // Check for enhanced audio
@@ -486,8 +491,7 @@ interface RenderRemotionOptions {
 }
 
 /**
- * Render a Remotion composition to a video file using SSR.
- * Uses the existing bundle created by the visual generator.
+ * Render a Remotion composition to a video file using SSR with parallel frame rendering.
  */
 async function renderWithRemotion(options: RenderRemotionOptions): Promise<void> {
   const { bundlePath, compositionId, outputPath, onProgress } = options;
@@ -508,13 +512,19 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
     id: compositionId,
   });
 
+  // Use parallel frame rendering for speed (use ~50% of CPU cores)
+  const cpuCount = (await import('os')).cpus().length;
+  const concurrency = Math.max(2, Math.floor(cpuCount / 2));
+
   logger.info({
     compositionId: composition.id,
     width: composition.width,
     height: composition.height,
     fps: composition.fps,
     durationInFrames: composition.durationInFrames,
-  }, 'Composition selected');
+    concurrency,
+    cpuCount,
+  }, 'Composition selected, starting parallel render');
 
   // Render the composition to video
   await renderMedia({
@@ -522,6 +532,7 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
     serveUrl: bundlePath,
     codec: 'h264',
     outputLocation: outputPath,
+    concurrency, // Render multiple frames in parallel
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
     },
@@ -771,7 +782,14 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
     assFilename = 'subtitles.ass';
     const assContent = generateASSForComposite(subtitles, width, height);
     await writeFile(join(workDir, assFilename), assContent, 'utf-8');
-    logger.info({ subtitleCount: subtitles.length }, 'Generated subtitles');
+    logger.info({
+      subtitleCount: subtitles.length,
+      assPath: join(workDir, assFilename),
+      firstSubtitle: subtitles[0]?.text?.substring(0, 50),
+      assContentLength: assContent.length,
+    }, 'Generated ASS subtitles file');
+  } else {
+    logger.warn({ subtitles }, 'No subtitles to render - subtitle array is empty');
   }
 
   logger.info({
@@ -1278,7 +1296,9 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   // Get style from first subtitle (they should all have same style)
   const firstStyle = subtitles[0]?.style as any || {};
 
-  const fontFamily = (firstStyle.fontFamily || 'Inter').split(',')[0].trim();
+  // Use Arial as fallback - it's available on all systems
+  const requestedFont = (firstStyle.fontFamily || 'Arial').split(',')[0].trim();
+  const fontFamily = requestedFont === 'Inter' ? 'Arial' : requestedFont;
   const fontSize = firstStyle.fontSize || 48;
   const color = hexToASSColor(firstStyle.color || '#ffffff');
   const outlineColor = hexToASSColor(firstStyle.outlineColor || '#000000');
@@ -1554,8 +1574,8 @@ async function createPiPComposite(options: CreatePiPCompositeOptions): Promise<v
     }
   }
 
-  // Skip subtitles in filter_complex due to path escaping issues
-  // Subtitles would need a second pass to work properly
+  // Determine output file - if we have subtitles, we'll do a second pass
+  const compositeOutputFile = assFilename ? 'composite_temp.mp4' : basename(outputPath);
 
   // Get source video duration first to set duration for the output
   let videoDuration = 0;
@@ -1606,9 +1626,10 @@ async function createPiPComposite(options: CreatePiPCompositeOptions): Promise<v
     args.push('-shortest');
   }
 
-  args.push(basename(outputPath));
+  args.push(compositeOutputFile);
 
-  return new Promise((resolve, reject) => {
+  // First pass: create composite video
+  await new Promise<void>((resolve, reject) => {
     logger.info({ cmd: `ffmpeg ${args.join(' ')}`, cwd: workDir }, 'FFmpeg composite started');
 
     const proc = spawn('ffmpeg', args, {
@@ -1621,7 +1642,7 @@ async function createPiPComposite(options: CreatePiPCompositeOptions): Promise<v
 
     proc.on('close', (code) => {
       if (code === 0) {
-        logger.info({ outputPath, layoutMode }, 'FFmpeg composite completed');
+        logger.info({ compositeOutputFile, layoutMode }, 'FFmpeg composite completed');
         resolve();
       } else {
         logger.error({ code, stderr: stderr.slice(-1000) }, 'FFmpeg composite failed');
@@ -1634,4 +1655,56 @@ async function createPiPComposite(options: CreatePiPCompositeOptions): Promise<v
       reject(err);
     });
   });
+
+  // Second pass: burn in subtitles if we have them
+  if (assFilename) {
+    logger.info({ assFilename, subtitleCount: subtitles.length }, 'Burning subtitles into video (second pass)');
+
+    const subtitleArgs = [
+      '-i', compositeOutputFile,
+      '-y',
+      '-vf', `subtitles=${assFilename}`,
+      '-c:v', 'libx264',
+      '-preset', 'medium',
+      '-crf', '18',
+      '-c:a', 'copy',
+      basename(outputPath),
+    ];
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        logger.info({ cmd: `ffmpeg ${subtitleArgs.join(' ')}`, cwd: workDir }, 'FFmpeg subtitle burn started');
+
+        const proc = spawn('ffmpeg', subtitleArgs, {
+          cwd: workDir,
+          stdio: ['ignore', 'pipe', 'pipe']
+        });
+
+        let stderr = '';
+        proc.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
+
+        proc.on('close', (code) => {
+          if (code === 0) {
+            logger.info({ outputPath }, 'FFmpeg subtitle burn completed');
+            resolve();
+          } else {
+            logger.error({ code, stderr: stderr.slice(-1000) }, 'FFmpeg subtitle burn failed');
+            reject(new Error(`FFmpeg subtitle burn exited with code ${code}`));
+          }
+        });
+
+        proc.on('error', (err) => {
+          logger.error({ err }, 'FFmpeg spawn error');
+          reject(err);
+        });
+      });
+    } catch (err) {
+      // Subtitle burn failed (likely missing libass) - fall back to video without subtitles
+      logger.warn({ err }, 'Subtitle burning failed - FFmpeg may be missing libass. Exporting without subtitles.');
+
+      const { copyFile } = await import('fs/promises');
+      await copyFile(join(workDir, compositeOutputFile), join(workDir, basename(outputPath)));
+      logger.info({ outputPath }, 'Exported video without subtitles (fallback)');
+    }
+  }
 }

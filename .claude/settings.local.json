@@ -127,10 +127,14 @@
       "Bash(Write-Host \"Cleared env vars\")",
       "mcp__railway-mcp-server__list-variables",
       "mcp__railway-mcp-server__set-variables",
+<<<<<<< Updated upstream
       "Bash(git -C /Users/sarthakpant/project/clippify status)",
       "Bash(git -C /Users/sarthakpant/project/clippify/packages/worker/bundles/proj-5ddf4cc9-34f0-45d4-9213-25d4f13b3874 rev-parse --show-toplevel)",
       "Bash(psql:*)",
       "Bash(docker ps:*)"
+=======
+      "Bash(docker exec:*)"
+>>>>>>> Stashed changes
     ]
   }
 }
