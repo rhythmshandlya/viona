@@ -2,6 +2,7 @@
 
 # ============================================
 # Landing Page Dockerfile (Astro Static Site)
+# Build context is repo root, so paths use apps/landing prefix
 # ============================================
 
 # Build stage
@@ -10,13 +11,13 @@ FROM node:20-slim AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json ./
+COPY apps/landing/package.json ./
 
 # Install dependencies
 RUN npm install
 
 # Copy source files
-COPY . .
+COPY apps/landing/ .
 
 # Build the static site
 RUN npm run build
@@ -27,7 +28,7 @@ RUN npm run build
 FROM nginx:alpine AS runner
 
 # Copy nginx template (will be processed at runtime)
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY apps/landing/nginx.conf.template /etc/nginx/templates/default.conf.template
 
 # Copy built static files
 COPY --from=builder /app/dist /usr/share/nginx/html
