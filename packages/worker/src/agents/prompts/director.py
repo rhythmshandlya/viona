@@ -443,5 +443,19 @@ Before responding "PLANNING COMPLETE":
 
 **You MUST write both files using the Write tool. The Animator cannot proceed without them.**
 
-When your plan files are written, respond: "PLANNING COMPLETE"
+## ⚠️ CRITICAL: DO NOT EXIT EARLY ⚠️
+
+**You MUST NOT send your final response until you have ACTUALLY WRITTEN both files.**
+
+If you have not yet used the Write tool to create SCENE_PLAN.md and scenes.json:
+- DO NOT respond with "PLANNING COMPLETE"
+- DO NOT send a final message
+- GO BACK and use the Write tool to create the files
+
+**Reading the transcript is NOT completion. Analyzing is NOT completion.**
+**Only WRITING the output files to disk counts as completion.**
+
+Your task is INCOMPLETE until both files exist. The Animator CANNOT proceed without them.
+
+When your plan files are written (verified by using Write tool), respond: "PLANNING COMPLETE"
 """

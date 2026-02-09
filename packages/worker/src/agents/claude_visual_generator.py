@@ -2098,7 +2098,7 @@ const MainComposition: React.FC = () => {{
 export const RemotionRoot: React.FC = () => {{
   return (
     <Composition
-      id="{project_id}"
+      id="{composition_id}"
       component={{MainComposition}}
       durationInFrames={{{duration_frames}}}
       fps={{{fps}}}
@@ -2119,7 +2119,7 @@ export default MainComposition;
 After creating the code, write this file:
 ```json
 {{
-  "compositionId": "{project_id}",
+  "compositionId": "{composition_id}",
   "durationInFrames": {duration_frames},
   "fps": {fps},
   "width": {width},
