@@ -180,13 +180,13 @@ export function StyleSelectionModal({
   if (isComplete) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg bg-zinc-900 border-zinc-800">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto bg-white border-gray-200">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-green-500" />
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-green-600" />
               Visuals Generated!
             </DialogTitle>
-            <DialogDescription className="text-zinc-400">
+            <DialogDescription className="text-gray-500">
               Review the generated visuals before adding them to your timeline
             </DialogDescription>
           </DialogHeader>
@@ -194,7 +194,7 @@ export function StyleSelectionModal({
           <div className="py-4 space-y-4">
             {/* Preview thumbnail */}
             {previewUrl && (
-              <div className="rounded-lg overflow-hidden border border-zinc-700">
+              <div className="rounded-lg overflow-hidden border border-gray-200">
                 <img
                   src={previewUrl}
                   alt="Generated visual preview"
@@ -207,45 +207,45 @@ export function StyleSelectionModal({
             {metrics && (
               <div className="grid grid-cols-2 gap-3">
                 {metrics.llmModel && (
-                  <div className="p-3 bg-zinc-800/50 rounded-lg">
-                    <p className="text-xs text-zinc-500 mb-1">Model</p>
-                    <p className="text-sm text-zinc-200">{metrics.llmModel}</p>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Model</p>
+                    <p className="text-sm text-gray-800">{metrics.llmModel}</p>
                   </div>
                 )}
                 {metrics.durationMs !== undefined && (
-                  <div className="p-3 bg-zinc-800/50 rounded-lg">
-                    <p className="text-xs text-zinc-500 mb-1">Duration</p>
-                    <p className="text-sm text-zinc-200">
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Duration</p>
+                    <p className="text-sm text-gray-800">
                       {Math.round(metrics.durationMs / 1000)}s
                     </p>
                   </div>
                 )}
                 {(metrics.inputTokens !== undefined || metrics.outputTokens !== undefined) && (
-                  <div className="p-3 bg-zinc-800/50 rounded-lg">
-                    <p className="text-xs text-zinc-500 mb-1">Tokens Used</p>
-                    <p className="text-sm text-zinc-200">
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Tokens Used</p>
+                    <p className="text-sm text-gray-800">
                       {((metrics.inputTokens ?? 0) + (metrics.outputTokens ?? 0)).toLocaleString()}
                     </p>
                   </div>
                 )}
                 {metrics.estimatedCostUsd !== undefined && (
-                  <div className="p-3 bg-zinc-800/50 rounded-lg">
-                    <p className="text-xs text-zinc-500 mb-1">Estimated Cost</p>
-                    <p className="text-sm text-zinc-200">
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Estimated Cost</p>
+                    <p className="text-sm text-gray-800">
                       ${metrics.estimatedCostUsd.toFixed(4)}
                     </p>
                   </div>
                 )}
                 {metrics.filesWritten !== undefined && (
-                  <div className="p-3 bg-zinc-800/50 rounded-lg">
-                    <p className="text-xs text-zinc-500 mb-1">Files Created</p>
-                    <p className="text-sm text-zinc-200">{metrics.filesWritten}</p>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Files Created</p>
+                    <p className="text-sm text-gray-800">{metrics.filesWritten}</p>
                   </div>
                 )}
                 {metrics.screenshotsTaken !== undefined && (
-                  <div className="p-3 bg-zinc-800/50 rounded-lg">
-                    <p className="text-xs text-zinc-500 mb-1">Screenshots</p>
-                    <p className="text-sm text-zinc-200">{metrics.screenshotsTaken}</p>
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <p className="text-xs text-gray-500 mb-1">Screenshots</p>
+                    <p className="text-sm text-gray-800">{metrics.screenshotsTaken}</p>
                   </div>
                 )}
               </div>
@@ -256,7 +256,7 @@ export function StyleSelectionModal({
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+              className="border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Discard
             </Button>
@@ -276,26 +276,26 @@ export function StyleSelectionModal({
   if (error) {
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg bg-zinc-900 border-zinc-800">
+        <DialogContent className="max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto bg-white border-gray-200">
           <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
+            <DialogTitle className="text-gray-900 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500" />
               Generation Failed
             </DialogTitle>
-            <DialogDescription className="text-zinc-400">
+            <DialogDescription className="text-gray-500">
               Something went wrong while generating visuals
             </DialogDescription>
           </DialogHeader>
 
           <div className="py-4 space-y-4">
             {/* Error message */}
-            <div className="p-3 bg-red-950/50 border border-red-900 rounded-lg">
-              <p className="text-sm text-red-300 whitespace-pre-wrap line-clamp-4">{error}</p>
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700 whitespace-pre-wrap line-clamp-4">{error}</p>
             </div>
 
             {/* Retry options */}
-            <div className="border-t border-zinc-800 pt-4">
-              <p className="text-sm text-zinc-400 mb-3">Try again with a different style:</p>
+            <div className="border-t border-gray-200 pt-4">
+              <p className="text-sm text-gray-600 mb-3">Try again with a different style:</p>
 
               {/* Compact style selector */}
               <div className="grid grid-cols-5 gap-2">
@@ -306,16 +306,16 @@ export function StyleSelectionModal({
                     className={cn(
                       'flex flex-col items-center gap-1 p-2 rounded-md border transition-all',
                       selectedStyle === style.id
-                        ? 'border-blue-500 bg-blue-500/10'
-                        : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
                     )}
                   >
-                    <div className="w-full aspect-video rounded overflow-hidden border border-zinc-700">
+                    <div className="w-full aspect-video rounded overflow-hidden border border-gray-200">
                       {style.preview}
                     </div>
                     <span className={cn(
                       'text-xs',
-                      selectedStyle === style.id ? 'text-blue-400' : 'text-zinc-400'
+                      selectedStyle === style.id ? 'text-orange-600' : 'text-gray-600'
                     )}>
                       {style.name}
                     </span>
@@ -329,7 +329,7 @@ export function StyleSelectionModal({
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+              className="border-gray-300 text-gray-700 hover:bg-gray-100"
             >
               Close
             </Button>
@@ -338,7 +338,7 @@ export function StyleSelectionModal({
                 // Clear error by triggering a new generation
                 handleGenerate();
               }}
-              className="bg-purple-600 hover:bg-purple-700 text-white"
+              className="bg-orange-500 hover:bg-orange-600 text-white"
             >
               Try Again
             </Button>
@@ -350,41 +350,43 @@ export function StyleSelectionModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl bg-zinc-900 border-zinc-800">
-        <DialogHeader>
-          <DialogTitle className="text-white">Generate AI Visuals</DialogTitle>
-          <DialogDescription className="text-zinc-400">
+      <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-hidden flex flex-col bg-white border-gray-200">
+        <DialogHeader className="flex-shrink-0">
+          <DialogTitle className="text-gray-900">Generate AI Visuals</DialogTitle>
+          <DialogDescription className="text-gray-500">
             Choose how visuals will appear with your video
           </DialogDescription>
         </DialogHeader>
 
-        {/* Layout Selection */}
-        <div className="space-y-3 py-2">
-          <label className="text-sm font-medium text-zinc-300">Layout Mode</label>
-          <div className="grid grid-cols-2 gap-3">
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto pr-2 -mr-2">
+          {/* Layout Selection */}
+          <div className="space-y-3 py-2">
+            <label className="text-sm font-medium text-gray-700">Layout Mode</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               onClick={() => setLayoutMode('pip')}
               disabled={isLoading}
               className={cn(
                 'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
                 layoutMode === 'pip'
-                  ? 'border-purple-500 bg-purple-500/10'
-                  : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600',
+                  ? 'border-orange-500 bg-orange-50'
+                  : 'border-gray-200 bg-gray-50 hover:border-gray-300',
                 isLoading && 'opacity-50 cursor-not-allowed'
               )}
             >
               <PictureInPicture className={cn(
                 'w-6 h-6',
-                layoutMode === 'pip' ? 'text-purple-400' : 'text-zinc-400'
+                layoutMode === 'pip' ? 'text-orange-500' : 'text-gray-400'
               )} />
               <div className="text-left">
                 <p className={cn(
                   'font-medium text-sm',
-                  layoutMode === 'pip' ? 'text-purple-300' : 'text-white'
+                  layoutMode === 'pip' ? 'text-orange-700' : 'text-gray-900'
                 )}>
                   Picture-in-Picture
                 </p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-gray-500">
                   Full-screen visuals, video overlay
                 </p>
               </div>
@@ -395,23 +397,23 @@ export function StyleSelectionModal({
               className={cn(
                 'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
                 layoutMode === 'split-horizontal'
-                  ? 'border-purple-500 bg-purple-500/10'
-                  : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600',
+                  ? 'border-orange-500 bg-orange-50'
+                  : 'border-gray-200 bg-gray-50 hover:border-gray-300',
                 isLoading && 'opacity-50 cursor-not-allowed'
               )}
             >
               <Rows className={cn(
                 'w-6 h-6',
-                layoutMode === 'split-horizontal' ? 'text-purple-400' : 'text-zinc-400'
+                layoutMode === 'split-horizontal' ? 'text-orange-500' : 'text-gray-400'
               )} />
               <div className="text-left">
                 <p className={cn(
                   'font-medium text-sm',
-                  layoutMode === 'split-horizontal' ? 'text-purple-300' : 'text-white'
+                  layoutMode === 'split-horizontal' ? 'text-orange-700' : 'text-gray-900'
                 )}>
                   Split Screen
                 </p>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-gray-500">
                   Visuals top, video bottom
                 </p>
               </div>
@@ -422,8 +424,8 @@ export function StyleSelectionModal({
           {layoutMode === 'split-horizontal' && (
             <div className="space-y-2 pt-2">
               <div className="flex justify-between text-sm">
-                <span className="text-zinc-400">Split Ratio</span>
-                <span className="text-zinc-300">{splitRatio}% visuals / {100 - splitRatio}% video</span>
+                <span className="text-gray-500">Split Ratio</span>
+                <span className="text-gray-700">{splitRatio}% visuals / {100 - splitRatio}% video</span>
               </div>
               <Slider
                 value={[splitRatio]}
@@ -433,7 +435,7 @@ export function StyleSelectionModal({
                 onValueChange={([v]) => setSplitRatio(v)}
                 disabled={isLoading}
               />
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-gray-500">
                 Visuals: {dimensions.width}x{dimensions.height}px
               </p>
             </div>
@@ -441,8 +443,8 @@ export function StyleSelectionModal({
         </div>
 
         {/* Style Selection */}
-        <div className="space-y-3 py-2 border-t border-zinc-800">
-          <label className="text-sm font-medium text-zinc-300">Visual Style</label>
+        <div className="space-y-3 py-2 border-t border-gray-200">
+          <label className="text-sm font-medium text-gray-700">Visual Style</label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {STYLE_OPTIONS.map((style) => (
               <button
@@ -451,22 +453,22 @@ export function StyleSelectionModal({
                 disabled={isLoading}
                 className={cn(
                   'flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all',
-                  'hover:border-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500',
+                  'hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500',
                   selectedStyle === style.id
-                    ? 'border-purple-500 bg-purple-500/10'
-                    : 'border-zinc-700 bg-zinc-800/50',
+                    ? 'border-orange-500 bg-orange-50'
+                    : 'border-gray-200 bg-gray-50',
                   isLoading && 'opacity-50 cursor-not-allowed'
                 )}
               >
                 {/* Preview thumbnail */}
-                <div className="w-full aspect-video rounded-md overflow-hidden border border-zinc-700">
+                <div className="w-full aspect-video rounded-md overflow-hidden border border-gray-200">
                   {style.preview}
                 </div>
 
                 {/* Style name */}
                 <span className={cn(
                   'font-medium text-sm',
-                  selectedStyle === style.id ? 'text-purple-400' : 'text-white'
+                  selectedStyle === style.id ? 'text-orange-600' : 'text-gray-900'
                 )}>
                   {style.name}
                 </span>
@@ -476,7 +478,7 @@ export function StyleSelectionModal({
                   {style.colors.map((color, i) => (
                     <div
                       key={i}
-                      className="w-4 h-4 rounded-full border border-zinc-600"
+                      className="w-4 h-4 rounded-full border border-gray-300"
                       style={{ backgroundColor: color }}
                     />
                   ))}
@@ -487,8 +489,8 @@ export function StyleSelectionModal({
         </div>
 
         {/* Style Guide Input */}
-        <div className="space-y-2 py-2 border-t border-zinc-800">
-          <label className="text-sm font-medium text-zinc-300">Style & Layout Guide (Optional)</label>
+        <div className="space-y-2 py-2 border-t border-gray-200">
+          <label className="text-sm font-medium text-gray-700">Style & Layout Guide (Optional)</label>
           <textarea
             value={styleGuide}
             onChange={(e) => setStyleGuide(e.target.value)}
@@ -496,30 +498,31 @@ export function StyleSelectionModal({
             placeholder="Describe your visual preferences, e.g.: 'Use dark purple theme with geometric shapes', 'Make it feel energetic with fast transitions', 'Include data visualizations for the statistics mentioned'..."
             className={cn(
               'w-full h-24 px-3 py-2 rounded-lg border text-sm resize-none',
-              'bg-zinc-800/50 border-zinc-700 text-white placeholder-zinc-500',
-              'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent',
+              'bg-white border-gray-300 text-gray-900 placeholder-gray-400',
+              'focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent',
               isLoading && 'opacity-50 cursor-not-allowed'
             )}
             maxLength={2000}
           />
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-gray-500">
             {styleGuide.length}/2000 characters
           </p>
         </div>
+        </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0 border-t border-gray-100 pt-4">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isLoading}
-            className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+            className="border-gray-300 text-gray-700 hover:bg-gray-100"
           >
             Cancel
           </Button>
           <Button
             onClick={handleGenerate}
             disabled={isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-orange-500 hover:bg-orange-600 text-white"
           >
             {isLoading ? (
               <>

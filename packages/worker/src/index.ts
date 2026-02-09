@@ -122,7 +122,7 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1, // Process one render at a time (CPU/GPU intensive)
+      concurrency: 2, // Process 2 renders in parallel
     }
   );
 

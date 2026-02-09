@@ -25,9 +25,38 @@ export interface TranscribeJobData {
   videoKey: string;
 }
 
+export interface ExportOptions {
+  layoutMode: 'pip' | 'split-h' | 'split-v' | 'overlay';
+  pipPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  pipSize: number;
+}
+
 export interface RenderJobData {
   projectId: string;
   jobId: string;
+  layoutSettings?: {
+    mode: 'pip' | 'split-horizontal' | 'split-vertical';
+    pip: {
+      position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+      offsetX: number;
+      offsetY: number;
+      size: 'small' | 'medium' | 'large' | 'custom';
+      customSize: number;
+      shape: 'square' | 'circle' | 'rounded';
+      borderRadius: number;
+      borderWidth: number;
+      borderColor: string;
+      shadowEnabled: boolean;
+      shadowColor: string;
+      shadowBlur: number;
+      opacity: number;
+    };
+    split: {
+      position: 'visuals-first' | 'video-first';
+      ratio: number;
+      gap: number;
+    };
+  };
 }
 
 // Queue job creators

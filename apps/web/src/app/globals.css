@@ -552,36 +552,46 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 /* ============================================
-   Editor Theme - Linear/Figma-inspired
+   Editor Theme - Unified Light Theme
+   Matches landing page and dashboard aesthetic
    ============================================ */
 
 .editor-theme {
-  /* Background layers */
-  --editor-bg-base: #0A0A0A;
-  --editor-bg-surface: #111111;
-  --editor-bg-elevated: #191919;
-  --editor-bg-hover: #1F1F1F;
+  /* Background layers - warm light theme */
+  --editor-bg-base: #FFFBF7;
+  --editor-bg-surface: #FFFFFF;
+  --editor-bg-elevated: #FFFFFF;
+  --editor-bg-hover: #F5F5F5;
+  --editor-bg-canvas: #F5F0EB;
 
-  /* Borders */
-  --editor-border-subtle: #1F1F1F;
-  --editor-border-default: #2A2A2A;
+  /* Borders - warm gray */
+  --editor-border-subtle: #E5E5E5;
+  --editor-border-default: #E5E5E5;
   --editor-border-focus: #F97316;
 
-  /* Text */
-  --editor-text-primary: #FAFAFA;
-  --editor-text-secondary: #A1A1A1;
-  --editor-text-muted: #525252;
+  /* Text - dark for readability */
+  --editor-text-primary: #1A1A1A;
+  --editor-text-secondary: #6B7280;
+  --editor-text-muted: #9CA3AF;
 
   /* Accent (Orange - matching brand) */
   --editor-accent: #F97316;
   --editor-accent-hover: #EA580C;
-  --editor-accent-muted: rgba(249, 115, 22, 0.125);
+  --editor-accent-muted: #FFF7ED;
+  --editor-accent-soft: rgba(249, 115, 22, 0.1);
 
-  /* Timeline specific */
-  --editor-track-bg: #161616;
-  --editor-track-item: #2A2A2A;
-  --editor-track-item-hover: #333333;
+  /* Timeline specific - light theme */
+  --editor-track-bg: #FAFAFA;
+  --editor-track-item: #F5F5F5;
+  --editor-track-item-hover: #EBEBEB;
+  --editor-track-item-selected: #FFF7ED;
   --editor-playhead: #F97316;
+  --editor-ruler-bg: #FAFAFA;
+
+  /* Shadows */
+  --editor-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --editor-shadow-md: 0 4px 24px rgba(0, 0, 0, 0.06);
+  --editor-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
 
   /* Transitions */
   --editor-transition-fast: 150ms ease-out;
@@ -593,6 +603,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .editor-theme .bg-editor-surface { background-color: var(--editor-bg-surface); }
 .editor-theme .bg-editor-elevated { background-color: var(--editor-bg-elevated); }
 .editor-theme .bg-editor-hover { background-color: var(--editor-bg-hover); }
+.editor-theme .bg-editor-canvas { background-color: var(--editor-bg-canvas); }
 
 .editor-theme .border-editor-subtle { border-color: var(--editor-border-subtle); }
 .editor-theme .border-editor-default { border-color: var(--editor-border-default); }
@@ -605,16 +616,22 @@ input[type="number"]::-webkit-outer-spin-button {
 .editor-theme .bg-editor-accent { background-color: var(--editor-accent); }
 .editor-theme .bg-editor-accent-hover:hover { background-color: var(--editor-accent-hover); }
 .editor-theme .bg-editor-accent-muted { background-color: var(--editor-accent-muted); }
+.editor-theme .bg-editor-accent-soft { background-color: var(--editor-accent-soft); }
 .editor-theme .text-editor-accent { color: var(--editor-accent); }
+
+.editor-theme .shadow-editor-sm { box-shadow: var(--editor-shadow-sm); }
+.editor-theme .shadow-editor-md { box-shadow: var(--editor-shadow-md); }
+.editor-theme .shadow-editor-lg { box-shadow: var(--editor-shadow-lg); }
 
 /* Editor-specific component styles */
 .editor-theme button.editor-btn-primary {
   background-color: var(--editor-accent);
-  color: var(--editor-bg-base);
+  color: #FFFFFF;
   font-weight: 500;
   padding: 0.5rem 1rem;
   border-radius: 6px;
   transition: background-color var(--editor-transition-fast);
+  box-shadow: var(--editor-shadow-sm);
 }
 
 .editor-theme button.editor-btn-primary:hover {
@@ -632,6 +649,27 @@ input[type="number"]::-webkit-outer-spin-button {
 .editor-theme button.editor-btn-ghost:hover {
   background-color: var(--editor-bg-hover);
   color: var(--editor-text-primary);
+}
+
+/* Editor panels */
+.editor-theme .editor-panel {
+  background-color: var(--editor-bg-surface);
+  border: 1px solid var(--editor-border-subtle);
+}
+
+/* Editor input styling */
+.editor-theme input,
+.editor-theme select {
+  background-color: var(--editor-bg-hover);
+  border: 1px solid var(--editor-border-subtle);
+  color: var(--editor-text-primary);
+}
+
+.editor-theme input:focus,
+.editor-theme select:focus {
+  border-color: var(--editor-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--editor-accent-soft);
 }
 
 /* Panel slide-in animation */
@@ -667,7 +705,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
 /* Command palette backdrop */
 .editor-command-backdrop {
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(4px);
 }
 
@@ -675,6 +713,70 @@ input[type="number"]::-webkit-outer-spin-button {
 .editor-theme *:focus-visible {
   outline: 2px solid var(--editor-border-focus);
   outline-offset: 2px;
+}
+
+/* AI Assistant chat styles */
+.editor-theme .ai-message-user {
+  background-color: var(--editor-accent);
+  color: #FFFFFF;
+  border-radius: 1rem 1rem 0.25rem 1rem;
+}
+
+.editor-theme .ai-message-assistant {
+  background-color: var(--editor-bg-hover);
+  color: var(--editor-text-primary);
+  border-radius: 1rem 1rem 1rem 0.25rem;
+}
+
+.editor-theme .ai-input {
+  background-color: var(--editor-bg-hover);
+  border-radius: 0.75rem;
+}
+
+/* Icon rail styles */
+.editor-theme .icon-rail-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.75rem 0.5rem;
+  color: var(--editor-text-secondary);
+  transition: all var(--editor-transition-fast);
+  border-left: 2px solid transparent;
+}
+
+.editor-theme .icon-rail-item:hover {
+  background-color: var(--editor-bg-hover);
+}
+
+.editor-theme .icon-rail-item.active {
+  background-color: var(--editor-accent-muted);
+  color: var(--editor-accent);
+  border-left-color: var(--editor-accent);
+}
+
+/* Timeline track styles for light theme */
+.editor-theme .timeline-track {
+  background-color: var(--editor-track-bg);
+  border-bottom: 1px solid var(--editor-border-subtle);
+}
+
+.editor-theme .timeline-clip {
+  background-color: var(--editor-track-item);
+  border: 1px solid var(--editor-border-subtle);
+  border-radius: 6px;
+  transition: all var(--editor-transition-fast);
+}
+
+.editor-theme .timeline-clip:hover {
+  background-color: var(--editor-track-item-hover);
+  box-shadow: var(--editor-shadow-sm);
+}
+
+.editor-theme .timeline-clip.selected {
+  background-color: var(--editor-track-item-selected);
+  border-color: var(--editor-accent);
+  box-shadow: 0 0 0 2px var(--editor-accent-soft);
 }
 
 /* ============================================

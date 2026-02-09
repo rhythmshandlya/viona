@@ -16,6 +16,7 @@ import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { StyleSelectionModal } from './components/StyleSelectionModal';
 import { JobLogsPanel } from './components/JobLogsPanel';
 import { ExportModal } from './components/ExportModal';
+import { AIAssistantPanel } from './components/AIAssistantPanel';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
@@ -38,29 +39,24 @@ interface EditorProps {
 }
 
 export function Editor({ projectId }: EditorProps) {
-  // Layout state
-  type EditorLayout = 'stacked' | 'side-by-side';
-  const [layout, setLayout] = useState<EditorLayout>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('editor-layout') as EditorLayout) || 'side-by-side';
-    }
-    return 'stacked';
-  });
+  // Layout state - simplified unified layout
+  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout'>('captions');
 
-  // Right panel state
+  // Right panel state (settings/properties)
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<RightPanelTab>('properties');
   const userRequestedTabRef = useRef<RightPanelTab | null>(null);
 
-  const [timelineHeight, setTimelineHeight] = useState(220);
+  // AI Assistant panel
+  const [aiPanelOpen, setAiPanelOpen] = useState(true);
+
+  const [timelineHeight, setTimelineHeight] = useState(180);
   const resizeRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
-  // Side-by-side: compute left column width from available height + video aspect ratio
-  const sideBySideRowRef = useRef<HTMLDivElement>(null);
-  const [sideColWidth, setSideColWidth] = useState(400);
-  const isColDraggingRef = useRef(false);
-  const userResizedColRef = useRef(false);
+  // Main content area ref
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   // Command palette
   const commandPalette = useCommandPalette();
@@ -97,65 +93,8 @@ export function Editor({ projectId }: EditorProps) {
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
-  // Persist layout preference
-  useEffect(() => {
-    localStorage.setItem('editor-layout', layout);
-  }, [layout]);
-
-  const handleToggleLayout = useCallback(() => {
-    setLayout(p => p === 'stacked' ? 'side-by-side' : 'stacked');
-  }, []);
-
   // State
   const project = useProject();
-
-  // Compute side-by-side column width from row height + video aspect ratio
-  useEffect(() => {
-    if (layout !== 'side-by-side' || !project) return;
-    userResizedColRef.current = false;
-    const el = sideBySideRowRef.current;
-    if (!el) return;
-    const update = () => {
-      if (userResizedColRef.current) return;
-      const rowHeight = el.clientHeight;
-      const sceneHeight = rowHeight - 40; // subtract PlaybackBar (h-10 = 40px)
-      const ar = project.videoSettings.canvasWidth / project.videoSettings.canvasHeight;
-      const idealWidth = Math.round(sceneHeight * ar);
-      const maxWidth = Math.round(el.clientWidth * 0.6);
-      setSideColWidth(Math.max(280, Math.min(idealWidth, maxWidth)));
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [layout, project]);
-
-  // Handle column resize (horizontal drag)
-  const handleColumnResizeStart = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    isColDraggingRef.current = true;
-    userResizedColRef.current = true;
-    const startX = e.clientX;
-    const startWidth = sideColWidth;
-    const rowEl = sideBySideRowRef.current;
-    const maxWidth = rowEl ? Math.round(rowEl.clientWidth * 0.6) : 800;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isColDraggingRef.current) return;
-      const deltaX = e.clientX - startX;
-      const newWidth = Math.max(280, Math.min(maxWidth, startWidth + deltaX));
-      setSideColWidth(newWidth);
-    };
-
-    const handleMouseUp = () => {
-      isColDraggingRef.current = false;
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  }, [sideColWidth]);
   const isLoading = useIsLoading();
   const error = useError();
   const selectedIds = useSelectedIds();
@@ -165,24 +104,15 @@ export function Editor({ projectId }: EditorProps) {
   // Actions
   const { loadProject, clearSelection, updateEnhancementStatus } = useEditorActions();
 
-  // Toggle transcript panel
+  // Toggle transcript panel - opens left sidebar to captions tab
   const handleToggleTranscript = useCallback(() => {
-    if (layout === 'side-by-side') {
-      setActiveTab(prev => prev === 'transcript' ? 'properties' : 'transcript');
-      userRequestedTabRef.current = activeTab === 'transcript' ? null : 'transcript';
+    if (leftSidebarTab === 'captions' && leftSidebarOpen) {
+      setLeftSidebarOpen(false);
     } else {
-      if (panelOpen && activeTab === 'transcript') {
-        // Already showing transcript — close panel
-        setPanelOpen(false);
-        userRequestedTabRef.current = null;
-      } else {
-        // Open to transcript tab
-        setPanelOpen(true);
-        setActiveTab('transcript');
-        userRequestedTabRef.current = 'transcript';
-      }
+      setLeftSidebarOpen(true);
+      setLeftSidebarTab('captions');
     }
-  }, [layout, panelOpen, activeTab]);
+  }, [leftSidebarTab, leftSidebarOpen]);
 
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
@@ -194,20 +124,17 @@ export function Editor({ projectId }: EditorProps) {
 
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
-    if (layout === 'stacked') {
-      setPanelOpen(false);
-      userRequestedTabRef.current = null;
-    }
+    setPanelOpen(false);
+    userRequestedTabRef.current = null;
     if (activeTab === 'properties') {
       clearSelection();
     }
-  }, [layout, activeTab, clearSelection]);
+  }, [activeTab, clearSelection]);
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
     onToggleTranscript: handleToggleTranscript,
     onClosePanel: handleClosePanel,
-    onToggleLayout: handleToggleLayout,
   });
 
   // Load project on mount
@@ -367,6 +294,11 @@ export function Editor({ projectId }: EditorProps) {
             console.error('Failed to fetch job metrics:', err);
           }
 
+          // Reload project to get new visual track and timeline items
+          if (project?.id) {
+            loadProject(project.id);
+          }
+
           setVisualsJobId(null);
           setShowStyleModal(true); // Re-open modal to show completion
         }
@@ -410,6 +342,11 @@ export function Editor({ projectId }: EditorProps) {
           // Set metrics from job
           if (job.metrics) {
             setVisualsMetrics(job.metrics);
+          }
+
+          // Reload project to get new visual track and timeline items
+          if (project?.id) {
+            loadProject(project.id);
           }
 
           setVisualsJobId(null);
@@ -524,10 +461,6 @@ export function Editor({ projectId }: EditorProps) {
       <Header
         onOpenCommandPalette={commandPalette.open}
         onExport={handleExport}
-        onToggleTranscript={handleToggleTranscript}
-        isTranscriptActive={panelOpen && activeTab === 'transcript'}
-        layout={layout}
-        onToggleLayout={handleToggleLayout}
         onGenerateVisuals={handleOpenStyleModal}
         isGeneratingVisuals={isGeneratingVisuals}
         hasTranscript={hasTranscript}
@@ -536,44 +469,121 @@ export function Editor({ projectId }: EditorProps) {
         hasActiveJob={!!visualsJobId}
       />
 
-      {/* Main content area */}
-      {layout === 'stacked' ? (
-        <div className="flex-1 flex flex-col relative overflow-hidden">
-          {/* Scene/Preview with collapsible right panel */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* Scene */}
-            <div className="flex-1 relative min-w-0">
-              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} />
+      {/* Main content area - unified layout */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Icon Rail + Settings Panel */}
+        {leftSidebarOpen && (
+          <div className="flex flex-shrink-0 border-r border-[var(--editor-border-subtle)]">
+            {/* Icon Rail */}
+            <div className="w-16 flex flex-col items-center py-2 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)]">
+              <button
+                onClick={() => setLeftSidebarTab('captions')}
+                className={`icon-rail-item w-14 ${leftSidebarTab === 'captions' ? 'active' : ''}`}
+                title="Captions"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M4 6h16M4 12h10M4 18h14" />
+                </svg>
+                <span className="text-[10px] mt-1">Captions</span>
+              </button>
+              <button
+                onClick={() => setLeftSidebarTab('style')}
+                className={`icon-rail-item w-14 ${leftSidebarTab === 'style' ? 'active' : ''}`}
+                title="Style"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                </svg>
+                <span className="text-[10px] mt-1">Style</span>
+              </button>
+              <button
+                onClick={() => setLeftSidebarTab('layout')}
+                className={`icon-rail-item w-14 ${leftSidebarTab === 'layout' ? 'active' : ''}`}
+                title="Layout"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" />
+                  <rect x="14" y="3" width="7" height="7" />
+                  <rect x="3" y="14" width="7" height="7" />
+                  <rect x="14" y="14" width="7" height="7" />
+                </svg>
+                <span className="text-[10px] mt-1">Layout</span>
+              </button>
             </div>
 
-            {/* Right Panel */}
-            <RightPanel
-              isOpen={panelOpen}
-              activeTab={activeTab}
-              onTabChange={handleTabChange}
-              onClose={handleClosePanel}
-              layout="stacked"
-            />
+            {/* Settings Panel */}
+            <div className="w-60 bg-[var(--editor-bg-surface)] overflow-y-auto">
+              <div className="p-4">
+                <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide mb-3">
+                  {leftSidebarTab === 'captions' && 'Caption Settings'}
+                  {leftSidebarTab === 'style' && 'Style Settings'}
+                  {leftSidebarTab === 'layout' && 'Layout Settings'}
+                </h3>
+
+                {/* Placeholder content - will connect to existing panels */}
+                {leftSidebarTab === 'captions' && (
+                  <RightPanel
+                    isOpen={true}
+                    activeTab="transcript"
+                    onTabChange={handleTabChange}
+                    onClose={handleClosePanel}
+                    layout="stacked"
+                    embedded={true}
+                  />
+                )}
+                {leftSidebarTab === 'style' && (
+                  <RightPanel
+                    isOpen={true}
+                    activeTab="properties"
+                    onTabChange={handleTabChange}
+                    onClose={handleClosePanel}
+                    layout="stacked"
+                    embedded={true}
+                  />
+                )}
+                {leftSidebarTab === 'layout' && (
+                  <RightPanel
+                    isOpen={true}
+                    activeTab="layout"
+                    onTabChange={handleTabChange}
+                    onClose={handleClosePanel}
+                    layout="stacked"
+                    embedded={true}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Center - Preview + Timeline */}
+        <div ref={mainContentRef} className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Video Preview Area */}
+          <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
+            {/* Zoom control */}
+            <div className="absolute top-4 left-4 z-10">
+              <select className="text-xs bg-[var(--editor-bg-surface)] border border-[var(--editor-border-subtle)] rounded-md px-2 py-1 text-[var(--editor-text-secondary)]">
+                <option>Fit</option>
+                <option>50%</option>
+                <option>75%</option>
+                <option>100%</option>
+              </select>
+            </div>
+
+            {/* Scene */}
+            <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
           </div>
 
-          {/* Playback Bar */}
+          {/* Transport Controls */}
           <PlaybackBar />
 
-          {/* Resize handle + toolbar above timeline */}
+          {/* Timeline resize handle */}
           <div
             ref={resizeRef}
             onMouseDown={handleResizeStart}
             className="h-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
                        cursor-ns-resize transition-colors"
           />
-          <div className="flex-shrink-0 flex items-center px-2 py-1 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
-            <SceneToolbar
-              activePlatform={activePlatform}
-              overlayMode={overlayMode}
-              onPlatformChange={handlePlatformChange}
-              onModeChange={setOverlayMode}
-            />
-          </div>
 
           {/* Agent Logs Panel */}
           <JobLogsPanel
@@ -590,73 +600,16 @@ export function Editor({ projectId }: EditorProps) {
           />
 
           {/* Timeline */}
-          <div style={{ height: timelineHeight }} className="flex-shrink-0">
+          <div style={{ height: timelineHeight }} className="flex-shrink-0 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
             <Timeline className="h-full" />
           </div>
         </div>
-      ) : (
-        <div ref={sideBySideRowRef} className="flex-1 flex flex-row overflow-hidden">
-          {/* Left: Scene + PlaybackBar */}
-          <div className="flex flex-col shrink-0" style={{ width: sideColWidth }}>
-            <div className="flex-1 relative min-w-0 overflow-hidden">
-              <div className="absolute inset-0">
-                <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={16} />
-              </div>
-            </div>
-            <PlaybackBar />
-          </div>
 
-          {/* Vertical resize handle */}
-          <div
-            onMouseDown={handleColumnResizeStart}
-            className="w-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
-                       cursor-ew-resize transition-colors flex-shrink-0"
-          />
-
-          {/* Right: Panel + SceneToolbar + Timeline */}
-          <div className="flex-1 flex flex-col min-w-0">
-            <div className="flex-1 overflow-hidden min-h-0">
-              <RightPanel
-                isOpen={true}
-                activeTab={activeTab}
-                onTabChange={handleTabChange}
-                onClose={handleClosePanel}
-                layout="side-by-side"
-              />
-            </div>
-            <div className="flex-shrink-0 flex items-center px-2 py-1 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
-              <SceneToolbar
-                activePlatform={activePlatform}
-                overlayMode={overlayMode}
-                onPlatformChange={handlePlatformChange}
-                onModeChange={setOverlayMode}
-              />
-            </div>
-            <div
-              ref={resizeRef}
-              onMouseDown={handleResizeStart}
-              className="h-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
-                         cursor-ns-resize transition-colors"
-            />
-            {/* Agent Logs Panel */}
-            <JobLogsPanel
-              projectId={project.id}
-              jobId={visualsJobId}
-              isOpen={showLogsPanel}
-              onClose={() => setShowLogsPanel(false)}
-              isGenerating={isGeneratingVisuals}
-              progress={visualsProgress}
-              status={visualsStatus}
-              error={visualsError}
-              isComplete={visualsComplete}
-              onCancel={handleCancelVisuals}
-            />
-            <div style={{ height: timelineHeight }} className="flex-shrink-0">
-              <Timeline className="h-full" />
-            </div>
-          </div>
-        </div>
-      )}
+        {/* Right Panel - AI Assistant */}
+        {aiPanelOpen && (
+          <AIAssistantPanel className="w-80 flex-shrink-0" />
+        )}
+      </div>
 
       {/* Command Palette */}
       <CommandPalette

@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { eq, inArray } from 'drizzle-orm';
+import { eq, inArray, or, and } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, publishJobCancel } from '../services/queue.js';
@@ -403,10 +403,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    // Only allow reset from failed or complete states
-    if (project.status !== 'failed' && project.status !== 'complete') {
+    // Only allow reset from failed, complete, or processing states (processing can get stuck)
+    if (project.status !== 'failed' && project.status !== 'complete' && project.status !== 'processing') {
       return reply.status(400).send({
-        error: `Cannot reset project in '${project.status}' state. Only 'failed' or 'complete' projects can be reset.`
+        error: `Cannot reset project in '${project.status}' state. Only 'failed', 'complete', or 'processing' projects can be reset.`
       });
     }
 
@@ -420,6 +420,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
+    const body = request.body as { layoutSettings?: any } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -434,10 +435,6 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    if (project.status !== 'ready') {
-      return reply.status(400).send({ error: 'Project is not ready for rendering' });
-    }
-
     // Create job record
     const [job] = await db.insert(jobs).values({
       projectId: id,
@@ -450,10 +447,11 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job
+    // Queue the job with layout settings for exact preview match
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
+      layoutSettings: body.layoutSettings,
     });
 
     return { jobId: job.id };
@@ -492,6 +490,22 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!transcript || !transcript.words) {
       return reply.status(400).send({ error: 'Project has no transcript. Run processing first.' });
+    }
+
+    // Check for existing pending/processing job (idempotency check)
+    const existingJob = await db.query.jobs.findFirst({
+      where: and(
+        eq(jobs.projectId, id),
+        eq(jobs.type, 'generate-visuals'),
+        or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing'))
+      ),
+    });
+
+    if (existingJob) {
+      return reply.status(409).send({
+        error: 'A visual generation job is already in progress',
+        jobId: existingJob.id,
+      });
     }
 
     // Create job record
