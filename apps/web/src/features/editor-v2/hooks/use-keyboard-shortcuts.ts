@@ -14,13 +14,13 @@
  *   Home           – Seek to start (0 ms)
  *   End            – Seek to duration end
  *   S              – Toggle split mode
- *   T              – Toggle transcript panel (via callback)
+ *   T              – Toggle transcript/captions panel
  *   1 / 2 / 3      – Switch caption display mode
  *   ArrowLeft      – (selection) Nudge left -100 ms; (shift) -1 frame; (none) frame-step back
  *   ArrowRight     – (selection) Nudge right +100 ms; (shift) +1 frame; (none) frame-step forward
  *   [              – Trim selected items start inward by 100 ms
  *   ]              – Trim selected items end outward by 100 ms
- *   Escape         – Exit split mode first, then clear selection
+ *   Escape         – Exit split mode first, then close panel
  */
 
 'use client';
@@ -44,12 +44,10 @@ export interface KeyboardShortcutOptions {
   onToggleTranscript?: () => void;
   /** Callback invoked when Escape is pressed (after split mode check) to close the right panel. */
   onClosePanel?: () => void;
-  /** Callback invoked when the L key is pressed to toggle the editor layout. */
-  onToggleLayout?: () => void;
 }
 
 export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
-  const { onToggleTranscript, onClosePanel, onToggleLayout } = options;
+  const { onToggleTranscript, onClosePanel } = options;
 
   const {
     togglePlayback,
@@ -205,13 +203,6 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         return;
       }
 
-      // L: Toggle layout
-      if (e.code === 'KeyL' && !cmdOrCtrl && !e.shiftKey && !e.altKey) {
-        e.preventDefault();
-        onToggleLayout?.();
-        return;
-      }
-
       // 1 / 2 / 3: Switch caption display mode
       if (!cmdOrCtrl && !e.shiftKey && !e.altKey) {
         const displayModeMap: Record<string, CaptionDisplayMode> = {
@@ -295,7 +286,6 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
       updateAllCaptionStyles,
       onToggleTranscript,
       onClosePanel,
-      onToggleLayout,
     ]
   );
 

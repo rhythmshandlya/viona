@@ -77,8 +77,8 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
 
     const width = rect.width;
 
-    // Clear with editor surface color
-    ctx.fillStyle = '#111111'; // --editor-bg-surface
+    // Clear with editor ruler background - light theme
+    ctx.fillStyle = '#FAFAFA'; // --editor-ruler-bg
     ctx.fillRect(0, 0, width, height);
 
     // Calculate visible time range
@@ -89,7 +89,7 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     const { major, minor } = getTickInterval(viewport.zoom);
 
     // Draw minor ticks
-    ctx.strokeStyle = '#1F1F1F'; // --editor-border-subtle
+    ctx.strokeStyle = '#E5E5E5'; // --editor-border-subtle (light)
     ctx.lineWidth = 1;
 
     const firstMinor = Math.floor(visibleStartMs / minor) * minor;
@@ -102,8 +102,8 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     }
 
     // Draw major ticks and labels
-    ctx.strokeStyle = '#2A2A2A'; // --editor-border-default
-    ctx.fillStyle = '#525252'; // --editor-text-muted
+    ctx.strokeStyle = '#D4D4D4'; // --editor-border-default (light)
+    ctx.fillStyle = '#6B7280'; // --editor-text-muted (light)
     ctx.font = '10px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
@@ -124,7 +124,7 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     }
 
     // Bottom border
-    ctx.strokeStyle = '#1F1F1F'; // --editor-border-subtle
+    ctx.strokeStyle = '#E5E5E5'; // --editor-border-subtle (light)
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, height - 0.5);
