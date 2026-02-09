@@ -1,6 +1,6 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "apps/landing/Dockerfile"
 watchPatterns = ["apps/landing/**"]
 
 [deploy]

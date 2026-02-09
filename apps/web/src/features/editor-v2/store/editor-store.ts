@@ -151,6 +151,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
 
   const project = {
     id: apiProject.id,
+    title: (apiProject as any).title || null,
     status: apiProject.status,
     videoKey: apiProject.videoKey,
     videoUrl,
