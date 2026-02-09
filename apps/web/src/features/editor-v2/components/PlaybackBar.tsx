@@ -61,51 +61,18 @@ export function PlaybackBar() {
   };
 
   return (
-    <div className="h-10 flex items-center gap-3 px-4 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
-      {/* Play controls */}
-      <div className="flex items-center gap-1">
-        <button
-          onClick={handleSkipBack}
-          className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
-          aria-label="Skip to start"
-        >
-          <SkipBack className="w-3.5 h-3.5 text-[var(--editor-text-secondary)]" />
-        </button>
-
-        <button
-          onClick={togglePlayback}
-          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-        >
-          {isPlaying ? (
-            <Pause className="w-4 h-4 text-[var(--editor-text-primary)]" />
-          ) : (
-            <Play className="w-4 h-4 text-[var(--editor-text-primary)]" />
-          )}
-        </button>
-
-        <button
-          onClick={handleSkipForward}
-          className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
-          aria-label="Skip to end"
-        >
-          <SkipForward className="w-3.5 h-3.5 text-[var(--editor-text-secondary)]" />
-        </button>
-      </div>
-
-      {/* Time display */}
-      <div className="flex items-center gap-1.5 text-xs font-mono">
-        <span className="text-[var(--editor-text-primary)]">{formatTime(currentTimeMs)}</span>
-        <span className="text-[var(--editor-text-muted)]">/</span>
-        <span className="text-[var(--editor-text-muted)]">{formatTime(duration)}</span>
-      </div>
+    <div className="h-16 flex items-center justify-center gap-4 px-6 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
+      {/* Time display - left */}
+      <span className="text-sm font-mono text-[var(--editor-text-secondary)] w-20 text-right">
+        {formatTime(currentTimeMs)}
+      </span>
 
       {/* Scrubber */}
       <div
         ref={scrubberRef}
         onClick={handleScrubberClick}
         onMouseMove={handleScrubberDrag}
-        className="flex-1 h-1.5 bg-[var(--editor-bg-hover)] rounded-full cursor-pointer group"
+        className="flex-1 max-w-lg h-1 bg-[var(--editor-border-subtle)] rounded-full cursor-pointer group"
       >
         <div
           className="h-full bg-[var(--editor-accent)] rounded-full relative transition-all"
@@ -114,11 +81,47 @@ export function PlaybackBar() {
           {/* Scrubber handle */}
           <div
             className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2
-                       w-3 h-3 bg-[var(--editor-accent)] rounded-full
-                       opacity-0 group-hover:opacity-100 transition-opacity
-                       shadow-md"
+                       w-3.5 h-3.5 bg-white border-2 border-[var(--editor-accent)] rounded-full
+                       shadow-md transition-transform group-hover:scale-110"
           />
         </div>
+      </div>
+
+      {/* Time display - right */}
+      <span className="text-sm font-mono text-[var(--editor-text-muted)] w-20">
+        {formatTime(duration)}
+      </span>
+
+      {/* Play controls - below scrubber */}
+      <div className="flex items-center gap-2 ml-4">
+        <button
+          onClick={handleSkipBack}
+          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+          aria-label="Skip to start"
+        >
+          <SkipBack className="w-4 h-4 text-[var(--editor-text-secondary)]" />
+        </button>
+
+        <button
+          onClick={togglePlayback}
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-[var(--editor-accent)] text-white
+                     hover:bg-[var(--editor-accent-hover)] transition-colors shadow-sm"
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isPlaying ? (
+            <Pause className="w-5 h-5" />
+          ) : (
+            <Play className="w-5 h-5 ml-0.5" />
+          )}
+        </button>
+
+        <button
+          onClick={handleSkipForward}
+          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+          aria-label="Skip to end"
+        >
+          <SkipForward className="w-4 h-4 text-[var(--editor-text-secondary)]" />
+        </button>
       </div>
     </div>
   );

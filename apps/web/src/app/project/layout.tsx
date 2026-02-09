@@ -3,5 +3,5 @@ export default function ProjectLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="dark">{children}</div>;
+  return <>{children}</>;
 }
