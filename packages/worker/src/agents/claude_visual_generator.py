@@ -2098,7 +2098,7 @@ const MainComposition: React.FC = () => {{
 export const RemotionRoot: React.FC = () => {{
   return (
     <Composition
-      id="{project_id}"
+      id="{composition_id}"
       component={{MainComposition}}
       durationInFrames={{{duration_frames}}}
       fps={{{fps}}}
@@ -2112,15 +2112,14 @@ export const RemotionRoot: React.FC = () => {{
 // The frontend player needs the actual video component, not the registration wrapper
 export default MainComposition;
 
-// Register root for Remotion bundler (required for SSR rendering)
-registerRoot(RemotionRoot);
+// NOTE: Do NOT call registerRoot here - the workspace index.ts handles registration
 ```
 
 ### CRITICAL - metadata.json:
 After creating the code, write this file:
 ```json
 {{
-  "compositionId": "{project_id}",
+  "compositionId": "{composition_id}",
   "durationInFrames": {duration_frames},
   "fps": {fps},
   "width": {width},
@@ -2254,8 +2253,12 @@ class ClaudeVisualGenerator:
         condensed_skills = get_condensed_skills()
         technique_examples = extract_technique_examples(transcript)
 
+        # Composition ID must use dashes (Remotion requirement), folder uses underscores
+        composition_id = self.project_id.replace("_", "-")
+
         base_message = USER_MESSAGE.format(
             project_id=self.project_id,
+            composition_id=composition_id,
             width=width,
             height=height,
             duration_frames=duration_frames,
@@ -2401,13 +2404,26 @@ When done, respond: "SELF-HEAL COMPLETE"
         # Create output directory
         bundle_path.mkdir(parents=True, exist_ok=True)
 
-        # Use project-specific entry point instead of workspace Root.tsx
-        # The generated composition exports RemotionRoot which registers the composition
-        entry_point = self.src_dir / "index.tsx"
+        # Update src/index.ts to import from the generated project instead of Root.tsx
+        # This is needed because Remotion's --entry-point doesn't work reliably
+        index_ts_path = self.workspace / "src" / "index.ts"
+        original_index_ts = index_ts_path.read_text() if index_ts_path.exists() else ""
+
+        # Create new index.ts that imports from the generated project
+        new_index_ts = f'''/**
+ * Auto-generated entry point for project: {self.project_id}
+ */
+import {{ registerRoot }} from "remotion";
+import {{ RemotionRoot }} from "./{self.project_id}/index";
+
+registerRoot(RemotionRoot);
+'''
+        index_ts_path.write_text(new_index_ts)
+        print(f"[ClaudeGenerator] Updated src/index.ts to import from {self.project_id}")
 
         try:
             result = subprocess.run(
-                ["npx", "remotion", "bundle", "--entry-point", str(entry_point), "--out-dir", str(bundle_path)],
+                ["npx", "remotion", "bundle", "--out-dir", str(bundle_path)],
                 cwd=str(self.workspace),
                 capture_output=True,
                 timeout=300,  # 5 min for bundling
@@ -2424,6 +2440,9 @@ When done, respond: "SELF-HEAL COMPLETE"
 
         except subprocess.TimeoutExpired:
             raise RuntimeError("Bundle timed out after 5 minutes")
+        finally:
+            # Restore original index.ts for next project
+            index_ts_path.write_text(original_index_ts)
 
     async def _compile_cjs(self, bundle_path: Path) -> None:
         """
@@ -2940,8 +2959,10 @@ When done, respond: "SELF-HEAL COMPLETE"
                 metadata_json = self.src_dir / "metadata.json"
                 if not metadata_json.exists():
                     print("[ClaudeGenerator] Creating fallback metadata.json...")
+                    # Composition ID must use dashes (Remotion requirement)
+                    fallback_composition_id = self.project_id.replace("_", "-")
                     fallback_metadata = {
-                        "compositionId": self.project_id,
+                        "compositionId": fallback_composition_id,
                         "durationInFrames": duration_frames,
                         "fps": fps,
                         "width": width,
@@ -2953,9 +2974,10 @@ When done, respond: "SELF-HEAL COMPLETE"
                     with open(metadata_json, "w", encoding="utf-8") as f:
                         json.dump(fallback_metadata, f, indent=2)
 
-                # Fix composition ID
+                # Fix composition ID (must use dashes, not underscores - Remotion requirement)
                 index_tsx = self.src_dir / "index.tsx"
-                await self._fix_composition_id(index_tsx, self.project_id)
+                composition_id_with_dashes = self.project_id.replace("_", "-")
+                await self._fix_composition_id(index_tsx, composition_id_with_dashes)
 
                 # Bundle
                 print(f"[ClaudeGenerator] Bundling project...")
@@ -2986,11 +3008,18 @@ When done, respond: "SELF-HEAL COMPLETE"
 
     async def _fix_composition_id(self, index_tsx: Path, expected_id: str) -> None:
         """
-        Ensure the Composition id in index.tsx matches the expected project_id.
-        The agent sometimes uses descriptive names instead of the project ID.
+        Ensure the Composition id in index.tsx and metadata.json use dashes (Remotion requirement).
+        The agent sometimes uses underscores or descriptive names instead of the correct format.
+
+        Remotion only allows: a-z, A-Z, 0-9, CJK characters and -
+        Underscores are NOT allowed.
         """
         import re
 
+        # Ensure expected_id uses dashes (defensive check)
+        expected_id = expected_id.replace("_", "-")
+
+        # Fix index.tsx
         content = index_tsx.read_text(encoding="utf-8")
 
         # Find all Composition id= values
@@ -2999,23 +3028,38 @@ When done, respond: "SELF-HEAL COMPLETE"
 
         if not matches:
             print(f"[ClaudeGenerator] Warning: No Composition found in index.tsx")
-            return
+        else:
+            current_id = matches[0]
+            if current_id == expected_id:
+                print(f"[ClaudeGenerator] Composition ID is correct: {current_id}")
+            else:
+                # Replace the composition ID
+                print(f"[ClaudeGenerator] Fixing composition ID in index.tsx: {current_id} -> {expected_id}")
+                new_content = re.sub(
+                    r'(<Composition\s+id=")([^"]+)(")',
+                    f'\\g<1>{expected_id}\\g<3>',
+                    content,
+                    count=1  # Only replace the first one
+                )
+                index_tsx.write_text(new_content, encoding="utf-8")
 
-        current_id = matches[0]
-        if current_id == expected_id:
-            print(f"[ClaudeGenerator] Composition ID is correct: {current_id}")
-            return
+        # Fix metadata.json
+        metadata_json = self.src_dir / "metadata.json"
+        if metadata_json.exists():
+            try:
+                with open(metadata_json, encoding="utf-8") as f:
+                    metadata = json.load(f)
 
-        # Replace the composition ID
-        print(f"[ClaudeGenerator] Fixing composition ID: {current_id} -> {expected_id}")
-        new_content = re.sub(
-            r'(<Composition\s+id=")([^"]+)(")',
-            f'\\g<1>{expected_id}\\g<3>',
-            content,
-            count=1  # Only replace the first one
-        )
-
-        index_tsx.write_text(new_content, encoding="utf-8")
+                current_comp_id = metadata.get("compositionId", "")
+                if current_comp_id != expected_id:
+                    print(f"[ClaudeGenerator] Fixing compositionId in metadata.json: {current_comp_id} -> {expected_id}")
+                    metadata["compositionId"] = expected_id
+                    with open(metadata_json, "w", encoding="utf-8") as f:
+                        json.dump(metadata, f, indent=2)
+                else:
+                    print(f"[ClaudeGenerator] metadata.json compositionId is correct: {current_comp_id}")
+            except Exception as e:
+                print(f"[ClaudeGenerator] Warning: Could not fix metadata.json: {e}")
 
 
 # =============================================================================

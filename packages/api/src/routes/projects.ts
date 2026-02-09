@@ -403,10 +403,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    // Only allow reset from failed or complete states
-    if (project.status !== 'failed' && project.status !== 'complete') {
+    // Only allow reset from failed, complete, or processing states (processing can get stuck)
+    if (project.status !== 'failed' && project.status !== 'complete' && project.status !== 'processing') {
       return reply.status(400).send({
-        error: `Cannot reset project in '${project.status}' state. Only 'failed' or 'complete' projects can be reset.`
+        error: `Cannot reset project in '${project.status}' state. Only 'failed', 'complete', or 'processing' projects can be reset.`
       });
     }
 
@@ -420,6 +420,14 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
+
+    // Parse export options from request body
+    const exportOptionsSchema = z.object({
+      layoutMode: z.enum(['pip', 'split-h', 'split-v', 'overlay']).optional().default('pip'),
+      pipPosition: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']).optional().default('bottom-right'),
+      pipSize: z.number().min(15).max(50).optional().default(25),
+    });
+    const exportOptions = exportOptionsSchema.parse(request.body || {});
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -450,10 +458,15 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job
+    // Queue the job with export options
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
+      exportOptions: {
+        layoutMode: exportOptions.layoutMode,
+        pipPosition: exportOptions.pipPosition,
+        pipSize: exportOptions.pipSize,
+      },
     });
 
     return { jobId: job.id };
