@@ -131,6 +131,10 @@ RUN addgroup --system --gid 1001 nodejs && \
 RUN mkdir -p /tmp/workspace /tmp/template /tmp/bundles /home/worker && \
     chown -R worker:nodejs /tmp/workspace /tmp/template /tmp/bundles /home/worker
 
+# Create .remotion cache directory with correct permissions for Remotion bundler
+RUN mkdir -p /app/packages/worker/node_modules/.remotion && \
+    chown -R worker:nodejs /app/packages/worker/node_modules/.remotion
+
 # Set home directory for npm cache
 ENV HOME="/home/worker"
 
