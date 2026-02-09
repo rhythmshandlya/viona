@@ -18,10 +18,22 @@ interface RightPanelProps {
   onTabChange: (tab: RightPanelTab) => void;
   onClose: () => void;
   layout?: 'stacked' | 'side-by-side';
+  embedded?: boolean;
 }
 
-export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked' }: RightPanelProps) {
+export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false }: RightPanelProps) {
   const isSideBySide = layout === 'side-by-side';
+
+  // Embedded mode - just render content without wrapper
+  if (embedded) {
+    return (
+      <div className="flex-1 overflow-y-auto -mx-4 -mt-3">
+        {activeTab === 'transcript' && <TranscriptPanel />}
+        {activeTab === 'properties' && <PropertiesContent />}
+        {activeTab === 'layout' && <PiPControlPanel />}
+      </div>
+    );
+  }
 
   return (
     <div

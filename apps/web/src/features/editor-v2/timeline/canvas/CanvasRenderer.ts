@@ -66,27 +66,28 @@ export interface CanvasRendererOptions {
 const DEFAULT_OPTIONS: CanvasRendererOptions = {
   trackHeaderWidth: 0, // No track headers in this version
   rulerHeight: 0, // Ruler is separate component
-  backgroundColor: '#18181b', // zinc-900
-  trackBackgroundColor: '#27272a', // zinc-800
-  trackBorderColor: '#3f3f46', // zinc-700
+  // Light theme colors
+  backgroundColor: '#FAFAFA', // warm light gray
+  trackBackgroundColor: '#FFFFFF', // white
+  trackBorderColor: '#E5E5E5', // light gray border
   itemColors: {
     video: '#3b82f6', // blue-500
     audio: '#22c55e', // green-500
-    caption: '#a855f7', // purple-500
+    caption: '#F97316', // orange (brand color)
     text: '#f59e0b', // amber-500
     image: '#ec4899', // pink-500
-    visual: '#06b6d4', // cyan-500
+    visual: '#8b5cf6', // purple-500
   },
-  selectedBorderColor: '#ffffff',
-  playheadColor: '#ef4444', // red-500
-  selectionBoxColor: 'rgba(59, 130, 246, 0.3)', // blue with opacity
-  textColor: '#fafafa', // zinc-50
+  selectedBorderColor: '#F97316', // orange for selection
+  playheadColor: '#F97316', // orange playhead
+  selectionBoxColor: 'rgba(249, 115, 22, 0.15)', // orange with opacity
+  textColor: '#1A1A1A', // dark text
   // Phase 2: Snap and preview colors
   snapLineColor: '#22c55e', // green-500
-  snapLinePlayheadColor: '#ef4444', // red-500
+  snapLinePlayheadColor: '#F97316', // orange
   previewOpacity: 0.5,
   invalidPreviewColor: '#ef4444', // red-500
-  resizeHandleColor: '#ffffff',
+  resizeHandleColor: '#FFFFFF',
   resizeHandleSize: 6,
 };
 
