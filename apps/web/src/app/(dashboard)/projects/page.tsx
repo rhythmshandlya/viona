@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useDropzone } from "react-dropzone";
 import { api, UserProject } from "@/lib/api";
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload, JobErrorPayload } from "@/lib/ws";
@@ -141,15 +142,14 @@ function ProjectCard({
   onDelete: (project: UserProject) => void;
   className?: string;
 }) {
-  const router = useRouter();
   const status = getStatusConfig(project.status);
   const projectName = project.title || project.videoKey?.split("/").pop() || `Project ${project.id.slice(0, 8)}`;
 
   return (
-    <div
-      className={`group bg-white rounded-2xl shadow-card hover:shadow-card-hover
+    <Link
+      href={`/project/${project.id}`}
+      className={`group block bg-white rounded-2xl shadow-card hover:shadow-card-hover
                   transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden ${className || ""}`}
-      onClick={() => router.push(`/project/${project.id}`)}
     >
       {/* Thumbnail Area */}
       <div className="aspect-video bg-gradient-to-br from-orange-50 to-amber-50 relative overflow-hidden">
@@ -182,15 +182,16 @@ function ProjectCard({
         {/* Three Dot Menu */}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuTrigger asChild onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
               <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/90 hover:bg-white shadow-sm">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="shadow-card-hover" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuContent align="end" className="shadow-card-hover" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive cursor-pointer"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onDelete(project);
                 }}
@@ -210,7 +211,7 @@ function ProjectCard({
           {formatDate(project.createdAt)}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
