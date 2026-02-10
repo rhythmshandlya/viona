@@ -5,7 +5,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { db, projects, tracks, timelineItems, jobs, visuals } from '../db/index.js';
-import { downloadFile, uploadFile } from '../services/minio.js';
+import { downloadFile, uploadFile, listObjects } from '../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
@@ -511,6 +511,55 @@ interface RenderRemotionOptions {
 }
 
 /**
+ * Download a Remotion bundle from S3 storage if it doesn't exist locally.
+ * Bundles are uploaded during visual generation and need to be restored after container restarts.
+ */
+async function ensureBundleExists(bundlePath: string, compositionId: string): Promise<void> {
+  const bundleIndexPath = join(bundlePath, 'index.html');
+
+  // Check if bundle already exists locally
+  try {
+    await access(bundleIndexPath, constants.R_OK);
+    logger.info({ bundlePath }, 'Bundle exists locally');
+    return;
+  } catch {
+    // Bundle doesn't exist locally, try to download from S3
+    logger.info({ bundlePath, compositionId }, 'Bundle not found locally, downloading from S3...');
+  }
+
+  // List all files in the bundle from S3
+  const s3Prefix = `bundles/${compositionId}/`;
+  const files = await listObjects('outputs', s3Prefix);
+
+  if (files.length === 0) {
+    throw new Error(`Bundle not found in S3 storage: ${s3Prefix}`);
+  }
+
+  logger.info({ compositionId, fileCount: files.length }, 'Found bundle files in S3');
+
+  // Create bundle directory
+  await mkdir(bundlePath, { recursive: true });
+
+  // Download all files
+  for (const file of files) {
+    // file is like "bundles/proj-xxx/index.html" or "bundles/proj-xxx/assets/file.js"
+    // We need to extract the relative path within the bundle
+    const relativePath = file.replace(s3Prefix, '');
+    const localPath = join(bundlePath, relativePath);
+
+    // Create subdirectories if needed
+    const dir = join(bundlePath, relativePath.split('/').slice(0, -1).join('/'));
+    if (dir !== bundlePath) {
+      await mkdir(dir, { recursive: true });
+    }
+
+    await downloadFile('outputs', file, localPath);
+  }
+
+  logger.info({ bundlePath, compositionId, fileCount: files.length }, 'Bundle downloaded from S3');
+}
+
+/**
  * Rebuild the Remotion bundle using the proper bundle() API.
  * Creates a temp entry point that imports composition.cjs.js, then bundles it.
  */
@@ -579,13 +628,9 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
 
   logger.info({ bundlePath, compositionId, outputPath }, 'Starting Remotion SSR render');
 
-  // Verify bundle exists
-  const bundleIndexPath = join(bundlePath, 'index.html');
-  try {
-    await access(bundleIndexPath, constants.R_OK);
-  } catch {
-    throw new Error(`Remotion bundle not found at ${bundlePath}`);
-  }
+  // Ensure bundle exists (download from S3 if needed)
+  const bundleCompositionId = compositionId.replace(/_/g, '-');
+  await ensureBundleExists(bundlePath, bundleCompositionId);
 
   // Remotion requires hyphens in composition IDs, not underscores
   // The visual generator creates IDs with underscores (proj_xxx), but Remotion validation fails

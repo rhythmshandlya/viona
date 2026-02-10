@@ -73,3 +73,47 @@ export async function getObjectStream(prefix: string, key: string) {
 
   return minioClient.getObject(BUCKET, fullKey);
 }
+
+/**
+ * List all objects with a given prefix.
+ * @param prefix - The prefix type ('uploads', 'outputs', 'templates')
+ * @param keyPrefix - Additional prefix within the bucket prefix
+ */
+export async function listObjects(prefix: string, keyPrefix: string): Promise<string[]> {
+  const fullPrefix = PREFIXES[prefix as keyof typeof PREFIXES]
+    ? `${PREFIXES[prefix as keyof typeof PREFIXES]}${keyPrefix}`
+    : `${prefix}/${keyPrefix}`;
+
+  const objects: string[] = [];
+  const stream = minioClient.listObjects(BUCKET, fullPrefix, true);
+
+  return new Promise((resolve, reject) => {
+    stream.on('data', (obj) => {
+      if (obj.name) {
+        // Remove the bucket prefix to get relative path
+        const basePrefix = PREFIXES[prefix as keyof typeof PREFIXES] || `${prefix}/`;
+        objects.push(obj.name.replace(basePrefix, ''));
+      }
+    });
+    stream.on('error', reject);
+    stream.on('end', () => resolve(objects));
+  });
+}
+
+/**
+ * Check if an object exists in storage.
+ * @param prefix - The prefix type ('uploads', 'outputs', 'templates')
+ * @param key - The object key (without prefix)
+ */
+export async function objectExists(prefix: string, key: string): Promise<boolean> {
+  const fullKey = PREFIXES[prefix as keyof typeof PREFIXES]
+    ? `${PREFIXES[prefix as keyof typeof PREFIXES]}${key}`
+    : `${prefix}/${key}`;
+
+  try {
+    await minioClient.statObject(BUCKET, fullKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
