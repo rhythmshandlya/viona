@@ -150,11 +150,7 @@
       "Bash(npm run typecheck:*)",
       "Bash(pnpm --filter @reelify/worker dev:*)",
       "Bash(kill:*)",
-      "Bash(redis-cli:*)",
-      "Bash(brew upgrade:*)",
-      "Bash(ps:*)",
-      "Bash(python3:*)",
-      "Bash(npm run db:migrate:*)"
+      "Bash(redis-cli:*)"
     ]
   }
 }
