@@ -692,6 +692,14 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
 
   // Render the composition to video
   // Limit concurrency to prevent OOM on Railway (default uses all CPUs)
+  // CRITICAL: Limit FFmpeg threads to prevent OOM - x264 auto-detects 60+ threads on Railway
+  // Set multiple environment variables to try to limit threading
+  process.env.FFMPEG_THREADS = '4';
+  process.env.OMP_NUM_THREADS = '4';
+  process.env.OMP_THREAD_LIMIT = '4';
+
+  logger.info({ concurrency: 1 }, 'Starting renderMedia with aggressive memory limits');
+
   await renderMedia({
     composition,
     serveUrl,
@@ -700,13 +708,16 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
     },
-    // Limit parallel frame rendering to prevent OOM
-    concurrency: 2,
+    // CRITICAL: Use concurrency 1 to minimize memory - render one frame at a time
+    concurrency: 1,
     // Use JPEG for faster rendering (no transparency needed for final output)
     imageFormat: 'jpeg',
-    jpegQuality: 90,
-    // Use faster x264 preset to reduce memory usage
-    x264Preset: 'faster',
+    jpegQuality: 80,
+    // Use 'ultrafast' preset - uses MUCH less memory than 'faster' or default
+    // Trade-off: slightly larger file size, but prevents OOM
+    x264Preset: 'ultrafast',
+    // Higher CRF = lower quality but less memory (23 is still good quality)
+    crf: 23,
     // Progress callback
     onProgress: ({ progress }) => {
       if (onProgress) {
