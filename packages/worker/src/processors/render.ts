@@ -988,7 +988,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
   // Add subtitles filter if we have them, otherwise copy video
   if (assFilename) {
     args.push('-vf', `subtitles=${assFilename}`);
-    args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18');
+    args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
   } else {
     args.push('-c:v', 'copy');
   }
@@ -1131,129 +1131,21 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
         break;
     }
 
-    // Parse border color to RGB values
-    const parseBorderColor = (color: string): { r: number; g: number; b: number; a: number } => {
-      // Handle rgba format
-      const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-      if (rgbaMatch) {
-        return {
-          r: parseInt(rgbaMatch[1], 10),
-          g: parseInt(rgbaMatch[2], 10),
-          b: parseInt(rgbaMatch[3], 10),
-          a: rgbaMatch[4] ? parseFloat(rgbaMatch[4]) : 1,
-        };
-      }
-      // Handle hex format
-      let hex = color.replace('#', '');
-      if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-      return {
-        r: parseInt(hex.substring(0, 2), 16) || 255,
-        g: parseInt(hex.substring(2, 4), 16) || 255,
-        b: parseInt(hex.substring(4, 6), 16) || 255,
-        a: 1,
-      };
-    };
-
-    const borderColor = parseBorderColor(pip.borderColor);
-    const shadowColor = parseBorderColor(pip.shadowColor);
-
     logger.info({
       mode,
-      pipSettings: pip,
       pipDimensions: { pipWidth, pipHeight, pipX, pipY },
-      borderColor,
-      shadowColor,
-    }, 'Rendering with PiP layout (full styling)');
+    }, 'Rendering with simplified PiP layout (low memory mode)');
 
-    // Build filter chain for styled PiP
-    const filters: string[] = [];
-
-    // 1. Background: Remotion visuals fill the screen
-    filters.push(`[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`);
-
-    // 2. Scale source video to PiP size
-    filters.push(`[0:v]scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1,format=rgba[pip_scaled]`);
-
-    // 3. Apply shape mask (circle, rounded, or square)
-    if (pip.shape === 'circle') {
-      // Circular mask - radius is half the width
-      const radius = pipWidth / 2;
-      filters.push(`[pip_scaled]geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='if(gt(pow(X-${radius},2)+pow(Y-${radius},2),pow(${radius},2)),0,255)'[pip_shaped]`);
-    } else if (pip.shape === 'rounded' && pip.borderRadius > 0) {
-      // Rounded rectangle mask using geq
-      // Formula: point is inside if it's either in the inner rect or within radius of a corner
-      const r = Math.min(pip.borderRadius, pipWidth / 2, pipHeight / 2);
-      const innerW = pipWidth - 2 * r;
-      const innerH = pipHeight - 2 * r;
-      // Rounded rect: check if in center rect OR within radius of corners
-      filters.push(`[pip_scaled]geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='if(between(X,${r},${pipWidth - r})+between(Y,${r},${pipHeight - r})+lte(hypot(X-${r},Y-${r}),${r})+lte(hypot(X-${pipWidth - r},Y-${r}),${r})+lte(hypot(X-${r},Y-${pipHeight - r}),${r})+lte(hypot(X-${pipWidth - r},Y-${pipHeight - r}),${r}),255,0)'[pip_shaped]`);
-    } else {
-      // Square - no mask needed, just rename
-      filters.push(`[pip_scaled]copy[pip_shaped]`);
-    }
-
-    // 4. Apply opacity if not fully opaque
-    if (pip.opacity < 1) {
-      const alpha = pip.opacity;
-      filters.push(`[pip_shaped]colorchannelmixer=aa=${alpha}[pip_alpha]`);
-    } else {
-      filters.push(`[pip_shaped]copy[pip_alpha]`);
-    }
-
-    // Track current output label
-    let currentBg = 'bg';
-    let currentPip = 'pip_alpha';
-
-    // 5. Add shadow if enabled
-    if (pip.shadowEnabled && pip.shadowBlur > 0) {
-      // Shadow offset (slight offset for depth effect)
-      const shadowOffsetX = Math.round(pip.shadowBlur / 4);
-      const shadowOffsetY = Math.round(pip.shadowBlur / 4);
-      const blurRadius = Math.max(1, Math.round(pip.shadowBlur / 2));
-
-      // Create shadow: colorize to shadow color, blur it
-      // Using format=rgba to preserve alpha, then colorize via geq
-      filters.push(`[${currentPip}]split[pip_main][pip_shadow_src]`);
-
-      // Colorize the shadow source to shadow color and reduce alpha for softness
-      const shadowAlpha = shadowColor.a * 0.6; // Softer shadow
-      filters.push(`[pip_shadow_src]geq=r='${shadowColor.r}':g='${shadowColor.g}':b='${shadowColor.b}':a='alpha(X,Y)*${shadowAlpha}',boxblur=${blurRadius}:${blurRadius}[pip_shadow]`);
-
-      // Overlay shadow first, then PiP on top
-      filters.push(`[${currentBg}][pip_shadow]overlay=${pipX + shadowOffsetX}:${pipY + shadowOffsetY}:format=auto[bg_shadow]`);
-      currentBg = 'bg_shadow';
-      currentPip = 'pip_main';
-    }
-
-    // 6. Add border if borderWidth > 0
-    if (pip.borderWidth > 0) {
-      const bw = pip.borderWidth;
-      const totalW = pipWidth + bw * 2;
-      const totalH = pipHeight + bw * 2;
-
-      // Create border background with border color
-      filters.push(`color=c=0x${borderColor.r.toString(16).padStart(2, '0')}${borderColor.g.toString(16).padStart(2, '0')}${borderColor.b.toString(16).padStart(2, '0')}:s=${totalW}x${totalH}:d=1,format=rgba[border_bg]`);
-
-      // Apply same shape mask to border (but larger)
-      if (pip.shape === 'circle') {
-        const borderRadius = totalW / 2;
-        filters.push(`[border_bg]geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='if(gt(pow(X-${borderRadius},2)+pow(Y-${borderRadius},2),pow(${borderRadius},2)),0,${Math.round(borderColor.a * 255)})'[border_shaped]`);
-      } else if (pip.shape === 'rounded' && pip.borderRadius > 0) {
-        const r = Math.min(pip.borderRadius + bw, totalW / 2, totalH / 2);
-        filters.push(`[border_bg]geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='if(between(X,${r},${totalW - r})+between(Y,${r},${totalH - r})+lte(hypot(X-${r},Y-${r}),${r})+lte(hypot(X-${totalW - r},Y-${r}),${r})+lte(hypot(X-${r},Y-${totalH - r}),${r})+lte(hypot(X-${totalW - r},Y-${totalH - r}),${r}),${Math.round(borderColor.a * 255)},0)'[border_shaped]`);
-      } else {
-        filters.push(`[border_bg]colorchannelmixer=aa=${borderColor.a}[border_shaped]`);
-      }
-
-      // Overlay border on background
-      filters.push(`[${currentBg}][border_shaped]overlay=${pipX - bw}:${pipY - bw}:format=auto[bg_border]`);
-      currentBg = 'bg_border';
-    }
-
-    // 7. Final overlay: PiP on top
-    filters.push(`[${currentBg}][${currentPip}]overlay=${pipX}:${pipY}:format=auto[outv]`);
-
-    filterComplex = filters.join(';');
+    // LOW MEMORY MODE: Simple overlay without shadows, borders, or rounded corners
+    // This uses minimal FFmpeg filters to prevent OOM on Railway
+    filterComplex = [
+      // Scale Remotion visuals to full screen
+      `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
+      // Scale source video to PiP size
+      `[0:v]scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1[pip]`,
+      // Simple overlay - no fancy effects
+      `[bg][pip]overlay=${pipX}:${pipY}[outv]`
+    ].join(';');
 
   } else if (mode === 'split-horizontal') {
     // Split horizontal (top/bottom)
@@ -1491,7 +1383,7 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
 
   // Encoding settings (only if we have subtitles to burn)
   if (assFilename) {
-    args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18');
+    args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
   }
 
   args.push('-shortest', basename(outputPath));
