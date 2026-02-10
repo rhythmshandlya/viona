@@ -222,6 +222,27 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
 
     await publishJobProgress(jobId, 90, 'Updating database...');
 
+    // Try to read scenes.json for detailed scene information
+    let timestamps: any[] | undefined;
+    const scenesPath = join(projectDir, 'scenes.json');
+    try {
+      const scenesContent = await readFile(scenesPath, 'utf-8');
+      const scenesData = JSON.parse(scenesContent);
+
+      if (scenesData.scenes && Array.isArray(scenesData.scenes) && scenesData.scenes.length > 0) {
+        // Convert scenes.json format to timestamps format for the database
+        timestamps = scenesData.scenes.map((scene: any) => ({
+          startMs: Math.round(scene.timestampRange[0] * 1000),
+          endMs: Math.round(scene.timestampRange[1] * 1000),
+          type: scene.name || `Scene ${scene.id}`,
+          description: scene.visual || scene.emotion || '',
+        }));
+        logger.info({ projectId, sceneCount: timestamps.length }, 'Loaded scenes from scenes.json');
+      }
+    } catch (scenesErr) {
+      logger.warn({ projectId, error: scenesErr }, 'Could not read scenes.json, timestamps unchanged');
+    }
+
     // Update visuals record
     await db.update(visuals)
       .set({
@@ -230,6 +251,7 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
         width: metadata.width || visual.width,
         height: metadata.height || visual.height,
         sourceUrl,
+        ...(timestamps && { timestamps }),
       })
       .where(eq(visuals.id, visual.id));
 
@@ -688,8 +710,8 @@ This should be a 1-5 line change. Do not rewrite files.
   }
 
   // Run Claude CLI in the workspace, passing prompt via stdin to avoid shell escaping issues
+  // NOTE: Do NOT use --print flag - it prevents Claude from executing tools (file edits)
   const subprocess = spawn('claude', [
-    '--print',
     '--dangerously-skip-permissions',
   ], {
     cwd: workspacePath,

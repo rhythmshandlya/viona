@@ -321,6 +321,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
 
     // Read metadata file that the agent should have created
     const metadataPath = join(projectDir, 'metadata.json');
+    const scenesPath = join(projectDir, 'scenes.json');
     let metadata: VisualMetadata;
 
     try {
@@ -329,6 +330,25 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
 
       if (!metadata.compositionId || typeof metadata.durationInFrames !== 'number') {
         throw new Error('Invalid metadata.json: missing required fields');
+      }
+
+      // Try to read scenes.json for detailed scene information
+      try {
+        const scenesContent = await readFile(scenesPath, 'utf-8');
+        const scenesData = JSON.parse(scenesContent);
+
+        if (scenesData.scenes && Array.isArray(scenesData.scenes) && scenesData.scenes.length > 0) {
+          // Convert scenes.json format to timestamps format for the database
+          metadata.visuals = scenesData.scenes.map((scene: any) => ({
+            startMs: Math.round(scene.timestampRange[0] * 1000),
+            endMs: Math.round(scene.timestampRange[1] * 1000),
+            type: scene.name || `Scene ${scene.id}`,
+            description: scene.visual || scene.emotion || '',
+          }));
+          logger.info({ projectId, sceneCount: metadata.visuals.length }, 'Loaded scenes from scenes.json');
+        }
+      } catch (scenesErr) {
+        logger.warn({ projectId, error: scenesErr }, 'Could not read scenes.json, falling back to metadata.visuals');
       }
 
       if (!metadata.visuals || !Array.isArray(metadata.visuals)) {
