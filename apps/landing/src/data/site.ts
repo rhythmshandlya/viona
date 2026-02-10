@@ -3,7 +3,7 @@ export const siteConfig = {
   title: "Cllipify - You Explain It. We Illustrate It.",
   description: "Transform your talking-head videos into visually-rich content. AI automatically generates charts, diagrams, and graphics synced to your explanations.",
   url: "https://cllipify.com",
-  appUrl: "https://app.cllipify.com",
+  appUrl: "https://web-production-7b3a.up.railway.app",
   ogImage: "/og-image.png",
   links: {
     twitter: "https://twitter.com/cllipify",
