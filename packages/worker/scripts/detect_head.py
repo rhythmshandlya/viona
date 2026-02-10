@@ -15,18 +15,26 @@ Usage:
 import argparse
 import json
 import sys
+import urllib.request
 from pathlib import Path
 from typing import Optional
 
 import cv2
-import mediapipe as mp
 import numpy as np
 
-# MediaPipe face mesh landmark indices for key points
-# Reference: https://github.com/google/mediapipe/blob/master/mediapipe/modules/face_geometry/data/canonical_face_model_uv_visualization.png
+# MediaPipe Tasks API
+import mediapipe as mp
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+
+# Model URLs for automatic download
+FACE_LANDMARKER_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+POSE_LANDMARKER_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+
+# Key face landmark indices (from 478 landmarks)
 FACE_LANDMARKS = {
-    'left_eye': 468,  # Left eye center (iris)
-    'right_eye': 473,  # Right eye center (iris)
+    'left_eye': 468,  # Left iris center
+    'right_eye': 473,  # Right iris center
     'left_eye_outer': 33,
     'right_eye_outer': 263,
     'left_eye_inner': 133,
@@ -48,16 +56,16 @@ FACE_LANDMARKS = {
     'right_cheek': 454,
 }
 
-# Face outline landmarks for bounding box calculation
+# Face outline for bounding box
 FACE_OUTLINE = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
                 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
                 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]
 
-# MediaPipe pose landmark indices
+# Pose landmark indices
 POSE_LANDMARKS = {
     'left_shoulder': 11,
     'right_shoulder': 12,
-    'left_wrist': 15,  # Proxy for hand position
+    'left_wrist': 15,
     'right_wrist': 16,
 }
 
@@ -98,62 +106,104 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def init_mediapipe():
-    """Initialize MediaPipe Holistic model."""
-    mp_holistic = mp.solutions.holistic
-    holistic = mp_holistic.Holistic(
-        static_image_mode=False,
-        model_complexity=1,
-        smooth_landmarks=True,
-        min_detection_confidence=0.5,
+def download_model(url: str, dest: Path) -> Path:
+    """Download model file if not exists."""
+    if dest.exists():
+        return dest
+
+    print(f"Downloading model: {dest.name}...")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    urllib.request.urlretrieve(url, dest)
+    print(f"Model saved: {dest}")
+    return dest
+
+
+def get_models_dir() -> Path:
+    """Get or create models directory."""
+    models_dir = Path(__file__).parent / "models"
+    models_dir.mkdir(exist_ok=True)
+    return models_dir
+
+
+def init_face_landmarker(models_dir: Path):
+    """Initialize MediaPipe Face Landmarker."""
+    model_path = download_model(
+        FACE_LANDMARKER_MODEL_URL,
+        models_dir / "face_landmarker.task"
+    )
+
+    base_options = python.BaseOptions(model_asset_path=str(model_path))
+    options = vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        running_mode=vision.RunningMode.VIDEO,
+        num_faces=1,
+        min_face_detection_confidence=0.5,
+        min_face_presence_confidence=0.5,
+        min_tracking_confidence=0.5,
+        output_face_blendshapes=False,
+        output_facial_transformation_matrixes=False,
+    )
+    return vision.FaceLandmarker.create_from_options(options)
+
+
+def init_pose_landmarker(models_dir: Path):
+    """Initialize MediaPipe Pose Landmarker."""
+    model_path = download_model(
+        POSE_LANDMARKER_MODEL_URL,
+        models_dir / "pose_landmarker_lite.task"
+    )
+
+    base_options = python.BaseOptions(model_asset_path=str(model_path))
+    options = vision.PoseLandmarkerOptions(
+        base_options=base_options,
+        running_mode=vision.RunningMode.VIDEO,
+        num_poses=1,
+        min_pose_detection_confidence=0.5,
+        min_pose_presence_confidence=0.5,
         min_tracking_confidence=0.5,
     )
-    return holistic, mp_holistic
+    return vision.PoseLandmarker.create_from_options(options)
 
 
 def extract_face_landmarks(
-    face_landmarks,
+    face_landmarks_list,
     width: int,
     height: int
 ) -> Optional[dict]:
-    """Extract 20 key face landmarks from MediaPipe face mesh."""
-    if face_landmarks is None:
+    """Extract key face landmarks."""
+    if not face_landmarks_list or len(face_landmarks_list) == 0:
         return None
 
+    landmarks_data = face_landmarks_list[0]  # First face
     landmarks = {}
-    for name, idx in FACE_LANDMARKS.items():
-        # Handle iris landmarks (468-477) which may not always be present
-        if idx >= len(face_landmarks.landmark):
-            # Fallback to eye corner for iris landmarks
-            if 'eye' in name and 'outer' not in name and 'inner' not in name:
-                continue
 
-        try:
-            lm = face_landmarks.landmark[idx]
+    for name, idx in FACE_LANDMARKS.items():
+        if idx < len(landmarks_data):
+            lm = landmarks_data[idx]
             landmarks[name] = {
                 'x': int(lm.x * width),
                 'y': int(lm.y * height),
             }
-        except IndexError:
-            continue
 
     return landmarks if landmarks else None
 
 
 def calculate_bbox(
-    face_landmarks,
+    face_landmarks_list,
     width: int,
     height: int,
     padding: float = 0.1
 ) -> Optional[dict]:
-    """Calculate bounding box from face outline landmarks."""
-    if face_landmarks is None:
+    """Calculate bounding box from face outline."""
+    if not face_landmarks_list or len(face_landmarks_list) == 0:
         return None
 
+    landmarks_data = face_landmarks_list[0]
     points = []
+
     for idx in FACE_OUTLINE:
-        if idx < len(face_landmarks.landmark):
-            lm = face_landmarks.landmark[idx]
+        if idx < len(landmarks_data):
+            lm = landmarks_data[idx]
             points.append((lm.x * width, lm.y * height))
 
     if not points:
@@ -180,16 +230,18 @@ def calculate_bbox(
 
 
 def extract_body_landmarks(
-    pose_landmarks,
+    pose_landmarks_list,
     width: int,
     height: int,
     min_visibility: float = 0.5
 ) -> Optional[dict]:
-    """Extract upper body landmarks from MediaPipe pose."""
-    if pose_landmarks is None:
+    """Extract upper body landmarks."""
+    if not pose_landmarks_list or len(pose_landmarks_list) == 0:
         return None
 
+    landmarks_data = pose_landmarks_list[0]
     body = {}
+
     landmark_mapping = {
         'left_shoulder': 'left_shoulder',
         'right_shoulder': 'right_shoulder',
@@ -199,43 +251,25 @@ def extract_body_landmarks(
 
     for pose_name, output_name in landmark_mapping.items():
         idx = POSE_LANDMARKS[pose_name]
-        lm = pose_landmarks.landmark[idx]
-        visible = lm.visibility >= min_visibility
+        if idx < len(landmarks_data):
+            lm = landmarks_data[idx]
+            visible = lm.visibility >= min_visibility if hasattr(lm, 'visibility') else True
 
-        body[output_name] = {
-            'x': int(lm.x * width),
-            'y': int(lm.y * height),
-            'visible': visible,
-        }
+            body[output_name] = {
+                'x': int(lm.x * width),
+                'y': int(lm.y * height),
+                'visible': visible,
+            }
 
-    return body
-
-
-def calculate_confidence(face_landmarks, pose_landmarks) -> float:
-    """Calculate overall detection confidence."""
-    confidences = []
-
-    if face_landmarks:
-        # Use average visibility of key face landmarks
-        key_indices = [1, 33, 263, 61, 291]  # nose, eyes, mouth corners
-        for idx in key_indices:
-            if idx < len(face_landmarks.landmark):
-                # Face mesh doesn't have visibility, use presence as proxy
-                confidences.append(1.0)
-
-    if pose_landmarks:
-        # Use shoulder visibility as body confidence
-        for idx in [11, 12]:  # shoulders
-            confidences.append(pose_landmarks.landmark[idx].visibility)
-
-    return float(np.mean(confidences)) if confidences else 0.0
+    return body if body else None
 
 
 def process_video(
     video_path: str,
     interval: int,
     min_confidence: float,
-    holistic,
+    face_landmarker,
+    pose_landmarker,
 ) -> dict:
     """Process video and extract tracking data."""
     cap = cv2.VideoCapture(video_path)
@@ -275,7 +309,6 @@ def process_video(
     frame_idx = 0
     frames_with_face = 0
     frames_skipped = 0
-    multiple_face_warning_count = 0
 
     print(f"Processing video: {width}x{height} @ {fps:.1f}fps, {total_frames} frames")
     print(f"Sampling every {interval} frames...")
@@ -289,29 +322,37 @@ def process_video(
             # Convert BGR to RGB
             rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
-            # Process with MediaPipe
-            results = holistic.process(rgb_frame)
+            # Create MediaPipe Image
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
-            # Calculate confidence
-            confidence = calculate_confidence(
-                results.face_landmarks,
-                results.pose_landmarks
-            )
-
+            # Calculate timestamp in milliseconds
             timestamp_ms = int((frame_idx / fps) * 1000) if fps > 0 else 0
 
-            if confidence >= min_confidence:
-                # Extract landmarks
-                face_landmarks = extract_face_landmarks(
-                    results.face_landmarks, width, height
-                )
-                bbox = calculate_bbox(
-                    results.face_landmarks, width, height
-                )
-                body_landmarks = extract_body_landmarks(
-                    results.pose_landmarks, width, height
-                )
+            # Detect face landmarks
+            try:
+                face_result = face_landmarker.detect_for_video(mp_image, timestamp_ms)
+                face_landmarks_list = face_result.face_landmarks if face_result else None
+            except Exception as e:
+                face_landmarks_list = None
 
+            # Detect pose landmarks
+            try:
+                pose_result = pose_landmarker.detect_for_video(mp_image, timestamp_ms)
+                pose_landmarks_list = pose_result.pose_landmarks if pose_result else None
+            except Exception as e:
+                pose_landmarks_list = None
+
+            # Extract landmarks
+            face_landmarks = extract_face_landmarks(face_landmarks_list, width, height)
+            bbox = calculate_bbox(face_landmarks_list, width, height)
+            body_landmarks = extract_body_landmarks(pose_landmarks_list, width, height)
+
+            # Calculate confidence
+            has_face = face_landmarks is not None
+            has_body = body_landmarks is not None
+            confidence = 1.0 if has_face else (0.5 if has_body else 0.0)
+
+            if confidence >= min_confidence:
                 frame_data = {
                     'frame': frame_idx,
                     'timestamp_ms': timestamp_ms,
@@ -326,12 +367,11 @@ def process_video(
                 if face_landmarks:
                     frames_with_face += 1
             else:
-                # Low confidence - store null data
                 frame_data = {
                     'frame': frame_idx,
                     'timestamp_ms': timestamp_ms,
                     'face': None,
-                    'body': None,
+                    'body': body_landmarks,
                     'confidence': round(confidence, 3),
                     'detection_failed': True,
                 }
@@ -339,7 +379,7 @@ def process_video(
 
             result['frames'].append(frame_data)
 
-            # Progress update every 100 samples
+            # Progress update
             if len(result['frames']) % 100 == 0:
                 print(f"  Processed {len(result['frames'])} samples...")
 
@@ -357,11 +397,6 @@ def process_video(
         frames_with_face / samples_count if samples_count > 0 else 0, 3
     )
 
-    if multiple_face_warning_count > 0:
-        result['metadata']['warnings'].append(
-            f"Multiple faces detected in {multiple_face_warning_count} frames"
-        )
-
     print(f"Done! Processed {samples_count} samples, {frames_with_face} with face detected")
 
     return result
@@ -372,13 +407,8 @@ def generate_debug_video(
     output_path: str,
     tracking_data: dict,
     interval: int,
-    holistic,
-    mp_holistic,
 ):
     """Generate debug video with landmarks overlay."""
-    mp_drawing = mp.solutions.drawing_utils
-    mp_drawing_styles = mp.solutions.drawing_styles
-
     cap = cv2.VideoCapture(video_path)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -398,32 +428,11 @@ def generate_debug_video(
         if not ret:
             break
 
-        # Process every frame for smooth video, but only draw tracked frames
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = holistic.process(rgb_frame)
-
-        # Draw face mesh
-        if results.face_landmarks:
-            mp_drawing.draw_landmarks(
-                frame,
-                results.face_landmarks,
-                mp_holistic.FACEMESH_CONTOURS,
-                landmark_drawing_spec=None,
-                connection_drawing_spec=mp_drawing_styles.get_default_face_mesh_contours_style(),
-            )
-
-        # Draw pose
-        if results.pose_landmarks:
-            mp_drawing.draw_landmarks(
-                frame,
-                results.pose_landmarks,
-                mp_holistic.POSE_CONNECTIONS,
-                landmark_drawing_spec=mp_drawing_styles.get_default_pose_landmarks_style(),
-            )
-
-        # Draw bounding box from tracking data
+        # Draw tracking data for sampled frames
         if frame_idx % interval == 0 and tracking_idx < len(tracking_data['frames']):
             frame_data = tracking_data['frames'][tracking_idx]
+
+            # Draw bounding box
             if frame_data.get('face') and frame_data['face'].get('bbox'):
                 bbox = frame_data['face']['bbox']
                 cv2.rectangle(
@@ -433,6 +442,26 @@ def generate_debug_video(
                     (0, 255, 0),
                     2
                 )
+
+            # Draw face landmarks
+            if frame_data.get('face') and frame_data['face'].get('landmarks'):
+                for name, point in frame_data['face']['landmarks'].items():
+                    color = (0, 255, 255)  # Yellow for face
+                    if 'eye' in name:
+                        color = (255, 0, 0)  # Blue for eyes
+                    elif 'mouth' in name or 'lip' in name:
+                        color = (0, 0, 255)  # Red for mouth
+                    cv2.circle(frame, (point['x'], point['y']), 3, color, -1)
+
+            # Draw body landmarks
+            if frame_data.get('body'):
+                for name, point in frame_data['body'].items():
+                    if point.get('visible', True):
+                        color = (255, 0, 255)  # Magenta for body
+                        cv2.circle(frame, (point['x'], point['y']), 5, color, -1)
+                        cv2.putText(frame, name, (point['x'] + 5, point['y'] - 5),
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+
             tracking_idx += 1
 
         out.write(frame)
@@ -461,10 +490,14 @@ def main():
     else:
         output_path = input_path.parent / f"{input_path.stem}_tracking.json"
 
+    # Get models directory
+    models_dir = get_models_dir()
+
     # Initialize MediaPipe
-    print("Initializing MediaPipe Holistic...")
+    print("Initializing MediaPipe...")
     try:
-        holistic, mp_holistic = init_mediapipe()
+        face_landmarker = init_face_landmarker(models_dir)
+        pose_landmarker = init_pose_landmarker(models_dir)
     except Exception as e:
         print(f"Error: Failed to initialize MediaPipe: {e}", file=sys.stderr)
         sys.exit(3)
@@ -474,13 +507,14 @@ def main():
         str(input_path),
         args.interval,
         args.min_confidence,
-        holistic,
+        face_landmarker,
+        pose_landmarker,
     )
 
     # Check if any faces were detected
     if tracking_data['metadata']['frames_with_face'] == 0:
         print("Warning: No faces detected in the entire video", file=sys.stderr)
-        sys.exit(1)
+        # Don't exit - still save the data with body landmarks
 
     # Save JSON output
     with open(output_path, 'w') as f:
@@ -490,18 +524,15 @@ def main():
     # Generate debug video if requested
     if args.debug:
         debug_path = input_path.parent / f"{input_path.stem}_tracking_debug.mp4"
-        # Reinitialize for debug pass
-        holistic, mp_holistic = init_mediapipe()
         generate_debug_video(
             str(input_path),
             str(debug_path),
             tracking_data,
             args.interval,
-            holistic,
-            mp_holistic,
         )
 
-    holistic.close()
+    face_landmarker.close()
+    pose_landmarker.close()
     print("Done!")
     sys.exit(0)
 

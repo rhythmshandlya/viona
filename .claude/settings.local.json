@@ -138,7 +138,11 @@
       "Bash(tasklist:*)",
       "Bash(psql:*)",
       "mcp__ide__getDiagnostics",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(pip install:*)",
+      "Bash(python scripts/detect_head.py:*)",
+      "Bash(pip show:*)",
+      "Bash(python:*)"
     ]
   }
 }
