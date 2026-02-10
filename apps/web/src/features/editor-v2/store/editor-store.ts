@@ -100,6 +100,10 @@ const initialState: EditorState = {
   // Layout settings
   layoutSettings: DEFAULT_LAYOUT_SETTINGS,
   layoutPresetId: 'pip-tutorial' as LayoutPresetId,
+
+  // Scene selection for AI editing
+  selectedSceneId: null,
+  selectedTimeRange: null,
 };
 
 /**
@@ -433,6 +437,70 @@ export const useEditorStore = create<EditorStore>()(
           state.error = err instanceof Error ? err.message : 'Failed to load project';
           state.isLoading = false;
         });
+      }
+    },
+
+    reloadVisuals: async (projectId: string) => {
+      // Reload only visual items without resetting playback position or other state
+      try {
+        const apiProject = await api.getProject(projectId);
+
+        // Use presigned URL from API
+        const videoUrl = (apiProject as any).videoPresignedUrl
+          || (apiProject.videoKey ? `${API_URL}/api/projects/${projectId}/video` : '');
+
+        const { tracks: newTracks, items: newItems, itemIds: newItemIds } = convertApiProject(
+          apiProject,
+          videoUrl
+        );
+
+        set((state) => {
+          // Only update visual-related data
+          // Find existing non-visual items to preserve
+          const existingNonVisualItemIds = state.itemIds.filter(id => {
+            const item = state.items[id];
+            return item && item.type !== 'visual';
+          });
+
+          // Find new visual items
+          const newVisualItemIds = newItemIds.filter(id => {
+            const item = newItems[id];
+            return item && item.type === 'visual';
+          });
+
+          // Merge: keep existing non-visual items, add new visual items
+          const mergedItemIds = [...existingNonVisualItemIds, ...newVisualItemIds];
+          const mergedItems: Record<string, TimelineItem> = {};
+
+          // Copy existing non-visual items
+          for (const id of existingNonVisualItemIds) {
+            mergedItems[id] = state.items[id];
+          }
+
+          // Add new visual items
+          for (const id of newVisualItemIds) {
+            mergedItems[id] = newItems[id];
+          }
+
+          // Check if we need to add a visual track
+          const hasVisualTrack = state.tracks.some(t => t.type === 'visual');
+          const needsVisualTrack = newVisualItemIds.length > 0 && !hasVisualTrack;
+
+          if (needsVisualTrack) {
+            const visualTrack = newTracks.find(t => t.type === 'visual');
+            if (visualTrack) {
+              state.tracks.push(visualTrack);
+              state.tracks.sort((a, b) => a.position - b.position);
+            }
+          }
+
+          state.items = mergedItems;
+          state.itemIds = mergedItemIds;
+
+          // Don't reset playback position, selection, viewport, or history
+        });
+      } catch (err) {
+        console.error('Failed to reload visuals:', err);
       }
     },
 
@@ -1550,6 +1618,27 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.layoutSettings.mode = mode;
         state.layoutPresetId = 'custom';
+      });
+    },
+
+    // Scene selection for AI editing
+    setSelectedScene: (sceneId: number | null) => {
+      set((state) => {
+        state.selectedSceneId = sceneId;
+        // Clear time range when selecting a scene
+        if (sceneId !== null) {
+          state.selectedTimeRange = null;
+        }
+      });
+    },
+
+    setSelectedTimeRange: (range: { startMs: number; endMs: number } | null) => {
+      set((state) => {
+        state.selectedTimeRange = range;
+        // Clear scene selection when selecting a time range
+        if (range !== null) {
+          state.selectedSceneId = null;
+        }
       });
     },
   }))

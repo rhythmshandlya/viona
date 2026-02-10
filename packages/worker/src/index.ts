@@ -8,6 +8,8 @@ import { processTranscribeJob, TranscribeJobData } from './processors/transcribe
 import { processRenderJob, RenderJobData } from './processors/render.js';
 import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhance-audio.js';
 import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
+import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals.js';
+import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
 
@@ -176,6 +178,48 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Generate-visuals job failed');
   });
 
+  // Edit visuals worker - for continuing to edit existing compositions
+  const editVisualsWorker = new Worker<EditVisualsJobData>(
+    'edit-visuals',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId, prompt: job.data.prompt.slice(0, 50) }, 'Processing edit-visuals job');
+      await processEditVisualsJob(job);
+    },
+    {
+      connection,
+      concurrency: 1, // One at a time (AI + render intensive)
+    }
+  );
+
+  editVisualsWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Edit-visuals job completed');
+  });
+
+  editVisualsWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Edit-visuals job failed');
+  });
+
+  // SVG Animation worker - converts images to animated SVG compositions
+  const svgAnimationWorker = new Worker<SvgAnimationJobData>(
+    'svg-animation',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing svg-animation job');
+      await processSvgAnimationJob(job);
+    },
+    {
+      connection,
+      concurrency: 1, // One at a time (AI + render intensive)
+    }
+  );
+
+  svgAnimationWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'SVG-animation job completed');
+  });
+
+  svgAnimationWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'SVG-animation job failed');
+  });
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown
@@ -185,6 +229,8 @@ async function main() {
     await renderWorker.close();
     await enhanceAudioWorker.close();
     await generateVisualsWorker.close();
+    await editVisualsWorker.close();
+    await svgAnimationWorker.close();
     process.exit(0);
   };
 

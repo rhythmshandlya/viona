@@ -1,13 +1,16 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { AlignLeft, Search, LocateFixed, LocateOff } from 'lucide-react';
+import { AlignLeft, Search, LocateFixed, LocateOff, Layers } from 'lucide-react';
 import {
   useCaptionItems,
   useCurrentTimeMs,
   useEditorActions,
+  useProject,
+  useSelectedSceneId,
 } from '../store/use-editor-store';
 import { CaptionItemData, TimelineItem } from '../store/types';
+import { api, SceneInfo } from '@/lib/api';
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -22,12 +25,35 @@ export function TranscriptPanel() {
   const [editText, setEditText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearch, setShowSearch] = useState(false);
+  const [scenes, setScenes] = useState<SceneInfo[]>([]);
+  const [showScenes, setShowScenes] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLDivElement>(null);
 
   const captionItems = useCaptionItems();
   const currentTimeMs = useCurrentTimeMs();
-  const { seek, updateItemData, select } = useEditorActions();
+  const project = useProject();
+  const selectedSceneId = useSelectedSceneId();
+  const { seek, updateItemData, select, setSelectedScene } = useEditorActions();
+
+  // Fetch scenes when project loads
+  useEffect(() => {
+    if (project?.id) {
+      api.getScenes(project.id)
+        .then((data) => setScenes(data.scenes))
+        .catch((err) => console.warn('Failed to fetch scenes:', err));
+    }
+  }, [project?.id]);
+
+  // Find which scene a caption belongs to
+  const getSceneForCaption = useCallback((startMs: number): SceneInfo | null => {
+    return scenes.find(s => startMs >= s.startMs && startMs < s.endMs) || null;
+  }, [scenes]);
+
+  // Get current scene based on playhead
+  const currentScene = React.useMemo(() => {
+    return scenes.find(s => currentTimeMs >= s.startMs && currentTimeMs < s.endMs) || null;
+  }, [scenes, currentTimeMs]);
 
   // Filter by search
   const filteredCaptions = React.useMemo(() => {
@@ -103,6 +129,19 @@ export function TranscriptPanel() {
           </span>
         </div>
         <div className="flex items-center gap-1">
+          {scenes.length > 0 && (
+            <button
+              onClick={() => setShowScenes(!showScenes)}
+              className={`p-1 rounded transition-colors ${
+                showScenes
+                  ? 'bg-[var(--editor-accent)]/10 text-[var(--editor-accent)]'
+                  : 'text-[var(--editor-text-muted)] hover:bg-[var(--editor-bg-hover)]'
+              }`}
+              title={showScenes ? 'Hide scene markers' : 'Show scene markers'}
+            >
+              <Layers size={13} />
+            </button>
+          )}
           <button
             onClick={() => setShowSearch(!showSearch)}
             className="p-1 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)]"
@@ -123,6 +162,15 @@ export function TranscriptPanel() {
           </button>
         </div>
       </div>
+
+      {/* Current scene indicator */}
+      {showScenes && currentScene && (
+        <div className="px-3 py-1.5 bg-[var(--editor-accent)]/5 border-b border-[var(--editor-border-subtle)]">
+          <span className="text-[10px] font-medium text-[var(--editor-accent)]">
+            Scene {currentScene.id}
+          </span>
+        </div>
+      )}
 
       {/* Search bar */}
       {showSearch && (
@@ -147,20 +195,50 @@ export function TranscriptPanel() {
             {searchQuery ? 'No matches found' : 'No captions yet'}
           </div>
         ) : (
-          filteredCaptions.map((item) => {
+          filteredCaptions.map((item, index) => {
             const data = item.data as CaptionItemData;
             const isActive = item.id === activeCaptionId;
             const isEditing = item.id === editingId;
 
+            // Check if this caption starts a new scene
+            const captionScene = showScenes ? getSceneForCaption(item.startMs) : null;
+            const prevItem = index > 0 ? filteredCaptions[index - 1] : null;
+            const prevScene = prevItem && showScenes ? getSceneForCaption(prevItem.startMs) : null;
+            const isNewScene = captionScene && (!prevScene || prevScene.id !== captionScene.id);
+
             return (
-              <div
-                key={item.id}
-                ref={isActive ? activeRef : undefined}
-                className={`group flex items-start gap-2 px-3 py-2 border-b border-[var(--editor-border-subtle)]
-                           cursor-pointer transition-colors hover:bg-[var(--editor-bg-hover)]/50
-                           ${isActive ? 'border-l-2 border-l-[var(--editor-accent)] bg-[var(--editor-accent)]/5' : 'border-l-2 border-l-transparent'}`}
-                onClick={() => handleSelect(item.id)}
-              >
+              <React.Fragment key={item.id}>
+                {/* Scene header when entering a new scene - clickable to select for AI editing */}
+                {isNewScene && captionScene && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedScene(selectedSceneId === captionScene.id ? null : captionScene.id);
+                      seek(captionScene.startMs);
+                    }}
+                    className={`sticky top-0 z-10 w-full flex items-center justify-between px-3 py-1.5 border-b transition-colors cursor-pointer
+                      ${selectedSceneId === captionScene.id
+                        ? 'bg-[var(--editor-accent)]/10 border-[var(--editor-accent)]/30'
+                        : 'bg-[var(--editor-bg-base)] border-[var(--editor-border-default)] hover:bg-[var(--editor-bg-hover)]'
+                      }`}
+                    title="Click to select this scene for AI editing"
+                  >
+                    <span className={`text-[10px] font-medium ${selectedSceneId === captionScene.id ? 'text-[var(--editor-accent)]' : 'text-[var(--editor-text-secondary)]'}`}>
+                      Scene {captionScene.id}
+                    </span>
+                    <span className="text-[10px] text-[var(--editor-text-muted)] font-mono">
+                      {formatTime(captionScene.startMs)}
+                    </span>
+                  </button>
+                )}
+
+                <div
+                  ref={isActive ? activeRef : undefined}
+                  className={`group flex items-start gap-2 px-3 py-2 border-b border-[var(--editor-border-subtle)]
+                             cursor-pointer transition-colors hover:bg-[var(--editor-bg-hover)]/50
+                             ${isActive ? 'border-l-2 border-l-[var(--editor-accent)] bg-[var(--editor-accent)]/5' : 'border-l-2 border-l-transparent'}`}
+                  onClick={() => handleSelect(item.id)}
+                >
                 {/* Text content */}
                 <div className="flex-1 min-w-0">
                   {isEditing ? (
@@ -206,6 +284,7 @@ export function TranscriptPanel() {
                   {formatTime(item.startMs)}
                 </button>
               </div>
+              </React.Fragment>
             );
           })
         )}

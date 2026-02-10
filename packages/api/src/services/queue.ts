@@ -129,6 +129,53 @@ export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   });
 }
 
+// Edit visuals job - for continuing to edit existing compositions
+export interface EditVisualsJobData {
+  projectId: string;
+  jobId: string;
+  compositionId: string;  // The existing composition to edit
+  prompt: string;         // User's edit request (e.g., "Make particles bigger")
+  sceneId?: number;       // Optional: target a specific scene (1-indexed)
+}
+
+export const editVisualsQueue = new Queue('edit-visuals', { connection });
+
+export async function queueEditVisualsJob(data: EditVisualsJobData) {
+  return editVisualsQueue.add('edit-visuals', data, {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+  });
+}
+
+// SVG Animation job - for converting images to animated SVG compositions
+export interface SvgAnimationJobData {
+  projectId: string;
+  jobId: string;
+  imageKey: string;
+  animationType: 'draw' | 'motion';
+  animationStyle: 'elegant' | 'playful' | 'minimal';
+  durationSeconds: number;
+  trackId: string | null;
+  startMs: number;
+  width: number;
+  height: number;
+}
+
+export const svgAnimationQueue = new Queue('svg-animation', { connection });
+
+export async function queueSvgAnimationJob(data: SvgAnimationJobData) {
+  return svgAnimationQueue.add('svg-animation', data, {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+  });
+}
+
 // Redis publisher for job cancellation
 const redisPublisher = new Redis(config.redis.url);
 

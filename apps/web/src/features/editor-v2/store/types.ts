@@ -327,6 +327,10 @@ export interface EditorState {
   // Layout settings (video + visuals arrangement)
   layoutSettings: LayoutSettings;
   layoutPresetId: LayoutPresetId;
+
+  // Scene selection for AI editing
+  selectedSceneId: number | null;
+  selectedTimeRange: { startMs: number; endMs: number } | null;
 }
 
 // ============================================
@@ -336,6 +340,7 @@ export interface EditorState {
 export interface EditorActions {
   // Project actions
   loadProject: (projectId: string) => Promise<void>;
+  reloadVisuals: (projectId: string) => Promise<void>;
   saveProject: () => Promise<void>;
   setProject: (project: Project) => void;
 
@@ -422,6 +427,10 @@ export interface EditorActions {
   updateSplitSettings: (settings: Partial<SplitSettings>) => void;
   setLayoutPreset: (presetId: LayoutPresetId) => void;
   setLayoutMode: (mode: LayoutMode) => void;
+
+  // Scene selection for AI editing
+  setSelectedScene: (sceneId: number | null) => void;
+  setSelectedTimeRange: (range: { startMs: number; endMs: number } | null) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;

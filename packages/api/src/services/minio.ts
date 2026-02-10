@@ -174,3 +174,26 @@ export async function uploadStream(
   const metaData = contentType ? { 'Content-Type': contentType } : {};
   await minioClient.putObject(BUCKET, fullKey, stream, size, metaData);
 }
+
+/**
+ * List all objects with a given prefix.
+ * @param prefix - The prefix type ('uploads', 'outputs', 'templates')
+ * @param keyPrefix - Additional prefix within the bucket prefix
+ */
+export async function listObjects(prefix: 'uploads' | 'outputs' | 'templates', keyPrefix: string): Promise<string[]> {
+  const fullPrefix = `${PREFIXES[prefix]}${keyPrefix}`;
+
+  const objects: string[] = [];
+  const stream = minioClient.listObjects(BUCKET, fullPrefix, true);
+
+  return new Promise((resolve, reject) => {
+    stream.on('data', (obj) => {
+      if (obj.name) {
+        // Remove the bucket prefix to get relative path
+        objects.push(obj.name.replace(PREFIXES[prefix], ''));
+      }
+    });
+    stream.on('error', reject);
+    stream.on('end', () => resolve(objects));
+  });
+}

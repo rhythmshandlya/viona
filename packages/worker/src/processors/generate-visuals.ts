@@ -127,6 +127,44 @@ async function uploadBundleToStorage(bundleDir: string, compositionId: string): 
   logger.info({ compositionId, bundleDir }, 'Bundle uploaded to S3');
 }
 
+/**
+ * Upload source project directory to S3 storage.
+ * Uploads ALL source files to outputs/sources/{compositionId}/ including:
+ * - SCENE_PLAN.md - Director's visual story plan
+ * - IMPLEMENTATION_LOG.md - Implementation decisions and reasoning
+ * - scenes.json - Scene definitions with timing
+ * - metadata.json - Composition metadata
+ * - index.tsx - Main composition code
+ * - constants.ts - Colors, timing, spring configs
+ * - components/*.tsx - Reusable components (Background, etc.)
+ * - scenes/*.tsx - Individual scene components
+ *
+ * This preserves the full AI context so users can continue editing later.
+ */
+async function uploadSourceToStorage(projectDir: string, compositionId: string): Promise<string> {
+  const files = await readdir(projectDir, { recursive: true, withFileTypes: true });
+
+  for (const file of files) {
+    if (file.isFile()) {
+      // Get relative path from project dir
+      const parentPath = file.parentPath || file.path;
+      const relativePath = parentPath.replace(projectDir, '').replace(/^[\\/]/, '');
+      const fileName = file.name;
+      const relativeFilePath = relativePath ? `${relativePath}/${fileName}` : fileName;
+
+      // Upload to S3: outputs/sources/{compositionId}/{relativePath}
+      const s3Key = `sources/${compositionId}/${relativeFilePath}`.replace(/\\/g, '/');
+      const localPath = join(parentPath, fileName);
+
+      await uploadFile('outputs', s3Key, localPath);
+    }
+  }
+
+  const sourceUrl = `/api/sources/${compositionId}`;
+  logger.info({ compositionId, projectDir, sourceUrl }, 'Source project files uploaded to S3');
+  return sourceUrl;
+}
+
 export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
 
 export interface VisualsDimensions {
@@ -355,6 +393,10 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     await publishJobProgress(jobId, 82, 'Uploading bundle to storage...');
     await uploadBundleToStorage(bundleDir, bundleCompositionId);
 
+    // Upload source project files to S3 for AI context restoration
+    await publishJobProgress(jobId, 83, 'Uploading source files to storage...');
+    const sourceUrl = await uploadSourceToStorage(projectDir, bundleCompositionId);
+
     // Bundle URL points to API route that serves from S3
     const bundleUrl = `/api/bundles/${bundleCompositionId}/index.html`;
 
@@ -391,6 +433,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       projectId,
       compositionId: metadata.compositionId,
       bundleUrl,
+      sourceUrl, // Source project files for AI context restoration
       durationFrames: metadata.durationInFrames,
       fps: metadata.fps,
       width: metadata.width,
@@ -593,6 +636,20 @@ async function runClaudeCodeGenerator(
     subprocess.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stdout += text;
+
+      // Parse progress updates from Python script (format: PROGRESS:XX:message)
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const progressMatch = line.match(/^PROGRESS:(\d+):(.+)$/);
+        if (progressMatch) {
+          const percent = parseInt(progressMatch[1], 10);
+          const message = progressMatch[2];
+          // Map Python progress (15-70%) to job progress range
+          publishJobProgress(jobId, percent, message);
+          logger.info({ projectId, percent, message }, 'Claude generator progress');
+        }
+      }
+
       // Log more output for debugging
       logger.info({ projectId, output: text.slice(0, 500) }, 'Claude generator stdout');
     });

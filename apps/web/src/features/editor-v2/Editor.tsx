@@ -102,7 +102,7 @@ export function Editor({ projectId }: EditorProps) {
   const hasTranscript = captionItems.length > 0;
 
   // Actions
-  const { loadProject, clearSelection, updateEnhancementStatus } = useEditorActions();
+  const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus } = useEditorActions();
 
   // Toggle transcript panel - opens left sidebar to captions tab
   const handleToggleTranscript = useCallback(() => {
@@ -294,9 +294,9 @@ export function Editor({ projectId }: EditorProps) {
             console.error('Failed to fetch job metrics:', err);
           }
 
-          // Reload project to get new visual track and timeline items
+          // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
-            loadProject(project.id);
+            reloadVisuals(project.id);
           }
 
           setVisualsJobId(null);
@@ -344,9 +344,9 @@ export function Editor({ projectId }: EditorProps) {
             setVisualsMetrics(job.metrics);
           }
 
-          // Reload project to get new visual track and timeline items
+          // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
-            loadProject(project.id);
+            reloadVisuals(project.id);
           }
 
           setVisualsJobId(null);
@@ -369,7 +369,7 @@ export function Editor({ projectId }: EditorProps) {
     }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(pollInterval);
-  }, [visualsJobId, isGeneratingVisuals, project, loadProject, wsConnected]);
+  }, [visualsJobId, isGeneratingVisuals, project, reloadVisuals, wsConnected]);
 
   // Cancel visual generation
   const handleCancelVisuals = async () => {
@@ -384,8 +384,8 @@ export function Editor({ projectId }: EditorProps) {
 
   // Confirm adding visuals to timeline
   const handleConfirmAddVisuals = () => {
-    // Reload project to get the new visual items
-    loadProject(project!.id);
+    // Reload visuals only (preserves playback position and selection)
+    reloadVisuals(project!.id);
     // Reset all states and close modal
     setShowStyleModal(false);
     setVisualsComplete(false);
@@ -607,7 +607,11 @@ export function Editor({ projectId }: EditorProps) {
 
         {/* Right Panel - AI Assistant */}
         {aiPanelOpen && (
-          <AIAssistantPanel className="w-80 flex-shrink-0" />
+          <AIAssistantPanel
+            projectId={project.id}
+            onEditComplete={() => reloadVisuals(project.id)}
+            className="w-80 flex-shrink-0"
+          />
         )}
       </div>
 

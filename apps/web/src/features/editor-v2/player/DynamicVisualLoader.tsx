@@ -17,15 +17,43 @@ interface DynamicVisualLoaderProps {
   bundleUrl: string;
   compositionId: string;
   className?: string;
+  version?: number; // Cache-busting version, change to force reload
 }
 
 // Module cache to avoid re-fetching
 const moduleCache = new Map<string, React.ComponentType>();
 
+// Cache version - incremented when cache is cleared to bust browser cache
+let cacheVersion = Date.now();
+
+// Clear cache for a specific composition or all compositions
+export function clearVisualCache(compositionId?: string) {
+  // Update cache version to bust browser cache
+  cacheVersion = Date.now();
+
+  if (compositionId) {
+    // Clear entries matching this composition
+    for (const key of moduleCache.keys()) {
+      if (key.includes(compositionId)) {
+        moduleCache.delete(key);
+      }
+    }
+  } else {
+    // Clear all
+    moduleCache.clear();
+  }
+}
+
+// Get current cache version for URL busting
+export function getCacheVersion() {
+  return cacheVersion;
+}
+
 export function DynamicVisualLoader({
   bundleUrl,
   compositionId,
   className,
+  version = 0,
 }: DynamicVisualLoaderProps) {
   const [Component, setComponent] = useState<React.ComponentType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,10 +64,12 @@ export function DynamicVisualLoader({
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
   // Convert bundle URL from index.html to composition.cjs.js
   const compositionUrl = bundleUrl.replace('/index.html', '/composition.cjs.js');
-  const fullUrl = `${apiUrl}${compositionUrl}`;
+  // Add version to bust browser cache when edits are made
+  const urlVersion = version || cacheVersion;
+  const fullUrl = `${apiUrl}${compositionUrl}?v=${urlVersion}`;
 
   const loadComposition = useCallback(async () => {
-    const cacheKey = `${compositionUrl}:${compositionId}`;
+    const cacheKey = `${compositionUrl}:${compositionId}:${urlVersion}`;
 
     // Check cache
     if (moduleCache.has(cacheKey)) {
@@ -73,6 +103,18 @@ export function DynamicVisualLoader({
           // IMPORTANT: jsx/jsxs signature is (type, props, key) NOT (type, props, ...children)
           // We need to move the key from the 3rd argument into props
           const jsx = (type: any, props: any, key?: string) => {
+            // Handle children arrays by adding keys to prevent warnings
+            if (props?.children && Array.isArray(props.children)) {
+              props = {
+                ...props,
+                children: props.children.map((child: any, i: number) => {
+                  if (React.isValidElement(child) && child.key === null) {
+                    return React.cloneElement(child, { key: `auto-${i}` });
+                  }
+                  return child;
+                }),
+              };
+            }
             if (key !== undefined) {
               return React.createElement(type, { ...props, key });
             }
@@ -87,6 +129,18 @@ export function DynamicVisualLoader({
         if (moduleName === 'react/jsx-dev-runtime') {
           // Dev runtime - jsxDEV has signature (type, props, key, isStatic, source, self)
           const jsxDEV = (type: any, props: any, key?: string) => {
+            // Handle children arrays by adding keys to prevent warnings
+            if (props?.children && Array.isArray(props.children)) {
+              props = {
+                ...props,
+                children: props.children.map((child: any, i: number) => {
+                  if (React.isValidElement(child) && child.key === null) {
+                    return React.cloneElement(child, { key: `auto-${i}` });
+                  }
+                  return child;
+                }),
+              };
+            }
             if (key !== undefined) {
               return React.createElement(type, { ...props, key });
             }
@@ -97,7 +151,15 @@ export function DynamicVisualLoader({
             Fragment: React.Fragment,
           };
         }
-        if (moduleName === 'remotion') return Remotion;
+        if (moduleName === 'remotion') {
+          // Provide Remotion with Composition as a no-op
+          // <Composition> is a config component for Root.tsx, not meant for rendering
+          // When encountered inside a Player, it should just return null
+          return {
+            ...Remotion,
+            Composition: () => null,
+          };
+        }
         // Remotion sub-packages used by generated compositions
         if (moduleName === '@remotion/noise') return RemotionNoise;
         if (moduleName === '@remotion/shapes') return RemotionShapes;
@@ -127,11 +189,21 @@ export function DynamicVisualLoader({
         .map(s => s.charAt(0).toUpperCase() + s.slice(1))
         .join('');
 
+      // Priority order for finding the right component:
+      // 1. MainComposition - the standard visual entry point
+      // 2. PascalCase version of compositionId
+      // 3. underscore version of compositionId
+      // 4. default export
+      // 5. Any function export (excluding Root which is config)
       const CompositionComponent = (
+        exports.MainComposition ||
         exports[pascalName] ||
         exports[compName] ||
         exports.default ||
-        Object.values(exports).find(v => typeof v === 'function')
+        Object.entries(exports)
+          .filter(([name]) => name !== 'Root' && name !== 'RemotionRoot')
+          .map(([, v]) => v)
+          .find(v => typeof v === 'function')
       ) as React.ComponentType | undefined;
 
       if (!CompositionComponent) {
@@ -148,7 +220,7 @@ export function DynamicVisualLoader({
     } finally {
       setLoading(false);
     }
-  }, [fullUrl, compositionId, compositionUrl]);
+  }, [fullUrl, compositionId, compositionUrl, urlVersion]);
 
   useEffect(() => {
     loadComposition();

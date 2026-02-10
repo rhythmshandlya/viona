@@ -114,6 +114,16 @@ def safe_print(msg: str) -> None:
         print(safe_msg)
 
 
+def emit_progress(percent: int, message: str) -> None:
+    """Emit progress update in a format the TypeScript worker can parse.
+
+    Format: PROGRESS:XX:message
+    The worker parses this to update the job progress bar.
+    """
+    # Flush immediately so progress appears in real-time
+    print(f"PROGRESS:{percent}:{message}", flush=True)
+
+
 def get_claude_cli_path() -> str | None:
     """
     Find the Claude CLI executable path.
@@ -2894,6 +2904,7 @@ registerRoot(RemotionRoot);
         for attempt in range(max_retries + 1):
             try:
                 print(f"[ClaudeGenerator] Two-phase attempt {attempt + 1}/{max_retries + 1}")
+                emit_progress(15, "Starting visual generation...")
 
                 if attempt > 0:
                     base_delay = 10 * (2 ** (attempt - 1))
@@ -2911,6 +2922,8 @@ registerRoot(RemotionRoot);
                 else:
                     formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
+                emit_progress(18, "Phase 1: Director planning scenes...")
+
                 # Phase 1: Director
                 director_result = await self._run_director(
                     formatted_transcript=formatted_transcript,
@@ -2926,7 +2939,11 @@ registerRoot(RemotionRoot);
                 if not director_result["success"]:
                     raise RuntimeError(f"Director failed: {director_result.get('error', 'Unknown error')}")
 
-                print(f"[ClaudeGenerator] Director created {director_result['sceneCount']} scenes")
+                scene_count = director_result['sceneCount']
+                print(f"[ClaudeGenerator] Director created {scene_count} scenes")
+                emit_progress(35, f"Phase 1 complete: {scene_count} scenes planned")
+
+                emit_progress(38, f"Phase 2: Animator implementing {scene_count} scenes...")
 
                 # Phase 2: Animator
                 animator_result = await self._run_animator(
@@ -2939,6 +2956,10 @@ registerRoot(RemotionRoot);
                 if not animator_result["success"]:
                     raise RuntimeError(f"Animator failed: {animator_result.get('error', 'Unknown error')}")
 
+                emit_progress(55, "Phase 2 complete: All scenes implemented")
+
+                emit_progress(58, "Verifying TypeScript...")
+
                 # Verify TypeScript with self-healing
                 print(f"[ClaudeGenerator] Verifying TypeScript...")
                 ts_success, ts_errors = await self._verify_typescript()
@@ -2948,6 +2969,7 @@ registerRoot(RemotionRoot);
                 max_heal_attempts = 3
                 while not ts_success and heal_attempts < max_heal_attempts:
                     heal_attempts += 1
+                    emit_progress(58 + heal_attempts, f"Fixing TypeScript errors (attempt {heal_attempts}/{max_heal_attempts})...")
                     print(f"[ClaudeGenerator] TypeScript failed, self-healing attempt {heal_attempts}/{max_heal_attempts}...")
 
                     # Run a mini-healing agent to fix the errors
@@ -2963,6 +2985,7 @@ registerRoot(RemotionRoot);
                     raise RuntimeError(f"TypeScript validation failed after {heal_attempts} self-heal attempts")
 
                 print(f"[ClaudeGenerator] TypeScript validation passed")
+                emit_progress(62, "TypeScript validation passed")
 
                 # Create metadata.json if not exists
                 metadata_json = self.src_dir / "metadata.json"
@@ -2989,11 +3012,14 @@ registerRoot(RemotionRoot);
                 await self._fix_composition_id(index_tsx, composition_id_with_dashes)
 
                 # Bundle
+                emit_progress(65, "Bundling Remotion project...")
                 print(f"[ClaudeGenerator] Bundling project...")
                 bundle_path = await self._run_bundle()
                 print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
+                emit_progress(68, "Bundle complete")
 
                 # Compile CJS
+                emit_progress(69, "Compiling CJS module...")
                 print(f"[ClaudeGenerator] Compiling CJS...")
                 await self._compile_cjs(bundle_path)
 
