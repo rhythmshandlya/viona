@@ -691,14 +691,17 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
   }, 'Composition selected');
 
   // Render the composition to video
-  // Limit concurrency to prevent OOM on Railway (default uses all CPUs)
-  // CRITICAL: Limit FFmpeg threads to prevent OOM - x264 auto-detects 60+ threads on Railway
-  // Set multiple environment variables to try to limit threading
-  process.env.FFMPEG_THREADS = '4';
-  process.env.OMP_NUM_THREADS = '4';
-  process.env.OMP_THREAD_LIMIT = '4';
+  // CRITICAL: Railway containers have limited RAM (~512MB-2GB)
+  // x264 auto-detects 60 threads which requires 8-16GB RAM
+  // Solution: Render at 50% scale to reduce memory by ~75%, then the final
+  // composite step will scale back up
 
-  logger.info({ concurrency: 1 }, 'Starting renderMedia with aggressive memory limits');
+  logger.info({
+    concurrency: 1,
+    scale: 0.5,
+    originalSize: `${composition.width}x${composition.height}`,
+    scaledSize: `${Math.round(composition.width * 0.5)}x${Math.round(composition.height * 0.5)}`
+  }, 'Starting renderMedia with reduced resolution for memory savings');
 
   await renderMedia({
     composition,
@@ -710,11 +713,13 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
     },
     // CRITICAL: Use concurrency 1 to minimize memory - render one frame at a time
     concurrency: 1,
+    // CRITICAL: Render at 50% scale to reduce memory usage by ~75%
+    // This renders at 540x960 instead of 1080x1920
+    scale: 0.5,
     // Use JPEG for faster rendering (no transparency needed for final output)
     imageFormat: 'jpeg',
     jpegQuality: 80,
     // Use 'ultrafast' preset - uses MUCH less memory than 'faster' or default
-    // Trade-off: slightly larger file size, but prevents OOM
     x264Preset: 'ultrafast',
     // Higher CRF = lower quality but less memory (23 is still good quality)
     crf: 23,
