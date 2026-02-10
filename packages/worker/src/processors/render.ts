@@ -691,6 +691,7 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
   }, 'Composition selected');
 
   // Render the composition to video
+  // Limit concurrency to prevent OOM on Railway (default uses all CPUs)
   await renderMedia({
     composition,
     serveUrl,
@@ -699,9 +700,13 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
     },
+    // Limit parallel frame rendering to prevent OOM
+    concurrency: 2,
     // Use JPEG for faster rendering (no transparency needed for final output)
     imageFormat: 'jpeg',
     jpegQuality: 90,
+    // Use faster x264 preset to reduce memory usage
+    x264Preset: 'faster',
     // Progress callback
     onProgress: ({ progress }) => {
       if (onProgress) {
