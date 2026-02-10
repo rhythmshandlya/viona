@@ -62,7 +62,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV RAILWAY_ENVIRONMENT=true
 
-# Install Python 3.10+ for Claude Agent SDK, FFmpeg, and fonts for subtitle rendering
+# Install Python 3.10+ for Claude Agent SDK, FFmpeg, fonts, and Chrome dependencies for Remotion
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -73,6 +73,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-dejavu-core \
     curl \
     unzip \
+    # Chrome/Chromium dependencies for Remotion headless rendering
+    libnss3 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libasound2 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libatspi2.0-0 \
+    libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Inter font for subtitle rendering

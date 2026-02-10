@@ -29,8 +29,7 @@
     "deploy:all": "pnpm deploy:web && pnpm deploy:api && pnpm deploy:worker",
     "lint": "pnpm run --parallel lint",
     "typecheck": "pnpm run --parallel typecheck",
-    "push-tokens": "pnpm --filter @reelify/worker push-tokens",
-    "reauth": "claude login && pnpm push-tokens"
+    "push-tokens": "pnpm --filter @reelify/worker push-tokens"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

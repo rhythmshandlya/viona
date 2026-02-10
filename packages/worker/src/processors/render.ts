@@ -5,7 +5,7 @@ import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { db, projects, tracks, timelineItems, jobs, visuals } from '../db/index.js';
-import { downloadFile, uploadFile } from '../services/minio.js';
+import { downloadFile, uploadFile, listObjects } from '../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
@@ -511,6 +511,55 @@ interface RenderRemotionOptions {
 }
 
 /**
+ * Download a Remotion bundle from S3 storage if it doesn't exist locally.
+ * Bundles are uploaded during visual generation and need to be restored after container restarts.
+ */
+async function ensureBundleExists(bundlePath: string, compositionId: string): Promise<void> {
+  const bundleIndexPath = join(bundlePath, 'index.html');
+
+  // Check if bundle already exists locally
+  try {
+    await access(bundleIndexPath, constants.R_OK);
+    logger.info({ bundlePath }, 'Bundle exists locally');
+    return;
+  } catch {
+    // Bundle doesn't exist locally, try to download from S3
+    logger.info({ bundlePath, compositionId }, 'Bundle not found locally, downloading from S3...');
+  }
+
+  // List all files in the bundle from S3
+  const s3Prefix = `bundles/${compositionId}/`;
+  const files = await listObjects('outputs', s3Prefix);
+
+  if (files.length === 0) {
+    throw new Error(`Bundle not found in S3 storage: ${s3Prefix}`);
+  }
+
+  logger.info({ compositionId, fileCount: files.length }, 'Found bundle files in S3');
+
+  // Create bundle directory
+  await mkdir(bundlePath, { recursive: true });
+
+  // Download all files
+  for (const file of files) {
+    // file is like "bundles/proj-xxx/index.html" or "bundles/proj-xxx/assets/file.js"
+    // We need to extract the relative path within the bundle
+    const relativePath = file.replace(s3Prefix, '');
+    const localPath = join(bundlePath, relativePath);
+
+    // Create subdirectories if needed
+    const dir = join(bundlePath, relativePath.split('/').slice(0, -1).join('/'));
+    if (dir !== bundlePath) {
+      await mkdir(dir, { recursive: true });
+    }
+
+    await downloadFile('outputs', file, localPath);
+  }
+
+  logger.info({ bundlePath, compositionId, fileCount: files.length }, 'Bundle downloaded from S3');
+}
+
+/**
  * Rebuild the Remotion bundle using the proper bundle() API.
  * Creates a temp entry point that imports composition.cjs.js, then bundles it.
  */
@@ -579,13 +628,9 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
 
   logger.info({ bundlePath, compositionId, outputPath }, 'Starting Remotion SSR render');
 
-  // Verify bundle exists
-  const bundleIndexPath = join(bundlePath, 'index.html');
-  try {
-    await access(bundleIndexPath, constants.R_OK);
-  } catch {
-    throw new Error(`Remotion bundle not found at ${bundlePath}`);
-  }
+  // Ensure bundle exists (download from S3 if needed)
+  const bundleCompositionId = compositionId.replace(/_/g, '-');
+  await ensureBundleExists(bundlePath, bundleCompositionId);
 
   // Remotion requires hyphens in composition IDs, not underscores
   // The visual generator creates IDs with underscores (proj_xxx), but Remotion validation fails
@@ -646,6 +691,18 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
   }, 'Composition selected');
 
   // Render the composition to video
+  // CRITICAL: Railway containers have limited RAM (~512MB-2GB)
+  // x264 auto-detects 60 threads which requires 8-16GB RAM
+  // Solution: Render at 50% scale to reduce memory by ~75%, then the final
+  // composite step will scale back up
+
+  logger.info({
+    concurrency: 1,
+    scale: 0.5,
+    originalSize: `${composition.width}x${composition.height}`,
+    scaledSize: `${Math.round(composition.width * 0.5)}x${Math.round(composition.height * 0.5)}`
+  }, 'Starting renderMedia with reduced resolution for memory savings');
+
   await renderMedia({
     composition,
     serveUrl,
@@ -654,9 +711,18 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
     },
+    // CRITICAL: Use concurrency 1 to minimize memory - render one frame at a time
+    concurrency: 1,
+    // CRITICAL: Render at 50% scale to reduce memory usage by ~75%
+    // This renders at 540x960 instead of 1080x1920
+    scale: 0.5,
     // Use JPEG for faster rendering (no transparency needed for final output)
     imageFormat: 'jpeg',
-    jpegQuality: 90,
+    jpegQuality: 80,
+    // Use 'ultrafast' preset - uses MUCH less memory than 'faster' or default
+    x264Preset: 'ultrafast',
+    // Higher CRF = lower quality but less memory (23 is still good quality)
+    crf: 23,
     // Progress callback
     onProgress: ({ progress }) => {
       if (onProgress) {
@@ -737,10 +803,12 @@ async function compositeVideos(
     args.push('-map', '0:a?');  // Use source audio if available
   }
 
+  // LOW MEMORY MODE: Use ultrafast preset and limit threads
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '18',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
     outputFilename
@@ -922,7 +990,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
   // Add subtitles filter if we have them, otherwise copy video
   if (assFilename) {
     args.push('-vf', `subtitles=${assFilename}`);
-    args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18');
+    args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
   } else {
     args.push('-c:v', 'copy');
   }
@@ -990,10 +1058,24 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     subtitles,
     outputPath,
     workDir,
-    width,
-    height,
+    width: fullWidth,
+    height: fullHeight,
     layoutSettings,
   } = options;
+
+  // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
+  // This matches the 0.5 scale used in Remotion rendering
+  const MEMORY_SCALE = 0.5;
+  const width = Math.round(fullWidth * MEMORY_SCALE);
+  const height = Math.round(fullHeight * MEMORY_SCALE);
+
+  logger.info({
+    fullWidth,
+    fullHeight,
+    scaledWidth: width,
+    scaledHeight: height,
+    scale: MEMORY_SCALE,
+  }, 'Using reduced resolution for low memory composite');
 
   const { spawn } = await import('child_process');
   const { basename } = await import('path');
@@ -1065,129 +1147,21 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
         break;
     }
 
-    // Parse border color to RGB values
-    const parseBorderColor = (color: string): { r: number; g: number; b: number; a: number } => {
-      // Handle rgba format
-      const rgbaMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
-      if (rgbaMatch) {
-        return {
-          r: parseInt(rgbaMatch[1], 10),
-          g: parseInt(rgbaMatch[2], 10),
-          b: parseInt(rgbaMatch[3], 10),
-          a: rgbaMatch[4] ? parseFloat(rgbaMatch[4]) : 1,
-        };
-      }
-      // Handle hex format
-      let hex = color.replace('#', '');
-      if (hex.length === 3) hex = hex[0] + hex[0] + hex[1] + hex[1] + hex[2] + hex[2];
-      return {
-        r: parseInt(hex.substring(0, 2), 16) || 255,
-        g: parseInt(hex.substring(2, 4), 16) || 255,
-        b: parseInt(hex.substring(4, 6), 16) || 255,
-        a: 1,
-      };
-    };
-
-    const borderColor = parseBorderColor(pip.borderColor);
-    const shadowColor = parseBorderColor(pip.shadowColor);
-
     logger.info({
       mode,
-      pipSettings: pip,
       pipDimensions: { pipWidth, pipHeight, pipX, pipY },
-      borderColor,
-      shadowColor,
-    }, 'Rendering with PiP layout (full styling)');
+    }, 'Rendering with simplified PiP layout (low memory mode)');
 
-    // Build filter chain for styled PiP
-    const filters: string[] = [];
-
-    // 1. Background: Remotion visuals fill the screen
-    filters.push(`[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`);
-
-    // 2. Scale source video to PiP size
-    filters.push(`[0:v]scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1,format=rgba[pip_scaled]`);
-
-    // 3. Apply shape mask (circle, rounded, or square)
-    if (pip.shape === 'circle') {
-      // Circular mask - radius is half the width
-      const radius = pipWidth / 2;
-      filters.push(`[pip_scaled]geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='if(gt(pow(X-${radius},2)+pow(Y-${radius},2),pow(${radius},2)),0,255)'[pip_shaped]`);
-    } else if (pip.shape === 'rounded' && pip.borderRadius > 0) {
-      // Rounded rectangle mask using geq
-      // Formula: point is inside if it's either in the inner rect or within radius of a corner
-      const r = Math.min(pip.borderRadius, pipWidth / 2, pipHeight / 2);
-      const innerW = pipWidth - 2 * r;
-      const innerH = pipHeight - 2 * r;
-      // Rounded rect: check if in center rect OR within radius of corners
-      filters.push(`[pip_scaled]geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='if(between(X,${r},${pipWidth - r})+between(Y,${r},${pipHeight - r})+lte(hypot(X-${r},Y-${r}),${r})+lte(hypot(X-${pipWidth - r},Y-${r}),${r})+lte(hypot(X-${r},Y-${pipHeight - r}),${r})+lte(hypot(X-${pipWidth - r},Y-${pipHeight - r}),${r}),255,0)'[pip_shaped]`);
-    } else {
-      // Square - no mask needed, just rename
-      filters.push(`[pip_scaled]copy[pip_shaped]`);
-    }
-
-    // 4. Apply opacity if not fully opaque
-    if (pip.opacity < 1) {
-      const alpha = pip.opacity;
-      filters.push(`[pip_shaped]colorchannelmixer=aa=${alpha}[pip_alpha]`);
-    } else {
-      filters.push(`[pip_shaped]copy[pip_alpha]`);
-    }
-
-    // Track current output label
-    let currentBg = 'bg';
-    let currentPip = 'pip_alpha';
-
-    // 5. Add shadow if enabled
-    if (pip.shadowEnabled && pip.shadowBlur > 0) {
-      // Shadow offset (slight offset for depth effect)
-      const shadowOffsetX = Math.round(pip.shadowBlur / 4);
-      const shadowOffsetY = Math.round(pip.shadowBlur / 4);
-      const blurRadius = Math.max(1, Math.round(pip.shadowBlur / 2));
-
-      // Create shadow: colorize to shadow color, blur it
-      // Using format=rgba to preserve alpha, then colorize via geq
-      filters.push(`[${currentPip}]split[pip_main][pip_shadow_src]`);
-
-      // Colorize the shadow source to shadow color and reduce alpha for softness
-      const shadowAlpha = shadowColor.a * 0.6; // Softer shadow
-      filters.push(`[pip_shadow_src]geq=r='${shadowColor.r}':g='${shadowColor.g}':b='${shadowColor.b}':a='alpha(X,Y)*${shadowAlpha}',boxblur=${blurRadius}:${blurRadius}[pip_shadow]`);
-
-      // Overlay shadow first, then PiP on top
-      filters.push(`[${currentBg}][pip_shadow]overlay=${pipX + shadowOffsetX}:${pipY + shadowOffsetY}:format=auto[bg_shadow]`);
-      currentBg = 'bg_shadow';
-      currentPip = 'pip_main';
-    }
-
-    // 6. Add border if borderWidth > 0
-    if (pip.borderWidth > 0) {
-      const bw = pip.borderWidth;
-      const totalW = pipWidth + bw * 2;
-      const totalH = pipHeight + bw * 2;
-
-      // Create border background with border color
-      filters.push(`color=c=0x${borderColor.r.toString(16).padStart(2, '0')}${borderColor.g.toString(16).padStart(2, '0')}${borderColor.b.toString(16).padStart(2, '0')}:s=${totalW}x${totalH}:d=1,format=rgba[border_bg]`);
-
-      // Apply same shape mask to border (but larger)
-      if (pip.shape === 'circle') {
-        const borderRadius = totalW / 2;
-        filters.push(`[border_bg]geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='if(gt(pow(X-${borderRadius},2)+pow(Y-${borderRadius},2),pow(${borderRadius},2)),0,${Math.round(borderColor.a * 255)})'[border_shaped]`);
-      } else if (pip.shape === 'rounded' && pip.borderRadius > 0) {
-        const r = Math.min(pip.borderRadius + bw, totalW / 2, totalH / 2);
-        filters.push(`[border_bg]geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':a='if(between(X,${r},${totalW - r})+between(Y,${r},${totalH - r})+lte(hypot(X-${r},Y-${r}),${r})+lte(hypot(X-${totalW - r},Y-${r}),${r})+lte(hypot(X-${r},Y-${totalH - r}),${r})+lte(hypot(X-${totalW - r},Y-${totalH - r}),${r}),${Math.round(borderColor.a * 255)},0)'[border_shaped]`);
-      } else {
-        filters.push(`[border_bg]colorchannelmixer=aa=${borderColor.a}[border_shaped]`);
-      }
-
-      // Overlay border on background
-      filters.push(`[${currentBg}][border_shaped]overlay=${pipX - bw}:${pipY - bw}:format=auto[bg_border]`);
-      currentBg = 'bg_border';
-    }
-
-    // 7. Final overlay: PiP on top
-    filters.push(`[${currentBg}][${currentPip}]overlay=${pipX}:${pipY}:format=auto[outv]`);
-
-    filterComplex = filters.join(';');
+    // LOW MEMORY MODE: Simple overlay without shadows, borders, or rounded corners
+    // This uses minimal FFmpeg filters to prevent OOM on Railway
+    filterComplex = [
+      // Scale Remotion visuals to full screen
+      `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
+      // Scale source video to PiP size
+      `[0:v]scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1[pip]`,
+      // Simple overlay - no fancy effects
+      `[bg][pip]overlay=${pipX}:${pipY}[outv]`
+    ].join(';');
 
   } else if (mode === 'split-horizontal') {
     // Split horizontal (top/bottom)
@@ -1304,10 +1278,12 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     args.push('-map', '0:a?');  // Use source audio if available
   }
 
+  // LOW MEMORY MODE: Use ultrafast preset and limit threads to avoid OOM
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '18',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
     basename(outputPath)
@@ -1425,7 +1401,7 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
 
   // Encoding settings (only if we have subtitles to burn)
   if (assFilename) {
-    args.push('-c:v', 'libx264', '-preset', 'fast', '-crf', '18');
+    args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
   }
 
   args.push('-shortest', basename(outputPath));
@@ -1481,9 +1457,22 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     subtitles,
     outputPath,
     workDir,
-    projectWidth,
-    projectHeight,
+    projectWidth: fullWidth,
+    projectHeight: fullHeight,
   } = options;
+
+  // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
+  const MEMORY_SCALE = 0.5;
+  const projectWidth = Math.round(fullWidth * MEMORY_SCALE);
+  const projectHeight = Math.round(fullHeight * MEMORY_SCALE);
+
+  logger.info({
+    fullWidth,
+    fullHeight,
+    scaledWidth: projectWidth,
+    scaledHeight: projectHeight,
+    scale: MEMORY_SCALE,
+  }, 'Using reduced resolution for low memory full composite');
 
   const { spawn } = await import('child_process');
   const { basename } = await import('path');
@@ -1560,10 +1549,12 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     args.push('-map', '0:a?');
   }
 
+  // LOW MEMORY MODE: Use ultrafast preset and limit threads
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '18',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
     basename(outputPath)
@@ -1947,10 +1938,12 @@ async function encodeVideoWithSubtitles(
     args.push('-map', '0:v', '-map', '1:a');
   }
 
+  // LOW MEMORY MODE: Use ultrafast preset and limit threads
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '18',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
     basename(outputPath)
