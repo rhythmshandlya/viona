@@ -803,10 +803,12 @@ async function compositeVideos(
     args.push('-map', '0:a?');  // Use source audio if available
   }
 
+  // LOW MEMORY MODE: Use ultrafast preset and limit threads
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '18',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
     outputFilename
@@ -1056,10 +1058,24 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     subtitles,
     outputPath,
     workDir,
-    width,
-    height,
+    width: fullWidth,
+    height: fullHeight,
     layoutSettings,
   } = options;
+
+  // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
+  // This matches the 0.5 scale used in Remotion rendering
+  const MEMORY_SCALE = 0.5;
+  const width = Math.round(fullWidth * MEMORY_SCALE);
+  const height = Math.round(fullHeight * MEMORY_SCALE);
+
+  logger.info({
+    fullWidth,
+    fullHeight,
+    scaledWidth: width,
+    scaledHeight: height,
+    scale: MEMORY_SCALE,
+  }, 'Using reduced resolution for low memory composite');
 
   const { spawn } = await import('child_process');
   const { basename } = await import('path');
@@ -1262,10 +1278,12 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     args.push('-map', '0:a?');  // Use source audio if available
   }
 
+  // LOW MEMORY MODE: Use ultrafast preset and limit threads to avoid OOM
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '18',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
     basename(outputPath)
@@ -1439,9 +1457,22 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     subtitles,
     outputPath,
     workDir,
-    projectWidth,
-    projectHeight,
+    projectWidth: fullWidth,
+    projectHeight: fullHeight,
   } = options;
+
+  // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
+  const MEMORY_SCALE = 0.5;
+  const projectWidth = Math.round(fullWidth * MEMORY_SCALE);
+  const projectHeight = Math.round(fullHeight * MEMORY_SCALE);
+
+  logger.info({
+    fullWidth,
+    fullHeight,
+    scaledWidth: projectWidth,
+    scaledHeight: projectHeight,
+    scale: MEMORY_SCALE,
+  }, 'Using reduced resolution for low memory full composite');
 
   const { spawn } = await import('child_process');
   const { basename } = await import('path');
@@ -1518,10 +1549,12 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     args.push('-map', '0:a?');
   }
 
+  // LOW MEMORY MODE: Use ultrafast preset and limit threads
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '18',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
     basename(outputPath)
@@ -1905,10 +1938,12 @@ async function encodeVideoWithSubtitles(
     args.push('-map', '0:v', '-map', '1:a');
   }
 
+  // LOW MEMORY MODE: Use ultrafast preset and limit threads
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'fast',
-    '-crf', '18',
+    '-preset', 'ultrafast',
+    '-crf', '23',
+    '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
     basename(outputPath)
