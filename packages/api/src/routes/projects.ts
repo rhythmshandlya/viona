@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import { eq, inArray, or, and } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, publishJobCancel } from '../services/queue.js';
+import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@reelify/shared';
 
@@ -166,6 +166,20 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     } else {
       fastify.log.info({ projectId: id }, 'No videoKey for project, skipping presigned URL');
+    }
+
+    // Trigger preload of visual source files to worker workspace (non-blocking)
+    // This warms up the cache so AI edits are faster
+    const visual = await db.query.visuals.findFirst({
+      where: eq(visuals.projectId, id),
+    });
+    if (visual?.compositionId) {
+      queuePreloadProjectJob({
+        projectId: id,
+        compositionId: visual.compositionId,
+      }).catch((err) => {
+        fastify.log.warn({ err, projectId: id }, 'Failed to queue preload job (non-critical)');
+      });
     }
 
     return {

@@ -176,6 +176,24 @@ export async function queueSvgAnimationJob(data: SvgAnimationJobData) {
   });
 }
 
+// Preload project job - warms up workspace when editor opens
+export interface PreloadProjectJobData {
+  projectId: string;
+  compositionId: string;
+}
+
+export const preloadProjectQueue = new Queue('preload-project', { connection });
+
+export async function queuePreloadProjectJob(data: PreloadProjectJobData) {
+  // Use jobId based on compositionId to prevent duplicate preloads
+  return preloadProjectQueue.add('preload-project', data, {
+    jobId: `preload-${data.compositionId}`,
+    attempts: 1,
+    removeOnComplete: true,
+    removeOnFail: true,
+  });
+}
+
 // Redis publisher for job cancellation
 const redisPublisher = new Redis(config.redis.url);
 

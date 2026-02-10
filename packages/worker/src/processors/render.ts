@@ -608,61 +608,77 @@ async function ensureBundleExists(bundlePath: string, compositionId: string): Pr
 }
 
 /**
- * Rebuild the Remotion bundle using the proper bundle() API.
- * Creates a temp entry point that imports composition.cjs.js, then bundles it.
+ * Rebuild the Remotion bundle from TypeScript source files.
+ * Downloads sources from S3 and creates a proper bundle with correct composition IDs.
  */
 async function rebuildBundleFromCJS(bundlePath: string, compositionId: string): Promise<string> {
-  const cjsPath = join(bundlePath, 'composition.cjs.js');
+  logger.info({ bundlePath, compositionId }, 'Rebuilding bundle from TypeScript sources');
 
-  logger.info({ cjsPath, compositionId }, 'Rebuilding bundle from composition.cjs.js');
+  // Download source files from S3
+  const sourceCompositionId = compositionId.replace(/_/g, '-');
+  const s3Prefix = `sources/${sourceCompositionId}/`;
+  const sourceFiles = await listObjects('outputs', s3Prefix);
 
-  // Check if composition.cjs.js exists
-  try {
-    await access(cjsPath, constants.R_OK);
-  } catch {
-    throw new Error(`composition.cjs.js not found at ${cjsPath}`);
+  if (sourceFiles.length === 0) {
+    throw new Error(`Source files not found in S3: ${s3Prefix}`);
   }
 
-  // Create a temp directory for our entry point
+  // Create temp directory for source files
   const tempDir = join(tmpdir(), `remotion-rebuild-${nanoid()}`);
-  await mkdir(tempDir, { recursive: true });
+  const srcDir = join(tempDir, 'src', compositionId.replace(/-/g, '_'));
+  await mkdir(srcDir, { recursive: true });
 
-  // Copy composition.cjs.js to temp dir, fixing the composition ID
-  // Remotion doesn't allow underscores in IDs, only hyphens
-  const cjsContent = await readFile(cjsPath, 'utf-8');
-  // Replace the composition ID from underscores to hyphens
-  const fixedCjsContent = cjsContent.replace(
-    new RegExp(compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-    compositionId.replace(/_/g, '-')
-  );
-  const tempCjsPath = join(tempDir, 'composition.cjs.js');
-  await writeFile(tempCjsPath, fixedCjsContent, 'utf-8');
+  // Download all source files
+  for (const file of sourceFiles) {
+    const relativePath = file.replace(s3Prefix, '');
+    const localPath = join(srcDir, relativePath);
 
-  // Create a minimal entry point that imports the CJS file
-  // The CJS file already calls registerRoot() at the end
+    // Create subdirectories if needed
+    const dir = join(srcDir, relativePath.split('/').slice(0, -1).join('/'));
+    if (dir !== srcDir && relativePath.includes('/')) {
+      await mkdir(dir, { recursive: true });
+    }
+
+    await downloadFile('outputs', file, localPath);
+  }
+
+  logger.info({ compositionId, fileCount: sourceFiles.length }, 'Downloaded source files from S3');
+
+  // Fix composition ID in index.tsx (replace underscores with hyphens for Remotion)
+  const indexPath = join(srcDir, 'index.tsx');
+  try {
+    let indexContent = await readFile(indexPath, 'utf-8');
+    // Replace composition ID from underscores to hyphens
+    const originalId = compositionId.replace(/-/g, '_');
+    const fixedId = compositionId.replace(/_/g, '-');
+    indexContent = indexContent.replace(new RegExp(originalId, 'g'), fixedId);
+    await writeFile(indexPath, indexContent, 'utf-8');
+  } catch (err) {
+    logger.warn({ err }, 'Could not fix composition ID in index.tsx');
+  }
+
+  // Create entry point that imports the composition
   const entryContent = `
-// Entry point for Remotion bundle
-// This imports the pre-compiled composition which registers itself
-require('./composition.cjs.js');
-`;
+import { registerRoot } from 'remotion';
+import { RemotionRoot } from './src/${compositionId.replace(/-/g, '_')}/index';
 
-  const entryPath = join(tempDir, 'index.js');
+registerRoot(RemotionRoot);
+`;
+  const entryPath = join(tempDir, 'index.tsx');
   await writeFile(entryPath, entryContent, 'utf-8');
 
-  logger.info({ entryPath, tempDir }, 'Created temp entry point');
+  logger.info({ entryPath, srcDir }, 'Created entry point for bundle');
 
   // Use Remotion's bundle() to create a proper bundle
-  // ignoreRegisterRootWarning because registerRoot is in the required CJS file
   const newBundleLocation = await bundle({
     entryPoint: entryPath,
     outDir: bundlePath,
-    ignoreRegisterRootWarning: true,
   });
 
   // Clean up temp dir
   await rm(tempDir, { recursive: true, force: true });
 
-  logger.info({ newBundleLocation, compositionId }, 'Bundle rebuilt successfully');
+  logger.info({ newBundleLocation, compositionId }, 'Bundle rebuilt from sources successfully');
   return newBundleLocation;
 }
 

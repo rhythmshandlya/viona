@@ -10,6 +10,7 @@ import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhanc
 import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
 import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals.js';
 import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation.js';
+import { processPreloadProjectJob, PreloadProjectJobData } from './processors/preload-project.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
 
@@ -220,6 +221,28 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'SVG-animation job failed');
   });
 
+  // Preload project worker - warms up workspace when editor opens
+  const preloadProjectWorker = new Worker<PreloadProjectJobData>(
+    'preload-project',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing preload-project job');
+      await processPreloadProjectJob(job);
+    },
+    {
+      connection,
+      concurrency: 2, // Can preload multiple projects in parallel
+    }
+  );
+
+  preloadProjectWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Preload-project job completed');
+  });
+
+  preloadProjectWorker.on('failed', (job, err) => {
+    // Preload failures are non-critical
+    logger.warn({ jobId: job?.id, err }, 'Preload-project job failed (non-critical)');
+  });
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown
@@ -231,6 +254,7 @@ async function main() {
     await generateVisualsWorker.close();
     await editVisualsWorker.close();
     await svgAnimationWorker.close();
+    await preloadProjectWorker.close();
     process.exit(0);
   };
 

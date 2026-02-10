@@ -10,8 +10,9 @@
 
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { readFile, readdir } from 'fs/promises';
+import { readFile, readdir, stat } from 'fs/promises';
 import { join, dirname } from 'path';
+import { existsSync } from 'fs';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { db, projects, jobs, visuals } from '../db/index.js';
@@ -92,12 +93,15 @@ async function compileCjs(projectDir: string, bundleDir: string): Promise<void> 
   logger.info({ indexTsx, cjsOutput }, 'Compiling composition to CJS');
 
   try {
+    // Use CommonJS format for Node.js require() compatibility in render.ts
+    // The DynamicVisualLoader provides a custom require() shim for browser preview
+    // For SSR rendering, we need proper CJS that Node.js can load
     execSync([
       'npx', 'esbuild',
       indexTsx,
       '--bundle',
       '--format=cjs',
-      '--platform=browser',
+      '--platform=node',  // Node platform for SSR rendering
       '--target=es2020',
       '--external:react',
       '--external:react/jsx-runtime',
@@ -152,17 +156,43 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       throw new Error('No existing visuals found');
     }
 
-    await publishJobProgress(jobId, 10, 'Restoring source files...');
-
     // Create project directory in workspace
     const workspacePath = getWorkspacePath();
     const projectDir = createProjectDir(workspaceCompositionId);
 
-    // Download source files from MinIO to workspace
-    // Sources are stored with dashes (proj-xxx-xxx), ensure we use that format
-    const sourceCompositionId = compositionId.replace(/_/g, '-');
-    const downloadedFiles = await downloadSourceFromStorage(sourceCompositionId, projectDir);
-    logger.info({ projectId, compositionId, fileCount: downloadedFiles.length }, 'Source files restored');
+    // Check if source files already exist in workspace (skip download if present)
+    const indexPath = join(projectDir, 'index.tsx');
+    const scenesPath = join(projectDir, 'scenes.json');
+    let downloadedFiles: string[] = [];
+
+    if (existsSync(indexPath) && existsSync(scenesPath)) {
+      // Files already exist - just list them instead of downloading
+      logger.info({ projectId, compositionId }, 'Source files already in workspace, skipping download');
+      await publishJobProgress(jobId, 10, 'Using cached source files...');
+
+      // List existing files in projectDir
+      const listFilesRecursive = async (dir: string, base: string = ''): Promise<string[]> => {
+        const entries = await readdir(dir, { withFileTypes: true });
+        const files: string[] = [];
+        for (const entry of entries) {
+          const relativePath = base ? `${base}/${entry.name}` : entry.name;
+          if (entry.isDirectory()) {
+            files.push(...await listFilesRecursive(join(dir, entry.name), relativePath));
+          } else {
+            files.push(relativePath);
+          }
+        }
+        return files;
+      };
+      downloadedFiles = await listFilesRecursive(projectDir);
+    } else {
+      // Download source files from MinIO to workspace
+      await publishJobProgress(jobId, 10, 'Restoring source files...');
+      // Sources are stored with dashes (proj-xxx-xxx), ensure we use that format
+      const sourceCompositionId = compositionId.replace(/_/g, '-');
+      downloadedFiles = await downloadSourceFromStorage(sourceCompositionId, projectDir);
+      logger.info({ projectId, compositionId, fileCount: downloadedFiles.length }, 'Source files restored');
+    }
 
     await publishJobProgress(jobId, 15, 'Analyzing which scene to edit...');
 
@@ -222,22 +252,22 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
 
     await publishJobProgress(jobId, 90, 'Updating database...');
 
-    // Try to read scenes.json for detailed scene information
+    // Try to read scenes.json for detailed scene information (scenesPath already defined above)
     let timestamps: any[] | undefined;
-    const scenesPath = join(projectDir, 'scenes.json');
     try {
       const scenesContent = await readFile(scenesPath, 'utf-8');
       const scenesData = JSON.parse(scenesContent);
 
       if (scenesData.scenes && Array.isArray(scenesData.scenes) && scenesData.scenes.length > 0) {
         // Convert scenes.json format to timestamps format for the database
-        timestamps = scenesData.scenes.map((scene: any) => ({
+        const sceneTimestamps = scenesData.scenes.map((scene: any) => ({
           startMs: Math.round(scene.timestampRange[0] * 1000),
           endMs: Math.round(scene.timestampRange[1] * 1000),
           type: scene.name || `Scene ${scene.id}`,
           description: scene.visual || scene.emotion || '',
         }));
-        logger.info({ projectId, sceneCount: timestamps.length }, 'Loaded scenes from scenes.json');
+        timestamps = sceneTimestamps;
+        logger.info({ projectId, sceneCount: sceneTimestamps.length }, 'Loaded scenes from scenes.json');
       }
     } catch (scenesErr) {
       logger.warn({ projectId, error: scenesErr }, 'Could not read scenes.json, timestamps unchanged');
