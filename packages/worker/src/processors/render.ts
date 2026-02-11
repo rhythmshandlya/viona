@@ -147,6 +147,9 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
       const visualWidth = projectVisual.width || 1080;
       const visualHeight = projectVisual.height || 1920;
+      const visualFps = projectVisual.fps || 30;
+      const totalFrames = projectVisual.durationFrames || 0;
+      const sceneTimestamps = (projectVisual.timestamps as Array<{ startMs: number; endMs: number; type: string; description?: string }>) || [];
 
       logger.info({
         projectId,
@@ -156,18 +159,58 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         subtitleCount: subtitles.length,
         visualWidth,
         visualHeight,
+        sceneCount: sceneTimestamps.length,
       }, 'Starting Remotion SSR render');
 
       // Step 1: Render Remotion composition exactly as shown in preview
       // Note: compositionId uses underscores (as registered in bundle), bundlePath uses hyphens
       const remotionTempPath = join(workDir, 'remotion_visuals.mp4');
+
+      // Track last reported scene to avoid duplicate messages
+      let lastReportedScene = -1;
+
       await renderWithRemotion({
         bundlePath,
         compositionId: projectVisual.compositionId,
         outputPath: remotionTempPath,
         onProgress: (progress) => {
           const jobProgress = 30 + Math.round(progress * 40);
-          publishJobProgress(jobId, jobProgress, `Rendering: ${Math.round(progress * 100)}%`);
+
+          // Calculate current time in ms based on progress
+          if (sceneTimestamps.length > 0 && totalFrames > 0) {
+            const currentFrame = Math.floor(progress * totalFrames);
+            const currentMs = (currentFrame / visualFps) * 1000;
+
+            // Find the current scene
+            let currentSceneIndex = 0;
+            for (let i = 0; i < sceneTimestamps.length; i++) {
+              if (currentMs >= sceneTimestamps[i].startMs && currentMs < sceneTimestamps[i].endMs) {
+                currentSceneIndex = i;
+                break;
+              } else if (currentMs >= sceneTimestamps[i].endMs) {
+                currentSceneIndex = i + 1;
+              }
+            }
+
+            // Clamp to valid range
+            currentSceneIndex = Math.min(currentSceneIndex, sceneTimestamps.length - 1);
+
+            // Only report if scene changed or every 5% within same scene
+            if (currentSceneIndex !== lastReportedScene) {
+              lastReportedScene = currentSceneIndex;
+              const scene = sceneTimestamps[currentSceneIndex];
+              const sceneDesc = scene.description || scene.type || `Scene ${currentSceneIndex + 1}`;
+              publishJobProgress(
+                jobId,
+                jobProgress,
+                `Rendering scene ${currentSceneIndex + 1}/${sceneTimestamps.length}: ${sceneDesc}`
+              );
+            } else {
+              publishJobProgress(jobId, jobProgress, `Rendering scene ${currentSceneIndex + 1}/${sceneTimestamps.length}...`);
+            }
+          } else {
+            publishJobProgress(jobId, jobProgress, `Rendering: ${Math.round(progress * 100)}%`);
+          }
         },
       });
 
@@ -187,6 +230,11 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         width: visualWidth,
         height: visualHeight,
         layoutSettings,
+        onProgress: (progress) => {
+          // Map compositing progress from 75% to 85%
+          const jobProgress = 75 + Math.round(progress * 10);
+          publishJobProgress(jobId, jobProgress, `Compositing: ${Math.round(progress * 100)}%`);
+        },
       });
 
       logger.info({ projectId, outputPath }, 'Export complete with full composite');
@@ -560,61 +608,77 @@ async function ensureBundleExists(bundlePath: string, compositionId: string): Pr
 }
 
 /**
- * Rebuild the Remotion bundle using the proper bundle() API.
- * Creates a temp entry point that imports composition.cjs.js, then bundles it.
+ * Rebuild the Remotion bundle from TypeScript source files.
+ * Downloads sources from S3 and creates a proper bundle with correct composition IDs.
  */
 async function rebuildBundleFromCJS(bundlePath: string, compositionId: string): Promise<string> {
-  const cjsPath = join(bundlePath, 'composition.cjs.js');
+  logger.info({ bundlePath, compositionId }, 'Rebuilding bundle from TypeScript sources');
 
-  logger.info({ cjsPath, compositionId }, 'Rebuilding bundle from composition.cjs.js');
+  // Download source files from S3
+  const sourceCompositionId = compositionId.replace(/_/g, '-');
+  const s3Prefix = `sources/${sourceCompositionId}/`;
+  const sourceFiles = await listObjects('outputs', s3Prefix);
 
-  // Check if composition.cjs.js exists
-  try {
-    await access(cjsPath, constants.R_OK);
-  } catch {
-    throw new Error(`composition.cjs.js not found at ${cjsPath}`);
+  if (sourceFiles.length === 0) {
+    throw new Error(`Source files not found in S3: ${s3Prefix}`);
   }
 
-  // Create a temp directory for our entry point
+  // Create temp directory for source files
   const tempDir = join(tmpdir(), `remotion-rebuild-${nanoid()}`);
-  await mkdir(tempDir, { recursive: true });
+  const srcDir = join(tempDir, 'src', compositionId.replace(/-/g, '_'));
+  await mkdir(srcDir, { recursive: true });
 
-  // Copy composition.cjs.js to temp dir, fixing the composition ID
-  // Remotion doesn't allow underscores in IDs, only hyphens
-  const cjsContent = await readFile(cjsPath, 'utf-8');
-  // Replace the composition ID from underscores to hyphens
-  const fixedCjsContent = cjsContent.replace(
-    new RegExp(compositionId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-    compositionId.replace(/_/g, '-')
-  );
-  const tempCjsPath = join(tempDir, 'composition.cjs.js');
-  await writeFile(tempCjsPath, fixedCjsContent, 'utf-8');
+  // Download all source files
+  for (const file of sourceFiles) {
+    const relativePath = file.replace(s3Prefix, '');
+    const localPath = join(srcDir, relativePath);
 
-  // Create a minimal entry point that imports the CJS file
-  // The CJS file already calls registerRoot() at the end
+    // Create subdirectories if needed
+    const dir = join(srcDir, relativePath.split('/').slice(0, -1).join('/'));
+    if (dir !== srcDir && relativePath.includes('/')) {
+      await mkdir(dir, { recursive: true });
+    }
+
+    await downloadFile('outputs', file, localPath);
+  }
+
+  logger.info({ compositionId, fileCount: sourceFiles.length }, 'Downloaded source files from S3');
+
+  // Fix composition ID in index.tsx (replace underscores with hyphens for Remotion)
+  const indexPath = join(srcDir, 'index.tsx');
+  try {
+    let indexContent = await readFile(indexPath, 'utf-8');
+    // Replace composition ID from underscores to hyphens
+    const originalId = compositionId.replace(/-/g, '_');
+    const fixedId = compositionId.replace(/_/g, '-');
+    indexContent = indexContent.replace(new RegExp(originalId, 'g'), fixedId);
+    await writeFile(indexPath, indexContent, 'utf-8');
+  } catch (err) {
+    logger.warn({ err }, 'Could not fix composition ID in index.tsx');
+  }
+
+  // Create entry point that imports the composition
   const entryContent = `
-// Entry point for Remotion bundle
-// This imports the pre-compiled composition which registers itself
-require('./composition.cjs.js');
-`;
+import { registerRoot } from 'remotion';
+import { RemotionRoot } from './src/${compositionId.replace(/-/g, '_')}/index';
 
-  const entryPath = join(tempDir, 'index.js');
+registerRoot(RemotionRoot);
+`;
+  const entryPath = join(tempDir, 'index.tsx');
   await writeFile(entryPath, entryContent, 'utf-8');
 
-  logger.info({ entryPath, tempDir }, 'Created temp entry point');
+  logger.info({ entryPath, srcDir }, 'Created entry point for bundle');
 
   // Use Remotion's bundle() to create a proper bundle
-  // ignoreRegisterRootWarning because registerRoot is in the required CJS file
   const newBundleLocation = await bundle({
     entryPoint: entryPath,
     outDir: bundlePath,
-    ignoreRegisterRootWarning: true,
   });
 
   // Clean up temp dir
   await rm(tempDir, { recursive: true, force: true });
 
-  logger.info({ newBundleLocation, compositionId }, 'Bundle rebuilt successfully');
+  logger.info({ newBundleLocation, compositionId }, 'Bundle rebuilt from sources successfully');
   return newBundleLocation;
 }
 
@@ -1042,6 +1106,7 @@ interface RenderWithPiPLayoutOptions {
   width: number;
   height: number;
   layoutSettings?: LayoutSettings;
+  onProgress?: (progress: number) => void;
 }
 
 /**
@@ -1061,6 +1126,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     width: fullWidth,
     height: fullHeight,
     layoutSettings,
+    onProgress,
   } = options;
 
   // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
@@ -1077,9 +1143,21 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     scale: MEMORY_SCALE,
   }, 'Using reduced resolution for low memory composite');
 
-  const { spawn } = await import('child_process');
+  const { spawn, execSync } = await import('child_process');
   const { basename } = await import('path');
   const { writeFile, copyFile } = await import('fs/promises');
+
+  // Get video duration for progress tracking using ffprobe
+  let durationSeconds = 0;
+  try {
+    const ffprobeOutput = execSync(
+      `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${sourceVideoPath}"`,
+      { encoding: 'utf-8' }
+    );
+    durationSeconds = parseFloat(ffprobeOutput.trim()) || 0;
+  } catch {
+    logger.warn('Could not get video duration for progress tracking');
+  }
 
   // Copy files to working directory with simple names
   const localSourcePath = join(workDir, 'source.mp4');
@@ -1298,7 +1376,28 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     });
 
     let stderr = '';
-    proc.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
+    let lastReportedProgress = 0;
+    proc.stderr?.on('data', (chunk) => {
+      stderr += chunk.toString();
+
+      // Parse FFmpeg progress from stderr (e.g., "time=00:01:23.45")
+      if (onProgress && durationSeconds > 0) {
+        const timeMatch = chunk.toString().match(/time=(\d{2}):(\d{2}):(\d{2})\.(\d{2})/);
+        if (timeMatch) {
+          const hours = parseInt(timeMatch[1], 10);
+          const minutes = parseInt(timeMatch[2], 10);
+          const seconds = parseInt(timeMatch[3], 10);
+          const centiseconds = parseInt(timeMatch[4], 10);
+          const currentTime = hours * 3600 + minutes * 60 + seconds + centiseconds / 100;
+          const progress = Math.min(currentTime / durationSeconds, 1);
+          // Only report if progress increased by at least 1%
+          if (progress - lastReportedProgress >= 0.01) {
+            lastReportedProgress = progress;
+            onProgress(progress);
+          }
+        }
+      }
+    });
 
     proc.on('close', (code) => {
       if (code === 0) {

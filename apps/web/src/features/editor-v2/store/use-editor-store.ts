@@ -266,6 +266,18 @@ export function useActiveCaptionStyle(): CaptionStyle | null {
 }
 
 // ============================================
+// Scene Selection Selectors
+// ============================================
+
+export function useSelectedSceneId() {
+  return useEditorStore((state) => state.selectedSceneId);
+}
+
+export function useSelectedTimeRange() {
+  return useEditorStore((state) => state.selectedTimeRange);
+}
+
+// ============================================
 // Action Hooks
 // ============================================
 
@@ -274,6 +286,7 @@ export function useEditorActions() {
     useShallow((state) => ({
       // Project
       loadProject: state.loadProject,
+      reloadVisuals: state.reloadVisuals,
       saveProject: state.saveProject,
       setProject: state.setProject,
 
@@ -360,6 +373,10 @@ export function useEditorActions() {
       updateSplitSettings: state.updateSplitSettings,
       setLayoutPreset: state.setLayoutPreset,
       setLayoutMode: state.setLayoutMode,
+
+      // Scene selection
+      setSelectedScene: state.setSelectedScene,
+      setSelectedTimeRange: state.setSelectedTimeRange,
     }))
   );
 }

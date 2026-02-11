@@ -133,6 +133,45 @@ export interface GenerateVisualsResponse {
   jobId: string;
 }
 
+export interface EditVisualsResponse {
+  jobId: string;
+}
+
+export interface SceneInfo {
+  id: number;
+  name: string;
+  startMs: number;
+  endMs: number;
+  description: string;
+}
+
+export interface ScenesResponse {
+  scenes: SceneInfo[];
+  compositionId: string;
+}
+
+export interface UploadImageResponse {
+  imageKey: string;
+}
+
+export type AnimationType = 'draw' | 'motion';
+export type AnimationStyle = 'elegant' | 'playful' | 'minimal';
+
+export interface SvgAnimationOptions {
+  imageKey: string;
+  animationType: AnimationType;
+  animationStyle: AnimationStyle;
+  durationSeconds: number;
+  trackId: string | null;
+  startMs: number;
+  width: number;
+  height: number;
+}
+
+export interface SvgAnimationResponse {
+  jobId: string;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -258,6 +297,69 @@ class ApiClient {
   async deleteVisuals(projectId: string): Promise<{ message: string; deleted: number }> {
     return this.request(`/api/projects/${projectId}/visuals`, {
       method: 'DELETE',
+    });
+  }
+
+  async editVisuals(projectId: string, prompt: string, sceneId?: number | null): Promise<EditVisualsResponse> {
+    return this.request(`/api/projects/${projectId}/edit-visuals`, {
+      method: 'POST',
+      body: JSON.stringify({ prompt, sceneId: sceneId || undefined }),
+    });
+  }
+
+  async getScenes(projectId: string): Promise<ScenesResponse> {
+    return this.request(`/api/projects/${projectId}/scenes`);
+  }
+
+  // Upload image for SVG animation
+  async uploadImageForAnimation(projectId: string, file: File): Promise<UploadImageResponse> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            resolve(response);
+          } catch {
+            reject(new Error('Failed to parse response'));
+          }
+        } else {
+          let errorMessage = `Upload failed: ${xhr.status}`;
+          try {
+            const response = JSON.parse(xhr.responseText);
+            errorMessage = response.error || errorMessage;
+          } catch {
+            // ignore parse error
+          }
+          reject(new Error(errorMessage));
+        }
+      });
+
+      xhr.addEventListener('error', () => {
+        reject(new Error('Upload failed'));
+      });
+
+      xhr.open('POST', `${this.baseUrl}/api/projects/${projectId}/upload-image`);
+
+      // Add auth header
+      const token = getSessionToken();
+      if (token) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+
+      xhr.withCredentials = true;
+      xhr.send(formData);
+    });
+  }
+
+  // Create SVG animation from uploaded image
+  async createSvgAnimation(projectId: string, options: SvgAnimationOptions): Promise<SvgAnimationResponse> {
+    return this.request(`/api/projects/${projectId}/svg-animation`, {
+      method: 'POST',
+      body: JSON.stringify(options),
     });
   }
 

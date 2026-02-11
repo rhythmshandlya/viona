@@ -7,7 +7,7 @@ import multipart from '@fastify/multipart';
 import { existsSync, mkdirSync } from 'fs';
 import { pipeline } from 'stream/promises';
 import { config } from './config.js';
-import { ensureBuckets, getObjectStream, objectExists } from './services/minio.js';
+import { ensureBuckets, getObjectStream, objectExists, listObjects } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
 import { userRoutes } from './routes/users.js';
 import { setupWebSocket } from './ws/handler.js';
@@ -101,6 +101,90 @@ async function main() {
     } catch (err) {
       fastify.log.error({ err, compositionId, filePath }, 'Failed to serve bundle');
       return reply.code(500).send({ error: 'Failed to serve bundle' });
+    }
+  });
+
+  // Production source files serving from S3
+  // Route: /api/sources/:compositionId/*
+  // These are the source project files (index.tsx, metadata.json, etc.) for AI context restoration
+  fastify.get('/api/sources/:compositionId/*', async (request, reply) => {
+    const { compositionId } = request.params as { compositionId: string };
+    const filePath = (request.params as { '*': string })['*'] || 'index.tsx';
+
+    // Construct S3 key: outputs/sources/{compositionId}/{filePath}
+    const s3Key = `sources/${compositionId}/${filePath}`;
+
+    try {
+      // Check if file exists
+      const exists = await objectExists('outputs', s3Key);
+      if (!exists) {
+        return reply.code(404).send({ error: 'Source file not found' });
+      }
+
+      // Get content type based on file extension
+      const ext = filePath.split('.').pop()?.toLowerCase() || '';
+      const contentTypes: Record<string, string> = {
+        'tsx': 'text/typescript',
+        'ts': 'text/typescript',
+        'jsx': 'text/javascript',
+        'js': 'application/javascript',
+        'json': 'application/json',
+        'css': 'text/css',
+      };
+
+      const contentType = contentTypes[ext] || 'text/plain';
+      reply.header('Content-Type', contentType);
+      reply.header('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
+
+      // Stream file from S3
+      const stream = await getObjectStream('outputs', s3Key);
+      return reply.send(stream);
+    } catch (err) {
+      fastify.log.error({ err, compositionId, filePath }, 'Failed to serve source file');
+      return reply.code(500).send({ error: 'Failed to serve source file' });
+    }
+  });
+
+  // List all source files for a composition (for restoring AI context)
+  fastify.get('/api/sources/:compositionId', async (request, reply) => {
+    const { compositionId } = request.params as { compositionId: string };
+
+    try {
+      // List all files in the source directory
+      const rawFiles = await listObjects('outputs', `sources/${compositionId}/`);
+      const files = rawFiles.map(f => f.replace(`sources/${compositionId}/`, ''));
+
+      // Categorize files for AI context restoration
+      const planFiles = files.filter(f => f.endsWith('.md') || f === 'scenes.json');
+      const codeFiles = files.filter(f => f.endsWith('.tsx') || f.endsWith('.ts'));
+      const configFiles = files.filter(f => f.endsWith('.json') && f !== 'scenes.json');
+
+      return {
+        compositionId,
+        files,
+        categories: {
+          // AI planning context - Director's plan and implementation log
+          planning: planFiles,
+          // Source code - compositions, scenes, components
+          code: codeFiles,
+          // Configuration - metadata, etc.
+          config: configFiles,
+        },
+        // Suggested restore order for AI context
+        restoreOrder: [
+          'SCENE_PLAN.md',           // Director's visual story plan
+          'IMPLEMENTATION_LOG.md',   // Implementation decisions
+          'scenes.json',             // Scene definitions
+          'metadata.json',           // Composition metadata
+          'constants.ts',            // Colors, timing configs
+          'index.tsx',               // Main composition
+          ...files.filter(f => f.startsWith('components/')),
+          ...files.filter(f => f.startsWith('scenes/')),
+        ].filter(f => files.includes(f)),
+      };
+    } catch (err) {
+      fastify.log.error({ err, compositionId }, 'Failed to list source files');
+      return reply.code(500).send({ error: 'Failed to list source files' });
     }
   });
 

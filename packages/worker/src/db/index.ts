@@ -75,6 +75,7 @@ export const visuals = pgTable('visuals', {
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
   compositionId: varchar('composition_id', { length: 255 }).notNull(),
   bundleUrl: varchar('bundle_url', { length: 500 }).notNull(),
+  sourceUrl: varchar('source_url', { length: 500 }), // Source project files in MinIO for AI context restoration
   durationFrames: integer('duration_frames').notNull(),
   fps: integer('fps').notNull().default(30),
   width: integer('width').notNull().default(1920),

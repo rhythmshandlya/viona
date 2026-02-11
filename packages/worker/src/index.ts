@@ -8,6 +8,9 @@ import { processTranscribeJob, TranscribeJobData } from './processors/transcribe
 import { processRenderJob, RenderJobData } from './processors/render.js';
 import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhance-audio.js';
 import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
+import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals.js';
+import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation.js';
+import { processPreloadProjectJob, PreloadProjectJobData } from './processors/preload-project.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
 
@@ -176,6 +179,70 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Generate-visuals job failed');
   });
 
+  // Edit visuals worker - for continuing to edit existing compositions
+  const editVisualsWorker = new Worker<EditVisualsJobData>(
+    'edit-visuals',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId, prompt: job.data.prompt.slice(0, 50) }, 'Processing edit-visuals job');
+      await processEditVisualsJob(job);
+    },
+    {
+      connection,
+      concurrency: 1, // One at a time (AI + render intensive)
+    }
+  );
+
+  editVisualsWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Edit-visuals job completed');
+  });
+
+  editVisualsWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Edit-visuals job failed');
+  });
+
+  // SVG Animation worker - converts images to animated SVG compositions
+  const svgAnimationWorker = new Worker<SvgAnimationJobData>(
+    'svg-animation',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing svg-animation job');
+      await processSvgAnimationJob(job);
+    },
+    {
+      connection,
+      concurrency: 1, // One at a time (AI + render intensive)
+    }
+  );
+
+  svgAnimationWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'SVG-animation job completed');
+  });
+
+  svgAnimationWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'SVG-animation job failed');
+  });
+
+  // Preload project worker - warms up workspace when editor opens
+  const preloadProjectWorker = new Worker<PreloadProjectJobData>(
+    'preload-project',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing preload-project job');
+      await processPreloadProjectJob(job);
+    },
+    {
+      connection,
+      concurrency: 2, // Can preload multiple projects in parallel
+    }
+  );
+
+  preloadProjectWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Preload-project job completed');
+  });
+
+  preloadProjectWorker.on('failed', (job, err) => {
+    // Preload failures are non-critical
+    logger.warn({ jobId: job?.id, err }, 'Preload-project job failed (non-critical)');
+  });
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown
@@ -185,6 +252,9 @@ async function main() {
     await renderWorker.close();
     await enhanceAudioWorker.close();
     await generateVisualsWorker.close();
+    await editVisualsWorker.close();
+    await svgAnimationWorker.close();
+    await preloadProjectWorker.close();
     process.exit(0);
   };
 

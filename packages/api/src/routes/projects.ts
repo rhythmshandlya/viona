@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import { eq, inArray, or, and } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, publishJobCancel } from '../services/queue.js';
+import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@reelify/shared';
 
@@ -166,6 +166,20 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     } else {
       fastify.log.info({ projectId: id }, 'No videoKey for project, skipping presigned URL');
+    }
+
+    // Trigger preload of visual source files to worker workspace (non-blocking)
+    // This warms up the cache so AI edits are faster
+    const visual = await db.query.visuals.findFirst({
+      where: eq(visuals.projectId, id),
+    });
+    if (visual?.compositionId) {
+      queuePreloadProjectJob({
+        projectId: id,
+        compositionId: visual.compositionId,
+      }).catch((err) => {
+        fastify.log.warn({ err, projectId: id }, 'Failed to queue preload job (non-critical)');
+      });
     }
 
     return {
@@ -551,6 +565,257 @@ export async function projectRoutes(fastify: FastifyInstance) {
     });
 
     return { jobId: job.id };
+  });
+
+  // Edit existing visuals with AI
+  // User types a prompt like "Make particles bigger" and AI edits the existing composition
+  // Optional sceneId targets edits to a specific scene
+  fastify.post('/projects/:id/edit-visuals', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      prompt: z.string().min(1).max(2000),
+      sceneId: z.number().int().min(1).optional(),
+    }).parse(request.body);
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    // Check for existing visuals (need something to edit)
+    const visual = await db.query.visuals.findFirst({
+      where: eq(visuals.projectId, id),
+    });
+
+    if (!visual) {
+      return reply.status(400).send({ error: 'No visuals to edit. Generate visuals first.' });
+    }
+
+    // Note: We don't check sourceUrl here anymore - the worker will attempt to
+    // download source files from MinIO based on compositionId. This allows
+    // editing even if sourceUrl wasn't stored in DB (for older projects that
+    // might still have sources in MinIO).
+
+    // Check for existing pending/processing edit job
+    const existingJob = await db.query.jobs.findFirst({
+      where: and(
+        eq(jobs.projectId, id),
+        eq(jobs.type, 'edit-visuals'),
+        or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing'))
+      ),
+    });
+
+    if (existingJob) {
+      return reply.status(409).send({
+        error: 'An edit job is already in progress',
+        jobId: existingJob.id,
+      });
+    }
+
+    // Create job record
+    const [job] = await db.insert(jobs).values({
+      projectId: id,
+      type: 'edit-visuals',
+      status: 'pending',
+    }).returning();
+
+    // Update project status
+    await db.update(projects)
+      .set({ status: 'generating' })
+      .where(eq(projects.id, id));
+
+    // Queue the edit job
+    await queueEditVisualsJob({
+      projectId: id,
+      jobId: job.id,
+      compositionId: visual.compositionId,
+      prompt: body.prompt,
+      sceneId: body.sceneId,
+    });
+
+    return { jobId: job.id };
+  });
+
+  // Upload image for SVG animation
+  fastify.post('/projects/:id/upload-image', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    try {
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({ error: 'No file uploaded' });
+      }
+
+      // Validate file type
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+      if (!allowedTypes.includes(data.mimetype)) {
+        return reply.status(400).send({
+          error: 'Invalid file type. Allowed: PNG, JPEG, WebP, GIF'
+        });
+      }
+
+      // Validate file size (max 10MB)
+      const maxSize = 10 * 1024 * 1024;
+      // Note: file size is checked during stream processing
+
+      // Generate image key
+      const ext = data.mimetype.split('/')[1].replace('jpeg', 'jpg');
+      const imageKey = `images/${id}/${nanoid()}.${ext}`;
+
+      // Stream the file to storage
+      await uploadStream(
+        'uploads',
+        imageKey,
+        data.file,
+        undefined,
+        data.mimetype
+      );
+
+      return { imageKey };
+    } catch (err) {
+      fastify.log.error(err, 'Failed to upload image');
+      return reply.status(500).send({ error: 'Failed to upload image' });
+    }
+  });
+
+  // Create SVG animation from uploaded image
+  fastify.post('/projects/:id/svg-animation', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      imageKey: z.string().min(1),
+      animationType: z.enum(['draw', 'motion']),
+      animationStyle: z.enum(['elegant', 'playful', 'minimal']),
+      durationSeconds: z.number().int().min(1).max(30).default(3),
+      trackId: z.string().nullable(),
+      startMs: z.number().int().min(0),
+      width: z.number().int().min(100).max(4096),
+      height: z.number().int().min(100).max(4096),
+    }).parse(request.body);
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    // Verify image exists in storage
+    const imageExists = await objectExists('uploads', body.imageKey);
+    if (!imageExists) {
+      return reply.status(400).send({ error: 'Image not found in storage' });
+    }
+
+    // Check for existing pending/processing svg-animation job
+    const existingJob = await db.query.jobs.findFirst({
+      where: and(
+        eq(jobs.projectId, id),
+        eq(jobs.type, 'svg-animation'),
+        or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing'))
+      ),
+    });
+
+    if (existingJob) {
+      return reply.status(409).send({
+        error: 'An SVG animation job is already in progress',
+        jobId: existingJob.id,
+      });
+    }
+
+    // Create job record
+    const [job] = await db.insert(jobs).values({
+      projectId: id,
+      type: 'svg-animation',
+      status: 'pending',
+    }).returning();
+
+    // Queue the job
+    await queueSvgAnimationJob({
+      projectId: id,
+      jobId: job.id,
+      imageKey: body.imageKey,
+      animationType: body.animationType,
+      animationStyle: body.animationStyle,
+      durationSeconds: body.durationSeconds,
+      trackId: body.trackId,
+      startMs: body.startMs,
+      width: body.width,
+      height: body.height,
+    });
+
+    return { jobId: job.id };
+  });
+
+  // Get scenes information for a project (used by AI chat to show scene context)
+  fastify.get('/projects/:id/scenes', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    // Check ownership
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    // Get visual for this project
+    const visual = await db.query.visuals.findFirst({
+      where: eq(visuals.projectId, id),
+    });
+
+    if (!visual || !visual.timestamps) {
+      return { scenes: [], compositionId: visual?.compositionId || null };
+    }
+
+    // Convert timestamps to scene info with ms timing
+    const scenes = (visual.timestamps as Array<{
+      startMs: number;
+      endMs: number;
+      type: string;
+      description: string;
+    }>).map((t, index) => ({
+      id: index + 1,
+      name: `Scene ${index + 1}`,
+      startMs: t.startMs,
+      endMs: t.endMs,
+      description: t.description || t.type || '',
+    }));
+
+    return {
+      scenes,
+      compositionId: visual.compositionId,
+    };
   });
 
   // Delete generated visuals for a project (for re-testing)
