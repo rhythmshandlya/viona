@@ -331,6 +331,10 @@ export interface EditorState {
   // Scene selection for AI editing
   selectedSceneId: number | null;
   selectedTimeRange: { startMs: number; endMs: number } | null;
+  selectedElement: SelectedElement | null;
+
+  // Element picker mode
+  elementPickerEnabled: boolean;
 }
 
 // ============================================
@@ -431,6 +435,10 @@ export interface EditorActions {
   // Scene selection for AI editing
   setSelectedScene: (sceneId: number | null) => void;
   setSelectedTimeRange: (range: { startMs: number; endMs: number } | null) => void;
+  setSelectedElement: (element: SelectedElement | null) => void;
+
+  // Element picker mode
+  setElementPickerEnabled: (enabled: boolean) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;
@@ -732,3 +740,32 @@ export const PIP_SIZE_MAP: Record<PiPSize, number> = {
   large: 35,
   custom: 25,
 };
+
+// ============================================
+// Element Selection (for AI editing)
+// ============================================
+
+export interface SelectedElement {
+  name: string;
+  type: string;
+  sceneId: number;
+  description?: string;
+}
+
+// ============================================
+// AI Editing Context (for AI Assistant Panel)
+// ============================================
+
+export interface AIEditingContext {
+  type: 'element' | 'item' | 'scene' | 'composition';
+  element?: SelectedElement;
+  item?: {
+    id: string;
+    type: TimelineItemType;
+    name: string;
+    description?: string;
+  };
+  sceneId?: number;
+  displayName: string;
+  displayDescription?: string;
+}

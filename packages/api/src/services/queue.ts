@@ -162,6 +162,9 @@ export interface SvgAnimationJobData {
   startMs: number;
   width: number;
   height: number;
+  description?: string;  // Description for scene matching
+  sceneId?: number | null;  // Target scene ID for placement
+  useOriginalImage?: boolean;  // If true, display original image instead of converting to SVG
 }
 
 export const svgAnimationQueue = new Queue('svg-animation', { connection });

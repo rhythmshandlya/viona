@@ -1,14 +1,16 @@
 /**
  * ElementPickerOverlay Component
  * Renders clickable overlay regions on top of the video preview
- * allowing users to click on elements to select them for AI editing
+ * allowing users to click on elements to select them for AI editing.
+ * When an element is already selected (from AssetsPanel), it highlights
+ * only that element while dimming the rest of the composition.
  */
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { MousePointer2, X } from 'lucide-react';
-import { api, SceneInfo, SceneElement } from '@/lib/api';
+import { api, SceneInfo, ExtractedAsset } from '@/lib/api';
 import {
   useCurrentTimeMs,
   useEditorActions,
@@ -23,6 +25,7 @@ interface ElementPickerOverlayProps {
 }
 
 export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlayProps) {
+  const [assets, setAssets] = useState<ExtractedAsset[]>([]);
   const [scenes, setScenes] = useState<SceneInfo[]>([]);
   const [hoveredElement, setHoveredElement] = useState<string | null>(null);
 
@@ -31,55 +34,88 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
   const selectedElement = useSelectedElement();
   const { setSelectedElement } = useEditorActions();
 
-  // Fetch scenes with elements data
+  // Fetch assets and scenes data
   useEffect(() => {
     if (projectId) {
-      api.getScenes(projectId)
-        .then((data) => setScenes(data.scenes))
-        .catch((err) => console.warn('Failed to fetch scenes:', err));
+      Promise.all([
+        api.getAssets(projectId),
+        api.getScenes(projectId),
+      ]).then(([assetsData, scenesData]) => {
+        setAssets(assetsData.assets);
+        setScenes(scenesData.scenes);
+      }).catch(err => console.warn('Failed to fetch overlay data:', err));
     }
   }, [projectId]);
 
   // Find current scene based on playhead position
-  const currentScene = React.useMemo(() => {
+  const currentScene = useMemo(() => {
     return scenes.find(s => currentTimeMs >= s.startMs && currentTimeMs < s.endMs) || null;
   }, [scenes, currentTimeMs]);
 
-  // Get elements for current scene
-  const currentElements = currentScene?.elements || [];
+  // Assets in the current scene (by playhead or by selected element's scene)
+  const visibleAssets = useMemo(() => {
+    const sceneId = selectedElement?.sceneId ?? currentScene?.id;
+    if (!sceneId) return [];
+    return assets.filter(a => a.sceneId === sceneId && a.type !== 'background');
+  }, [assets, selectedElement, currentScene]);
 
-  const handleElementClick = useCallback((element: SceneElement, sceneId: number) => {
-    const selected: SelectedElement = {
-      name: element.name,
-      type: element.type,
-      sceneId,
-      description: element.description,
-    };
-    setSelectedElement(selected);
-  }, [setSelectedElement]);
+  const handleElementClick = useCallback((asset: ExtractedAsset) => {
+    // Toggle off if clicking same element
+    if (selectedElement?.name === asset.name && selectedElement?.sceneId === asset.sceneId) {
+      setSelectedElement(null);
+      return;
+    }
+    setSelectedElement({
+      name: asset.name,
+      type: asset.type,
+      sceneId: asset.sceneId,
+      description: asset.description,
+    });
+  }, [selectedElement, setSelectedElement]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedElement(null);
-  }, [setSelectedElement]);
+    onToggle(false);
+  }, [setSelectedElement, onToggle]);
 
-  // Parse percentage position to number
-  const parsePercent = (value: string): number => {
-    const match = value.match(/^(\d+(?:\.\d+)?)%?$/);
+  // Parse position/size string to percentage number
+  const parsePosition = (value: string): number => {
+    if (!value) return 50;
+    if (value === 'center') return 50;
+    const match = value.match(/(\d+(?:\.\d+)?)/);
     return match ? parseFloat(match[1]) : 50;
+  };
+
+  const parseSize = (value: string): number => {
+    if (!value) return 20;
+    if (value === '100%') return 100;
+    const match = value.match(/(\d+(?:\.\d+)?)/);
+    const size = match ? parseFloat(match[1]) : 20;
+    return Math.max(size, 10);
   };
 
   if (!enabled) {
     return null;
   }
 
+  const hasSelection = !!selectedElement;
+
   return (
     <div className="absolute inset-0 z-20">
-      {/* Instruction banner */}
-      <div className="absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black/80 rounded-full flex items-center gap-2 text-xs text-white">
+      {/* Dim overlay when an element is selected */}
+      {hasSelection && (
+        <div
+          className="absolute inset-0 bg-black/50 transition-opacity duration-300"
+          onClick={handleClearSelection}
+        />
+      )}
+
+      {/* Top bar */}
+      <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 bg-black/80 rounded-full flex items-center gap-2 text-xs text-white">
         <MousePointer2 size={14} />
-        <span>Click an element to select it</span>
+        <span>{hasSelection ? selectedElement.name : 'Click an element to select it'}</span>
         <button
-          onClick={() => onToggle(false)}
+          onClick={handleClearSelection}
           className="ml-2 p-0.5 rounded hover:bg-white/20"
         >
           <X size={14} />
@@ -87,28 +123,36 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
       </div>
 
       {/* Element overlays */}
-      {currentScene && currentElements.map((element, index) => {
-        const x = parsePercent(element.position.x);
-        const y = parsePercent(element.position.y);
-        const width = parsePercent(element.size.width);
-        const height = parsePercent(element.size.height);
+      {visibleAssets.map((asset, index) => {
+        const pos = asset.position;
+        const sz = asset.size;
+        if (!pos || !sz) return null;
 
-        const isSelected = selectedElement?.name === element.name &&
-                          selectedElement?.sceneId === currentScene.id;
-        const isHovered = hoveredElement === `${currentScene.id}-${element.name}`;
+        const x = parsePosition(pos.x);
+        const y = parsePosition(pos.y);
+        const width = parseSize(sz.width);
+        const height = parseSize(sz.height);
+
+        const isSelected = hasSelection &&
+          selectedElement.name === asset.name &&
+          selectedElement.sceneId === asset.sceneId;
+        const isDimmed = hasSelection && !isSelected;
+        const isHovered = hoveredElement === `${asset.sceneId}-${asset.name}`;
 
         return (
           <button
-            key={`${currentScene.id}-${element.name}-${index}`}
-            onClick={() => handleElementClick(element, currentScene.id)}
-            onMouseEnter={() => setHoveredElement(`${currentScene.id}-${element.name}`)}
+            key={`${asset.sceneId}-${asset.name}-${index}`}
+            onClick={() => handleElementClick(asset)}
+            onMouseEnter={() => setHoveredElement(`${asset.sceneId}-${asset.name}`)}
             onMouseLeave={() => setHoveredElement(null)}
-            className={`absolute border-2 rounded-lg transition-all cursor-pointer ${
+            className={`absolute rounded-lg transition-all duration-300 cursor-pointer ${
               isSelected
-                ? 'border-[var(--editor-accent)] bg-[var(--editor-accent)]/20'
+                ? 'border-2 border-[var(--editor-accent)] bg-[var(--editor-accent)]/15 shadow-[0_0_20px_rgba(var(--editor-accent-rgb,99,102,241),0.5)] z-20 scale-105'
+                : isDimmed
+                ? 'border border-white/10 bg-black/30 opacity-40 z-10'
                 : isHovered
-                ? 'border-white/60 bg-white/10'
-                : 'border-white/30 bg-transparent hover:border-white/50'
+                ? 'border-2 border-white/60 bg-white/10 z-20'
+                : 'border-2 border-white/40 bg-white/5 hover:border-white/60 z-10'
             }`}
             style={{
               left: `${x - width / 2}%`,
@@ -119,23 +163,28 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
           >
             {/* Label */}
             <div
-              className={`absolute -top-6 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded text-[10px] font-medium whitespace-nowrap transition-opacity ${
-                isSelected || isHovered ? 'opacity-100' : 'opacity-0'
-              } ${
+              className={`absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-1 rounded text-[11px] font-medium whitespace-nowrap shadow-lg transition-all duration-300 ${
                 isSelected
-                  ? 'bg-[var(--editor-accent)] text-white'
-                  : 'bg-black/80 text-white'
+                  ? 'bg-[var(--editor-accent)] text-white scale-110'
+                  : isDimmed
+                  ? 'bg-black/60 text-white/40 scale-90'
+                  : 'bg-black/90 text-white'
               }`}
             >
-              {element.name}
+              {asset.name}
             </div>
+
+            {/* Glow ring for selected element */}
+            {isSelected && (
+              <div className="absolute inset-0 rounded-lg animate-pulse border border-[var(--editor-accent)]/40" />
+            )}
           </button>
         );
       })}
 
-      {/* Selected element indicator */}
-      {selectedElement && (
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-[var(--editor-accent)] rounded-full flex items-center gap-2 text-xs text-white">
+      {/* Bottom indicator for selected element */}
+      {hasSelection && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 bg-[var(--editor-accent)] rounded-full flex items-center gap-2 text-xs text-white">
           <span className="font-medium">{selectedElement.name}</span>
           <span className="opacity-70">Scene {selectedElement.sceneId}</span>
           <button
@@ -144,15 +193,6 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
           >
             <X size={14} />
           </button>
-        </div>
-      )}
-
-      {/* No elements message */}
-      {currentScene && currentElements.length === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="px-4 py-2 bg-black/80 rounded-lg text-xs text-white/70">
-            No selectable elements in this scene
-          </div>
         </div>
       )}
     </div>

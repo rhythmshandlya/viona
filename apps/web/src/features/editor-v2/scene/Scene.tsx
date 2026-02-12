@@ -8,7 +8,8 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Player } from '../player/Player';
-import { useProject } from '../store/use-editor-store';
+import { useProject, useElementPickerEnabled, useEditorActions } from '../store/use-editor-store';
+import { ElementPickerOverlay } from '../components/ElementPickerOverlay';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
 
@@ -22,6 +23,8 @@ interface SceneProps {
 export function Scene({ className, activePlatform, overlayMode, padding = 64 }: SceneProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const project = useProject();
+  const elementPickerEnabled = useElementPickerEnabled();
+  const { setElementPickerEnabled } = useEditorActions();
   const [scale, setScale] = useState(1);
 
   // Calculate scale to fit player in container
@@ -85,6 +88,12 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
           }}
         >
           <Player />
+
+          {/* Element picker overlay */}
+          <ElementPickerOverlay
+            enabled={elementPickerEnabled}
+            onToggle={(enabled) => setElementPickerEnabled(enabled)}
+          />
 
           {/* Social preview overlay */}
           {activePlatform && (

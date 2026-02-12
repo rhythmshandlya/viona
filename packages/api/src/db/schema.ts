@@ -95,6 +95,15 @@ export const visuals = pgTable('visuals', {
     endMs: number;
     type: string;
     description: string;
+    elements?: Array<{
+      id: string;
+      name: string;
+      type: string;
+      x: string;
+      y: string;
+      width: string;
+      height: string;
+    }>;
   }>>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
