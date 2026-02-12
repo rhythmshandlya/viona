@@ -106,7 +106,7 @@ export async function deleteObject(prefix: 'uploads' | 'outputs' | 'templates', 
   await minioClient.removeObject(BUCKET, fullKey);
 }
 
-export async function objectExists(prefix: 'uploads' | 'outputs' | 'templates', key: string): Promise<boolean> {
+export async function objectExists(prefix: 'uploads' | 'outputs' | 'templates' | 'sources', key: string): Promise<boolean> {
   try {
     const fullKey = `${PREFIXES[prefix]}${key}`;
     await minioClient.statObject(BUCKET, fullKey);
@@ -116,7 +116,7 @@ export async function objectExists(prefix: 'uploads' | 'outputs' | 'templates', 
   }
 }
 
-export async function getObjectStream(prefix: 'uploads' | 'outputs' | 'templates', key: string) {
+export async function getObjectStream(prefix: 'uploads' | 'outputs' | 'templates' | 'sources', key: string) {
   const fullKey = `${PREFIXES[prefix]}${key}`;
   return minioClient.getObject(BUCKET, fullKey);
 }

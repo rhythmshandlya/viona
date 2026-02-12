@@ -2,17 +2,16 @@
  * AI Assistant Panel
  * Right sidebar chat interface for AI interactions
  * Connected to edit-visuals API for making changes to existing compositions
- * Supports image upload for SVG animation creation
+ * Supports inline image upload with description for scene-based animations
  */
 
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Sparkles, Send, MoreHorizontal, Loader2, CheckCircle, XCircle, ImagePlus, X } from 'lucide-react';
-import { api, AnimationType, AnimationStyle } from '@/lib/api';
+import { Sparkles, Send, MoreHorizontal, Loader2, CheckCircle, XCircle, ImagePlus, X, Box, Layers, Target } from 'lucide-react';
+import { api } from '@/lib/api';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
-import { AnimationPlacementModal } from './AnimationPlacementModal';
-import { useVideoSettings, useEditorActions, useSelectedSceneId } from '../store/use-editor-store';
+import { useVideoSettings, useEditorActions, useAIEditingContext } from '../store/use-editor-store';
 
 interface Message {
   id: string;
@@ -38,16 +37,22 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Image upload state
+  // Inline image upload state (no modal)
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  const [showPlacementModal, setShowPlacementModal] = useState(false);
-  const [isSubmittingAnimation, setIsSubmittingAnimation] = useState(false);
+  const [imageDescription, setImageDescription] = useState('');
 
-  // Get video settings and scene selection from editor store
+  // Get video settings and AI editing context from editor store
   const videoSettings = useVideoSettings();
-  const selectedSceneId = useSelectedSceneId();
-  const { reloadVisuals, setSelectedScene } = useEditorActions();
+  const aiContext = useAIEditingContext();
+  const { reloadVisuals, setSelectedScene, setSelectedElement, clearSelection } = useEditorActions();
+
+  // Helper to clear all context
+  const handleClearContext = () => {
+    setSelectedScene(null);
+    setSelectedElement(null);
+    clearSelection();
+  };
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -83,13 +88,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               content: `❌ ${job.type === 'svg-animation' ? 'Animation creation' : 'Edit'} failed: ${job.error || 'Unknown error'}. Please try again.`,
             };
           } else {
+            // Use actual worker message if available, otherwise fall back to hardcoded
+            const workerMessage = job.progressMessage;
+            const fallbackMessage = job.type === 'svg-animation'
+              ? getAnimationProgressMessage(job.progress)
+              : getProgressMessage(job.progress);
+
             return {
               ...m,
               status: 'processing',
               progress: job.progress,
-              content: job.type === 'svg-animation'
-                ? getAnimationProgressMessage(job.progress)
-                : getProgressMessage(job.progress),
+              content: workerMessage || fallbackMessage,
             };
           }
         }));
@@ -166,11 +175,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       return;
     }
 
-    // Create preview URL
+    // Create preview URL - show inline, no modal
     const previewUrl = URL.createObjectURL(file);
     setSelectedImage(file);
     setImagePreviewUrl(previewUrl);
-    setShowPlacementModal(true);
+    setImageDescription('');
 
     // Reset file input
     if (fileInputRef.current) {
@@ -184,72 +193,73 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     }
     setSelectedImage(null);
     setImagePreviewUrl(null);
-    setShowPlacementModal(false);
+    setImageDescription('');
   };
 
-  const handleAnimationSubmit = async (options: {
-    animationType: AnimationType;
-    animationStyle: AnimationStyle;
-    durationSeconds: number;
-  }) => {
-    if (!selectedImage) return;
+  // Submit image with description - animator will use it for the relevant scene
+  const handleImageWithDescription = async () => {
+    if (!selectedImage || !imageDescription.trim()) return;
 
-    setIsSubmittingAnimation(true);
+    setIsLoading(true);
 
-    // Add user message with image preview
+    // Add user message with image preview and description
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: `Create ${options.animationType} animation (${options.animationStyle} style, ${options.durationSeconds}s)`,
+      content: imageDescription.trim(),
       timestamp: new Date(),
       imagePreviewUrl: imagePreviewUrl || undefined,
     };
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      // Upload image
+      // Upload image first
       const uploadResponse = await api.uploadImageForAnimation(projectId, selectedImage);
 
-      // Create SVG animation job - let system decide track and timing
+      // Get canvas dimensions
       const canvasWidth = videoSettings?.canvasWidth || 1080;
       const canvasHeight = videoSettings?.canvasHeight || 1920;
 
+      // Create animation with description - system determines placement based on description
       const animationResponse = await api.createSvgAnimation(projectId, {
         imageKey: uploadResponse.imageKey,
-        animationType: options.animationType,
-        animationStyle: options.animationStyle,
-        durationSeconds: options.durationSeconds,
+        animationType: 'motion', // Default to motion
+        animationStyle: 'elegant', // Default style
+        durationSeconds: 3, // Default duration
         trackId: null, // System will create/pick track
-        startMs: 0, // Start at beginning, user can drag on timeline
+        startMs: 0, // System can adjust based on scene matching
         width: canvasWidth,
         height: canvasHeight,
+        description: imageDescription.trim(), // Pass description for scene matching
+        sceneId: aiContext?.sceneId ?? null, // Use selected scene if available
       });
 
       // Add assistant message with job tracking
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: '🎨 Creating your animation...',
+        content: aiContext?.sceneId
+          ? `🎨 Adding image to Scene ${aiContext.sceneId}...`
+          : '🎨 Creating animation based on your description...',
         timestamp: new Date(),
         status: 'pending',
         jobId: animationResponse.jobId,
         progress: 0,
       };
       setMessages(prev => [...prev, assistantMessage]);
-      setIsLoading(true);
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `❌ Failed to create animation: ${errorMessage}`,
+        content: `❌ Failed to add image: ${errorMessage}`,
         timestamp: new Date(),
         status: 'error',
       };
       setMessages(prev => [...prev, assistantMessage]);
+      setIsLoading(false);
     } finally {
-      setIsSubmittingAnimation(false);
       handleCancelImage();
     }
   };
@@ -270,8 +280,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setIsLoading(true);
 
     try {
-      // Call the edit-visuals API with optional scene ID
-      const response = await api.editVisuals(projectId, prompt, selectedSceneId);
+      // Build context for API
+      const editContext = aiContext ? {
+        type: aiContext.type,
+        sceneId: aiContext.sceneId,
+        elementName: aiContext.element?.name,
+        itemId: aiContext.item?.id,
+        itemType: aiContext.item?.type,
+      } : undefined;
+
+      // Call the edit-visuals API with context
+      const response = await api.editVisuals(projectId, prompt, editContext);
 
       // Add assistant message that will be updated with progress
       const assistantMessage: Message = {
@@ -322,15 +341,22 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-[var(--editor-accent)]" />
           <span className="text-sm font-semibold text-[var(--editor-text-primary)]">AI Assistant</span>
-          {selectedSceneId && (
-            <span className="px-2 py-0.5 text-[10px] font-medium bg-[var(--editor-accent)]/10 text-[var(--editor-accent)] rounded-full">
-              Scene {selectedSceneId}
+          {aiContext && (
+            <span className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full
+              ${aiContext.type === 'element' ? 'bg-purple-500/10 text-purple-400' : ''}
+              ${aiContext.type === 'item' ? 'bg-blue-500/10 text-blue-400' : ''}
+              ${aiContext.type === 'scene' ? 'bg-[var(--editor-accent)]/10 text-[var(--editor-accent)]' : ''}
+            `}>
+              {aiContext.type === 'element' && <Target className="w-3 h-3" />}
+              {aiContext.type === 'item' && <Box className="w-3 h-3" />}
+              {aiContext.type === 'scene' && <Layers className="w-3 h-3" />}
+              {aiContext.displayName}
             </span>
           )}
         </div>
-        {selectedSceneId ? (
+        {aiContext ? (
           <button
-            onClick={() => setSelectedScene(null)}
+            onClick={handleClearContext}
             className="px-2 py-1 text-[10px] text-[var(--editor-text-muted)] hover:text-[var(--editor-text-primary)] hover:bg-[var(--editor-bg-hover)] rounded transition-colors"
           >
             Clear
@@ -353,13 +379,18 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             <div className="w-12 h-12 rounded-full bg-[var(--editor-accent-muted)] flex items-center justify-center mb-4">
               <Sparkles className="w-6 h-6 text-[var(--editor-accent)] opacity-60" />
             </div>
-            {selectedSceneId ? (
+            {aiContext ? (
               <>
-                <p className="text-sm text-[var(--editor-text-secondary)] mb-2">
-                  Editing Scene {selectedSceneId}
+                <p className="text-sm text-[var(--editor-text-secondary)] mb-1">
+                  Editing: {aiContext.displayName}
                 </p>
+                {aiContext.displayDescription && (
+                  <p className="text-xs text-[var(--editor-text-muted)] mb-2 max-w-[200px] truncate">
+                    {aiContext.displayDescription}
+                  </p>
+                )}
                 <p className="text-xs text-[var(--editor-text-muted)]">
-                  Changes will apply to this scene only
+                  Describe your changes below
                 </p>
               </>
             ) : (
@@ -367,8 +398,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 <p className="text-sm text-[var(--editor-text-secondary)] mb-2">
                   Ask AI to edit your visuals
                 </p>
-                <p className="text-xs text-[var(--editor-text-muted)] mb-2">
-                  Click a scene in Transcript to target it
+                <p className="text-xs text-[var(--editor-text-muted)] mb-1">
+                  Click an element or caption to target it
                 </p>
                 <p className="text-xs text-[var(--editor-text-muted)]">
                   Or type to edit the whole composition
@@ -445,6 +476,77 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       {/* Input Area */}
       <div className="p-4 border-t border-[var(--editor-border-subtle)]">
+        {/* Inline image preview with description */}
+        {selectedImage && imagePreviewUrl && (
+          <div className="mb-3 p-3 bg-[var(--editor-bg-hover)] rounded-lg">
+            <div className="flex items-start gap-3">
+              {/* Image preview */}
+              <div className="relative flex-shrink-0">
+                <img
+                  src={imagePreviewUrl}
+                  alt="Selected"
+                  className="w-16 h-16 object-cover rounded-lg border border-[var(--editor-border-subtle)]"
+                />
+                <button
+                  onClick={handleCancelImage}
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center text-white transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+              {/* Description input */}
+              <div className="flex-1 min-w-0">
+                <p className="text-xs text-[var(--editor-text-muted)] mb-1.5">
+                  Describe where/how to use this image:
+                </p>
+                <input
+                  type="text"
+                  value={imageDescription}
+                  onChange={(e) => setImageDescription(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && imageDescription.trim()) {
+                      e.preventDefault();
+                      handleImageWithDescription();
+                    }
+                  }}
+                  placeholder="e.g., Show this diagram when explaining the process..."
+                  disabled={isLoading}
+                  className="w-full bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)] text-sm
+                             placeholder:text-[var(--editor-text-muted)]
+                             rounded-lg px-3 py-2
+                             border border-[var(--editor-border-subtle)]
+                             focus:outline-none focus:border-[var(--editor-accent)]
+                             disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+              </div>
+            </div>
+            {/* Submit button for image */}
+            <div className="flex justify-end mt-2">
+              <button
+                onClick={handleImageWithDescription}
+                disabled={!imageDescription.trim() || isLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg
+                           bg-[var(--editor-accent)] text-white
+                           hover:bg-[var(--editor-accent-hover)] transition-colors
+                           disabled:opacity-50 disabled:cursor-not-allowed
+                           flex items-center gap-1.5"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3 h-3" />
+                    Add to Scene
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="relative flex items-center gap-2">
           {/* Image upload button */}
           <label className="cursor-pointer p-2 rounded-full hover:bg-[var(--editor-bg-hover)] transition-colors flex-shrink-0">
@@ -489,18 +591,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         </div>
       </div>
-
-      {/* Animation Placement Modal */}
-      <AnimationPlacementModal
-        open={showPlacementModal}
-        onOpenChange={(open) => {
-          if (!open) handleCancelImage();
-        }}
-        imageFile={selectedImage}
-        imagePreviewUrl={imagePreviewUrl}
-        isSubmitting={isSubmittingAnimation}
-        onSubmit={handleAnimationSubmit}
-      />
     </div>
   );
 }

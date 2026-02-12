@@ -18,7 +18,7 @@ import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
 import OpenAI from 'openai';
-import { db, projects, tracks, timelineItems, jobs, visuals } from '../db/index.js';
+import { db, projects, tracks, timelineItems, jobs, visuals, transcripts } from '../db/index.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
 import { config } from '../config.js';
@@ -27,6 +27,96 @@ import { getWorkspacePath, createProjectDir } from '../workspace.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+/**
+ * Extract keywords from description to search in transcript.
+ * Looks for patterns like "when I say X", "at X", "during X", etc.
+ */
+function extractSearchKeywords(description: string): string | null {
+  if (!description) return null;
+
+  const lowerDesc = description.toLowerCase();
+
+  // Patterns to extract the target phrase
+  const patterns = [
+    /when\s+(?:i\s+)?(?:say|mention|talk\s+about)\s+["']?([^"']+?)["']?$/i,
+    /at\s+["']?([^"']+?)["']?$/i,
+    /during\s+["']?([^"']+?)["']?$/i,
+    /for\s+["']?([^"']+?)["']?$/i,
+    /show\s+(?:this\s+)?(?:when|at|during)\s+["']?([^"']+?)["']?$/i,
+    /add\s+(?:this\s+)?(?:when|at|during)\s+["']?([^"']+?)["']?$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = description.match(pattern);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+  }
+
+  // If no pattern matched, use the whole description as keyword
+  return description.trim();
+}
+
+/**
+ * Search transcript for a phrase and return the timestamp when it starts.
+ */
+async function findTimestampInTranscript(
+  projectId: string,
+  searchPhrase: string
+): Promise<number | null> {
+  try {
+    const transcript = await db.query.transcripts.findFirst({
+      where: eq(transcripts.projectId, projectId),
+    });
+
+    if (!transcript?.words || !Array.isArray(transcript.words)) {
+      logger.warn({ projectId }, 'No transcript words found');
+      return null;
+    }
+
+    const words = transcript.words as Array<{ text: string; startMs: number; endMs: number }>;
+    const searchWords = searchPhrase.toLowerCase().split(/\s+/).filter(w => w.length > 0);
+
+    if (searchWords.length === 0) return null;
+
+    // Search for the phrase in the transcript
+    for (let i = 0; i <= words.length - searchWords.length; i++) {
+      let match = true;
+      for (let j = 0; j < searchWords.length; j++) {
+        const wordText = words[i + j]?.text?.toLowerCase().replace(/[^\w]/g, '') || '';
+        const searchWord = searchWords[j].replace(/[^\w]/g, '');
+        if (!wordText.includes(searchWord) && !searchWord.includes(wordText)) {
+          match = false;
+          break;
+        }
+      }
+      if (match) {
+        const startMs = words[i].startMs;
+        logger.info({ projectId, searchPhrase, startMs, matchedAt: i }, 'Found phrase in transcript');
+        return startMs;
+      }
+    }
+
+    // If exact phrase not found, try to find individual words
+    for (const searchWord of searchWords) {
+      const cleanSearchWord = searchWord.replace(/[^\w]/g, '');
+      for (const word of words) {
+        const wordText = word.text?.toLowerCase().replace(/[^\w]/g, '') || '';
+        if (wordText === cleanSearchWord || wordText.includes(cleanSearchWord)) {
+          logger.info({ projectId, searchWord, startMs: word.startMs }, 'Found word in transcript');
+          return word.startMs;
+        }
+      }
+    }
+
+    logger.warn({ projectId, searchPhrase }, 'Phrase not found in transcript');
+    return null;
+  } catch (err) {
+    logger.error({ projectId, searchPhrase, err }, 'Error searching transcript');
+    return null;
+  }
+}
 
 export interface SvgAnimationJobData {
   projectId: string;
@@ -39,6 +129,9 @@ export interface SvgAnimationJobData {
   startMs: number;
   width: number;
   height: number;
+  description?: string;  // Description for scene matching
+  sceneId?: number | null;  // Target scene ID for placement
+  useOriginalImage?: boolean;  // If true, display original image instead of converting to SVG
 }
 
 interface SvgAnimationMetadata {
@@ -179,6 +272,114 @@ Return ONLY the SVG code, nothing else. No explanations, no markdown code blocks
   }
 
   return svg;
+}
+
+/**
+ * Generate animated Remotion composition that displays the original image
+ */
+async function generateImageAnimatedComposition(
+  projectDir: string,
+  imageUrl: string,
+  options: {
+    compositionId: string;
+    workspaceCompositionId: string;
+    animationStyle: 'elegant' | 'playful' | 'minimal';
+    durationSeconds: number;
+    width: number;
+    height: number;
+    fps: number;
+  }
+): Promise<void> {
+  const { compositionId, workspaceCompositionId, animationStyle, durationSeconds, width, height, fps } = options;
+  const durationInFrames = durationSeconds * fps;
+
+  // Style configurations
+  const styleConfigs = {
+    elegant: {
+      springDamping: 30,
+      springMass: 1,
+      springStiffness: 100,
+    },
+    playful: {
+      springDamping: 15,
+      springMass: 0.8,
+      springStiffness: 200,
+    },
+    minimal: {
+      springDamping: 40,
+      springMass: 1.2,
+      springStiffness: 80,
+    },
+  };
+
+  const styleConfig = styleConfigs[animationStyle];
+
+  // Generate metadata.json
+  const metadata: SvgAnimationMetadata = {
+    compositionId,
+    durationInFrames,
+    fps,
+    width,
+    height,
+  };
+  await writeFile(join(projectDir, 'metadata.json'), JSON.stringify(metadata, null, 2), 'utf-8');
+
+  // Generate index.tsx (main composition export)
+  const indexContent = generateImageIndexTsx(compositionId, imageUrl, styleConfig, durationInFrames, width, height, fps);
+  await writeFile(join(projectDir, 'index.tsx'), indexContent, 'utf-8');
+
+  // Generate ImageAnimation.tsx component
+  const componentContent = generateImageAnimationComponent(imageUrl, styleConfig, durationInFrames);
+  await writeFile(join(projectDir, 'SvgAnimation.tsx'), componentContent, 'utf-8');
+
+  // Update workspace Root.tsx to include this composition
+  const workspacePath = getWorkspacePath();
+  await updateRootTsx(workspacePath, compositionId, workspaceCompositionId, durationInFrames, fps, width, height);
+
+  logger.info({ projectDir, animationStyle, imageUrl }, 'Generated image animation composition files');
+}
+
+/**
+ * Generate index.tsx for image-based animation
+ */
+function generateImageIndexTsx(
+  compositionId: string,
+  imageUrl: string,
+  styleConfig: any,
+  durationInFrames: number,
+  width: number,
+  height: number,
+  fps: number
+): string {
+  return `import { Composition } from 'remotion';
+import { SvgAnimation } from './SvgAnimation';
+
+export const ${compositionId.replace(/-/g, '_')} = () => {
+  return (
+    <>
+      <Composition
+        id="${compositionId}"
+        component={SvgAnimation}
+        durationInFrames={${durationInFrames}}
+        fps={${fps}}
+        width={${width}}
+        height={${height}}
+        defaultProps={{
+          animationType: 'motion',
+          springConfig: {
+            damping: ${styleConfig.springDamping},
+            mass: ${styleConfig.springMass},
+            stiffness: ${styleConfig.springStiffness},
+          },
+          imageUrl: '${imageUrl}',
+        }}
+      />
+    </>
+  );
+};
+
+export default ${compositionId.replace(/-/g, '_')};
+`;
 }
 
 /**
@@ -533,6 +734,102 @@ export const SvgAnimation: React.FC<Props> = ({ springConfig }) => {
 }
 
 /**
+ * Generate image animation component - displays the actual image with animation
+ * (not converted to SVG)
+ */
+function generateImageAnimationComponent(
+  imageUrl: string,
+  styleConfig: any,
+  durationInFrames: number
+): string {
+  return `import React from 'react';
+import { useCurrentFrame, useVideoConfig, spring, interpolate, Img, staticFile } from 'remotion';
+
+interface Props {
+  animationType: string;
+  springConfig: {
+    damping: number;
+    mass: number;
+    stiffness: number;
+  };
+  imageUrl?: string;
+}
+
+export const SvgAnimation: React.FC<Props> = ({ springConfig, imageUrl }) => {
+  const frame = useCurrentFrame();
+  const { fps, durationInFrames } = useVideoConfig();
+
+  // Scale animation with spring
+  const scale = spring({
+    frame,
+    fps,
+    config: {
+      damping: springConfig.damping,
+      mass: springConfig.mass,
+      stiffness: springConfig.stiffness,
+    },
+    durationInFrames: Math.floor(durationInFrames * 0.5),
+  });
+
+  // Fade in
+  const opacity = interpolate(frame, [0, fps * 0.3], [0, 1], {
+    extrapolateRight: 'clamp',
+  });
+
+  // Subtle rotation for entrance
+  const rotation = interpolate(
+    frame,
+    [0, Math.floor(durationInFrames * 0.3)],
+    [-3, 0],
+    { extrapolateRight: 'clamp' }
+  );
+
+  // Translate Y for entrance effect
+  const translateY = interpolate(
+    frame,
+    [0, Math.floor(durationInFrames * 0.4)],
+    [30, 0],
+    { extrapolateRight: 'clamp' }
+  );
+
+  const imgSrc = imageUrl || '${imageUrl}';
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'transparent',
+      }}
+    >
+      <div
+        style={{
+          opacity,
+          transform: \`scale(\${scale}) rotate(\${rotation}deg) translateY(\${translateY}px)\`,
+          transformOrigin: 'center center',
+          maxWidth: '80%',
+          maxHeight: '80%',
+        }}
+      >
+        <Img
+          src={imgSrc}
+          style={{
+            maxWidth: '100%',
+            maxHeight: '100%',
+            objectFit: 'contain',
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+`;
+}
+
+/**
  * Compile composition to CJS for dynamic frontend loading
  */
 async function compileCjs(projectDir: string, bundleDir: string): Promise<void> {
@@ -638,15 +935,57 @@ export async function processSvgAnimationJob(job: Job<SvgAnimationJobData>) {
     animationStyle,
     durationSeconds,
     trackId,
-    startMs,
+    startMs: defaultStartMs,
     width,
     height,
+    description,
+    sceneId,
+    useOriginalImage,
   } = job.data;
 
   const fps = 30;
   const durationMs = durationSeconds * 1000;
   const compositionId = `svg-anim-${jobId.slice(0, 8)}`;
   const workspaceCompositionId = compositionId.replace(/-/g, '_');
+
+  // Determine actual startMs based on description, sceneId, or default
+  let startMs = defaultStartMs;
+  let placementSource = 'default';
+
+  // First priority: search transcript based on description (e.g., "when I say front matter")
+  if (description) {
+    const searchKeywords = extractSearchKeywords(description);
+    if (searchKeywords) {
+      const transcriptStartMs = await findTimestampInTranscript(projectId, searchKeywords);
+      if (transcriptStartMs !== null) {
+        startMs = transcriptStartMs;
+        placementSource = 'transcript';
+        logger.info({ projectId, description, searchKeywords, startMs }, 'Found timestamp from transcript');
+      }
+    }
+  }
+
+  // Second priority: if no transcript match and sceneId provided, use scene's startMs
+  if (placementSource === 'default' && sceneId) {
+    try {
+      const projectVisual = await db.query.visuals.findFirst({
+        where: eq(visuals.projectId, projectId),
+      });
+
+      if (projectVisual?.timestamps && Array.isArray(projectVisual.timestamps)) {
+        const scene = (projectVisual.timestamps as any[]).find((t: any) => t.id === sceneId);
+        if (scene?.startMs !== undefined) {
+          startMs = scene.startMs;
+          placementSource = 'scene';
+          logger.info({ projectId, sceneId, startMs }, 'Using scene startMs for animation placement');
+        }
+      }
+    } catch (err) {
+      logger.warn({ projectId, sceneId, err }, 'Failed to find scene for placement');
+    }
+  }
+
+  logger.info({ projectId, jobId, description, sceneId, startMs, placementSource }, 'Processing SVG animation with placement context');
 
   try {
     // Update job status
@@ -657,35 +996,64 @@ export async function processSvgAnimationJob(job: Job<SvgAnimationJobData>) {
     await publishJobProgress(jobId, 5, 'Downloading image...');
 
     // Download image from S3
-    const imagePath = join(tmpdir(), `svg-anim-${jobId}-image.${imageKey.split('.').pop()}`);
+    const imageExt = imageKey.split('.').pop() || 'png';
+    const imagePath = join(tmpdir(), `svg-anim-${jobId}-image.${imageExt}`);
     await downloadFile('uploads', imageKey, imagePath);
 
-    logger.info({ projectId, jobId, imagePath }, 'Image downloaded');
-
-    await publishJobProgress(jobId, 15, 'Converting image to SVG...');
-
-    // Convert image to SVG using Claude Vision
-    const svg = await convertImageToSvg(imagePath, width, height, animationType);
-
-    logger.info({ projectId, jobId, svgLength: svg.length }, 'SVG generated from image');
-
-    await publishJobProgress(jobId, 40, 'Generating animated composition...');
+    logger.info({ projectId, jobId, imagePath, useOriginalImage }, 'Image downloaded');
 
     // Create project directory in workspace
     const workspacePath = getWorkspacePath();
     const projectDir = createProjectDir(workspaceCompositionId);
 
-    // Generate animated Remotion composition
-    await generateAnimatedComposition(projectDir, svg, {
-      compositionId,
-      workspaceCompositionId,
-      animationType,
-      animationStyle,
-      durationSeconds,
-      width,
-      height,
-      fps,
-    });
+    let svg: string;
+    let imagePublicUrl: string | undefined;
+
+    if (useOriginalImage) {
+      // Use original image - copy to outputs and create image-based animation
+      await publishJobProgress(jobId, 15, 'Preparing image...');
+
+      // Copy image to outputs bucket for public access
+      const outputImageKey = `images/${compositionId}/image.${imageExt}`;
+      await uploadFile('outputs', outputImageKey, imagePath);
+      imagePublicUrl = `/api/media/outputs/${outputImageKey}`;
+
+      logger.info({ projectId, jobId, imagePublicUrl }, 'Image uploaded for animation');
+
+      await publishJobProgress(jobId, 40, 'Generating animated composition...');
+
+      // Generate image-based animation (not SVG)
+      await generateImageAnimatedComposition(projectDir, imagePublicUrl, {
+        compositionId,
+        workspaceCompositionId,
+        animationStyle,
+        durationSeconds,
+        width,
+        height,
+        fps,
+      });
+    } else {
+      // Convert image to SVG using OpenAI Vision
+      await publishJobProgress(jobId, 15, 'Converting image to SVG...');
+
+      svg = await convertImageToSvg(imagePath, width, height, animationType);
+
+      logger.info({ projectId, jobId, svgLength: svg.length }, 'SVG generated from image');
+
+      await publishJobProgress(jobId, 40, 'Generating animated composition...');
+
+      // Generate SVG-based Remotion composition
+      await generateAnimatedComposition(projectDir, svg, {
+        compositionId,
+        workspaceCompositionId,
+        animationType,
+        animationStyle,
+        durationSeconds,
+        width,
+        height,
+        fps,
+      });
+    }
 
     await publishJobProgress(jobId, 60, 'Bundling composition...');
 
@@ -716,18 +1084,28 @@ export async function processSvgAnimationJob(job: Job<SvgAnimationJobData>) {
     // Create or get the target track
     let targetTrackId = trackId;
     if (!targetTrackId) {
-      // Create a new "Animations" track
+      // Look for an existing visual track first
       const existingTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
-      const [newTrack] = await db.insert(tracks).values({
-        projectId,
-        type: 'visual',
-        name: 'Animations',
-        position: existingTracks.length,
-      }).returning();
-      targetTrackId = newTrack.id;
+      const existingVisualTrack = existingTracks.find(t => t.type === 'visual');
+
+      if (existingVisualTrack) {
+        targetTrackId = existingVisualTrack.id;
+        logger.info({ projectId, trackId: targetTrackId }, 'Using existing visual track');
+      } else {
+        // Create a new "Animations" track
+        const [newTrack] = await db.insert(tracks).values({
+          projectId,
+          type: 'visual',
+          name: 'Animations',
+          position: existingTracks.length,
+        }).returning();
+        targetTrackId = newTrack.id;
+        logger.info({ projectId, trackId: targetTrackId }, 'Created new visual track');
+      }
     }
 
-    // Create visual record
+    // Create visual record - include user description if provided
+    const animationDescription = description || `SVG ${animationType} animation`;
     const [insertedVisual] = await db.insert(visuals).values({
       projectId,
       compositionId,
@@ -743,7 +1121,8 @@ export async function processSvgAnimationJob(job: Job<SvgAnimationJobData>) {
         startMs,
         endMs: startMs + durationMs,
         type: animationType === 'draw' ? 'svg-draw' : 'svg-motion',
-        description: `SVG ${animationType} animation`,
+        description: animationDescription,
+        sceneId: sceneId || undefined,
       }],
     }).returning({ id: visuals.id });
 
@@ -758,10 +1137,11 @@ export async function processSvgAnimationJob(job: Job<SvgAnimationJobData>) {
         compositionId,
         bundleUrl,
         type: `svg-${animationType}`,
-        description: `SVG ${animationType} animation`,
+        description: animationDescription,
         width,
         height,
         fps,
+        sceneId: sceneId || undefined,
       },
     });
 
