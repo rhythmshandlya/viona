@@ -136,6 +136,7 @@ export interface EditVisualsJobData {
   compositionId: string;  // The existing composition to edit
   prompt: string;         // User's edit request (e.g., "Make particles bigger")
   sceneId?: number;       // Optional: target a specific scene (1-indexed)
+  elementName?: string;   // Optional: target a specific element within the scene
 }
 
 export const editVisualsQueue = new Queue('edit-visuals', { connection });

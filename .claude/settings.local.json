@@ -149,7 +149,8 @@
       "Bash(redis-cli:*)",
       "Bash(brew upgrade:*)",
       "Bash(ps:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npm run db:migrate:*)"
     ]
   }
 }

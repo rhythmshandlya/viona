@@ -501,6 +501,11 @@ export const useEditorStore = create<EditorStore>()(
           state.items = mergedItems;
           state.itemIds = mergedItemIds;
 
+          // Update outputKey so stale exports aren't served after edits
+          if (state.project) {
+            state.project.outputKey = (apiProject as any).outputKey || null;
+          }
+
           // Don't reset playback position, selection, viewport, or history
         });
       } catch (err) {

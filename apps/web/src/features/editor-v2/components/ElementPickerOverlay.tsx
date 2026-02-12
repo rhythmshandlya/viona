@@ -16,6 +16,7 @@ import {
   useEditorActions,
   useSelectedElement,
   useProjectId,
+  useProject,
 } from '../store/use-editor-store';
 import { SelectedElement } from '../store/types';
 
@@ -30,9 +31,14 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
   const [hoveredElement, setHoveredElement] = useState<string | null>(null);
 
   const projectId = useProjectId();
+  const project = useProject();
   const currentTimeMs = useCurrentTimeMs();
   const selectedElement = useSelectedElement();
   const { setSelectedElement } = useEditorActions();
+
+  // Canvas dimensions for aspect ratio correction
+  const canvasWidth = project?.videoSettings.canvasWidth ?? 1080;
+  const canvasHeight = project?.videoSettings.canvasHeight ?? 1920;
 
   // Fetch assets and scenes data
   useEffect(() => {
@@ -78,7 +84,7 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
     onToggle(false);
   }, [setSelectedElement, onToggle]);
 
-  // Parse position/size string to percentage number
+  // Parse position string to percentage of the relevant dimension
   const parsePosition = (value: string): number => {
     if (!value) return 50;
     if (value === 'center') return 50;
@@ -86,12 +92,32 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
     return match ? parseFloat(match[1]) : 50;
   };
 
-  const parseSize = (value: string): number => {
-    if (!value) return 20;
-    if (value === '100%') return 100;
+  // Extra padding (px) added to each side of overlay boxes so they generously
+  // cover the actual elements even when asset positions are approximate.
+  const OVERLAY_PAD = 40;
+
+  // Parse size string to pixels, accounting for "of height" / "of width" suffixes.
+  // "auto" sizes get a generous default so the box is large enough to cover the element.
+  const parseSizePx = (value: string, forDimension: 'width' | 'height'): number => {
+    if (!value || value === 'auto') {
+      // "auto" — use 35% of the relevant dimension as a generous default
+      return forDimension === 'width' ? canvasWidth * 0.35 : canvasHeight * 0.2;
+    }
     const match = value.match(/(\d+(?:\.\d+)?)/);
-    const size = match ? parseFloat(match[1]) : 20;
-    return Math.max(size, 10);
+    const num = match ? parseFloat(match[1]) : 20;
+    const lowerVal = value.toLowerCase();
+
+    if (lowerVal.includes('of height')) {
+      return (num / 100) * canvasHeight;
+    } else if (lowerVal.includes('of width')) {
+      return (num / 100) * canvasWidth;
+    } else {
+      if (forDimension === 'width') {
+        return (num / 100) * canvasWidth;
+      } else {
+        return (num / 100) * canvasHeight;
+      }
+    }
   };
 
   if (!enabled) {
@@ -128,10 +154,21 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
         const sz = asset.size;
         if (!pos || !sz) return null;
 
-        const x = parsePosition(pos.x);
-        const y = parsePosition(pos.y);
-        const width = parseSize(sz.width);
-        const height = parseSize(sz.height);
+        // Position as percentage of canvas
+        const xPct = parsePosition(pos.x);
+        const yPct = parsePosition(pos.y);
+        // Convert position percentages to pixels
+        const xPx = (xPct / 100) * canvasWidth;
+        const yPx = (yPct / 100) * canvasHeight;
+        // Size in pixels (handles "of height" / "of width" / "auto" correctly)
+        const rawW = parseSizePx(sz.width, 'width');
+        const rawH = parseSizePx(sz.height, 'height');
+        // Add padding so the box generously covers the actual element
+        const widthPx = rawW + OVERLAY_PAD * 2;
+        const heightPx = rawH + OVERLAY_PAD * 2;
+        // Clamp to canvas bounds
+        const left = Math.max(0, Math.min(xPx - widthPx / 2, canvasWidth - widthPx));
+        const top = Math.max(0, Math.min(yPx - heightPx / 2, canvasHeight - heightPx));
 
         const isSelected = hasSelection &&
           selectedElement.name === asset.name &&
@@ -155,10 +192,10 @@ export function ElementPickerOverlay({ enabled, onToggle }: ElementPickerOverlay
                 : 'border-2 border-white/40 bg-white/5 hover:border-white/60 z-10'
             }`}
             style={{
-              left: `${x - width / 2}%`,
-              top: `${y - height / 2}%`,
-              width: `${width}%`,
-              height: `${height}%`,
+              left,
+              top,
+              width: widthPx,
+              height: heightPx,
             }}
           >
             {/* Label */}

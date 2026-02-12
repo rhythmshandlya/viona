@@ -575,6 +575,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const body = z.object({
       prompt: z.string().min(1).max(2000),
       sceneId: z.number().int().min(1).optional(),
+      elementName: z.string().optional(),
     }).parse(request.body);
 
     const project = await db.query.projects.findFirst({
@@ -639,6 +640,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       compositionId: visual.compositionId,
       prompt: body.prompt,
       sceneId: body.sceneId,
+      elementName: body.elementName,
     });
 
     return { jobId: job.id };
@@ -863,10 +865,13 @@ export async function projectRoutes(fastify: FastifyInstance) {
         size: { width: el.width, height: el.height },
       }));
 
-      // If no elements in DB, try to extract from source
-      if (!elements && scenesFromSource) {
+      // Compute contentDisplayMs from keySync in scenes.json
+      let contentDisplayMs: number | undefined;
+      if (scenesFromSource) {
         const sourceScene = scenesFromSource[index];
-        if (sourceScene?.layout && typeof sourceScene.layout === 'object') {
+
+        // If no elements in DB, try to extract from source
+        if (!elements && sourceScene?.layout && typeof sourceScene.layout === 'object') {
           elements = Object.entries(sourceScene.layout).map(([key, value]: [string, any]) => ({
             name: key.charAt(0).toUpperCase() + key.slice(1),
             type: key,
@@ -875,6 +880,20 @@ export async function projectRoutes(fastify: FastifyInstance) {
             size: { width: value?.width || '100%', height: value?.height || '100%' },
           }));
         }
+
+        // Extract keySync timing — the frame where main content is displayed
+        if (sourceScene?.keySync?.timestamp != null && sourceScene?.timestampRange) {
+          const sceneStartSec = sourceScene.timestampRange[0] as number;
+          const sceneEndSec = sourceScene.timestampRange[1] as number;
+          const keySyncSec = sourceScene.keySync.timestamp as number;
+          const sceneDurationSec = sceneEndSec - sceneStartSec;
+          if (sceneDurationSec > 0) {
+            const ratio = (keySyncSec - sceneStartSec) / sceneDurationSec;
+            contentDisplayMs = Math.round(t.startMs + ratio * (t.endMs - t.startMs));
+          }
+        }
+      } else if (!elements) {
+        // No source data at all — no elements to extract
       }
 
       return {
@@ -884,6 +903,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         endMs: t.endMs,
         description: t.description || t.type || '',
         elements,
+        contentDisplayMs,
       };
     });
 

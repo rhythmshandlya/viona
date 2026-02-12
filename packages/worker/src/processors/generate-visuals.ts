@@ -650,7 +650,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       .where(eq(jobs.id, jobId));
 
     await db.update(projects)
-      .set({ status: 'ready', updatedAt: new Date() })
+      .set({ status: 'ready', outputKey: null, updatedAt: new Date() })
       .where(eq(projects.id, projectId));
 
     await publishJobProgress(jobId, 100, 'Complete');

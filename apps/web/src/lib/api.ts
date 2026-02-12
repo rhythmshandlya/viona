@@ -95,6 +95,7 @@ export interface Job {
   type: string;
   status: string;
   progress: number;
+  progressMessage: string | null;
   error: string | null;
   metrics?: JobMetrics | null;
   logs?: string[] | null;
@@ -166,6 +167,7 @@ export interface SceneInfo {
   endMs: number;
   description: string;
   elements?: SceneElement[];
+  contentDisplayMs?: number;
 }
 
 export interface ScenesResponse {

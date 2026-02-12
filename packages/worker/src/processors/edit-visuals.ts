@@ -106,7 +106,8 @@ export interface EditVisualsJobData {
   jobId: string;
   compositionId: string;
   prompt: string;
-  sceneId?: number;  // Optional: target a specific scene (1-indexed)
+  sceneId?: number;       // Optional: target a specific scene (1-indexed)
+  elementName?: string;   // Optional: target a specific element within the scene
 }
 
 /**
@@ -201,7 +202,7 @@ async function compileCjs(projectDir: string, bundleDir: string): Promise<void> 
 }
 
 export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
-  const { projectId, jobId, compositionId, prompt, sceneId } = job.data;
+  const { projectId, jobId, compositionId, prompt, sceneId, elementName } = job.data;
 
   // Convert compositionId format: proj-xxx-xxx -> proj_xxx_xxx for workspace
   const workspaceCompositionId = compositionId.replace(/-/g, '_');
@@ -244,7 +245,8 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
     if (existsSync(indexPath) && existsSync(scenesPath)) {
       // Files already exist - just list them instead of downloading
       logger.info({ projectId, compositionId }, 'Source files already in workspace, skipping download');
-      await publishJobProgress(jobId, 10, 'Using cached source files...');
+      // Skip past the restore phase (20+) so frontend shows "AI analyzing" immediately
+      await publishJobProgress(jobId, 20, 'Source files ready, analyzing...');
 
       // List existing files in projectDir
       const listFilesRecursive = async (dir: string, base: string = ''): Promise<string[]> => {
@@ -263,14 +265,14 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       downloadedFiles = await listFilesRecursive(projectDir);
     } else {
       // Download source files from MinIO to workspace
-      await publishJobProgress(jobId, 10, 'Restoring source files...');
+      await publishJobProgress(jobId, 10, 'Restoring source files from storage...');
       // Sources are stored with dashes (proj-xxx-xxx), ensure we use that format
       const sourceCompositionId = compositionId.replace(/_/g, '-');
       downloadedFiles = await downloadSourceFromStorage(sourceCompositionId, projectDir);
       logger.info({ projectId, compositionId, fileCount: downloadedFiles.length }, 'Source files restored');
     }
 
-    await publishJobProgress(jobId, 15, 'Analyzing which scene to edit...');
+    await publishJobProgress(jobId, 22, 'Analyzing which scene to edit...');
 
     // Run Claude to edit the composition (includes scene detection)
     const editResult = await runClaudeEditor({
@@ -280,6 +282,7 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       prompt,
       existingFiles: downloadedFiles,
       targetSceneId: sceneId,  // Pass user-selected scene ID
+      targetElementName: elementName,  // Pass user-selected element name
     });
 
     await publishJobProgress(jobId, 70, 'Reading updated metadata...');
@@ -416,7 +419,7 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       .where(eq(jobs.id, jobId));
 
     await db.update(projects)
-      .set({ status: 'ready', updatedAt: new Date() })
+      .set({ status: 'ready', outputKey: null, updatedAt: new Date() })
       .where(eq(projects.id, projectId));
 
     await publishJobProgress(jobId, 100, 'Complete');
@@ -449,7 +452,8 @@ interface ClaudeEditorOptions {
   projectDir: string;
   prompt: string;
   existingFiles: string[];
-  targetSceneId?: number;  // Optional user-selected scene ID (1-indexed)
+  targetSceneId?: number;       // Optional user-selected scene ID (1-indexed)
+  targetElementName?: string;   // Optional user-selected element name
 }
 
 interface ClaudeEditorResult {
@@ -668,7 +672,7 @@ async function detectTargetScenes(
  * 4. Re-bundle only if necessary
  */
 async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEditorResult> {
-  const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId } = options;
+  const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId, targetElementName } = options;
 
   const workspacePath = getWorkspacePath();
   const bundleOutputDir = config.remotion.bundleOutputDir;
@@ -679,6 +683,7 @@ async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEdit
     prompt: prompt.slice(0, 100),
     existingFiles: existingFiles.length,
     targetSceneId,
+    targetElementName,
   }, 'Starting Claude editor...');
 
   const startTime = Date.now();
@@ -702,6 +707,8 @@ async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEdit
     const sceneInfo = scenes.find((s: any) => s.id === targetSceneId);
     const sceneFile = `scenes/Scene${targetSceneId}.tsx`;
 
+    const elementSuffix = targetElementName ? `, element "${targetElementName}"` : '';
+
     if (sceneInfo) {
       detection = {
         targetScenes: [{
@@ -713,7 +720,7 @@ async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEdit
           timestampRange: sceneInfo.timestampRange || [0, 0],
         }],
         targetFiles: [sceneFile],
-        analysisReason: `User selected Scene ${targetSceneId} from UI`,
+        analysisReason: `User selected Scene ${targetSceneId}${elementSuffix} from UI`,
       };
     } else {
       // Scene not found in scenes.json, but still target the file
@@ -727,13 +734,14 @@ async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEdit
           timestampRange: [0, 0],
         }],
         targetFiles: [sceneFile],
-        analysisReason: `User selected Scene ${targetSceneId} from UI (no metadata)`,
+        analysisReason: `User selected Scene ${targetSceneId}${elementSuffix} from UI (no metadata)`,
       };
     }
 
     logger.info({
       projectId,
       targetSceneId,
+      targetElementName,
       sceneFile,
     }, 'Using user-selected scene');
   } else {
@@ -800,7 +808,7 @@ SCENE TO REGENERATE:
 - Frames: ${targetScene.frames[0]} to ${targetScene.frames[1]}
 - Timestamp: ${targetScene.timestampRange[0]}s to ${targetScene.timestampRange[1]}s
 - Original Description: ${targetScene.description}
-
+${targetElementName ? `\nTARGET ELEMENT: "${targetElementName}" — Focus your changes on this specific element within the scene.\n` : ''}
 USER'S REQUEST:
 "${prompt}"
 
@@ -835,7 +843,7 @@ ANALYSIS: ${detection.analysisReason}
 
 TARGET FILE(S) TO EDIT:
 ${detection.targetFiles.map(f => `- ${f}`).join('\n')}
-
+${targetElementName ? `\nTARGET ELEMENT: "${targetElementName}" — Focus your changes on this specific element within the scene. Only modify code related to this element.\n` : ''}
 CURRENT CONTENT:
 ${targetFileContents.join('\n\n')}
 

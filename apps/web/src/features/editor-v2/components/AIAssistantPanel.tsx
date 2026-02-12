@@ -88,13 +88,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               content: `❌ ${job.type === 'svg-animation' ? 'Animation creation' : 'Edit'} failed: ${job.error || 'Unknown error'}. Please try again.`,
             };
           } else {
+            // Use actual worker message if available, otherwise fall back to hardcoded
+            const workerMessage = job.progressMessage;
+            const fallbackMessage = job.type === 'svg-animation'
+              ? getAnimationProgressMessage(job.progress)
+              : getProgressMessage(job.progress);
+
             return {
               ...m,
               status: 'processing',
               progress: job.progress,
-              content: job.type === 'svg-animation'
-                ? getAnimationProgressMessage(job.progress)
-                : getProgressMessage(job.progress),
+              content: workerMessage || fallbackMessage,
             };
           }
         }));
