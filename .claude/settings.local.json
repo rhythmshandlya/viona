@@ -161,8 +161,14 @@
       "Bash(pip install:*)",
       "Bash(python scripts/detect_head.py:*)",
       "Bash(pip show:*)",
+<<<<<<< HEAD
       "Bash(python:*)"
 >>>>>>> 92226f2 (Added asset)
+=======
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(npm run db:migrate:*)"
+>>>>>>> 528ad56 (Added export fix)
     ]
   }
 }
