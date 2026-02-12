@@ -5,10 +5,17 @@
 
 'use client';
 
+<<<<<<< HEAD
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight } from 'lucide-react';
 import { api, ExtractedAsset, SceneInfo } from '@/lib/api';
 import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItems } from '../store/use-editor-store';
+=======
+import React, { useState, useEffect, useCallback } from 'react';
+import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight } from 'lucide-react';
+import { api, ExtractedAsset, SceneInfo } from '@/lib/api';
+import { useProjectId, useEditorActions, useSelectedElement } from '../store/use-editor-store';
+>>>>>>> 92226f2 (Added asset)
 
 interface AssetsPanelProps {
   className?: string;
@@ -36,7 +43,11 @@ const AssetColor: Record<ExtractedAsset['type'], string> = {
 
 export function AssetsPanel({ className = '' }: AssetsPanelProps) {
   const [assets, setAssets] = useState<ExtractedAsset[]>([]);
+<<<<<<< HEAD
   const [sceneTimings, setSceneTimings] = useState<Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>>(new Map());
+=======
+  const [sceneTimings, setSceneTimings] = useState<Map<number, number>>(new Map());
+>>>>>>> 92226f2 (Added asset)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set([1, 2, 3])); // Expand first 3 scenes by default
@@ -45,12 +56,15 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
   const selectedElement = useSelectedElement();
   const { setSelectedElement, pause, seek, setElementPickerEnabled } = useEditorActions();
 
+<<<<<<< HEAD
   // Watch visual items — refetch assets when they change
   const itemIds = useItemIds();
   const items = useItems();
   const visualItemIds = itemIds.filter(id => items[id]?.type === 'visual');
   const visualKeyRef = useRef(visualItemIds.join(','));
 
+=======
+>>>>>>> 92226f2 (Added asset)
   // Fetch assets
   const fetchAssets = useCallback(async () => {
     if (!projectId) return;
@@ -64,9 +78,15 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
         api.getScenes(projectId),
       ]);
       setAssets(assetsResponse.assets);
+<<<<<<< HEAD
       const timings = new Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>();
       for (const scene of scenesResponse.scenes) {
         timings.set(scene.id, { startMs: scene.startMs, endMs: scene.endMs, contentDisplayMs: scene.contentDisplayMs });
+=======
+      const timings = new Map<number, number>();
+      for (const scene of scenesResponse.scenes) {
+        timings.set(scene.id, scene.startMs);
+>>>>>>> 92226f2 (Added asset)
       }
       setSceneTimings(timings);
     } catch (err) {
@@ -81,6 +101,7 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
     fetchAssets();
   }, [fetchAssets]);
 
+<<<<<<< HEAD
   // Refetch when visual items change (added, removed, or replaced after edits)
   useEffect(() => {
     const newKey = visualItemIds.join(',');
@@ -90,6 +111,8 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
     }
   }, [visualItemIds, fetchAssets]);
 
+=======
+>>>>>>> 92226f2 (Added asset)
   // Group assets by scene
   const assetsByScene = assets.reduce((acc, asset) => {
     const sceneId = asset.sceneId;
@@ -116,12 +139,20 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
       description: asset.description,
     });
 
+<<<<<<< HEAD
     // Pause playback and seek to the last second of the scene
     pause();
     const timing = sceneTimings.get(asset.sceneId);
     if (timing) {
       const seekMs = Math.max(timing.startMs, timing.endMs - 1000);
       seek(seekMs);
+=======
+    // Pause playback and seek to the scene's start
+    pause();
+    const startMs = sceneTimings.get(asset.sceneId);
+    if (startMs !== undefined) {
+      seek(startMs + 100);
+>>>>>>> 92226f2 (Added asset)
     }
     setElementPickerEnabled(true);
   };
