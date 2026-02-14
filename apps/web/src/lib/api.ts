@@ -306,7 +306,7 @@ class ApiClient {
 
   async updateProject(
     projectId: string,
-    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[] }
+    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; videoSettings?: Record<string, unknown> }
   ): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}`, {
       method: 'PATCH',

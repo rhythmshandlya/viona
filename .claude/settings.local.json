@@ -167,8 +167,13 @@
 =======
       "Bash(python:*)",
       "Bash(python3:*)",
+<<<<<<< HEAD
       "Bash(npm run db:migrate:*)"
 >>>>>>> 528ad56 (Added export fix)
+=======
+      "Bash(npm run db:migrate:*)",
+      "Bash(find:*)"
+>>>>>>> 7c52016 (Added full length video)
     ]
   }
 }

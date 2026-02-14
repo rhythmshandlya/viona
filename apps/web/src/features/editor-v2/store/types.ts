@@ -182,6 +182,16 @@ export interface Track {
 }
 
 // ============================================
+// Fullscreen Segment Types
+// ============================================
+
+export interface FullscreenSegment {
+  id: string;
+  startMs: number;
+  endMs: number;
+}
+
+// ============================================
 // Video Settings Types (for 9:16 crop/pan)
 // ============================================
 
@@ -276,6 +286,7 @@ export interface HistoryEntry {
   items: Record<string, TimelineItem>;
   itemIds: string[];
   selectedIds: string[];
+  fullscreenSegments: FullscreenSegment[];
 }
 
 // ============================================
@@ -327,6 +338,9 @@ export interface EditorState {
   // Layout settings (video + visuals arrangement)
   layoutSettings: LayoutSettings;
   layoutPresetId: LayoutPresetId;
+
+  // Fullscreen segments (time ranges where visuals are hidden)
+  fullscreenSegments: FullscreenSegment[];
 
   // Scene selection for AI editing
   selectedSceneId: number | null;
@@ -431,6 +445,11 @@ export interface EditorActions {
   updateSplitSettings: (settings: Partial<SplitSettings>) => void;
   setLayoutPreset: (presetId: LayoutPresetId) => void;
   setLayoutMode: (mode: LayoutMode) => void;
+
+  // Fullscreen segment actions
+  addFullscreenSegment: (segment: Omit<FullscreenSegment, 'id'>) => string;
+  updateFullscreenSegment: (id: string, updates: Partial<Omit<FullscreenSegment, 'id'>>) => void;
+  removeFullscreenSegment: (id: string) => void;
 
   // Scene selection for AI editing
   setSelectedScene: (sceneId: number | null) => void;

@@ -13,6 +13,7 @@ import {
   Track,
   TimelineItem,
   HistoryEntry,
+  FullscreenSegment,
   DEFAULT_TRACK_HEIGHT,
   DEFAULT_ZOOM,
   DEFAULT_FPS,
@@ -100,6 +101,9 @@ const initialState: EditorState = {
   // Layout settings
   layoutSettings: DEFAULT_LAYOUT_SETTINGS,
   layoutPresetId: 'pip-tutorial' as LayoutPresetId,
+
+  // Fullscreen segments
+  fullscreenSegments: [],
 
   // Scene selection for AI editing
   selectedSceneId: null,
@@ -413,6 +417,9 @@ export const useEditorStore = create<EditorStore>()(
           videoUrl
         );
 
+        // Restore fullscreen segments from videoSettings JSONB
+        const savedSegments = (apiProject as any).videoSettings?.fullscreenSegments;
+
         set((state) => {
           state.project = project;
           state.tracks = tracks;
@@ -423,6 +430,7 @@ export const useEditorStore = create<EditorStore>()(
           state.isLoading = false;
           state.currentTimeMs = 0;
           state.selectedIds = [];
+          state.fullscreenSegments = Array.isArray(savedSegments) ? savedSegments : [];
           // Reset viewport
           state.viewport = {
             zoom: DEFAULT_ZOOM,
@@ -514,7 +522,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     saveProject: async () => {
-      const { project, items, itemIds } = get();
+      const { project, items, itemIds, fullscreenSegments } = get();
       if (!project) return;
 
       set((state) => {
@@ -544,7 +552,13 @@ export const useEditorStore = create<EditorStore>()(
             };
           });
 
-        await api.updateProject(project.id, { items: apiItems });
+        // Persist fullscreen segments inside videoSettings JSONB
+        const videoSettingsPayload = {
+          ...project.videoSettings,
+          fullscreenSegments,
+        };
+
+        await api.updateProject(project.id, { items: apiItems, videoSettings: videoSettingsPayload });
 
         set((state) => {
           state.isSaving = false;
@@ -965,6 +979,7 @@ export const useEditorStore = create<EditorStore>()(
         state.items = entry.items;
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
+        state.fullscreenSegments = entry.fullscreenSegments || [];
         state.historyIndex = newIndex;
       });
     },
@@ -981,12 +996,13 @@ export const useEditorStore = create<EditorStore>()(
         state.items = entry.items;
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
+        state.fullscreenSegments = entry.fullscreenSegments || [];
         state.historyIndex = newIndex;
       });
     },
 
     pushHistory: () => {
-      const { tracks, items, itemIds, selectedIds, history, historyIndex } = get();
+      const { tracks, items, itemIds, selectedIds, fullscreenSegments, history, historyIndex } = get();
 
       // Create deep copy of current state
       const entry: HistoryEntry = {
@@ -994,6 +1010,7 @@ export const useEditorStore = create<EditorStore>()(
         items: JSON.parse(JSON.stringify(items)),
         itemIds: [...itemIds],
         selectedIds: [...selectedIds],
+        fullscreenSegments: JSON.parse(JSON.stringify(fullscreenSegments)),
       };
 
       set((state) => {
@@ -1628,6 +1645,42 @@ export const useEditorStore = create<EditorStore>()(
         state.layoutSettings.mode = mode;
         state.layoutPresetId = 'custom';
       });
+    },
+
+    // ========================================
+    // Fullscreen Segment Actions
+    // ========================================
+
+    addFullscreenSegment: (segment: Omit<FullscreenSegment, 'id'>) => {
+      const id = nanoid(10);
+
+      set((state) => {
+        state.fullscreenSegments.push({ id, ...segment });
+        state.fullscreenSegments.sort((a, b) => a.startMs - b.startMs);
+      });
+
+      get().pushHistory();
+      return id;
+    },
+
+    updateFullscreenSegment: (id: string, updates: Partial<Omit<FullscreenSegment, 'id'>>) => {
+      set((state) => {
+        const segment = state.fullscreenSegments.find((s) => s.id === id);
+        if (!segment) return;
+        if (updates.startMs !== undefined) segment.startMs = updates.startMs;
+        if (updates.endMs !== undefined) segment.endMs = updates.endMs;
+        state.fullscreenSegments.sort((a, b) => a.startMs - b.startMs);
+      });
+
+      get().pushHistory();
+    },
+
+    removeFullscreenSegment: (id: string) => {
+      set((state) => {
+        state.fullscreenSegments = state.fullscreenSegments.filter((s) => s.id !== id);
+      });
+
+      get().pushHistory();
     },
 
     // Scene selection for AI editing

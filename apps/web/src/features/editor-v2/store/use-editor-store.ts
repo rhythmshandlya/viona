@@ -5,7 +5,7 @@
 
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
-import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData } from './types';
+import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData, FullscreenSegment } from './types';
 
 // ============================================
 // Direct Store Access
@@ -242,6 +242,24 @@ export function useLayoutActions() {
   );
 }
 
+// ============================================
+// Fullscreen Segment Selectors
+// ============================================
+
+export function useFullscreenSegments(): FullscreenSegment[] {
+  return useEditorStore((state) => state.fullscreenSegments);
+}
+
+export function useFullscreenSegmentActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      addFullscreenSegment: state.addFullscreenSegment,
+      updateFullscreenSegment: state.updateFullscreenSegment,
+      removeFullscreenSegment: state.removeFullscreenSegment,
+    }))
+  );
+}
+
 /**
  * Get the caption style for the first selected caption item.
  * Falls back to the first caption in the project if nothing is selected.
@@ -445,6 +463,11 @@ export function useEditorActions() {
       updateSplitSettings: state.updateSplitSettings,
       setLayoutPreset: state.setLayoutPreset,
       setLayoutMode: state.setLayoutMode,
+
+      // Fullscreen segments
+      addFullscreenSegment: state.addFullscreenSegment,
+      updateFullscreenSegment: state.updateFullscreenSegment,
+      removeFullscreenSegment: state.removeFullscreenSegment,
 
       // Scene selection
       setSelectedScene: state.setSelectedScene,
