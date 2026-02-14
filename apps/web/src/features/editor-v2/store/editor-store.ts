@@ -105,6 +105,10 @@ const initialState: EditorState = {
   // Fullscreen segments
   fullscreenSegments: [],
 
+  // Fullscreen segment placement mode
+  fsPlacementMode: 'idle',
+  fsPendingStartMs: null,
+
   // Scene selection for AI editing
   selectedSceneId: null,
   selectedTimeRange: null,
@@ -417,8 +421,11 @@ export const useEditorStore = create<EditorStore>()(
           videoUrl
         );
 
-        // Restore fullscreen segments from videoSettings JSONB
-        const savedSegments = (apiProject as any).videoSettings?.fullscreenSegments;
+        // Restore persisted settings from videoSettings JSONB
+        const savedVideoSettings = (apiProject as any).videoSettings;
+        const savedSegments = savedVideoSettings?.fullscreenSegments;
+        const savedLayoutSettings = savedVideoSettings?.layoutSettings;
+        const savedLayoutPresetId = savedVideoSettings?.layoutPresetId;
 
         set((state) => {
           state.project = project;
@@ -431,6 +438,18 @@ export const useEditorStore = create<EditorStore>()(
           state.currentTimeMs = 0;
           state.selectedIds = [];
           state.fullscreenSegments = Array.isArray(savedSegments) ? savedSegments : [];
+          // Restore layout settings (merge with defaults for forward compat)
+          if (savedLayoutSettings) {
+            state.layoutSettings = {
+              ...DEFAULT_LAYOUT_SETTINGS,
+              ...savedLayoutSettings,
+              pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
+              split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
+            };
+          }
+          if (savedLayoutPresetId) {
+            state.layoutPresetId = savedLayoutPresetId;
+          }
           // Reset viewport
           state.viewport = {
             zoom: DEFAULT_ZOOM,
@@ -522,7 +541,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     saveProject: async () => {
-      const { project, items, itemIds, fullscreenSegments } = get();
+      const { project, items, itemIds, fullscreenSegments, layoutSettings, layoutPresetId } = get();
       if (!project) return;
 
       set((state) => {
@@ -552,10 +571,12 @@ export const useEditorStore = create<EditorStore>()(
             };
           });
 
-        // Persist fullscreen segments inside videoSettings JSONB
+        // Persist fullscreen segments and layout settings inside videoSettings JSONB
         const videoSettingsPayload = {
           ...project.videoSettings,
           fullscreenSegments,
+          layoutSettings,
+          layoutPresetId,
         };
 
         await api.updateProject(project.id, { items: apiItems, videoSettings: videoSettingsPayload });
@@ -1608,6 +1629,7 @@ export const useEditorStore = create<EditorStore>()(
         };
         state.layoutPresetId = 'custom';
       });
+      debouncedSave(() => get().saveProject());
     },
 
     updatePiPSettings: (settings: Partial<PiPSettings>) => {
@@ -1618,6 +1640,7 @@ export const useEditorStore = create<EditorStore>()(
         };
         state.layoutPresetId = 'custom';
       });
+      debouncedSave(() => get().saveProject());
     },
 
     updateSplitSettings: (settings: Partial<SplitSettings>) => {
@@ -1628,6 +1651,7 @@ export const useEditorStore = create<EditorStore>()(
         };
         state.layoutPresetId = 'custom';
       });
+      debouncedSave(() => get().saveProject());
     },
 
     setLayoutPreset: (presetId: LayoutPresetId) => {
@@ -1638,6 +1662,7 @@ export const useEditorStore = create<EditorStore>()(
         state.layoutPresetId = presetId;
         state.layoutSettings = JSON.parse(JSON.stringify(preset.settings));
       });
+      debouncedSave(() => get().saveProject());
     },
 
     setLayoutMode: (mode: LayoutMode) => {
@@ -1645,6 +1670,7 @@ export const useEditorStore = create<EditorStore>()(
         state.layoutSettings.mode = mode;
         state.layoutPresetId = 'custom';
       });
+      debouncedSave(() => get().saveProject());
     },
 
     // ========================================
@@ -1660,6 +1686,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
       return id;
     },
 
@@ -1673,6 +1700,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
     },
 
     removeFullscreenSegment: (id: string) => {
@@ -1681,6 +1709,21 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
+    },
+
+    startFsPlacement: () => {
+      set((state) => {
+        state.fsPlacementMode = 'placing-start';
+        state.fsPendingStartMs = null;
+      });
+    },
+
+    cancelFsPlacement: () => {
+      set((state) => {
+        state.fsPlacementMode = 'idle';
+        state.fsPendingStartMs = null;
+      });
     },
 
     // Scene selection for AI editing

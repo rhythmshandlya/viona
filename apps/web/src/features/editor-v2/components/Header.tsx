@@ -42,6 +42,7 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState('Untitled Project');
   const inputRef = useRef<HTMLInputElement>(null);
+  const savedRef = useRef(false);
 
   // Sync title with project data
   useEffect(() => {
@@ -52,6 +53,7 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
 
   useEffect(() => {
     if (isEditingTitle && inputRef.current) {
+      savedRef.current = false;
       inputRef.current.focus();
       inputRef.current.select();
     }
@@ -61,8 +63,9 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
     setIsEditingTitle(true);
   };
 
-  const handleTitleBlur = () => {
-    setIsEditingTitle(false);
+  const saveTitle = () => {
+    if (savedRef.current) return;
+    savedRef.current = true;
     if (project && title.trim()) {
       api.updateProject(project.id, { title: title.trim() }).catch(() => {
         // Silently fail — title is cosmetic
@@ -70,8 +73,15 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
     }
   };
 
+  const handleTitleBlur = () => {
+    setIsEditingTitle(false);
+    saveTitle();
+  };
+
   const handleTitleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
+      saveTitle();
       setIsEditingTitle(false);
     }
     if (e.key === 'Escape') {

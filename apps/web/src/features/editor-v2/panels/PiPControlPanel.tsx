@@ -27,7 +27,7 @@ import {
   useLayoutActions,
   useFullscreenSegments,
   useFullscreenSegmentActions,
-  useCurrentTimeMs,
+  useFsPlacementMode,
 } from '../store/use-editor-store';
 import {
   LAYOUT_PRESETS,
@@ -43,8 +43,8 @@ export function PiPControlPanel() {
   const presetId = useLayoutPresetId();
   const { updatePiPSettings, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
   const fullscreenSegments = useFullscreenSegments();
-  const { addFullscreenSegment, updateFullscreenSegment, removeFullscreenSegment } = useFullscreenSegmentActions();
-  const currentTimeMs = useCurrentTimeMs();
+  const { updateFullscreenSegment, removeFullscreenSegment, startFsPlacement, cancelFsPlacement } = useFullscreenSegmentActions();
+  const fsPlacementMode = useFsPlacementMode();
 
   const { mode, pip, split } = layoutSettings;
 
@@ -392,22 +392,37 @@ export function PiPControlPanel() {
       <div className="space-y-3 pt-4 border-t border-zinc-700">
         <div className="flex items-center justify-between">
           <Label className="text-sm text-zinc-400">Fullscreen Segments</Label>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 gap-1"
-            onClick={() => {
-              const startMs = currentTimeMs;
-              const endMs = startMs + 5000;
-              addFullscreenSegment({ startMs, endMs });
-            }}
-          >
-            <Plus className="w-3 h-3" />
-            Add
-          </Button>
+          {fsPlacementMode !== 'idle' ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 gap-1 border-red-500/50 text-red-400 hover:text-red-300"
+              onClick={() => cancelFsPlacement()}
+            >
+              Cancel
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 gap-1"
+              onClick={() => startFsPlacement()}
+            >
+              <Plus className="w-3 h-3" />
+              Add
+            </Button>
+          )}
         </div>
 
-        {fullscreenSegments.length === 0 ? (
+        {fsPlacementMode !== 'idle' && (
+          <p className="text-xs text-cyan-400">
+            {fsPlacementMode === 'placing-start'
+              ? 'Click on the timeline to set the start position...'
+              : 'Click on the timeline to set the end position...'}
+          </p>
+        )}
+
+        {fullscreenSegments.length === 0 && fsPlacementMode === 'idle' ? (
           <p className="text-xs text-zinc-500">
             No fullscreen segments. Add one to show the video full-screen (hiding visuals) during specific time ranges.
           </p>

@@ -29,6 +29,7 @@ const updateProjectSchema = z.object({
     endMs: z.number().optional(),
     data: z.record(z.unknown()).optional(),
   })).optional(),
+  videoSettings: z.record(z.unknown()).optional(),
 });
 
 // Helper to check if a user owns a project
@@ -315,10 +316,13 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Update project (title and timestamp)
-    const updateData: { updatedAt: Date; title?: string } = { updatedAt: new Date() };
+    // Update project fields
+    const updateData: { updatedAt: Date; title?: string; videoSettings?: unknown } = { updatedAt: new Date() };
     if (body.title !== undefined) {
       updateData.title = body.title;
+    }
+    if (body.videoSettings !== undefined) {
+      updateData.videoSettings = body.videoSettings;
     }
     await db.update(projects)
       .set(updateData)

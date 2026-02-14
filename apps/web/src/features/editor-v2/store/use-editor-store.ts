@@ -250,12 +250,22 @@ export function useFullscreenSegments(): FullscreenSegment[] {
   return useEditorStore((state) => state.fullscreenSegments);
 }
 
+export function useFsPlacementMode() {
+  return useEditorStore((state) => state.fsPlacementMode);
+}
+
+export function useFsPendingStartMs() {
+  return useEditorStore((state) => state.fsPendingStartMs);
+}
+
 export function useFullscreenSegmentActions() {
   return useEditorStore(
     useShallow((state) => ({
       addFullscreenSegment: state.addFullscreenSegment,
       updateFullscreenSegment: state.updateFullscreenSegment,
       removeFullscreenSegment: state.removeFullscreenSegment,
+      startFsPlacement: state.startFsPlacement,
+      cancelFsPlacement: state.cancelFsPlacement,
     }))
   );
 }
@@ -468,6 +478,8 @@ export function useEditorActions() {
       addFullscreenSegment: state.addFullscreenSegment,
       updateFullscreenSegment: state.updateFullscreenSegment,
       removeFullscreenSegment: state.removeFullscreenSegment,
+      startFsPlacement: state.startFsPlacement,
+      cancelFsPlacement: state.cancelFsPlacement,
 
       // Scene selection
       setSelectedScene: state.setSelectedScene,

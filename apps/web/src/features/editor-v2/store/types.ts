@@ -342,6 +342,10 @@ export interface EditorState {
   // Fullscreen segments (time ranges where visuals are hidden)
   fullscreenSegments: FullscreenSegment[];
 
+  // Fullscreen segment placement mode (transient UI state)
+  fsPlacementMode: 'idle' | 'placing-start' | 'placing-end';
+  fsPendingStartMs: number | null;
+
   // Scene selection for AI editing
   selectedSceneId: number | null;
   selectedTimeRange: { startMs: number; endMs: number } | null;
@@ -450,6 +454,8 @@ export interface EditorActions {
   addFullscreenSegment: (segment: Omit<FullscreenSegment, 'id'>) => string;
   updateFullscreenSegment: (id: string, updates: Partial<Omit<FullscreenSegment, 'id'>>) => void;
   removeFullscreenSegment: (id: string) => void;
+  startFsPlacement: () => void;
+  cancelFsPlacement: () => void;
 
   // Scene selection for AI editing
   setSelectedScene: (sceneId: number | null) => void;
