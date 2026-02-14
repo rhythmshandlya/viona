@@ -5,7 +5,6 @@ import { join, resolve as resolve_ } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { spawn } from 'child_process';
-import ffmpeg from 'fluent-ffmpeg';
 import { db, jobs, timelineItems } from '../db/index.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
 import { logger } from '../logger.js';
@@ -22,47 +21,162 @@ export interface EnhanceAudioJobData {
 }
 
 /**
- * Extract audio from video as 48kHz WAV mono
+ * Check if video has an audio stream
  */
-function extractAudio48k(videoPath: string, audioPath: string): Promise<void> {
-  // Normalize paths for FFmpeg on Windows (use forward slashes)
-  const normalizedInput = videoPath.replace(/\\/g, '/');
-  const normalizedOutput = audioPath.replace(/\\/g, '/');
+async function checkHasAudioStream(workDir: string, inputFilename: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = spawn('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'a',
+      '-show_entries', 'stream=index',
+      '-of', 'csv=p=0',
+      inputFilename
+    ], {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+
+    proc.on('close', () => {
+      // If there's any output, there's an audio stream
+      resolve(stdout.trim().length > 0);
+    });
+
+    proc.on('error', () => {
+      // On error, assume there might be audio and let ffmpeg handle it
+      resolve(true);
+    });
+  });
+}
+
+/**
+ * Extract audio from video as 48kHz WAV mono
+ * Returns true if audio was extracted, false if video had no audio (silent audio created)
+ */
+async function extractAudio48k(videoPath: string, audioPath: string): Promise<boolean> {
+  // Use spawn with cwd and relative filenames to avoid Windows path issues
+  // (FFmpeg interprets colons in paths like C:/... as stream specifiers)
+  const { dirname, basename } = await import('path');
+
+  const workDir = dirname(videoPath);
+  const inputFilename = basename(videoPath);
+  const outputFilename = basename(audioPath);
+
+  // First check if the video has an audio stream
+  const hasAudio = await checkHasAudioStream(workDir, inputFilename);
+
+  if (!hasAudio) {
+    // Create a silent audio file for videos without audio
+    logger.info({ videoPath }, 'Video has no audio stream, creating silent audio');
+    const args = [
+      '-f', 'lavfi',
+      '-i', 'anullsrc=r=48000:cl=mono',
+      '-t', '1',  // 1 second of silence
+      '-y',
+      '-acodec', 'pcm_s16le',
+      '-ar', '48000',
+      '-ac', '1',
+      outputFilename
+    ];
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn('ffmpeg', args, {
+        cwd: workDir,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      let stderr = '';
+      proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve(false); // No audio was found
+        } else {
+          reject(new Error(`ffmpeg (silent audio) exited with code ${code}: ${stderr.slice(-500)}`));
+        }
+      });
+
+      proc.on('error', (err) => {
+        reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+      });
+    });
+  }
+
+  const args = [
+    '-i', inputFilename,
+    '-y',
+    '-vn',
+    '-acodec', 'pcm_s16le',
+    '-ar', '48000',
+    '-ac', '1',
+    outputFilename
+  ];
 
   return new Promise((resolve, reject) => {
-    ffmpeg(normalizedInput)
-      .outputOptions([
-        '-vn',
-        '-acodec', 'pcm_s16le',
-        '-ar', '48000',
-        '-ac', '1',
-      ])
-      .output(normalizedOutput)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err))
-      .run();
+    const proc = spawn('ffmpeg', args, {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stderr = '';
+    proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve(true); // Audio was extracted
+      } else {
+        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+    });
   });
 }
 
 /**
  * Transcode WAV to AAC m4a
  */
-function transcodeToAac(inputPath: string, outputPath: string): Promise<void> {
-  // Normalize paths for FFmpeg on Windows (use forward slashes)
-  const normalizedInput = inputPath.replace(/\\/g, '/');
-  const normalizedOutput = outputPath.replace(/\\/g, '/');
+async function transcodeToAac(inputPath: string, outputPath: string): Promise<void> {
+  // Use spawn with cwd and relative filenames to avoid Windows path issues
+  const { dirname, basename } = await import('path');
+
+  const workDir = dirname(inputPath);
+  const inputFilename = basename(inputPath);
+  const outputFilename = basename(outputPath);
+
+  const args = [
+    '-i', inputFilename,
+    '-y',
+    '-c:a', 'aac',
+    '-b:a', '192k',
+    '-ar', '48000',
+    outputFilename
+  ];
 
   return new Promise((resolve, reject) => {
-    ffmpeg(normalizedInput)
-      .outputOptions([
-        '-c:a', 'aac',
-        '-b:a', '192k',
-        '-ar', '48000',
-      ])
-      .output(normalizedOutput)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err))
-      .run();
+    const proc = spawn('ffmpeg', args, {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stderr = '';
+    proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+    });
   });
 }
 
@@ -146,15 +260,37 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
 
     // Step 2: Extract audio as 48kHz WAV (10-15%)
     await publishJobProgress(jobId, 12, 'Extracting audio...', pubExtras);
-    await extractAudio48k(videoPath, rawAudioPath);
+    const hasRealAudio = await extractAudio48k(videoPath, rawAudioPath);
 
     // Probe actual video duration so the audio item gets the correct endMs
-    // Normalize path for FFmpeg on Windows
-    const normalizedVideoPath = videoPath.replace(/\\/g, '/');
+    // Use spawn with cwd to avoid Windows path issues with colons
+    const { basename } = await import('path');
+    const inputFilename = basename(videoPath);
     const durationMs: number = await new Promise((res, rej) => {
-      ffmpeg.ffprobe(normalizedVideoPath, (err, meta) => {
-        if (err) return rej(err);
-        res(Math.round((meta.format.duration || 0) * 1000));
+      const proc = spawn('ffprobe', [
+        '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        inputFilename
+      ], {
+        cwd: workDir,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      let stdout = '';
+      proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          const duration = parseFloat(stdout.trim()) || 0;
+          res(Math.round(duration * 1000));
+        } else {
+          rej(new Error(`ffprobe exited with code ${code}`));
+        }
+      });
+
+      proc.on('error', (err) => {
+        rej(new Error(`Failed to spawn ffprobe: ${err.message}`));
       });
     });
 
@@ -166,10 +302,16 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
 
     await publishJobProgress(jobId, 15, 'Audio extracted', pubExtras);
 
-    // Step 3: Run Python enhancement pipeline (15-75%) - or skip if disabled
-    if (config.enhance.disabled) {
-      logger.info({ projectId }, 'Audio enhancement disabled via DISABLE_AUDIO_ENHANCEMENT, skipping');
-      await publishJobProgress(jobId, 75, 'Enhancement skipped (disabled)', pubExtras);
+    // Step 3: Run Python enhancement pipeline (15-75%) - or skip if disabled or no audio
+    const skipEnhancement = config.enhance.disabled || !hasRealAudio;
+    if (skipEnhancement) {
+      if (!hasRealAudio) {
+        logger.info({ projectId }, 'Video has no audio stream, skipping enhancement');
+        await publishJobProgress(jobId, 75, 'No audio to enhance', pubExtras);
+      } else {
+        logger.info({ projectId }, 'Audio enhancement disabled via DISABLE_AUDIO_ENHANCEMENT, skipping');
+        await publishJobProgress(jobId, 75, 'Enhancement skipped (disabled)', pubExtras);
+      }
     } else {
       await runEnhancementScript(rawAudioPath, enhancedWavPath, (percent, message) => {
         const mappedProgress = 15 + Math.round(percent * 0.6); // 15-75%
@@ -182,8 +324,8 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
     await publishJobProgress(jobId, 77, 'Transcoding original to AAC...', pubExtras);
     await transcodeToAac(rawAudioPath, originalM4aPath);
     await publishJobProgress(jobId, 80, 'Transcoding enhanced to AAC...', pubExtras);
-    // When enhancement is disabled, use raw audio as "enhanced"
-    const sourceForEnhanced = config.enhance.disabled ? rawAudioPath : enhancedWavPath;
+    // When enhancement is skipped, use raw audio as "enhanced"
+    const sourceForEnhanced = skipEnhancement ? rawAudioPath : enhancedWavPath;
     await transcodeToAac(sourceForEnhanced, enhancedM4aPath);
     await publishJobProgress(jobId, 85, 'Transcoding complete', pubExtras);
 
@@ -200,6 +342,16 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
     // Step 6: Update database (95-100%)
     await publishJobProgress(jobId, 97, 'Updating project...', pubExtras);
 
+    // Determine enhancement status
+    let enhancementStatus: string;
+    if (!hasRealAudio) {
+      enhancementStatus = 'no-audio';
+    } else if (config.enhance.disabled) {
+      enhancementStatus = 'skipped';
+    } else {
+      enhancementStatus = 'complete';
+    }
+
     await db.update(timelineItems)
       .set({
         endMs: durationMs > 0 ? durationMs : undefined,
@@ -207,10 +359,10 @@ export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
           src: enhancedKey,
           originalSrc: originalKey,
           enhancedSrc: enhancedKey,
-          isEnhanced: !config.enhance.disabled,
+          isEnhanced: !skipEnhancement,
           sourceVideoItemId: videoItemId,
           volume: 1,
-          enhancementStatus: config.enhance.disabled ? 'skipped' : 'complete',
+          enhancementStatus,
           enhancementProgress: 100,
         },
         updatedAt: new Date(),

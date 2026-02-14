@@ -129,12 +129,14 @@ interface AnimationSet {
 
 export const ANIMATION_REGISTRY: Record<AnimationType, AnimationSet> = {
   'none':           { in: none, active: none, out: none },
+  // Viral
   'elastic-pop':    { in: elasticPopIn, active: elasticPopActive, out: elasticPopOut },
   'bounce-up':      { in: bounceUpIn, active: bounceUpActive, out: bounceUpOut },
   'shake':          { in: shakeIn, active: shakeActive, out: shakeOut },
   'color-wipe':     { in: colorWipeIn, active: colorWipeActive, out: colorWipeOut },
   '3d-flip':        { in: flip3dIn, active: none, out: flip3dOut },
   'punch':          { in: punchIn, active: none, out: punchOut },
+  // Cinematic
   'fade-rise':      { in: fadeRiseIn, active: none, out: fadeRiseOut },
   'typewriter':     { in: typewriterIn, active: typewriterActive, out: typewriterOut },
   'smooth-slide':   { in: smoothSlideIn, active: none, out: smoothSlideOut },

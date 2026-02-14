@@ -31,7 +31,12 @@ import {
   PiPSettings,
   SplitSettings,
   PIP_SIZE_MAP,
+  CaptionPosition,
+  CaptionEffects,
+  DEFAULT_CAPTION_POSITION,
+  migrateTextShadow,
 } from '../store/types';
+import { effectsToCss } from '@/lib/effects-utils';
 import { DynamicVisualLoader } from './DynamicVisualLoader';
 
 // Calculate video transform for crop/pan
@@ -115,6 +120,76 @@ function buildPiPStyle(pip: PiPSettings): React.CSSProperties {
     opacity: pip.opacity,
     zIndex: 10,
   };
+}
+
+// Helper to resolve position (handles both legacy string and new CaptionPosition object)
+function resolvePosition(position: CaptionPosition | 'top' | 'center' | 'bottom'): CaptionPosition {
+  if (typeof position === 'object' && 'anchor' in position) {
+    return position;
+  }
+  // Legacy string format
+  return {
+    ...DEFAULT_CAPTION_POSITION,
+    anchor: position as 'top' | 'center' | 'bottom',
+  };
+}
+
+// Calculate position styles for caption rendering
+function calculatePositionStyles(
+  position: CaptionPosition,
+  lineHeight: number
+): React.CSSProperties {
+  const { anchor, offsetX, offsetY, rotation, textAlign } = position;
+
+  // Base position from anchor
+  const baseStyles: React.CSSProperties = {
+    position: 'absolute',
+    left: `${50 + offsetX}%`,
+    width: '90%',
+    maxWidth: '90%',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    lineHeight,
+    textAlign,
+  };
+
+  // Build transform
+  const transforms: string[] = ['translateX(-50%)'];
+
+  switch (anchor) {
+    case 'top':
+      baseStyles.top = `${10 + offsetY}%`;
+      break;
+    case 'center':
+      baseStyles.top = `${50 + offsetY}%`;
+      transforms[0] = 'translate(-50%, -50%)';
+      break;
+    case 'bottom':
+      baseStyles.bottom = `${15 - offsetY}%`;
+      break;
+  }
+
+  if (rotation !== 0) {
+    transforms.push(`rotate(${rotation}deg)`);
+  }
+
+  baseStyles.transform = transforms.join(' ');
+
+  // Justify content based on text alignment
+  switch (textAlign) {
+    case 'left':
+      baseStyles.justifyContent = 'flex-start';
+      break;
+    case 'right':
+      baseStyles.justifyContent = 'flex-end';
+      break;
+    default:
+      baseStyles.justifyContent = 'center';
+      break;
+  }
+
+  return baseStyles;
 }
 
 // Helper to build split layout styles
@@ -488,22 +563,26 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     ? style.animation
     : migrateAnimation(style.animation as string);
 
-  // Position based on style
-  const offsetY = style.offsetY || 0;
-  const positionStyles: React.CSSProperties = {
-    position: 'absolute',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: '90%',
-    textAlign: style.textAlign || 'center',
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: '8px',
-    ...(style.position === 'top' && { top: `${10 + offsetY}%` }),
-    ...(style.position === 'center' && { top: `${50 + offsetY}%`, transform: 'translate(-50%, -50%)' }),
-    ...(style.position === 'bottom' && { bottom: `${15 - offsetY}%` }),
-  };
+  // Position based on style - use new position system
+  const position = resolvePosition(style.position);
+  const positionStyles = calculatePositionStyles(position, style.lineHeight ?? 1.4);
+
+  // Resolve effects (handles both legacy textShadow and new effects object)
+  const effects: CaptionEffects = style.effects ?? migrateTextShadow(style.textShadow);
+  const effectsStyles = effectsToCss(effects);
+
+  // Build common typography styles
+  const getTypographyStyles = (): React.CSSProperties => ({
+    opacity: style.opacity ?? 1,
+    letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : undefined,
+    textTransform: style.textTransform ?? 'none',
+    // Use paint-order to draw stroke behind fill for cleaner rendering
+    WebkitTextStroke: style.stroke
+      ? `${style.stroke.width}px ${style.stroke.color}`
+      : undefined,
+    paintOrder: style.stroke ? 'stroke fill' : undefined,
+    ...effectsStyles,
+  });
 
   // Word-by-word mode: only show active word
   if (style.displayMode === 'word-by-word') {
@@ -531,11 +610,11 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             fontWeight: overrides?.fontWeight || style.fontWeight,
             color: overrides?.color || style.activeColor,
             backgroundColor: overrides?.emphasisBg || style.activeBackgroundColor || 'transparent',
-            textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
             padding: '4px 12px',
             borderRadius: '8px',
             display: 'inline-block',
             whiteSpace: 'nowrap',
+            ...getTypographyStyles(),
             ...animStyle,
           }}
         >
@@ -585,13 +664,13 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
                 borderRadius: '8px',
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
-                background: hasAppeared
+                backgroundImage: hasAppeared
                   ? `linear-gradient(90deg, ${overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
-                  : style.color,
+                  : `linear-gradient(90deg, ${style.color}, ${style.color})`,
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
-                textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
+                ...getTypographyStyles(),
                 ...animStyle,
               }}
             >
@@ -637,11 +716,11 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
                   || (isActive
                     ? style.activeBackgroundColor || 'transparent'
                     : style.backgroundColor || 'transparent'),
-                textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
                 padding: '4px 12px',
                 borderRadius: '8px',
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
+                ...getTypographyStyles(),
                 ...animStyle,
               }}
             >
@@ -656,8 +735,8 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             fontSize: style.fontSize,
             fontWeight: style.fontWeight,
             color: style.color,
-            textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
             padding: '4px 12px',
+            ...getTypographyStyles(),
           }}
         >
           {data.text}

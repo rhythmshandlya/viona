@@ -150,7 +150,27 @@
       "Bash(npm run typecheck:*)",
       "Bash(pnpm --filter @reelify/worker dev:*)",
       "Bash(kill:*)",
-      "Bash(redis-cli:*)"
+      "Bash(redis-cli:*)",
+      "WebFetch(domain:www.captions.ai)",
+      "WebFetch(domain:captions.ai)",
+      "WebFetch(domain:help.descript.com)",
+      "WebFetch(domain:feedback.descript.com)",
+      "WebFetch(domain:www.capcut.com)",
+      "WebFetch(domain:help.captions.ai)",
+      "WebFetch(domain:www.kapwing.com)",
+      "WebFetch(domain:www.toolify.ai)",
+      "WebFetch(domain:help.mirage.app)",
+      "WebFetch(domain:help-classic.descript.com)",
+      "WebFetch(domain:www.eesel.ai)",
+      "WebFetch(domain:www.miracamp.com)",
+      "WebFetch(domain:www.descriptmastery.com)",
+      "WebFetch(domain:akistepinska.com)",
+      "Bash(npm run:*)",
+      "Bash(pnpm --filter @reelify/web exec tsc:*)",
+      "WebFetch(domain:www.submagic.co)",
+      "WebFetch(domain:sendshort.ai)",
+      "WebFetch(domain:edimakor.hitpaw.com)",
+      "WebFetch(domain:increditors.com)"
     ]
   }
 }

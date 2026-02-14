@@ -15,7 +15,9 @@ import {
   useCurrentTimeMs,
   useIsPlaying,
   useEditorActions,
+  useSafeZonePlatform,
 } from '../store/use-editor-store';
+import { SafeZoneOverlay } from '../components/SafeZoneOverlay';
 
 interface PlayerProps {
   className?: string;
@@ -31,6 +33,7 @@ export function Player({ className }: PlayerProps) {
   const fps = useFps();
   const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
+  const safeZonePlatform = useSafeZonePlatform();
 
   // Actions
   const { setCurrentTime, play, pause } = useEditorActions();
@@ -115,21 +118,24 @@ export function Player({ className }: PlayerProps) {
   const compositionHeight = project.videoSettings?.canvasHeight || 1920;
 
   return (
-    <RemotionPlayer
-      ref={playerRef}
-      component={Composition}
-      durationInFrames={durationInFrames}
-      compositionWidth={compositionWidth}
-      compositionHeight={compositionHeight}
-      fps={fps}
-      className={`w-full h-full ${className || ''}`}
-      style={{
-        width: '100%',
-        height: '100%',
-      }}
-      controls={false}
-      loop={false}
-      clickToPlay={false}
-    />
+    <div className={`relative w-full h-full ${className || ''}`}>
+      <RemotionPlayer
+        ref={playerRef}
+        component={Composition}
+        durationInFrames={durationInFrames}
+        compositionWidth={compositionWidth}
+        compositionHeight={compositionHeight}
+        fps={fps}
+        className="w-full h-full"
+        style={{
+          width: '100%',
+          height: '100%',
+        }}
+        controls={false}
+        loop={false}
+        clickToPlay={false}
+      />
+      <SafeZoneOverlay platform={safeZonePlatform} />
+    </div>
   );
 }

@@ -9,6 +9,195 @@ export interface SubtitleWord {
   endMs: number;
 }
 
+export interface StrokeStyle {
+  width: number;
+  color: string;
+}
+
+// Effects types for Phase 3
+export interface ShadowEffect {
+  offsetX: number;
+  offsetY: number;
+  blur: number;
+  color: string;
+  opacity: number;
+}
+
+export interface GlowEffect {
+  enabled: boolean;
+  color: string;
+  intensity: number;
+  size: number;
+}
+
+export interface CaptionEffects {
+  shadow: ShadowEffect | null;
+  shadowSecondary: ShadowEffect | null;
+  glow: GlowEffect | null;
+}
+
+// Effects helper functions
+function hexToRgb(hex: string): string {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  if (!result) return '0, 0, 0';
+  return `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}`;
+}
+
+function shadowToCss(shadow: ShadowEffect): string {
+  const { offsetX, offsetY, blur, color, opacity } = shadow;
+  return `${offsetX}px ${offsetY}px ${blur}px rgba(${hexToRgb(color)}, ${opacity})`;
+}
+
+function effectsToCss(effects: CaptionEffects | undefined): React.CSSProperties {
+  if (!effects) {
+    return {};
+  }
+
+  const shadows: string[] = [];
+
+  if (effects.shadow) {
+    shadows.push(shadowToCss(effects.shadow));
+  }
+
+  if (effects.shadowSecondary) {
+    shadows.push(shadowToCss(effects.shadowSecondary));
+  }
+
+  if (effects.glow?.enabled) {
+    const { color, intensity, size } = effects.glow;
+    const rgb = hexToRgb(color);
+    shadows.push(`0 0 ${Math.round(size * 0.3)}px rgba(${rgb}, ${intensity})`);
+    shadows.push(`0 0 ${Math.round(size * 0.6)}px rgba(${rgb}, ${intensity * 0.7})`);
+    shadows.push(`0 0 ${size}px rgba(${rgb}, ${intensity * 0.4})`);
+  }
+
+  return {
+    textShadow: shadows.length > 0 ? shadows.join(', ') : 'none',
+  };
+}
+
+function migrateTextShadow(legacy: string | undefined): CaptionEffects {
+  if (!legacy) {
+    return { shadow: null, shadowSecondary: null, glow: null };
+  }
+
+  const match = legacy.match(
+    /(-?\d+)px\s+(-?\d+)px\s+(\d+)px\s+rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/
+  );
+
+  if (!match) {
+    return {
+      shadow: { offsetX: 2, offsetY: 2, blur: 4, color: '#000000', opacity: 0.8 },
+      shadowSecondary: null,
+      glow: null,
+    };
+  }
+
+  const [, x, y, blur, r, g, b, a] = match;
+  const color = `#${parseInt(r).toString(16).padStart(2, '0')}${parseInt(g).toString(16).padStart(2, '0')}${parseInt(b).toString(16).padStart(2, '0')}`;
+
+  return {
+    shadow: {
+      offsetX: parseInt(x),
+      offsetY: parseInt(y),
+      blur: parseInt(blur),
+      color,
+      opacity: a ? parseFloat(a) : 1,
+    },
+    shadowSecondary: null,
+    glow: null,
+  };
+}
+
+// V2 Position System
+export interface SubtitlePosition {
+  anchor: 'top' | 'center' | 'bottom';
+  offsetX: number;
+  offsetY: number;
+  rotation: number;
+  textAlign: 'left' | 'center' | 'right';
+}
+
+const DEFAULT_POSITION: SubtitlePosition = {
+  anchor: 'bottom',
+  offsetX: 0,
+  offsetY: 0,
+  rotation: 0,
+  textAlign: 'center',
+};
+
+// Resolve position (handles both legacy string and new SubtitlePosition object)
+function resolvePosition(position?: SubtitlePosition | 'top' | 'center' | 'bottom'): SubtitlePosition {
+  if (!position) {
+    return DEFAULT_POSITION;
+  }
+  if (typeof position === 'object' && 'anchor' in position) {
+    return position;
+  }
+  // Legacy string format
+  return {
+    ...DEFAULT_POSITION,
+    anchor: position,
+  };
+}
+
+// Calculate position styles for caption rendering
+function calculatePositionStyles(
+  position: SubtitlePosition,
+  lineHeight: number
+): React.CSSProperties {
+  const { anchor, offsetX, offsetY, rotation, textAlign } = position;
+
+  // Base position from anchor
+  const baseStyles: React.CSSProperties = {
+    position: 'absolute',
+    left: `${50 + offsetX}%`,
+    maxWidth: '80%',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    lineHeight,
+    textAlign,
+  };
+
+  // Build transform
+  const transforms: string[] = ['translateX(-50%)'];
+
+  switch (anchor) {
+    case 'top':
+      baseStyles.top = `${10 + offsetY}%`;
+      break;
+    case 'center':
+      baseStyles.top = `${50 + offsetY}%`;
+      transforms[0] = 'translate(-50%, -50%)';
+      break;
+    case 'bottom':
+      baseStyles.bottom = `${15 - offsetY}%`;
+      break;
+  }
+
+  if (rotation !== 0) {
+    transforms.push(`rotate(${rotation}deg)`);
+  }
+
+  baseStyles.transform = transforms.join(' ');
+
+  // Justify content based on text alignment
+  switch (textAlign) {
+    case 'left':
+      baseStyles.justifyContent = 'flex-start';
+      break;
+    case 'right':
+      baseStyles.justifyContent = 'flex-end';
+      break;
+    default:
+      baseStyles.justifyContent = 'center';
+      break;
+  }
+
+  return baseStyles;
+}
+
 export interface SubtitleStyle {
   fontFamily?: string;
   fontSize?: number;
@@ -17,9 +206,17 @@ export interface SubtitleStyle {
   activeColor?: string;
   backgroundColor?: string;
   activeBackgroundColor?: string;
-  position?: 'top' | 'center' | 'bottom';
+  // Position - V2: SubtitlePosition object, V1: string (migrated at load)
+  position?: SubtitlePosition | 'top' | 'center' | 'bottom';
   animation?: string | AnimationConfig;
-  textShadow?: string;
+  textShadow?: string;  // @deprecated - use effects instead
+  effects?: CaptionEffects;  // V3: Full effects system
+  // Phase 1 typography properties
+  opacity?: number;
+  lineHeight?: number;
+  letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase';
+  stroke?: StrokeStyle | null;
 }
 
 export interface AnimatedSubtitleProps {
@@ -39,6 +236,12 @@ const defaultStyle: SubtitleStyle = {
   activeBackgroundColor: 'transparent',
   position: 'bottom',
   animation: 'highlight',
+  // Phase 1 typography defaults
+  opacity: 1,
+  lineHeight: 1.4,
+  letterSpacing: 0,
+  textTransform: 'none',
+  stroke: null,
 };
 
 export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
@@ -52,27 +255,12 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
 
   const currentTimeMs = (frame / fps) * 1000;
 
-  // Position styles
-  const positionStyles: React.CSSProperties = {
-    position: 'absolute',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    ...(style.position === 'top' && { top: '10%' }),
-    ...(style.position === 'center' && { top: '50%', transform: 'translate(-50%, -50%)' }),
-    ...(style.position === 'bottom' && { bottom: '15%' }),
-  };
+  // Position styles - use new position system
+  const position = resolvePosition(style.position);
+  const positionStyles = calculatePositionStyles(position, style.lineHeight ?? 1.4);
 
   return (
-    <div
-      style={{
-        ...positionStyles,
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        maxWidth: '80%',
-        gap: '8px',
-      }}
-    >
+    <div style={positionStyles}>
       {words.map((word, index) => (
         <Word
           key={index}
@@ -121,7 +309,24 @@ const Word: React.FC<WordProps> = ({
     | { color?: string; fontWeight?: number; scale?: number; emphasisBg?: string }
     | undefined;
 
-  // 5. Build final CSS
+  // 5. Resolve effects (handles both legacy textShadow and new effects object)
+  const effects: CaptionEffects = style.effects ?? migrateTextShadow(style.textShadow);
+  const effectsStyles = effectsToCss(effects);
+
+  // 6. Typography styles helper
+  const getTypographyStyles = (): React.CSSProperties => ({
+    opacity: style.opacity ?? 1,
+    letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : undefined,
+    textTransform: style.textTransform ?? 'none',
+    // Use paint-order to draw stroke behind fill for cleaner rendering
+    WebkitTextStroke: style.stroke
+      ? `${style.stroke.width}px ${style.stroke.color}`
+      : undefined,
+    paintOrder: style.stroke ? 'stroke fill' : undefined,
+    ...effectsStyles,
+  });
+
+  // 7. Build final CSS
   const wordCss: React.CSSProperties = {
     fontFamily: style.fontFamily,
     fontSize: (overrides?.scale || 1) * (style.fontSize || 48),
@@ -133,17 +338,17 @@ const Word: React.FC<WordProps> = ({
       || (isActive ? style.activeBackgroundColor : style.backgroundColor),
     padding: '4px 8px',
     borderRadius: '8px',
-    textShadow: style.textShadow || '2px 2px 4px rgba(0, 0, 0, 0.8)',
     display: 'inline-block',
+    ...getTypographyStyles(),
     ...animStyle,
   };
 
-  // 6. Karaoke gradient effect for 'karaoke' legacy or 'color-wipe' animation
+  // 8. Karaoke gradient effect for 'karaoke' legacy or 'color-wipe' animation
   if (style.animation === 'karaoke' && hasAppeared) {
     const fillPercent = isActive
       ? ((currentTimeMs - word.startMs) / (word.endMs - word.startMs)) * 100
       : (hasAppeared ? 100 : 0);
-    wordCss.background = `linear-gradient(90deg, ${style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`;
+    wordCss.backgroundImage = `linear-gradient(90deg, ${style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`;
     wordCss.WebkitBackgroundClip = 'text';
     wordCss.WebkitTextFillColor = 'transparent';
     wordCss.backgroundClip = 'text';

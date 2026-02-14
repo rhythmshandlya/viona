@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
+import { StylePanel } from './panels/StylePanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { StyleSelectionModal } from './components/StyleSelectionModal';
 import { JobLogsPanel } from './components/JobLogsPanel';
@@ -184,20 +185,8 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Auto-open properties when item is selected; restore transcript or close on deselect
-  useEffect(() => {
-    if (selectedIds.length > 0) {
-      setPanelOpen(true);
-      setActiveTab('properties');
-    } else {
-      // Deselected — restore transcript if user had it open, otherwise close
-      if (userRequestedTabRef.current === 'transcript') {
-        setActiveTab('transcript');
-      } else {
-        setPanelOpen(false);
-      }
-    }
-  }, [selectedIds]);
+  // Note: Sidebar no longer auto-opens on selection to allow easy multi-select
+  // Users can open Style panel manually via icon rail after selecting captions
 
   // Handle timeline resize
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -471,93 +460,123 @@ export function Editor({ projectId }: EditorProps) {
 
       {/* Main content area - unified layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Icon Rail + Settings Panel */}
-        {leftSidebarOpen && (
-          <div className="flex flex-shrink-0 border-r border-[var(--editor-border-subtle)]">
-            {/* Icon Rail */}
-            <div className="w-16 flex flex-col items-center py-2 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)]">
-              <button
-                onClick={() => setLeftSidebarTab('captions')}
-                className={`icon-rail-item w-14 ${leftSidebarTab === 'captions' ? 'active' : ''}`}
-                title="Captions"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 6h16M4 12h10M4 18h14" />
-                </svg>
-                <span className="text-[10px] mt-1">Captions</span>
-              </button>
-              <button
-                onClick={() => setLeftSidebarTab('style')}
-                className={`icon-rail-item w-14 ${leftSidebarTab === 'style' ? 'active' : ''}`}
-                title="Style"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-                <span className="text-[10px] mt-1">Style</span>
-              </button>
-              <button
-                onClick={() => setLeftSidebarTab('layout')}
-                className={`icon-rail-item w-14 ${leftSidebarTab === 'layout' ? 'active' : ''}`}
-                title="Layout"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="7" />
-                  <rect x="14" y="3" width="7" height="7" />
-                  <rect x="3" y="14" width="7" height="7" />
-                  <rect x="14" y="14" width="7" height="7" />
-                </svg>
-                <span className="text-[10px] mt-1">Layout</span>
-              </button>
-            </div>
+        {/* Icon Rail - always visible */}
+        <div className="w-14 flex flex-col items-center py-2 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] flex-shrink-0">
+          <button
+            onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'captions') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('captions');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'captions' ? 'active' : ''}`}
+            title="Captions"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 6h16M4 12h10M4 18h14" />
+            </svg>
+            <span className="text-[10px] mt-1">Captions</span>
+          </button>
+          <button
+            onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'style') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('style');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'style' ? 'active' : ''}`}
+            title="Style"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            <span className="text-[10px] mt-1">Style</span>
+          </button>
+          <button
+            onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'layout') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('layout');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'layout' ? 'active' : ''}`}
+            title="Layout"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
+            <span className="text-[10px] mt-1">Layout</span>
+          </button>
+        </div>
 
-            {/* Settings Panel */}
-            <div className="w-60 bg-[var(--editor-bg-surface)] overflow-y-auto">
-              <div className="p-4">
-                <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide mb-3">
-                  {leftSidebarTab === 'captions' && 'Caption Settings'}
-                  {leftSidebarTab === 'style' && 'Style Settings'}
-                  {leftSidebarTab === 'layout' && 'Layout Settings'}
-                </h3>
+        {/* Main content with relative positioning for overlay */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+          {/* Settings Panel Overlay */}
+          {leftSidebarOpen && (
+            <>
+              {/* Backdrop */}
+              <div
+                className="absolute inset-0 bg-black/20 z-40"
+                onClick={() => setLeftSidebarOpen(false)}
+              />
+              {/* Panel */}
+              <div className="absolute left-0 top-0 bottom-0 w-[488px] z-50 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] shadow-xl overflow-y-auto">
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
+                      {leftSidebarTab === 'captions' && 'Caption Settings'}
+                      {leftSidebarTab === 'style' && 'Style Settings'}
+                      {leftSidebarTab === 'layout' && 'Layout Settings'}
+                    </h3>
+                    <button
+                      onClick={() => setLeftSidebarOpen(false)}
+                      className="p-1 rounded hover:bg-[var(--editor-bg-elevated)] text-[var(--editor-text-muted)]"
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
 
-                {/* Placeholder content - will connect to existing panels */}
-                {leftSidebarTab === 'captions' && (
-                  <RightPanel
-                    isOpen={true}
-                    activeTab="transcript"
-                    onTabChange={handleTabChange}
-                    onClose={handleClosePanel}
-                    layout="stacked"
-                    embedded={true}
-                  />
-                )}
-                {leftSidebarTab === 'style' && (
-                  <RightPanel
-                    isOpen={true}
-                    activeTab="properties"
-                    onTabChange={handleTabChange}
-                    onClose={handleClosePanel}
-                    layout="stacked"
-                    embedded={true}
-                  />
-                )}
-                {leftSidebarTab === 'layout' && (
-                  <RightPanel
-                    isOpen={true}
-                    activeTab="layout"
-                    onTabChange={handleTabChange}
-                    onClose={handleClosePanel}
-                    layout="stacked"
-                    embedded={true}
-                  />
-                )}
+                  {leftSidebarTab === 'captions' && (
+                    <RightPanel
+                      isOpen={true}
+                      activeTab="transcript"
+                      onTabChange={handleTabChange}
+                      onClose={handleClosePanel}
+                      layout="stacked"
+                      embedded={true}
+                    />
+                  )}
+                  {leftSidebarTab === 'style' && (
+                    <div className="-mx-4 -mt-3">
+                      <StylePanel />
+                    </div>
+                  )}
+                  {leftSidebarTab === 'layout' && (
+                    <RightPanel
+                      isOpen={true}
+                      activeTab="layout"
+                      onTabChange={handleTabChange}
+                      onClose={handleClosePanel}
+                      layout="stacked"
+                      embedded={true}
+                    />
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            </>
+          )}
 
-        {/* Center - Preview + Timeline */}
-        <div ref={mainContentRef} className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Video Preview Area */}
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
             {/* Zoom control */}

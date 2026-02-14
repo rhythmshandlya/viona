@@ -2,7 +2,8 @@ import type { AnimationConfig, AnimationPhase, ResolvedAnimation } from './types
 import { getAnimation } from './animations';
 import { getEasing } from './easing';
 
-const TRANSITION_DURATION_MS = 200;
+const IN_DURATION_MS = 150;
+const OUT_DURATION_MS = 100;
 
 export interface WordTimingContext {
   elapsedMs: number;
@@ -27,9 +28,8 @@ export function resolveAnimation(
   }
 
   if (ctx.isActive) {
-    const inDuration = Math.min(TRANSITION_DURATION_MS, ctx.wordDurationMs * 0.3);
-    const outDuration = Math.min(TRANSITION_DURATION_MS, ctx.wordDurationMs * 0.2);
-    const activeDuration = ctx.wordDurationMs - inDuration - outDuration;
+    const inDuration = Math.min(IN_DURATION_MS, ctx.wordDurationMs * 0.4);
+    const outDuration = Math.min(OUT_DURATION_MS, ctx.wordDurationMs * 0.3);
 
     let phase: AnimationPhase;
     let progress: number;
@@ -37,12 +37,14 @@ export function resolveAnimation(
     if (ctx.elapsedMs < inDuration) {
       phase = 'in';
       progress = easing(ctx.elapsedMs / inDuration);
-    } else if (ctx.elapsedMs < inDuration + activeDuration) {
+    } else if (ctx.elapsedMs < ctx.wordDurationMs - outDuration) {
       phase = 'active';
+      const activeDuration = ctx.wordDurationMs - inDuration - outDuration;
       progress = (ctx.elapsedMs - inDuration) / Math.max(activeDuration, 1);
     } else {
       phase = 'out';
-      progress = easing((ctx.elapsedMs - inDuration - activeDuration) / Math.max(outDuration, 1));
+      const outElapsed = ctx.elapsedMs - (ctx.wordDurationMs - outDuration);
+      progress = easing(outElapsed / outDuration);
     }
 
     const animPhase = phase as 'in' | 'active' | 'out';

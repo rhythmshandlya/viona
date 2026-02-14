@@ -2,8 +2,10 @@ import type { CSSProperties } from 'react';
 
 export type AnimationType =
   | 'none'
+  // Viral
   | 'elastic-pop' | 'bounce-up' | 'shake' | 'color-wipe'
   | '3d-flip' | 'punch'
+  // Cinematic
   | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
   | 'underline-wipe';
 

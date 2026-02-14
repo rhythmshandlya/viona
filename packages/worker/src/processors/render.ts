@@ -322,18 +322,44 @@ function convertToSubtitles(items: any[]): SubtitleItem[] {
 }
 
 async function copyVideo(inputPath: string, outputPath: string): Promise<void> {
-  const ffmpeg = (await import('fluent-ffmpeg')).default;
+  const { spawn } = await import('child_process');
+  const { dirname, basename } = await import('path');
 
-  // Use native paths - FFmpeg handles them correctly on Windows
-  logger.info({ inputPath, outputPath }, 'Copying video with FFmpeg');
+  // Use spawn with cwd and relative filenames to avoid Windows path issues
+  // (FFmpeg interprets colons in paths like C:/... as stream specifiers)
+  const workDir = dirname(inputPath);
+  const inputFilename = basename(inputPath);
+  const outputFilename = basename(outputPath);
+
+  logger.info({ inputPath, outputPath, workDir }, 'Copying video with FFmpeg');
+
+  const args = [
+    '-i', inputFilename,
+    '-y',
+    '-c', 'copy',
+    outputFilename
+  ];
 
   return new Promise((resolve, reject) => {
-    ffmpeg(inputPath)
-      .outputOptions(['-c', 'copy'])
-      .output(outputPath)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err))
-      .run();
+    const proc = spawn('ffmpeg', args, {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stderr = '';
+    proc.stderr?.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+    });
   });
 }
 
@@ -413,7 +439,6 @@ async function renderSubtitlesWithFFmpeg(
   items: any[],
   project: any
 ): Promise<void> {
-  const ffmpeg = (await import('fluent-ffmpeg')).default;
   const { access, constants } = await import('fs/promises');
 
   // Filter subtitle items
@@ -431,22 +456,8 @@ async function renderSubtitlesWithFFmpeg(
   }
 
   if (subtitles.length === 0) {
-    // No subtitles, just copy the video using native paths
-    return new Promise((resolve, reject) => {
-      ffmpeg(inputPath)
-        .outputOptions(['-c', 'copy'])
-        .output(outputPath)
-        .on('start', (cmd) => logger.info({ cmd }, 'FFmpeg copy started'))
-        .on('end', () => {
-          logger.info({ outputPath }, 'FFmpeg copy completed');
-          resolve();
-        })
-        .on('error', (err, stdout, stderr) => {
-          logger.error({ err, stdout, stderr }, 'FFmpeg copy failed');
-          reject(err);
-        })
-        .run();
-    });
+    // No subtitles, just copy the video using spawn with cwd
+    return copyVideo(inputPath, outputPath);
   }
 
   // Create ASS subtitle file for FFmpeg
@@ -1756,9 +1767,18 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   const baseFontSize = firstStyle.fontSize || 56;
   const fontSize = Math.round(baseFontSize * (height / 1920));
 
-  const color = hexToASSColor(firstStyle.color || '#ffffff');
-  const activeColor = hexToASSColor(firstStyle.activeColor || '#ffff00');
-  const outlineColor = '&H00000000'; // Black outline
+  // Apply opacity to colors if specified
+  const opacity = firstStyle.opacity ?? 1;
+  const applyOpacity = (assColor: string, op: number): string => {
+    if (op >= 1) return assColor;
+    // ASS format: &HAABBGGRR - modify the alpha (AA) based on opacity
+    const alpha = Math.round((1 - op) * 255);
+    return assColor.replace(/^&H../, `&H${alpha.toString(16).padStart(2, '0').toUpperCase()}`);
+  };
+
+  const color = applyOpacity(hexToASSColor(firstStyle.color || '#ffffff'), opacity);
+  const activeColor = applyOpacity(hexToASSColor(firstStyle.activeColor || '#ffff00'), opacity);
+  const outlineColor = '&H00000000'; // Black outline (will be overridden if stroke is set)
 
   // Handle backgroundColor - convert to ASS BackColour with proper alpha
   let backColor = '&H80000000'; // Default semi-transparent black
@@ -1779,9 +1799,33 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   const displayMode = firstStyle.displayMode || 'phrase';
   const wordsPerPhrase = firstStyle.wordsPerPhrase || 5;
 
-  const captionPosition = firstStyle.position || 'bottom';
-  const alignment = getASSAlignment(captionPosition);
-  const offsetY = firstStyle.offsetY || 0;
+  // Parse V2 position system (object or legacy string)
+  let captionPosition: string;
+  let offsetX = 0;
+  let offsetY = 0;
+  let rotation = 0;
+  let textAlign: string = 'center';
+
+  if (typeof firstStyle.position === 'object' && firstStyle.position !== null) {
+    // V2 position object
+    captionPosition = firstStyle.position.anchor || 'bottom';
+    offsetX = firstStyle.position.offsetX || 0;
+    offsetY = firstStyle.position.offsetY || 0;
+    rotation = firstStyle.position.rotation || 0;
+    textAlign = firstStyle.position.textAlign || 'center';
+  } else {
+    // Legacy string position
+    captionPosition = firstStyle.position || 'bottom';
+  }
+
+  // Map textAlign to ASS alignment
+  // ASS alignments: 1=bottom-left, 2=bottom-center, 3=bottom-right
+  //                 4=middle-left, 5=middle-center, 6=middle-right
+  //                 7=top-left, 8=top-center, 9=top-right
+  let alignment: number;
+  const alignCol = textAlign === 'left' ? 1 : textAlign === 'right' ? 3 : 2;
+  const alignRow = captionPosition === 'top' ? 6 : (captionPosition === 'center' || captionPosition === 'middle') ? 3 : 0;
+  alignment = alignRow + alignCol;
 
   // Get layout info
   const mode = layoutSettings?.mode || 'pip';
@@ -1849,16 +1893,48 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
 
   marginV = Math.max(20, Math.min(marginV, height / 2)); // Clamp to reasonable range
 
-  // Parse textShadow for outline/shadow settings
-  // Frontend format: "2px 2px 4px rgba(0,0,0,0.8)"
+  // Calculate horizontal margins based on offsetX
+  // offsetX is a percentage (-50 to +50), convert to pixels
+  const offsetXPixels = Math.round(offsetX * width / 100);
+  let marginL = 10 + Math.max(0, offsetXPixels);
+  let marginR = 10 + Math.max(0, -offsetXPixels);
+
+  // Parse effects for outline/shadow settings
+  // V3: Use effects object (shadow, shadowSecondary, glow)
+  // Fallback: Parse legacy textShadow string "2px 2px 4px rgba(0,0,0,0.8)"
   let outline = 3;
   let shadow = 2;
-  if (firstStyle.textShadow) {
+  let outlineColorParsed = outlineColor;
+
+  if (firstStyle.effects?.shadow) {
+    // V3 effects system
+    const shadowEffect = firstStyle.effects.shadow;
+    outline = Math.max(2, Math.round(shadowEffect.blur / 2));
+    shadow = Math.max(1, Math.abs(shadowEffect.offsetX));
+    outlineColorParsed = hexToASSColor(shadowEffect.color || '#000000');
+    logger.info({ shadowEffect, outline, shadow }, 'Using V3 effects system for shadow');
+  } else if (firstStyle.textShadow) {
+    // Legacy fallback
     const shadowMatch = firstStyle.textShadow.match(/(\d+)px\s+(\d+)px\s+(\d+)px/);
     if (shadowMatch) {
       outline = Math.max(2, parseInt(shadowMatch[3], 10) / 2);
       shadow = Math.max(1, parseInt(shadowMatch[1], 10));
     }
+  }
+
+  // Parse stroke for outline color and width
+  if (firstStyle.stroke && firstStyle.stroke.width > 0) {
+    outline = Math.max(outline, Math.round(firstStyle.stroke.width * (height / 1920)));
+    outlineColorParsed = hexToASSColor(firstStyle.stroke.color || '#000000');
+    logger.info({ stroke: firstStyle.stroke, outline }, 'Using stroke for outline');
+  }
+
+  // Handle glow effect - add to shadow
+  if (firstStyle.effects?.glow?.enabled) {
+    const glow = firstStyle.effects.glow;
+    // Glow adds extra blur/shadow
+    shadow = Math.max(shadow, Math.round(glow.size / 3));
+    logger.info({ glow, shadow }, 'Applied glow effect');
   }
 
   // Helper to apply text transform
@@ -1879,8 +1955,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${color},${activeColor},${outlineColor},${backColor},${bold},0,0,0,100,100,${letterSpacing},0,1,${outline},${shadow},${alignment},10,10,${marginV},1
-Style: Active,${fontFamily},${fontSize},${activeColor},${color},${outlineColor},${backColor},${bold},0,0,0,100,100,${letterSpacing},0,1,${outline},${shadow},${alignment},10,10,${marginV},1
+Style: Default,${fontFamily},${fontSize},${color},${activeColor},${outlineColorParsed},${backColor},${bold},0,0,0,100,100,${letterSpacing},${rotation},1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Active,${fontFamily},${fontSize},${activeColor},${color},${outlineColorParsed},${backColor},${bold},0,0,0,100,100,${letterSpacing},${rotation},1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -1976,11 +2052,20 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     fontFamily,
     fontSize,
     captionPosition,
+    textAlign,
+    offsetX,
+    offsetY,
+    rotation,
+    marginL,
+    marginR,
     marginV,
     mode,
     displayMode,
     textTransform,
     letterSpacing,
+    opacity,
+    outline,
+    shadow,
     effectiveHeight,
     subtitleCount: subtitles.length
   }, 'ASS subtitles generated with full styling and layout awareness');

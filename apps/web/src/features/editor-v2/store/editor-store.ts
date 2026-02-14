@@ -104,6 +104,10 @@ const initialState: EditorState = {
   // Scene selection for AI editing
   selectedSceneId: null,
   selectedTimeRange: null,
+
+  // Safe zone settings
+  safeZonePlatform: 'none',
+  showSafeZone: false,
 };
 
 /**
@@ -1639,6 +1643,22 @@ export const useEditorStore = create<EditorStore>()(
         if (range !== null) {
           state.selectedSceneId = null;
         }
+      });
+    },
+
+    // ========================================
+    // Safe Zone Actions
+    // ========================================
+
+    setSafeZonePlatform: (platform: string) => {
+      set((state) => {
+        state.safeZonePlatform = platform;
+      });
+    },
+
+    setShowSafeZone: (show: boolean) => {
+      set((state) => {
+        state.showSafeZone = show;
       });
     },
   }))

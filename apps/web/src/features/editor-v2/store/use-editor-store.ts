@@ -278,6 +278,18 @@ export function useSelectedTimeRange() {
 }
 
 // ============================================
+// Safe Zone Selectors
+// ============================================
+
+export function useSafeZonePlatform() {
+  return useEditorStore((state) => state.safeZonePlatform);
+}
+
+export function useShowSafeZone() {
+  return useEditorStore((state) => state.showSafeZone);
+}
+
+// ============================================
 // Action Hooks
 // ============================================
 
@@ -377,6 +389,10 @@ export function useEditorActions() {
       // Scene selection
       setSelectedScene: state.setSelectedScene,
       setSelectedTimeRange: state.setSelectedTimeRange,
+
+      // Safe zone
+      setSafeZonePlatform: state.setSafeZonePlatform,
+      setShowSafeZone: state.setShowSafeZone,
     }))
   );
 }

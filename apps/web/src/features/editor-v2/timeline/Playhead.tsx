@@ -77,7 +77,7 @@ export function Playhead({ rulerHeight = 24, className }: PlayheadProps) {
       style={{
         left: x,
         transform: 'translateX(-50%)',
-        zIndex: 50,
+        zIndex: 20,
       }}
     >
       {/* Playhead handle (draggable) */}
