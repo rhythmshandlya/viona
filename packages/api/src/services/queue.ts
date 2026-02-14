@@ -57,6 +57,7 @@ export interface RenderJobData {
       gap: number;
     };
   };
+  fullscreenSegments?: Array<{ startMs: number; endMs: number }>;
 }
 
 // Queue job creators

@@ -44,14 +44,20 @@ const PIP_SIZE_MAP: Record<string, number> = {
   custom: 25,
 };
 
+export interface FullscreenSegment {
+  startMs: number;
+  endMs: number;
+}
+
 export interface RenderJobData {
   projectId: string;
   jobId: string;
   layoutSettings?: LayoutSettings;
+  fullscreenSegments?: FullscreenSegment[];
 }
 
 export async function processRenderJob(job: Job<RenderJobData>) {
-  const { projectId, jobId, layoutSettings } = job.data;
+  const { projectId, jobId, layoutSettings, fullscreenSegments } = job.data;
   const workDir = join(tmpdir(), `reelify-render-${nanoid()}`);
 
   try {
@@ -230,6 +236,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         width: visualWidth,
         height: visualHeight,
         layoutSettings,
+        fullscreenSegments,
         onProgress: (progress) => {
           // Map compositing progress from 75% to 85%
           const jobProgress = 75 + Math.round(progress * 10);
@@ -1106,6 +1113,7 @@ interface RenderWithPiPLayoutOptions {
   width: number;
   height: number;
   layoutSettings?: LayoutSettings;
+  fullscreenSegments?: FullscreenSegment[];
   onProgress?: (progress: number) => void;
 }
 
@@ -1126,6 +1134,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     width: fullWidth,
     height: fullHeight,
     layoutSettings,
+    fullscreenSegments,
     onProgress,
   } = options;
 
@@ -1315,6 +1324,36 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       `[0:v]scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1[pip]`,
       `[bg][pip]overlay=${pipX}:${pipY}[outv]`
     ].join(';');
+  }
+
+  // Add fullscreen segment overlay if segments are defined
+  // During fullscreen segments, the source video covers the entire frame (hiding visuals)
+  const hasFullscreenSegments = fullscreenSegments && fullscreenSegments.length > 0;
+  if (hasFullscreenSegments) {
+    // Build FFmpeg enable expression: between(t,start1,end1)+between(t,start2,end2)+...
+    const enableExpr = fullscreenSegments
+      .map(seg => `between(t,${(seg.startMs / 1000).toFixed(3)},${(seg.endMs / 1000).toFixed(3)})`)
+      .join('+');
+
+    // Split source video so we can use it both in layout and fullscreen overlay
+    // Replace [0:v] references in filterComplex with [src_layout]
+    filterComplex = filterComplex.replace(/\[0:v\]/g, '[src_layout]');
+
+    // Prepend the split filter and fullscreen source scale
+    filterComplex = [
+      `[0:v]split=2[src_layout][src_fs]`,
+      `[src_fs]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[fs_src]`,
+      filterComplex,
+    ].join(';');
+
+    // Rename [outv] to [layout_out], then overlay fullscreen source on top
+    filterComplex = filterComplex.replace('[outv]', '[layout_out]');
+    filterComplex += `;[layout_out][fs_src]overlay=0:0:enable='${enableExpr}'[outv]`;
+
+    logger.info({
+      segmentCount: fullscreenSegments.length,
+      enableExpr,
+    }, 'Added fullscreen segment overlay to FFmpeg filter');
   }
 
   // Generate ASS subtitles if we have any - AFTER layout settings are parsed

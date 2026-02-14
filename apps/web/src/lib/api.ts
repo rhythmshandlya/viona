@@ -314,7 +314,7 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string, options?: { layoutSettings?: any }): Promise<ProcessProjectResponse> {
+  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> }): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
       body: JSON.stringify(options || {}),

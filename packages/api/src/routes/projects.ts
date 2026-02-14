@@ -458,7 +458,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { layoutSettings?: any } || {};
+    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -485,11 +485,12 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job with layout settings for exact preview match
+    // Queue the job with layout settings and fullscreen segments for exact preview match
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
       layoutSettings: body.layoutSettings,
+      fullscreenSegments: body.fullscreenSegments,
     });
 
     return { jobId: job.id };

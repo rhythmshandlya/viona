@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
-import { useLayoutSettings, useEditorActions } from '../store/use-editor-store';
+import { useLayoutSettings, useFullscreenSegments, useEditorActions } from '../store/use-editor-store';
 
 interface ExportModalProps {
   open: boolean;
@@ -35,6 +35,7 @@ export function ExportModal({
   hasOutputKey,
 }: ExportModalProps) {
   const layoutSettings = useLayoutSettings();
+  const fullscreenSegments = useFullscreenSegments();
   const { saveProject } = useEditorActions();
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
@@ -155,8 +156,11 @@ export function ExportModal({
       await saveProject();
 
       setStatusMessage('Starting export...');
-      // Pass layoutSettings to render API for exact preview match
-      const { jobId: newJobId } = await api.renderProject(projectId, { layoutSettings });
+      // Pass layoutSettings and fullscreenSegments to render API for exact preview match
+      const fsSegments = fullscreenSegments.length > 0
+        ? fullscreenSegments.map(s => ({ startMs: s.startMs, endMs: s.endMs }))
+        : undefined;
+      const { jobId: newJobId } = await api.renderProject(projectId, { layoutSettings, fullscreenSegments: fsSegments });
       setJobId(newJobId);
     } catch (err) {
       setExportState('error');
