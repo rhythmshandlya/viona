@@ -1,6 +1,8 @@
 import Redis from 'ioredis';
+import { eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import { db, jobs } from '../db/index.js';
 
 export const redis = new Redis(config.redis.url);
 const subscriber = new Redis(config.redis.url);
@@ -47,6 +49,18 @@ export async function publishJobProgress(
   message?: string,
   extras?: Record<string, unknown>,
 ) {
+  // Update progress in DB so frontend polling can see it
+  try {
+    await db.update(jobs)
+      .set({
+        progress,
+        ...(message ? { progressMessage: message } : {}),
+      })
+      .where(eq(jobs.id, jobId));
+  } catch (err) {
+    logger.warn({ jobId, progress, err }, 'Failed to update job progress in DB');
+  }
+
   await redis.publish(
     `job:${jobId}:progress`,
     JSON.stringify({ jobId, progress, message, ...extras })

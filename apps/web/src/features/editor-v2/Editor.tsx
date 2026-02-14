@@ -21,6 +21,7 @@ import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
 import { Timeline } from './timeline/Timeline';
+import { AssetsPanel } from './panels/AssetsPanel';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useJobWebSocket } from './hooks/use-job-websocket';
 import {
@@ -41,7 +42,7 @@ interface EditorProps {
 export function Editor({ projectId }: EditorProps) {
   // Layout state - simplified unified layout
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout'>('captions');
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout' | 'assets'>('captions');
 
   // Right panel state (settings/properties)
   const [panelOpen, setPanelOpen] = useState(false);
@@ -509,6 +510,18 @@ export function Editor({ projectId }: EditorProps) {
                 </svg>
                 <span className="text-[10px] mt-1">Layout</span>
               </button>
+              <button
+                onClick={() => setLeftSidebarTab('assets')}
+                className={`icon-rail-item w-14 ${leftSidebarTab === 'assets' ? 'active' : ''}`}
+                title="Assets"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+                <span className="text-[10px] mt-1">Assets</span>
+              </button>
             </div>
 
             {/* Settings Panel */}
@@ -518,6 +531,7 @@ export function Editor({ projectId }: EditorProps) {
                   {leftSidebarTab === 'captions' && 'Caption Settings'}
                   {leftSidebarTab === 'style' && 'Style Settings'}
                   {leftSidebarTab === 'layout' && 'Layout Settings'}
+                  {leftSidebarTab === 'assets' && 'Visual Assets'}
                 </h3>
 
                 {/* Placeholder content - will connect to existing panels */}
@@ -550,6 +564,9 @@ export function Editor({ projectId }: EditorProps) {
                     layout="stacked"
                     embedded={true}
                   />
+                )}
+                {leftSidebarTab === 'assets' && (
+                  <AssetsPanel />
                 )}
               </div>
             </div>

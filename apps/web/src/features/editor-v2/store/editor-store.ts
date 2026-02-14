@@ -104,6 +104,10 @@ const initialState: EditorState = {
   // Scene selection for AI editing
   selectedSceneId: null,
   selectedTimeRange: null,
+  selectedElement: null,
+
+  // Element picker mode
+  elementPickerEnabled: false,
 };
 
 /**
@@ -496,6 +500,11 @@ export const useEditorStore = create<EditorStore>()(
 
           state.items = mergedItems;
           state.itemIds = mergedItemIds;
+
+          // Update outputKey so stale exports aren't served after edits
+          if (state.project) {
+            state.project.outputKey = (apiProject as any).outputKey || null;
+          }
 
           // Don't reset playback position, selection, viewport, or history
         });
@@ -1639,6 +1648,18 @@ export const useEditorStore = create<EditorStore>()(
         if (range !== null) {
           state.selectedSceneId = null;
         }
+      });
+    },
+
+    setSelectedElement: (element: { name: string; type: string; sceneId: number; description?: string } | null) => {
+      set((state) => {
+        state.selectedElement = element;
+      });
+    },
+
+    setElementPickerEnabled: (enabled: boolean) => {
+      set((state) => {
+        state.elementPickerEnabled = enabled;
       });
     },
   }))
