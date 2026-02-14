@@ -5,24 +5,10 @@
 
 'use client';
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight } from 'lucide-react';
 import { api, ExtractedAsset, SceneInfo } from '@/lib/api';
 import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItems } from '../store/use-editor-store';
-=======
-import React, { useState, useEffect, useCallback } from 'react';
-import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight } from 'lucide-react';
-import { api, ExtractedAsset, SceneInfo } from '@/lib/api';
-import { useProjectId, useEditorActions, useSelectedElement } from '../store/use-editor-store';
->>>>>>> 92226f2 (Added asset)
-=======
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight } from 'lucide-react';
-import { api, ExtractedAsset, SceneInfo } from '@/lib/api';
-import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItems } from '../store/use-editor-store';
->>>>>>> 528ad56 (Added export fix)
 
 interface AssetsPanelProps {
   className?: string;
@@ -50,15 +36,7 @@ const AssetColor: Record<ExtractedAsset['type'], string> = {
 
 export function AssetsPanel({ className = '' }: AssetsPanelProps) {
   const [assets, setAssets] = useState<ExtractedAsset[]>([]);
-<<<<<<< HEAD
-<<<<<<< HEAD
   const [sceneTimings, setSceneTimings] = useState<Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>>(new Map());
-=======
-  const [sceneTimings, setSceneTimings] = useState<Map<number, number>>(new Map());
->>>>>>> 92226f2 (Added asset)
-=======
-  const [sceneTimings, setSceneTimings] = useState<Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>>(new Map());
->>>>>>> 528ad56 (Added export fix)
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set([1, 2, 3])); // Expand first 3 scenes by default
@@ -67,21 +45,12 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
   const selectedElement = useSelectedElement();
   const { setSelectedElement, pause, seek, setElementPickerEnabled } = useEditorActions();
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 528ad56 (Added export fix)
   // Watch visual items — refetch assets when they change
   const itemIds = useItemIds();
   const items = useItems();
   const visualItemIds = itemIds.filter(id => items[id]?.type === 'visual');
   const visualKeyRef = useRef(visualItemIds.join(','));
 
-<<<<<<< HEAD
-=======
->>>>>>> 92226f2 (Added asset)
-=======
->>>>>>> 528ad56 (Added export fix)
   // Fetch assets
   const fetchAssets = useCallback(async () => {
     if (!projectId) return;
@@ -95,21 +64,9 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
         api.getScenes(projectId),
       ]);
       setAssets(assetsResponse.assets);
-<<<<<<< HEAD
-<<<<<<< HEAD
       const timings = new Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>();
       for (const scene of scenesResponse.scenes) {
         timings.set(scene.id, { startMs: scene.startMs, endMs: scene.endMs, contentDisplayMs: scene.contentDisplayMs });
-=======
-      const timings = new Map<number, number>();
-      for (const scene of scenesResponse.scenes) {
-        timings.set(scene.id, scene.startMs);
->>>>>>> 92226f2 (Added asset)
-=======
-      const timings = new Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>();
-      for (const scene of scenesResponse.scenes) {
-        timings.set(scene.id, { startMs: scene.startMs, endMs: scene.endMs, contentDisplayMs: scene.contentDisplayMs });
->>>>>>> 528ad56 (Added export fix)
       }
       setSceneTimings(timings);
     } catch (err) {
@@ -124,10 +81,6 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
     fetchAssets();
   }, [fetchAssets]);
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 528ad56 (Added export fix)
   // Refetch when visual items change (added, removed, or replaced after edits)
   useEffect(() => {
     const newKey = visualItemIds.join(',');
@@ -137,11 +90,6 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
     }
   }, [visualItemIds, fetchAssets]);
 
-<<<<<<< HEAD
-=======
->>>>>>> 92226f2 (Added asset)
-=======
->>>>>>> 528ad56 (Added export fix)
   // Group assets by scene
   const assetsByScene = assets.reduce((acc, asset) => {
     const sceneId = asset.sceneId;
@@ -168,29 +116,12 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
       description: asset.description,
     });
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     // Pause playback and seek to the last second of the scene
     pause();
     const timing = sceneTimings.get(asset.sceneId);
     if (timing) {
       const seekMs = Math.max(timing.startMs, timing.endMs - 1000);
       seek(seekMs);
-=======
-    // Pause playback and seek to the scene's start
-    pause();
-    const startMs = sceneTimings.get(asset.sceneId);
-    if (startMs !== undefined) {
-      seek(startMs + 100);
->>>>>>> 92226f2 (Added asset)
-=======
-    // Pause playback and seek to the last second of the scene
-    pause();
-    const timing = sceneTimings.get(asset.sceneId);
-    if (timing) {
-      const seekMs = Math.max(timing.startMs, timing.endMs - 1000);
-      seek(seekMs);
->>>>>>> 528ad56 (Added export fix)
     }
     setElementPickerEnabled(true);
   };
