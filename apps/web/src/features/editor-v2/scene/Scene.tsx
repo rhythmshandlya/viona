@@ -8,8 +8,7 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Player } from '../player/Player';
-import { useProject, useElementPickerEnabled, useEditorActions } from '../store/use-editor-store';
-import { ElementPickerOverlay } from '../components/ElementPickerOverlay';
+import { useProject } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
 
