@@ -20,6 +20,7 @@ import {
   useVideoSettings,
   useSourceDimensions,
   useLayoutSettings,
+  useFullscreenSegments,
 } from '../store/use-editor-store';
 import {
   TimelineItem,
@@ -247,12 +248,14 @@ function buildSplitStyles(
 }
 
 export function Composition() {
+  const frame = useCurrentFrame();
   const fps = useFps();
   const items = useItems();
   const itemIds = useItemIds();
   const videoSettings = useVideoSettings();
   const sourceDimensions = useSourceDimensions();
   const layoutSettings = useLayoutSettings();
+  const fullscreenSegments = useFullscreenSegments();
 
   // Get items by type
   const videoItems = itemIds
@@ -273,6 +276,13 @@ export function Composition() {
 
   // Check if we have visuals (triggers PiP layout for talking head)
   const hasVisuals = visualItems.length > 0;
+
+  // Per-frame check: is current time inside a fullscreen segment?
+  const currentTimeMs = (frame / fps) * 1000;
+  const isInFullscreenSegment = fullscreenSegments.some(
+    (seg) => currentTimeMs >= seg.startMs && currentTimeMs < seg.endMs
+  );
+  const effectiveHasVisuals = hasVisuals && !isInFullscreenSegment;
 
   // When a separate audio item exists, mute the video to avoid playing
   // the audio twice (original in video + enhanced in audio).  We check
@@ -320,10 +330,10 @@ export function Composition() {
   let videoContainerStyle: React.CSSProperties;
   let visualContainerStyle: React.CSSProperties;
   let showVideo = true;
-  let showVisuals = hasVisuals;
+  let showVisuals = effectiveHasVisuals;
   let usePiPMode = false;
 
-  if (!hasVisuals) {
+  if (!effectiveHasVisuals) {
     // No visuals: full-screen video
     videoContainerStyle = fullScreenStyle;
     visualContainerStyle = { display: 'none' };

@@ -39,6 +39,7 @@ export const config = {
       uploads: 'uploads/',
       outputs: 'outputs/',
       templates: 'templates/',
+      sources: 'sources/',
     },
   },
 

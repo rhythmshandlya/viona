@@ -344,6 +344,16 @@ export interface Track {
 }
 
 // ============================================
+// Fullscreen Segment Types
+// ============================================
+
+export interface FullscreenSegment {
+  id: string;
+  startMs: number;
+  endMs: number;
+}
+
+// ============================================
 // Video Settings Types (for 9:16 crop/pan)
 // ============================================
 
@@ -438,6 +448,7 @@ export interface HistoryEntry {
   items: Record<string, TimelineItem>;
   itemIds: string[];
   selectedIds: string[];
+  fullscreenSegments: FullscreenSegment[];
 }
 
 // ============================================
@@ -490,9 +501,20 @@ export interface EditorState {
   layoutSettings: LayoutSettings;
   layoutPresetId: LayoutPresetId;
 
+  // Fullscreen segments (time ranges where visuals are hidden)
+  fullscreenSegments: FullscreenSegment[];
+
+  // Fullscreen segment placement mode (transient UI state)
+  fsPlacementMode: 'idle' | 'placing-start' | 'placing-end';
+  fsPendingStartMs: number | null;
+
   // Scene selection for AI editing
   selectedSceneId: number | null;
   selectedTimeRange: { startMs: number; endMs: number } | null;
+  selectedElement: SelectedElement | null;
+
+  // Element picker mode
+  elementPickerEnabled: boolean;
 
   // Safe zone settings
   safeZonePlatform: string;  // 'tiktok' | 'instagram-reels' | etc.
@@ -594,9 +616,20 @@ export interface EditorActions {
   setLayoutPreset: (presetId: LayoutPresetId) => void;
   setLayoutMode: (mode: LayoutMode) => void;
 
+  // Fullscreen segment actions
+  addFullscreenSegment: (segment: Omit<FullscreenSegment, 'id'>) => string;
+  updateFullscreenSegment: (id: string, updates: Partial<Omit<FullscreenSegment, 'id'>>) => void;
+  removeFullscreenSegment: (id: string) => void;
+  startFsPlacement: () => void;
+  cancelFsPlacement: () => void;
+
   // Scene selection for AI editing
   setSelectedScene: (sceneId: number | null) => void;
   setSelectedTimeRange: (range: { startMs: number; endMs: number } | null) => void;
+  setSelectedElement: (element: SelectedElement | null) => void;
+
+  // Element picker mode
+  setElementPickerEnabled: (enabled: boolean) => void;
 
   // Safe zone actions
   setSafeZonePlatform: (platform: string) => void;
@@ -904,3 +937,32 @@ export const PIP_SIZE_MAP: Record<PiPSize, number> = {
   large: 35,
   custom: 25,
 };
+
+// ============================================
+// Element Selection (for AI editing)
+// ============================================
+
+export interface SelectedElement {
+  name: string;
+  type: string;
+  sceneId: number;
+  description?: string;
+}
+
+// ============================================
+// AI Editing Context (for AI Assistant Panel)
+// ============================================
+
+export interface AIEditingContext {
+  type: 'element' | 'item' | 'scene' | 'composition';
+  element?: SelectedElement;
+  item?: {
+    id: string;
+    type: TimelineItemType;
+    name: string;
+    description?: string;
+  };
+  sceneId?: number;
+  displayName: string;
+  displayDescription?: string;
+}

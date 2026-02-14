@@ -25,6 +25,101 @@ const __dirname = dirname(__filename);
 // Track running processes for cancellation
 const runningProcesses = new Map<string, ChildProcess>();
 
+/**
+ * Asset type for extracted components
+ */
+interface ExtractedAsset {
+  id: string;
+  name: string;
+  type: 'component' | 'element' | 'text' | 'shape' | 'icon' | 'background';
+  sceneId: number;
+  sceneName: string;
+  description: string;
+  position?: { x: string; y: string };
+  size?: { width: string; height: string };
+}
+
+/**
+ * Extract assets from the generated composition.
+ * Reads scenes.json and parses layout information to create a list of editable assets.
+ */
+async function extractAssets(projectDir: string): Promise<ExtractedAsset[]> {
+  const assets: ExtractedAsset[] = [];
+
+  try {
+    // Read scenes.json
+    const scenesPath = join(projectDir, 'scenes.json');
+    const scenesContent = await readFile(scenesPath, 'utf-8');
+    const scenesData = JSON.parse(scenesContent);
+
+    if (!scenesData.scenes || !Array.isArray(scenesData.scenes)) {
+      logger.warn({ projectDir }, 'No scenes found in scenes.json');
+      return assets;
+    }
+
+    // Extract assets from each scene's layout
+    for (const scene of scenesData.scenes) {
+      const sceneId = scene.id;
+      const sceneName = scene.name || `Scene ${sceneId}`;
+
+      if (scene.layout && typeof scene.layout === 'object') {
+        for (const [key, value] of Object.entries(scene.layout as Record<string, any>)) {
+          // Skip background elements
+          if (key === 'background') continue;
+
+          // Determine asset type based on name
+          let assetType: ExtractedAsset['type'] = 'element';
+          const lowerKey = key.toLowerCase();
+          if (lowerKey.includes('text') || lowerKey.includes('title') || lowerKey.includes('label')) {
+            assetType = 'text';
+          } else if (lowerKey.includes('icon')) {
+            assetType = 'icon';
+          } else if (lowerKey.includes('shape') || lowerKey.includes('circle') || lowerKey.includes('rect')) {
+            assetType = 'shape';
+          } else if (lowerKey.includes('particle') || lowerKey.includes('bg')) {
+            assetType = 'background';
+          }
+
+          assets.push({
+            id: `scene${sceneId}-${key}`,
+            name: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim(),
+            type: assetType,
+            sceneId,
+            sceneName,
+            description: scene.visual || sceneName,
+            position: value?.x || value?.y ? { x: value.x || 'center', y: value.y || '50%' } : undefined,
+            size: value?.width || value?.height ? { width: value.width || 'auto', height: value.height || 'auto' } : undefined,
+          });
+        }
+      }
+
+      // Also check for icons array
+      if (scene.icons && Array.isArray(scene.icons)) {
+        for (const icon of scene.icons) {
+          assets.push({
+            id: `scene${sceneId}-icon-${icon.name || icon}`,
+            name: typeof icon === 'string' ? icon : icon.name,
+            type: 'icon',
+            sceneId,
+            sceneName,
+            description: `Icon in ${sceneName}`,
+          });
+        }
+      }
+    }
+
+    // Write assets.json to project directory
+    const assetsPath = join(projectDir, 'assets.json');
+    await writeFile(assetsPath, JSON.stringify({ assets, extractedAt: new Date().toISOString() }, null, 2));
+    logger.info({ projectDir, assetCount: assets.length }, 'Extracted assets from composition');
+
+  } catch (error) {
+    logger.warn({ projectDir, error }, 'Failed to extract assets from composition');
+  }
+
+  return assets;
+}
+
 // Environment validation results (cached after first check)
 let environmentValidated = false;
 let environmentError: string | null = null;
@@ -339,12 +434,42 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
 
         if (scenesData.scenes && Array.isArray(scenesData.scenes) && scenesData.scenes.length > 0) {
           // Convert scenes.json format to timestamps format for the database
-          metadata.visuals = scenesData.scenes.map((scene: any) => ({
-            startMs: Math.round(scene.timestampRange[0] * 1000),
-            endMs: Math.round(scene.timestampRange[1] * 1000),
-            type: scene.name || `Scene ${scene.id}`,
-            description: scene.visual || scene.emotion || '',
-          }));
+          metadata.visuals = scenesData.scenes.map((scene: any) => {
+            // Extract elements from layout if present
+            const elements: Array<{
+              id: string;
+              name: string;
+              type: string;
+              x: string;
+              y: string;
+              width: string;
+              height: string;
+            }> = [];
+
+            if (scene.layout && typeof scene.layout === 'object') {
+              Object.entries(scene.layout).forEach(([key, value]: [string, any]) => {
+                if (value && typeof value === 'object') {
+                  elements.push({
+                    id: `scene${scene.id}-${key}`,
+                    name: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize
+                    type: key,
+                    x: value.x || 'center',
+                    y: value.y || '50%',
+                    width: value.width || '100%',
+                    height: value.height || '100%',
+                  });
+                }
+              });
+            }
+
+            return {
+              startMs: Math.round(scene.timestampRange[0] * 1000),
+              endMs: Math.round(scene.timestampRange[1] * 1000),
+              type: scene.name || `Scene ${scene.id}`,
+              description: scene.visual || scene.emotion || '',
+              elements: elements.length > 0 ? elements : undefined,
+            };
+          });
           logger.info({ projectId, sceneCount: metadata.visuals.length }, 'Loaded scenes from scenes.json');
         }
       } catch (scenesErr) {
@@ -416,6 +541,19 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     // Upload source project files to S3 for AI context restoration
     await publishJobProgress(jobId, 83, 'Uploading source files to storage...');
     const sourceUrl = await uploadSourceToStorage(projectDir, bundleCompositionId);
+
+    // Extract assets from composition for frontend selection
+    await publishJobProgress(jobId, 84, 'Extracting assets...');
+    const extractedAssets = await extractAssets(projectDir);
+
+    // Upload assets.json to S3 as well
+    const assetsPath = join(projectDir, 'assets.json');
+    try {
+      await uploadFile(assetsPath, 'sources', `${bundleCompositionId}/assets.json`);
+      logger.info({ projectId, assetCount: extractedAssets.length }, 'Assets uploaded to storage');
+    } catch (err) {
+      logger.warn({ projectId, error: err }, 'Failed to upload assets.json');
+    }
 
     // Bundle URL points to API route that serves from S3
     const bundleUrl = `/api/bundles/${bundleCompositionId}/index.html`;
@@ -512,7 +650,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       .where(eq(jobs.id, jobId));
 
     await db.update(projects)
-      .set({ status: 'ready', updatedAt: new Date() })
+      .set({ status: 'ready', outputKey: null, updatedAt: new Date() })
       .where(eq(projects.id, projectId));
 
     await publishJobProgress(jobId, 100, 'Complete');

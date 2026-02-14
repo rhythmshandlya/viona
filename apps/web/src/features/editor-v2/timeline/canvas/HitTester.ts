@@ -28,6 +28,7 @@ export interface HitTestState {
 
 const EDGE_THRESHOLD = 8; // pixels from edge to detect resize
 const PLAYHEAD_THRESHOLD = 8; // pixels from playhead to detect
+const FULLSCREEN_LANE_HEIGHT = 28; // must match CanvasRenderer default
 
 export class HitTester {
   /**
@@ -42,12 +43,13 @@ export class HitTester {
       return { type: 'playhead', timeMs: currentTimeMs };
     }
 
-    // Build track position map
+    // Build track position map (accounts for fullscreen lane after video track)
     const trackYMap = new Map<string, { track: Track; y: number }>();
     let trackY = -viewport.scrollY;
     for (const track of tracks) {
       trackYMap.set(track.id, { track, y: trackY });
       trackY += track.height;
+      if (track.type === 'video') trackY += FULLSCREEN_LANE_HEIGHT;
     }
 
     // Check items (reverse order so top items are hit first)
@@ -125,12 +127,13 @@ export class HitTester {
     const boxTop = Math.min(box.startY, box.endY);
     const boxBottom = Math.max(box.startY, box.endY);
 
-    // Build track position map
+    // Build track position map (accounts for fullscreen lane after video track)
     const trackYMap = new Map<string, { track: Track; y: number }>();
     let trackY = -viewport.scrollY;
     for (const track of tracks) {
       trackYMap.set(track.id, { track, y: trackY });
       trackY += track.height;
+      if (track.type === 'video') trackY += FULLSCREEN_LANE_HEIGHT;
     }
 
     const selectedIds: string[] = [];
@@ -222,6 +225,7 @@ export class HitTester {
         return track;
       }
       trackY += track.height;
+      if (track.type === 'video') trackY += FULLSCREEN_LANE_HEIGHT;
     }
 
     return null;

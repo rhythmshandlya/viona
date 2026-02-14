@@ -4,15 +4,15 @@
 
 import "./index.css";
 import { Composition } from "remotion";
-import MainComposition from "./svg_anim_455889e0";
+import MainComposition from "./svg_anim_b856fddc";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
-        id="svg-anim-455889e0"
+        id="svg-anim-b856fddc"
         component={MainComposition}
-        durationInFrames={30}
+        durationInFrames={90}
         fps={30}
         width={1080}
         height={1920}

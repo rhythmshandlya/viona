@@ -95,6 +95,7 @@ export interface Job {
   type: string;
   status: string;
   progress: number;
+  progressMessage: string | null;
   error: string | null;
   metrics?: JobMetrics | null;
   logs?: string[] | null;
@@ -137,17 +138,58 @@ export interface EditVisualsResponse {
   jobId: string;
 }
 
+export interface EditVisualsContext {
+  type: 'element' | 'item' | 'scene' | 'composition';
+  sceneId?: number | null;
+  elementName?: string;
+  itemId?: string;
+  itemType?: string;
+}
+
+export interface SceneElement {
+  name: string;
+  type: string;
+  description?: string;
+  position: {
+    x: string;  // e.g., "10%", "center"
+    y: string;
+  };
+  size: {
+    width: string;  // e.g., "30%", "auto"
+    height: string;
+  };
+}
+
 export interface SceneInfo {
   id: number;
   name: string;
   startMs: number;
   endMs: number;
   description: string;
+  elements?: SceneElement[];
+  contentDisplayMs?: number;
 }
 
 export interface ScenesResponse {
   scenes: SceneInfo[];
   compositionId: string;
+}
+
+export interface ExtractedAsset {
+  id: string;
+  name: string;
+  type: 'component' | 'element' | 'text' | 'shape' | 'icon' | 'background';
+  sceneId: number;
+  sceneName: string;
+  description: string;
+  position?: { x: string; y: string };
+  size?: { width: string; height: string };
+}
+
+export interface AssetsResponse {
+  assets: ExtractedAsset[];
+  compositionId: string | null;
+  extractedAt?: string;
 }
 
 export interface UploadImageResponse {
@@ -166,6 +208,9 @@ export interface SvgAnimationOptions {
   startMs: number;
   width: number;
   height: number;
+  description?: string;  // Description for scene matching
+  sceneId?: number | null;  // Target scene ID
+  useOriginalImage?: boolean;  // Display original image instead of converting to SVG
 }
 
 export interface SvgAnimationResponse {
@@ -261,7 +306,7 @@ class ApiClient {
 
   async updateProject(
     projectId: string,
-    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[] }
+    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; videoSettings?: Record<string, unknown> }
   ): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}`, {
       method: 'PATCH',
@@ -269,7 +314,7 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string, options?: { layoutSettings?: any }): Promise<ProcessProjectResponse> {
+  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> }): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
       body: JSON.stringify(options || {}),
@@ -300,15 +345,30 @@ class ApiClient {
     });
   }
 
-  async editVisuals(projectId: string, prompt: string, sceneId?: number | null): Promise<EditVisualsResponse> {
+  async editVisuals(
+    projectId: string,
+    prompt: string,
+    context?: EditVisualsContext
+  ): Promise<EditVisualsResponse> {
     return this.request(`/api/projects/${projectId}/edit-visuals`, {
       method: 'POST',
-      body: JSON.stringify({ prompt, sceneId: sceneId || undefined }),
+      body: JSON.stringify({
+        prompt,
+        sceneId: context?.sceneId,
+        targetType: context?.type,
+        elementName: context?.elementName,
+        itemId: context?.itemId,
+        itemType: context?.itemType,
+      }),
     });
   }
 
   async getScenes(projectId: string): Promise<ScenesResponse> {
     return this.request(`/api/projects/${projectId}/scenes`);
+  }
+
+  async getAssets(projectId: string): Promise<AssetsResponse> {
+    return this.request(`/api/projects/${projectId}/assets`);
   }
 
   // Upload image for SVG animation

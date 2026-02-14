@@ -5,7 +5,7 @@
 
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
-import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode } from './types';
+import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData, FullscreenSegment } from './types';
 
 // ============================================
 // Direct Store Access
@@ -242,6 +242,34 @@ export function useLayoutActions() {
   );
 }
 
+// ============================================
+// Fullscreen Segment Selectors
+// ============================================
+
+export function useFullscreenSegments(): FullscreenSegment[] {
+  return useEditorStore((state) => state.fullscreenSegments);
+}
+
+export function useFsPlacementMode() {
+  return useEditorStore((state) => state.fsPlacementMode);
+}
+
+export function useFsPendingStartMs() {
+  return useEditorStore((state) => state.fsPendingStartMs);
+}
+
+export function useFullscreenSegmentActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      addFullscreenSegment: state.addFullscreenSegment,
+      updateFullscreenSegment: state.updateFullscreenSegment,
+      removeFullscreenSegment: state.removeFullscreenSegment,
+      startFsPlacement: state.startFsPlacement,
+      cancelFsPlacement: state.cancelFsPlacement,
+    }))
+  );
+}
+
 /**
  * Get the caption style for the first selected caption item.
  * Falls back to the first caption in the project if nothing is selected.
@@ -275,6 +303,78 @@ export function useSelectedSceneId() {
 
 export function useSelectedTimeRange() {
   return useEditorStore((state) => state.selectedTimeRange);
+}
+
+export function useSelectedElement() {
+  return useEditorStore((state) => state.selectedElement);
+}
+
+export function useElementPickerEnabled() {
+  return useEditorStore((state) => state.elementPickerEnabled);
+}
+
+// ============================================
+// AI Editing Context Selector
+// ============================================
+
+export function useAIEditingContext(): AIEditingContext | null {
+  return useEditorStore(
+    useShallow((state) => {
+      // Priority 1: Selected element from overlay picker
+      if (state.selectedElement) {
+        return {
+          type: 'element',
+          element: state.selectedElement,
+          sceneId: state.selectedElement.sceneId,
+          displayName: state.selectedElement.name,
+          displayDescription: state.selectedElement.description,
+        } as AIEditingContext;
+      }
+
+      // Priority 2: Single selected timeline item (visual or caption)
+      if (state.selectedIds.length === 1) {
+        const item = state.items[state.selectedIds[0]];
+        if (item && (item.type === 'visual' || item.type === 'caption')) {
+          const data = item.data;
+          const name = item.type === 'visual'
+            ? (data as VisualItemData).description || 'Visual'
+            : `"${(data as CaptionItemData).text.slice(0, 25)}${(data as CaptionItemData).text.length > 25 ? '...' : ''}"`;
+
+          return {
+            type: 'item',
+            item: {
+              id: item.id,
+              type: item.type,
+              name,
+              description: item.type === 'visual' ? (data as VisualItemData).type : undefined,
+            },
+            displayName: item.type === 'visual' ? 'Visual' : 'Caption',
+            displayDescription: name,
+          } as AIEditingContext;
+        }
+      }
+
+      // Priority 3: Multiple items selected
+      if (state.selectedIds.length > 1) {
+        return {
+          type: 'scene',
+          displayName: `${state.selectedIds.length} items`,
+          displayDescription: 'Edits apply to containing scene',
+        } as AIEditingContext;
+      }
+
+      // Priority 4: Selected scene
+      if (state.selectedSceneId !== null) {
+        return {
+          type: 'scene',
+          sceneId: state.selectedSceneId,
+          displayName: `Scene ${state.selectedSceneId}`,
+        } as AIEditingContext;
+      }
+
+      return null;
+    })
+  );
 }
 
 // ============================================
@@ -386,9 +486,20 @@ export function useEditorActions() {
       setLayoutPreset: state.setLayoutPreset,
       setLayoutMode: state.setLayoutMode,
 
+      // Fullscreen segments
+      addFullscreenSegment: state.addFullscreenSegment,
+      updateFullscreenSegment: state.updateFullscreenSegment,
+      removeFullscreenSegment: state.removeFullscreenSegment,
+      startFsPlacement: state.startFsPlacement,
+      cancelFsPlacement: state.cancelFsPlacement,
+
       // Scene selection
       setSelectedScene: state.setSelectedScene,
       setSelectedTimeRange: state.setSelectedTimeRange,
+      setSelectedElement: state.setSelectedElement,
+
+      // Element picker
+      setElementPickerEnabled: state.setElementPickerEnabled,
 
       // Safe zone
       setSafeZonePlatform: state.setSafeZonePlatform,

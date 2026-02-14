@@ -170,7 +170,13 @@
       "WebFetch(domain:www.submagic.co)",
       "WebFetch(domain:sendshort.ai)",
       "WebFetch(domain:edimakor.hitpaw.com)",
-      "WebFetch(domain:increditors.com)"
+      "WebFetch(domain:increditors.com)",
+      "Bash(brew upgrade:*)",
+      "Bash(ps:*)",
+      "Bash(python3:*)",
+      "Bash(npm run db:migrate:*)",
+      "Bash(find:*)",
+      "Bash(git rm:*)"
     ]
   }
 }

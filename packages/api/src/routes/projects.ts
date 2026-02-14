@@ -29,6 +29,7 @@ const updateProjectSchema = z.object({
     endMs: z.number().optional(),
     data: z.record(z.unknown()).optional(),
   })).optional(),
+  videoSettings: z.record(z.unknown()).optional(),
 });
 
 // Helper to check if a user owns a project
@@ -315,10 +316,13 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Update project (title and timestamp)
-    const updateData: { updatedAt: Date; title?: string } = { updatedAt: new Date() };
+    // Update project fields
+    const updateData: { updatedAt: Date; title?: string; videoSettings?: unknown } = { updatedAt: new Date() };
     if (body.title !== undefined) {
       updateData.title = body.title;
+    }
+    if (body.videoSettings !== undefined) {
+      updateData.videoSettings = body.videoSettings;
     }
     await db.update(projects)
       .set(updateData)
@@ -454,7 +458,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { layoutSettings?: any } || {};
+    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -481,11 +485,12 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job with layout settings for exact preview match
+    // Queue the job with layout settings and fullscreen segments for exact preview match
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
       layoutSettings: body.layoutSettings,
+      fullscreenSegments: body.fullscreenSegments,
     });
 
     return { jobId: job.id };
@@ -575,6 +580,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const body = z.object({
       prompt: z.string().min(1).max(2000),
       sceneId: z.number().int().min(1).optional(),
+      elementName: z.string().optional(),
     }).parse(request.body);
 
     const project = await db.query.projects.findFirst({
@@ -639,6 +645,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       compositionId: visual.compositionId,
       prompt: body.prompt,
       sceneId: body.sceneId,
+      elementName: body.elementName,
     });
 
     return { jobId: job.id };
@@ -711,6 +718,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
       startMs: z.number().int().min(0),
       width: z.number().int().min(100).max(4096),
       height: z.number().int().min(100).max(4096),
+      description: z.string().optional(),  // Description for scene matching
+      sceneId: z.number().int().nullable().optional(),  // Target scene ID
+      useOriginalImage: z.boolean().optional(),  // Display original image instead of SVG
     }).parse(request.body);
 
     const project = await db.query.projects.findFirst({
@@ -756,6 +766,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }).returning();
 
     // Queue the job
+    // Default to using original image when description is provided (no SVG conversion)
+    const useOriginalImage = body.useOriginalImage ?? (body.description ? true : false);
+
     await queueSvgAnimationJob({
       projectId: id,
       jobId: job.id,
@@ -767,6 +780,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
       startMs: body.startMs,
       width: body.width,
       height: body.height,
+      description: body.description,
+      sceneId: body.sceneId,
+      useOriginalImage,
     });
 
     return { jobId: job.id };
@@ -798,24 +814,187 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return { scenes: [], compositionId: visual?.compositionId || null };
     }
 
-    // Convert timestamps to scene info with ms timing
-    const scenes = (visual.timestamps as Array<{
+    // Check if elements are already in database
+    const timestamps = visual.timestamps as Array<{
       startMs: number;
       endMs: number;
       type: string;
       description: string;
-    }>).map((t, index) => ({
-      id: index + 1,
-      name: `Scene ${index + 1}`,
-      startMs: t.startMs,
-      endMs: t.endMs,
-      description: t.description || t.type || '',
-    }));
+      elements?: Array<{
+        id: string;
+        name: string;
+        type: string;
+        x: string;
+        y: string;
+        width: string;
+        height: string;
+      }>;
+    }>;
+
+    const hasElements = timestamps.some(t => t.elements && t.elements.length > 0);
+
+    // If no elements in DB, try to fetch from source files in S3
+    let scenesFromSource: any[] | null = null;
+    if (!hasElements && visual.compositionId) {
+      try {
+        const sourceCompositionId = visual.compositionId.replace(/_/g, '-');
+        const scenesKey = `${sourceCompositionId}/scenes.json`;
+        const exists = await objectExists('sources', scenesKey);
+
+        if (exists) {
+          const stream = await getObjectStream('sources', scenesKey);
+          const chunks: Buffer[] = [];
+          for await (const chunk of stream) {
+            chunks.push(Buffer.from(chunk));
+          }
+          const scenesJson = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+
+          if (scenesJson.scenes && Array.isArray(scenesJson.scenes)) {
+            scenesFromSource = scenesJson.scenes;
+          }
+        }
+      } catch (err) {
+        // Silently fail - elements just won't be available
+        console.warn('Could not fetch scenes.json from source:', err);
+      }
+    }
+
+    // Convert timestamps to scene info with ms timing and elements
+    const scenes = timestamps.map((t, index) => {
+      // Try to get elements from DB first, then from source
+      let elements = t.elements?.map(el => ({
+        name: el.name,
+        type: el.type,
+        description: el.name,
+        position: { x: el.x, y: el.y },
+        size: { width: el.width, height: el.height },
+      }));
+
+      // Compute contentDisplayMs from keySync in scenes.json
+      let contentDisplayMs: number | undefined;
+      if (scenesFromSource) {
+        const sourceScene = scenesFromSource[index];
+
+        // If no elements in DB, try to extract from source
+        if (!elements && sourceScene?.layout && typeof sourceScene.layout === 'object') {
+          elements = Object.entries(sourceScene.layout).map(([key, value]: [string, any]) => ({
+            name: key.charAt(0).toUpperCase() + key.slice(1),
+            type: key,
+            description: key.charAt(0).toUpperCase() + key.slice(1),
+            position: { x: value?.x || 'center', y: value?.y || '50%' },
+            size: { width: value?.width || '100%', height: value?.height || '100%' },
+          }));
+        }
+
+        // Extract keySync timing — the frame where main content is displayed
+        if (sourceScene?.keySync?.timestamp != null && sourceScene?.timestampRange) {
+          const sceneStartSec = sourceScene.timestampRange[0] as number;
+          const sceneEndSec = sourceScene.timestampRange[1] as number;
+          const keySyncSec = sourceScene.keySync.timestamp as number;
+          const sceneDurationSec = sceneEndSec - sceneStartSec;
+          if (sceneDurationSec > 0) {
+            const ratio = (keySyncSec - sceneStartSec) / sceneDurationSec;
+            contentDisplayMs = Math.round(t.startMs + ratio * (t.endMs - t.startMs));
+          }
+        }
+      } else if (!elements) {
+        // No source data at all — no elements to extract
+      }
+
+      return {
+        id: index + 1,
+        name: `Scene ${index + 1}`,
+        startMs: t.startMs,
+        endMs: t.endMs,
+        description: t.description || t.type || '',
+        elements,
+        contentDisplayMs,
+      };
+    });
 
     return {
       scenes,
       compositionId: visual.compositionId,
     };
+  });
+
+  // Get assets for a project (extracted components for AI editing)
+  fastify.get('/projects/:id/assets', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const visual = await db.query.visuals.findFirst({
+      where: eq(visuals.projectId, id),
+    });
+
+    if (!visual) {
+      return { assets: [], compositionId: null };
+    }
+
+    // Try to fetch assets.json from S3 sources
+    try {
+      const sourceCompositionId = visual.compositionId.replace(/_/g, '-');
+      const assetsKey = `${sourceCompositionId}/assets.json`;
+      const exists = await objectExists('sources', assetsKey);
+
+      if (exists) {
+        const stream = await getObjectStream('sources', assetsKey);
+        const chunks: Buffer[] = [];
+        for await (const chunk of stream) {
+          chunks.push(Buffer.from(chunk));
+        }
+        const assetsData = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+
+        return {
+          assets: assetsData.assets || [],
+          compositionId: visual.compositionId,
+          extractedAt: assetsData.extractedAt,
+        };
+      }
+    } catch (err) {
+      console.warn('Could not fetch assets.json from S3:', err);
+    }
+
+    // Fallback: Try local workspace (for development)
+    // Try both hyphenated and underscored variants since DB uses hyphens but filesystem may use underscores
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const variants = [
+        visual.compositionId,
+        visual.compositionId.replace(/-/g, '_'),
+      ];
+      for (const variant of variants) {
+        try {
+          const workspacePath = path.join(process.cwd(), '..', 'worker', 'workspace', 'src', variant, 'assets.json');
+          const localContent = await fs.readFile(workspacePath, 'utf-8');
+          const assetsData = JSON.parse(localContent);
+          console.log('Loaded assets from local workspace:', workspacePath);
+          return {
+            assets: assetsData.assets || [],
+            compositionId: visual.compositionId,
+            extractedAt: assetsData.extractedAt,
+          };
+        } catch {
+          // Try next variant
+        }
+      }
+    } catch {
+      // Local fallback not available
+    }
+
+    return { assets: [], compositionId: visual.compositionId };
   });
 
   // Delete generated visuals for a project (for re-testing)
