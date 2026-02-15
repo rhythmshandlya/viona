@@ -538,68 +538,61 @@ export function Editor({ projectId }: EditorProps) {
           </button>
         </div>
 
-        {/* Main content with relative positioning for overlay */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-          {/* Settings Panel Overlay */}
-          {leftSidebarOpen && (
-            <>
-              {/* Backdrop */}
-              <div
-                className="absolute inset-0 bg-black/20 z-40"
-                onClick={() => setLeftSidebarOpen(false)}
-              />
-              {/* Panel */}
-              <div className="absolute left-0 top-0 bottom-0 w-[488px] z-50 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] shadow-xl overflow-y-auto">
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
-                      {leftSidebarTab === 'captions' && 'Caption Settings'}
-                      {leftSidebarTab === 'style' && 'Style Settings'}
-                      {leftSidebarTab === 'layout' && 'Layout Settings'}
-                      {leftSidebarTab === 'assets' && 'Visual Assets'}
-                    </h3>
-                    <button
-                      onClick={() => setLeftSidebarOpen(false)}
-                      className="p-1 rounded hover:bg-[var(--editor-bg-elevated)] text-[var(--editor-text-muted)]"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {leftSidebarTab === 'captions' && (
-                    <RightPanel
-                      isOpen={true}
-                      activeTab="transcript"
-                      onTabChange={handleTabChange}
-                      onClose={handleClosePanel}
-                      layout="stacked"
-                      embedded={true}
-                    />
-                  )}
-                  {leftSidebarTab === 'style' && (
-                    <div className="-mx-4 -mt-3">
-                      <StylePanel />
-                    </div>
-                  )}
-                  {leftSidebarTab === 'layout' && (
-                    <RightPanel
-                      isOpen={true}
-                      activeTab="layout"
-                      onTabChange={handleTabChange}
-                      onClose={handleClosePanel}
-                      layout="stacked"
-                      embedded={true}
-                    />
-                  )}
-                  {leftSidebarTab === 'assets' && (
-                    <AssetsPanel />
-                  )}
-                </div>
+        {/* Settings Panel - inline in layout */}
+        {leftSidebarOpen && (
+          <div className="w-[488px] flex-shrink-0 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] overflow-y-auto">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
+                  {leftSidebarTab === 'captions' && 'Caption Settings'}
+                  {leftSidebarTab === 'style' && 'Style Settings'}
+                  {leftSidebarTab === 'layout' && 'Layout Settings'}
+                  {leftSidebarTab === 'assets' && 'Visual Assets'}
+                </h3>
+                <button
+                  onClick={() => setLeftSidebarOpen(false)}
+                  className="p-1 rounded hover:bg-[var(--editor-bg-elevated)] text-[var(--editor-text-muted)]"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-            </>
-          )}
+
+              {leftSidebarTab === 'captions' && (
+                <RightPanel
+                  isOpen={true}
+                  activeTab="transcript"
+                  onTabChange={handleTabChange}
+                  onClose={handleClosePanel}
+                  layout="stacked"
+                  embedded={true}
+                />
+              )}
+              {leftSidebarTab === 'style' && (
+                <div className="-mx-4 -mt-3">
+                  <StylePanel />
+                </div>
+              )}
+              {leftSidebarTab === 'layout' && (
+                <RightPanel
+                  isOpen={true}
+                  activeTab="layout"
+                  onTabChange={handleTabChange}
+                  onClose={handleClosePanel}
+                  layout="stacked"
+                  embedded={true}
+                />
+              )}
+              {leftSidebarTab === 'assets' && (
+                <AssetsPanel />
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Main content */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
 
           {/* Video Preview Area */}
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">

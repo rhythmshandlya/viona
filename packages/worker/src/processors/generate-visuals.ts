@@ -618,27 +618,25 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       visualsTrack = newTrack;
     }
 
-    // Create timeline item for the full composition
-    const fullDurationMs = Math.round((metadata.durationInFrames / metadata.fps) * 1000);
-    const visualTypes = metadata.visuals.map(v => v.type).filter(Boolean).join(', ');
-    const visualDescriptions = metadata.visuals.map(v => v.description).filter(Boolean).join('; ');
-
-    await db.insert(timelineItems).values({
-      trackId: visualsTrack.id,
-      type: 'visual',
-      startMs: 0,
-      endMs: fullDurationMs,
-      data: {
-        visualId,
-        compositionId: metadata.compositionId,
-        bundleUrl,
-        type: visualTypes || 'visual',
-        description: visualDescriptions || 'AI-generated visual',
-        width: metadata.width,
-        height: metadata.height,
-        fps: metadata.fps,
-      },
-    });
+    // Create one timeline item per scene so they appear as separate blocks on the track
+    for (const scene of metadata.visuals) {
+      await db.insert(timelineItems).values({
+        trackId: visualsTrack.id,
+        type: 'visual',
+        startMs: scene.startMs,
+        endMs: scene.endMs,
+        data: {
+          visualId,
+          compositionId: metadata.compositionId,
+          bundleUrl,
+          type: scene.type || 'visual',
+          description: scene.description || 'AI-generated visual',
+          width: metadata.width,
+          height: metadata.height,
+          fps: metadata.fps,
+        },
+      });
+    }
 
     // Update job and project status
     await db.update(jobs)

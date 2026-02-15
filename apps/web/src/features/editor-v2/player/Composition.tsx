@@ -581,6 +581,19 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
   const effects: CaptionEffects = style.effects ?? migrateTextShadow(style.textShadow);
   const effectsStyles = effectsToCss(effects);
 
+  // Resolve background padding and radius from style
+  const bgPadding = style.backgroundPadding ?? { x: 4, y: 2 };
+  const bgRadius = style.backgroundRadius ?? 0;
+
+  // Helper: build padding + borderRadius only when a background is visible
+  const getBoxStyles = (bg: string | undefined): React.CSSProperties => {
+    const hasBg = bg && bg !== 'transparent';
+    return {
+      padding: hasBg ? `${bgPadding.y}px ${bgPadding.x}px` : '0 4px',
+      borderRadius: hasBg && bgRadius ? `${bgRadius}px` : undefined,
+    };
+  };
+
   // Build common typography styles
   const getTypographyStyles = (): React.CSSProperties => ({
     opacity: style.opacity ?? 1,
@@ -611,6 +624,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
       isFuture: false,
     });
 
+    const activeBg = overrides?.emphasisBg || style.activeBackgroundColor || 'transparent';
     return (
       <div style={positionStyles}>
         <span
@@ -619,9 +633,8 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             fontSize: (overrides?.scale || 1) * style.fontSize,
             fontWeight: overrides?.fontWeight || style.fontWeight,
             color: overrides?.color || style.activeColor,
-            backgroundColor: overrides?.emphasisBg || style.activeBackgroundColor || 'transparent',
-            padding: '4px 12px',
-            borderRadius: '8px',
+            backgroundColor: activeBg,
+            ...getBoxStyles(activeBg),
             display: 'inline-block',
             whiteSpace: 'nowrap',
             ...getTypographyStyles(),
@@ -663,6 +676,10 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             fillPercent = Math.min((elapsed / wordDurationMs) * 100, 100);
           }
 
+          const wordBg = isActive
+            ? style.activeBackgroundColor || 'transparent'
+            : style.backgroundColor || 'transparent';
+          const hasBg = wordBg && wordBg !== 'transparent';
           return (
             <span
               key={index}
@@ -670,16 +687,29 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
                 fontFamily: style.fontFamily,
                 fontSize: (overrides?.scale || 1) * style.fontSize,
                 fontWeight: overrides?.fontWeight || style.fontWeight,
-                padding: '4px 12px',
-                borderRadius: '8px',
+                ...getBoxStyles(wordBg),
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
-                backgroundImage: hasAppeared
-                  ? `linear-gradient(90deg, ${overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
-                  : `linear-gradient(90deg, ${style.color}, ${style.color})`,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
+                ...(hasBg
+                  ? {
+                      // With background: use solid bg color, normal text color via gradient
+                      backgroundColor: wordBg,
+                      backgroundImage: hasAppeared
+                        ? `linear-gradient(90deg, ${overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
+                        : `linear-gradient(90deg, ${style.color}, ${style.color})`,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                    }
+                  : {
+                      // No background: gradient fill on text
+                      backgroundImage: hasAppeared
+                        ? `linear-gradient(90deg, ${overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
+                        : `linear-gradient(90deg, ${style.color}, ${style.color})`,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                    }),
                 ...getTypographyStyles(),
                 ...animStyle,
               }}
@@ -712,6 +742,10 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             isFuture: !hasAppeared,
           });
 
+          const wordBg = overrides?.emphasisBg
+            || (isActive
+              ? style.activeBackgroundColor || 'transparent'
+              : style.backgroundColor || 'transparent');
           return (
             <span
               key={index}
@@ -722,12 +756,8 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
                 color: isActive
                   ? (overrides?.color || style.activeColor)
                   : (overrides?.color || style.color),
-                backgroundColor: overrides?.emphasisBg
-                  || (isActive
-                    ? style.activeBackgroundColor || 'transparent'
-                    : style.backgroundColor || 'transparent'),
-                padding: '4px 12px',
-                borderRadius: '8px',
+                backgroundColor: wordBg,
+                ...getBoxStyles(wordBg),
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
                 ...getTypographyStyles(),
@@ -745,7 +775,8 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             fontSize: style.fontSize,
             fontWeight: style.fontWeight,
             color: style.color,
-            padding: '4px 12px',
+            backgroundColor: style.backgroundColor || 'transparent',
+            ...getBoxStyles(style.backgroundColor),
             ...getTypographyStyles(),
           }}
         >
