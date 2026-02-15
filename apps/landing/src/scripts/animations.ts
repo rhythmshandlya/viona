@@ -11,11 +11,13 @@ if (prefersReducedMotion) {
 }
 
 // Shared defaults
+const isMobile = window.innerWidth < 768;
+
 const DEFAULTS = {
-  duration: 0.7,
+  duration: isMobile ? 0.5 : 0.7,
   ease: "power2.out",
-  y: 50,
-  stagger: 0.12,
+  y: isMobile ? 30 : 50,
+  stagger: isMobile ? 0.08 : 0.12,
 };
 
 /**

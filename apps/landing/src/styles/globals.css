@@ -32,6 +32,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Header scroll effect */
+header {
+  transition: box-shadow 0.3s ease, background-color 0.3s ease;
+}
+
+.header-scrolled {
+  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.06);
+}
+
 /* Wavy underline decoration */
 .wavy-underline {
   position: relative;
@@ -254,4 +263,14 @@ details > div {
 /* Orange text */
 .text-orange {
   color: var(--color-primary);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
