@@ -277,6 +277,8 @@ export interface GenerateVisualsJobData {
   styleGuide?: string;
   /** Enable verbose logging for debugging */
   verbose?: boolean;
+  /** If set, skip Director phase and run Animator only using plan from this job */
+  planJobId?: string;
 }
 
 interface VisualMetadata {
@@ -365,6 +367,21 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     const projectDir = createProjectDir(compositionId);
     logger.info({ projectDir, compositionId }, 'Created project directory');
 
+    // If this is an Animator-only run (plan was created separately), write plan files to project dir
+    if (job.data.planJobId) {
+      const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.data.planJobId) });
+      if (planJob?.planData) {
+        const pd = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+        const scenePlanPath = join(projectDir, 'SCENE_PLAN.md');
+        const scenesJsonPath = join(projectDir, 'scenes.json');
+        await writeFile(scenePlanPath, pd.scenePlan, 'utf-8');
+        await writeFile(scenesJsonPath, JSON.stringify(pd.scenes, null, 2), 'utf-8');
+        logger.info({ projectDir, planJobId: job.data.planJobId }, 'Wrote plan files from plan job for Animator-only run');
+      } else {
+        logger.warn({ planJobId: job.data.planJobId }, 'Plan job not found or has no planData');
+      }
+    }
+
     await publishJobProgress(jobId, 15, 'Starting Claude Code generator...');
 
     // Calculate duration in frames
@@ -390,6 +407,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       stylePreset: stylePreset || 'modern',
       layoutMode: layoutMode || 'pip',
       styleGuide,
+      planJobId: job.data.planJobId,
     });
 
     // Store metrics in job (no token cost for OAuth)
@@ -692,6 +710,8 @@ interface ClaudeCodeOptions {
   stylePreset: string;
   layoutMode: string;
   styleGuide?: string;
+  /** If set, run only the Animator phase (plan already exists in project dir) */
+  planJobId?: string;
 }
 
 /**
@@ -703,7 +723,7 @@ interface ClaudeCodeOptions {
 async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide } = options;
+  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId } = options;
 
   const pythonPath = config.pythonPath;
   const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
@@ -763,8 +783,14 @@ async function runClaudeCodeGenerator(
       args.push('--style-guide', styleGuidePath);
     }
 
-    // Two-phase pipeline is always used
-    logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
+    // If planJobId is set, skip Director and run Animator only
+    if (planJobId) {
+      args.push('--phase', 'animator');
+      logger.info({ projectId, planJobId }, 'Using Animator-only mode (plan provided from plan job)');
+    } else {
+      // Two-phase pipeline is always used
+      logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
+    }
 
     const subprocess = spawn(pythonPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
