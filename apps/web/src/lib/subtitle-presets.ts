@@ -1,6 +1,6 @@
 import type { AnimationConfig, CaptionPosition, CaptionEffects } from '@reelify/shared';
 
-export type PresetCategory = 'viral' | 'cinematic' | 'minimal';
+export type PresetCategory = 'viral' | 'cinematic' | 'minimal' | 'ad';
 
 export interface StrokeStyle {
   width: number;
@@ -47,6 +47,38 @@ export interface SubtitlePreset {
 }
 
 export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
+  // ============================================
+  // DEFAULT PRESET - Clean, universal starting point
+  // ============================================
+
+  'default': {
+    id: 'default',
+    name: 'Default',
+    category: 'minimal',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    fontSize: 48,
+    fontWeight: 600,
+    textTransform: 'none',
+    color: '#ffffff',
+    activeColor: '#ffffff',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 1, offsetY: 1, blur: 4, color: '#000000', opacity: 0.7 },
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'fade-rise', active: 'none', out: 'none', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'bottom',
+      offsetX: 0,
+      offsetY: 5,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
   // ============================================
   // VIRAL PRESETS - Bold, attention-grabbing styles
   // ============================================
@@ -238,6 +270,66 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
     position: 'bottom',
   },
 
+  // Kalice Glow - Pastel glow aesthetic, soft purple/pink glow halo
+  'kalice-glow': {
+    id: 'kalice-glow',
+    name: 'Kalice Glow',
+    category: 'viral',
+    fontFamily: 'Poppins, system-ui, sans-serif',
+    fontSize: 52,
+    fontWeight: 700,
+    textTransform: 'none',
+    color: '#ffffff',
+    activeColor: '#f0abfc',  // Soft pink/fuchsia
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    stroke: { width: 1, color: 'rgba(0,0,0,0.3)' },
+    effects: {
+      shadow: { offsetX: 0, offsetY: 0, blur: 4, color: '#000000', opacity: 0.5 },
+      shadowSecondary: null,
+      glow: { enabled: true, color: '#c084fc', intensity: 0.7, size: 30 },
+    },
+    animation: { in: 'soft-scale', active: 'none', out: 'none', easing: 'ease-out' },
+    displayMode: 'word-by-word',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Sara Dietschy Style - Bold, warm, punchy with black stroke
+  'sara': {
+    id: 'sara',
+    name: 'Sara',
+    category: 'viral',
+    fontFamily: 'Nunito, system-ui, sans-serif',
+    fontSize: 50,
+    fontWeight: 800,
+    textTransform: 'none',
+    color: '#ffffff',
+    activeColor: '#fbbf24',  // Warm amber/yellow
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    stroke: { width: 3, color: '#000000' },
+    effects: {
+      shadow: { offsetX: 2, offsetY: 2, blur: 0, color: '#000000', opacity: 0.9 },
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'elastic-pop', active: 'none', out: 'none', easing: 'spring' },
+    displayMode: 'word-by-word',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
   // ============================================
   // CINEMATIC PRESETS - Professional, documentary-style
   // ============================================
@@ -323,6 +415,100 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
     position: 'bottom',
   },
 
+  // Cinematic - Elegant serif, warm tones, film-like feel
+  'cinematic': {
+    id: 'cinematic',
+    name: 'Cinematic',
+    category: 'cinematic',
+    fontFamily: 'Playfair Display, serif',
+    fontSize: 46,
+    fontWeight: 700,
+    textTransform: 'none',
+    letterSpacing: 1,
+    lineHeight: 1.3,
+    color: '#ffffff',
+    activeColor: '#e0d5c1',  // Warm cream/gold
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 0, offsetY: 2, blur: 8, color: '#000000', opacity: 0.8 },
+      shadowSecondary: { offsetX: 0, offsetY: 0, blur: 20, color: '#000000', opacity: 0.4 },
+      glow: null,
+    },
+    animation: { in: 'apple-fade', active: 'none', out: 'apple-fade', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'bottom',
+      offsetX: 0,
+      offsetY: 8,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Behind Person - Large semi-transparent text, appears behind the subject
+  'behind-person': {
+    id: 'behind-person',
+    name: 'Behind Person',
+    category: 'cinematic',
+    fontFamily: 'Montserrat, system-ui, sans-serif',
+    fontSize: 72,
+    fontWeight: 900,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    opacity: 0.35,
+    color: '#ffffff',
+    activeColor: '#ffffff',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: null,
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'smooth-reveal', active: 'none', out: 'smooth-reveal', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Retro VHS - Chromatic aberration, tracking lines, VHS aesthetic
+  'retro-vhs': {
+    id: 'retro-vhs',
+    name: 'Retro VHS',
+    category: 'cinematic',
+    fontFamily: 'JetBrains Mono, Consolas, monospace',
+    fontSize: 44,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: 3,
+    color: '#ffffff',
+    activeColor: '#ff6b6b',  // Red/warm for VHS look
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    activeBackgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundPadding: { x: 12, y: 6 },
+    backgroundRadius: 2,
+    effects: {
+      shadow: { offsetX: 2, offsetY: 0, blur: 0, color: '#ff0000', opacity: 0.7 },
+      shadowSecondary: { offsetX: -2, offsetY: 0, blur: 0, color: '#00ffff', opacity: 0.5 },
+      glow: null,
+    },
+    animation: { in: 'smooth-slide', active: 'none', out: 'none', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'bottom',
+      offsetX: 0,
+      offsetY: 10,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
   // ============================================
   // MINIMAL PRESETS - Clean, simple styles
   // ============================================
@@ -395,21 +581,122 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
     displayMode: 'phrase',
     position: 'bottom',
   },
+
+  // ============================================
+  // AD PRESETS - Apple/Google-style clean ad typography
+  // ============================================
+
+  // Apple Clean - SF Pro Display, minimal, fade+blur
+  'apple-clean': {
+    id: 'apple-clean',
+    name: 'Apple',
+    category: 'ad',
+    fontFamily: 'SF Pro Display, -apple-system, system-ui, sans-serif',
+    fontSize: 48,
+    fontWeight: 600,
+    letterSpacing: -0.5,
+    textTransform: 'none',
+    lineHeight: 1.1,
+    color: '#ffffff',
+    activeColor: '#ffffff',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: null,
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'apple-fade', active: 'none', out: 'apple-fade', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Google Material - Clean slide-up with card
+  'google-material': {
+    id: 'google-material',
+    name: 'Google',
+    category: 'ad',
+    fontFamily: 'Google Sans, Roboto, system-ui, sans-serif',
+    fontSize: 44,
+    fontWeight: 500,
+    textTransform: 'none',
+    lineHeight: 1.3,
+    color: '#202124',
+    activeColor: '#202124',
+    backgroundColor: '#ffffff',
+    activeBackgroundColor: '#ffffff',
+    backgroundPadding: { x: 20, y: 12 },
+    backgroundRadius: 12,
+    effects: {
+      shadow: { offsetX: 0, offsetY: 2, blur: 8, color: '#000000', opacity: 0.15 },
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'google-slide', active: 'none', out: 'google-slide', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Ad Headline - Bold, clean, center-positioned
+  'ad-headline': {
+    id: 'ad-headline',
+    name: 'Ad Headline',
+    category: 'ad',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    fontSize: 56,
+    fontWeight: 700,
+    letterSpacing: -0.5,
+    textTransform: 'none',
+    lineHeight: 1.1,
+    color: '#ffffff',
+    activeColor: '#ffffff',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: null,
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'smooth-reveal', active: 'none', out: 'smooth-reveal', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
 };
 
 export const PRESET_ORDER = [
   // Viral - Creator styles
-  'mrbeast', 'hormozi', 'ali-abdaal', 'iman-gadzhi', 'devin-jatho', 'neon-karaoke',
+  'mrbeast', 'hormozi', 'ali-abdaal', 'iman-gadzhi', 'devin-jatho', 'neon-karaoke', 'kalice-glow', 'sara',
   // Cinematic
-  'netflix', 'documentary', 'typewriter',
+  'netflix', 'cinematic', 'documentary', 'behind-person', 'typewriter', 'retro-vhs',
   // Minimal
-  'minimal', 'box-highlight', 'classic',
+  'default', 'minimal', 'box-highlight', 'classic',
+  // Ad
+  'apple-clean', 'google-material', 'ad-headline',
 ] as const;
 
 export const PRESET_CATEGORIES: { id: PresetCategory; label: string }[] = [
   { id: 'viral', label: 'Viral' },
   { id: 'cinematic', label: 'Cinematic' },
   { id: 'minimal', label: 'Minimal' },
+  { id: 'ad', label: 'Ad' },
 ];
 
 export const DEFAULT_PRESET_ID = 'mrbeast';

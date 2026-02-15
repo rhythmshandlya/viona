@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useProject, useEditorActions, useIsSaving } from '../store/use-editor-store';
 import { api } from '@/lib/api';
+import { CanvasFormatSelector } from './CanvasFormatSelector';
 
 interface HeaderProps {
   onOpenCommandPalette?: () => void;
@@ -107,6 +108,8 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
         </button>
 
         <div className="w-px h-6 bg-[var(--editor-border-subtle)]" />
+
+        <CanvasFormatSelector />
       </div>
 
       {/* Center section: Title */}

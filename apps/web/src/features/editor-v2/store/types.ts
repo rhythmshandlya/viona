@@ -56,8 +56,13 @@ export interface CaptionItemData {
 
 export interface WordStyleOverrides {
   color?: string;
+  activeColor?: string;
   fontWeight?: number;
+  fontFamily?: string;
+  fontSize?: number;
   scale?: number;
+  letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase';
   emphasisBg?: string;
 }
 
@@ -240,7 +245,9 @@ export type AnimationType =
   | 'weight-shift' | 'float'
   // Cinematic
   | 'fade' | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
-  | 'underline-wipe';
+  | 'underline-wipe'
+  // Ad / Premium
+  | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal';
 
 export type EasingType = 'linear' | 'ease-out' | 'ease-in-out' | 'spring' | 'elastic' | 'bounce';
 

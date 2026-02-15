@@ -181,7 +181,19 @@
       "WebFetch(domain:lirantal.com)",
       "Bash(node_modules/.bin/tsx:*)",
       "Bash(pnpm drizzle-kit push:*)",
-      "Bash(git -C /c/Users/armaa/Documents/cllipify log --oneline -20)"
+      "Bash(git -C /c/Users/armaa/Documents/cllipify log --oneline -20)",
+      "Bash(gh issue list:*)",
+      "WebFetch(domain:www.notion.so)",
+      "Bash(for issue in 21 20 19 9 8 6 5 4)",
+      "Bash(do gh issue close \"$issue\" --repo rhythmshandlya/clippify)",
+      "Bash(done)",
+      "Bash(for id in I_kwDORFIJaM7q4eH9 I_kwDORFIJaM7q4eD_ I_kwDORFIJaM7q4eB6 I_kwDORFIJaM7q4eAV I_kwDORFIJaM7q4d-B I_kwDORFIJaM7q4d8h I_kwDORFIJaM7q4d54 I_kwDORFIJaM7q4d4Q I_kwDORFIJaM7q4d1R I_kwDORFIJaM7q4dzR I_kwDORFIJaM7q4dxq I_kwDORFIJaM7q4dvq I_kwDORFIJaM7q4dsk I_kwDORFIJaM7q4dqa I_kwDORFIJaM7q4dn5 I_kwDORFIJaM7q4dmc I_kwDORFIJaM7q4dj4 I_kwDORFIJaM7q4dhl I_kwDORFIJaM7q4df1 I_kwDORFIJaM7q4dd_ I_kwDORFIJaM7q4da_ I_kwDORFIJaM7q4dY2 I_kwDORFIJaM7q4dWD I_kwDORFIJaM7q4dUI I_kwDORFIJaM7q4dRF I_kwDORFIJaM7q4dQf I_kwDORFIJaM7q4dQF I_kwDORFIJaM7q4dPk I_kwDORFIJaM7pV5ax I_kwDORFIJaM7pV5PY I_kwDORFIJaM7o7i2S I_kwDORFIJaM7o7ivj I_kwDORFIJaM7o7ioX I_kwDORFIJaM7o7iYC I_kwDORFIJaM7o7iP6)",
+      "Bash(do)",
+      "Bash(gh api:*)",
+      "Bash(pnpm --filter web exec:*)",
+      "Bash(pnpm --filter web dev:*)",
+      "Bash(pnpm --filter @reelify/renderer add:*)",
+      "WebFetch(domain:fonts.google.com)"
     ]
   }
 }

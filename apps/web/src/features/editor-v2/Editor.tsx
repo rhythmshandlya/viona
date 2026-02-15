@@ -108,16 +108,6 @@ export function Editor({ projectId }: EditorProps) {
   // Actions
   const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus } = useEditorActions();
 
-  // Toggle transcript panel - opens left sidebar to captions tab
-  const handleToggleTranscript = useCallback(() => {
-    if (leftSidebarTab === 'captions' && leftSidebarOpen) {
-      setLeftSidebarOpen(false);
-    } else {
-      setLeftSidebarOpen(true);
-      setLeftSidebarTab('captions');
-    }
-  }, [leftSidebarTab, leftSidebarOpen]);
-
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
     setActiveTab(tab);
@@ -137,7 +127,6 @@ export function Editor({ projectId }: EditorProps) {
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
-    onToggleTranscript: handleToggleTranscript,
     onClosePanel: handleClosePanel,
   });
 
@@ -511,15 +500,8 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Captions</span>
           </button>
           <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'style') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('style');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'style' ? 'active' : ''}`}
+            onClick={() => setLeftSidebarTab('style')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'style' ? 'active' : ''}`}
             title="Style"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -528,15 +510,8 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Style</span>
           </button>
           <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'layout') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('layout');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'layout' ? 'active' : ''}`}
+            onClick={() => setLeftSidebarTab('layout')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'layout' ? 'active' : ''}`}
             title="Layout"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -548,15 +523,8 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Layout</span>
           </button>
           <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'assets') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('assets');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'assets' ? 'active' : ''}`}
+            onClick={() => setLeftSidebarTab('assets')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'assets' ? 'active' : ''}`}
             title="Assets"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -637,7 +605,6 @@ export function Editor({ projectId }: EditorProps) {
 
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
           {/* Video Preview Area */}
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
             {/* Zoom control */}

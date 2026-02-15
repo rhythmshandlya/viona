@@ -1,4 +1,5 @@
 import { buildReferenceExamplesSection } from './visual-references.js';
+import { AD_MOTION_UTILITIES } from './motion-utilities.js';
 
 /**
  * Style guidelines with SPECIFIC design tokens.
@@ -121,6 +122,55 @@ Style: Classic (Trustworthy & Educational)
 - Smooth fades over 30 frames
 - Smooth fades, professional transitions, no gimmicks
 - Understated motion, nothing flashy`,
+
+  apple: `
+Style: Apple (Premium Minimalism)
+
+**COLOR PALETTE:**
+- Background: #000000 (pure black) or #ffffff (pure white)
+- Accent: #0071e3 (Apple blue)
+- Text: #f5f5f7 (on dark) or #1d1d1f (on light)
+- No gradients — flat, clean surfaces
+
+**DESIGN:**
+- Extreme minimalism, maximum whitespace
+- One focal element at a time
+- Typography-driven: product name + one line of copy
+- No borders, no shadows, no ornaments
+- Max 3 visible elements at any moment
+
+**ANIMATION:**
+- Use spring({ damping: 30, stiffness: 40 }) - slow, deliberate, premium
+- Stagger elements by 30 frames (one second apart)
+- Fade + blur transitions: opacity 0→1 with filter blur(4px→0)
+- Scale 0.95→1.0 (subtle settle, never overshoot)
+- Hold each element for at least 60 frames before transitioning
+- Movement should feel like breathing — unhurried, confident`,
+
+  google: `
+Style: Google (Material Design 3)
+
+**COLOR PALETTE:**
+- Background: #ffffff or #f8f9fa (light gray)
+- Primary: #1a73e8 (Google Blue)
+- Secondary: #34a853 (Google Green)
+- Tertiary: #ea4335 (Google Red)
+- Accent: #fbbc04 (Google Yellow)
+- Text: #202124 (dark gray)
+
+**DESIGN:**
+- Material Design 3 principles: card-based, elevation shadows
+- Rounded corners (28px on cards, pill-shaped buttons)
+- Colorful but balanced — use Google's 4-color palette purposefully
+- Elevation: cards float with box-shadow 0 2px 8px rgba(0,0,0,0.1)
+- Clean iconography, product-grade UI elements
+
+**ANIMATION:**
+- Use spring({ damping: 18, stiffness: 100 }) - snappy, responsive, Material motion
+- Stagger elements by 12 frames (fast, cascading)
+- Slide-up motion: translateY(16→0) with fade
+- Cards rise into view with subtle shadow growth
+- Emphasize spatial relationships — elements come from where they "live"`,
 };
 
 interface TranscriptWord {
@@ -154,6 +204,7 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
       : `Left portion of 50/50 vertical split (${width}×${height}) - REDUCED WIDTH. Avoid wide layouts, stack vertically.`;
 
   const referenceExamples = buildReferenceExamplesSection(projectId);
+  const adMotionSection = (stylePreset === 'apple' || stylePreset === 'google') ? `\n\n${AD_MOTION_UTILITIES}\n` : '';
 
   return `You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
 
@@ -316,7 +367,7 @@ ${transcriptText}
 
 **Style: ${stylePreset}**
 ${styleGuidelines}
-
+${adMotionSection}
 ---
 
 ## 📐 Video Specifications

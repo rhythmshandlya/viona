@@ -658,15 +658,17 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
       <div style={positionStyles}>
         <span
           style={{
-            fontFamily: style.fontFamily,
-            fontSize: (overrides?.scale || 1) * style.fontSize,
+            fontFamily: overrides?.fontFamily || style.fontFamily,
+            fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
             fontWeight: overrides?.fontWeight || style.fontWeight,
-            color: overrides?.color || style.activeColor,
+            color: overrides?.activeColor || overrides?.color || style.activeColor,
             backgroundColor: activeBg,
             ...getBoxStyles(activeBg),
             display: 'inline-block',
             whiteSpace: 'nowrap',
             ...getTypographyStyles(),
+            ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+            ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
             ...animStyle,
           }}
         >
@@ -713,8 +715,8 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             <span
               key={index}
               style={{
-                fontFamily: style.fontFamily,
-                fontSize: (overrides?.scale || 1) * style.fontSize,
+                fontFamily: overrides?.fontFamily || style.fontFamily,
+                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
                 fontWeight: overrides?.fontWeight || style.fontWeight,
                 ...getBoxStyles(wordBg),
                 display: 'inline-block',
@@ -724,7 +726,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
                       // With background: use solid bg color, normal text color via gradient
                       backgroundColor: wordBg,
                       backgroundImage: hasAppeared
-                        ? `linear-gradient(90deg, ${overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
+                        ? `linear-gradient(90deg, ${overrides?.activeColor || overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
                         : `linear-gradient(90deg, ${style.color}, ${style.color})`,
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
@@ -733,13 +735,15 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
                   : {
                       // No background: gradient fill on text
                       backgroundImage: hasAppeared
-                        ? `linear-gradient(90deg, ${overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
+                        ? `linear-gradient(90deg, ${overrides?.activeColor || overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
                         : `linear-gradient(90deg, ${style.color}, ${style.color})`,
                       WebkitBackgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
                       backgroundClip: 'text',
                     }),
                 ...getTypographyStyles(),
+                ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+                ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
                 ...animStyle,
               }}
             >
@@ -779,17 +783,19 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             <span
               key={index}
               style={{
-                fontFamily: style.fontFamily,
-                fontSize: (overrides?.scale || 1) * style.fontSize,
+                fontFamily: overrides?.fontFamily || style.fontFamily,
+                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
                 fontWeight: overrides?.fontWeight || style.fontWeight,
                 color: isActive
-                  ? (overrides?.color || style.activeColor)
+                  ? (overrides?.activeColor || overrides?.color || style.activeColor)
                   : (overrides?.color || style.color),
                 backgroundColor: wordBg,
                 ...getBoxStyles(wordBg),
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
                 ...getTypographyStyles(),
+                ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+                ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
                 ...animStyle,
               }}
             >

@@ -25,10 +25,14 @@ const updateProjectSchema = z.object({
   })).optional(),
   items: z.array(z.object({
     id: z.string(),
+    trackId: z.string().optional(),
+    type: z.string().optional(),
     startMs: z.number().optional(),
     endMs: z.number().optional(),
     data: z.record(z.unknown()).optional(),
   })).optional(),
+  // IDs of all caption items currently in the editor — DB items not in this list are deleted
+  captionItemIds: z.array(z.string()).optional(),
   videoSettings: z.record(z.unknown()).optional(),
 });
 
@@ -302,17 +306,57 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Update timeline items if provided
+    // Upsert timeline items if provided (handles both existing and new items from split/merge)
     if (body.items) {
       for (const item of body.items) {
-        await db.update(timelineItems)
+        // Try UPDATE first
+        const result = await db.update(timelineItems)
           .set({
             startMs: item.startMs,
             endMs: item.endMs,
             data: item.data,
             updatedAt: new Date(),
           })
-          .where(eq(timelineItems.id, item.id));
+          .where(eq(timelineItems.id, item.id))
+          .returning({ id: timelineItems.id });
+
+        // If no rows updated, INSERT the new item (from split/merge)
+        if (result.length === 0 && item.trackId && item.type && item.startMs != null && item.endMs != null && item.data) {
+          await db.insert(timelineItems).values({
+            id: item.id,
+            trackId: item.trackId,
+            type: item.type,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: item.data,
+          });
+        }
+      }
+    }
+
+    // Delete caption items that no longer exist in the editor (removed by split/merge)
+    if (body.captionItemIds) {
+      const trackIds = (await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      })).map(t => t.id);
+
+      if (trackIds.length > 0) {
+        // Find all subtitle/caption items in the project
+        const existingItems = await db.select({ id: timelineItems.id }).from(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, trackIds),
+            or(eq(timelineItems.type, 'subtitle'), eq(timelineItems.type, 'caption'))
+          ));
+
+        // Delete items not in the editor's current list
+        const idsToDelete = existingItems
+          .map(i => i.id)
+          .filter(dbId => !body.captionItemIds!.includes(dbId));
+
+        if (idsToDelete.length > 0) {
+          await db.delete(timelineItems).where(inArray(timelineItems.id, idsToDelete));
+          fastify.log.info({ deletedCount: idsToDelete.length }, 'Deleted orphaned caption items from split/merge');
+        }
       }
     }
 
@@ -500,7 +544,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/projects/:id/generate-visuals', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
-      stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic']),
+      stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'apple', 'google']),
       layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
       dimensions: z.object({
         width: z.number().int().min(100).max(4096),

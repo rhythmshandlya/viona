@@ -13,6 +13,222 @@ import { renderVideo, SubtitleItem, SubtitleStyle } from '@reelify/renderer';
 import { renderMedia, selectComposition, getCompositions } from '@remotion/renderer';
 import { bundle } from '@remotion/bundler';
 
+// Font directory for FFmpeg's libass subtitle filter.
+// In Docker (production), fonts are installed in /usr/share/fonts.
+// Locally, we download and cache Google Fonts to a local directory.
+const SYSTEM_FONTS_DIR = '/usr/share/fonts';
+const LOCAL_FONTS_CACHE = join(tmpdir(), 'clippify-fonts');
+
+// Google Fonts CSS API query strings for each font.
+// We fetch the CSS with a non-browser User-Agent to get TTF URLs from fonts.gstatic.com,
+// then download the individual TTF files directly.
+// NOTE: The old fonts.google.com/download?family=X URLs are BROKEN — they return HTML
+// instead of ZIP files. This CSS API approach is the reliable alternative.
+const GOOGLE_FONT_URLS: Record<string, string> = {
+  'Inter': 'Inter:wght@400;500;600;700;800;900',
+  'Montserrat': 'Montserrat:wght@300;400;500;600;700;800;900',
+  'Poppins': 'Poppins:wght@400;500;600;700;800;900',
+  'Anton': 'Anton',
+  'Nunito': 'Nunito:wght@400;600;700;800;900',
+  'Playfair Display': 'Playfair+Display:wght@400;500;600;700;800;900',
+  'JetBrains Mono': 'JetBrains+Mono:wght@400;500;600;700;800',
+  'Rubik': 'Rubik:wght@400;500;600;700;800;900',
+  'Lora': 'Lora:wght@400;500;600;700',
+  'Merriweather': 'Merriweather:wght@400;700;900',
+  'Bebas Neue': 'Bebas+Neue',
+  'Space Grotesk': 'Space+Grotesk:wght@400;500;600;700',
+  'DM Sans': 'DM+Sans:wght@400;500;600;700',
+  'Outfit': 'Outfit:wght@400;500;600;700;800',
+  'Fira Code': 'Fira+Code:wght@400;500;600;700',
+  'Source Sans 3': 'Source+Sans+3:wght@400;600;700',
+  'Roboto': 'Roboto:wght@400;500;700',
+  'Oswald': 'Oswald:wght@400;500;600;700',
+  'Lato': 'Lato:wght@400;700;900',
+  'Open Sans': 'Open+Sans:wght@400;500;600;700;800',
+  'EB Garamond': 'EB+Garamond:wght@400;500;600;700;800',
+};
+
+// Fallback font mapping for fonts not available in Google Fonts.
+// Maps unavailable font → closest available alternative.
+const FONT_FALLBACKS: Record<string, string> = {
+  'Komika Axis': 'Anton',           // MrBeast preset — bold, condensed
+  'TT Fors': 'Inter',               // Ali Abdaal preset — clean sans-serif
+  'Helvetica Neue': 'Inter',        // Netflix preset — clean sans-serif
+  'Helvetica': 'Inter',
+  'Arial': 'Inter',
+  'SF Pro Display': 'Inter',        // Apple preset — clean sans-serif
+  'Google Sans': 'Roboto',          // Google Material preset
+  'Georgia': 'EB Garamond',         // Serif fallback (similar look)
+  'Times New Roman': 'Merriweather', // Serif fallback
+  'Impact': 'Anton',                // Bold condensed fallback
+  'Consolas': 'JetBrains Mono',     // Monospace fallback
+  'system-ui': 'Inter',
+  'sans-serif': 'Inter',
+  'serif': 'Merriweather',
+  'monospace': 'JetBrains Mono',
+};
+
+// Track which fonts have been downloaded in this process
+const downloadedFonts = new Set<string>();
+
+/**
+ * Resolve a font family name to one that's actually available for FFmpeg.
+ * Walks the comma-separated list and returns the first available font,
+ * checking Google Fonts registry and fallback map.
+ */
+function resolveAvailableFontFamily(fontFamilyCSS: string): string {
+  const families = fontFamilyCSS.split(',').map(f => f.trim());
+
+  for (const family of families) {
+    // Available in Google Fonts → use it directly
+    if (GOOGLE_FONT_URLS[family]) return family;
+    // Has a fallback mapping → use the fallback
+    if (FONT_FALLBACKS[family]) return FONT_FALLBACKS[family];
+  }
+
+  // Default fallback
+  return 'Inter';
+}
+
+/**
+ * Download a font from Google Fonts to the local cache directory.
+ * Uses the Google Fonts CSS API to get direct TTF URLs from fonts.gstatic.com.
+ * The old fonts.google.com/download?family=X URLs no longer return ZIP files.
+ */
+async function downloadFont(fontFamily: string): Promise<boolean> {
+  if (downloadedFonts.has(fontFamily)) return true;
+
+  const cssQuery = GOOGLE_FONT_URLS[fontFamily];
+  if (!cssQuery) {
+    logger.warn({ fontFamily }, 'No Google Fonts CSS query for font');
+    return false;
+  }
+
+  // Check if already cached (marker file)
+  const markerFile = join(LOCAL_FONTS_CACHE, `.downloaded-${fontFamily.replace(/\s+/g, '-').toLowerCase()}`);
+  try {
+    await access(markerFile, constants.R_OK);
+    downloadedFonts.add(fontFamily);
+    return true;
+  } catch {
+    // Not cached yet
+  }
+
+  logger.info({ fontFamily, cssQuery }, 'Downloading font for export via CSS API');
+
+  try {
+    const { execSync } = await import('child_process');
+
+    // Step 1: Fetch CSS from Google Fonts API — use non-browser User-Agent to get TTF URLs
+    const cssUrl = `https://fonts.googleapis.com/css2?family=${cssQuery}&display=swap`;
+    const css = execSync(
+      `curl -sL "${cssUrl}" -H "User-Agent: wget/1.0"`,
+      { timeout: 15000, encoding: 'utf-8' }
+    );
+
+    // Step 2: Extract all TTF URLs from the CSS
+    const ttfUrls = [...css.matchAll(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.ttf)\)/g)]
+      .map(m => m[1]);
+
+    if (ttfUrls.length === 0) {
+      logger.warn({ fontFamily, css: css.slice(0, 200) }, 'No TTF URLs found in Google Fonts CSS');
+      return false;
+    }
+
+    // Step 3: Download each TTF file
+    let downloadedCount = 0;
+    for (const ttfUrl of ttfUrls) {
+      const filename = `${fontFamily.replace(/\s+/g, '-')}-${downloadedCount}.ttf`;
+      const ttfPath = join(LOCAL_FONTS_CACHE, filename);
+      try {
+        execSync(`curl -sL "${ttfUrl}" -o "${ttfPath}"`, { timeout: 15000 });
+        downloadedCount++;
+      } catch (err) {
+        logger.warn({ fontFamily, ttfUrl, err }, 'Failed to download individual TTF file');
+      }
+    }
+
+    if (downloadedCount === 0) {
+      logger.warn({ fontFamily }, 'Failed to download any TTF files');
+      return false;
+    }
+
+    // Create marker file so we don't re-download
+    await writeFile(markerFile, fontFamily, 'utf-8');
+    downloadedFonts.add(fontFamily);
+
+    logger.info({ fontFamily, downloadedCount, totalUrls: ttfUrls.length }, 'Font downloaded and cached');
+    return true;
+  } catch (err) {
+    logger.warn({ fontFamily, err }, 'Failed to download font');
+    return false;
+  }
+}
+
+/**
+ * Ensure fonts are available for FFmpeg subtitle rendering.
+ * Returns the fontsdir path to use in FFmpeg's subtitles filter.
+ */
+async function ensureFontsDir(fontFamilyCSS: string): Promise<string> {
+  // In Docker/production, fonts are pre-installed in /usr/share/fonts
+  try {
+    await access(SYSTEM_FONTS_DIR, constants.R_OK);
+    logger.info('Using system fonts directory (Docker/production)');
+    return SYSTEM_FONTS_DIR;
+  } catch {
+    // Not in Docker — download fonts locally
+  }
+
+  // Create local font cache directory
+  await mkdir(LOCAL_FONTS_CACHE, { recursive: true });
+
+  // Clear stale marker files from the old broken download mechanism
+  // (old code used fonts.google.com/download URLs that returned HTML, not ZIPs)
+  try {
+    const { execSync } = await import('child_process');
+    const markerFiles = execSync(
+      `find "${LOCAL_FONTS_CACHE}" -name ".downloaded-*" -size -100c 2>/dev/null || true`,
+      { encoding: 'utf-8', timeout: 5000 }
+    ).trim();
+    if (markerFiles) {
+      // Check if any actual TTF files exist — if not, the markers are stale
+      const ttfCount = execSync(
+        `find "${LOCAL_FONTS_CACHE}" -name "*.ttf" 2>/dev/null | wc -l`,
+        { encoding: 'utf-8', timeout: 5000 }
+      ).trim();
+      if (parseInt(ttfCount, 10) === 0) {
+        execSync(`rm -f "${LOCAL_FONTS_CACHE}"/.downloaded-* 2>/dev/null || true`, { timeout: 5000 });
+        downloadedFonts.clear();
+        logger.info('Cleared stale font markers (no TTF files found)');
+      }
+    }
+  } catch {
+    // Non-critical cleanup
+  }
+
+  // Resolve which font we actually need
+  const resolvedFont = resolveAvailableFontFamily(fontFamilyCSS);
+  logger.info({ requestedFont: fontFamilyCSS, resolvedFont }, 'Resolved font for export');
+
+  // Download the resolved font
+  await downloadFont(resolvedFont);
+
+  // Also download Inter as ultimate fallback
+  if (resolvedFont !== 'Inter') {
+    await downloadFont('Inter');
+  }
+
+  // Update fontconfig cache so libass can find the fonts
+  try {
+    const { execSync } = await import('child_process');
+    execSync(`fc-cache -f "${LOCAL_FONTS_CACHE}" 2>/dev/null`, { timeout: 10000 });
+  } catch {
+    // fc-cache might not be available locally (macOS), fonts still work via fontsdir
+  }
+
+  return LOCAL_FONTS_CACHE;
+}
+
 export interface LayoutSettings {
   mode: 'pip' | 'split-horizontal' | 'split-vertical';
   pip: {
@@ -110,6 +326,35 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       firstSubtitleText: subtitles[0]?.text,
       allItemTypes: allItems.map((i: any) => i.type),
     }, 'Converted subtitles with styles');
+
+    // Ensure fonts are available for FFmpeg subtitle rendering
+    const firstStyle = (subtitles[0]?.style as any) || {};
+    const rawFontFamily = firstStyle.fontFamily || 'Inter';
+    const fontsDir = await ensureFontsDir(rawFontFamily);
+    // Resolve the font to one that's actually available (with fallback for commercial fonts)
+    const resolvedFontFamily = resolveAvailableFontFamily(rawFontFamily);
+    logger.info({ rawFontFamily, resolvedFontFamily, fontsDir }, 'Resolved font for export');
+
+    // Resolve fontFamily in all subtitle styles so both Remotion (headless Chrome)
+    // and FFmpeg/ASS paths use an actual available Google Font name.
+    // Without this, CSS strings like "Komika Axis, Impact, system-ui, sans-serif"
+    // fall through to generic system fonts in headless Chrome since neither
+    // "Komika Axis" nor "Impact" are loaded via @remotion/google-fonts.
+    for (const subtitle of subtitles) {
+      const style = subtitle.style as any;
+      if (style?.fontFamily) {
+        style.fontFamily = resolveAvailableFontFamily(style.fontFamily);
+      }
+      // Also resolve per-word font overrides
+      if (subtitle.words) {
+        for (const word of subtitle.words as any[]) {
+          if (word.styleOverrides?.fontFamily) {
+            word.styleOverrides.fontFamily = resolveAvailableFontFamily(word.styleOverrides.fontFamily);
+          }
+        }
+      }
+    }
+    logger.info({ resolvedFontFamily, firstStyleAfter: (subtitles[0]?.style as any)?.fontFamily }, 'Resolved font families in all subtitles');
 
     // Check for enhanced audio
     const audioItems = allItems.filter((item: any) => item.type === 'audio');
@@ -237,6 +482,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         height: visualHeight,
         layoutSettings,
         fullscreenSegments,
+        fontsDir,
+        resolvedFontFamily,
         onProgress: (progress) => {
           // Map compositing progress from 75% to 85%
           const jobProgress = 75 + Math.round(progress * 10);
@@ -246,17 +493,78 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
       logger.info({ projectId, outputPath }, 'Export complete with full composite');
     } else {
-      // No visuals - use FFmpeg with subtitles and audio
-      await publishJobProgress(jobId, 30, 'Encoding video...');
+      // No visuals - render subtitles with Remotion (browser-based for proper Google Fonts)
+      await publishJobProgress(jobId, 30, 'Rendering video...');
 
       logger.info({
         hasEnhancedAudio: !!enhancedAudioPath,
         subtitleCount: subtitles.length,
-      }, 'No visuals found, using FFmpeg encode');
+      }, 'No visuals found, rendering with Remotion for proper font support');
 
       if (subtitles.length > 0) {
-        // Render with subtitles
-        await encodeVideoWithSubtitles(videoPath, enhancedAudioPath, subtitles, outputPath, workDir);
+        const videoSettings = (project.videoSettings as any) || {};
+        const canvasWidth = videoSettings.canvasWidth || 1080;
+        const canvasHeight = videoSettings.canvasHeight || 1920;
+
+        // Get video duration for Remotion rendering
+        let durationMs = 0;
+        try {
+          const { execSync } = await import('child_process');
+          const ffprobeOutput = execSync(
+            `ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${videoPath}"`,
+            { encoding: 'utf-8' }
+          );
+          durationMs = Math.round(parseFloat(ffprobeOutput.trim()) * 1000);
+        } catch (err) {
+          logger.warn({ err }, 'Could not get video duration, estimating from subtitles');
+          durationMs = Math.max(...subtitles.map(s => s.endMs)) + 1000;
+        }
+
+        // Use Remotion browser-based rendering for subtitles
+        // This renders subtitles as React components in headless Chrome
+        // with Google Fonts loaded via @remotion/google-fonts (same as preview)
+        const remotionOutputPath = enhancedAudioPath ? join(workDir, 'subtitled.mp4') : outputPath;
+
+        logger.info({
+          canvasWidth,
+          canvasHeight,
+          durationMs,
+          subtitleCount: subtitles.length,
+        }, 'Rendering subtitles with Remotion (browser-based fonts)');
+
+        await renderVideo({
+          videoUrl: videoPath,
+          subtitles,
+          outputPath: remotionOutputPath,
+          width: canvasWidth,
+          height: canvasHeight,
+          fps: 30,
+          durationMs,
+          // Pass default style matching preview defaults so fallback renders correctly
+          defaultSubtitleStyle: {
+            fontFamily: 'Inter',
+            fontSize: 56,
+            fontWeight: 800,
+            color: '#ffffff',
+            activeColor: '#ffff00',
+            backgroundColor: 'transparent',
+            activeBackgroundColor: 'transparent',
+            opacity: 1,
+            lineHeight: 1.4,
+            letterSpacing: 0,
+            textTransform: 'none' as const,
+            stroke: null,
+          },
+          onProgress: (progress) => {
+            const jobProgress = 30 + Math.round((progress / 100) * 55);
+            publishJobProgress(jobId, jobProgress, `Rendering subtitles: ${progress}%`);
+          },
+        });
+
+        // If enhanced audio, mux it with the rendered video
+        if (enhancedAudioPath) {
+          await encodeVideoWithAudio(remotionOutputPath, enhancedAudioPath, outputPath);
+        }
       } else {
         await encodeVideoWithAudio(videoPath, enhancedAudioPath, outputPath);
       }
@@ -444,7 +752,8 @@ async function renderSubtitlesWithFFmpeg(
   inputPath: string,
   outputPath: string,
   items: any[],
-  project: any
+  project: any,
+  fontsDir: string = SYSTEM_FONTS_DIR
 ): Promise<void> {
   const { access, constants } = await import('fs/promises');
 
@@ -489,7 +798,7 @@ async function renderSubtitlesWithFFmpeg(
     const args = [
       '-i', 'input.mp4',
       '-y',
-      '-vf', `subtitles=${assFilename}`,
+      '-vf', `subtitles=${assFilename}:fontsdir=${fontsDir}`,
       '-c:a', 'copy',
       'output.mp4'
     ];
@@ -1012,6 +1321,7 @@ interface AddAudioAndSubtitlesOptions {
   workDir: string;
   width: number;
   height: number;
+  fontsDir?: string;
 }
 
 /**
@@ -1027,6 +1337,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
     workDir,
     width,
     height,
+    fontsDir = SYSTEM_FONTS_DIR,
   } = options;
 
   const { spawn } = await import('child_process');
@@ -1071,7 +1382,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
 
   // Add subtitles filter if we have them, otherwise copy video
   if (assFilename) {
-    args.push('-vf', `subtitles=${assFilename}`);
+    args.push('-vf', `subtitles=${assFilename}:fontsdir=${fontsDir}`);
     args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
   } else {
     args.push('-c:v', 'copy');
@@ -1126,6 +1437,8 @@ interface RenderWithPiPLayoutOptions {
   layoutSettings?: LayoutSettings;
   fullscreenSegments?: FullscreenSegment[];
   onProgress?: (progress: number) => void;
+  fontsDir: string;
+  resolvedFontFamily?: string;
 }
 
 /**
@@ -1147,6 +1460,8 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     layoutSettings,
     fullscreenSegments,
     onProgress,
+    fontsDir,
+    resolvedFontFamily,
   } = options;
 
   // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
@@ -1372,14 +1687,14 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
   let assFilename: string | null = null;
   if (subtitles.length > 0) {
     assFilename = 'subtitles.ass';
-    const assContent = generateASSForComposite(subtitles, width, height, layoutSettings);
+    const assContent = generateASSForComposite(subtitles, width, height, layoutSettings, resolvedFontFamily);
     await writeFile(join(workDir, assFilename), assContent, 'utf-8');
-    logger.info({ subtitleCount: subtitles.length, assFilename, mode }, 'Generated ASS subtitles with layout');
+    logger.info({ subtitleCount: subtitles.length, assFilename, mode, resolvedFontFamily }, 'Generated ASS subtitles with layout');
   }
 
   // Add subtitles filter if we have them
   if (assFilename) {
-    filterComplex = filterComplex.replace('[outv]', '[pre]') + `;[pre]subtitles=${assFilename}[outv]`;
+    filterComplex = filterComplex.replace('[outv]', '[pre]') + `;[pre]subtitles=${assFilename}:fontsdir=${fontsDir}[outv]`;
   }
 
   // Build FFmpeg args
@@ -1474,6 +1789,7 @@ interface FinalizeRemotionVideoOptions {
   workDir: string;
   width: number;
   height: number;
+  fontsDir?: string;
 }
 
 /**
@@ -1489,6 +1805,7 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
     workDir,
     width,
     height,
+    fontsDir = SYSTEM_FONTS_DIR,
   } = options;
 
   const { spawn } = await import('child_process');
@@ -1533,7 +1850,7 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
 
   // Add video filter for subtitles if we have them
   if (assFilename) {
-    args.push('-vf', `subtitles=${assFilename}`);
+    args.push('-vf', `subtitles=${assFilename}:fontsdir=${fontsDir}`);
   } else {
     args.push('-c:v', 'copy');  // No re-encode needed if no subtitles
   }
@@ -1592,6 +1909,7 @@ interface CompositeFullVideoOptions {
   workDir: string;
   projectWidth: number;
   projectHeight: number;
+  fontsDir?: string;
 }
 
 /**
@@ -1608,6 +1926,7 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     workDir,
     projectWidth: fullWidth,
     projectHeight: fullHeight,
+    fontsDir = SYSTEM_FONTS_DIR,
   } = options;
 
   // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
@@ -1670,7 +1989,7 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
 
   // Add subtitles filter if we have them
   if (assFilename) {
-    filterComplex += `,subtitles=${assFilename}`;
+    filterComplex += `,subtitles=${assFilename}:fontsdir=${fontsDir}`;
   }
 
   filterComplex += '[outv]';
@@ -1795,16 +2114,21 @@ function getASSAlignment(position: string): number {
  * Adjusts positioning based on layout mode (PiP, split-horizontal, split-vertical).
  * Supports word-by-word, phrase, and karaoke display modes.
  */
-function generateASSForComposite(subtitles: SubtitleItem[], width: number, height: number, layoutSettings?: LayoutSettings): string {
+function generateASSForComposite(subtitles: SubtitleItem[], width: number, height: number, layoutSettings?: LayoutSettings, fontFamilyOverride?: string): string {
   // Get style from first subtitle (they should all have same style)
   const firstStyle = subtitles[0]?.style as any || {};
 
   logger.info({ captionStyle: firstStyle, layoutSettings }, 'Generating ASS subtitles with style and layout');
 
-  const fontFamily = (firstStyle.fontFamily || 'Inter').split(',')[0].trim();
-  // Scale font size based on resolution (frontend uses 1080p as base)
+  // Use the resolved/override font family if provided, otherwise resolve from CSS font-family string
+  // resolveAvailableFontFamily walks the comma-separated list and picks the first font
+  // available in Google Fonts or the fallback map (e.g. 'Komika Axis' → 'Anton')
+  const fontFamily = fontFamilyOverride || resolveAvailableFontFamily(firstStyle.fontFamily || 'Inter');
+  logger.info({ fontFamily, fontFamilyOverride, styleFontFamily: firstStyle.fontFamily }, 'ASS using font family');
+  // Use fontSize directly — PlayResY is set to canvas height so ASS handles coordinate mapping.
+  // No height/1920 scaling needed; it's redundant at 1920p and creates mismatches at other resolutions.
   const baseFontSize = firstStyle.fontSize || 56;
-  const fontSize = Math.round(baseFontSize * (height / 1920));
+  const fontSize = baseFontSize;
 
   // Apply opacity to colors if specified
   const opacity = firstStyle.opacity ?? 1;
@@ -1817,19 +2141,29 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
 
   const color = applyOpacity(hexToASSColor(firstStyle.color || '#ffffff'), opacity);
   const activeColor = applyOpacity(hexToASSColor(firstStyle.activeColor || '#ffff00'), opacity);
-  const outlineColor = '&H00000000'; // Black outline (will be overridden if stroke is set)
 
-  // Handle backgroundColor - convert to ASS BackColour with proper alpha
-  let backColor = '&H80000000'; // Default semi-transparent black
+  // Handle backgroundColor — use proper ASS BackColour
+  // Default to fully transparent (matching preview's 'transparent' default)
+  let backColor = '&H00000000'; // Fully transparent
+  let borderStyle = 1; // 1 = outline + shadow (default)
   if (firstStyle.backgroundColor && firstStyle.backgroundColor !== 'transparent') {
     backColor = hexToASSColor(firstStyle.backgroundColor);
+    borderStyle = 3; // 3 = opaque box behind text (like CSS backgroundColor)
   }
 
   const fontWeight = firstStyle.fontWeight || 800;
   const bold = fontWeight >= 700 ? -1 : 0;  // -1 = bold in ASS
 
-  // Letter spacing (ASS Spacing parameter)
-  const letterSpacing = Math.round((firstStyle.letterSpacing || 0) * (height / 1920));
+  // Letter spacing — use directly (no height/1920 scaling, PlayRes handles it)
+  const letterSpacing = firstStyle.letterSpacing || 0;
+
+  // Line height — CSS lineHeight (unitless multiplier, default 1.4) controls vertical
+  // line spacing. ASS doesn't have a direct lineHeight field, so we approximate via ScaleY.
+  // Default ASS line spacing ≈ 1.2× font size (font-metric dependent).
+  // ScaleY scales the entire glyph + line gap proportionally.
+  const lineHeight = firstStyle.lineHeight ?? 1.4;
+  const DEFAULT_ASS_LINE_HEIGHT = 1.2;
+  const scaleY = Math.round((lineHeight / DEFAULT_ASS_LINE_HEIGHT) * 100);
 
   // Text transform - will be applied to each subtitle text
   const textTransform = firstStyle.textTransform || 'none';
@@ -1938,43 +2272,93 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   let marginL = 10 + Math.max(0, offsetXPixels);
   let marginR = 10 + Math.max(0, -offsetXPixels);
 
-  // Parse effects for outline/shadow settings
-  // V3: Use effects object (shadow, shadowSecondary, glow)
-  // Fallback: Parse legacy textShadow string "2px 2px 4px rgba(0,0,0,0.8)"
-  let outline = 3;
-  let shadow = 2;
-  let outlineColorParsed = outlineColor;
+  // ── Effects mapping: stroke → ASS Outline, shadow → ASS inline xshad/yshad/blur ──
+  // Stroke (CSS WebkitTextStroke) maps to ASS Outline (border around glyphs).
+  // Shadow (CSS text-shadow) maps to ASS \xshad, \yshad, \blur inline override tags.
+  // This separation matches the preview more closely than mixing them into Style fields.
+  let outline = 0;
+  let outlineColorParsed = '&H00000000'; // Default black
+
+  // Stroke → ASS Outline (direct mapping, no height/1920 scaling — PlayRes handles it)
+  if (firstStyle.stroke && firstStyle.stroke.width > 0) {
+    outline = Math.round(firstStyle.stroke.width);
+    outlineColorParsed = hexToASSColor(firstStyle.stroke.color || '#000000');
+    logger.info({ stroke: firstStyle.stroke, outline }, 'Stroke → ASS Outline');
+  }
+
+  // Shadow → inline tags (built later, prepended to each dialogue line)
+  // Stores the values for \xshad, \yshad, \blur tags
+  let shadowXShad = 0;
+  let shadowYShad = 0;
+  let shadowBlur = 0;
+  let shadowColor = '&H00000000'; // Default black shadow color
 
   if (firstStyle.effects?.shadow) {
-    // V3 effects system
-    const shadowEffect = firstStyle.effects.shadow;
-    outline = Math.max(2, Math.round(shadowEffect.blur / 2));
-    shadow = Math.max(1, Math.abs(shadowEffect.offsetX));
-    outlineColorParsed = hexToASSColor(shadowEffect.color || '#000000');
-    logger.info({ shadowEffect, outline, shadow }, 'Using V3 effects system for shadow');
+    const se = firstStyle.effects.shadow;
+    shadowXShad = se.offsetX;
+    shadowYShad = se.offsetY;
+    shadowBlur = Math.round(se.blur * 0.5); // ASS blur is more intense, scale down
+    shadowColor = applyOpacity(hexToASSColor(se.color || '#000000'), se.opacity);
+    logger.info({ shadowEffect: se, shadowXShad, shadowYShad, shadowBlur }, 'Shadow → ASS inline xshad/yshad/blur');
+
+    // If no stroke, use shadow blur as a subtle outline for readability
+    if (outline === 0 && se.blur > 0) {
+      outline = Math.max(1, Math.round(se.blur / 4));
+      outlineColorParsed = hexToASSColor(se.color || '#000000');
+    }
   } else if (firstStyle.textShadow) {
-    // Legacy fallback
-    const shadowMatch = firstStyle.textShadow.match(/(\d+)px\s+(\d+)px\s+(\d+)px/);
+    // Legacy fallback — parse "2px 2px 4px rgba(0,0,0,0.8)"
+    const shadowMatch = firstStyle.textShadow.match(/(-?\d+)px\s+(-?\d+)px\s+(\d+)px/);
     if (shadowMatch) {
-      outline = Math.max(2, parseInt(shadowMatch[3], 10) / 2);
-      shadow = Math.max(1, parseInt(shadowMatch[1], 10));
+      shadowXShad = parseInt(shadowMatch[1], 10);
+      shadowYShad = parseInt(shadowMatch[2], 10);
+      shadowBlur = Math.round(parseInt(shadowMatch[3], 10) * 0.5);
+    }
+    if (outline === 0) {
+      outline = Math.max(1, shadowBlur);
     }
   }
 
-  // Parse stroke for outline color and width
-  if (firstStyle.stroke && firstStyle.stroke.width > 0) {
-    outline = Math.max(outline, Math.round(firstStyle.stroke.width * (height / 1920)));
-    outlineColorParsed = hexToASSColor(firstStyle.stroke.color || '#000000');
-    logger.info({ stroke: firstStyle.stroke, outline }, 'Using stroke for outline');
+  // Secondary shadow support (previously ignored entirely)
+  let shadowSecondaryTags = '';
+  if (firstStyle.effects?.shadowSecondary) {
+    const ss = firstStyle.effects.shadowSecondary;
+    // Secondary shadow is applied as additional text-shadow in CSS.
+    // In ASS we can't have two shadows, but we can approximate by choosing
+    // the larger shadow for the inline tags (the one with more visual impact).
+    const secondaryMag = Math.abs(ss.offsetX) + Math.abs(ss.offsetY) + ss.blur;
+    const primaryMag = Math.abs(shadowXShad) + Math.abs(shadowYShad) + shadowBlur * 2;
+    if (secondaryMag > primaryMag) {
+      shadowXShad = ss.offsetX;
+      shadowYShad = ss.offsetY;
+      shadowBlur = Math.round(ss.blur * 0.5);
+      shadowColor = applyOpacity(hexToASSColor(ss.color || '#000000'), ss.opacity);
+    }
+    logger.info({ shadowSecondary: ss }, 'Secondary shadow considered');
   }
 
-  // Handle glow effect - add to shadow
+  // Glow → ASS \blur tag (approximates CSS multi-layer glow shadows)
+  let glowBlur = 0;
+  let glowColor = '';
   if (firstStyle.effects?.glow?.enabled) {
     const glow = firstStyle.effects.glow;
-    // Glow adds extra blur/shadow
-    shadow = Math.max(shadow, Math.round(glow.size / 3));
-    logger.info({ glow, shadow }, 'Applied glow effect');
+    glowBlur = Math.round(glow.size * 0.5);
+    glowColor = hexToASSColor(glow.color);
+    // Combine glow blur with shadow blur (take the larger)
+    shadowBlur = Math.max(shadowBlur, glowBlur);
+    logger.info({ glow, glowBlur }, 'Glow → ASS blur');
   }
+
+  // Build the inline effect override tags that get prepended to every dialogue line.
+  // These override the Style-level Shadow field with per-axis values + Gaussian blur.
+  const effectOverrideParts: string[] = [];
+  if (shadowXShad !== 0) effectOverrideParts.push(`\\xshad${shadowXShad}`);
+  if (shadowYShad !== 0) effectOverrideParts.push(`\\yshad${shadowYShad}`);
+  if (shadowBlur > 0) effectOverrideParts.push(`\\blur${shadowBlur}`);
+  // Shadow/glow color: glow color takes priority if glow is enabled, otherwise use shadow color
+  const effectShadowColor = glowColor || shadowColor;
+  if (effectShadowColor !== '&H00000000') effectOverrideParts.push(`\\4c${effectShadowColor}`);
+  const effectOverrideTags = effectOverrideParts.length > 0 ? `{${effectOverrideParts.join('')}}` : '';
 
   // Helper to apply text transform
   const applyTextTransform = (text: string): string => {
@@ -1983,7 +2367,12 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
     return text;
   };
 
+  // Shadow in the Style line is set to 0 because we use inline \xshad/\yshad/\blur tags
+  // for accurate per-axis shadow rendering. The Style Shadow field only supports equal X/Y.
+  const styleShadow = 0;
+
   // Create styles - Default for inactive words, Active for highlighted words
+  // BorderStyle: 1 = outline+shadow (transparent bg), 3 = opaque box (colored bg)
   let ass = `[Script Info]
 Title: Reelify Subtitles
 ScriptType: v4.00+
@@ -1994,12 +2383,22 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${color},${activeColor},${outlineColorParsed},${backColor},${bold},0,0,0,100,100,${letterSpacing},${rotation},1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
-Style: Active,${fontFamily},${fontSize},${activeColor},${color},${outlineColorParsed},${backColor},${bold},0,0,0,100,100,${letterSpacing},${rotation},1,${outline},${shadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Default,${fontFamily},${fontSize},${color},${activeColor},${outlineColorParsed},${backColor},${bold},0,0,0,100,${scaleY},${letterSpacing},${rotation},${borderStyle},${outline},${styleShadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Active,${fontFamily},${fontSize},${activeColor},${color},${outlineColorParsed},${backColor},${bold},0,0,0,100,${scaleY},${letterSpacing},${rotation},${borderStyle},${outline},${styleShadow},${alignment},${marginL},${marginR},${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
+
+  // Log the ASS style header for debugging font issues
+  logger.info({
+    fontFamily,
+    fontSize,
+    bold,
+    alignment,
+    displayMode,
+    assStylePreview: `Style: Default,${fontFamily},${fontSize},...`,
+  }, 'Generated ASS style');
 
   // Helper to get absolute word timing
   // Words from database may be absolute (>= subtitle.startMs) or relative (< subtitle.startMs)
@@ -2011,6 +2410,67 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       return wordTime;
     }
     return subtitle.startMs + wordTime;
+  };
+
+  // Helper: build ASS inline override tags from per-word styleOverrides
+  const buildWordOverrideTags = (word: any, isActive: boolean): string => {
+    const ov = word.styleOverrides;
+    if (!ov) return '';
+    const tags: string[] = [];
+    // Color override: use activeColor when word is active, else color
+    if (isActive && ov.activeColor) {
+      tags.push(`\\c${hexToASSColor(ov.activeColor)}`);
+    } else if (ov.color) {
+      tags.push(`\\c${hexToASSColor(ov.color)}`);
+    }
+    // Font family — resolve through fallback map so commercial fonts get substituted
+    if (ov.fontFamily) {
+      const family = resolveAvailableFontFamily(ov.fontFamily);
+      tags.push(`\\fn${family}`);
+    }
+    // Font size (absolute override or scale) — no height/1920 scaling, PlayRes handles it
+    if (ov.fontSize) {
+      const scaledSize = Math.round((ov.scale || 1) * ov.fontSize);
+      tags.push(`\\fs${scaledSize}`);
+    } else if (ov.scale && ov.scale !== 1) {
+      tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
+    }
+    // Font weight (bold)
+    if (ov.fontWeight && ov.fontWeight >= 700) {
+      tags.push('\\b1');
+    }
+    // Letter spacing
+    if (ov.letterSpacing != null) {
+      tags.push(`\\fsp${ov.letterSpacing}`);
+    }
+    // Emphasis background (\\3c = border color used as highlight box)
+    if (ov.emphasisBg) {
+      tags.push(`\\3c${hexToASSColor(ov.emphasisBg)}`);
+    }
+    return tags.length > 0 ? `{${tags.join('')}}` : '';
+  };
+
+  // Helper: reset ASS inline overrides back to style defaults after an overridden word
+  const buildResetTags = (word: any): string => {
+    const ov = word.styleOverrides;
+    if (!ov) return '';
+    const tags: string[] = [];
+    if (ov.color || ov.activeColor) tags.push(`\\c${color}`);
+    if (ov.fontFamily) tags.push(`\\fn${fontFamily}`);
+    if (ov.fontSize || (ov.scale && ov.scale !== 1)) tags.push(`\\fs${fontSize}`);
+    if (ov.fontWeight && ov.fontWeight >= 700) tags.push(`\\b${bold}`);
+    if (ov.letterSpacing != null) tags.push(`\\fsp${letterSpacing}`);
+    if (ov.emphasisBg) tags.push(`\\3c${outlineColorParsed}`);
+    return tags.length > 0 ? `{${tags.join('')}}` : '';
+  };
+
+  // Helper: apply per-word textTransform (override > caption-level)
+  const transformWordText = (word: any): string => {
+    const text = word.text || '';
+    const ov = word.styleOverrides;
+    if (ov?.textTransform === 'uppercase') return text.toUpperCase();
+    if (ov?.textTransform === 'lowercase') return text.toLowerCase();
+    return applyTextTransform(text);
   };
 
   // Process subtitles based on display mode
@@ -2026,8 +2486,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const wordEnd = getAbsoluteWordTime(subtitle, word, true);
         const startTime = formatASSTime(wordStart);
         const endTime = formatASSTime(wordEnd);
-        const text = applyTextTransform(word.text || '').replace(/\n/g, '\\N');
-        ass += `Dialogue: 0,${startTime},${endTime},Active,,0,0,0,,${text}\n`;
+        const text = transformWordText(word).replace(/\n/g, '\\N');
+        const overrideTags = buildWordOverrideTags(word, true);
+        // Prepend effect tags (shadow xshad/yshad/blur) to each dialogue line
+        ass += `Dialogue: 0,${startTime},${endTime},Active,,0,0,0,,${effectOverrideTags}${overrideTags}${text}\n`;
       }
     } else if (displayMode === 'karaoke') {
       // Show all words with karaoke fill effect - words highlight as they're spoken
@@ -2042,39 +2504,109 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const wordStart = getAbsoluteWordTime(subtitle, word, false);
         const wordEnd = getAbsoluteWordTime(subtitle, word, true);
         const duration = Math.round((wordEnd - wordStart) / 10);
-        const wordText = applyTextTransform(word.text || '');
+        const wordText = transformWordText(word);
+        const overrideTags = buildWordOverrideTags(word, false);
         // \kf = karaoke fill effect (smooth fill from left to right)
-        karaokeText += `{\\kf${duration}}${wordText}`;
-        if (i < words.length - 1) karaokeText += ' ';
+        // Merge override tags with \kf tag
+        if (overrideTags) {
+          // Insert \kf inside the override tag block
+          karaokeText += `{\\kf${duration}${overrideTags.slice(1, -1)}}${wordText}`;
+        } else {
+          karaokeText += `{\\kf${duration}}${wordText}`;
+        }
+        // Reset after overridden word so next word uses defaults
+        if ((word as any).styleOverrides && i < words.length - 1) karaokeText += buildResetTags(word);
+        // Use space + \h to approximate the preview's flex gap + padding between words
+        if (i < words.length - 1) karaokeText += ' \\h';
       }
-      ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${karaokeText}\n`;
+      // Prepend effect tags to karaoke dialogue line
+      ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${effectOverrideTags}${karaokeText}\n`;
     } else {
-      // Phrase mode (default) - show the full phrase with karaoke highlighting
-      // Use \k tags which transition from SecondaryColour (activeColor) to PrimaryColour (color)
-      const startTime = formatASSTime(subtitle.startMs);
-      const endTime = formatASSTime(subtitle.endMs);
+      // Phrase mode (default) — only the CURRENT word is highlighted, others stay in base color.
+      // Instead of \kf karaoke (which permanently fills words), we generate one Dialogue line
+      // per word's active period. Each line shows the full phrase with only that word in activeColor.
+      // Gaps between words show all words in default color.
 
-      // Build karaoke text - each word gets a \k tag with its duration
-      // In ASS, \k shows SecondaryColour first, then switches to PrimaryColour
-      // We want the OPPOSITE (show inactive, then highlight active)
-      // So we use a style where PrimaryColour=activeColor, SecondaryColour=color
-      // and \kf (fill) effect
-      let karaokeText = '';
-      for (let i = 0; i < words.length; i++) {
-        const word = words[i];
-        const wordStart = getAbsoluteWordTime(subtitle, word, false);
-        const wordEnd = getAbsoluteWordTime(subtitle, word, true);
-        // Duration in centiseconds
-        const duration = Math.max(1, Math.round((wordEnd - wordStart) / 10));
-        const wordText = applyTextTransform(word.text || '');
-        // \kf = karaoke fill (smooth), \k = instant switch
-        karaokeText += `{\\kf${duration}}${wordText}`;
-        if (i < words.length - 1) karaokeText += ' ';
+      // Helper: build the full phrase text with one word optionally highlighted
+      const buildPhraseLine = (activeIdx: number): string => {
+        let text = '';
+        for (let j = 0; j < words.length; j++) {
+          const w = words[j];
+          const isWordActive = j === activeIdx;
+          const ov = w.styleOverrides;
+          const wordText = transformWordText(w);
+
+          // Build inline override tags for this word
+          const tags: string[] = [];
+
+          // Color: active word uses activeColor, inactive uses base color
+          // Per-word color overrides take priority
+          if (isWordActive) {
+            const wordColor = ov?.activeColor
+              ? hexToASSColor(ov.activeColor)
+              : (ov?.color ? hexToASSColor(ov.color) : activeColor);
+            tags.push(`\\c${wordColor}`);
+          } else {
+            const wordColor = ov?.color ? hexToASSColor(ov.color) : color;
+            tags.push(`\\c${wordColor}`);
+          }
+
+          // Background: active word may have activeBackgroundColor or emphasisBg
+          if (ov?.emphasisBg) {
+            tags.push(`\\3c${hexToASSColor(ov.emphasisBg)}`);
+          }
+
+          // Font overrides
+          if (ov?.fontFamily) {
+            tags.push(`\\fn${resolveAvailableFontFamily(ov.fontFamily)}`);
+          }
+          if (ov?.fontSize) {
+            tags.push(`\\fs${Math.round((ov.scale || 1) * ov.fontSize)}`);
+          } else if (ov?.scale && ov.scale !== 1) {
+            tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
+          }
+          if (ov?.fontWeight && ov.fontWeight >= 700) {
+            tags.push('\\b1');
+          }
+          if (ov?.letterSpacing != null) {
+            tags.push(`\\fsp${ov.letterSpacing}`);
+          }
+
+          text += `{${tags.join('')}}${wordText}`;
+          if (j < words.length - 1) text += ' \\h';
+        }
+        return text;
+      };
+
+      // Generate time-sliced Dialogue lines (no overlap, no karaoke tags)
+      const firstWordStart = getAbsoluteWordTime(subtitle, words[0], false);
+
+      // Before first word: all words in default color
+      if (firstWordStart > subtitle.startMs) {
+        ass += `Dialogue: 0,${formatASSTime(subtitle.startMs)},${formatASSTime(firstWordStart)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
       }
 
-      // Use Active style which has activeColor as Primary (so it shows highlighted)
-      // and color as Secondary (so before highlight it shows inactive)
-      ass += `Dialogue: 0,${startTime},${endTime},Active,,0,0,0,,${karaokeText}\n`;
+      for (let i = 0; i < words.length; i++) {
+        const wordStart = getAbsoluteWordTime(subtitle, words[i], false);
+        const wordEnd = getAbsoluteWordTime(subtitle, words[i], true);
+
+        // This word's active period — highlight it
+        ass += `Dialogue: 0,${formatASSTime(wordStart)},${formatASSTime(wordEnd)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(i)}\n`;
+
+        // Gap between this word and next — all words in default color
+        if (i < words.length - 1) {
+          const nextWordStart = getAbsoluteWordTime(subtitle, words[i + 1], false);
+          if (wordEnd < nextWordStart) {
+            ass += `Dialogue: 0,${formatASSTime(wordEnd)},${formatASSTime(nextWordStart)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
+          }
+        }
+      }
+
+      // After last word: all words in default color
+      const lastWordEnd = getAbsoluteWordTime(subtitle, words[words.length - 1], true);
+      if (lastWordEnd < subtitle.endMs) {
+        ass += `Dialogue: 0,${formatASSTime(lastWordEnd)},${formatASSTime(subtitle.endMs)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
+      }
     }
   }
 
@@ -2102,9 +2634,15 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     displayMode,
     textTransform,
     letterSpacing,
+    lineHeight,
+    scaleY,
     opacity,
     outline,
-    shadow,
+    borderStyle,
+    shadowXShad,
+    shadowYShad,
+    shadowBlur,
+    effectOverrideTags,
     effectiveHeight,
     subtitleCount: subtitles.length
   }, 'ASS subtitles generated with full styling and layout awareness');
@@ -2120,7 +2658,11 @@ async function encodeVideoWithSubtitles(
   audioPath: string | null,
   subtitles: SubtitleItem[],
   outputPath: string,
-  workDir: string
+  workDir: string,
+  canvasWidth: number = 1080,
+  canvasHeight: number = 1920,
+  fontsDir: string = SYSTEM_FONTS_DIR,
+  resolvedFontFamily?: string
 ): Promise<void> {
   const { spawn } = await import('child_process');
   const { basename } = await import('path');
@@ -2137,9 +2679,9 @@ async function encodeVideoWithSubtitles(
     await copyFile(audioPath, join(workDir, audioFilename));
   }
 
-  // Generate ASS subtitles
+  // Generate ASS subtitles using actual canvas dimensions
   const assFilename = 'subtitles.ass';
-  const assContent = generateASSForComposite(subtitles, 1920, 1080);
+  const assContent = generateASSForComposite(subtitles, canvasWidth, canvasHeight, undefined, resolvedFontFamily);
   await writeFile(join(workDir, assFilename), assContent, 'utf-8');
 
   logger.info({ subtitleCount: subtitles.length, audioPath }, 'Encoding video with subtitles');
@@ -2154,7 +2696,7 @@ async function encodeVideoWithSubtitles(
 
   args.push(
     '-y',
-    '-vf', `subtitles=${assFilename}`,
+    '-vf', `subtitles=${assFilename}:fontsdir=${fontsDir}`,
   );
 
   if (audioFilename) {
