@@ -187,7 +187,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
         // Stream text chunks to the client
         stream.on('text', (text) => {
-          sendSSE(reply.raw, 'text', { content: text });
+          sendSSE(reply.raw, 'text', { text });
         });
 
         // Wait for the complete response
