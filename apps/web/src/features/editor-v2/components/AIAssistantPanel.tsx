@@ -7,6 +7,8 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Sparkles, Send, Trash2, Loader2, Target, Box, Layers } from 'lucide-react';
 import { api } from '@/lib/api';
 import { parseSSEStream } from '@/lib/sse-parser';
@@ -30,6 +32,8 @@ interface WidgetBlock {
     kind: string;
     message?: string;
     scenes?: Array<{ startMs: number; endMs: number; title: string; description: string }>;
+    scenePlanMarkdown?: string;
+    metadata?: { primaryMetaphor?: string; colorPalette?: string; totalScenes?: number; durationSeconds?: number };
     requiresApproval?: boolean;
   };
   response?: unknown;
@@ -318,6 +322,26 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         setIsStreaming(false);
       } catch (err) {
         console.error('Chat error:', err);
+        // Try to recover by loading the latest conversation state from the server.
+        // The backend may have completed successfully even though the stream dropped.
+        try {
+          const data = await api.getConversation(projectId);
+          if (data.messages && data.messages.length > 0) {
+            const loaded: Message[] = data.messages.map((m) => ({
+              id: m.id,
+              role: m.role,
+              content: normalizeContent(m.content),
+              createdAt: m.createdAt,
+            }));
+            setMessages(loaded);
+            if (data.conversationId) setConversationId(data.conversationId);
+            clearVisualCache();
+            if (reloadVisuals) reloadVisuals(projectId);
+            setIsStreaming(false);
+            return;
+          }
+        } catch { /* recovery failed, show original error */ }
+
         const errorText = err instanceof Error ? err.message : 'Connection failed';
         setMessages((prev) =>
           prev.map((m) => {
@@ -331,7 +355,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         setIsStreaming(false);
       }
     },
-    [isStreaming, projectId, aiContext, handleSSEEvent]
+    [isStreaming, projectId, aiContext, handleSSEEvent, reloadVisuals]
   );
 
   // -----------------------------------------------------------------------
@@ -427,6 +451,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         return (
           <ScenePlanCard
             scenes={widget.scenes || []}
+            scenePlanMarkdown={widget.scenePlanMarkdown}
+            metadata={widget.metadata}
             onApprove={() => handleWidgetResponse(widget.id, { approved: true })}
             onReject={() => handleWidgetResponse(widget.id, { approved: false })}
             disabled={hasResponded || isStreaming}
@@ -453,7 +479,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       default:
         return (
-          <div className="my-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-xs text-white/50">
+          <div className="my-2 px-3 py-2 rounded-lg bg-[var(--editor-bg-hover)] border border-[var(--editor-border-subtle)] text-xs text-[var(--editor-text-muted)]">
             Unknown widget: {widget.kind}
           </div>
         );
@@ -468,8 +494,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     switch (block.type) {
       case 'text':
         return (
-          <div key={index} className="whitespace-pre-wrap break-words">
-            {block.text}
+          <div key={index} className="prose-agent break-words">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {block.text}
+            </ReactMarkdown>
           </div>
         );
 
@@ -481,13 +509,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           <div key={index} className="my-2">
             <div className="flex items-center gap-2 mb-1">
               {!block.error && block.percent < 100 && (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-400" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-500" />
               )}
-              <span className={`text-xs ${block.error ? 'text-red-400' : 'text-white/60'}`}>
+              <span className={`text-xs ${block.error ? 'text-red-500' : 'text-[var(--editor-text-secondary)]'}`}>
                 {block.message}
               </span>
             </div>
-            <div className="w-full bg-white/10 rounded-full h-1.5">
+            <div className="w-full bg-[var(--editor-bg-hover)] rounded-full h-1.5">
               <div
                 className={`h-1.5 rounded-full transition-all duration-300 ${
                   block.error ? 'bg-red-500' : 'bg-purple-500'
@@ -505,22 +533,24 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -----------------------------------------------------------------------
 
   return (
-    <div className={`flex flex-col h-full bg-[#0a0a0f] border-l border-white/10 ${className}`}>
+    <div className={`flex flex-col h-full bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 h-14 border-b border-white/10">
+      <div className="flex items-center justify-between px-4 h-14 border-b border-[var(--editor-border-subtle)]">
         <div className="flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-purple-400" />
-          <span className="text-sm font-semibold text-white">Creative Director</span>
+          <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
+            <Sparkles className="w-4 h-4 text-purple-500" />
+          </div>
+          <span className="text-sm font-semibold text-[var(--editor-text-primary)]">Creative Director</span>
         </div>
         <div className="flex items-center gap-1">
           {aiContext && (
             <span
               className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full ${
                 aiContext.type === 'element'
-                  ? 'bg-purple-500/10 text-purple-400'
+                  ? 'bg-purple-500/10 text-purple-600'
                   : aiContext.type === 'item'
-                    ? 'bg-blue-500/10 text-blue-400'
-                    : 'bg-purple-500/10 text-purple-400'
+                    ? 'bg-blue-500/10 text-blue-600'
+                    : 'bg-purple-500/10 text-purple-600'
               }`}
             >
               {aiContext.type === 'element' && <Target className="w-3 h-3" />}
@@ -532,7 +562,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           {aiContext && (
             <button
               onClick={handleClearContext}
-              className="px-2 py-1 text-[10px] text-white/40 hover:text-white hover:bg-white/5 rounded transition-colors"
+              className="px-2 py-1 text-[10px] text-[var(--editor-text-muted)] hover:text-[var(--editor-text-primary)] hover:bg-[var(--editor-bg-hover)] rounded transition-colors"
             >
               Clear
             </button>
@@ -541,11 +571,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             <button
               onClick={handleClear}
               disabled={isStreaming}
-              className="p-1.5 rounded-md hover:bg-white/5 transition-colors disabled:opacity-50"
+              className="p-1.5 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors disabled:opacity-50"
               aria-label="Clear conversation"
               title="Clear conversation"
             >
-              <Trash2 className="w-4 h-4 text-white/40 hover:text-white/70" />
+              <Trash2 className="w-4 h-4 text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]" />
             </button>
           )}
         </div>
@@ -557,32 +587,32 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           /* Empty state */
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center mb-4">
-              <Sparkles className="w-6 h-6 text-purple-400 opacity-60" />
+              <Sparkles className="w-6 h-6 text-purple-500 opacity-60" />
             </div>
             {aiContext ? (
               <>
-                <p className="text-sm text-white/60 mb-1">
+                <p className="text-sm text-[var(--editor-text-secondary)] mb-1">
                   Editing: {aiContext.displayName}
                 </p>
                 {aiContext.displayDescription && (
-                  <p className="text-xs text-white/40 mb-2 max-w-[200px] truncate">
+                  <p className="text-xs text-[var(--editor-text-muted)] mb-2 max-w-[200px] truncate">
                     {aiContext.displayDescription}
                   </p>
                 )}
-                <p className="text-xs text-white/40">
+                <p className="text-xs text-[var(--editor-text-muted)]">
                   Describe your changes below
                 </p>
               </>
             ) : (
               <>
-                <p className="text-sm text-white/60 mb-2">
+                <p className="text-sm text-[var(--editor-text-secondary)] mb-2">
                   Your AI creative director
                 </p>
-                <p className="text-xs text-white/40 mb-1">
+                <p className="text-xs text-[var(--editor-text-muted)] mb-1">
                   Describe what visuals you want to create
                 </p>
-                <p className="text-xs text-white/40">
-                  I'll guide you through themes, layouts, and scenes
+                <p className="text-xs text-[var(--editor-text-muted)]">
+                  I&apos;ll guide you through themes, layouts, and scenes
                 </p>
               </>
             )}
@@ -597,22 +627,22 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               <div
                 className={`max-w-[90%] text-sm ${
                   message.role === 'user'
-                    ? 'bg-purple-600/30 border border-purple-500/20 text-white rounded-2xl rounded-br-md px-4 py-2.5'
-                    : 'bg-white/5 text-white/90 rounded-2xl rounded-bl-md px-4 py-2.5'
+                    ? 'bg-purple-500/10 border border-purple-500/20 text-[var(--editor-text-primary)] rounded-2xl rounded-br-md px-4 py-2.5'
+                    : 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] rounded-2xl rounded-bl-md px-4 py-2.5'
                 }`}
               >
                 {message.content.length === 0 && isStreaming && (
                   <div className="flex gap-1 py-1">
                     <span
-                      className="w-2 h-2 bg-white/30 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
                       style={{ animationDelay: '0ms' }}
                     />
                     <span
-                      className="w-2 h-2 bg-white/30 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
                       style={{ animationDelay: '150ms' }}
                     />
                     <span
-                      className="w-2 h-2 bg-white/30 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
                       style={{ animationDelay: '300ms' }}
                     />
                   </div>
@@ -627,7 +657,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-[var(--editor-border-subtle)]">
         <div className="relative flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -643,10 +673,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             }
             disabled={isStreaming}
             rows={1}
-            className="flex-1 bg-white/5 text-white text-sm
-                       placeholder:text-white/30
+            className="flex-1 bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] text-sm
+                       placeholder:text-[var(--editor-text-muted)]
                        rounded-xl px-4 py-3 pr-12
-                       border border-white/10
+                       border border-[var(--editor-border-subtle)]
                        focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30
                        disabled:opacity-50 disabled:cursor-not-allowed
                        transition-all resize-none"
@@ -657,7 +687,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center
                        rounded-full bg-purple-600 text-white
                        hover:bg-purple-500 transition-colors
-                       disabled:bg-white/10 disabled:text-white/30"
+                       disabled:bg-[var(--editor-bg-hover)] disabled:text-[var(--editor-text-muted)]"
           >
             {isStreaming ? (
               <Loader2 className="w-4 h-4 animate-spin" />
