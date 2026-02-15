@@ -3120,6 +3120,8 @@ async def main():
     parser.add_argument("--duration", type=int, default=1800, help="Duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Frames per second")
     parser.add_argument("--model", default="claude-opus-4-5-20251101", help="Claude model")
+    parser.add_argument("--phase", choices=["director", "animator"], default=None,
+                        help="Run only a specific phase (director or animator). Default: both.")
 
     args = parser.parse_args()
 
@@ -3149,19 +3151,194 @@ async def main():
         model=args.model,
     )
 
-    # Generate using two-phase pipeline (Director + Animator)
-    print("[ClaudeGenerator] Using two-phase pipeline (Director + Animator)")
-    result = await generator.generate_two_phase(
-        transcript=transcript,
-        words=words,
-        width=args.width,
-        height=args.height,
-        duration_frames=args.duration,
-        fps=args.fps,
-        style_preset=args.style_preset,
-        layout_mode=args.layout_mode,
-        style_guide=style_guide,
-    )
+    if args.phase == "director":
+        # Phase 1 only: Run Director to create scene plan
+        from transcript_formatter import format_transcript_with_key_moments
+
+        print("[ClaudeGenerator] Running Director phase only")
+
+        # Ensure OAuth token is valid
+        try:
+            manager = get_token_manager()
+            await manager.get_valid_token()
+            print("[ClaudeGenerator] OAuth token validated/refreshed successfully")
+        except Exception as e:
+            print(f"[ClaudeGenerator] WARNING: OAuth token refresh failed: {e}")
+
+        # Ensure src dir exists
+        generator.src_dir.mkdir(parents=True, exist_ok=True)
+
+        # Format transcript with timestamps if available
+        if words:
+            formatted_transcript = format_transcript_with_key_moments(words, args.fps)
+        else:
+            formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
+
+        emit_progress(18, "Phase 1: Director planning scenes...")
+
+        director_result = await generator._run_director(
+            formatted_transcript=formatted_transcript,
+            width=args.width,
+            height=args.height,
+            duration_frames=args.duration,
+            fps=args.fps,
+            style_preset=args.style_preset,
+            layout_mode=args.layout_mode,
+            style_guide=style_guide,
+        )
+
+        if not director_result["success"]:
+            print(json.dumps(director_result, indent=2))
+            sys.stdout.flush()
+            sys.exit(1)
+
+        # Read plan files and output PLAN_READY signal for the worker to capture
+        scenes_json_path = generator.src_dir / "scenes.json"
+        scene_plan_path = generator.src_dir / "SCENE_PLAN.md"
+
+        with open(scenes_json_path, encoding="utf-8") as f:
+            scenes_data = json.load(f)
+        with open(scene_plan_path, encoding="utf-8") as f:
+            plan_markdown = f.read()
+
+        plan_payload = {
+            "scenes": scenes_data.get("scenes", []),
+            "sceneCount": director_result.get("sceneCount", 0),
+            "planMarkdown": plan_markdown,
+        }
+        print(f"PLAN_READY:{json.dumps(plan_payload)}")
+        sys.stdout.flush()
+
+        emit_progress(35, f"Phase 1 complete: {director_result.get('sceneCount', 0)} scenes planned")
+
+        result = director_result
+
+    elif args.phase == "animator":
+        # Phase 2 only: Run Animator (expects plan files already in workspace)
+        print("[ClaudeGenerator] Running Animator phase only")
+
+        # Ensure OAuth token is valid
+        try:
+            manager = get_token_manager()
+            await manager.get_valid_token()
+            print("[ClaudeGenerator] OAuth token validated/refreshed successfully")
+        except Exception as e:
+            print(f"[ClaudeGenerator] WARNING: OAuth token refresh failed: {e}")
+
+        # Verify plan files exist before starting
+        scenes_json_path = generator.src_dir / "scenes.json"
+        scene_plan_path = generator.src_dir / "SCENE_PLAN.md"
+        if not scenes_json_path.exists() or not scene_plan_path.exists():
+            result = {
+                "success": False,
+                "error": f"Plan files not found in {generator.src_dir}. Run --phase director first.",
+            }
+            print(json.dumps(result, indent=2))
+            sys.stdout.flush()
+            sys.exit(1)
+
+        emit_progress(38, "Phase 2: Animator implementing scenes...")
+
+        animator_result = await generator._run_animator(
+            width=args.width,
+            height=args.height,
+            duration_frames=args.duration,
+            fps=args.fps,
+        )
+
+        if not animator_result["success"]:
+            print(json.dumps(animator_result, indent=2))
+            sys.stdout.flush()
+            sys.exit(1)
+
+        emit_progress(55, "Phase 2 complete: All scenes implemented")
+
+        # Verify TypeScript with self-healing
+        emit_progress(58, "Verifying TypeScript...")
+        print("[ClaudeGenerator] Verifying TypeScript...")
+        ts_success, ts_errors = await generator._verify_typescript()
+
+        heal_attempts = 0
+        max_heal_attempts = 3
+        while not ts_success and heal_attempts < max_heal_attempts:
+            heal_attempts += 1
+            emit_progress(58 + heal_attempts, f"Fixing TypeScript errors (attempt {heal_attempts}/{max_heal_attempts})...")
+            print(f"[ClaudeGenerator] TypeScript failed, self-healing attempt {heal_attempts}/{max_heal_attempts}...")
+            heal_success = await generator._run_self_heal(ts_errors)
+            if not heal_success:
+                print("[ClaudeGenerator] Self-heal agent failed")
+                break
+            ts_success, ts_errors = await generator._verify_typescript()
+
+        if not ts_success:
+            result = {
+                "success": False,
+                "error": f"TypeScript validation failed after {heal_attempts} self-heal attempts",
+            }
+            print(json.dumps(result, indent=2))
+            sys.stdout.flush()
+            sys.exit(1)
+
+        print("[ClaudeGenerator] TypeScript validation passed")
+        emit_progress(62, "TypeScript validation passed")
+
+        # Create metadata.json if not exists
+        metadata_json = generator.src_dir / "metadata.json"
+        if not metadata_json.exists():
+            print("[ClaudeGenerator] Creating fallback metadata.json...")
+            composition_id = args.project_id.replace("_", "-")
+            fallback_metadata = {
+                "compositionId": composition_id,
+                "durationInFrames": args.duration,
+                "fps": args.fps,
+                "width": args.width,
+                "height": args.height,
+                "visuals": [
+                    {"startMs": 0, "endMs": int(args.duration / args.fps * 1000), "type": "generated", "description": "AI-generated visual"}
+                ]
+            }
+            with open(metadata_json, "w", encoding="utf-8") as f:
+                json.dump(fallback_metadata, f, indent=2)
+
+        # Fix composition ID
+        index_tsx = generator.src_dir / "index.tsx"
+        composition_id_with_dashes = args.project_id.replace("_", "-")
+        await generator._fix_composition_id(index_tsx, composition_id_with_dashes)
+
+        # Bundle
+        emit_progress(65, "Bundling Remotion project...")
+        print("[ClaudeGenerator] Bundling project...")
+        bundle_path = await generator._run_bundle()
+        print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
+        emit_progress(68, "Bundle complete")
+
+        # Compile CJS
+        emit_progress(69, "Compiling CJS module...")
+        print("[ClaudeGenerator] Compiling CJS...")
+        await generator._compile_cjs(bundle_path)
+
+        bundle_id = args.project_id.replace("_", "-")
+        result = {
+            "success": True,
+            "bundleUrl": f"/bundles/{bundle_id}/index.html",
+            "bundlePath": str(bundle_path),
+            "pipeline": "two-phase-animator",
+        }
+
+    else:
+        # Default: both phases via generate_two_phase (existing behavior)
+        print("[ClaudeGenerator] Using two-phase pipeline (Director + Animator)")
+        result = await generator.generate_two_phase(
+            transcript=transcript,
+            words=words,
+            width=args.width,
+            height=args.height,
+            duration_frames=args.duration,
+            fps=args.fps,
+            style_preset=args.style_preset,
+            layout_mode=args.layout_mode,
+            style_guide=style_guide,
+        )
 
     print(json.dumps(result, indent=2))
     sys.stdout.flush()
