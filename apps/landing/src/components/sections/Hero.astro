@@ -98,7 +98,7 @@ import { siteConfig } from "@/data/site";
   import { gsap } from "@/scripts/animations";
 
   document.addEventListener("astro:page-load", () => {
-    // Hero entrance timeline
+    // Hero entrance timeline (plays on page load, not scroll)
     const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
 
     tl.from('[data-hero-badge]', { y: 20, opacity: 0, duration: 0.5 })
@@ -112,7 +112,22 @@ import { siteConfig } from "@/data/site";
       document.querySelector('[data-hero-headline] .wavy-underline')?.classList.add('revealed');
     }, "-=0.3");
 
-    // Floating gradient parallax
+    // Bar chart bars grow as part of page-load sequence
+    tl.from('[data-demo-bar]', {
+      scaleY: 0,
+      transformOrigin: "bottom",
+      duration: 0.6,
+      stagger: 0.15,
+    }, "-=0.4");
+
+    tl.from('[data-demo-pip]', {
+      x: 20,
+      y: 20,
+      opacity: 0,
+      duration: 0.4,
+    }, "-=0.2");
+
+    // Continuous animations
     gsap.to('[data-hero-gradient]', {
       x: 30,
       y: -20,
@@ -121,29 +136,6 @@ import { siteConfig } from "@/data/site";
       repeat: -1,
       yoyo: true,
     });
-
-    // Product demo animation
-    const demoTl = gsap.timeline({
-      scrollTrigger: {
-        trigger: '[data-hero-visual]',
-        start: "top 80%",
-      },
-      defaults: { ease: "power2.out" },
-    });
-
-    demoTl.from('[data-demo-bar]', {
-      scaleY: 0,
-      transformOrigin: "bottom",
-      duration: 0.6,
-      stagger: 0.15,
-    }, "+=0.3");
-
-    demoTl.from('[data-demo-pip]', {
-      x: 20,
-      y: 20,
-      opacity: 0,
-      duration: 0.4,
-    }, "-=0.2");
 
     gsap.to('[data-demo-arrow]', {
       scale: 1.1,

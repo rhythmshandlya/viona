@@ -6,7 +6,7 @@ import { siteConfig } from "@/data/site";
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <div class="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
       <!-- Left: Product mockup - Hidden on mobile, shown on lg+ -->
-      <div class="relative hidden lg:block" data-animate="slide-left">
+      <div class="relative hidden lg:block">
         <div class="relative">
           <!-- Transcript mockup -->
           <div class="absolute -top-4 -left-4 bg-white rounded-xl shadow-lg p-4 z-10 w-56">
@@ -21,18 +21,18 @@ import { siteConfig } from "@/data/site";
           <!-- Main visual preview -->
           <div class="bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl aspect-[4/5] w-56 mx-auto flex items-center justify-center">
             <!-- Flowchart mockup -->
-            <div class="bg-white rounded-lg p-3 shadow-sm w-36" data-feature-flow>
+            <div class="bg-white rounded-lg p-3 shadow-sm w-36">
               <div class="text-xs font-medium mb-2 text-center">Process Flow</div>
               <div class="space-y-2">
-                <div class="h-6 bg-primary/20 rounded flex items-center justify-center text-xs" data-flow-step>Step 1</div>
+                <div class="h-6 bg-primary/20 rounded flex items-center justify-center text-xs">Step 1</div>
                 <div class="flex justify-center">
                   <div class="w-0.5 h-2 bg-gray-300"></div>
                 </div>
-                <div class="h-6 bg-primary/30 rounded flex items-center justify-center text-xs" data-flow-step>Step 2</div>
+                <div class="h-6 bg-primary/30 rounded flex items-center justify-center text-xs">Step 2</div>
                 <div class="flex justify-center">
                   <div class="w-0.5 h-2 bg-gray-300"></div>
                 </div>
-                <div class="h-6 bg-primary/40 rounded flex items-center justify-center text-xs" data-flow-step>Step 3</div>
+                <div class="h-6 bg-primary/40 rounded flex items-center justify-center text-xs">Step 3</div>
               </div>
             </div>
           </div>
@@ -56,7 +56,7 @@ import { siteConfig } from "@/data/site";
       </div>
 
       <!-- Mobile mockup - Simplified version for mobile -->
-      <div class="lg:hidden flex justify-center mb-6" data-animate="fade-up">
+      <div class="lg:hidden flex justify-center mb-6">
         <div class="bg-white rounded-xl shadow-lg p-4 w-full max-w-sm">
           <div class="flex gap-3">
             <!-- Transcript mini -->
@@ -81,7 +81,7 @@ import { siteConfig } from "@/data/site";
       </div>
 
       <!-- Right: Content -->
-      <div data-animate="slide-right">
+      <div>
         <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold leading-tight mb-4 sm:mb-6">
           <span class="text-orange">AI-Generated</span> Visuals
           <br />That Match Your
@@ -95,7 +95,7 @@ import { siteConfig } from "@/data/site";
         </p>
 
         <!-- Feature list -->
-        <div class="space-y-3 sm:space-y-4 mb-6 sm:mb-8" data-animate="stagger">
+        <div class="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
           <div class="flex items-center gap-3">
             <div class="feature-check">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -132,24 +132,3 @@ import { siteConfig } from "@/data/site";
     </div>
   </div>
 </section>
-
-<script>
-  import { gsap } from "@/scripts/animations";
-
-  document.addEventListener("astro:page-load", () => {
-    const flow = document.querySelector('[data-feature-flow]');
-    if (!flow) return;
-
-    gsap.from(flow.querySelectorAll('[data-flow-step]'), {
-      scrollTrigger: {
-        trigger: flow,
-        start: "top 80%",
-      },
-      y: 15,
-      opacity: 0,
-      duration: 0.5,
-      stagger: 0.2,
-      ease: "power2.out",
-    });
-  });
-</script>

@@ -18,7 +18,7 @@ const articles = [
 <section class="py-12 sm:py-16 lg:py-20">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6 sm:mb-8 lg:mb-12" data-animate="fade-up">
+    <div class="flex items-center justify-between mb-6 sm:mb-8 lg:mb-12">
       <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold">
         Tips for Better
         <br /><span class="text-orange">Explainer Videos</span>
@@ -38,7 +38,7 @@ const articles = [
     </div>
 
     <!-- Blog cards - horizontal scroll on mobile -->
-    <div class="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 md:grid-cols-3 sm:gap-6 sm:overflow-visible sm:pb-0" data-animate="stagger">
+    <div class="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 md:grid-cols-3 sm:gap-6 sm:overflow-visible sm:pb-0">
       {articles.map((article) => (
         <a href="#" class="blog-card group flex-shrink-0 w-[280px] sm:w-auto">
           <div class={`bg-gradient-to-br ${article.image} aspect-[4/3]`}></div>
