@@ -9,6 +9,8 @@ export async function* parseSSEStream(
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let currentEvent = '';
+  let currentData = '';
 
   try {
     while (true) {
@@ -18,9 +20,6 @@ export async function* parseSSEStream(
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
-
-      let currentEvent = '';
-      let currentData = '';
 
       for (const line of lines) {
         if (line.startsWith('event: ')) {

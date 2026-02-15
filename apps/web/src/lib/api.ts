@@ -468,6 +468,7 @@ class ApiClient {
       };
       widgetResponse?: { widgetId: string; value: unknown };
     },
+    signal?: AbortSignal,
   ): Promise<ReadableStream<Uint8Array>> {
     const url = `${this.baseUrl}/api/projects/${projectId}/agent/chat`;
     const token = getSessionToken();
@@ -483,6 +484,7 @@ class ApiClient {
       headers,
       credentials: 'include',
       body: JSON.stringify(body),
+      signal,
     });
 
     if (!response.ok) {

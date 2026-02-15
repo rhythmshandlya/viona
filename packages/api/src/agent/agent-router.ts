@@ -79,6 +79,15 @@ async function pollJobProgress(
       break;
     }
   }
+
+  // Warn if polling timed out
+  if (Date.now() - startTime >= TIMEOUT_MS && !signal?.aborted) {
+    sendSSE(raw, 'progress', {
+      percent: 0,
+      message: 'Generation is taking longer than expected. Check back shortly.',
+      error: true,
+    });
+  }
 }
 
 export async function agentRoutes(fastify: FastifyInstance) {
@@ -94,8 +103,9 @@ export async function agentRoutes(fastify: FastifyInstance) {
       });
     }
 
+    // Validate request body
     const body = request.body as {
-      message: string;
+      message?: string;
       context?: {
         selectedTimeRange?: { startMs: number; endMs: number };
         selectedSceneId?: number;
@@ -104,6 +114,12 @@ export async function agentRoutes(fastify: FastifyInstance) {
       widgetResponse?: { widgetId: string; value: unknown };
     };
 
+    if (!body.message || typeof body.message !== 'string' || body.message.length > 10000) {
+      return reply.code(400).send({
+        error: 'message is required and must be a string under 10,000 characters.',
+      });
+    }
+
     // 1. Load the project
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, projectId),
@@ -111,6 +127,11 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     if (!project) {
       return reply.code(404).send({ error: 'Project not found' });
+    }
+
+    // Check project ownership
+    if (project.userId && project.userId !== (request as any).user?.id) {
+      return reply.code(403).send({ error: 'Forbidden' });
     }
 
     // 2. Gather context for system prompt
@@ -223,8 +244,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
           (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
         );
 
-        if (toolUseBlocks.length === 0 || finalMessage.stop_reason === 'end_turn') {
-          continueLoop = false;
+        if (toolUseBlocks.length === 0) {
+          // No tool calls — agent is done
           break;
         }
 
@@ -294,6 +315,15 @@ export async function agentRoutes(fastify: FastifyInstance) {
   fastify.get('/projects/:id/agent/conversation', { preHandler: authMiddleware }, async (request, reply) => {
     const { id: projectId } = request.params as { id: string };
 
+    // Check project ownership
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+    });
+    if (!project) return reply.code(404).send({ error: 'Project not found' });
+    if (project.userId && project.userId !== (request as any).user?.id) {
+      return reply.code(403).send({ error: 'Forbidden' });
+    }
+
     const data = await getConversationWithMessages(projectId);
 
     if (!data) {
@@ -307,6 +337,15 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
   fastify.delete('/projects/:id/agent/conversation', { preHandler: authMiddleware }, async (request, reply) => {
     const { id: projectId } = request.params as { id: string };
+
+    // Check project ownership
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, projectId),
+    });
+    if (!project) return reply.code(404).send({ error: 'Project not found' });
+    if (project.userId && project.userId !== (request as any).user?.id) {
+      return reply.code(403).send({ error: 'Forbidden' });
+    }
 
     await deleteConversation(projectId);
 

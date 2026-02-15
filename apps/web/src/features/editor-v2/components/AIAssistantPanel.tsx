@@ -85,6 +85,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const aiContext = useAIEditingContext();
   const { reloadVisuals, setSelectedScene, setSelectedElement, clearSelection } = useEditorActions();
 
+  // Abort in-flight requests on unmount
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -294,11 +301,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           }
         }
 
+        const controller = new AbortController();
+        abortRef.current = controller;
+
         const stream = await api.chatWithAgent(projectId, {
           message: messageText,
           context: Object.keys(context).length > 0 ? context : undefined,
           widgetResponse,
-        });
+        }, controller.signal);
 
         for await (const event of parseSSEStream(stream)) {
           handleSSEEvent(event, assistantId);
