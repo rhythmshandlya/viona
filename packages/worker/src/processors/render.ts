@@ -1,6 +1,6 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm, access, constants, readFile, writeFile } from 'fs/promises';
+import { mkdir, rm, access, constants, readFile, writeFile, readdir, unlink, stat } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
@@ -18,6 +18,16 @@ import { bundle } from '@remotion/bundler';
 // Locally, we download and cache Google Fonts to a local directory.
 const SYSTEM_FONTS_DIR = '/usr/share/fonts';
 const LOCAL_FONTS_CACHE = join(tmpdir(), 'clippify-fonts');
+
+/**
+ * Escape a filesystem path for use inside FFmpeg filter strings.
+ * FFmpeg's filter parser treats backslashes as escape characters, so on Windows
+ * `C:\Users\...` gets mangled. Converting to forward slashes fixes it — FFmpeg
+ * on Windows accepts forward slashes in filter paths.
+ */
+function escapePathForFilter(p: string): string {
+  return p.replace(/\\/g, '/');
+}
 
 // Google Fonts CSS API query strings for each font.
 // We fetch the CSS with a non-browser User-Agent to get TTF URLs from fonts.gstatic.com,
@@ -174,7 +184,7 @@ async function ensureFontsDir(fontFamilyCSS: string): Promise<string> {
   try {
     await access(SYSTEM_FONTS_DIR, constants.R_OK);
     logger.info('Using system fonts directory (Docker/production)');
-    return SYSTEM_FONTS_DIR;
+    return escapePathForFilter(SYSTEM_FONTS_DIR);
   } catch {
     // Not in Docker — download fonts locally
   }
@@ -185,21 +195,29 @@ async function ensureFontsDir(fontFamilyCSS: string): Promise<string> {
   // Clear stale marker files from the old broken download mechanism
   // (old code used fonts.google.com/download URLs that returned HTML, not ZIPs)
   try {
-    const { execSync } = await import('child_process');
-    const markerFiles = execSync(
-      `find "${LOCAL_FONTS_CACHE}" -name ".downloaded-*" -size -100c 2>/dev/null || true`,
-      { encoding: 'utf-8', timeout: 5000 }
-    ).trim();
-    if (markerFiles) {
-      // Check if any actual TTF files exist — if not, the markers are stale
-      const ttfCount = execSync(
-        `find "${LOCAL_FONTS_CACHE}" -name "*.ttf" 2>/dev/null | wc -l`,
-        { encoding: 'utf-8', timeout: 5000 }
-      ).trim();
-      if (parseInt(ttfCount, 10) === 0) {
-        execSync(`rm -f "${LOCAL_FONTS_CACHE}"/.downloaded-* 2>/dev/null || true`, { timeout: 5000 });
-        downloadedFonts.clear();
-        logger.info('Cleared stale font markers (no TTF files found)');
+    const entries = await readdir(LOCAL_FONTS_CACHE);
+    const markerFiles = entries.filter((f) => f.startsWith('.downloaded-'));
+
+    if (markerFiles.length > 0) {
+      // Check if small/empty markers (< 100 bytes) — means download was broken
+      let hasStaleMarkers = false;
+      for (const marker of markerFiles) {
+        try {
+          const s = await stat(join(LOCAL_FONTS_CACHE, marker));
+          if (s.size < 100) { hasStaleMarkers = true; break; }
+        } catch { /* skip */ }
+      }
+
+      if (hasStaleMarkers) {
+        // Check if any actual TTF files exist — if not, the markers are stale
+        const hasTtf = entries.some((f) => f.endsWith('.ttf'));
+        if (!hasTtf) {
+          for (const marker of markerFiles) {
+            await unlink(join(LOCAL_FONTS_CACHE, marker)).catch(() => {});
+          }
+          downloadedFonts.clear();
+          logger.info('Cleared stale font markers (no TTF files found)');
+        }
       }
     }
   } catch {
@@ -218,15 +236,17 @@ async function ensureFontsDir(fontFamilyCSS: string): Promise<string> {
     await downloadFont('Inter');
   }
 
-  // Update fontconfig cache so libass can find the fonts
+  // Update fontconfig cache so libass can find the fonts (Linux/Docker only)
   try {
-    const { execSync } = await import('child_process');
-    execSync(`fc-cache -f "${LOCAL_FONTS_CACHE}" 2>/dev/null`, { timeout: 10000 });
+    const { execFile } = await import('child_process');
+    await new Promise<void>((resolve) => {
+      execFile('fc-cache', ['-f', LOCAL_FONTS_CACHE], { timeout: 10000 }, () => resolve());
+    });
   } catch {
-    // fc-cache might not be available locally (macOS), fonts still work via fontsdir
+    // fc-cache not available on Windows/macOS — fonts still work via fontsdir
   }
 
-  return LOCAL_FONTS_CACHE;
+  return escapePathForFilter(LOCAL_FONTS_CACHE);
 }
 
 export interface LayoutSettings {
@@ -396,11 +416,16 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       const bundleDirName = projectVisual.compositionId.replace(/_/g, '-');
       const bundlePath = join(config.remotion.bundleOutputDir, bundleDirName);
 
-      const visualWidth = projectVisual.width || 1080;
-      const visualHeight = projectVisual.height || 1920;
       const visualFps = projectVisual.fps || 30;
       const totalFrames = projectVisual.durationFrames || 0;
       const sceneTimestamps = (projectVisual.timestamps as Array<{ startMs: number; endMs: number; type: string; description?: string }>) || [];
+
+      // Use the FULL canvas dimensions for the final composite, not the visual-only
+      // dimensions. In split modes, visuals are rendered at half-canvas size but the
+      // final output must be the full canvas (video + visuals side by side).
+      const videoSettings = (project.videoSettings || {}) as Record<string, unknown>;
+      const outputWidth = (videoSettings.canvasWidth as number) || 1080;
+      const outputHeight = (videoSettings.canvasHeight as number) || 1920;
 
       logger.info({
         projectId,
@@ -408,8 +433,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         bundlePath,
         hasEnhancedAudio: !!enhancedAudioPath,
         subtitleCount: subtitles.length,
-        visualWidth,
-        visualHeight,
+        outputWidth,
+        outputHeight,
         sceneCount: sceneTimestamps.length,
       }, 'Starting Remotion SSR render');
 
@@ -478,8 +503,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         subtitles,
         outputPath,
         workDir,
-        width: visualWidth,
-        height: visualHeight,
+        width: outputWidth,
+        height: outputHeight,
         layoutSettings,
         fullscreenSegments,
         fontsDir,
@@ -753,7 +778,7 @@ async function renderSubtitlesWithFFmpeg(
   outputPath: string,
   items: any[],
   project: any,
-  fontsDir: string = SYSTEM_FONTS_DIR
+  fontsDir: string = escapePathForFilter(SYSTEM_FONTS_DIR)
 ): Promise<void> {
   const { access, constants } = await import('fs/promises');
 
@@ -1337,7 +1362,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
     workDir,
     width,
     height,
-    fontsDir = SYSTEM_FONTS_DIR,
+    fontsDir = escapePathForFilter(SYSTEM_FONTS_DIR),
   } = options;
 
   const { spawn } = await import('child_process');
@@ -1805,7 +1830,7 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
     workDir,
     width,
     height,
-    fontsDir = SYSTEM_FONTS_DIR,
+    fontsDir = escapePathForFilter(SYSTEM_FONTS_DIR),
   } = options;
 
   const { spawn } = await import('child_process');
@@ -1926,7 +1951,7 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     workDir,
     projectWidth: fullWidth,
     projectHeight: fullHeight,
-    fontsDir = SYSTEM_FONTS_DIR,
+    fontsDir = escapePathForFilter(SYSTEM_FONTS_DIR),
   } = options;
 
   // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
@@ -2661,7 +2686,7 @@ async function encodeVideoWithSubtitles(
   workDir: string,
   canvasWidth: number = 1080,
   canvasHeight: number = 1920,
-  fontsDir: string = SYSTEM_FONTS_DIR,
+  fontsDir: string = escapePathForFilter(SYSTEM_FONTS_DIR),
   resolvedFontFamily?: string
 ): Promise<void> {
   const { spawn } = await import('child_process');
