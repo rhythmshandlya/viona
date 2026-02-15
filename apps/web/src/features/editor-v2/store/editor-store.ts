@@ -282,7 +282,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
     if (item.type === 'subtitle' && captionTrack) {
       const data = item.data as {
         text?: string;
-        words?: Array<{ text: string; startMs: number; endMs: number }>;
+        words?: Array<{ text: string; startMs: number; endMs: number; styleOverrides?: WordStyleOverrides }>;
         style?: Record<string, unknown>;
       };
 
@@ -310,6 +310,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             text: w.text,
             startMs: w.startMs - item.startMs, // Convert to relative time
             endMs: w.endMs - item.startMs,
+            ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
           })),
           style: captionStyle,
         } as CaptionItemData,
@@ -553,7 +554,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       try {
-        // Convert items back to API format
+        // Convert items back to API format — include trackId and type for new items (split/merge)
         const apiItems = itemIds
           .map((id) => items[id])
           .filter((item) => item.type === 'caption')
@@ -561,6 +562,8 @@ export const useEditorStore = create<EditorStore>()(
             const data = item.data as CaptionItemData;
             return {
               id: item.id,
+              trackId: item.trackId,
+              type: 'subtitle' as const, // DB type is 'subtitle' (editor uses 'caption' internally)
               startMs: item.startMs,
               endMs: item.endMs,
               data: {
@@ -569,11 +572,16 @@ export const useEditorStore = create<EditorStore>()(
                   text: w.text,
                   startMs: w.startMs + item.startMs, // Convert back to absolute time
                   endMs: w.endMs + item.startMs,
+                  ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
                 })),
                 style: data.style,
               },
             };
           });
+
+        // Collect IDs of all caption items currently in the editor
+        // The API will delete any DB caption items NOT in this list (from split/merge)
+        const captionItemIds = apiItems.map((item) => item.id);
 
         // Persist fullscreen segments and layout settings inside videoSettings JSONB
         const videoSettingsPayload = {
@@ -583,7 +591,11 @@ export const useEditorStore = create<EditorStore>()(
           layoutPresetId,
         };
 
-        await api.updateProject(project.id, { items: apiItems, videoSettings: videoSettingsPayload });
+        await api.updateProject(project.id, {
+          items: apiItems,
+          captionItemIds,
+          videoSettings: videoSettingsPayload,
+        });
 
         set((state) => {
           state.isSaving = false;
@@ -593,6 +605,7 @@ export const useEditorStore = create<EditorStore>()(
           state.error = err instanceof Error ? err.message : 'Failed to save project';
           state.isSaving = false;
         });
+        throw err; // Re-throw so callers (e.g., ExportModal) can detect save failures
       }
     },
 
@@ -674,17 +687,23 @@ export const useEditorStore = create<EditorStore>()(
         } else {
           // Merge overrides, removing undefined values
           const merged = { ...word.styleOverrides, ...overrides };
-          // Clean out undefined values
+          // Clean out undefined values — keep all WordStyleOverrides properties
           const cleaned: WordStyleOverrides = {};
           if (merged.color !== undefined) cleaned.color = merged.color;
+          if (merged.activeColor !== undefined) cleaned.activeColor = merged.activeColor;
           if (merged.fontWeight !== undefined) cleaned.fontWeight = merged.fontWeight;
+          if (merged.fontFamily !== undefined) cleaned.fontFamily = merged.fontFamily;
+          if (merged.fontSize !== undefined) cleaned.fontSize = merged.fontSize;
           if (merged.scale !== undefined) cleaned.scale = merged.scale;
+          if (merged.letterSpacing !== undefined) cleaned.letterSpacing = merged.letterSpacing;
+          if (merged.textTransform !== undefined) cleaned.textTransform = merged.textTransform;
           if (merged.emphasisBg !== undefined) cleaned.emphasisBg = merged.emphasisBg;
 
           word.styleOverrides = Object.keys(cleaned).length > 0 ? cleaned : undefined;
         }
       });
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
     },
 
     setApplyStyleToAll: (value: boolean) => {
@@ -708,7 +727,7 @@ export const useEditorStore = create<EditorStore>()(
     // ========================================
 
     addItem: (trackId, itemData) => {
-      const id = itemData.id || nanoid(10);
+      const id = itemData.id || crypto.randomUUID();
 
       set((state) => {
         const track = state.tracks.find((t) => t.id === trackId);
@@ -1270,8 +1289,8 @@ export const useEditorStore = create<EditorStore>()(
         const original = state.items[itemId];
         if (!original) return;
 
-        const leftId = nanoid(10);
-        const rightId = nanoid(10);
+        const leftId = crypto.randomUUID();
+        const rightId = crypto.randomUUID();
 
         if (original.type === 'caption') {
           const data = original.data as CaptionItemData;
@@ -1397,7 +1416,7 @@ export const useEditorStore = create<EditorStore>()(
 
         const newIds: string[] = [];
         for (const item of cloned) {
-          const newId = nanoid(10);
+          const newId = crypto.randomUUID();
           item.id = newId;
           item.startMs += offset;
           item.endMs += offset;
@@ -1422,7 +1441,7 @@ export const useEditorStore = create<EditorStore>()(
 
           const cloned: TimelineItem = JSON.parse(JSON.stringify(original));
           const duration = original.endMs - original.startMs;
-          const newId = nanoid(10);
+          const newId = crypto.randomUUID();
 
           cloned.id = newId;
           cloned.startMs = original.endMs;
@@ -1511,8 +1530,8 @@ export const useEditorStore = create<EditorStore>()(
           endMs: w.endMs - rightWords[0].startMs,
         }));
 
-        const leftId = nanoid(10);
-        const rightId = nanoid(10);
+        const leftId = crypto.randomUUID();
+        const rightId = crypto.randomUUID();
 
         const leftItem: TimelineItem = {
           id: leftId,
@@ -1579,7 +1598,7 @@ export const useEditorStore = create<EditorStore>()(
         const mergedWords = [...firstData.words, ...adjustedSecondWords];
         const mergedText = mergedWords.map((w) => w.text).join(' ');
 
-        const mergedId = nanoid(10);
+        const mergedId = crypto.randomUUID();
         const mergedItem: TimelineItem = {
           id: mergedId,
           type: 'caption',

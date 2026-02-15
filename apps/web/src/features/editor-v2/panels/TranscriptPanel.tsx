@@ -11,6 +11,7 @@ import {
 } from '../store/use-editor-store';
 import { CaptionItemData, TimelineItem } from '../store/types';
 import { api, SceneInfo } from '@/lib/api';
+import { WordToolbar } from '../panels/WordToolbar';
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -27,6 +28,7 @@ export function TranscriptPanel() {
   const [showSearch, setShowSearch] = useState(false);
   const [scenes, setScenes] = useState<SceneInfo[]>([]);
   const [showScenes, setShowScenes] = useState(true);
+  const [selectedWord, setSelectedWord] = useState<{ captionId: string; wordIndex: number } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const activeRef = useRef<HTMLDivElement>(null);
 
@@ -237,7 +239,7 @@ export function TranscriptPanel() {
                   className={`group flex items-start gap-2 px-3 py-2 border-b border-[var(--editor-border-subtle)]
                              cursor-pointer transition-colors hover:bg-[var(--editor-bg-hover)]/50
                              ${isActive ? 'border-l-2 border-l-[var(--editor-accent)] bg-[var(--editor-accent)]/5' : 'border-l-2 border-l-transparent'}`}
-                  onClick={() => handleSelect(item.id)}
+                  onClick={() => { handleSelect(item.id); handleSeek(item.startMs); }}
                 >
                 {/* Text content */}
                 <div className="flex-1 min-w-0">
@@ -259,16 +261,51 @@ export function TranscriptPanel() {
                       autoFocus
                     />
                   ) : (
-                    <p
-                      className={`text-xs leading-relaxed ${
+                    <div
+                      className={`text-xs leading-relaxed flex flex-wrap gap-0.5 ${
                         isActive
                           ? 'text-[var(--editor-text-primary)]'
                           : 'text-[var(--editor-text-secondary)]'
                       }`}
                       onDoubleClick={() => handleStartEdit(item)}
                     >
-                      {data.text}
-                    </p>
+                      {data.words && data.words.length > 0 ? (
+                        data.words.map((word, wi) => {
+                          const absoluteStart = item.startMs + word.startMs;
+                          const absoluteEnd = item.startMs + word.endMs;
+                          const isActiveWord = isActive && currentTimeMs >= absoluteStart && currentTimeMs < absoluteEnd;
+                          const hasOverrides = word.styleOverrides && Object.keys(word.styleOverrides).length > 0;
+                          const isSelected = selectedWord?.captionId === item.id && selectedWord?.wordIndex === wi;
+
+                          return (
+                            <span
+                              key={wi}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSeek(absoluteStart);
+                                handleSelect(item.id);
+                                setSelectedWord({ captionId: item.id, wordIndex: wi });
+                              }}
+                              className={`cursor-pointer rounded px-0.5 transition-colors ${
+                                isActiveWord
+                                  ? 'text-[var(--editor-accent)] font-semibold'
+                                  : ''
+                              } ${
+                                hasOverrides ? 'underline decoration-dotted underline-offset-2' : ''
+                              } ${
+                                isSelected
+                                  ? 'bg-[var(--editor-accent)]/20 ring-1 ring-[var(--editor-accent)]'
+                                  : 'hover:bg-[var(--editor-bg-hover)]'
+                              }`}
+                            >
+                              {word.text}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span>{data.text}</span>
+                      )}
+                    </div>
                   )}
                 </div>
 
@@ -284,6 +321,18 @@ export function TranscriptPanel() {
                   {formatTime(item.startMs)}
                 </button>
               </div>
+
+              {/* Word style toolbar */}
+              {selectedWord?.captionId === item.id && data.words?.[selectedWord.wordIndex] && (
+                <div className="px-3 py-1.5 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-base)]">
+                  <WordToolbar
+                    captionId={item.id}
+                    wordIndex={selectedWord.wordIndex}
+                    word={data.words[selectedWord.wordIndex]}
+                    onClose={() => setSelectedWord(null)}
+                  />
+                </div>
+              )}
               </React.Fragment>
             );
           })

@@ -89,7 +89,9 @@ export type AnimationType =
   | 'typewriter'
   | 'smooth-slide'
   | 'soft-scale'
-  | 'underline-wipe';
+  | 'underline-wipe'
+  // Ad / Premium
+  | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal';
 
 export type EasingType = 'linear' | 'ease-out' | 'spring' | 'elastic' | 'bounce';
 
@@ -279,7 +281,7 @@ export interface SubtitleData {
 // ============================================
 
 export interface VisualStyle {
-  theme: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  theme: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
   primaryColor: string;
   secondaryColor?: string;
   backgroundColor?: string;
@@ -536,3 +538,20 @@ export const DEFAULT_FPS = 30;
 // Canvas dimensions for reels/shorts (9:16)
 export const DEFAULT_CANVAS_WIDTH = 1080;
 export const DEFAULT_CANVAS_HEIGHT = 1920;
+
+// Canvas format presets for different platforms
+export interface CanvasFormat {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  aspectRatio: string;
+  description: string;
+}
+
+export const CANVAS_FORMATS: CanvasFormat[] = [
+  { id: '9:16', name: 'Vertical', width: 1080, height: 1920, aspectRatio: '9:16', description: 'Reels / TikTok / Shorts' },
+  { id: '16:9', name: 'Landscape', width: 1920, height: 1080, aspectRatio: '16:9', description: 'YouTube / Ads' },
+  { id: '1:1', name: 'Square', width: 1080, height: 1080, aspectRatio: '1:1', description: 'Instagram / Ads' },
+  { id: '4:5', name: 'Portrait', width: 1080, height: 1350, aspectRatio: '4:5', description: 'Instagram Portrait' },
+];

@@ -7,7 +7,9 @@ export type AnimationType =
   | '3d-flip' | 'punch'
   // Cinematic
   | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
-  | 'underline-wipe';
+  | 'underline-wipe'
+  // Ad / Premium
+  | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal';
 
 export type EasingType = 'linear' | 'ease-out' | 'spring' | 'elastic' | 'bounce';
 

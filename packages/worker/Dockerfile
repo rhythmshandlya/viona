@@ -92,13 +92,46 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Inter font for subtitle rendering
-# Download from GitHub releases (more reliable than Google Fonts API)
+# Install fonts used by subtitle presets
+# Inter from GitHub releases (more reliable than Google Fonts API)
 RUN mkdir -p /usr/share/fonts/truetype/inter && \
     curl -L "https://github.com/rsms/inter/releases/download/v4.0/Inter-4.0.zip" -o /tmp/inter.zip && \
     unzip /tmp/inter.zip -d /tmp/inter && \
     find /tmp/inter -name "*.ttf" -exec cp {} /usr/share/fonts/truetype/inter/ \; && \
-    rm -rf /tmp/inter /tmp/inter.zip && \
+    rm -rf /tmp/inter /tmp/inter.zip
+
+# Google Fonts used by presets — download via CSS API (fonts.gstatic.com TTF URLs).
+# The old fonts.google.com/download?family=X URLs are BROKEN (return HTML, not ZIP).
+# We fetch the CSS with a non-browser User-Agent to get direct TTF links.
+RUN mkdir -p /usr/share/fonts/truetype/google && \
+    for FONT_QUERY in \
+      "Montserrat:wght@400;500;600;700;800;900" \
+      "Poppins:wght@400;500;600;700;800;900" \
+      "Anton" \
+      "Nunito:wght@400;600;700;800;900" \
+      "Playfair+Display:wght@400;500;600;700;800;900" \
+      "JetBrains+Mono:wght@400;500;600;700;800" \
+      "Rubik:wght@400;500;600;700;800;900" \
+      "Lora:wght@400;500;600;700" \
+      "Merriweather:wght@400;700;900" \
+      "Bebas+Neue" \
+      "Space+Grotesk:wght@400;500;600;700" \
+      "DM+Sans:wght@400;500;600;700" \
+      "Outfit:wght@400;500;600;700;800" \
+      "Fira+Code:wght@400;500;600;700" \
+      "Source+Sans+3:wght@400;600;700" \
+      "Roboto:wght@400;500;700" \
+      "Oswald:wght@400;500;600;700" \
+      "Lato:wght@400;700;900" \
+      "Open+Sans:wght@400;500;600;700;800" \
+      "EB+Garamond:wght@400;500;600;700;800" \
+    ; do \
+      CSS=$(curl -sL "https://fonts.googleapis.com/css2?family=${FONT_QUERY}&display=swap" -H "User-Agent: wget/1.0") && \
+      echo "$CSS" | grep -o 'https://fonts\.gstatic\.com/[^)]*\.ttf' | while read -r TTF_URL; do \
+        FILENAME=$(echo "$TTF_URL" | md5sum | cut -d' ' -f1).ttf && \
+        curl -sL "$TTF_URL" -o "/usr/share/fonts/truetype/google/${FILENAME}"; \
+      done; \
+    done && \
     fc-cache -fv
 
 # Create virtual environment and install Python deps
@@ -129,6 +162,9 @@ COPY --from=builder /app/packages/worker/src/agents ./packages/worker/agents
 COPY --from=builder /app/packages/worker/scripts ./packages/worker/scripts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/renderer/dist ./packages/renderer/dist
+# Copy renderer source files for Remotion bundler (remotion-entry.tsx, components, animations)
+# Remotion's bundle() needs the original TSX files to create the browser bundle
+COPY --from=builder /app/packages/renderer/src ./packages/renderer/src
 
 # Copy remotion template (source only, deps installed on first use)
 COPY --from=builder /app/packages/worker/remotion-template/package.json ./packages/worker/remotion-template/

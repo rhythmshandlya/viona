@@ -42,7 +42,6 @@ interface EditorProps {
 
 export function Editor({ projectId }: EditorProps) {
   // Layout state - simplified unified layout
-  const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout' | 'assets'>('captions');
 
   // Right panel state (settings/properties)
@@ -106,16 +105,6 @@ export function Editor({ projectId }: EditorProps) {
   // Actions
   const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus } = useEditorActions();
 
-  // Toggle transcript panel - opens left sidebar to captions tab
-  const handleToggleTranscript = useCallback(() => {
-    if (leftSidebarTab === 'captions' && leftSidebarOpen) {
-      setLeftSidebarOpen(false);
-    } else {
-      setLeftSidebarOpen(true);
-      setLeftSidebarTab('captions');
-    }
-  }, [leftSidebarTab, leftSidebarOpen]);
-
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
     setActiveTab(tab);
@@ -135,7 +124,6 @@ export function Editor({ projectId }: EditorProps) {
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
-    onToggleTranscript: handleToggleTranscript,
     onClosePanel: handleClosePanel,
   });
 
@@ -464,15 +452,8 @@ export function Editor({ projectId }: EditorProps) {
         {/* Icon Rail - always visible */}
         <div className="w-14 flex flex-col items-center py-2 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] flex-shrink-0">
           <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'captions') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('captions');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'captions' ? 'active' : ''}`}
+            onClick={() => setLeftSidebarTab('captions')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'captions' ? 'active' : ''}`}
             title="Captions"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -481,15 +462,8 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Captions</span>
           </button>
           <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'style') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('style');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'style' ? 'active' : ''}`}
+            onClick={() => setLeftSidebarTab('style')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'style' ? 'active' : ''}`}
             title="Style"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -498,15 +472,8 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Style</span>
           </button>
           <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'layout') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('layout');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'layout' ? 'active' : ''}`}
+            onClick={() => setLeftSidebarTab('layout')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'layout' ? 'active' : ''}`}
             title="Layout"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -518,15 +485,8 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Layout</span>
           </button>
           <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'assets') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('assets');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'assets' ? 'active' : ''}`}
+            onClick={() => setLeftSidebarTab('assets')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'assets' ? 'active' : ''}`}
             title="Assets"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -538,69 +498,49 @@ export function Editor({ projectId }: EditorProps) {
           </button>
         </div>
 
-        {/* Main content with relative positioning for overlay */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
-          {/* Settings Panel Overlay */}
-          {leftSidebarOpen && (
-            <>
-              {/* Backdrop */}
-              <div
-                className="absolute inset-0 bg-black/20 z-40"
-                onClick={() => setLeftSidebarOpen(false)}
+        {/* Left Sidebar Panel - static */}
+        <div className="w-[300px] flex-shrink-0 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] overflow-y-auto">
+          <div className="p-4">
+            <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide mb-3">
+              {leftSidebarTab === 'captions' && 'Caption Settings'}
+              {leftSidebarTab === 'style' && 'Style Settings'}
+              {leftSidebarTab === 'layout' && 'Layout Settings'}
+              {leftSidebarTab === 'assets' && 'Visual Assets'}
+            </h3>
+
+            {leftSidebarTab === 'captions' && (
+              <RightPanel
+                isOpen={true}
+                activeTab="transcript"
+                onTabChange={handleTabChange}
+                onClose={handleClosePanel}
+                layout="stacked"
+                embedded={true}
               />
-              {/* Panel */}
-              <div className="absolute left-0 top-0 bottom-0 w-[488px] z-50 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] shadow-xl overflow-y-auto">
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
-                      {leftSidebarTab === 'captions' && 'Caption Settings'}
-                      {leftSidebarTab === 'style' && 'Style Settings'}
-                      {leftSidebarTab === 'layout' && 'Layout Settings'}
-                      {leftSidebarTab === 'assets' && 'Visual Assets'}
-                    </h3>
-                    <button
-                      onClick={() => setLeftSidebarOpen(false)}
-                      className="p-1 rounded hover:bg-[var(--editor-bg-elevated)] text-[var(--editor-text-muted)]"
-                    >
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {leftSidebarTab === 'captions' && (
-                    <RightPanel
-                      isOpen={true}
-                      activeTab="transcript"
-                      onTabChange={handleTabChange}
-                      onClose={handleClosePanel}
-                      layout="stacked"
-                      embedded={true}
-                    />
-                  )}
-                  {leftSidebarTab === 'style' && (
-                    <div className="-mx-4 -mt-3">
-                      <StylePanel />
-                    </div>
-                  )}
-                  {leftSidebarTab === 'layout' && (
-                    <RightPanel
-                      isOpen={true}
-                      activeTab="layout"
-                      onTabChange={handleTabChange}
-                      onClose={handleClosePanel}
-                      layout="stacked"
-                      embedded={true}
-                    />
-                  )}
-                  {leftSidebarTab === 'assets' && (
-                    <AssetsPanel />
-                  )}
-                </div>
+            )}
+            {leftSidebarTab === 'style' && (
+              <div className="-mx-4 -mt-3">
+                <StylePanel />
               </div>
-            </>
-          )}
+            )}
+            {leftSidebarTab === 'layout' && (
+              <RightPanel
+                isOpen={true}
+                activeTab="layout"
+                onTabChange={handleTabChange}
+                onClose={handleClosePanel}
+                layout="stacked"
+                embedded={true}
+              />
+            )}
+            {leftSidebarTab === 'assets' && (
+              <AssetsPanel />
+            )}
+          </div>
+        </div>
 
+        {/* Main content */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Video Preview Area */}
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
             {/* Zoom control */}

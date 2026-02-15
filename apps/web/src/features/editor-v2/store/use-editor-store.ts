@@ -1,11 +1,34 @@
+'use client';
+
 /**
  * Editor V2 Store Hooks and Selectors
  * Provides optimized selectors for components to subscribe to specific state slices
  */
 
+import { useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
 import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData, FullscreenSegment } from './types';
+
+/**
+ * Like useShallow but uses JSON.stringify for deep comparison.
+ * Needed for selectors that create nested objects (where useShallow's
+ * shallow comparison would always see new references).
+ */
+function useDeepSelector<S, U>(selector: (state: S) => U): (state: S) => U {
+  const prev = useRef<U>(undefined as U);
+  const prevJson = useRef<string>(undefined as unknown as string);
+  return (state) => {
+    const next = selector(state);
+    const nextJson = JSON.stringify(next);
+    if (nextJson === prevJson.current) {
+      return prev.current as U;
+    }
+    prevJson.current = nextJson;
+    prev.current = next;
+    return next;
+  };
+}
 
 // ============================================
 // Direct Store Access
@@ -319,7 +342,7 @@ export function useElementPickerEnabled() {
 
 export function useAIEditingContext(): AIEditingContext | null {
   return useEditorStore(
-    useShallow((state) => {
+    useDeepSelector((state) => {
       // Priority 1: Selected element from overlay picker
       if (state.selectedElement) {
         return {

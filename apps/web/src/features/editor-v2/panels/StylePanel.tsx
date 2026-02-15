@@ -1,13 +1,15 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { ChevronDown, RotateCcw } from 'lucide-react';
+import { ChevronDown, RotateCcw, Wand2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import {
   useFirstCaptionStyle,
   useSelectedIds,
   useEditorActions,
   useSafeZonePlatform,
+  useVideoUrl,
+  useCurrentTimeMs,
 } from '../store/use-editor-store';
 import {
   CaptionDisplayMode,
@@ -25,7 +27,7 @@ import {
   migratePosition,
   migrateTextShadow,
 } from '../store/types';
-import { EFFECT_PRESETS, type EffectPresetId } from '@/lib/effects-utils';
+import { EFFECT_PRESETS, effectsToCss, type EffectPresetId } from '@/lib/effects-utils';
 import {
   SUBTITLE_PRESETS,
   PRESET_CATEGORIES,
@@ -34,6 +36,12 @@ import {
   type SubtitlePreset,
 } from '@/lib/subtitle-presets';
 import { FONT_REGISTRY, loadFont, findFont } from '@/lib/font-registry';
+import {
+  QUICK_COLOR_PALETTES,
+  sampleVideoFrame,
+  generateCaptionColors,
+  type ColorPalette,
+} from '@/lib/color-utils';
 
 // ============================================
 // Helper to get position value (handles both legacy string and new object)
@@ -76,8 +84,13 @@ export function StylePanel() {
   const { updateAllCaptionStyles, updateSelectedCaptionStyles, clearSelection, selectAll, setSafeZonePlatform, setShowSafeZone } =
     useEditorActions();
 
+  const videoUrl = useVideoUrl();
+  const currentTimeMs = useCurrentTimeMs();
+
   const [activeTab, setActiveTab] = useState<PresetCategory>('viral');
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoPalettes, setAutoPalettes] = useState<ColorPalette[] | null>(null);
 
   // Apply to all when nothing selected, otherwise apply to selected only
   const updateStyle = useCallback(
@@ -100,6 +113,26 @@ export function StylePanel() {
     },
     [updateStyle]
   );
+
+  const handleAutoDetect = useCallback(async () => {
+    if (!videoUrl) return;
+    setAutoLoading(true);
+    try {
+      const avgColor = await sampleVideoFrame(videoUrl, currentTimeMs, 'bottom');
+      const palettes = generateCaptionColors(avgColor);
+      setAutoPalettes(palettes);
+      if (palettes.length > 0) {
+        updateStyle({ color: palettes[0].color, activeColor: palettes[0].activeColor });
+      }
+    } catch {
+      // Silently fail — user can still pick manually
+    } finally {
+      setAutoLoading(false);
+    }
+  }, [videoUrl, currentTimeMs, updateStyle]);
+
+  const isPaletteActive = (palette: ColorPalette) =>
+    style?.color === palette.color && style?.activeColor === palette.activeColor;
 
   if (!style) {
     return (
@@ -131,11 +164,12 @@ export function StylePanel() {
       stroke: preset.stroke ?? null,
       textShadow: preset.textShadow,
       textStroke: preset.textStroke,
+      effects: preset.effects ?? { shadow: null, shadowSecondary: null, glow: null },
       backgroundPadding: preset.backgroundPadding,
       backgroundRadius: preset.backgroundRadius,
       animation: preset.animation,
       displayMode: preset.displayMode,
-      position: preset.position,
+      // Position is NOT applied here — user's position should be preserved
       presetId: preset.id,
     });
   };
@@ -208,32 +242,151 @@ export function StylePanel() {
         <div className="grid grid-cols-2 gap-2">
           {filteredPresets.map((preset) => {
             const selected = isPresetSelected(preset);
+            const previewEffects = effectsToCss(preset.effects);
+            const hasBackground = preset.backgroundColor !== 'transparent' && preset.backgroundColor;
+            const activeHasBackground = preset.activeBackgroundColor !== 'transparent' && preset.activeBackgroundColor;
+            const scaledStroke = preset.stroke
+              ? `${Math.max(0.5, preset.stroke.width * (14 / preset.fontSize))}px ${preset.stroke.color}`
+              : undefined;
+
             return (
               <button
                 key={preset.id}
                 onClick={() => applyPreset(preset)}
-                className={`p-3 rounded-lg border transition-all text-left ${
+                className={`rounded-lg border transition-all overflow-hidden ${
                   selected
-                    ? 'border-[var(--editor-accent)] bg-[var(--editor-accent)]/10'
-                    : 'border-[var(--editor-border-subtle)] bg-[var(--editor-bg-elevated)] hover:border-[var(--editor-text-secondary)]/30'
+                    ? 'border-[var(--editor-accent)] ring-1 ring-[var(--editor-accent)]'
+                    : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-text-secondary)]/30'
                 }`}
               >
-                <div
-                  className="text-sm font-bold truncate leading-snug"
-                  style={{
-                    color: preset.activeColor,
-                    textShadow: preset.textShadow,
-                    fontFamily: preset.fontFamily,
-                  }}
-                >
-                  Hello
+                {/* Visual Preview */}
+                <div className="relative h-16 bg-gradient-to-br from-[#1a1a2e] to-[#16213e] flex items-center justify-center overflow-hidden">
+                  <span
+                    style={{
+                      fontFamily: preset.fontFamily,
+                      fontWeight: preset.fontWeight,
+                      fontSize: '16px',
+                      letterSpacing: preset.letterSpacing ? `${preset.letterSpacing * 0.3}px` : undefined,
+                      textTransform: (preset.textTransform || 'none') as React.CSSProperties['textTransform'],
+                      color: preset.activeColor,
+                      opacity: preset.opacity ?? 1,
+                      WebkitTextStroke: scaledStroke,
+                      paintOrder: preset.stroke ? 'stroke fill' : undefined,
+                      ...previewEffects,
+                      ...(activeHasBackground ? {
+                        backgroundColor: preset.activeBackgroundColor,
+                        padding: preset.backgroundPadding
+                          ? `${Math.round(preset.backgroundPadding.y * 0.5)}px ${Math.round(preset.backgroundPadding.x * 0.5)}px`
+                          : '2px 6px',
+                        borderRadius: preset.backgroundRadius ? `${Math.round(preset.backgroundRadius * 0.5)}px` : undefined,
+                      } : hasBackground ? {
+                        backgroundColor: preset.backgroundColor,
+                        padding: preset.backgroundPadding
+                          ? `${Math.round(preset.backgroundPadding.y * 0.5)}px ${Math.round(preset.backgroundPadding.x * 0.5)}px`
+                          : '2px 6px',
+                        borderRadius: preset.backgroundRadius ? `${Math.round(preset.backgroundRadius * 0.5)}px` : undefined,
+                      } : {}),
+                    }}
+                  >
+                    Hello
+                  </span>
                 </div>
-                <div className="text-[10px] text-[var(--editor-text-secondary)] mt-1.5 truncate">
-                  {preset.name}
+                {/* Preset Name */}
+                <div className={`px-2 py-1.5 text-center ${
+                  selected ? 'bg-[var(--editor-accent)]/10' : 'bg-[var(--editor-bg-elevated)]'
+                }`}>
+                  <div className="text-[10px] text-[var(--editor-text-secondary)] truncate">
+                    {preset.name}
+                  </div>
                 </div>
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* Colors Section */}
+      <div className="px-4 py-3 space-y-3">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+            Colors
+          </label>
+          {videoUrl && (
+            <button
+              onClick={handleAutoDetect}
+              disabled={autoLoading}
+              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md
+                         bg-[var(--editor-accent)]/10 text-[var(--editor-accent)]
+                         hover:bg-[var(--editor-accent)]/20 transition-colors
+                         disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Wand2 className="w-3 h-3" />
+              {autoLoading ? 'Sampling…' : 'Auto'}
+            </button>
+          )}
+        </div>
+
+        {/* Quick palette swatches */}
+        <div className="flex flex-wrap gap-2">
+          {QUICK_COLOR_PALETTES.map((palette) => {
+            const active = isPaletteActive(palette);
+            return (
+              <button
+                key={palette.name}
+                title={palette.name}
+                onClick={() => updateStyle({ color: palette.color, activeColor: palette.activeColor })}
+                className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
+                  active
+                    ? 'border-[var(--editor-accent)] ring-2 ring-[var(--editor-accent)]/40 scale-110'
+                    : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-text-secondary)] hover:scale-105'
+                }`}
+                style={{ backgroundColor: palette.activeColor }}
+              />
+            );
+          })}
+        </div>
+
+        {/* Auto-generated palettes */}
+        {autoPalettes && autoPalettes.length > 0 && (
+          <div className="space-y-1.5">
+            <span className="text-[10px] text-[var(--editor-text-secondary)]">Suggested for this frame</span>
+            <div className="flex gap-2">
+              {autoPalettes.map((palette, i) => {
+                const active = isPaletteActive(palette);
+                return (
+                  <button
+                    key={i}
+                    title={palette.name}
+                    onClick={() => updateStyle({ color: palette.color, activeColor: palette.activeColor })}
+                    className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
+                      active
+                        ? 'border-[var(--editor-accent)] ring-2 ring-[var(--editor-accent)]/40 scale-110'
+                        : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-text-secondary)] hover:scale-105'
+                    }`}
+                    style={{ backgroundColor: palette.activeColor }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Current color indicators */}
+        <div className="flex gap-4">
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-4 h-4 rounded border border-[var(--editor-border-subtle)]"
+              style={{ backgroundColor: style.color }}
+            />
+            <span className="text-[10px] text-[var(--editor-text-secondary)]">Text</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div
+              className="w-4 h-4 rounded border border-[var(--editor-border-subtle)]"
+              style={{ backgroundColor: style.activeColor }}
+            />
+            <span className="text-[10px] text-[var(--editor-text-secondary)]">Active</span>
+          </div>
         </div>
       </div>
 

@@ -120,6 +120,49 @@ const underlineWipeOut: AnimationFn = (p) => ({
   borderImage: `linear-gradient(90deg, transparent ${p * 100}%, currentColor ${p * 100}%) 1`,
 });
 
+// Ad / Premium
+const appleFadeIn: AnimationFn = (p) => ({
+  opacity: p,
+  filter: `blur(${(1 - p) * 4}px)`,
+});
+const appleFadeOut: AnimationFn = (p) => ({
+  opacity: 1 - p,
+  filter: `blur(${p * 4}px)`,
+});
+
+const googleSlideIn: AnimationFn = (p) => ({
+  transform: `translateY(${(1 - p) * 16}px)`,
+  opacity: p,
+});
+const googleSlideOut: AnimationFn = (p) => ({
+  transform: `translateY(${p * -16}px)`,
+  opacity: 1 - p,
+});
+
+const cleanScaleIn: AnimationFn = (p) => ({
+  transform: `scale(${0.9 + p * 0.1})`,
+  opacity: p,
+});
+const cleanScaleOut: AnimationFn = (p) => ({
+  transform: `scale(${1 + p * 0.1})`,
+  opacity: 1 - p,
+});
+
+const letterCascadeIn: AnimationFn = (p) => ({
+  transform: `translateY(${(1 - p) * 8}px)`,
+  opacity: Math.min(p * 1.5, 1),
+});
+const letterCascadeOut: AnimationFn = (p) => ({
+  opacity: 1 - p,
+});
+
+const smoothRevealIn: AnimationFn = (p) => ({
+  clipPath: `inset(${(1 - p) * 100}% 0 0 0)`,
+});
+const smoothRevealOut: AnimationFn = (p) => ({
+  clipPath: `inset(0 0 ${p * 100}% 0)`,
+});
+
 // Registry
 interface AnimationSet {
   in: AnimationFn;
@@ -142,6 +185,12 @@ export const ANIMATION_REGISTRY: Record<AnimationType, AnimationSet> = {
   'smooth-slide':   { in: smoothSlideIn, active: none, out: smoothSlideOut },
   'soft-scale':     { in: softScaleIn, active: none, out: softScaleOut },
   'underline-wipe': { in: underlineWipeIn, active: none, out: underlineWipeOut },
+  // Ad / Premium
+  'apple-fade':      { in: appleFadeIn, active: none, out: appleFadeOut },
+  'google-slide':    { in: googleSlideIn, active: none, out: googleSlideOut },
+  'clean-scale':     { in: cleanScaleIn, active: none, out: cleanScaleOut },
+  'letter-cascade':  { in: letterCascadeIn, active: none, out: letterCascadeOut },
+  'smooth-reveal':   { in: smoothRevealIn, active: none, out: smoothRevealOut },
 };
 
 export function getAnimation(type: AnimationType, phase: 'in' | 'active' | 'out'): AnimationFn {

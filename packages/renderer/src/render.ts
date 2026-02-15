@@ -92,12 +92,22 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
   console.log(`  Subtitles: ${subtitles.length}`);
 
   // Render the video
+  // Use memory-efficient settings for production (Docker/Railway with limited RAM)
   await renderMedia({
     composition: finalComposition,
     serveUrl: bundlePath,
     codec: 'h264',
     outputLocation: outputPath,
     inputProps,
+    // Memory-saving settings for constrained environments
+    concurrency: 1,
+    imageFormat: 'jpeg',
+    jpegQuality: 85,
+    x264Preset: 'ultrafast',
+    crf: 23,
+    chromiumOptions: {
+      enableMultiProcessOnLinux: true,
+    },
     onProgress: ({ progress }) => {
       const percent = Math.round(progress * 100);
       if (onProgress) {

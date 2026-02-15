@@ -3,10 +3,23 @@ import { useCurrentFrame, useVideoConfig } from 'remotion';
 import { resolveAnimation, isAnimationConfig, migrateAnimation } from '../animations';
 import type { AnimationConfig } from '../animations';
 
+export interface WordStyleOverrides {
+  color?: string;
+  activeColor?: string;
+  fontWeight?: number;
+  fontFamily?: string;
+  fontSize?: number;
+  scale?: number;
+  letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase';
+  emphasisBg?: string;
+}
+
 export interface SubtitleWord {
   text: string;
   startMs: number;
   endMs: number;
+  styleOverrides?: WordStyleOverrides;
 }
 
 export interface StrokeStyle {
@@ -152,7 +165,7 @@ function calculatePositionStyles(
   const baseStyles: React.CSSProperties = {
     position: 'absolute',
     left: `${50 + offsetX}%`,
-    maxWidth: '80%',
+    maxWidth: '90%',
     display: 'flex',
     flexWrap: 'wrap',
     gap: '8px',
@@ -228,8 +241,8 @@ export interface AnimatedSubtitleProps {
 
 const defaultStyle: SubtitleStyle = {
   fontFamily: 'Inter, system-ui, sans-serif',
-  fontSize: 48,
-  fontWeight: 700,
+  fontSize: 56,
+  fontWeight: 800,
   color: '#ffffff',
   activeColor: '#ffff00',
   backgroundColor: 'transparent',
@@ -305,9 +318,7 @@ const Word: React.FC<WordProps> = ({
   });
 
   // 4. Apply per-word style overrides if present
-  const overrides = (word as any).styleOverrides as
-    | { color?: string; fontWeight?: number; scale?: number; emphasisBg?: string }
-    | undefined;
+  const overrides = word.styleOverrides;
 
   // 5. Resolve effects (handles both legacy textShadow and new effects object)
   const effects: CaptionEffects = style.effects ?? migrateTextShadow(style.textShadow);
@@ -327,19 +338,23 @@ const Word: React.FC<WordProps> = ({
   });
 
   // 7. Build final CSS
+  const baseFontSize = overrides?.fontSize ?? (style.fontSize || 48);
   const wordCss: React.CSSProperties = {
-    fontFamily: style.fontFamily,
-    fontSize: (overrides?.scale || 1) * (style.fontSize || 48),
-    fontWeight: overrides?.fontWeight || style.fontWeight,
+    fontFamily: overrides?.fontFamily ?? style.fontFamily,
+    fontSize: (overrides?.scale || 1) * baseFontSize,
+    fontWeight: overrides?.fontWeight ?? style.fontWeight,
     color: isActive
-      ? (overrides?.color || style.activeColor)
-      : (overrides?.color || style.color),
+      ? (overrides?.activeColor ?? overrides?.color ?? style.activeColor)
+      : (overrides?.color ?? style.color),
     backgroundColor: overrides?.emphasisBg
       || (isActive ? style.activeBackgroundColor : style.backgroundColor),
-    padding: '4px 8px',
+    padding: '4px 12px',
     borderRadius: '8px',
     display: 'inline-block',
     ...getTypographyStyles(),
+    // Per-word letter spacing and text transform override the caption-level values
+    ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+    ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
     ...animStyle,
   };
 
