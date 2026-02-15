@@ -244,6 +244,11 @@ details > div {
   background: var(--color-primary);
 }
 
+/* Tabular numbers for counters */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Orange text */
 .text-orange {
   color: var(--color-primary);
