@@ -4,32 +4,32 @@ import { siteConfig } from "@/data/site";
 
 <section class="relative pt-24 pb-12 sm:pt-28 sm:pb-16 lg:pt-32 lg:pb-20 overflow-hidden">
   <!-- Orange gradient blob -->
-  <div class="hero-gradient"></div>
+  <div class="hero-gradient" data-hero-gradient></div>
 
   <div class="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
     <!-- Tagline badge -->
     <div class="flex justify-center mb-6 sm:mb-8">
-      <div class="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-border bg-white text-xs sm:text-sm">
+      <div class="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-border bg-white text-xs sm:text-sm" data-hero-badge>
         <span class="text-muted-foreground">For explainer videos & courses</span>
       </div>
     </div>
 
     <!-- Headline -->
     <div class="text-center mb-4 sm:mb-6">
-      <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight leading-tight">
+      <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight leading-tight" data-hero-headline>
         You Explain It.
         <br />Cllipify <span class="wavy-underline">Illustrates</span> It.
       </h1>
     </div>
 
     <!-- Subheadline -->
-    <p class="text-center text-muted-foreground text-sm sm:text-base max-w-xl mx-auto mb-8 sm:mb-10 px-2">
+    <p class="text-center text-muted-foreground text-sm sm:text-base max-w-xl mx-auto mb-8 sm:mb-10 px-2" data-hero-sub>
       Upload your talking-head video. Our AI transcribes it, removes filler words,
       and generates charts, diagrams, and graphics synced to your explanations.
     </p>
 
     <!-- CTA Button -->
-    <div class="flex justify-center mb-10 sm:mb-16">
+    <div class="flex justify-center mb-10 sm:mb-16" data-hero-cta>
       <a href={siteConfig.appUrl} class="btn-primary">
         Start Creating Free
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,7 +39,7 @@ import { siteConfig } from "@/data/site";
     </div>
 
     <!-- Before/After Visual -->
-    <div class="max-w-3xl mx-auto">
+    <div class="max-w-3xl mx-auto" data-hero-visual>
       <!-- Mobile: Stack vertically -->
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
         <!-- Before -->
@@ -57,7 +57,7 @@ import { siteConfig } from "@/data/site";
 
         <!-- Arrow -->
         <div class="flex-shrink-0 rotate-90 sm:rotate-0">
-          <div class="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-primary/10 rounded-full flex items-center justify-center">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-primary/10 rounded-full flex items-center justify-center" data-demo-arrow>
             <svg class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
             </svg>
@@ -73,14 +73,14 @@ import { siteConfig } from "@/data/site";
                 <div class="text-[8px] sm:text-[9px] md:text-xs font-semibold text-gray-700 mb-1 sm:mb-2">Growth Rate</div>
                 <!-- Bar chart -->
                 <div class="flex-1 flex items-end gap-1 sm:gap-1.5 md:gap-2">
-                  <div class="flex-1 bg-primary/30 rounded-t h-[30%]"></div>
-                  <div class="flex-1 bg-primary/50 rounded-t h-[55%]"></div>
-                  <div class="flex-1 bg-primary/70 rounded-t h-[45%]"></div>
-                  <div class="flex-1 bg-primary rounded-t h-[80%]"></div>
+                  <div class="flex-1 bg-primary/30 rounded-t h-[30%]" data-demo-bar></div>
+                  <div class="flex-1 bg-primary/50 rounded-t h-[55%]" data-demo-bar></div>
+                  <div class="flex-1 bg-primary/70 rounded-t h-[45%]" data-demo-bar></div>
+                  <div class="flex-1 bg-primary rounded-t h-[80%]" data-demo-bar></div>
                 </div>
               </div>
               <!-- PiP -->
-              <div class="absolute bottom-1.5 right-1.5 sm:bottom-2 sm:right-2 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+              <div class="absolute bottom-1.5 right-1.5 sm:bottom-2 sm:right-2 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center" data-demo-pip>
                 <svg class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
                 </svg>
@@ -93,3 +93,64 @@ import { siteConfig } from "@/data/site";
     </div>
   </div>
 </section>
+
+<script>
+  import { gsap, ScrollTrigger } from "@/scripts/animations";
+
+  document.addEventListener("astro:page-load", () => {
+    // Hero entrance timeline
+    const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
+
+    tl.from('[data-hero-badge]', { y: 20, opacity: 0, duration: 0.5 })
+      .from('[data-hero-headline]', { y: 30, opacity: 0, duration: 0.6 }, "-=0.2")
+      .from('[data-hero-sub]', { y: 20, opacity: 0, duration: 0.5 }, "-=0.3")
+      .from('[data-hero-cta]', { y: 20, opacity: 0, duration: 0.5 }, "-=0.3")
+      .from('[data-hero-visual]', { y: 40, opacity: 0, duration: 0.7 }, "-=0.3");
+
+    // Reveal wavy underline after headline appears
+    tl.add(() => {
+      document.querySelector('[data-hero-headline] .wavy-underline')?.classList.add('revealed');
+    }, "-=0.3");
+
+    // Floating gradient parallax
+    gsap.to('[data-hero-gradient]', {
+      x: 30,
+      y: -20,
+      duration: 6,
+      ease: "sine.inOut",
+      repeat: -1,
+      yoyo: true,
+    });
+
+    // Product demo animation
+    const demoTl = gsap.timeline({
+      scrollTrigger: {
+        trigger: '[data-hero-visual]',
+        start: "top 80%",
+      },
+      defaults: { ease: "power2.out" },
+    });
+
+    demoTl.from('[data-demo-bar]', {
+      scaleY: 0,
+      transformOrigin: "bottom",
+      duration: 0.6,
+      stagger: 0.15,
+    }, "+=0.3");
+
+    demoTl.from('[data-demo-pip]', {
+      x: 20,
+      y: 20,
+      opacity: 0,
+      duration: 0.4,
+    }, "-=0.2");
+
+    gsap.to('[data-demo-arrow]', {
+      scale: 1.1,
+      duration: 1.2,
+      ease: "sine.inOut",
+      repeat: -1,
+      yoyo: true,
+    });
+  });
+</script>

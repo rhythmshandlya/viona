@@ -47,6 +47,12 @@ body {
   height: 8px;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M0 5 Q 12.5 0, 25 5 T 50 5 T 75 5 T 100 5' stroke='%23F97316' stroke-width='2' fill='none'/%3E%3C/svg%3E") repeat-x;
   background-size: 50px 8px;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.8s ease-out;
+}
+
+.wavy-underline.revealed::after {
+  clip-path: inset(0 0% 0 0);
 }
 
 /* Orange underline (straight) */
