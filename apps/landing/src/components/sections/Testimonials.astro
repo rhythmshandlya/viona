@@ -2,15 +2,15 @@
 import { testimonials } from "@/data/testimonials";
 ---
 
-<section class="py-12 sm:py-16 lg:py-20 bg-dark text-white">
+<section data-testimonial-section class="py-12 sm:py-16 lg:py-20 bg-dark text-white">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <!-- Header -->
     <div class="mb-6 sm:mb-8 lg:mb-12">
-      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold">What Creators Say</h2>
+      <h2 data-animate="fade-up" class="text-2xl sm:text-3xl lg:text-4xl font-semibold">What Creators Say</h2>
     </div>
 
     <!-- Avatar row - scrollable on mobile -->
-    <div class="flex items-center gap-2 sm:gap-4 mb-6 sm:mb-8 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+    <div data-testimonial-avatars class="flex items-center gap-2 sm:gap-4 mb-6 sm:mb-8 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
       {testimonials.map((_, i) => (
         <div class={`w-10 h-10 sm:w-14 sm:h-14 rounded-lg sm:rounded-xl bg-gradient-to-br from-gray-600 to-gray-700 flex-shrink-0 ${i === 0 ? 'ring-2 ring-primary' : ''}`}></div>
       ))}
@@ -18,11 +18,11 @@ import { testimonials } from "@/data/testimonials";
 
     <!-- Testimonial content -->
     <div class="max-w-3xl">
-      <blockquote class="text-base sm:text-lg lg:text-xl leading-relaxed text-white/80 mb-6 sm:mb-8">
+      <blockquote data-testimonial-quote class="text-base sm:text-lg lg:text-xl leading-relaxed text-white/80 mb-6 sm:mb-8">
         "{testimonials[0]?.quote}"
       </blockquote>
 
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div data-testimonial-author class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div class="font-semibold text-sm sm:text-base">{testimonials[0]?.author}</div>
           <div class="text-xs sm:text-sm text-white/60">{testimonials[0]?.role}, {testimonials[0]?.company}</div>
@@ -42,3 +42,51 @@ import { testimonials } from "@/data/testimonials";
     </div>
   </div>
 </section>
+
+<script>
+  import { gsap, ScrollTrigger } from "@/scripts/animations";
+
+  document.addEventListener("astro:page-load", () => {
+    const section = document.querySelector('[data-testimonial-section]');
+    if (!section) return;
+
+    // Stagger avatars in
+    const avatars = section.querySelectorAll('[data-testimonial-avatars] > div');
+    gsap.from(avatars, {
+      scrollTrigger: {
+        trigger: section,
+        start: "top 80%",
+      },
+      scale: 0,
+      opacity: 0,
+      duration: 0.4,
+      stagger: 0.08,
+      ease: "back.out(2)",
+    });
+
+    // Quote fade in with slight rotation (card deal effect)
+    gsap.from('[data-testimonial-quote]', {
+      scrollTrigger: {
+        trigger: '[data-testimonial-quote]',
+        start: "top 85%",
+      },
+      y: 30,
+      opacity: 0,
+      rotation: -1,
+      duration: 0.7,
+      ease: "power2.out",
+    });
+
+    // Author info slide up
+    gsap.from('[data-testimonial-author]', {
+      scrollTrigger: {
+        trigger: '[data-testimonial-author]',
+        start: "top 90%",
+      },
+      y: 20,
+      opacity: 0,
+      duration: 0.5,
+      ease: "power2.out",
+    });
+  });
+</script>
