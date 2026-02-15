@@ -3344,6 +3344,10 @@ async def main():
 
 
 if __name__ == "__main__":
+    # Suppress noisy "Event loop is closed" warnings on Windows
+    # when asyncio subprocess transports are garbage collected after loop closes
+    if sys.platform == "win32":
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     try:
         asyncio.run(main())
     except Exception as e:

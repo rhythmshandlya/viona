@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChevronDown, ChevronUp, Clock, Layers, Palette, Sparkles } from 'lucide-react';
+import { Clock, ExternalLink, Layers, Palette, Sparkles } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface Scene {
   startMs: number;
@@ -51,7 +57,7 @@ export function ScenePlanCard({
   disabled,
   approved,
 }: ScenePlanCardProps) {
-  const [expanded, setExpanded] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const sceneCount = metadata?.totalScenes ?? scenes.length;
   const duration = metadata?.durationSeconds;
@@ -109,54 +115,61 @@ export function ScenePlanCard({
         </div>
       )}
 
-      {/* Content: collapsed (scene list) or expanded (full markdown) */}
-      {expanded && scenePlanMarkdown ? (
-        <div className="px-3 py-3 prose-agent text-sm max-h-96 overflow-y-auto">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {scenePlanMarkdown}
-          </ReactMarkdown>
-        </div>
-      ) : (
-        <div className="divide-y divide-[var(--editor-border-subtle)]">
-          {scenes.map((scene, i) => (
-            <div key={i} className="px-3 py-2">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-xs font-mono text-[var(--editor-text-muted)] shrink-0">
-                  {formatTime(scene.startMs)}-{formatTime(scene.endMs)}
-                </span>
-                <span className="text-sm font-medium text-[var(--editor-text-primary)] truncate">
-                  {scene.title}
-                </span>
-              </div>
-              <p className="text-xs text-[var(--editor-text-secondary)] line-clamp-1">
-                {scene.description}
-              </p>
+      {/* Compact scene list */}
+      <div className="divide-y divide-[var(--editor-border-subtle)]">
+        {scenes.map((scene, i) => (
+          <div key={i} className="px-3 py-2">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-xs font-mono text-[var(--editor-text-muted)] shrink-0">
+                {formatTime(scene.startMs)}-{formatTime(scene.endMs)}
+              </span>
+              <span className="text-sm font-medium text-[var(--editor-text-primary)] truncate">
+                {scene.title}
+              </span>
             </div>
-          ))}
-        </div>
-      )}
+            <p className="text-xs text-[var(--editor-text-secondary)] line-clamp-1">
+              {scene.description}
+            </p>
+          </div>
+        ))}
+      </div>
 
-      {/* "View full plan" / "Collapse" toggle (only if markdown is available) */}
+      {/* "View full plan" button → opens modal */}
       {scenePlanMarkdown && (
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setModalOpen(true)}
           className="w-full px-3 py-1.5 border-t border-[var(--editor-border-subtle)] bg-[var(--editor-bg-hover)]
                      flex items-center justify-center gap-1 text-xs text-[var(--editor-text-muted)]
                      hover:text-[var(--editor-text-secondary)] transition-colors"
         >
-          {expanded ? (
-            <>
-              <ChevronUp className="w-3 h-3" />
-              Collapse
-            </>
-          ) : (
-            <>
-              <ChevronDown className="w-3 h-3" />
-              View full plan
-            </>
-          )}
+          <ExternalLink className="w-3 h-3" />
+          View full plan
         </button>
       )}
+
+      {/* Full plan modal */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-3xl max-h-[85vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Scene Plan
+              <span className="text-sm font-normal text-muted-foreground">
+                {sceneCount} scenes{duration ? ` · ${formatDuration(duration)}` : ''}
+              </span>
+            </DialogTitle>
+            {metadata?.primaryMetaphor && (
+              <p className="text-sm text-muted-foreground italic">{metadata.primaryMetaphor}</p>
+            )}
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 pr-2">
+            <div className="prose prose-sm dark:prose-invert max-w-none">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {scenePlanMarkdown || ''}
+              </ReactMarkdown>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Action buttons */}
       {!disabled && (
