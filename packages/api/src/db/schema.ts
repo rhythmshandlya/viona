@@ -74,6 +74,10 @@ export const jobs = pgTable('jobs', {
     screenshotsTaken?: number;
   }>(),
   logs: text('logs').array(),
+  planData: jsonb('plan_data').$type<{
+    scenePlan: string;
+    scenes: Record<string, unknown>;
+  } | null>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
 });
