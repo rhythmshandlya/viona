@@ -165,7 +165,7 @@ export function ScenePlanCard({
             onClick={onApprove}
             className="flex-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-md transition-colors"
           >
-            Approve &amp; Generate
+            Approve & Generate
           </button>
           <button
             onClick={onReject}

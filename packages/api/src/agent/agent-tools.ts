@@ -54,7 +54,7 @@ async function pollJobProgress(
       message: job.progressMessage || `Processing... (${job.progress}%)`,
     });
 
-    if (job.status === 'completed') {
+    if (job.status === 'complete' || job.status === 'completed') {
       ctx.sendSSE('progress', { percent: 100, message: 'Done!' });
       break;
     }
@@ -295,7 +295,7 @@ export function createAgentMcpServer(ctx: ToolContext) {
             where: eq(jobs.id, job.id),
           });
 
-          if (!completedJob || completedJob.status !== 'completed' || !completedJob.planData) {
+          if (!completedJob || (completedJob.status !== 'complete' && completedJob.status !== 'completed') || !completedJob.planData) {
             return {
               content: [{ type: 'text' as const, text: JSON.stringify({
                 error: 'Planning failed or produced no plan data.',
@@ -343,11 +343,13 @@ export function createAgentMcpServer(ctx: ToolContext) {
 
       tool(
         'start_generation',
-        'Start generating visuals from an approved plan. This takes the planJobId from a completed plan_visuals run and triggers the full generation pipeline. Only call this after the user has approved the plan.',
+        'Start generating visuals from an approved plan. This takes the planJobId from a completed plan_visuals run and triggers the full generation pipeline. Only call this after the user has approved the plan. Pass the same stylePreset and layoutMode that were used in plan_visuals.',
         {
           planJobId: z.string(),
+          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic']),
+          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
         },
-        async ({ planJobId }) => {
+        async ({ planJobId, stylePreset, layoutMode }) => {
           // Verify the plan job exists and is completed with planData
           const planJob = await db.query.jobs.findFirst({
             where: eq(jobs.id, planJobId),
@@ -359,7 +361,7 @@ export function createAgentMcpServer(ctx: ToolContext) {
             };
           }
 
-          if (planJob.status !== 'completed' || !planJob.planData) {
+          if ((planJob.status !== 'complete' && planJob.status !== 'completed') || !planJob.planData) {
             return {
               content: [{ type: 'text' as const, text: JSON.stringify({
                 error: 'Plan job is not completed or has no plan data.',
@@ -368,7 +370,7 @@ export function createAgentMcpServer(ctx: ToolContext) {
             };
           }
 
-          // Read style/layout from the project's videoSettings
+          // Read canvas dimensions from the project
           const project = await db.query.projects.findFirst({
             where: eq(projects.id, ctx.projectId),
           });
@@ -382,8 +384,6 @@ export function createAgentMcpServer(ctx: ToolContext) {
           const videoSettings = (project.videoSettings as Record<string, unknown>) || {};
           const canvasWidth = (videoSettings.canvasWidth as number | undefined) ?? 1080;
           const canvasHeight = (videoSettings.canvasHeight as number | undefined) ?? 1920;
-          const stylePreset = (videoSettings.stylePreset as string | undefined) ?? 'modern';
-          const layoutMode = (videoSettings.layoutMode as string | undefined) ?? 'pip';
 
           let dimensions = { width: canvasWidth, height: canvasHeight };
           if (layoutMode === 'split-horizontal') {
