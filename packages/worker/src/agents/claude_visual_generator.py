@@ -3202,9 +3202,8 @@ async def main():
             plan_markdown = f.read()
 
         plan_payload = {
-            "scenes": scenes_data.get("scenes", []),
-            "sceneCount": director_result.get("sceneCount", 0),
-            "planMarkdown": plan_markdown,
+            "scenePlan": plan_markdown,
+            "scenes": scenes_data,
         }
         print(f"PLAN_READY:{json.dumps(plan_payload)}")
         sys.stdout.flush()
