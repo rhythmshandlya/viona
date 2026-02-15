@@ -14,7 +14,7 @@ export const TOOL_NAMES = [
   `mcp__${MCP_SERVER_NAME}__get_current_visuals`,
   `mcp__${MCP_SERVER_NAME}__get_scene_details`,
   `mcp__${MCP_SERVER_NAME}__show_widget`,
-  `mcp__${MCP_SERVER_NAME}__propose_plan`,
+  `mcp__${MCP_SERVER_NAME}__update_plan`,
   `mcp__${MCP_SERVER_NAME}__plan_visuals`,
   `mcp__${MCP_SERVER_NAME}__start_generation`,
   `mcp__${MCP_SERVER_NAME}__edit_visuals`,
@@ -74,6 +74,27 @@ async function pollJobProgress(
       message: 'Generation is taking longer than expected. Check back shortly.',
     });
   }
+}
+
+// Map raw scenes.json scene objects to widget-friendly format
+function mapScenesToWidget(scenesArray: Array<Record<string, unknown>>) {
+  return scenesArray.map((s: any) => ({
+    startMs: Math.round((s.timestampRange?.[0] || 0) * 1000),
+    endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
+    title: s.name || `Scene ${s.id}`,
+    description: s.visual || s.emotion || '',
+    emotion: s.emotion || '',
+    keySync: s.keySync ? {
+      word: s.keySync.word,
+      timestamp: s.keySync.timestamp,
+      visualEvent: s.keySync.visualEvent,
+    } : undefined,
+    buildsFrom: s.buildsFrom || null,
+    connectsTo: s.connectsTo || null,
+    layout: s.layout || null,
+    frames: s.frames || null,
+    icons: s.icons || [],
+  }));
 }
 
 // Create an in-process MCP server with all Creative Director tools
@@ -212,26 +233,94 @@ export function createAgentMcpServer(ctx: ToolContext) {
       ),
 
       tool(
-        'propose_plan',
-        'Present a scene-by-scene visual plan for the user to approve or modify before generation begins. Each scene should have a time range and description of what will be visualized.',
+        'update_plan',
+        `Edit one or more scenes in an existing plan and re-show the updated plan to the user for approval. Use this after the user requests changes to specific scenes. Pass the planJobId from the original plan_visuals result and an array of scene updates. Each update needs the scene id (1-indexed) and the fields to change. The updated plan is saved to the database so the Animator will use it.`,
         {
-          scenes: z.array(z.object({
-            startMs: z.number(),
-            endMs: z.number(),
-            title: z.string(),
-            description: z.string(),
-          })),
+          planJobId: z.string().describe('The plan job ID from the plan_visuals result'),
+          sceneUpdates: z.array(z.object({
+            sceneId: z.number().describe('1-indexed scene number'),
+            visual: z.string().optional().describe('New visual description'),
+            emotion: z.string().optional().describe('New emotion/mood'),
+            name: z.string().optional().describe('New scene title'),
+          })).describe('Array of scene edits'),
         },
-        async ({ scenes }) => {
+        async ({ planJobId, sceneUpdates }) => {
+          const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, planJobId) });
+          if (!planJob?.planData) {
+            return { content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Plan job not found or has no plan data.' }) }] };
+          }
+
+          const planData = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+          const scenesObj = planData.scenes as Record<string, unknown>;
+          const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+
+          // Apply updates to scenes
+          for (const update of sceneUpdates) {
+            const scene = scenesArray.find((s: any) => s.id === update.sceneId);
+            if (scene) {
+              if (update.visual !== undefined) (scene as any).visual = update.visual;
+              if (update.emotion !== undefined) (scene as any).emotion = update.emotion;
+              if (update.name !== undefined) (scene as any).name = update.name;
+            }
+          }
+
+          // Update scenePlan markdown to reflect changes
+          let updatedMarkdown = planData.scenePlan;
+          for (const update of sceneUpdates) {
+            const scene = scenesArray.find((s: any) => s.id === update.sceneId) as any;
+            if (scene && update.visual) {
+              // Update the **Visual**: line for this scene in the markdown
+              const sceneHeader = `### Scene ${update.sceneId}:`;
+              const idx = updatedMarkdown.indexOf(sceneHeader);
+              if (idx !== -1) {
+                const visualMatch = updatedMarkdown.substring(idx).match(/\*\*Visual\*\*:\s*[^\n]+/);
+                if (visualMatch) {
+                  updatedMarkdown = updatedMarkdown.replace(
+                    visualMatch[0],
+                    `**Visual**: ${update.visual}`
+                  );
+                }
+              }
+            }
+          }
+
+          // Save updated plan back to DB
+          const updatedPlanData = {
+            scenePlan: updatedMarkdown,
+            scenes: { ...scenesObj, scenes: scenesArray },
+          };
+          await db.update(jobs).set({ planData: updatedPlanData }).where(eq(jobs.id, planJobId));
+
+          // Re-send widget with updated data
           const widgetId = nanoid(8);
           ctx.sendSSE('widget', {
             id: widgetId,
             kind: 'scene_plan',
-            scenes,
+            scenes: mapScenesToWidget(scenesArray),
+            scenePlanMarkdown: updatedMarkdown,
+            metadata: {
+              primaryMetaphor: scenesObj.primaryMetaphor,
+              colorPalette: scenesObj.colorPalette,
+              totalScenes: scenesObj.totalScenes,
+              durationSeconds: scenesObj.durationSeconds,
+              visualContinuity: scenesObj.visualContinuity,
+            },
             requiresApproval: true,
           });
+
+          const editedNames = sceneUpdates.map(u => {
+            const s = scenesArray.find((s: any) => s.id === u.sceneId) as any;
+            return s?.name || `Scene ${u.sceneId}`;
+          });
+
           return {
-            content: [{ type: 'text' as const, text: JSON.stringify({ widgetId, status: 'shown', waitingForApproval: true }) }],
+            content: [{ type: 'text' as const, text: JSON.stringify({
+              planJobId,
+              widgetId,
+              status: 'plan_updated',
+              editedScenes: editedNames,
+              waitingForApproval: true,
+            }) }],
           };
         },
       ),
@@ -313,20 +402,7 @@ export function createAgentMcpServer(ctx: ToolContext) {
           ctx.sendSSE('widget', {
             id: widgetId,
             kind: 'scene_plan',
-            scenes: scenesArray.map((s: any) => ({
-              startMs: Math.round((s.timestampRange?.[0] || 0) * 1000),
-              endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
-              title: s.name || `Scene ${s.id}`,
-              description: s.visual || s.emotion || '',
-              emotion: s.emotion || '',
-              keySync: s.keySync ? {
-                word: s.keySync.word,
-                timestamp: s.keySync.timestamp,
-                visualEvent: s.keySync.visualEvent,
-              } : undefined,
-              buildsFrom: s.buildsFrom || null,
-              connectsTo: s.connectsTo || null,
-            })),
+            scenes: mapScenesToWidget(scenesArray),
             scenePlanMarkdown: planData.scenePlan,
             metadata: {
               primaryMetaphor: scenesObj.primaryMetaphor,

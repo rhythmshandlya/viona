@@ -37,6 +37,9 @@ interface WidgetBlock {
       keySync?: { word: string; timestamp: number; visualEvent: string };
       buildsFrom?: string | null;
       connectsTo?: string | null;
+      layout?: Record<string, unknown> | null;
+      frames?: [number, number] | null;
+      icons?: string[];
     }>;
     scenePlanMarkdown?: string;
     metadata?: {
@@ -465,6 +468,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             metadata={widget.metadata}
             onApprove={() => handleWidgetResponse(widget.id, { approved: true })}
             onReject={() => handleWidgetResponse(widget.id, { approved: false })}
+            onEditScene={(sceneIndex, sceneTitle) => {
+              handleWidgetResponse(widget.id, { approved: false, editScene: sceneIndex + 1 });
+              sendMessage(`I'd like to edit Scene ${sceneIndex + 1}: ${sceneTitle}`);
+            }}
             disabled={hasResponded || isStreaming}
             approved={
               hasResponded
