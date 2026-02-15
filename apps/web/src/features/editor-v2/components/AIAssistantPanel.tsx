@@ -395,7 +395,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     const hasResponded = response !== undefined;
 
     switch (widget.kind) {
-      case 'theme-picker':
+      case 'theme_picker':
         return (
           <ThemePicker
             onSelect={(themeId) => handleWidgetResponse(widget.id, themeId)}
@@ -404,7 +404,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           />
         );
 
-      case 'layout-picker':
+      case 'layout_picker':
         return (
           <LayoutPicker
             onSelect={(layoutId) => handleWidgetResponse(widget.id, layoutId)}
@@ -413,7 +413,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           />
         );
 
-      case 'scene-plan':
+      case 'scene_plan':
         return (
           <ScenePlanCard
             scenes={widget.scenes || []}
