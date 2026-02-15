@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { ensureBuckets, getObjectStream, objectExists, listObjects } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
 import { userRoutes } from './routes/users.js';
+import { agentRoutes } from './agent/agent-router.js';
 import { setupWebSocket } from './ws/handler.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
@@ -194,6 +195,7 @@ async function main() {
   // Register routes
   await fastify.register(projectRoutes, { prefix: '/api' });
   await fastify.register(userRoutes, { prefix: '/api' });
+  await fastify.register(agentRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);
