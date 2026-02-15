@@ -42,13 +42,18 @@ function toClaudeMessages(
 async function pollJobProgress(
   jobId: string,
   raw: NodeJS.WritableStream,
+  signal?: AbortSignal,
 ): Promise<void> {
   const POLL_INTERVAL_MS = 2000;
   const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
   const startTime = Date.now();
 
   while (Date.now() - startTime < TIMEOUT_MS) {
+    if (signal?.aborted) break;
+
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+    if (signal?.aborted) break;
 
     const job = await db.query.jobs.findFirst({
       where: eq(jobs.id, jobId),
@@ -81,6 +86,13 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
   fastify.post('/projects/:id/agent/chat', { preHandler: authMiddleware }, async (request, reply) => {
     const { id: projectId } = request.params as { id: string };
+
+    // Guard: ensure ANTHROPIC_API_KEY is configured
+    if (!config.anthropic.apiKey) {
+      return reply.status(503).send({
+        error: 'AI agent not configured. Set ANTHROPIC_API_KEY environment variable.',
+      });
+    }
 
     const body = request.body as {
       message: string;
@@ -161,9 +173,12 @@ export async function agentRoutes(fastify: FastifyInstance) {
       Connection: 'keep-alive',
     });
 
+    // Keep only recent messages to stay within context limits
+    const recentMessages = storedMessages.slice(-50);
+
     // Build Claude messages array from history + new user message
     const claudeMessages: Anthropic.MessageParam[] = [
-      ...toClaudeMessages(storedMessages),
+      ...toClaudeMessages(recentMessages),
       { role: 'user', content: [{ type: 'text', text: userText }] },
     ];
 
@@ -171,6 +186,12 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const anthropic = new Anthropic({ apiKey: config.anthropic.apiKey });
     let fullAssistantContent: Anthropic.ContentBlock[] = [];
     let currentMessages = claudeMessages;
+
+    // Handle client disconnect — abort in-flight Claude API calls
+    const abortController = new AbortController();
+    request.raw.on('close', () => {
+      abortController.abort();
+    });
 
     try {
       let continueLoop = true;
@@ -183,7 +204,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
           system: systemPrompt,
           messages: currentMessages,
           tools: toolDefinitions,
-        });
+        }, { signal: abortController.signal });
 
         // Stream text chunks to the client
         stream.on('text', (text) => {
@@ -231,7 +252,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
             try {
               const parsed = JSON.parse(result);
               if (parsed.jobId) {
-                await pollJobProgress(parsed.jobId, reply.raw);
+                await pollJobProgress(parsed.jobId, reply.raw, abortController.signal);
               }
             } catch {
               // Couldn't parse — skip polling
