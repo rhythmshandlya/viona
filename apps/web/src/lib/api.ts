@@ -456,6 +456,65 @@ class ApiClient {
     });
   }
 
+  // Agent
+  async chatWithAgent(
+    projectId: string,
+    body: {
+      message: string;
+      context?: {
+        selectedTimeRange?: { startMs: number; endMs: number };
+        selectedSceneId?: number;
+        selectedElement?: { name: string; sceneId: number };
+      };
+      widgetResponse?: { widgetId: string; value: unknown };
+    },
+  ): Promise<ReadableStream<Uint8Array>> {
+    const url = `${this.baseUrl}/api/projects/${projectId}/agent/chat`;
+    const token = getSessionToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(error.error || `Request failed: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    return response.body;
+  }
+
+  async getConversation(projectId: string): Promise<{
+    conversationId: string | null;
+    messages: Array<{
+      id: string;
+      role: 'user' | 'assistant';
+      content: unknown;
+      createdAt: string;
+    }>;
+  }> {
+    return this.request(`/api/projects/${projectId}/agent/conversation`);
+  }
+
+  async clearConversation(projectId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/projects/${projectId}/agent/conversation`, {
+      method: 'DELETE',
+    });
+  }
+
   // Upload helper - direct to presigned URL (may have CORS issues in some environments)
   async uploadToPresignedUrl(
     uploadUrl: string,
