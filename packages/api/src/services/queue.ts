@@ -116,12 +116,34 @@ export interface GenerateVisualsJobData {
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   styleGuide?: string;
+  planJobId?: string;  // ID of the plan-visuals job that created the plan
 }
 
 export const generateVisualsQueue = new Queue('generate-visuals', { connection });
 
 export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   return generateVisualsQueue.add('generate-visuals', data, {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+  });
+}
+
+export interface PlanVisualsJobData {
+  projectId: string;
+  jobId: string;
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  layoutMode: VisualsLayoutMode;
+  dimensions: VisualsDimensions;
+  styleGuide?: string;
+}
+
+export const planVisualsQueue = new Queue('plan-visuals', { connection });
+
+export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
+  return planVisualsQueue.add('plan-visuals', data, {
     attempts: 2,
     backoff: {
       type: 'exponential',
