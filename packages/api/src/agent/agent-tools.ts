@@ -1,6 +1,6 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { eq } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { projects, visuals, transcripts, jobs } from '../db/schema.js';
 import { queueGenerateVisualsJob, queueEditVisualsJob, queuePlanVisualsJob } from '../services/queue.js';
@@ -52,10 +52,11 @@ async function pollJobProgress(
     ctx.sendSSE('progress', {
       percent: job.progress,
       message: job.progressMessage || `Processing... (${job.progress}%)`,
+      jobId,
     });
 
     if (job.status === 'complete' || job.status === 'completed') {
-      ctx.sendSSE('progress', { percent: 100, message: 'Done!' });
+      ctx.sendSSE('progress', { percent: 100, message: 'Done!', jobId });
       break;
     }
 
@@ -63,17 +64,15 @@ async function pollJobProgress(
       ctx.sendSSE('progress', {
         percent: job.progress,
         message: `Failed: ${job.error || 'Unknown error'}`,
+        error: true,
+        jobId,
       });
       break;
     }
   }
 
-  if (Date.now() - startTime >= TIMEOUT_MS && !ctx.signal?.aborted) {
-    ctx.sendSSE('progress', {
-      percent: 0,
-      message: 'Generation is taking longer than expected. Check back shortly.',
-    });
-  }
+  // If we timed out but job is still running, just keep showing its last progress
+  // — don't send a scary message. The job continues in the background.
 }
 
 // Map raw scenes.json scene objects to widget-friendly format
@@ -119,16 +118,17 @@ export function createAgentMcpServer(ctx: ToolContext) {
             };
           }
 
-          const words = (
-            transcript.words as Array<{ word: string; startMs: number; endMs: number }>
-          ).filter((w) => w.startMs >= startMs && w.endMs <= endMs);
+          const allWords = transcript.words as Array<{ text: string; startMs: number; endMs: number }>;
+          // Use overlap filter — include any word that touches the range
+          const words = allWords.filter((w) => w.endMs > startMs && w.startMs < endMs);
 
-          const text = words.map((w) => w.word).join(' ');
+          const text = words.map((w) => w.text).join(' ');
 
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
               text,
               wordCount: words.length,
+              words: words.map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs })),
               startMs,
               endMs,
               durationMs: endMs - startMs,
@@ -218,14 +218,18 @@ export function createAgentMcpServer(ctx: ToolContext) {
 
       tool(
         'show_widget',
-        'Show an interactive widget in the chat for the user to make a selection. Use this to collect preferences like theme/style, layout mode, or confirmations.',
+        'Show an interactive widget in the chat for the user to make a selection. Kinds: "theme_picker" for style selection, "layout_picker" for layout, "confirmation" for yes/no, "choice" for custom multiple-choice questions (provide options array with label + value). Always use "choice" when asking a question with clear options.',
         {
-          kind: z.enum(['theme_picker', 'layout_picker', 'confirmation']),
+          kind: z.enum(['theme_picker', 'layout_picker', 'confirmation', 'choice']),
           message: z.string().optional(),
+          options: z.array(z.object({
+            label: z.string(),
+            value: z.string(),
+          })).optional().describe('Options for "choice" widget — each has a label and value'),
         },
-        async ({ kind, message }) => {
+        async ({ kind, message, options }) => {
           const widgetId = nanoid(8);
-          ctx.sendSSE('widget', { id: widgetId, kind, message });
+          ctx.sendSSE('widget', { id: widgetId, kind, message, options });
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({ widgetId, status: 'shown', waitingForUserResponse: true }) }],
           };
@@ -234,91 +238,202 @@ export function createAgentMcpServer(ctx: ToolContext) {
 
       tool(
         'update_plan',
-        `Edit one or more scenes in an existing plan and re-show the updated plan to the user for approval. Use this after the user requests changes to specific scenes. Pass the planJobId from the original plan_visuals result and an array of scene updates. Each update needs the scene id (1-indexed) and the fields to change. The updated plan is saved to the database so the Animator will use it.`,
+        `Modify scenes in an existing plan and re-show the updated plan for approval.
+
+Actions:
+- "update" (default): Change a scene's visual/emotion/name.
+- "split": Split a scene into two at a timestamp. Provide splitAtMs, firstHalf (name + visual), secondHalf (name + visual).
+- "merge": Merge a scene with an adjacent scene. Provide mergeWithSceneId, mergedName, mergedVisual.
+- "remove": Remove a scene entirely.
+
+Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         {
-          planJobId: z.string().describe('The plan job ID from the plan_visuals result'),
+          planJobId: z.string().optional().describe('Plan job ID. If omitted, uses the most recent plan.'),
           sceneUpdates: z.array(z.object({
             sceneId: z.number().describe('1-indexed scene number'),
+            action: z.enum(['update', 'split', 'merge', 'remove']).optional().default('update').describe('Action to perform'),
+            // For "update"
             visual: z.string().optional().describe('New visual description'),
             emotion: z.string().optional().describe('New emotion/mood'),
             name: z.string().optional().describe('New scene title'),
-          })).describe('Array of scene edits'),
+            // For "split"
+            splitAtMs: z.number().optional().describe('Timestamp (ms) to split at'),
+            firstHalf: z.object({ name: z.string(), visual: z.string() }).optional().describe('First half after split'),
+            secondHalf: z.object({ name: z.string(), visual: z.string() }).optional().describe('Second half after split'),
+            // For "merge"
+            mergeWithSceneId: z.number().optional().describe('Adjacent scene ID to merge with'),
+            mergedName: z.string().optional().describe('Combined scene name'),
+            mergedVisual: z.string().optional().describe('Combined visual description'),
+          })).describe('Array of scene operations'),
         },
         async ({ planJobId, sceneUpdates }) => {
-          const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, planJobId) });
+          // Resolve plan job
+          let resolvedPlanJobId = planJobId;
+          if (!resolvedPlanJobId) {
+            const latestPlan = await db.query.jobs.findFirst({
+              where: and(
+                eq(jobs.projectId, ctx.projectId),
+                eq(jobs.type, 'plan-visuals'),
+              ),
+              orderBy: desc(jobs.createdAt),
+            });
+            resolvedPlanJobId = latestPlan?.id;
+          }
+
+          if (!resolvedPlanJobId) {
+            return { content: [{ type: 'text' as const, text: JSON.stringify({ error: 'No plan found for this project. Run plan_visuals first.' }) }] };
+          }
+
+          const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, resolvedPlanJobId) });
           if (!planJob?.planData) {
             return { content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Plan job not found or has no plan data.' }) }] };
           }
 
           const planData = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
           const scenesObj = planData.scenes as Record<string, unknown>;
-          const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+          let scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
 
-          // Apply updates to scenes
-          for (const update of sceneUpdates) {
-            const scene = scenesArray.find((s: any) => s.id === update.sceneId);
-            if (scene) {
-              if (update.visual !== undefined) (scene as any).visual = update.visual;
-              if (update.emotion !== undefined) (scene as any).emotion = update.emotion;
-              if (update.name !== undefined) (scene as any).name = update.name;
+          const changeLog: string[] = [];
+
+          // Process operations in reverse order so indices stay valid for removes/splits
+          const sorted = [...sceneUpdates].sort((a, b) => b.sceneId - a.sceneId);
+
+          for (const op of sorted) {
+            const action = op.action || 'update';
+            const idx = scenesArray.findIndex((s: any) => s.id === op.sceneId);
+
+            if (idx === -1 && action !== 'update') {
+              changeLog.push(`Scene ${op.sceneId} not found, skipped`);
+              continue;
             }
-          }
 
-          // Update scenePlan markdown to reflect changes
-          let updatedMarkdown = planData.scenePlan;
-          for (const update of sceneUpdates) {
-            const scene = scenesArray.find((s: any) => s.id === update.sceneId) as any;
-            if (scene && update.visual) {
-              // Update the **Visual**: line for this scene in the markdown
-              const sceneHeader = `### Scene ${update.sceneId}:`;
-              const idx = updatedMarkdown.indexOf(sceneHeader);
-              if (idx !== -1) {
-                const visualMatch = updatedMarkdown.substring(idx).match(/\*\*Visual\*\*:\s*[^\n]+/);
-                if (visualMatch) {
-                  updatedMarkdown = updatedMarkdown.replace(
-                    visualMatch[0],
-                    `**Visual**: ${update.visual}`
-                  );
+            const scene = scenesArray[idx] as any;
+
+            switch (action) {
+              case 'update': {
+                if (!scene) { changeLog.push(`Scene ${op.sceneId} not found`); break; }
+                if (op.visual !== undefined) scene.visual = op.visual;
+                if (op.emotion !== undefined) scene.emotion = op.emotion;
+                if (op.name !== undefined) scene.name = op.name;
+                changeLog.push(`Updated "${scene.name}"`);
+                break;
+              }
+
+              case 'split': {
+                if (!scene) break;
+                const range = scene.timestampRange as [number, number];
+                const splitAt = op.splitAtMs != null
+                  ? op.splitAtMs / 1000
+                  : (range[0] + range[1]) / 2; // Default: midpoint
+
+                if (splitAt <= range[0] || splitAt >= range[1]) {
+                  changeLog.push(`Split point out of range for Scene ${op.sceneId}, skipped`);
+                  break;
                 }
+
+                const first: Record<string, unknown> = {
+                  ...scene,
+                  id: scene.id,
+                  name: op.firstHalf?.name || `${scene.name} (Part 1)`,
+                  visual: op.firstHalf?.visual || scene.visual,
+                  timestampRange: [range[0], splitAt],
+                };
+
+                const second: Record<string, unknown> = {
+                  ...scene,
+                  id: scene.id + 1,
+                  name: op.secondHalf?.name || `${scene.name} (Part 2)`,
+                  visual: op.secondHalf?.visual || scene.visual,
+                  timestampRange: [splitAt, range[1]],
+                  emotion: scene.emotion,
+                };
+
+                // Replace the original scene with both halves
+                scenesArray.splice(idx, 1, first, second);
+                changeLog.push(`Split "${scene.name}" into "${first.name}" and "${second.name}"`);
+                break;
+              }
+
+              case 'merge': {
+                if (!scene || !op.mergeWithSceneId) {
+                  changeLog.push(`Merge requires mergeWithSceneId for Scene ${op.sceneId}`);
+                  break;
+                }
+                const otherIdx = scenesArray.findIndex((s: any) => s.id === op.mergeWithSceneId);
+                if (otherIdx === -1) {
+                  changeLog.push(`Merge target Scene ${op.mergeWithSceneId} not found`);
+                  break;
+                }
+                const other = scenesArray[otherIdx] as any;
+                const rangeA = scene.timestampRange as [number, number];
+                const rangeB = other.timestampRange as [number, number];
+
+                const merged: Record<string, unknown> = {
+                  ...scene,
+                  name: op.mergedName || `${scene.name} + ${other.name}`,
+                  visual: op.mergedVisual || `${scene.visual}; ${other.visual}`,
+                  timestampRange: [Math.min(rangeA[0], rangeB[0]), Math.max(rangeA[1], rangeB[1])],
+                };
+
+                // Remove both, insert merged at the earlier position
+                const minIdx = Math.min(idx, otherIdx);
+                scenesArray = scenesArray.filter((_: any, i: number) => i !== idx && i !== otherIdx);
+                scenesArray.splice(minIdx, 0, merged);
+                changeLog.push(`Merged "${scene.name}" and "${other.name}" into "${merged.name}"`);
+                break;
+              }
+
+              case 'remove': {
+                if (!scene) break;
+                scenesArray.splice(idx, 1);
+                changeLog.push(`Removed "${scene.name}"`);
+                break;
               }
             }
           }
 
+          // Re-index scene IDs sequentially
+          scenesArray.forEach((s: any, i: number) => { s.id = i + 1; });
+
+          // Rebuild markdown from scenes
+          const updatedMarkdown = scenesArray.map((s: any) => {
+            const startS = (s.timestampRange?.[0] ?? 0).toFixed(1);
+            const endS = (s.timestampRange?.[1] ?? 0).toFixed(1);
+            return `### Scene ${s.id}: ${s.name} (${startS}s – ${endS}s)\n**Visual**: ${s.visual || ''}\n**Emotion**: ${s.emotion || ''}`;
+          }).join('\n\n');
+
           // Save updated plan back to DB
           const updatedPlanData = {
             scenePlan: updatedMarkdown,
-            scenes: { ...scenesObj, scenes: scenesArray },
+            scenes: { ...scenesObj, scenes: scenesArray, totalScenes: scenesArray.length },
           };
-          await db.update(jobs).set({ planData: updatedPlanData }).where(eq(jobs.id, planJobId));
+          await db.update(jobs).set({ planData: updatedPlanData }).where(eq(jobs.id, resolvedPlanJobId));
 
           // Re-send widget with updated data
           const widgetId = nanoid(8);
           ctx.sendSSE('widget', {
             id: widgetId,
             kind: 'scene_plan',
+            planJobId: resolvedPlanJobId,
             scenes: mapScenesToWidget(scenesArray),
             scenePlanMarkdown: updatedMarkdown,
             metadata: {
               primaryMetaphor: scenesObj.primaryMetaphor,
               colorPalette: scenesObj.colorPalette,
-              totalScenes: scenesObj.totalScenes,
+              totalScenes: scenesArray.length,
               durationSeconds: scenesObj.durationSeconds,
               visualContinuity: scenesObj.visualContinuity,
             },
             requiresApproval: true,
           });
 
-          const editedNames = sceneUpdates.map(u => {
-            const s = scenesArray.find((s: any) => s.id === u.sceneId) as any;
-            return s?.name || `Scene ${u.sceneId}`;
-          });
-
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
-              planJobId,
+              planJobId: resolvedPlanJobId,
               widgetId,
               status: 'plan_updated',
-              editedScenes: editedNames,
+              changes: changeLog,
+              sceneCount: scenesArray.length,
               waitingForApproval: true,
             }) }],
           };
@@ -402,6 +517,7 @@ export function createAgentMcpServer(ctx: ToolContext) {
           ctx.sendSSE('widget', {
             id: widgetId,
             kind: 'scene_plan',
+            planJobId: job.id,
             scenes: mapScenesToWidget(scenesArray),
             scenePlanMarkdown: planData.scenePlan,
             metadata: {
@@ -495,7 +611,7 @@ export function createAgentMcpServer(ctx: ToolContext) {
             planJobId,
           });
 
-          ctx.sendSSE('progress', { percent: 5, message: 'Starting visual generation from approved plan...' });
+          ctx.sendSSE('progress', { percent: 5, message: 'Starting visual generation from approved plan...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
           await pollJobProgress(job.id, ctx);
@@ -512,9 +628,9 @@ export function createAgentMcpServer(ctx: ToolContext) {
 
       tool(
         'edit_visuals',
-        'Make a targeted edit to existing visuals. Can target a specific scene or the entire composition. Use this when the user wants to change something about existing visuals.',
+        'Make a targeted edit to existing visuals. Can target a specific scene or the entire composition. Use this when the user wants to change something about existing visuals. Write a detailed prompt that explains WHAT the user wants changed and WHY — include what the speaker is saying in that section so the editor understands the content context.',
         {
-          prompt: z.string(),
+          prompt: z.string().describe('Detailed edit instructions including: what to change, what the speaker is saying in the relevant section, and what the visuals should convey'),
           sceneId: z.number().optional(),
           elementName: z.string().optional(),
         },
@@ -527,6 +643,47 @@ export function createAgentMcpServer(ctx: ToolContext) {
             return {
               content: [{ type: 'text' as const, text: JSON.stringify({ error: 'No visuals to edit. Generate visuals first.' }) }],
             };
+          }
+
+          // Fetch transcript for full context — word-level timestamps so the editor
+          // can precisely align animations to what's being said
+          let transcriptText: string | undefined;
+          try {
+            const transcript = await db.query.transcripts.findFirst({
+              where: eq(transcripts.projectId, ctx.projectId),
+            });
+            if (transcript?.words) {
+              const words = transcript.words as Array<{ text: string; startMs: number; endMs: number }>;
+              // Format as sentence-like chunks with precise word timing
+              const segments: string[] = [];
+              let currentSegment: Array<{ text: string; startMs: number; endMs: number }> = [];
+              let segmentStart = 0;
+              for (let i = 0; i < words.length; i++) {
+                if (currentSegment.length === 0) segmentStart = words[i].startMs;
+                currentSegment.push(words[i]);
+                // Break into ~3-second segments for more precise timing
+                if (words[i].endMs - segmentStart >= 3000 || i === words.length - 1) {
+                  const startSec = (segmentStart / 1000).toFixed(1);
+                  const endSec = (words[i].endMs / 1000).toFixed(1);
+                  const sentence = currentSegment.map(w => w.text).join(' ');
+                  segments.push(`[${startSec}s – ${endSec}s] ${sentence}`);
+                  currentSegment = [];
+                }
+              }
+              transcriptText = segments.join('\n');
+            }
+          } catch {
+            // Transcript unavailable — not critical
+          }
+
+          // Fetch scene plan (timestamps from visuals record)
+          let scenePlan: string | undefined;
+          if (visual.timestamps) {
+            try {
+              scenePlan = JSON.stringify(visual.timestamps, null, 2);
+            } catch {
+              // Not critical
+            }
           }
 
           const [job] = await db
@@ -545,6 +702,8 @@ export function createAgentMcpServer(ctx: ToolContext) {
             prompt,
             sceneId,
             elementName,
+            transcript: transcriptText,
+            scenePlan,
           });
 
           ctx.sendSSE('progress', { percent: 5, message: 'Starting edit...' });

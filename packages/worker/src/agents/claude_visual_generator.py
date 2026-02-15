@@ -2662,6 +2662,8 @@ registerRoot(RemotionRoot);
                             print(f"\n[Director Tool: {block.name}]", flush=True)
                         elif block_type == "ToolResultBlock":
                             print(f"\n[Director Tool Result received]", flush=True)
+                        elif block_type == "ThinkingBlock":
+                            pass  # Extended thinking — no output needed
                         else:
                             print(f"\n[Director] Unknown block type: {block_type}", flush=True)
                 elif msg_type == "ErrorMessage":
@@ -3344,11 +3346,17 @@ async def main():
 
 
 if __name__ == "__main__":
-    # Suppress noisy "Event loop is closed" warnings on Windows
-    # when asyncio subprocess transports are garbage collected after loop closes
-    if sys.platform == "win32":
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     try:
+        # On Windows, suppress harmless "Event loop is closed" errors during cleanup
+        if sys.platform == "win32":
+            _original_del = asyncio.proactor_events._ProactorBasePipeTransport.__del__  # type: ignore[attr-defined]
+            def _silent_del(self, _warn=None):
+                try:
+                    _original_del(self, _warn=_warn)
+                except (RuntimeError, ValueError, OSError):
+                    pass
+            asyncio.proactor_events._ProactorBasePipeTransport.__del__ = _silent_del  # type: ignore[attr-defined]
+
         asyncio.run(main())
     except Exception as e:
         import traceback

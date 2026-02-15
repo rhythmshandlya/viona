@@ -276,6 +276,7 @@ function groupIntoSegments(items: CaptionItem[], targetMs: number): TranscriptSe
 async function callLLM(prompt: string): Promise<string> {
   if (process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_MAX_PROXY_URL) {
     // Use Anthropic SDK (direct or via proxy)
+    // @ts-expect-error — optional dependency, only used when ANTHROPIC_API_KEY is set
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const config: Record<string, string> = {};
     if (process.env.CLAUDE_MAX_PROXY_URL) {

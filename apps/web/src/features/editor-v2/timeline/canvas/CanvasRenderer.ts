@@ -13,7 +13,6 @@ import {
   AudioItemData,
   VideoItemData,
   SnapTarget,
-  FullscreenSegment,
 } from '../../store/types';
 import { DragPreview } from '../interactions/DragManager';
 import { getRenderer } from './renderers/registry';
@@ -35,12 +34,6 @@ export interface RenderState {
   // Split tool state
   splitMode?: boolean;
   splitCursorTimeMs?: number;
-  // Fullscreen segments lane
-  fullscreenSegments?: FullscreenSegment[];
-  // Fullscreen segment placement mode
-  fsPlacementMode?: 'idle' | 'placing-start' | 'placing-end';
-  fsPendingStartMs?: number | null;
-  fsCursorTimeMs?: number | null;
 }
 
 export interface CanvasRendererOptions {
@@ -56,6 +49,7 @@ export interface CanvasRendererOptions {
     text: string;
     image: string;
     visual: string;
+    broll: string;
   };
   selectedBorderColor: string;
   playheadColor: string;
@@ -68,8 +62,6 @@ export interface CanvasRendererOptions {
   invalidPreviewColor: string;
   resizeHandleColor: string;
   resizeHandleSize: number;
-  fullscreenSegmentColor: string;
-  fullscreenLaneHeight: number;
 }
 
 const DEFAULT_OPTIONS: CanvasRendererOptions = {
@@ -86,6 +78,7 @@ const DEFAULT_OPTIONS: CanvasRendererOptions = {
     text: '#f59e0b', // amber-500
     image: '#ec4899', // pink-500
     visual: '#8b5cf6', // purple-500
+    broll: '#06b6d4', // cyan-500
   },
   selectedBorderColor: '#F97316', // orange for selection
   playheadColor: '#F97316', // orange playhead
@@ -98,8 +91,6 @@ const DEFAULT_OPTIONS: CanvasRendererOptions = {
   invalidPreviewColor: '#ef4444', // red-500
   resizeHandleColor: '#FFFFFF',
   resizeHandleSize: 6,
-  fullscreenSegmentColor: '#06b6d4', // cyan-500
-  fullscreenLaneHeight: 28,
 };
 
 export class CanvasRenderer {
@@ -156,13 +147,6 @@ export class CanvasRenderer {
     // Draw track backgrounds
     this.drawTrackBackgrounds(state);
 
-    // Draw fullscreen segments lane (right below video track)
-    if (state.fullscreenSegments && state.fullscreenSegments.length > 0) {
-      this.drawFullscreenSegments(state);
-    } else {
-      this.drawFullscreenLaneBackground(state);
-    }
-
     // Draw items
     this.drawItems(state);
 
@@ -187,11 +171,6 @@ export class CanvasRenderer {
     // Draw split line indicator when split mode is active
     if (state.splitMode && state.splitCursorTimeMs !== undefined) {
       this.drawSplitLine(state);
-    }
-
-    // Draw fullscreen segment placement lines
-    if (state.fsPlacementMode && state.fsPlacementMode !== 'idle') {
-      this.drawPlacementLines(state);
     }
 
     // Draw playhead
@@ -222,7 +201,6 @@ export class CanvasRenderer {
     for (const track of tracks) {
       if (y + track.height < 0) {
         y += track.height;
-        if (track.type === 'video') y += options.fullscreenLaneHeight;
         continue;
       }
 
@@ -243,11 +221,6 @@ export class CanvasRenderer {
       ctx.stroke();
 
       y += track.height;
-
-      // Draw fullscreen lane right after video track
-      if (track.type === 'video') {
-        y += options.fullscreenLaneHeight;
-      }
     }
   }
 
@@ -259,7 +232,7 @@ export class CanvasRenderer {
     const visibleStartMs = viewport.scrollX / viewport.zoom;
     const visibleEndMs = (viewport.scrollX + width) / viewport.zoom;
 
-    // Build track position map (accounts for fullscreen lane)
+    // Build track position map
     const trackYMap = this.buildTrackYMap(state);
 
     // Draw each visible item
@@ -509,144 +482,17 @@ export class CanvasRenderer {
   }
 
   /**
-   * Get the Y position of the fullscreen segments lane (right below video track)
-   */
-  public static getFullscreenLaneY(tracks: Track[], viewport: Viewport): number {
-    let y = -viewport.scrollY;
-    for (const track of tracks) {
-      y += track.height;
-      if (track.type === 'video') return y;
-    }
-    return y; // fallback: after all tracks
-  }
-
-  /**
-   * Build a track Y position map that accounts for the fullscreen lane
-   * inserted after the video track.
+   * Build a track Y position map.
    */
   private buildTrackYMap(state: RenderState): Map<string, number> {
     const { viewport, tracks } = state;
-    const laneHeight = this.options.fullscreenLaneHeight;
     const trackYMap = new Map<string, number>();
     let y = -viewport.scrollY;
     for (const track of tracks) {
       trackYMap.set(track.id, y);
       y += track.height;
-      if (track.type === 'video') {
-        y += laneHeight; // reserve space for fullscreen lane
-      }
     }
     return trackYMap;
-  }
-
-  /**
-   * Draw the fullscreen segments lane background
-   */
-  private drawFullscreenLaneBackground(state: RenderState): void {
-    const { ctx, options } = this;
-    const canvasWidth = this.getWidth();
-    const { viewport, tracks, duration } = state;
-
-    const laneY = CanvasRenderer.getFullscreenLaneY(tracks, viewport);
-    const laneHeight = options.fullscreenLaneHeight;
-
-    // Skip if off screen
-    if (laneY + laneHeight < 0 || laneY > this.getHeight()) return;
-
-    // Lane background
-    ctx.fillStyle = '#f8fafc'; // slate-50
-    ctx.fillRect(0, laneY, canvasWidth, laneHeight);
-
-    // Draw a full-duration base bar so users can see the video extent
-    const padding = 3;
-    const barHeight = laneHeight - padding * 2;
-    const barY = laneY + padding;
-
-    const barStartX = 0 * viewport.zoom - viewport.scrollX; // time 0
-    const barEndX = duration * viewport.zoom - viewport.scrollX;
-    const clippedLeft = Math.max(0, barStartX);
-    const clippedRight = Math.min(canvasWidth, barEndX);
-
-    if (clippedRight > clippedLeft) {
-      ctx.fillStyle = 'rgba(6, 182, 212, 0.08)'; // cyan tint
-      this.roundRect(clippedLeft, barY, clippedRight - clippedLeft, barHeight, 4);
-      ctx.fill();
-
-      // Dashed border for the base bar
-      ctx.strokeStyle = 'rgba(6, 182, 212, 0.25)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      this.roundRect(clippedLeft, barY, clippedRight - clippedLeft, barHeight, 4);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-
-    // Bottom border
-    ctx.strokeStyle = options.trackBorderColor;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, laneY + laneHeight - 0.5);
-    ctx.lineTo(canvasWidth, laneY + laneHeight - 0.5);
-    ctx.stroke();
-  }
-
-  /**
-   * Draw fullscreen segments on the dedicated lane
-   */
-  private drawFullscreenSegments(state: RenderState): void {
-    const { ctx, options } = this;
-    const { viewport, tracks, fullscreenSegments } = state;
-
-    if (!fullscreenSegments) return;
-
-    const laneY = CanvasRenderer.getFullscreenLaneY(tracks, viewport);
-    const laneHeight = options.fullscreenLaneHeight;
-    const canvasWidth = this.getWidth();
-
-    // Skip if off screen
-    if (laneY + laneHeight < 0 || laneY > this.getHeight()) return;
-
-    // Draw lane background with full-duration base bar
-    this.drawFullscreenLaneBackground(state);
-
-    // Visible time range
-    const visibleStartMs = viewport.scrollX / viewport.zoom;
-    const visibleEndMs = (viewport.scrollX + canvasWidth) / viewport.zoom;
-
-    const padding = 3;
-    const segHeight = laneHeight - padding * 2;
-
-    for (const seg of fullscreenSegments) {
-      // Skip if not visible
-      if (seg.endMs < visibleStartMs || seg.startMs > visibleEndMs) continue;
-
-      const x = seg.startMs * viewport.zoom - viewport.scrollX;
-      const w = (seg.endMs - seg.startMs) * viewport.zoom;
-      const y = laneY + padding;
-
-      // Segment background
-      ctx.fillStyle = options.fullscreenSegmentColor;
-      this.roundRect(x, y, w, segHeight, 4);
-      ctx.fill();
-
-      // Border
-      ctx.strokeStyle = '#0891b2'; // cyan-600
-      ctx.lineWidth = 1;
-      this.roundRect(x, y, w, segHeight, 4);
-      ctx.stroke();
-
-      // Label (if wide enough)
-      if (w > 50) {
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 10px system-ui, sans-serif';
-        ctx.textBaseline = 'middle';
-        const label = 'Fullscreen';
-        const textW = ctx.measureText(label).width;
-        if (textW < w - 12) {
-          ctx.fillText(label, x + 6, y + segHeight / 2);
-        }
-      }
-    }
   }
 
   /**
@@ -676,58 +522,6 @@ export class CanvasRenderer {
     ctx.moveTo(x, 0);
     ctx.lineTo(x, height);
     ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.restore();
-  }
-
-  /**
-   * Draw placement lines for fullscreen segment creation
-   */
-  private drawPlacementLines(state: RenderState): void {
-    const { ctx } = this;
-    const { viewport, fsPlacementMode, fsPendingStartMs, fsCursorTimeMs } = state;
-    const height = this.getHeight();
-    const canvasWidth = this.getWidth();
-
-    ctx.save();
-    ctx.strokeStyle = '#06b6d4'; // cyan-500
-    ctx.lineWidth = 2;
-    ctx.setLineDash([6, 4]);
-
-    // Draw the pending start line (solid when placed)
-    if (fsPlacementMode === 'placing-end' && fsPendingStartMs != null) {
-      const startX = fsPendingStartMs * viewport.zoom - viewport.scrollX;
-      if (startX >= 0 && startX <= canvasWidth) {
-        ctx.setLineDash([]);
-        ctx.beginPath();
-        ctx.moveTo(startX, 0);
-        ctx.lineTo(startX, height);
-        ctx.stroke();
-        ctx.setLineDash([6, 4]);
-      }
-    }
-
-    // Draw the cursor line (dashed)
-    if (fsCursorTimeMs != null) {
-      const cursorX = fsCursorTimeMs * viewport.zoom - viewport.scrollX;
-      if (cursorX >= 0 && cursorX <= canvasWidth) {
-        ctx.beginPath();
-        ctx.moveTo(cursorX, 0);
-        ctx.lineTo(cursorX, height);
-        ctx.stroke();
-      }
-
-      // If placing-end, draw a shaded region between start and cursor
-      if (fsPlacementMode === 'placing-end' && fsPendingStartMs != null) {
-        const startX = fsPendingStartMs * viewport.zoom - viewport.scrollX;
-        const left = Math.min(startX, cursorX);
-        const right = Math.max(startX, cursorX);
-        ctx.fillStyle = 'rgba(6, 182, 212, 0.1)'; // cyan with low opacity
-        ctx.setLineDash([]);
-        ctx.fillRect(left, 0, right - left, height);
-      }
-    }
-
     ctx.setLineDash([]);
     ctx.restore();
   }
@@ -792,7 +586,7 @@ export class CanvasRenderer {
 
     if (!dragPreviews) return;
 
-    // Build track position map (accounts for fullscreen lane)
+    // Build track position map
     const trackYMap = this.buildTrackYMap(state);
 
     ctx.save();
@@ -893,7 +687,7 @@ export class CanvasRenderer {
     const item = items[itemId];
     if (!item) return;
 
-    // Build track position map (accounts for fullscreen lane)
+    // Build track position map
     const trackYMap = this.buildTrackYMap(state);
 
     const trackY = trackYMap.get(item.trackId);

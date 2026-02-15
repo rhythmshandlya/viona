@@ -1,94 +1,54 @@
+import { PassThrough } from 'stream';
 import { FastifyInstance } from 'fastify';
-import Anthropic from '@anthropic-ai/sdk';
-import { eq } from 'drizzle-orm';
+import { query, type SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { BetaRawContentBlockDeltaEvent } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs';
+import { eq, or, and } from 'drizzle-orm';
 import { db, projects, transcripts, visuals, jobs } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { buildSystemPrompt } from './agent-system-prompt.js';
-import { toolDefinitions, executeTool } from './agent-tools.js';
-import { getAnthropicAuth } from './oauth-tokens.js';
+import { createAgentMcpServer, TOOL_NAMES } from './agent-tools.js';
 import {
   getOrCreateConversation,
   getConversationMessages,
   addMessage,
+  updateMessageContent,
   getConversationWithMessages,
   deleteConversation,
 } from './conversation-store.js';
 
-// SSE helper — writes a server-sent event to the raw response
-function sendSSE(raw: NodeJS.WritableStream, event: string, data: unknown) {
-  raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+// SSE helper — writes a server-sent event to a writable stream
+function sendSSE(stream: NodeJS.WritableStream, event: string, data: unknown) {
+  stream.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
-// Convert stored conversation messages to Claude API format
-function toClaudeMessages(
+// Format stored messages into text for system prompt context
+function formatConversationHistory(
   storedMessages: Array<{ role: string; content: unknown }>,
-): Anthropic.MessageParam[] {
-  return storedMessages.map((m) => {
-    const contentBlocks = m.content as Array<{ type: string; text?: string; [key: string]: unknown }>;
+): string {
+  if (storedMessages.length === 0) return '';
 
-    // Filter to only text blocks for the Claude API
-    const textBlocks = contentBlocks.filter(
-      (b): b is { type: 'text'; text: string } => b.type === 'text' && typeof b.text === 'string',
-    );
+  const lines = storedMessages.map((m) => {
+    const contentBlocks = m.content as Array<{ type: string; text?: string; widget?: { kind?: string; planJobId?: string } }>;
+    const parts: string[] = [];
 
-    return {
-      role: m.role as 'user' | 'assistant',
-      content: textBlocks.length > 0 ? textBlocks : [{ type: 'text' as const, text: '' }],
-    };
+    for (const b of contentBlocks) {
+      if (b.type === 'text' && typeof b.text === 'string') {
+        parts.push(b.text);
+      } else if (b.type === 'widget' && b.widget) {
+        // Include key widget info so the agent can reference planJobId etc.
+        if (b.widget.kind === 'scene_plan' && b.widget.planJobId) {
+          parts.push(`[Shown scene plan widget — planJobId: ${b.widget.planJobId}]`);
+        } else if (b.widget.kind) {
+          parts.push(`[Shown ${b.widget.kind} widget]`);
+        }
+      }
+    }
+
+    return `[${m.role}]: ${parts.join('\n')}`;
   });
-}
 
-// Poll a job until it completes or fails, streaming progress events
-async function pollJobProgress(
-  jobId: string,
-  raw: NodeJS.WritableStream,
-  signal?: AbortSignal,
-): Promise<void> {
-  const POLL_INTERVAL_MS = 2000;
-  const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-  const startTime = Date.now();
-
-  while (Date.now() - startTime < TIMEOUT_MS) {
-    if (signal?.aborted) break;
-
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-
-    if (signal?.aborted) break;
-
-    const job = await db.query.jobs.findFirst({
-      where: eq(jobs.id, jobId),
-    });
-
-    if (!job) break;
-
-    sendSSE(raw, 'progress', {
-      percent: job.progress,
-      message: job.progressMessage || `Processing... (${job.progress}%)`,
-    });
-
-    if (job.status === 'completed') {
-      sendSSE(raw, 'progress', { percent: 100, message: 'Done!' });
-      break;
-    }
-
-    if (job.status === 'failed') {
-      sendSSE(raw, 'progress', {
-        percent: job.progress,
-        message: `Failed: ${job.error || 'Unknown error'}`,
-      });
-      break;
-    }
-  }
-
-  // Warn if polling timed out
-  if (Date.now() - startTime >= TIMEOUT_MS && !signal?.aborted) {
-    sendSSE(raw, 'progress', {
-      percent: 0,
-      message: 'Generation is taking longer than expected. Check back shortly.',
-      error: true,
-    });
-  }
+  return '\n\nCONVERSATION HISTORY:\n' + lines.join('\n\n');
 }
 
 export async function agentRoutes(fastify: FastifyInstance) {
@@ -97,14 +57,6 @@ export async function agentRoutes(fastify: FastifyInstance) {
   fastify.post('/projects/:id/agent/chat', { preHandler: authMiddleware }, async (request, reply) => {
     const { id: projectId } = request.params as { id: string };
 
-    // Guard: ensure Anthropic auth is available (API key or OAuth token)
-    const anthropicAuth = await getAnthropicAuth();
-    if (!anthropicAuth) {
-      return reply.status(503).send({
-        error: 'AI agent not configured. Set ANTHROPIC_API_KEY or sign in with Claude Code CLI.',
-      });
-    }
-
     // Validate request body
     const body = request.body as {
       message?: string;
@@ -112,11 +64,15 @@ export async function agentRoutes(fastify: FastifyInstance) {
         selectedTimeRange?: { startMs: number; endMs: number };
         selectedSceneId?: number;
         selectedElement?: { name: string; sceneId: number };
+        selectedVisualItem?: { id: string; description: string };
       };
       widgetResponse?: { widgetId: string; value: unknown };
     };
 
-    if (!body.message || typeof body.message !== 'string' || body.message.length > 10000) {
+    // Allow empty message when a widgetResponse is present (e.g. theme picker selection)
+    const hasWidgetResponse = body.widgetResponse && typeof body.widgetResponse === 'object';
+    const message = body.message ?? '';
+    if (typeof message !== 'string' || message.length > 10000 || (!message && !hasWidgetResponse)) {
       return reply.code(400).send({
         error: 'message is required and must be a string under 10,000 characters.',
       });
@@ -166,7 +122,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const storedMessages = await getConversationMessages(conversation.id);
 
     // 5. Build user message with optional context metadata
-    let userText = body.message;
+    let userText = message;
 
     if (body.widgetResponse) {
       userText += `\n\n[Widget response: ${JSON.stringify(body.widgetResponse)}]`;
@@ -186,129 +142,170 @@ export async function agentRoutes(fastify: FastifyInstance) {
       userText += `\n\n[Selected element: "${name}" in scene ${sceneId}]`;
     }
 
-    // Save the user message
-    await addMessage(conversation.id, 'user', [{ type: 'text', text: userText }]);
+    if (body.context?.selectedVisualItem) {
+      userText += `\n\n[Editing visuals: user selected the visual track]`;
+    }
 
-    // 6. Set up SSE response headers
-    reply.raw.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-    });
+    // Save the user message — mark as hidden if it's an internal/system message
+    // (init greet, widget responses) so it doesn't show up on reload
+    const isHiddenMessage = message.startsWith('[Start the conversation') || !!body.widgetResponse;
+    await addMessage(conversation.id, 'user', [{ type: 'text', text: userText, hidden: isHiddenMessage || undefined }]);
 
-    // Keep only recent messages to stay within context limits
+    // Persist widget response on the original assistant message's widget block
+    // so it survives page refresh (widget shows as already-responded)
+    if (body.widgetResponse) {
+      const { widgetId, value } = body.widgetResponse;
+      // Find the most recent assistant message containing this widget
+      const allMessages = await getConversationMessages(conversation.id);
+      for (let i = allMessages.length - 1; i >= 0; i--) {
+        const m = allMessages[i];
+        if (m.role !== 'assistant') continue;
+        const blocks = m.content as Array<{ type: string; widget?: { id: string }; response?: unknown }>;
+        if (!Array.isArray(blocks)) continue;
+        const widgetIdx = blocks.findIndex((b) => b.type === 'widget' && b.widget?.id === widgetId);
+        if (widgetIdx >= 0) {
+          blocks[widgetIdx] = { ...blocks[widgetIdx], response: value };
+          await updateMessageContent(m.id, blocks);
+          break;
+        }
+      }
+    }
+
+    // 6. Set up SSE response via PassThrough stream
+    // Using reply.send(stream) keeps Fastify's full plugin pipeline (including
+    // @fastify/cors) intact — unlike reply.hijack() which bypasses it entirely.
+    const sseStream = new PassThrough();
+
+    reply
+      .header('Content-Type', 'text/event-stream')
+      .header('Cache-Control', 'no-cache')
+      .header('Connection', 'keep-alive')
+      .header('X-Accel-Buffering', 'no')
+      .send(sseStream);
+
+    // Keep only recent messages for context
     const recentMessages = storedMessages.slice(-50);
+    const conversationHistoryText = formatConversationHistory(recentMessages);
 
-    // Build Claude messages array from history + new user message
-    const claudeMessages: Anthropic.MessageParam[] = [
-      ...toClaudeMessages(recentMessages),
-      { role: 'user', content: [{ type: 'text', text: userText }] },
-    ];
-
-    // 7. Agentic loop
-    const anthropic = new Anthropic(anthropicAuth);
-    let fullAssistantContent: Anthropic.ContentBlock[] = [];
-    let currentMessages = claudeMessages;
-
-    // Handle client disconnect — abort in-flight Claude API calls
+    // 7. Create MCP server and run SDK query
     const abortController = new AbortController();
     request.raw.on('close', () => {
       abortController.abort();
     });
 
-    try {
-      let continueLoop = true;
+    // Heartbeat to prevent idle connection drops (SDK subprocess startup can be slow)
+    const heartbeat = setInterval(() => {
+      if (!sseStream.destroyed) sseStream.write(':\n\n');
+    }, 15_000);
 
-      while (continueLoop) {
-        // Stream Claude's response
-        const stream = anthropic.messages.stream({
-          model: config.anthropic.model,
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: currentMessages,
-          tools: toolDefinitions,
-        }, { signal: abortController.signal });
+    // Track all content blocks (text + widgets) for persistence
+    const contentBlocks: Array<{ type: string; [k: string]: unknown }> = [];
+    let pendingText = '';
 
-        // Stream text chunks to the client
-        stream.on('text', (text) => {
-          sendSSE(reply.raw, 'text', { text });
-        });
+    // Create assistant message row in DB immediately so it exists even if
+    // the user refreshes mid-stream. We'll update its content as we go.
+    const assistantRow = await addMessage(conversation.id, 'assistant', []);
 
-        // Wait for the complete response
-        const finalMessage = await stream.finalMessage();
-        const contentBlocks = finalMessage.content;
+    // Flush accumulated text into a content block
+    function flushText() {
+      if (pendingText) {
+        contentBlocks.push({ type: 'text', text: pendingText });
+        pendingText = '';
+      }
+    }
 
-        // Accumulate assistant content
-        fullAssistantContent = [...fullAssistantContent, ...contentBlocks];
-
-        // Check if there are tool calls
-        const toolUseBlocks = contentBlocks.filter(
-          (block): block is Anthropic.ToolUseBlock => block.type === 'tool_use',
-        );
-
-        if (toolUseBlocks.length === 0) {
-          // No tool calls — agent is done
-          break;
+    // Persist current content to DB (non-blocking, best-effort)
+    let saveInFlight = false;
+    async function persistContent() {
+      if (saveInFlight) return;
+      saveInFlight = true;
+      try {
+        flushText();
+        if (contentBlocks.length > 0) {
+          await updateMessageContent(assistantRow.id, [...contentBlocks]);
         }
+      } catch {
+        // Non-critical — final save in `finally` will catch up
+      } finally {
+        saveInFlight = false;
+      }
+    }
 
-        // Execute each tool call and collect results
-        const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    const mcpServer = createAgentMcpServer({
+      projectId,
+      sendSSE: (event, data) => {
+        sendSSE(sseStream, event, data);
+        // Capture widget events for persistence and save to DB
+        if (event === 'widget') {
+          flushText();
+          contentBlocks.push({ type: 'widget', widget: data });
+          persistContent();
+        }
+      },
+      signal: abortController.signal,
+    });
 
-        for (const toolBlock of toolUseBlocks) {
-          const result = await executeTool(
-            toolBlock.name,
-            toolBlock.input as Record<string, unknown>,
-            {
-              projectId,
-              sendSSE: (event: string, data: unknown) => sendSSE(reply.raw, event, data),
-            },
-          );
+    // Periodically save accumulated content so refreshes don't lose text
+    const persistInterval = setInterval(() => {
+      if (pendingText || contentBlocks.length > 0) {
+        persistContent();
+      }
+    }, 5_000);
 
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolBlock.id,
-            content: result,
-          });
-
-          // For generation/edit tools, poll job progress
-          if (toolBlock.name === 'generate_visuals' || toolBlock.name === 'edit_visuals') {
-            try {
-              const parsed = JSON.parse(result);
-              if (parsed.jobId) {
-                await pollJobProgress(parsed.jobId, reply.raw, abortController.signal);
-              }
-            } catch {
-              // Couldn't parse — skip polling
+    try {
+      fastify.log.info({ projectId }, 'Starting SDK query...');
+      for await (const message of query({
+        prompt: userText,
+        options: {
+          mcpServers: { 'creative-director': mcpServer },
+          allowedTools: TOOL_NAMES,
+          systemPrompt: systemPrompt + conversationHistoryText,
+          includePartialMessages: true,
+          permissionMode: 'bypassPermissions',
+          allowDangerouslySkipPermissions: true,
+          model: config.anthropic.model,
+          settingSources: ['user'],
+          abortController,
+          tools: [],
+          maxTurns: 10,
+          thinking: { type: 'disabled' },
+          persistSession: false,
+          env: { ...process.env, CLAUDECODE: undefined },
+          stderr: (data: string) => fastify.log.warn({ stderr: data }, 'SDK stderr'),
+        },
+      })) {
+        if (message.type === 'stream_event') {
+          const partial = message as SDKPartialAssistantMessage;
+          const evt = partial.event as BetaRawContentBlockDeltaEvent;
+          if (evt?.type === 'content_block_delta') {
+            const delta = evt.delta as { type: string; text?: string };
+            if (delta.type === 'text_delta' && delta.text) {
+              sendSSE(sseStream, 'text', { text: delta.text });
+              pendingText += delta.text;
             }
           }
         }
-
-        // Append assistant response + tool results for next iteration
-        currentMessages = [
-          ...currentMessages,
-          { role: 'assistant' as const, content: contentBlocks },
-          { role: 'user' as const, content: toolResults },
-        ];
       }
 
-      // 8. Save the full assistant response
-      // Convert ContentBlocks to a storable format (only text blocks for storage)
-      const storableContent = fullAssistantContent
-        .filter((b) => b.type === 'text')
-        .map((b) => ({ type: 'text', text: (b as Anthropic.TextBlock).text }));
-
-      if (storableContent.length > 0) {
-        await addMessage(conversation.id, 'assistant', storableContent);
-      }
-
-      // 9. Send done event
-      sendSSE(reply.raw, 'done', { conversationId: conversation.id });
+      // 8. Send done event
+      sendSSE(sseStream, 'done', { conversationId: conversation.id });
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       fastify.log.error({ err }, 'Agent chat error');
-      sendSSE(reply.raw, 'error', { message: errorMessage });
+      sendSSE(sseStream, 'error', { message: errorMessage });
     } finally {
-      reply.raw.end();
+      clearInterval(heartbeat);
+      clearInterval(persistInterval);
+
+      // Final save — update the assistant row with all accumulated content.
+      try {
+        flushText();
+        await updateMessageContent(assistantRow.id, contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
+      } catch (saveErr) {
+        fastify.log.error({ err: saveErr }, 'Failed to save assistant message');
+      }
+
+      sseStream.end();
     }
   });
 
@@ -328,11 +325,19 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     const data = await getConversationWithMessages(projectId);
 
+    // Check for active jobs so frontend can restore progress bar after refresh
+    const activeJob = await db.query.jobs.findFirst({
+      where: and(
+        eq(jobs.projectId, projectId),
+        or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing')),
+      ),
+    });
+
     if (!data) {
-      return reply.send({ conversationId: null, messages: [] });
+      return reply.send({ conversationId: null, messages: [], activeJob: activeJob ? { id: activeJob.id, type: activeJob.type, progress: activeJob.progress, message: activeJob.progressMessage } : null });
     }
 
-    return reply.send(data);
+    return reply.send({ ...data, activeJob: activeJob ? { id: activeJob.id, type: activeJob.type, progress: activeJob.progress, message: activeJob.progressMessage } : null });
   });
 
   // ─── DELETE /projects/:id/agent/conversation — clear conversation ────────

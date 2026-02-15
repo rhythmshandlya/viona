@@ -32,6 +32,8 @@ import {
   useEditorActions,
   useSelectedIds,
   useCaptionItems,
+  useAIEditRequested,
+  useEditorStore,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 import { api, GenerateVisualsOptions, JobMetrics } from '@/lib/api';
@@ -43,7 +45,7 @@ interface EditorProps {
 export function Editor({ projectId }: EditorProps) {
   // Layout state - simplified unified layout
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout' | 'assets'>('captions');
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout' | 'assets' | 'agent'>('agent');
 
   // Right panel state (settings/properties)
   const [panelOpen, setPanelOpen] = useState(false);
@@ -51,9 +53,9 @@ export function Editor({ projectId }: EditorProps) {
   const userRequestedTabRef = useRef<RightPanelTab | null>(null);
 
   // AI Assistant panel
-  const [aiPanelOpen, setAiPanelOpen] = useState(true);
+  // AI panel is now a left sidebar tab ('agent')
 
-  const [timelineHeight, setTimelineHeight] = useState(180);
+  const [timelineHeight, setTimelineHeight] = useState(250);
   const resizeRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
@@ -143,6 +145,15 @@ export function Editor({ projectId }: EditorProps) {
   useEffect(() => {
     loadProject(projectId);
   }, [projectId, loadProject]);
+
+  // Open AI sidebar when "Edit with AI" is requested from context menu
+  const aiEditRequested = useAIEditRequested();
+  useEffect(() => {
+    if (aiEditRequested) {
+      setLeftSidebarOpen(true);
+      setLeftSidebarTab('agent');
+    }
+  }, [aiEditRequested]);
 
   // WebSocket: listen for enhancement job progress
   useEffect(() => {
@@ -465,6 +476,25 @@ export function Editor({ projectId }: EditorProps) {
         <div className="w-14 flex flex-col items-center py-2 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] flex-shrink-0">
           <button
             onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'agent') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('agent');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'agent' ? 'active' : ''}`}
+            title="AI Agent"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 3l1.5 3.7 3.8.6-2.7 2.7.6 3.8L12 12l-3.2 1.8.6-3.8L6.7 7.3l3.8-.6L12 3z" />
+              <path d="M5 19l1 2.4 2.4.4-1.7 1.7.4 2.4L5 24.5l-2.1 1.4.4-2.4L1.6 21.8l2.4-.4L5 19z" opacity="0.6" />
+              <path d="M19 17l.7 1.8 1.8.3-1.3 1.3.3 1.8-1.5-1-1.5 1 .3-1.8-1.3-1.3 1.8-.3L19 17z" opacity="0.6" />
+            </svg>
+            <span className="text-[10px] mt-1">Agent</span>
+          </button>
+          <button
+            onClick={() => {
               if (leftSidebarOpen && leftSidebarTab === 'captions') {
                 setLeftSidebarOpen(false);
               } else {
@@ -538,54 +568,68 @@ export function Editor({ projectId }: EditorProps) {
           </button>
         </div>
 
-        {/* Settings Panel - inline in layout */}
-        {leftSidebarOpen && (
-          <div className="w-[488px] flex-shrink-0 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] overflow-y-auto">
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
-                  {leftSidebarTab === 'captions' && 'Caption Settings'}
-                  {leftSidebarTab === 'style' && 'Style Settings'}
-                  {leftSidebarTab === 'layout' && 'Layout Settings'}
-                  {leftSidebarTab === 'assets' && 'Visual Assets'}
-                </h3>
-                <button
-                  onClick={() => setLeftSidebarOpen(false)}
-                  className="p-1 rounded hover:bg-[var(--editor-bg-elevated)] text-[var(--editor-text-muted)]"
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M18 6L6 18M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
+        {/* Left Sidebar Panel */}
+        {leftSidebarOpen && leftSidebarTab === 'agent' && (
+          <AIAssistantPanel
+            projectId={project.id}
+            onEditComplete={() => reloadVisuals(project.id)}
+            className="w-[488px] flex-shrink-0"
+          />
+        )}
+        {leftSidebarOpen && leftSidebarTab !== 'agent' && (
+          <div className="w-[488px] flex-shrink-0 flex flex-col bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] overflow-hidden">
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+              <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
+                {leftSidebarTab === 'captions' && 'Caption Settings'}
+                {leftSidebarTab === 'style' && 'Style Settings'}
+                {leftSidebarTab === 'layout' && 'Layout Settings'}
+                {leftSidebarTab === 'assets' && 'Visual Assets'}
+              </h3>
+              <button
+                onClick={() => setLeftSidebarOpen(false)}
+                className="p-1 rounded hover:bg-[var(--editor-bg-elevated)] text-[var(--editor-text-muted)]"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
 
+            <div className="flex-1 overflow-y-auto">
               {leftSidebarTab === 'captions' && (
-                <RightPanel
-                  isOpen={true}
-                  activeTab="transcript"
-                  onTabChange={handleTabChange}
-                  onClose={handleClosePanel}
-                  layout="stacked"
-                  embedded={true}
-                />
-              )}
-              {leftSidebarTab === 'style' && (
-                <div className="-mx-4 -mt-3">
-                  <StylePanel />
+                <div className="px-4 pb-4">
+                  <RightPanel
+                    isOpen={true}
+                    activeTab="transcript"
+                    onTabChange={handleTabChange}
+                    onClose={handleClosePanel}
+                    layout="stacked"
+                    embedded={true}
+                  />
                 </div>
               )}
+              {leftSidebarTab === 'style' && (
+                <StylePanel />
+              )}
               {leftSidebarTab === 'layout' && (
-                <RightPanel
-                  isOpen={true}
-                  activeTab="layout"
-                  onTabChange={handleTabChange}
-                  onClose={handleClosePanel}
-                  layout="stacked"
-                  embedded={true}
-                />
+                <div className="px-4 pb-4">
+                  <RightPanel
+                    isOpen={true}
+                    activeTab="layout"
+                    onTabChange={handleTabChange}
+                    onClose={handleClosePanel}
+                    layout="stacked"
+                    embedded={true}
+                  />
+                </div>
               )}
               {leftSidebarTab === 'assets' && (
-                <AssetsPanel />
+                <AssetsPanel
+                  onEditWithAI={() => {
+                    setLeftSidebarTab('agent');
+                    useEditorStore.setState({ aiEditRequested: true });
+                  }}
+                />
               )}
             </div>
           </div>
@@ -641,14 +685,6 @@ export function Editor({ projectId }: EditorProps) {
           </div>
         </div>
 
-        {/* Right Panel - AI Assistant */}
-        {aiPanelOpen && (
-          <AIAssistantPanel
-            projectId={project.id}
-            onEditComplete={() => reloadVisuals(project.id)}
-            className="w-80 flex-shrink-0"
-          />
-        )}
       </div>
 
       {/* Command Palette */}

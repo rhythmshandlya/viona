@@ -4,7 +4,6 @@ import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
 import {
   Circle,
   Square,
@@ -18,16 +17,11 @@ import {
   PictureInPicture,
   Video,
   Sparkles,
-  Plus,
-  Trash2,
 } from 'lucide-react';
 import {
   useLayoutSettings,
   useLayoutPresetId,
   useLayoutActions,
-  useFullscreenSegments,
-  useFullscreenSegmentActions,
-  useFsPlacementMode,
 } from '../store/use-editor-store';
 import {
   LAYOUT_PRESETS,
@@ -42,10 +36,6 @@ export function PiPControlPanel() {
   const layoutSettings = useLayoutSettings();
   const presetId = useLayoutPresetId();
   const { updatePiPSettings, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
-  const fullscreenSegments = useFullscreenSegments();
-  const { updateFullscreenSegment, removeFullscreenSegment, startFsPlacement, cancelFsPlacement } = useFullscreenSegmentActions();
-  const fsPlacementMode = useFsPlacementMode();
-
   const { mode, pip, split } = layoutSettings;
 
   // Layout mode options
@@ -387,92 +377,6 @@ export function PiPControlPanel() {
           </div>
         </div>
       )}
-
-      {/* Fullscreen Segments */}
-      <div className="space-y-3 pt-4 border-t border-zinc-700">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm text-zinc-400">Fullscreen Segments</Label>
-          {fsPlacementMode !== 'idle' ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 gap-1 border-red-500/50 text-red-400 hover:text-red-300"
-              onClick={() => cancelFsPlacement()}
-            >
-              Cancel
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 gap-1"
-              onClick={() => startFsPlacement()}
-            >
-              <Plus className="w-3 h-3" />
-              Add
-            </Button>
-          )}
-        </div>
-
-        {fsPlacementMode !== 'idle' && (
-          <p className="text-xs text-cyan-400">
-            {fsPlacementMode === 'placing-start'
-              ? 'Click on the timeline to set the start position...'
-              : 'Click on the timeline to set the end position...'}
-          </p>
-        )}
-
-        {fullscreenSegments.length === 0 && fsPlacementMode === 'idle' ? (
-          <p className="text-xs text-zinc-500">
-            No fullscreen segments. Add one to show the video full-screen (hiding visuals) during specific time ranges.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {fullscreenSegments.map((seg) => (
-              <div key={seg.id} className="flex items-center gap-2 bg-zinc-800/50 rounded-md p-2">
-                <div className="flex-1 flex items-center gap-1">
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={parseFloat((seg.startMs / 1000).toFixed(1))}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val) && val >= 0) {
-                        updateFullscreenSegment(seg.id, { startMs: Math.round(val * 1000) });
-                      }
-                    }}
-                    className="h-7 w-20 text-xs text-center bg-zinc-900 border-zinc-700"
-                  />
-                  <span className="text-xs text-zinc-500">to</span>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={parseFloat((seg.endMs / 1000).toFixed(1))}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (!isNaN(val) && val >= 0) {
-                        updateFullscreenSegment(seg.id, { endMs: Math.round(val * 1000) });
-                      }
-                    }}
-                    className="h-7 w-20 text-xs text-center bg-zinc-900 border-zinc-700"
-                  />
-                  <span className="text-xs text-zinc-500">s</span>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 text-zinc-500 hover:text-red-400"
-                  onClick={() => removeFullscreenSegment(seg.id)}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
 
       {/* Info */}
       <div className="pt-4 border-t border-zinc-700">

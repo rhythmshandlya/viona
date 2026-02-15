@@ -7,6 +7,7 @@
  * 3. Validation - checks content alignment and positioning consistency
  */
 
+// @ts-expect-error — installed at runtime via Claude Code OAuth, not in package.json
 import { query, ClaudeAgentOptions, AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
 import { mkdir, writeFile, readFile } from 'fs/promises';
 import { join, resolve } from 'path';

@@ -29,10 +29,6 @@ import {
   useDragState,
   useSplitMode,
   useEditorActions,
-  useFullscreenSegments,
-  useFullscreenSegmentActions,
-  useFsPlacementMode,
-  useFsPendingStartMs,
 } from '../store/use-editor-store';
 import { DragState, SnapTarget } from '../store/types';
 import { useContextMenu, ContextMenu } from './context-menu';
@@ -56,7 +52,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   const [dragPreviews, setDragPreviews] = useState<DragPreview[]>([]);
   const [snapLines, setSnapLines] = useState<{ position: number; type: SnapTarget['type'] }[]>([]);
   const [splitCursorTimeMs, setSplitCursorTimeMs] = useState<number>(0);
-  const [fsCursorTimeMs, setFsCursorTimeMs] = useState<number | null>(null);
 
   // State
   const tracks = useTracks();
@@ -69,10 +64,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   const selectionBox = useSelectionBox();
   const dragState = useDragState();
   const splitMode = useSplitMode();
-  const fullscreenSegments = useFullscreenSegments();
-  const fsPlacementMode = useFsPlacementMode();
-  const fsPendingStartMs = useFsPendingStartMs();
-  const { addFullscreenSegment, cancelFsPlacement } = useFullscreenSegmentActions();
 
   // Actions
   const {
@@ -104,12 +95,8 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       snapLines,
       splitMode,
       splitCursorTimeMs,
-      fullscreenSegments,
-      fsPlacementMode,
-      fsPendingStartMs,
-      fsCursorTimeMs,
     }),
-    [tracks, items, itemIds, selectedIds, currentTimeMs, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs, fullscreenSegments, fsPlacementMode, fsPendingStartMs, fsCursorTimeMs]
+    [tracks, items, itemIds, selectedIds, currentTimeMs, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs]
   );
 
   // Keep render state in a ref so the ResizeObserver callback always has the latest
@@ -163,19 +150,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     };
   }, []);
 
-  // Cancel fullscreen placement mode on Escape
-  useEffect(() => {
-    if (fsPlacementMode === 'idle') return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        cancelFsPlacement();
-        setFsCursorTimeMs(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [fsPlacementMode, cancelFsPlacement]);
-
   // Render on state change
   useEffect(() => {
     if (rendererRef.current) {
@@ -199,24 +173,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       const { x, y } = getCanvasCoords(e);
       const hitTester = hitTesterRef.current;
       const dragManager = dragManagerRef.current;
-
-      // Fullscreen segment placement mode
-      if (fsPlacementMode === 'placing-start') {
-        const timeMs = Math.max(0, hitTester.xToTime(x, viewport));
-        useEditorStore.setState({ fsPlacementMode: 'placing-end', fsPendingStartMs: timeMs });
-        return;
-      }
-      if (fsPlacementMode === 'placing-end' && fsPendingStartMs != null) {
-        const timeMs = Math.max(0, hitTester.xToTime(x, viewport));
-        const startMs = Math.min(fsPendingStartMs, timeMs);
-        const endMs = Math.max(fsPendingStartMs, timeMs);
-        if (endMs - startMs >= 100) {
-          addFullscreenSegment({ startMs: Math.round(startMs), endMs: Math.round(endMs) });
-        }
-        useEditorStore.setState({ fsPlacementMode: 'idle', fsPendingStartMs: null });
-        setFsCursorTimeMs(null);
-        return;
-      }
 
       // Split mode: find item under cursor and split it
       if (splitMode) {
@@ -308,9 +264,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       currentTimeMs,
       selectedIds,
       splitMode,
-      fsPlacementMode,
-      fsPendingStartMs,
-      addFullscreenSegment,
       select,
       clearSelection,
       startDrag,
@@ -324,16 +277,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       const { x, y } = getCanvasCoords(e);
       const hitTester = hitTesterRef.current;
       const dragManager = dragManagerRef.current;
-
-      // Fullscreen segment placement mode: show crosshair and track cursor
-      if (fsPlacementMode !== 'idle') {
-        if (canvasRef.current) {
-          canvasRef.current.style.cursor = 'crosshair';
-        }
-        const timeMs = Math.max(0, hitTester.xToTime(x, viewport));
-        setFsCursorTimeMs(timeMs);
-        return;
-      }
 
       // Split mode: show crosshair cursor and update split cursor time
       if (splitMode) {
@@ -436,7 +379,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       getCanvasCoords,
       dragState,
       splitMode,
-      fsPlacementMode,
       tracks,
       items,
       itemIds,

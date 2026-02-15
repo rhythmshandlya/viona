@@ -257,6 +257,30 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
     let stdout = '';
     let stderr = '';
     let planData: PlanData | null = null;
+    let gotRealProgress = false;
+
+    // Periodic progress ticker — keeps the UI alive while Claude starts up.
+    // Cycles through descriptive messages so users know something is happening.
+    const TICKER_MESSAGES = [
+      [18, 'Starting Claude Code generator...'],
+      [22, 'Connecting to Claude...'],
+      [26, 'Authenticating...'],
+      [30, 'Analyzing transcript...'],
+      [35, 'Identifying key topics...'],
+      [40, 'Mapping visual concepts...'],
+      [45, 'Designing scene structure...'],
+      [50, 'Refining scene details...'],
+      [55, 'Crafting visual descriptions...'],
+      [58, 'Finalizing scene plan...'],
+    ] as const;
+    let tickerIndex = 0;
+
+    const progressTicker = setInterval(() => {
+      if (gotRealProgress || tickerIndex >= TICKER_MESSAGES.length) return;
+      const [percent, message] = TICKER_MESSAGES[tickerIndex];
+      publishJobProgress(jobId, percent, message);
+      tickerIndex++;
+    }, 5_000);
 
     subprocess.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
@@ -268,10 +292,11 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
         // Parse PROGRESS:XX:message
         const progressMatch = line.match(/^PROGRESS:(\d+):(.+)$/);
         if (progressMatch) {
+          gotRealProgress = true;
           const percent = parseInt(progressMatch[1], 10);
           const message = progressMatch[2];
-          // Map progress to 15-90% range for the plan job
-          const mappedPercent = Math.min(90, Math.max(15, percent));
+          // Map progress to 60-90% range for real progress (ticker covers 15-58%)
+          const mappedPercent = Math.min(90, Math.max(60, percent));
           publishJobProgress(jobId, mappedPercent, message);
           logger.info({ projectId, percent: mappedPercent, message }, 'Director phase progress');
         }
@@ -281,6 +306,7 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
         if (planMatch) {
           try {
             planData = JSON.parse(planMatch[1]) as PlanData;
+            publishJobProgress(jobId, 95, 'Plan ready — preparing preview...');
             logger.info({ projectId, hasScenePlan: !!planData?.scenePlan }, 'Received PLAN_READY from Director');
           } catch (parseErr) {
             logger.error({ projectId, error: parseErr, raw: planMatch[1].slice(0, 200) }, 'Failed to parse PLAN_READY JSON');
@@ -313,6 +339,7 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
+        clearInterval(progressTicker);
         if (code === 0) {
           resolve();
         } else {
@@ -323,6 +350,7 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
+        clearInterval(progressTicker);
         reject(err);
       });
     });

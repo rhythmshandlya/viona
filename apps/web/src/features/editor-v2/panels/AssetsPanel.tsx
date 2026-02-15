@@ -12,6 +12,7 @@ import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItem
 
 interface AssetsPanelProps {
   className?: string;
+  onEditWithAI?: (asset: ExtractedAsset) => void;
 }
 
 // Icon mapping for asset types
@@ -34,7 +35,7 @@ const AssetColor: Record<ExtractedAsset['type'], string> = {
   background: 'text-gray-400',
 };
 
-export function AssetsPanel({ className = '' }: AssetsPanelProps) {
+export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) {
   const [assets, setAssets] = useState<ExtractedAsset[]>([]);
   const [sceneTimings, setSceneTimings] = useState<Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>>(new Map());
   const [loading, setLoading] = useState(false);
@@ -184,7 +185,7 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
   }
 
   return (
-    <div className={`${className}`}>
+    <div className={`flex flex-col h-full ${className}`}>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--editor-border-subtle)]">
         <span className="text-xs font-medium text-[var(--editor-text-secondary)]">
@@ -201,7 +202,7 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
       </div>
 
       {/* Assets list grouped by scene */}
-      <div className="overflow-y-auto max-h-[400px]">
+      <div className="overflow-y-auto flex-1">
         {Object.entries(assetsByScene).map(([sceneIdStr, { sceneName, assets: sceneAssets }]) => {
           const sceneId = parseInt(sceneIdStr);
           const isExpanded = expandedScenes.has(sceneId);
@@ -267,9 +268,9 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
 
       {/* Selected asset indicator */}
       {selectedElement && (
-        <div className="px-4 py-2 border-t border-[var(--editor-border-subtle)] bg-[var(--editor-accent)]/5">
+        <div className="px-4 py-3 border-t border-[var(--editor-border-subtle)] bg-[var(--editor-accent)]/5 flex-shrink-0">
           <div className="text-[10px] text-[var(--editor-text-muted)] mb-1">Selected:</div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 mb-2">
             <span className="text-sm font-medium text-[var(--editor-accent)]">
               {selectedElement.name}
             </span>
@@ -277,6 +278,20 @@ export function AssetsPanel({ className = '' }: AssetsPanelProps) {
               Scene {selectedElement.sceneId}
             </span>
           </div>
+          {onEditWithAI && (
+            <button
+              onClick={() => {
+                const asset = assets.find(a => a.name === selectedElement.name && a.sceneId === selectedElement.sceneId);
+                if (asset) onEditWithAI(asset);
+              }}
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                         bg-purple-500/15 text-purple-400 border border-purple-500/25
+                         hover:bg-purple-500/25 transition-colors"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Edit with AI
+            </button>
+          )}
         </div>
       )}
     </div>

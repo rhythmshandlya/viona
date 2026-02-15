@@ -9,12 +9,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Sparkles, Send, Trash2, Loader2, Target, Box, Layers } from 'lucide-react';
+import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { parseSSEStream } from '@/lib/sse-parser';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
-import { useVideoSettings, useEditorActions, useAIEditingContext } from '../store/use-editor-store';
-import { ThemePicker, LayoutPicker, ScenePlanCard, ConfirmationWidget } from './agent-widgets';
+import { useVideoSettings, useEditorActions, useAIEditingContext, useAIEditRequested, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
+import { useJobWebSocket } from '../hooks/use-job-websocket';
+import { ThemePicker, LayoutPicker, ScenePlanCard, ConfirmationWidget, ChoiceWidget } from './agent-widgets';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -47,6 +48,8 @@ interface WidgetBlock {
       totalScenes?: number; durationSeconds?: number;
       visualContinuity?: string;
     };
+    options?: Array<{ label: string; value: string }>;
+    planJobId?: string;
     requiresApproval?: boolean;
   };
   response?: unknown;
@@ -82,9 +85,20 @@ function generateId(): string {
   return `msg_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function formatTimeChip(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
+
+interface SceneTag {
+  sceneIndex: number; // 1-indexed
+  sceneTitle: string;
+  planJobId: string;
+}
 
 export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: AIAssistantPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -92,15 +106,96 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const [isStreaming, setIsStreaming] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [sceneTags, setSceneTags] = useState<SceneTag[]>([]);
+
+  const [failedMessageId, setFailedMessageId] = useState<string | null>(null);
+  const lastFailedPayload = useRef<{ message: string; widgetResponse?: { widgetId: string; value: unknown } } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // Track active generation job for WebSocket progress
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+
   // Store hooks
   const videoSettings = useVideoSettings();
   const aiContext = useAIEditingContext();
-  const { reloadVisuals, setSelectedScene, setSelectedElement, clearSelection } = useEditorActions();
+  const selectedTimeRange = useSelectedTimeRange();
+  const aiEditRequested = useAIEditRequested();
+  const { reloadVisuals, setSelectedScene, setSelectedElement, setSelectedTimeRange, clearSelection } = useEditorActions();
+
+  // WebSocket for real-time job progress (survives page refresh, unlike SSE)
+  const { subscribeToJob } = useJobWebSocket(projectId, {
+    onProgress: (data) => {
+      if (!activeJobId) return; // Only show if we're tracking a job
+      if (data.jobId !== activeJobId) return;
+      setMessages((prev) => {
+        const last = [...prev].reverse().find((m) => m.role === 'assistant');
+        if (!last) return prev;
+        return prev.map((m) => {
+          if (m.id !== last.id) return m;
+          const blocks = [...m.content];
+          const progIdx = blocks.findIndex((b) => b.type === 'progress');
+          const progressBlock: ProgressBlock = {
+            type: 'progress',
+            percent: data.progress,
+            message: data.message || `Processing... (${data.progress}%)`,
+          };
+          if (progIdx >= 0) {
+            blocks[progIdx] = progressBlock;
+          } else {
+            blocks.push(progressBlock);
+          }
+          return { ...m, content: blocks };
+        });
+      });
+    },
+    onComplete: (data) => {
+      if (data.jobId !== activeJobId) return;
+      setActiveJobId(null);
+      // Add completion message
+      const doneMsg: Message = {
+        id: generateId(),
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Your visuals are ready! Take a look and let me know if you\'d like any changes.' }],
+        createdAt: new Date().toISOString(),
+      };
+      setMessages((prev) => {
+        // Remove progress block from the last assistant message
+        const updated = prev.map((m) => {
+          if (m.role === 'assistant') {
+            return { ...m, content: m.content.filter((b) => b.type !== 'progress') };
+          }
+          return m;
+        });
+        return [...updated, doneMsg];
+      });
+      clearVisualCache();
+      if (reloadVisuals) reloadVisuals(projectId);
+    },
+    onError: (data) => {
+      if (data.jobId !== activeJobId) return;
+      setActiveJobId(null);
+      setMessages((prev) => {
+        const last = [...prev].reverse().find((m) => m.role === 'assistant');
+        if (!last) return prev;
+        return prev.map((m) => {
+          if (m.id !== last.id) return m;
+          const blocks = m.content.filter((b) => b.type !== 'progress');
+          blocks.push({ type: 'text', text: `\n\nGeneration failed: ${data.error}` });
+          return { ...m, content: blocks };
+        });
+      });
+    },
+  });
+
+  // Subscribe to job updates when we have an active job
+  useEffect(() => {
+    if (activeJobId) {
+      subscribeToJob(activeJobId);
+    }
+  }, [activeJobId, subscribeToJob]);
 
   // Abort in-flight requests on unmount
   useEffect(() => {
@@ -123,6 +218,16 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     }
   }, [input]);
 
+  // React to "Edit with AI" request: clear flag and focus textarea
+  useEffect(() => {
+    if (aiEditRequested) {
+      useEditorStore.setState({ aiEditRequested: false });
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
+    }
+  }, [aiEditRequested]);
+
   // -----------------------------------------------------------------------
   // Load conversation history on mount
   // -----------------------------------------------------------------------
@@ -140,12 +245,33 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         }
 
         if (data.messages && data.messages.length > 0) {
-          const loaded: Message[] = data.messages.map((m) => ({
+          let loaded: Message[] = data.messages.map((m) => ({
             id: m.id,
             role: m.role,
             content: normalizeContent(m.content),
             createdAt: m.createdAt,
           }));
+
+          // If there's an active job, restore progress bar and subscribe to WebSocket updates.
+          // Do this BEFORE filtering so the progress block attaches to the correct
+          // assistant message (which may be an empty placeholder created at stream start).
+          if (data.activeJob) {
+            setActiveJobId(data.activeJob.id);
+            const progressBlock: ProgressBlock = {
+              type: 'progress',
+              percent: data.activeJob.progress ?? 0,
+              message: data.activeJob.message || 'Processing...',
+            };
+            const lastAssistant = [...loaded].reverse().find((m) => m.role === 'assistant');
+            if (lastAssistant) {
+              lastAssistant.content = [...lastAssistant.content, progressBlock];
+            }
+          }
+
+          // Drop empty assistant placeholder rows (created at stream start but
+          // not yet filled — only relevant when there's no active job to show)
+          loaded = loaded.filter((m) => m.content.length > 0 || m.role !== 'assistant');
+
           setMessages(loaded);
         }
       } catch (err) {
@@ -163,16 +289,29 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // Normalize content from the API (which may store it differently)
   // -----------------------------------------------------------------------
 
+  // Internal metadata patterns that should never be shown to the user
+  const internalPattern = /\[Widget response:[^\]]*\]|\[Selected (?:time range|scene|element):[^\]]*\]|\[Editing visuals:[^\]]*\]|\[Start the conversation\.[^\]]*\]/g;
+
   function normalizeContent(raw: unknown): MessageBlock[] {
-    // If it's already an array of blocks, use it
     if (Array.isArray(raw)) {
-      return raw as MessageBlock[];
+      return (raw as Array<Record<string, unknown> & MessageBlock>)
+        .filter((b) => !(b as any).hidden)
+        .map((b) => {
+          // Strip internal annotations from text blocks
+          if (b.type === 'text' && typeof (b as any).text === 'string') {
+            const cleaned = ((b as any).text as string).replace(internalPattern, '').trim();
+            if (!cleaned) return null;
+            return { ...b, text: cleaned } as MessageBlock;
+          }
+          return b;
+        })
+        .filter(Boolean) as MessageBlock[];
     }
-    // If it's a string, wrap in a text block
     if (typeof raw === 'string') {
-      return [{ type: 'text', text: raw }];
+      const cleaned = raw.replace(internalPattern, '').trim();
+      if (!cleaned) return [];
+      return [{ type: 'text', text: cleaned }];
     }
-    // Fallback
     return [{ type: 'text', text: String(raw ?? '') }];
   }
 
@@ -209,7 +348,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             }
 
             case 'progress': {
-              const progressData = data as { percent: number; message: string; error?: boolean };
+              const progressData = data as { percent: number; message: string; error?: boolean; jobId?: string };
+              // On failure, stop tracking the job so the spinner stops
+              if (progressData.error) {
+                setActiveJobId(null);
+              } else if (progressData.jobId) {
+                // Track the job ID so WebSocket can pick up progress if SSE drops
+                setActiveJobId(progressData.jobId);
+              }
               // Update existing progress block or add new one
               const progressIdx = blocks.findIndex((b) => b.type === 'progress');
               const progressBlock: ProgressBlock = {
@@ -271,17 +417,39 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -----------------------------------------------------------------------
 
   const sendMessage = useCallback(
-    async (messageText: string, widgetResponse?: { widgetId: string; value: unknown }) => {
+    async (messageText: string, widgetResponse?: { widgetId: string; value: unknown }, options?: { hidden?: boolean }) => {
       if (isStreaming) return;
 
-      // Add user message to UI (only if there is visible text, skip for widget-only responses)
-      if (messageText.trim() && !widgetResponse) {
+      // Clear any previous failure state
+      setFailedMessageId(null);
+      lastFailedPayload.current = null;
+
+      // Build the full message, prepending scene tags if any
+      const currentTags = sceneTags;
+      const currentTimeRange = selectedTimeRange;
+      let fullMessage = messageText;
+      if (currentTags.length > 0 && !widgetResponse && !options?.hidden) {
+        const tagMeta = currentTags.map((t) => `Scene ${t.sceneIndex}: "${t.sceneTitle}"`).join(', ');
+        const planJobId = currentTags[0].planJobId;
+        fullMessage = `[Edit scenes: ${tagMeta} | planJobId: ${planJobId}]\n${messageText}`;
+      }
+
+      // Add user message to UI (skip for widget responses and hidden/auto-init messages)
+      if (messageText.trim() && !widgetResponse && !options?.hidden) {
         const userMsg: Message = {
           id: generateId(),
           role: 'user',
           content: [{ type: 'text', text: messageText }],
           createdAt: new Date().toISOString(),
         };
+        // If there are scene tags, show them as a prefix in the displayed message
+        if (currentTags.length > 0) {
+          const tagLabels = currentTags.map((t) => `Scene ${t.sceneIndex}`).join(', ');
+          userMsg.content = [{ type: 'text', text: `**Editing ${tagLabels}:** ${messageText}` }];
+        } else if (currentTimeRange) {
+          const rangeLabel = `${formatTimeChip(currentTimeRange.startMs)} – ${formatTimeChip(currentTimeRange.endMs)}`;
+          userMsg.content = [{ type: 'text', text: `**Editing ${rangeLabel}:** ${messageText}` }];
+        }
         setMessages((prev) => [...prev, userMsg]);
       }
 
@@ -297,6 +465,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       setIsStreaming(true);
       setInput('');
+      setSceneTags([]); // Clear tags after sending
+      if (currentTimeRange) setSelectedTimeRange(null); // Clear time range after sending
 
       try {
         // Build context from editor state
@@ -304,7 +474,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           selectedTimeRange?: { startMs: number; endMs: number };
           selectedSceneId?: number;
           selectedElement?: { name: string; sceneId: number };
+          selectedVisualItem?: { id: string; description: string };
         } = {};
+
+        if (currentTimeRange) {
+          context.selectedTimeRange = currentTimeRange;
+        }
 
         if (aiContext) {
           if (aiContext.sceneId !== undefined) {
@@ -316,13 +491,19 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               sceneId: aiContext.element.sceneId,
             };
           }
+          if (aiContext.type === 'item' && aiContext.item) {
+            context.selectedVisualItem = {
+              id: aiContext.item.id,
+              description: aiContext.item.name,
+            };
+          }
         }
 
         const controller = new AbortController();
         abortRef.current = controller;
 
         const stream = await api.chatWithAgent(projectId, {
-          message: messageText,
+          message: fullMessage,
           context: Object.keys(context).length > 0 ? context : undefined,
           widgetResponse,
         }, controller.signal);
@@ -334,6 +515,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         // If stream ends without a 'done' event, stop streaming
         setIsStreaming(false);
       } catch (err) {
+        // Ignore AbortError — this fires when the component unmounts or the user navigates away
+        const isAbort = (err instanceof DOMException && err.name === 'AbortError')
+          || (err instanceof Error && (err.message.includes('aborted') || err.message.includes('abort')));
+        if (isAbort) {
+          setIsStreaming(false);
+          return;
+        }
+
         console.error('Chat error:', err);
         // Try to recover by loading the latest conversation state from the server.
         // The backend may have completed successfully even though the stream dropped.
@@ -365,10 +554,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             };
           })
         );
+        setFailedMessageId(assistantId);
+        lastFailedPayload.current = { message: fullMessage, widgetResponse };
         setIsStreaming(false);
       }
     },
-    [isStreaming, projectId, aiContext, handleSSEEvent, reloadVisuals]
+    [isStreaming, projectId, aiContext, handleSSEEvent, reloadVisuals, sceneTags, selectedTimeRange, setSelectedTimeRange]
   );
 
   // -----------------------------------------------------------------------
@@ -397,17 +588,66 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   );
 
   // -----------------------------------------------------------------------
-  // Clear conversation
+  // Retry failed message
   // -----------------------------------------------------------------------
 
-  const handleClear = async () => {
+  const handleRetry = useCallback(() => {
+    if (!lastFailedPayload.current || isStreaming) return;
+
+    // Remove the failed assistant message
+    if (failedMessageId) {
+      setMessages((prev) => prev.filter((m) => m.id !== failedMessageId));
+    }
+
+    const { message, widgetResponse } = lastFailedPayload.current;
+    setFailedMessageId(null);
+    lastFailedPayload.current = null;
+
+    // Re-send — sendMessage will add a fresh assistant placeholder
+    sendMessage(message, widgetResponse);
+  }, [failedMessageId, isStreaming, sendMessage]);
+
+  // -----------------------------------------------------------------------
+  // Auto-greet: have the AI start the conversation when panel opens
+  // -----------------------------------------------------------------------
+
+  const autoGreetSent = useRef(false);
+  useEffect(() => {
+    if (historyLoaded && messages.length === 0 && !isStreaming && !autoGreetSent.current) {
+      autoGreetSent.current = true;
+      sendMessage('[Start the conversation. Greet the user and offer to help.]', undefined, { hidden: true })
+        .catch(() => {
+          // Allow retry if the greet fails (e.g. server temporarily down)
+          autoGreetSent.current = false;
+        });
+    }
+  }, [historyLoaded, messages.length, isStreaming, sendMessage]);
+
+  // -----------------------------------------------------------------------
+  // Reset (clear visuals + conversation, restart from scratch)
+  // -----------------------------------------------------------------------
+
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleReset = async () => {
+    if (isResetting || isStreaming) return;
+    setIsResetting(true);
     try {
-      await api.clearConversation(projectId);
+      await Promise.all([
+        api.clearConversation(projectId),
+        api.deleteVisuals(projectId),
+      ]);
     } catch (err) {
-      console.error('Failed to clear conversation:', err);
+      console.error('Failed to reset:', err);
     }
     setMessages([]);
     setConversationId(null);
+    setSceneTags([]);
+    // Re-trigger auto-greet
+    autoGreetSent.current = false;
+    clearVisualCache();
+    if (reloadVisuals) reloadVisuals(projectId);
+    setIsResetting(false);
   };
 
   // -----------------------------------------------------------------------
@@ -424,10 +664,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // Key handler
   // -----------------------------------------------------------------------
 
+  const canSend = !isStreaming && input.trim().length > 0;
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (input.trim() && !isStreaming) {
+      if (canSend) {
         sendMessage(input.trim());
       }
     }
@@ -460,17 +702,24 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           />
         );
 
-      case 'scene_plan':
+      case 'scene_plan': {
+        const planJobId = widget.planJobId || '';
         return (
           <ScenePlanCard
             scenes={widget.scenes || []}
             scenePlanMarkdown={widget.scenePlanMarkdown}
             metadata={widget.metadata}
-            onApprove={() => handleWidgetResponse(widget.id, { approved: true })}
-            onReject={() => handleWidgetResponse(widget.id, { approved: false })}
+            onApprove={() => handleWidgetResponse(widget.id, { approved: true, planJobId })}
+            onReject={() => handleWidgetResponse(widget.id, { approved: false, planJobId })}
             onEditScene={(sceneIndex, sceneTitle) => {
-              handleWidgetResponse(widget.id, { approved: false, editScene: sceneIndex + 1 });
-              sendMessage(`I'd like to edit Scene ${sceneIndex + 1}: ${sceneTitle}`);
+              const tag: SceneTag = { sceneIndex: sceneIndex + 1, sceneTitle, planJobId };
+              setSceneTags((prev) => {
+                // Don't add duplicates
+                if (prev.some((t) => t.sceneIndex === tag.sceneIndex && t.planJobId === tag.planJobId)) return prev;
+                return [...prev, tag];
+              });
+              // Focus the input so the user can type their edit instructions
+              textareaRef.current?.focus();
             }}
             disabled={hasResponded || isStreaming}
             approved={
@@ -480,6 +729,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                   : undefined
                 : undefined
             }
+          />
+        );
+      }
+
+      case 'choice':
+        return (
+          <ChoiceWidget
+            options={widget.options || []}
+            onSelect={(value) => handleWidgetResponse(widget.id, value)}
+            disabled={hasResponded || isStreaming}
+            selectedValue={typeof response === 'string' ? response : undefined}
           />
         );
 
@@ -584,24 +844,26 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               Clear
             </button>
           )}
-          {messages.length > 0 && (
-            <button
-              onClick={handleClear}
-              disabled={isStreaming}
-              className="p-1.5 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors disabled:opacity-50"
-              aria-label="Clear conversation"
-              title="Clear conversation"
-            >
-              <Trash2 className="w-4 h-4 text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]" />
-            </button>
-          )}
+          <button
+            onClick={handleReset}
+            disabled={isStreaming || isResetting}
+            className="p-1.5 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors disabled:opacity-50"
+            aria-label="Start over"
+            title="Start over"
+          >
+            {isResetting ? (
+              <Loader2 className="w-4 h-4 text-[var(--editor-text-muted)] animate-spin" />
+            ) : (
+              <RotateCcw className="w-4 h-4 text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]" />
+            )}
+          </button>
         </div>
       </div>
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          /* Empty state */
+        {messages.length === 0 && !isStreaming ? (
+          /* Empty state — only show if not already auto-greeting */
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center mb-4">
               <Sparkles className="w-6 h-6 text-purple-500 opacity-60" />
@@ -636,7 +898,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         ) : (
           /* Messages */
-          messages.map((message) => (
+          messages
+            .filter((m) => m.content.length > 0 || m.role === 'assistant')
+            .map((message) => (
             <div
               key={message.id}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -665,6 +929,16 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                   </div>
                 )}
                 {message.content.map((block, i) => renderBlock(block, i))}
+                {failedMessageId === message.id && (
+                  <button
+                    onClick={handleRetry}
+                    disabled={isStreaming}
+                    className="mt-2 flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Retry
+                  </button>
+                )}
               </div>
             </div>
           ))
@@ -675,6 +949,45 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       {/* Input Area */}
       <div className="p-4 border-t border-[var(--editor-border-subtle)]">
+        {/* Scene tag chips */}
+        {sceneTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {sceneTags.map((tag) => (
+              <span
+                key={`${tag.planJobId}-${tag.sceneIndex}`}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
+                           bg-purple-500/15 text-purple-400 border border-purple-500/25"
+              >
+                Scene {tag.sceneIndex}: {tag.sceneTitle}
+                <button
+                  onClick={() => setSceneTags((prev) => prev.filter((t) => t.sceneIndex !== tag.sceneIndex || t.planJobId !== tag.planJobId))}
+                  className="ml-0.5 hover:text-purple-300 transition-colors"
+                  aria-label={`Remove Scene ${tag.sceneIndex}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Time range chip */}
+        {selectedTimeRange && sceneTags.length === 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
+                             bg-blue-500/15 text-blue-400 border border-blue-500/25">
+              {formatTimeChip(selectedTimeRange.startMs)} – {formatTimeChip(selectedTimeRange.endMs)}
+              <button
+                onClick={() => setSelectedTimeRange(null)}
+                className="ml-0.5 hover:text-blue-300 transition-colors"
+                aria-label="Remove time range"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          </div>
+        )}
+
         <div className="relative flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -684,9 +997,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             placeholder={
               isStreaming
                 ? 'Waiting for response...'
-                : aiContext
-                  ? `Describe changes to ${aiContext.displayName}...`
-                  : 'Describe what you want to create...'
+                : sceneTags.length > 0
+                  ? `Describe changes to ${sceneTags.map((t) => `Scene ${t.sceneIndex}`).join(', ')}...`
+                  : selectedTimeRange
+                    ? `Describe changes for ${formatTimeChip(selectedTimeRange.startMs)} – ${formatTimeChip(selectedTimeRange.endMs)}...`
+                    : aiContext
+                      ? `Describe changes to ${aiContext.displayName}...`
+                      : 'Describe what you want to create...'
             }
             disabled={isStreaming}
             rows={1}
@@ -699,8 +1016,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                        transition-all resize-none"
           />
           <button
-            onClick={() => input.trim() && !isStreaming && sendMessage(input.trim())}
-            disabled={!input.trim() || isStreaming}
+            onClick={() => canSend && sendMessage(input.trim())}
+            disabled={!canSend}
             className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center
                        rounded-full bg-purple-600 text-white
                        hover:bg-purple-500 transition-colors

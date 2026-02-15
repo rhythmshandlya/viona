@@ -160,6 +160,8 @@ export interface EditVisualsJobData {
   prompt: string;         // User's edit request (e.g., "Make particles bigger")
   sceneId?: number;       // Optional: target a specific scene (1-indexed)
   elementName?: string;   // Optional: target a specific element within the scene
+  transcript?: string;    // Full transcript text with timestamps for context
+  scenePlan?: string;     // JSON scene plan so the agent understands the visual structure
 }
 
 export const editVisualsQueue = new Queue('edit-visuals', { connection });

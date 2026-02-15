@@ -13,7 +13,6 @@ import {
   Track,
   TimelineItem,
   HistoryEntry,
-  FullscreenSegment,
   DEFAULT_TRACK_HEIGHT,
   DEFAULT_ZOOM,
   DEFAULT_FPS,
@@ -102,13 +101,6 @@ const initialState: EditorState = {
   layoutSettings: DEFAULT_LAYOUT_SETTINGS,
   layoutPresetId: 'pip-tutorial' as LayoutPresetId,
 
-  // Fullscreen segments
-  fullscreenSegments: [],
-
-  // Fullscreen segment placement mode
-  fsPlacementMode: 'idle',
-  fsPendingStartMs: null,
-
   // Scene selection for AI editing
   selectedSceneId: null,
   selectedTimeRange: null,
@@ -116,6 +108,9 @@ const initialState: EditorState = {
 
   // Element picker mode
   elementPickerEnabled: false,
+
+  // AI edit request
+  aiEditRequested: false,
 
   // Safe zone settings
   safeZonePlatform: 'none',
@@ -427,7 +422,6 @@ export const useEditorStore = create<EditorStore>()(
 
         // Restore persisted settings from videoSettings JSONB
         const savedVideoSettings = (apiProject as any).videoSettings;
-        const savedSegments = savedVideoSettings?.fullscreenSegments;
         const savedLayoutSettings = savedVideoSettings?.layoutSettings;
         const savedLayoutPresetId = savedVideoSettings?.layoutPresetId;
 
@@ -441,7 +435,6 @@ export const useEditorStore = create<EditorStore>()(
           state.isLoading = false;
           state.currentTimeMs = 0;
           state.selectedIds = [];
-          state.fullscreenSegments = Array.isArray(savedSegments) ? savedSegments : [];
           // Restore layout settings (merge with defaults for forward compat)
           if (savedLayoutSettings) {
             state.layoutSettings = {
@@ -545,7 +538,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     saveProject: async () => {
-      const { project, items, itemIds, fullscreenSegments, layoutSettings, layoutPresetId } = get();
+      const { project, items, itemIds, layoutSettings, layoutPresetId } = get();
       if (!project) return;
 
       set((state) => {
@@ -575,10 +568,9 @@ export const useEditorStore = create<EditorStore>()(
             };
           });
 
-        // Persist fullscreen segments and layout settings inside videoSettings JSONB
+        // Persist layout settings inside videoSettings JSONB
         const videoSettingsPayload = {
           ...project.videoSettings,
-          fullscreenSegments,
           layoutSettings,
           layoutPresetId,
         };
@@ -1004,7 +996,6 @@ export const useEditorStore = create<EditorStore>()(
         state.items = entry.items;
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
-        state.fullscreenSegments = entry.fullscreenSegments || [];
         state.historyIndex = newIndex;
       });
     },
@@ -1021,13 +1012,12 @@ export const useEditorStore = create<EditorStore>()(
         state.items = entry.items;
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
-        state.fullscreenSegments = entry.fullscreenSegments || [];
         state.historyIndex = newIndex;
       });
     },
 
     pushHistory: () => {
-      const { tracks, items, itemIds, selectedIds, fullscreenSegments, history, historyIndex } = get();
+      const { tracks, items, itemIds, selectedIds, history, historyIndex } = get();
 
       // Create deep copy of current state
       const entry: HistoryEntry = {
@@ -1035,7 +1025,6 @@ export const useEditorStore = create<EditorStore>()(
         items: JSON.parse(JSON.stringify(items)),
         itemIds: [...itemIds],
         selectedIds: [...selectedIds],
-        fullscreenSegments: JSON.parse(JSON.stringify(fullscreenSegments)),
       };
 
       set((state) => {
@@ -1677,59 +1666,6 @@ export const useEditorStore = create<EditorStore>()(
       debouncedSave(() => get().saveProject());
     },
 
-    // ========================================
-    // Fullscreen Segment Actions
-    // ========================================
-
-    addFullscreenSegment: (segment: Omit<FullscreenSegment, 'id'>) => {
-      const id = nanoid(10);
-
-      set((state) => {
-        state.fullscreenSegments.push({ id, ...segment });
-        state.fullscreenSegments.sort((a, b) => a.startMs - b.startMs);
-      });
-
-      get().pushHistory();
-      debouncedSave(() => get().saveProject());
-      return id;
-    },
-
-    updateFullscreenSegment: (id: string, updates: Partial<Omit<FullscreenSegment, 'id'>>) => {
-      set((state) => {
-        const segment = state.fullscreenSegments.find((s) => s.id === id);
-        if (!segment) return;
-        if (updates.startMs !== undefined) segment.startMs = updates.startMs;
-        if (updates.endMs !== undefined) segment.endMs = updates.endMs;
-        state.fullscreenSegments.sort((a, b) => a.startMs - b.startMs);
-      });
-
-      get().pushHistory();
-      debouncedSave(() => get().saveProject());
-    },
-
-    removeFullscreenSegment: (id: string) => {
-      set((state) => {
-        state.fullscreenSegments = state.fullscreenSegments.filter((s) => s.id !== id);
-      });
-
-      get().pushHistory();
-      debouncedSave(() => get().saveProject());
-    },
-
-    startFsPlacement: () => {
-      set((state) => {
-        state.fsPlacementMode = 'placing-start';
-        state.fsPendingStartMs = null;
-      });
-    },
-
-    cancelFsPlacement: () => {
-      set((state) => {
-        state.fsPlacementMode = 'idle';
-        state.fsPendingStartMs = null;
-      });
-    },
-
     // Scene selection for AI editing
     setSelectedScene: (sceneId: number | null) => {
       set((state) => {
@@ -1760,6 +1696,18 @@ export const useEditorStore = create<EditorStore>()(
     setElementPickerEnabled: (enabled: boolean) => {
       set((state) => {
         state.elementPickerEnabled = enabled;
+      });
+    },
+
+    // ========================================
+    // AI Edit Request
+    // ========================================
+
+    requestAIEdit: (item) => {
+      set((state) => {
+        state.selectedTimeRange = { startMs: item.startMs, endMs: item.endMs };
+        state.selectedSceneId = null;
+        state.aiEditRequested = true;
       });
     },
 

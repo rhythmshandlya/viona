@@ -16,6 +16,8 @@ import {
   useTracks,
   useCurrentTimeMs,
   useClipboard,
+  useSelectedTimeRange,
+  useEditorStore,
 } from '../../store/use-editor-store';
 
 // ============================================
@@ -56,6 +58,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
   const tracks = useTracks();
   const currentTimeMs = useCurrentTimeMs();
   const clipboard = useClipboard();
+  const selectedTimeRange = useSelectedTimeRange();
 
   const {
     splitItem,
@@ -65,6 +68,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     pasteItems,
     updateTrack,
     select,
+    requestAIEdit,
   } = useEditorActions();
 
   // Close on outside click
@@ -189,8 +193,31 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             },
             disabled: !track,
           },
+          // "Edit with AI" for visual items
+          ...(item?.type === 'visual'
+            ? [
+                { type: 'separator' as const },
+                {
+                  label: 'Edit with AI',
+                  shortcut: 'E',
+                  action: withSelection(() => requestAIEdit(item)),
+                },
+              ]
+            : []),
         ];
       }
+
+      // "Edit with AI" entry shown when a time range is selected (from ruler Alt+drag)
+      const rangeEditEntries: MenuEntry[] = selectedTimeRange
+        ? [
+            { type: 'separator' as const },
+            {
+              label: 'Edit with AI',
+              shortcut: 'E',
+              action: () => useEditorStore.setState({ aiEditRequested: true }),
+            },
+          ]
+        : [];
 
       if (target.type === 'track' && target.trackId) {
         return [
@@ -200,6 +227,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             action: () => pasteItems(target.timeMs),
             disabled: !clipboard || clipboard.length === 0,
           },
+          ...rangeEditEntries,
         ];
       }
 
@@ -211,6 +239,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           action: () => pasteItems(target.timeMs),
           disabled: !clipboard || clipboard.length === 0,
         },
+        ...rangeEditEntries,
       ];
     },
     [
@@ -219,6 +248,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       tracks,
       currentTimeMs,
       clipboard,
+      selectedTimeRange,
       select,
       splitItem,
       copyItems,
@@ -226,6 +256,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       deleteItems,
       pasteItems,
       updateTrack,
+      requestAIEdit,
     ]
   );
 

@@ -7,7 +7,7 @@
 // Timeline Item Types
 // ============================================
 
-export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual';
+export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll';
 
 export interface TimelineItem {
   id: string;
@@ -21,7 +21,7 @@ export interface TimelineItem {
     endMs: number;
   };
   // Type-specific data
-  data: VideoItemData | AudioItemData | CaptionItemData | TextItemData | ImageItemData | VisualItemData;
+  data: VideoItemData | AudioItemData | CaptionItemData | TextItemData | ImageItemData | VisualItemData | BrollItemData;
 }
 
 export interface VideoItemData {
@@ -236,12 +236,13 @@ export type AnimationType =
   | 'none'
   // Viral
   | 'elastic-pop' | 'bounce-up' | 'shake' | 'color-wipe'
-  | '3d-flip' | 'punch'
+  | '3d-flip' | 'punch' | 'scale-bounce' | 'slide-up'
+  | 'weight-shift' | 'float'
   // Cinematic
-  | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
+  | 'fade' | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
   | 'underline-wipe';
 
-export type EasingType = 'linear' | 'ease-out' | 'spring' | 'elastic' | 'bounce';
+export type EasingType = 'linear' | 'ease-out' | 'ease-in-out' | 'spring' | 'elastic' | 'bounce';
 
 export interface AnimationConfig {
   in: AnimationType;
@@ -326,6 +327,16 @@ export interface VisualItemData {
   fps: number;
 }
 
+export interface BrollItemData {
+  sourceType: 'upload' | 'pexels';
+  src: string;
+  filename?: string;
+  photographer?: string;
+  previewUrl?: string;
+  volume: number;
+  fileSize?: number;
+}
+
 // ============================================
 // Track Types
 // ============================================
@@ -341,16 +352,6 @@ export interface Track {
   visible: boolean;
   height: number;   // Track height in pixels
   collapsed: boolean;
-}
-
-// ============================================
-// Fullscreen Segment Types
-// ============================================
-
-export interface FullscreenSegment {
-  id: string;
-  startMs: number;
-  endMs: number;
 }
 
 // ============================================
@@ -448,7 +449,6 @@ export interface HistoryEntry {
   items: Record<string, TimelineItem>;
   itemIds: string[];
   selectedIds: string[];
-  fullscreenSegments: FullscreenSegment[];
 }
 
 // ============================================
@@ -501,13 +501,6 @@ export interface EditorState {
   layoutSettings: LayoutSettings;
   layoutPresetId: LayoutPresetId;
 
-  // Fullscreen segments (time ranges where visuals are hidden)
-  fullscreenSegments: FullscreenSegment[];
-
-  // Fullscreen segment placement mode (transient UI state)
-  fsPlacementMode: 'idle' | 'placing-start' | 'placing-end';
-  fsPendingStartMs: number | null;
-
   // Scene selection for AI editing
   selectedSceneId: number | null;
   selectedTimeRange: { startMs: number; endMs: number } | null;
@@ -515,6 +508,9 @@ export interface EditorState {
 
   // Element picker mode
   elementPickerEnabled: boolean;
+
+  // AI edit request (set when user triggers "Edit with AI" from context menu)
+  aiEditRequested: boolean;
 
   // Safe zone settings
   safeZonePlatform: string;  // 'tiktok' | 'instagram-reels' | etc.
@@ -616,13 +612,6 @@ export interface EditorActions {
   setLayoutPreset: (presetId: LayoutPresetId) => void;
   setLayoutMode: (mode: LayoutMode) => void;
 
-  // Fullscreen segment actions
-  addFullscreenSegment: (segment: Omit<FullscreenSegment, 'id'>) => string;
-  updateFullscreenSegment: (id: string, updates: Partial<Omit<FullscreenSegment, 'id'>>) => void;
-  removeFullscreenSegment: (id: string) => void;
-  startFsPlacement: () => void;
-  cancelFsPlacement: () => void;
-
   // Scene selection for AI editing
   setSelectedScene: (sceneId: number | null) => void;
   setSelectedTimeRange: (range: { startMs: number; endMs: number } | null) => void;
@@ -630,6 +619,9 @@ export interface EditorActions {
 
   // Element picker mode
   setElementPickerEnabled: (enabled: boolean) => void;
+
+  // AI edit request
+  requestAIEdit: (item: TimelineItem) => void;
 
   // Safe zone actions
   setSafeZonePlatform: (platform: string) => void;

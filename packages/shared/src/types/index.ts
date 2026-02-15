@@ -84,14 +84,19 @@ export type AnimationType =
   | 'color-wipe'
   | '3d-flip'
   | 'punch'
+  | 'scale-bounce'
+  | 'slide-up'
+  | 'weight-shift'
+  | 'float'
   // Cinematic
+  | 'fade'
   | 'fade-rise'
   | 'typewriter'
   | 'smooth-slide'
   | 'soft-scale'
   | 'underline-wipe';
 
-export type EasingType = 'linear' | 'ease-out' | 'spring' | 'elastic' | 'bounce';
+export type EasingType = 'linear' | 'ease-out' | 'ease-in-out' | 'spring' | 'elastic' | 'bounce';
 
 export interface AnimationConfig {
   in: AnimationType;

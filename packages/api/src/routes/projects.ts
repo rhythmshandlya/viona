@@ -1041,6 +1041,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
       // Delete visuals from database
       await db.delete(visuals).where(eq(visuals.projectId, id));
 
+      // Delete related jobs (plan + generation) so stale planJobIds aren't referenced
+      await db.delete(jobs).where(eq(jobs.projectId, id));
+
       // Reset project status to allow re-generation
       await db.update(projects)
         .set({ status: 'ready' as ProjectStatus })

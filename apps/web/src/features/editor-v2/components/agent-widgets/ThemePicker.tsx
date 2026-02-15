@@ -25,20 +25,20 @@ export function ThemePicker({ onSelect, disabled, selectedValue }: ThemePickerPr
           className={`p-3 rounded-lg border text-left transition-all ${
             selectedValue === theme.id
               ? 'border-purple-500 bg-purple-500/10'
-              : 'border-white/10 hover:border-white/20 bg-white/5'
+              : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-border-default)] bg-[var(--editor-bg-hover)]'
           } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
         >
           <div className="flex gap-1 mb-1.5">
             {theme.colors.map((color, i) => (
               <div
                 key={i}
-                className="w-4 h-4 rounded-full"
+                className="w-4 h-4 rounded-full border border-black/10"
                 style={{ backgroundColor: color }}
               />
             ))}
           </div>
-          <div className="text-sm font-medium text-white">{theme.label}</div>
-          <div className="text-xs text-white/50">{theme.description}</div>
+          <div className="text-sm font-medium text-[var(--editor-text-primary)]">{theme.label}</div>
+          <div className="text-xs text-[var(--editor-text-muted)]">{theme.description}</div>
         </button>
       ))}
     </div>

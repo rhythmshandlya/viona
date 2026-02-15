@@ -363,9 +363,16 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       logger.debug({ srcDir, error: e }, 'Could not clean old compositions (may not exist yet)');
     }
 
-    // Create project directory in workspace
-    const projectDir = createProjectDir(compositionId);
-    logger.info({ projectDir, compositionId }, 'Created project directory');
+    // Clean current project directory so Animator starts fresh (no stale scene files)
+    const projectDir = join(workspacePath, 'src', compositionId);
+    try {
+      await rm(projectDir, { recursive: true, force: true });
+      logger.info({ projectDir }, 'Cleaned stale project directory');
+    } catch {
+      // Directory may not exist yet — that's fine
+    }
+    createProjectDir(compositionId);
+    logger.info({ projectDir, compositionId }, 'Created fresh project directory');
 
     // If this is an Animator-only run (plan was created separately), write plan files to project dir
     if (job.data.planJobId) {
@@ -380,6 +387,42 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       } else {
         logger.warn({ planJobId: job.data.planJobId }, 'Plan job not found or has no planData');
       }
+    }
+
+    // Update workspace Root.tsx and index.ts to import from the correct project ID.
+    // This prevents TypeScript import errors and eliminates the self-healing cycle.
+    const compositionIdDashed = compositionId.replace(/_/g, '-'); // e.g. proj-abc-def
+    const rootTsx = join(workspacePath, 'src', 'Root.tsx');
+    const indexTs = join(workspacePath, 'src', 'index.ts');
+    try {
+      const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
+      await writeFile(rootTsx, `import "./index.css";
+import { Composition } from "remotion";
+import MainComposition from "./${compositionId}";
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <>
+      <Composition
+        id="${compositionIdDashed}"
+        component={MainComposition}
+        durationInFrames={${durationFrames}}
+        fps={${project.fps || 30}}
+        width={${dimensions?.width || 1080}}
+        height={${dimensions?.height || 1920}}
+      />
+    </>
+  );
+};
+`, 'utf-8');
+      await writeFile(indexTs, `import { registerRoot } from "remotion";
+import { RemotionRoot } from "./${compositionId}/index";
+
+registerRoot(RemotionRoot);
+`, 'utf-8');
+      logger.info({ compositionId }, 'Updated Root.tsx and index.ts with correct project imports');
+    } catch (e) {
+      logger.warn({ error: e }, 'Failed to update Root.tsx/index.ts — self-heal will fix it');
     }
 
     await publishJobProgress(jobId, 15, 'Starting Claude Code generator...');
@@ -814,25 +857,93 @@ async function runClaudeCodeGenerator(
 
     let stdout = '';
     let stderr = '';
+    let gotRealProgress = false;
+    let lastToolPercent = 18;
+
+    // Initial ticker for the startup phase (before any tool calls appear)
+    const STARTUP_MESSAGES = [
+      [18, 'Starting Claude Code generator...'],
+      [21, 'Connecting to Claude...'],
+      [24, 'Authenticating...'],
+      [27, 'Reading approved plan...'],
+    ] as const;
+    let startupIndex = 0;
+
+    const progressTicker = setInterval(() => {
+      if (gotRealProgress || startupIndex >= STARTUP_MESSAGES.length) return;
+      const [percent, message] = STARTUP_MESSAGES[startupIndex];
+      publishJobProgress(jobId, percent, message);
+      lastToolPercent = percent;
+      startupIndex++;
+    }, 5_000);
+
+    // Map Animator tool calls to user-friendly progress messages
+    function toolToProgress(toolName: string, textContext: string): string | null {
+      // Check for scene mentions in surrounding text
+      const sceneMatch = textContext.match(/Scene\s*(\d+)/i);
+      const sceneInfo = sceneMatch ? ` (Scene ${sceneMatch[1]})` : '';
+
+      switch (toolName) {
+        case 'Write': return `Writing animation code${sceneInfo}...`;
+        case 'Edit': return `Refining code${sceneInfo}...`;
+        case 'Read': return `Reading files${sceneInfo}...`;
+        case 'Glob': return 'Scanning project files...';
+        case 'Bash': return 'Running validation...';
+        case 'TodoWrite': return 'Updating task list...';
+        default: return null;
+      }
+    }
 
     subprocess.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stdout += text;
 
-      // Parse progress updates from Python script (format: PROGRESS:XX:message)
       const lines = text.split('\n');
       for (const line of lines) {
+        // Parse explicit PROGRESS:XX:message from Python script
         const progressMatch = line.match(/^PROGRESS:(\d+):(.+)$/);
         if (progressMatch) {
+          gotRealProgress = true;
           const percent = parseInt(progressMatch[1], 10);
           const message = progressMatch[2];
-          // Map Python progress (15-70%) to job progress range
           publishJobProgress(jobId, percent, message);
+          lastToolPercent = percent;
           logger.info({ projectId, percent, message }, 'Claude generator progress');
+          continue;
+        }
+
+        // Parse [Animator Tool: X] or [SelfHeal Tool: X] for live progress
+        const toolMatch = line.match(/\[(Animator|SelfHeal) Tool: (\w+)\]/);
+        if (toolMatch && !gotRealProgress) {
+          const toolName = toolMatch[2];
+          const progressMsg = toolToProgress(toolName, stdout.slice(-500));
+          if (progressMsg) {
+            // Slowly increment from 30% to 55% based on tool calls
+            lastToolPercent = Math.min(55, lastToolPercent + 1);
+            publishJobProgress(jobId, lastToolPercent, progressMsg);
+          }
+          continue;
+        }
+
+        // Parse scene completion text for higher-fidelity updates
+        const sceneDone = line.match(/(?:Scene|Scenes?)\s+([\d,-]+)\s+(?:is|are)\s+(?:also\s+)?(?:done|complete|implemented)/i);
+        if (sceneDone && !gotRealProgress) {
+          lastToolPercent = Math.min(55, lastToolPercent + 2);
+          publishJobProgress(jobId, lastToolPercent, `Completed scene${sceneDone[1].includes(',') || sceneDone[1].includes('-') ? 's' : ''} ${sceneDone[1]}...`);
+          continue;
+        }
+
+        // Parse self-heal phase
+        if (line.includes('self-healing attempt') || line.includes('Self-heal')) {
+          publishJobProgress(jobId, Math.max(lastToolPercent, 56), 'Fixing validation errors...');
+        }
+
+        // Parse "GENERATION COMPLETE"
+        if (line.includes('GENERATION COMPLETE')) {
+          publishJobProgress(jobId, 58, 'Animation code complete — validating...');
         }
       }
 
-      // Log more output for debugging
       logger.info({ projectId, output: text.slice(0, 500) }, 'Claude generator stdout');
     });
 
@@ -856,6 +967,7 @@ async function runClaudeCodeGenerator(
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
+        clearInterval(progressTicker);
         if (code === 0) {
           resolve();
         } else {
@@ -867,6 +979,7 @@ async function runClaudeCodeGenerator(
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
+        clearInterval(progressTicker);
         reject(err);
       });
     });

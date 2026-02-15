@@ -20,7 +20,6 @@ import {
   useVideoSettings,
   useSourceDimensions,
   useLayoutSettings,
-  useFullscreenSegments,
 } from '../store/use-editor-store';
 import {
   TimelineItem,
@@ -248,14 +247,12 @@ function buildSplitStyles(
 }
 
 export function Composition() {
-  const frame = useCurrentFrame();
   const fps = useFps();
   const items = useItems();
   const itemIds = useItemIds();
   const videoSettings = useVideoSettings();
   const sourceDimensions = useSourceDimensions();
   const layoutSettings = useLayoutSettings();
-  const fullscreenSegments = useFullscreenSegments();
 
   // Get items by type
   const videoItems = itemIds
@@ -277,12 +274,7 @@ export function Composition() {
   // Check if we have visuals (triggers PiP layout for talking head)
   const hasVisuals = visualItems.length > 0;
 
-  // Per-frame check: is current time inside a fullscreen segment?
-  const currentTimeMs = (frame / fps) * 1000;
-  const isInFullscreenSegment = fullscreenSegments.some(
-    (seg) => currentTimeMs >= seg.startMs && currentTimeMs < seg.endMs
-  );
-  const effectiveHasVisuals = hasVisuals && !isInFullscreenSegment;
+  const effectiveHasVisuals = hasVisuals;
 
   // When a separate audio item exists, mute the video to avoid playing
   // the audio twice (original in video + enhanced in audio).  We check
@@ -361,48 +353,85 @@ export function Composition() {
       {/* Visual container */}
       {showVisuals && (
         <div style={visualContainerStyle}>
-          {visualItems.map((item) => {
-            const data = item.data as VisualItemData;
-            const fromFrame = Math.round((item.startMs / 1000) * fps);
-            const durationInFrames = Math.round(((item.endMs - item.startMs) / 1000) * fps);
+          {(() => {
+            // Group visual items by compositionId so each composition renders
+            // once across its full time span. The generated Remotion composition
+            // uses useCurrentFrame() internally to switch between scenes, so it
+            // must see the correct frame offset — not restart from 0 per item.
+            const groups = new Map<string, {
+              bundleUrl: string;
+              compositionId: string;
+              videoUrl: string | undefined;
+              minStartMs: number;
+              maxEndMs: number;
+              width: number;
+              height: number;
+              fps: number;
+            }>();
 
-            // Prefer rendered video URL for playback
-            const videoSrc = data.videoUrl
-              ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${data.videoUrl}`
-              : null;
+            for (const item of visualItems) {
+              const data = item.data as VisualItemData;
+              const key = data.compositionId;
+              const existing = groups.get(key);
+              if (existing) {
+                existing.minStartMs = Math.min(existing.minStartMs, item.startMs);
+                existing.maxEndMs = Math.max(existing.maxEndMs, item.endMs);
+                // Use videoUrl if any item in the group has one
+                if (data.videoUrl && !existing.videoUrl) {
+                  existing.videoUrl = data.videoUrl;
+                }
+              } else {
+                groups.set(key, {
+                  bundleUrl: data.bundleUrl,
+                  compositionId: data.compositionId,
+                  videoUrl: data.videoUrl,
+                  minStartMs: item.startMs,
+                  maxEndMs: item.endMs,
+                  width: data.width,
+                  height: data.height,
+                  fps: data.fps,
+                });
+              }
+            }
 
-            return (
-              <Sequence
-                key={item.id}
-                from={fromFrame}
-                durationInFrames={durationInFrames}
-              >
-                <AbsoluteFill>
-                  {videoSrc ? (
-                    // Use pre-rendered video for smooth playback
-                    <Video
-                      src={videoSrc}
-                      startFrom={fromFrame}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
-                      onError={(e) => {
-                        console.warn('Visual video playback error:', e?.message);
-                      }}
-                    />
-                  ) : (
-                    // Fallback to dynamic loader if no video URL
-                    <DynamicVisualLoader
-                      bundleUrl={data.bundleUrl}
-                      compositionId={data.compositionId}
-                    />
-                  )}
-                </AbsoluteFill>
-              </Sequence>
-            );
-          })}
+            return Array.from(groups.entries()).map(([key, group]) => {
+              const fromFrame = Math.round((group.minStartMs / 1000) * fps);
+              const durationInFrames = Math.round(((group.maxEndMs - group.minStartMs) / 1000) * fps);
+
+              const videoSrc = group.videoUrl
+                ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${group.videoUrl}`
+                : null;
+
+              return (
+                <Sequence
+                  key={key}
+                  from={fromFrame}
+                  durationInFrames={durationInFrames}
+                >
+                  <AbsoluteFill>
+                    {videoSrc ? (
+                      <Video
+                        src={videoSrc}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                        onError={(e) => {
+                          console.warn('Visual video playback error:', e?.message);
+                        }}
+                      />
+                    ) : (
+                      <DynamicVisualLoader
+                        bundleUrl={group.bundleUrl}
+                        compositionId={group.compositionId}
+                      />
+                    )}
+                  </AbsoluteFill>
+                </Sequence>
+              );
+            });
+          })()}
         </div>
       )}
 

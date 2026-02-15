@@ -236,6 +236,16 @@ export interface UserProject {
   updatedAt: string;
 }
 
+export interface ProjectMediaAsset {
+  id: string;
+  filename: string;
+  mimeType: string;
+  fileSize: number | null;
+  url: string;
+  previewUrl?: string;
+  createdAt: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -465,6 +475,7 @@ class ApiClient {
         selectedTimeRange?: { startMs: number; endMs: number };
         selectedSceneId?: number;
         selectedElement?: { name: string; sceneId: number };
+        selectedVisualItem?: { id: string; description: string };
       };
       widgetResponse?: { widgetId: string; value: unknown };
     },
@@ -507,6 +518,12 @@ class ApiClient {
       content: unknown;
       createdAt: string;
     }>;
+    activeJob?: {
+      id: string;
+      type: string;
+      progress: number;
+      message: string | null;
+    } | null;
   }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`);
   }
@@ -514,6 +531,59 @@ class ApiClient {
   async clearConversation(projectId: string): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`, {
       method: 'DELETE',
+    });
+  }
+
+  // Project media (B-roll assets)
+  async getProjectMedia(projectId: string): Promise<{ assets: ProjectMediaAsset[] }> {
+    return this.request(`/api/projects/${projectId}/media`);
+  }
+
+  async uploadProjectMedia(
+    projectId: string,
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<ProjectMediaAsset> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            onProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { reject(new Error('Failed to parse response')); }
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+      xhr.open('POST', `${this.baseUrl}/api/projects/${projectId}/media`);
+      const token = getSessionToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.withCredentials = true;
+      xhr.send(formData);
+    });
+  }
+
+  async deleteProjectMedia(projectId: string, assetId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/projects/${projectId}/media/${assetId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async generateBroll(projectId: string): Promise<{ jobId: string }> {
+    return this.request(`/api/projects/${projectId}/generate-broll`, {
+      method: 'POST',
     });
   }
 

@@ -45,6 +45,12 @@ export async function addMessage(
   return message;
 }
 
+export async function updateMessageContent(messageId: string, content: unknown) {
+  await db.update(conversationMessages)
+    .set({ content })
+    .where(eq(conversationMessages.id, messageId));
+}
+
 export async function deleteConversation(projectId: string) {
   await db.delete(conversations)
     .where(eq(conversations.projectId, projectId));
