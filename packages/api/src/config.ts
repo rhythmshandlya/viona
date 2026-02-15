@@ -49,8 +49,10 @@ export const config = {
   },
 
   // Anthropic (Creative Director agent)
+  // Supports both API key and OAuth token (from Claude Code CLI)
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || '',
+    oauthToken: process.env.CLAUDE_OAUTH_ACCESS_TOKEN || '',
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
   },
 

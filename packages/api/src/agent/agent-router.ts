@@ -6,6 +6,7 @@ import { authMiddleware } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { buildSystemPrompt } from './agent-system-prompt.js';
 import { toolDefinitions, executeTool } from './agent-tools.js';
+import { getAnthropicAuth } from './oauth-tokens.js';
 import {
   getOrCreateConversation,
   getConversationMessages,
@@ -96,10 +97,11 @@ export async function agentRoutes(fastify: FastifyInstance) {
   fastify.post('/projects/:id/agent/chat', { preHandler: authMiddleware }, async (request, reply) => {
     const { id: projectId } = request.params as { id: string };
 
-    // Guard: ensure ANTHROPIC_API_KEY is configured
-    if (!config.anthropic.apiKey) {
+    // Guard: ensure Anthropic auth is available (API key or OAuth token)
+    const anthropicAuth = await getAnthropicAuth();
+    if (!anthropicAuth) {
       return reply.status(503).send({
-        error: 'AI agent not configured. Set ANTHROPIC_API_KEY environment variable.',
+        error: 'AI agent not configured. Set ANTHROPIC_API_KEY or sign in with Claude Code CLI.',
       });
     }
 
@@ -204,7 +206,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     ];
 
     // 7. Agentic loop
-    const anthropic = new Anthropic({ apiKey: config.anthropic.apiKey });
+    const anthropic = new Anthropic(anthropicAuth);
     let fullAssistantContent: Anthropic.ContentBlock[] = [];
     let currentMessages = claudeMessages;
 
