@@ -109,6 +109,22 @@ export const visuals = pgTable('visuals', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Conversations for Creative Director agent
+export const conversations = pgTable('conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const conversationMessages = pgTable('conversation_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
+  role: varchar('role', { length: 50 }).notNull(), // 'user' | 'assistant'
+  content: jsonb('content').notNull(), // Array of MessageContent blocks
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Type exports for Drizzle
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -124,3 +140,7 @@ export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type Visual = typeof visuals.$inferSelect;
 export type NewVisual = typeof visuals.$inferInsert;
+export type Conversation = typeof conversations.$inferSelect;
+export type NewConversation = typeof conversations.$inferInsert;
+export type ConversationMessage = typeof conversationMessages.$inferSelect;
+export type NewConversationMessage = typeof conversationMessages.$inferInsert;
