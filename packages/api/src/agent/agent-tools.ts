@@ -318,6 +318,14 @@ export function createAgentMcpServer(ctx: ToolContext) {
               endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
               title: s.name || `Scene ${s.id}`,
               description: s.visual || s.emotion || '',
+              emotion: s.emotion || '',
+              keySync: s.keySync ? {
+                word: s.keySync.word,
+                timestamp: s.keySync.timestamp,
+                visualEvent: s.keySync.visualEvent,
+              } : undefined,
+              buildsFrom: s.buildsFrom || null,
+              connectsTo: s.connectsTo || null,
             })),
             scenePlanMarkdown: planData.scenePlan,
             metadata: {
@@ -325,6 +333,7 @@ export function createAgentMcpServer(ctx: ToolContext) {
               colorPalette: scenesObj.colorPalette,
               totalScenes: scenesObj.totalScenes,
               durationSeconds: scenesObj.durationSeconds,
+              visualContinuity: scenesObj.visualContinuity,
             },
             requiresApproval: true,
           });

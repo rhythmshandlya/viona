@@ -31,9 +31,19 @@ interface WidgetBlock {
     id: string;
     kind: string;
     message?: string;
-    scenes?: Array<{ startMs: number; endMs: number; title: string; description: string }>;
+    scenes?: Array<{
+      startMs: number; endMs: number; title: string; description: string;
+      emotion?: string;
+      keySync?: { word: string; timestamp: number; visualEvent: string };
+      buildsFrom?: string | null;
+      connectsTo?: string | null;
+    }>;
     scenePlanMarkdown?: string;
-    metadata?: { primaryMetaphor?: string; colorPalette?: string; totalScenes?: number; durationSeconds?: number };
+    metadata?: {
+      primaryMetaphor?: string; colorPalette?: string;
+      totalScenes?: number; durationSeconds?: number;
+      visualContinuity?: string;
+    };
     requiresApproval?: boolean;
   };
   response?: unknown;
