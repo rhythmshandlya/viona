@@ -161,10 +161,11 @@ function calculatePositionStyles(
 ): React.CSSProperties {
   const { anchor, offsetX, offsetY, rotation, textAlign } = position;
 
-  // Base position from anchor
+  // Base position from anchor — matches preview's Composition.tsx exactly
   const baseStyles: React.CSSProperties = {
     position: 'absolute',
     left: `${50 + offsetX}%`,
+    width: '90%',
     maxWidth: '90%',
     display: 'flex',
     flexWrap: 'wrap',
@@ -338,7 +339,7 @@ const Word: React.FC<WordProps> = ({
   });
 
   // 7. Build final CSS
-  const baseFontSize = overrides?.fontSize ?? (style.fontSize || 48);
+  const baseFontSize = overrides?.fontSize ?? (style.fontSize || 56);
   const wordCss: React.CSSProperties = {
     fontFamily: overrides?.fontFamily ?? style.fontFamily,
     fontSize: (overrides?.scale || 1) * baseFontSize,

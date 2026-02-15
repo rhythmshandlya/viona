@@ -2157,6 +2157,14 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   // Letter spacing — use directly (no height/1920 scaling, PlayRes handles it)
   const letterSpacing = firstStyle.letterSpacing || 0;
 
+  // Line height — CSS lineHeight (unitless multiplier, default 1.4) controls vertical
+  // line spacing. ASS doesn't have a direct lineHeight field, so we approximate via ScaleY.
+  // Default ASS line spacing ≈ 1.2× font size (font-metric dependent).
+  // ScaleY scales the entire glyph + line gap proportionally.
+  const lineHeight = firstStyle.lineHeight ?? 1.4;
+  const DEFAULT_ASS_LINE_HEIGHT = 1.2;
+  const scaleY = Math.round((lineHeight / DEFAULT_ASS_LINE_HEIGHT) * 100);
+
   // Text transform - will be applied to each subtitle text
   const textTransform = firstStyle.textTransform || 'none';
 
@@ -2375,8 +2383,8 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,${fontFamily},${fontSize},${color},${activeColor},${outlineColorParsed},${backColor},${bold},0,0,0,100,100,${letterSpacing},${rotation},${borderStyle},${outline},${styleShadow},${alignment},${marginL},${marginR},${marginV},1
-Style: Active,${fontFamily},${fontSize},${activeColor},${color},${outlineColorParsed},${backColor},${bold},0,0,0,100,100,${letterSpacing},${rotation},${borderStyle},${outline},${styleShadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Default,${fontFamily},${fontSize},${color},${activeColor},${outlineColorParsed},${backColor},${bold},0,0,0,100,${scaleY},${letterSpacing},${rotation},${borderStyle},${outline},${styleShadow},${alignment},${marginL},${marginR},${marginV},1
+Style: Active,${fontFamily},${fontSize},${activeColor},${color},${outlineColorParsed},${backColor},${bold},0,0,0,100,${scaleY},${letterSpacing},${rotation},${borderStyle},${outline},${styleShadow},${alignment},${marginL},${marginR},${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -2508,36 +2516,97 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         }
         // Reset after overridden word so next word uses defaults
         if ((word as any).styleOverrides && i < words.length - 1) karaokeText += buildResetTags(word);
-        if (i < words.length - 1) karaokeText += ' ';
+        // Use space + \h to approximate the preview's flex gap + padding between words
+        if (i < words.length - 1) karaokeText += ' \\h';
       }
       // Prepend effect tags to karaoke dialogue line
       ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${effectOverrideTags}${karaokeText}\n`;
     } else {
-      // Phrase mode (default) - show the full phrase with karaoke highlighting
-      const startTime = formatASSTime(subtitle.startMs);
-      const endTime = formatASSTime(subtitle.endMs);
+      // Phrase mode (default) — only the CURRENT word is highlighted, others stay in base color.
+      // Instead of \kf karaoke (which permanently fills words), we generate one Dialogue line
+      // per word's active period. Each line shows the full phrase with only that word in activeColor.
+      // Gaps between words show all words in default color.
 
-      let karaokeText = '';
-      for (let i = 0; i < words.length; i++) {
-        const word = words[i];
-        const wordStart = getAbsoluteWordTime(subtitle, word, false);
-        const wordEnd = getAbsoluteWordTime(subtitle, word, true);
-        // Duration in centiseconds
-        const duration = Math.max(1, Math.round((wordEnd - wordStart) / 10));
-        const wordText = transformWordText(word);
-        const overrideTags = buildWordOverrideTags(word, false);
-        // \kf = karaoke fill (smooth), \k = instant switch
-        if (overrideTags) {
-          karaokeText += `{\\kf${duration}${overrideTags.slice(1, -1)}}${wordText}`;
-        } else {
-          karaokeText += `{\\kf${duration}}${wordText}`;
+      // Helper: build the full phrase text with one word optionally highlighted
+      const buildPhraseLine = (activeIdx: number): string => {
+        let text = '';
+        for (let j = 0; j < words.length; j++) {
+          const w = words[j];
+          const isWordActive = j === activeIdx;
+          const ov = w.styleOverrides;
+          const wordText = transformWordText(w);
+
+          // Build inline override tags for this word
+          const tags: string[] = [];
+
+          // Color: active word uses activeColor, inactive uses base color
+          // Per-word color overrides take priority
+          if (isWordActive) {
+            const wordColor = ov?.activeColor
+              ? hexToASSColor(ov.activeColor)
+              : (ov?.color ? hexToASSColor(ov.color) : activeColor);
+            tags.push(`\\c${wordColor}`);
+          } else {
+            const wordColor = ov?.color ? hexToASSColor(ov.color) : color;
+            tags.push(`\\c${wordColor}`);
+          }
+
+          // Background: active word may have activeBackgroundColor or emphasisBg
+          if (ov?.emphasisBg) {
+            tags.push(`\\3c${hexToASSColor(ov.emphasisBg)}`);
+          }
+
+          // Font overrides
+          if (ov?.fontFamily) {
+            tags.push(`\\fn${resolveAvailableFontFamily(ov.fontFamily)}`);
+          }
+          if (ov?.fontSize) {
+            tags.push(`\\fs${Math.round((ov.scale || 1) * ov.fontSize)}`);
+          } else if (ov?.scale && ov.scale !== 1) {
+            tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
+          }
+          if (ov?.fontWeight && ov.fontWeight >= 700) {
+            tags.push('\\b1');
+          }
+          if (ov?.letterSpacing != null) {
+            tags.push(`\\fsp${ov.letterSpacing}`);
+          }
+
+          text += `{${tags.join('')}}${wordText}`;
+          if (j < words.length - 1) text += ' \\h';
         }
-        if ((word as any).styleOverrides && i < words.length - 1) karaokeText += buildResetTags(word);
-        if (i < words.length - 1) karaokeText += ' ';
+        return text;
+      };
+
+      // Generate time-sliced Dialogue lines (no overlap, no karaoke tags)
+      const firstWordStart = getAbsoluteWordTime(subtitle, words[0], false);
+
+      // Before first word: all words in default color
+      if (firstWordStart > subtitle.startMs) {
+        ass += `Dialogue: 0,${formatASSTime(subtitle.startMs)},${formatASSTime(firstWordStart)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
       }
 
-      // Prepend effect tags to phrase dialogue line
-      ass += `Dialogue: 0,${startTime},${endTime},Active,,0,0,0,,${effectOverrideTags}${karaokeText}\n`;
+      for (let i = 0; i < words.length; i++) {
+        const wordStart = getAbsoluteWordTime(subtitle, words[i], false);
+        const wordEnd = getAbsoluteWordTime(subtitle, words[i], true);
+
+        // This word's active period — highlight it
+        ass += `Dialogue: 0,${formatASSTime(wordStart)},${formatASSTime(wordEnd)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(i)}\n`;
+
+        // Gap between this word and next — all words in default color
+        if (i < words.length - 1) {
+          const nextWordStart = getAbsoluteWordTime(subtitle, words[i + 1], false);
+          if (wordEnd < nextWordStart) {
+            ass += `Dialogue: 0,${formatASSTime(wordEnd)},${formatASSTime(nextWordStart)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
+          }
+        }
+      }
+
+      // After last word: all words in default color
+      const lastWordEnd = getAbsoluteWordTime(subtitle, words[words.length - 1], true);
+      if (lastWordEnd < subtitle.endMs) {
+        ass += `Dialogue: 0,${formatASSTime(lastWordEnd)},${formatASSTime(subtitle.endMs)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
+      }
     }
   }
 
@@ -2565,6 +2634,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     displayMode,
     textTransform,
     letterSpacing,
+    lineHeight,
+    scaleY,
     opacity,
     outline,
     borderStyle,
