@@ -2,7 +2,7 @@ export const siteConfig = {
   name: "Viona",
   title: "Viona - You Explain It. We Illustrate It.",
   description: "Transform your talking-head videos into visually-rich content. AI automatically generates charts, diagrams, and graphics synced to your explanations.",
-  url: "https://viona.com",
+  url: "https://viona.app",
   appUrl: "https://studio.viona.app",
   ogImage: "/og-image.png",
   links: {

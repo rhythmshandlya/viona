@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://cllipify.com/sitemap-index.xml
+Sitemap: https://viona.app/sitemap-index.xml
