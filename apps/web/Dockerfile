@@ -34,11 +34,12 @@ RUN pnpm install --frozen-lockfile --filter web...
 # ============================================
 FROM base AS builder
 
-# Set build-time env vars (can be overridden)
+# Set build-time env vars
+# NEXT_PUBLIC_URL has a production default since Railway may not pass it as a build arg
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_WS_URL
 ARG NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN
-ARG NEXT_PUBLIC_URL
+ARG NEXT_PUBLIC_URL=https://studio.viona.app
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
 ENV NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN=${NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN}
