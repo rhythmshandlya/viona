@@ -56,6 +56,9 @@ COPY packages/shared ./packages/shared
 COPY packages/renderer ./packages/renderer
 COPY apps/web ./apps/web
 
+# Cache bust to ensure build args are re-evaluated
+ARG CACHEBUST=1
+
 # Build packages in order
 RUN pnpm --filter @viona/shared build && \
     pnpm --filter @viona/renderer build && \
