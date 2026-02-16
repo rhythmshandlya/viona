@@ -48,6 +48,14 @@ export function useProjectId() {
   return useEditorStore((state) => state.project?.id);
 }
 
+export function useProjectType(): 'video' | 'audio' {
+  return useEditorStore((state) => state.project?.projectType || 'video');
+}
+
+export function useIsAudioProject(): boolean {
+  return useEditorStore((state) => state.project?.projectType === 'audio');
+}
+
 export function useIsLoading() {
   return useEditorStore((state) => state.isLoading);
 }

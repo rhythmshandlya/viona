@@ -496,16 +496,20 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             };
           }
 
+          const isAudioProject = (project.projectType || 'video') === 'audio';
           const canvasWidth =
             (project.videoSettings as Record<string, unknown>)?.canvasWidth as number | undefined ?? 1080;
           const canvasHeight =
             (project.videoSettings as Record<string, unknown>)?.canvasHeight as number | undefined ?? 1920;
 
+          // Audio projects always use full canvas (no split/PiP with video)
           let dimensions = { width: canvasWidth, height: canvasHeight };
-          if (layoutMode === 'split-horizontal') {
-            dimensions = { width: Math.round(canvasWidth / 2), height: canvasHeight };
-          } else if (layoutMode === 'split-vertical') {
-            dimensions = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
+          if (!isAudioProject) {
+            if (layoutMode === 'split-horizontal') {
+              dimensions = { width: Math.round(canvasWidth / 2), height: canvasHeight };
+            } else if (layoutMode === 'split-vertical') {
+              dimensions = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
+            }
           }
 
           const [job] = await db
@@ -521,7 +525,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             projectId: ctx.projectId,
             jobId: job.id,
             stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic',
-            layoutMode: layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
+            layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
             styleGuide,
           });
@@ -619,15 +623,19 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             };
           }
 
+          const isAudioProject = (project.projectType || 'video') === 'audio';
           const videoSettings = (project.videoSettings as Record<string, unknown>) || {};
           const canvasWidth = (videoSettings.canvasWidth as number | undefined) ?? 1080;
           const canvasHeight = (videoSettings.canvasHeight as number | undefined) ?? 1920;
 
+          // Audio projects always use full canvas (no split/PiP with video)
           let dimensions = { width: canvasWidth, height: canvasHeight };
-          if (layoutMode === 'split-horizontal') {
-            dimensions = { width: Math.round(canvasWidth / 2), height: canvasHeight };
-          } else if (layoutMode === 'split-vertical') {
-            dimensions = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
+          if (!isAudioProject) {
+            if (layoutMode === 'split-horizontal') {
+              dimensions = { width: Math.round(canvasWidth / 2), height: canvasHeight };
+            } else if (layoutMode === 'split-vertical') {
+              dimensions = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
+            }
           }
 
           const [job] = await db
@@ -643,7 +651,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             projectId: ctx.projectId,
             jobId: job.id,
             stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic',
-            layoutMode: layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
+            layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
             planJobId,
           });

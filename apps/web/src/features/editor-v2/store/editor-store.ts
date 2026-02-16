@@ -164,12 +164,18 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
     ...apiVideoSettings,
   };
 
+  const projectType = (apiProject as any).projectType || 'video';
+  const isAudioProject = projectType === 'audio';
+
   const project = {
     id: apiProject.id,
     title: (apiProject as any).title || null,
     status: apiProject.status,
+    projectType: projectType as 'video' | 'audio',
     videoKey: apiProject.videoKey,
+    audioKey: (apiProject as any).audioKey || null,
     videoUrl,
+    audioUrl: (apiProject as any).audioPresignedUrl || null,
     outputKey: apiProject.outputKey || null,
     durationMs: apiProject.durationMs || 0,
     fps: apiProject.fps || DEFAULT_FPS,
@@ -194,19 +200,21 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
       };
     });
 
-  // Ensure we have a video track
-  const hasVideoTrack = tracks.some((t) => t.type === 'video');
-  if (!hasVideoTrack) {
-    tracks.push({
-      id: `video-track-${nanoid(8)}`,
-      type: 'video',
-      name: 'Video',
-      position: 0,
-      locked: false,
-      visible: true,
-      height: TRACK_HEIGHTS.video,
-      collapsed: false,
-    });
+  // Ensure we have a video track (only for video projects)
+  if (!isAudioProject) {
+    const hasVideoTrack = tracks.some((t) => t.type === 'video');
+    if (!hasVideoTrack) {
+      tracks.push({
+        id: `video-track-${nanoid(8)}`,
+        type: 'video',
+        name: 'Video',
+        position: 0,
+        locked: false,
+        visible: true,
+        height: TRACK_HEIGHTS.video,
+        collapsed: false,
+      });
+    }
   }
 
   // Ensure we have a caption track
@@ -247,8 +255,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
   const items: Record<string, TimelineItem> = {};
   const itemIds: string[] = [];
 
-  // Add video item if project has video
-  if (project.videoKey && project.videoUrl) {
+  // Add video item if project has video (not for audio projects)
+  if (!isAudioProject && project.videoKey && project.videoUrl) {
     const videoTrack = tracks.find((t) => t.type === 'video');
     if (videoTrack) {
       const videoId = `video-${nanoid(8)}`;
@@ -328,6 +336,11 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         const resolveUrl = (key: string | undefined) =>
           key ? `${API_URL}/api/media/outputs/${key}` : '';
 
+        // For audio projects, the src is already a direct API path (e.g. /api/projects/:id/audio)
+        const rawSrc = raw.src as string | undefined;
+        const isDirectUrl = rawSrc?.startsWith('/api/');
+        const directSrc = isDirectUrl ? `${API_URL}${rawSrc}` : '';
+
         const audioItem: TimelineItem = {
           id: item.id,
           type: 'audio',
@@ -335,13 +348,13 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
           startMs: item.startMs,
           endMs: item.endMs,
           data: {
-            src: isComplete ? resolveUrl(enhancedKey) : resolveUrl(originalKey),
-            originalSrc: resolveUrl(originalKey),
-            enhancedSrc: resolveUrl(enhancedKey),
-            isEnhanced: isComplete,
+            src: isDirectUrl ? directSrc : (isComplete ? resolveUrl(enhancedKey) : resolveUrl(originalKey)),
+            originalSrc: isDirectUrl ? directSrc : resolveUrl(originalKey),
+            enhancedSrc: isDirectUrl ? undefined : resolveUrl(enhancedKey),
+            isEnhanced: isDirectUrl ? false : isComplete,
             sourceVideoItemId: (raw.sourceVideoItemId as string) || '',
             volume: (raw.volume as number) ?? 1,
-            enhancementStatus: (raw.enhancementStatus as AudioItemData['enhancementStatus']) || 'idle',
+            enhancementStatus: isDirectUrl ? 'idle' : ((raw.enhancementStatus as AudioItemData['enhancementStatus']) || 'idle'),
             enhancementProgress: (raw.enhancementProgress as number) ?? 0,
           } as AudioItemData,
         };

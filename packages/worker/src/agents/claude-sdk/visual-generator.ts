@@ -1168,12 +1168,13 @@ Output ONLY TypeScript/React code. No markdown fences. Start with imports, end w
       }
 
       if (sceneCode) {
-        // Validate code for common errors before writing
+        // Always auto-fix common issues (descending interpolate ranges, missing keys, etc.)
+        sceneCode = autoFixSceneCode(sceneCode);
+
+        // Validate code for remaining errors after auto-fix
         const validationErrors = validateSceneCode(sceneCode);
         if (validationErrors.length > 0) {
-          log(`Scene ${scene.id} has validation errors: ${validationErrors.join(', ')}`);
-          // Auto-fix common issues
-          sceneCode = autoFixSceneCode(sceneCode);
+          log(`Scene ${scene.id} has validation errors after auto-fix: ${validationErrors.join(', ')}`);
         }
 
         const scenePath = join(scenesDir, `${scene.id}.tsx`);

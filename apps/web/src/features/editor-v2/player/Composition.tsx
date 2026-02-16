@@ -20,6 +20,7 @@ import {
   useVideoSettings,
   useSourceDimensions,
   useLayoutSettings,
+  useIsAudioProject,
 } from '../store/use-editor-store';
 import {
   TimelineItem,
@@ -253,6 +254,7 @@ export function Composition() {
   const videoSettings = useVideoSettings();
   const sourceDimensions = useSourceDimensions();
   const layoutSettings = useLayoutSettings();
+  const isAudioProject = useIsAudioProject();
 
   // Get items by type
   const videoItems = itemIds
@@ -325,7 +327,18 @@ export function Composition() {
   let showVisuals = effectiveHasVisuals;
   let usePiPMode = false;
 
-  if (!effectiveHasVisuals) {
+  if (isAudioProject) {
+    // Audio project: no video, visuals fill entire canvas (or black bg)
+    showVideo = false;
+    videoContainerStyle = { display: 'none' };
+    if (effectiveHasVisuals) {
+      visualContainerStyle = fullScreenStyle;
+      showVisuals = true;
+    } else {
+      visualContainerStyle = { display: 'none' };
+      showVisuals = false;
+    }
+  } else if (!effectiveHasVisuals) {
     // No visuals: full-screen video
     videoContainerStyle = fullScreenStyle;
     visualContainerStyle = { display: 'none' };

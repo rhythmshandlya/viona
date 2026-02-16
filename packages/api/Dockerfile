@@ -65,6 +65,9 @@ COPY packages/api/package.json ./packages/api/
 # Install production dependencies only
 RUN pnpm install --frozen-lockfile --filter @reelify/api... --prod
 
+# Install Claude Code CLI for Creative Director agent (Agent SDK spawns claude subprocess)
+RUN npm install -g @anthropic-ai/claude-code
+
 # Copy built files
 COPY --from=builder /app/packages/api/dist ./packages/api/dist
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
@@ -72,6 +75,11 @@ COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 api
+
+# Create home directory for claude CLI cache
+RUN mkdir -p /home/api && chown -R api:nodejs /home/api
+ENV HOME="/home/api"
+
 USER api
 
 WORKDIR /app/packages/api

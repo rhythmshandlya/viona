@@ -381,8 +381,11 @@ export interface Project {
   id: string;
   title: string | null;
   status: string;
+  projectType?: 'video' | 'audio';
   videoKey: string | null;
+  audioKey?: string | null;
   videoUrl: string | null;
+  audioUrl?: string | null;
   outputKey: string | null;
   durationMs: number;
   fps: number;

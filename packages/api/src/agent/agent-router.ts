@@ -125,6 +125,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const systemPrompt = buildSystemPrompt({
       projectId,
       title: project.title,
+      projectType: project.projectType || 'video',
       canvasWidth: (videoSettings.canvasWidth as number) ?? 1080,
       canvasHeight: (videoSettings.canvasHeight as number) ?? 1920,
       durationMs: project.durationMs,

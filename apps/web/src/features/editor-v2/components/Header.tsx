@@ -26,15 +26,12 @@ interface HeaderProps {
   isTranscriptActive?: boolean;
   layout?: 'stacked' | 'side-by-side';
   onToggleLayout?: () => void;
-  onGenerateVisuals?: () => void;
-  isGeneratingVisuals?: boolean;
-  hasTranscript?: boolean;
   onToggleLogs?: () => void;
   isLogsActive?: boolean;
   hasActiveJob?: boolean;
 }
 
-export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive, layout, onToggleLayout, onGenerateVisuals, isGeneratingVisuals, hasTranscript, onToggleLogs, isLogsActive, hasActiveJob }: HeaderProps) {
+export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive, layout, onToggleLayout, onToggleLogs, isLogsActive, hasActiveJob }: HeaderProps) {
   const router = useRouter();
   const project = useProject();
   const { saveProject } = useEditorActions();
@@ -178,24 +175,6 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
             {hasActiveJob && !isLogsActive && (
               <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
             )}
-          </button>
-        )}
-
-        {/* Generate Visuals button */}
-        {hasTranscript && (
-          <button
-            onClick={onGenerateVisuals}
-            disabled={isGeneratingVisuals}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              isGeneratingVisuals
-                ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)] cursor-wait'
-                : 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)] hover:bg-[var(--editor-accent)] hover:text-white'
-            }`}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
-            <span>{isGeneratingVisuals ? 'Generating...' : 'Generate Visuals'}</span>
           </button>
         )}
 

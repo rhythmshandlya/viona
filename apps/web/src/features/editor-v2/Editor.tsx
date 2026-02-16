@@ -14,7 +14,6 @@ import { PlaybackBar } from './components/PlaybackBar';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
 import { StylePanel } from './panels/StylePanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
-import { StyleSelectionModal } from './components/StyleSelectionModal';
 import { JobLogsPanel } from './components/JobLogsPanel';
 import { ExportModal } from './components/ExportModal';
 import { AIAssistantPanel } from './components/AIAssistantPanel';
@@ -36,7 +35,7 @@ import {
   useEditorStore,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
-import { api, GenerateVisualsOptions, JobMetrics } from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface EditorProps {
   projectId: string;
@@ -70,9 +69,7 @@ export function Editor({ projectId }: EditorProps) {
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('mockup');
   const lastPlatformRef = useRef<SocialPlatform>('instagram');
 
-  // AI Visuals generation state
-  const [showStyleModal, setShowStyleModal] = useState(false);
-  const [isGeneratingVisuals, setIsGeneratingVisuals] = useState(false);
+  // Job logs panel state
   const [showLogsPanel, setShowLogsPanel] = useState(false);
 
   // Export modal state
@@ -103,7 +100,6 @@ export function Editor({ projectId }: EditorProps) {
   const error = useError();
   const selectedIds = useSelectedIds();
   const captionItems = useCaptionItems();
-  const hasTranscript = captionItems.length > 0;
 
   // Actions
   const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus } = useEditorActions();
@@ -220,41 +216,13 @@ export function Editor({ projectId }: EditorProps) {
     setShowExportModal(true);
   };
 
-  // Generate visuals state
+  // Generate visuals state (used by job WebSocket tracking and logs panel)
   const [visualsJobId, setVisualsJobId] = useState<string | null>(null);
   const [visualsProgress, setVisualsProgress] = useState(0);
   const [visualsStatus, setVisualsStatus] = useState<string>('');
   const [visualsError, setVisualsError] = useState<string | null>(null);
   const [visualsComplete, setVisualsComplete] = useState(false);
-  const [visualsMetrics, setVisualsMetrics] = useState<JobMetrics | null>(null);
-  const [visualsPreviewUrl, setVisualsPreviewUrl] = useState<string | null>(null);
-
-  // Handle generate visuals
-  const handleOpenStyleModal = () => {
-    setShowStyleModal(true);
-  };
-
-  const handleGenerateVisuals = async (options: GenerateVisualsOptions) => {
-    if (!project) return;
-    setIsGeneratingVisuals(true);
-    setVisualsProgress(0);
-    setVisualsStatus('Starting...');
-    setVisualsError(null); // Clear any previous error
-    setVisualsComplete(false); // Reset completion state
-    setVisualsMetrics(null);
-    setVisualsPreviewUrl(null);
-    try {
-      const { jobId } = await api.generateVisuals(project.id, options);
-      console.log('Visual generation started:', jobId, options);
-      setVisualsJobId(jobId);
-      setShowLogsPanel(true); // Auto-open logs panel
-      setShowStyleModal(false); // Close modal - progress shown in logs panel
-    } catch (err) {
-      console.error('Visual generation failed:', err);
-      setIsGeneratingVisuals(false);
-      setShowStyleModal(false);
-    }
-  };
+  const [isGeneratingVisuals, setIsGeneratingVisuals] = useState(false);
 
   // WebSocket for real-time job updates
   const { isConnected: wsConnected, subscribeToJob, unsubscribeFromJob } = useJobWebSocket(
@@ -274,23 +242,12 @@ export function Editor({ projectId }: EditorProps) {
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
 
-          // Fetch job to get metrics
-          try {
-            const job = await api.getJob(data.jobId);
-            if (job.metrics) {
-              setVisualsMetrics(job.metrics);
-            }
-          } catch (err) {
-            console.error('Failed to fetch job metrics:', err);
-          }
-
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
             reloadVisuals(project.id);
           }
 
           setVisualsJobId(null);
-          setShowStyleModal(true); // Re-open modal to show completion
         }
       },
       onError: (data) => {
@@ -299,7 +256,6 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsError(data.error || 'Unknown error occurred');
           setIsGeneratingVisuals(false);
           setVisualsJobId(null);
-          setShowStyleModal(true); // Re-open modal to show error
         }
       },
     }
@@ -329,18 +285,12 @@ export function Editor({ projectId }: EditorProps) {
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
 
-          // Set metrics from job
-          if (job.metrics) {
-            setVisualsMetrics(job.metrics);
-          }
-
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
             reloadVisuals(project.id);
           }
 
           setVisualsJobId(null);
-          setShowStyleModal(true); // Re-open modal to show completion
         } else if (job.status === 'failed' || job.status === 'cancelled') {
           const errorMsg = job.status === 'cancelled'
             ? 'Generation was cancelled'
@@ -349,7 +299,6 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsError(errorMsg);
           setIsGeneratingVisuals(false);
           setVisualsJobId(null);
-          setShowStyleModal(true); // Re-open modal to show error
         } else if (job.status === 'processing') {
           setVisualsStatus('Generating visuals with AI...');
         }
@@ -370,38 +319,6 @@ export function Editor({ projectId }: EditorProps) {
     } catch (err) {
       console.error('Failed to cancel job:', err);
     }
-  };
-
-  // Confirm adding visuals to timeline
-  const handleConfirmAddVisuals = () => {
-    // Reload visuals only (preserves playback position and selection)
-    reloadVisuals(project!.id);
-    // Reset all states and close modal
-    setShowStyleModal(false);
-    setVisualsComplete(false);
-    setVisualsMetrics(null);
-    setVisualsPreviewUrl(null);
-  };
-
-  // Discard generated visuals (delete from database and close modal)
-  const handleDiscardVisuals = async () => {
-    if (!project) return;
-
-    // If visuals were generated, delete them from the database
-    if (visualsComplete) {
-      try {
-        await api.deleteVisuals(project.id);
-        console.log('Visuals deleted successfully');
-      } catch (err) {
-        console.error('Failed to delete visuals:', err);
-      }
-    }
-
-    setShowStyleModal(false);
-    setVisualsComplete(false);
-    setVisualsMetrics(null);
-    setVisualsPreviewUrl(null);
-    setVisualsError(null);
   };
 
   // Loading state
@@ -451,9 +368,6 @@ export function Editor({ projectId }: EditorProps) {
       <Header
         onOpenCommandPalette={commandPalette.open}
         onExport={handleExport}
-        onGenerateVisuals={handleOpenStyleModal}
-        isGeneratingVisuals={isGeneratingVisuals}
-        hasTranscript={hasTranscript}
         onToggleLogs={() => setShowLogsPanel(!showLogsPanel)}
         isLogsActive={showLogsPanel}
         hasActiveJob={!!visualsJobId}
@@ -658,30 +572,6 @@ export function Editor({ projectId }: EditorProps) {
       <CommandPalette
         isOpen={commandPalette.isOpen}
         onClose={commandPalette.close}
-      />
-
-      {/* Style Selection Modal for AI Visuals */}
-      <StyleSelectionModal
-        open={showStyleModal}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleDiscardVisuals();
-          } else {
-            setShowStyleModal(open);
-          }
-        }}
-        onSelect={handleGenerateVisuals}
-        onCancel={handleCancelVisuals}
-        onConfirmAdd={handleConfirmAddVisuals}
-        isLoading={isGeneratingVisuals}
-        progress={visualsProgress}
-        status={visualsStatus}
-        error={visualsError}
-        isComplete={visualsComplete}
-        metrics={visualsMetrics}
-        previewUrl={visualsPreviewUrl}
-        canvasWidth={project?.videoSettings?.canvasWidth || 1080}
-        canvasHeight={project?.videoSettings?.canvasHeight || 1920}
       />
 
       {/* Export Modal */}

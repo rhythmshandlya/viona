@@ -18,19 +18,23 @@ export interface CreateProjectResponse {
   projectId: string;
   uploadUrl: string;
   videoKey: string;
+  projectType?: 'video' | 'audio';
 }
 
 export interface ProcessProjectResponse {
   jobId: string;
   transcribeJobId: string;
-  enhanceJobId: string;
+  enhanceJobId: string | null;
+  totalJobs?: number;
 }
 
 export interface Project {
   id: string;
   title: string | null;
   status: string;
+  projectType?: 'video' | 'audio';
   videoKey: string | null;
+  audioKey?: string | null;
   outputKey: string | null;
   durationMs: number | null;
   fps: number;
@@ -41,6 +45,8 @@ export interface Project {
   tracks: Track[];
   items: TimelineItem[];
   transcript: Transcript | null;
+  videoPresignedUrl?: string | null;
+  audioPresignedUrl?: string | null;
 }
 
 export interface Track {
@@ -229,7 +235,9 @@ export interface UserProject {
   id: string;
   title: string | null;
   status: string;
+  projectType?: 'video' | 'audio';
   videoKey: string | null;
+  audioKey?: string | null;
   thumbnailKey: string | null;
   durationMs: number | null;
   createdAt: string;

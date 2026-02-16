@@ -34,6 +34,7 @@ export interface ExportOptions {
 export interface RenderJobData {
   projectId: string;
   jobId: string;
+  projectType?: string;
   layoutSettings?: {
     mode: 'pip' | 'split-horizontal' | 'split-vertical';
     pip: {

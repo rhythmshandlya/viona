@@ -1,0 +1,2 @@
+ALTER TABLE projects ADD COLUMN project_type VARCHAR(20) NOT NULL DEFAULT 'video';
+ALTER TABLE projects ADD COLUMN audio_key VARCHAR(255);

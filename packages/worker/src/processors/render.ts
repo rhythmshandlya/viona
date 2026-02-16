@@ -304,6 +304,7 @@ export interface FullscreenSegment {
 export interface RenderJobData {
   projectId: string;
   jobId: string;
+  projectType?: string;
   layoutSettings?: LayoutSettings;
   fullscreenSegments?: FullscreenSegment[];
 }
@@ -343,11 +344,27 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       allItems.push(...items);
     }
 
-    await publishJobProgress(jobId, 10, 'Downloading video...');
+    const isAudioProject = (job.data.projectType || project.projectType || 'video') === 'audio';
 
-    // Download original video
-    const videoPath = join(workDir, 'input.mp4');
-    await downloadFile('uploads', project.videoKey!, videoPath);
+    // Download source media
+    let videoPath: string | null = null;
+    let audioOnlyPath: string | null = null;
+
+    if (isAudioProject) {
+      // Audio project: download audio file, no video
+      if (!project.audioKey) {
+        throw new Error('Audio project has no audio key');
+      }
+      await publishJobProgress(jobId, 10, 'Downloading audio...');
+      const audioExt = project.audioKey.match(/\.[^.]+$/)?.[0] || '.mp3';
+      audioOnlyPath = join(workDir, `input${audioExt}`);
+      await downloadFile('uploads', project.audioKey, audioOnlyPath);
+    } else {
+      // Video project: download video
+      await publishJobProgress(jobId, 10, 'Downloading video...');
+      videoPath = join(workDir, 'input.mp4');
+      await downloadFile('uploads', project.videoKey!, videoPath);
+    }
 
     await publishJobProgress(jobId, 20, 'Preparing render...');
 
@@ -392,7 +409,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
     }
     logger.info({ resolvedFontFamily, firstStyleAfter: (subtitles[0]?.style as any)?.fontFamily }, 'Resolved font families in all subtitles');
 
-    // Check for enhanced audio
+    // Check for enhanced audio (or source audio for audio projects)
     const audioItems = allItems.filter((item: any) => item.type === 'audio');
     const enhancedAudioItem = audioItems.find((item: any) => {
       const data = item.data as any;
@@ -417,6 +434,11 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           enhancedAudioPath = null;
         }
       }
+    }
+
+    // For audio projects, use the uploaded audio file as the audio source
+    if (isAudioProject && !enhancedAudioPath && audioOnlyPath) {
+      enhancedAudioPath = audioOnlyPath;
     }
 
     // Check for visual compositions to render with Remotion SSR
@@ -510,29 +532,122 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
       await publishJobProgress(jobId, 75, 'Compositing video with audio and subtitles...');
 
-      // Step 2: Composite source video + Remotion visuals + audio + subtitles
-      // Use layoutSettings from export request for exact preview match
-      await renderWithPiPLayout({
-        sourceVideoPath: videoPath,
-        remotionVideoPath: remotionTempPath,
-        audioPath: enhancedAudioPath,
-        subtitles,
-        outputPath,
-        workDir,
-        width: outputWidth,
-        height: outputHeight,
-        layoutSettings,
-        fullscreenSegments,
-        fontsDir,
-        resolvedFontFamily,
-        onProgress: (progress) => {
-          // Map compositing progress from 75% to 85%
-          const jobProgress = 75 + Math.round(progress * 10);
-          publishJobProgress(jobId, jobProgress, `Compositing: ${Math.round(progress * 100)}%`);
-        },
-      });
+      if (isAudioProject) {
+        // Audio project with visuals: use finalizeRemotionVideo (Remotion visuals + audio + subtitles, no source video)
+        await finalizeRemotionVideo({
+          remotionVideoPath: remotionTempPath,
+          audioPath: enhancedAudioPath,
+          subtitles,
+          outputPath,
+          workDir,
+          width: outputWidth,
+          height: outputHeight,
+          fontsDir,
+        });
+      } else {
+        // Video project with visuals: composite source video + Remotion visuals + audio + subtitles
+        // Use layoutSettings from export request for exact preview match
+        await renderWithPiPLayout({
+          sourceVideoPath: videoPath!,
+          remotionVideoPath: remotionTempPath,
+          audioPath: enhancedAudioPath,
+          subtitles,
+          outputPath,
+          workDir,
+          width: outputWidth,
+          height: outputHeight,
+          layoutSettings,
+          fullscreenSegments,
+          fontsDir,
+          resolvedFontFamily,
+          onProgress: (progress) => {
+            // Map compositing progress from 75% to 85%
+            const jobProgress = 75 + Math.round(progress * 10);
+            publishJobProgress(jobId, jobProgress, `Compositing: ${Math.round(progress * 100)}%`);
+          },
+        });
+      }
 
       logger.info({ projectId, outputPath }, 'Export complete with full composite');
+    } else if (isAudioProject) {
+      // Audio project without visuals: black canvas + subtitles + audio
+      await publishJobProgress(jobId, 30, 'Rendering audio project...');
+
+      const videoSettings = (project.videoSettings as any) || {};
+      const canvasWidth = videoSettings.canvasWidth || 1080;
+      const canvasHeight = videoSettings.canvasHeight || 1920;
+      const durationMs = project.durationMs || (subtitles.length > 0 ? Math.max(...subtitles.map(s => s.endMs)) + 1000 : 10000);
+
+      if (subtitles.length > 0) {
+        // Generate ASS subtitles and render over black canvas with audio
+        const { writeFile: writeFileFs } = await import('fs/promises');
+        const { spawn: spawnProcess } = await import('child_process');
+
+        const assContent = generateASSForComposite(subtitles, canvasWidth, canvasHeight);
+        const assPath = join(workDir, 'subtitles.ass');
+        await writeFileFs(assPath, assContent, 'utf-8');
+
+        // Use FFmpeg to create black canvas + subtitles + audio
+        const durationSec = (durationMs / 1000).toFixed(3);
+        const args = [
+          '-f', 'lavfi',
+          '-i', `color=c=black:s=${canvasWidth}x${canvasHeight}:d=${durationSec}:r=30`,
+        ];
+
+        if (enhancedAudioPath) {
+          const { basename: baseFn } = await import('path');
+          const audioFilename = baseFn(enhancedAudioPath);
+          args.push('-i', audioFilename);
+        }
+
+        args.push('-y');
+        args.push('-vf', `subtitles=${escapePathForFilter(assPath)}:fontsdir=${fontsDir}`);
+        args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
+
+        if (enhancedAudioPath) {
+          args.push('-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-shortest');
+        }
+
+        args.push(outputPath);
+
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawnProcess('ffmpeg', args, { cwd: workDir, stdio: ['ignore', 'pipe', 'pipe'] });
+          let stderr = '';
+          proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+          proc.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`FFmpeg (audio render) exited with code ${code}: ${stderr.slice(-500)}`));
+          });
+          proc.on('error', (err) => reject(new Error(`Failed to spawn ffmpeg: ${err.message}`)));
+        });
+      } else if (enhancedAudioPath) {
+        // No subtitles, just audio: create black canvas + audio
+        const { spawn: spawnProcess } = await import('child_process');
+        const { basename: baseFn } = await import('path');
+
+        const durationSec = (durationMs / 1000).toFixed(3);
+        const audioFilename = baseFn(enhancedAudioPath);
+        const args = [
+          '-f', 'lavfi',
+          '-i', `color=c=black:s=1080x1920:d=${durationSec}:r=30`,
+          '-i', audioFilename,
+          '-y',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+          '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-shortest',
+          outputPath,
+        ];
+
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawnProcess('ffmpeg', args, { cwd: workDir, stdio: ['ignore', 'pipe', 'pipe'] });
+          let stderr = '';
+          proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+          proc.on('close', (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`FFmpeg (audio render) exited with code ${code}: ${stderr.slice(-500)}`));
+          });
+          proc.on('error', (err) => reject(new Error(`Failed to spawn ffmpeg: ${err.message}`)));
+        });
+      }
     } else {
       // No visuals - render subtitles with Remotion (browser-based for proper Google Fonts)
       await publishJobProgress(jobId, 30, 'Rendering video...');
@@ -574,7 +689,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         }, 'Rendering subtitles with Remotion (browser-based fonts)');
 
         await renderVideo({
-          videoUrl: videoPath,
+          videoUrl: videoPath!,
           subtitles,
           outputPath: remotionOutputPath,
           width: canvasWidth,
@@ -607,7 +722,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           await encodeVideoWithAudio(remotionOutputPath, enhancedAudioPath, outputPath);
         }
       } else {
-        await encodeVideoWithAudio(videoPath, enhancedAudioPath, outputPath);
+        await encodeVideoWithAudio(videoPath!, enhancedAudioPath, outputPath);
       }
     }
 

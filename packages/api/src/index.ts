@@ -5,8 +5,11 @@ import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { homedir } from 'os';
 import { pipeline } from 'stream/promises';
+import { execSync } from 'child_process';
 import { config } from './config.js';
 import { ensureBuckets, getObjectStream, objectExists, listObjects } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
@@ -15,6 +18,40 @@ import { agentRoutes } from './agent/agent-router.js';
 import { setupWebSocket } from './ws/handler.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
+
+/**
+ * Create Claude credentials file from environment variables.
+ * The Claude CLI (spawned by Agent SDK) reads credentials from ~/.claude/.credentials.json
+ */
+function setupClaudeCredentials(): void {
+  const accessToken = process.env.CLAUDE_OAUTH_ACCESS_TOKEN;
+  if (!accessToken) {
+    console.warn('No CLAUDE_OAUTH_ACCESS_TOKEN set, skipping Claude credentials setup');
+    return;
+  }
+
+  const claudeDir = join(homedir(), '.claude');
+  const credentialsPath = join(claudeDir, '.credentials.json');
+
+  if (!existsSync(claudeDir)) {
+    mkdirSync(claudeDir, { recursive: true });
+  }
+
+  const credentials = {
+    claudeAiOauth: {
+      accessToken,
+      refreshToken: process.env.CLAUDE_OAUTH_REFRESH_TOKEN || null,
+      expiresAt: process.env.CLAUDE_OAUTH_EXPIRES_AT
+        ? parseInt(process.env.CLAUDE_OAUTH_EXPIRES_AT, 10)
+        : null,
+      scopes: ['user:inference', 'user:profile'],
+      subscriptionType: process.env.CLAUDE_SUBSCRIPTION_TYPE || 'max',
+    },
+  };
+
+  writeFileSync(credentialsPath, JSON.stringify(credentials, null, 2));
+  console.log(`Claude credentials file created at ${credentialsPath}`);
+}
 
 async function main() {
   if (isProduction && !process.env.COOKIE_SECRET) {
@@ -205,6 +242,26 @@ async function main() {
   // Health check
   fastify.get('/health', async () => ({ status: 'ok' }));
 
+  // Debug: test claude subprocess
+  fastify.get('/debug/claude-test', async (_request, reply) => {
+    const { spawn } = await import('child_process');
+    return new Promise((resolve) => {
+      const proc = spawn('claude', ['-p', 'say hello in 5 words', '--output-format', 'text'], {
+        env: { ...process.env, CLAUDECODE: undefined },
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      let stdout = '';
+      let stderr = '';
+      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
+      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+      proc.on('close', (code: number) => {
+        reply.send({ code, stdout: stdout.slice(0, 500), stderr: stderr.slice(0, 500) });
+        resolve(undefined);
+      });
+      setTimeout(() => { proc.kill(); reply.send({ error: 'timeout' }); resolve(undefined); }, 15000);
+    });
+  });
+
   // Register routes
   await fastify.register(projectRoutes, { prefix: '/api' });
   await fastify.register(userRoutes, { prefix: '/api' });
@@ -220,6 +277,17 @@ async function main() {
   } catch (err) {
     fastify.log.error(err, 'Failed to ensure storage bucket');
     // Continue anyway, bucket might already exist
+  }
+
+  // Set up Claude CLI credentials from env vars (Agent SDK spawns claude subprocess)
+  setupClaudeCredentials();
+
+  // Verify Claude CLI is available for Agent SDK
+  try {
+    const claudeVersion = execSync('claude --version 2>&1', { encoding: 'utf-8', timeout: 10000 }).trim();
+    fastify.log.info(`Claude CLI available: ${claudeVersion}`);
+  } catch (err: any) {
+    fastify.log.error(`Claude CLI check failed: ${err.message}\nstdout: ${err.stdout}\nstderr: ${err.stderr}`);
   }
 
   // Start server

@@ -10,7 +10,7 @@
 
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { readFile, readdir, stat } from 'fs/promises';
+import { readFile, readdir, stat, writeFile as writeFileAsync } from 'fs/promises';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { spawn, ChildProcess, execSync } from 'child_process';
@@ -203,6 +203,59 @@ async function compileCjs(projectDir: string, bundleDir: string): Promise<void> 
   }
 }
 
+/**
+ * Auto-fix common Remotion issues in all .tsx files within a project directory.
+ * Fixes descending interpolate ranges that crash the Remotion player.
+ */
+async function autoFixProjectFiles(projectDir: string): Promise<void> {
+  const entries = await readdir(projectDir, { recursive: true, withFileTypes: true });
+  let fixedCount = 0;
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.tsx')) continue;
+    const parentPath = (entry as any).parentPath ?? (entry as any).path ?? projectDir;
+    const filePath = join(parentPath, entry.name);
+
+    let content = await readFile(filePath, 'utf-8');
+    const original = content;
+
+    // Fix descending interpolate ranges by reversing both input and output
+    content = content.replace(
+      /interpolate\s*\(\s*([^,]+),\s*\[([^\]]+)\],\s*\[([^\]]+)\]/g,
+      (match, input, inputRange, outputRange) => {
+        const inputParts = inputRange.split(',').map((n: string) => n.trim());
+        const outputParts = outputRange.split(',').map((n: string) => n.trim());
+        const inputNums = inputParts.map((n: string) => parseFloat(n)).filter((n: number) => !isNaN(n));
+
+        let isDescending = false;
+        for (let i = 1; i < inputNums.length; i++) {
+          if (inputNums[i] < inputNums[i - 1]) {
+            isDescending = true;
+            break;
+          }
+        }
+
+        if (isDescending && inputNums.length === inputParts.length) {
+          const fixedInputRange = [...inputParts].reverse().join(', ');
+          const fixedOutputRange = [...outputParts].reverse().join(', ');
+          return `interpolate(${input}, [${fixedInputRange}], [${fixedOutputRange}]`;
+        }
+        return match;
+      }
+    );
+
+    if (content !== original) {
+      await writeFileAsync(filePath, content);
+      fixedCount++;
+      logger.info({ filePath }, 'Auto-fixed descending interpolate ranges');
+    }
+  }
+
+  if (fixedCount > 0) {
+    logger.info({ projectDir, fixedCount }, 'Auto-fixed files with descending interpolate ranges');
+  }
+}
+
 export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
   const { projectId, jobId, compositionId, prompt, sceneId, elementName, transcript, scenePlan } = job.data;
 
@@ -307,6 +360,10 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
         height: visual.height,
       };
     }
+
+    // Auto-fix common issues in edited source files (descending interpolate ranges, etc.)
+    await publishJobProgress(jobId, 73, 'Auto-fixing common issues...');
+    await autoFixProjectFiles(projectDir);
 
     await publishJobProgress(jobId, 75, 'Verifying bundle...');
 
