@@ -248,13 +248,13 @@ export function ExportModal({
               <div className="flex flex-col items-center gap-4 py-4">
                 <div className="relative">
                   <div className="w-16 h-16 rounded-full border-4 border-gray-200">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <svg className="w-full h-full -rotate-90 text-primary" viewBox="0 0 100 100">
                       <circle
                         cx="50"
                         cy="50"
                         r="42"
                         fill="none"
-                        stroke="#f97316"
+                        stroke="currentColor"
                         strokeWidth="8"
                         strokeLinecap="round"
                         strokeDasharray={`${progress * 2.64} 264`}

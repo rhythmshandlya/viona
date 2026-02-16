@@ -28,8 +28,8 @@ const stytchStyles = {
     width: "100%",
   },
   colors: {
-    primary: "#F97316",
-    secondary: "#EA580C",
+    primary: "#424874",
+    secondary: "#353B60",
     success: "#22c55e",
     error: "#ef4444",
   },

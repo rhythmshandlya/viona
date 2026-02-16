@@ -1,7 +1,7 @@
 // Keep in sync with globals.css @theme — only used for HTML <meta> attributes that require raw hex values
 export const theme = {
-  primary: "#6B3F69",
-  secondary: "#8D5F8C",
-  accent: "#A376A2",
-  soft: "#DDC3C3",
+  primary: "#424874",
+  secondary: "#A6B1E1",
+  accent: "#DCD6F7",
+  soft: "#F4EEFF",
 } as const;
