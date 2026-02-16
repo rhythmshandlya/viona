@@ -2961,6 +2961,10 @@ registerRoot(RemotionRoot);
                     shutil.rmtree(self.src_dir)
                 self.src_dir.mkdir(parents=True)
 
+                # Create public/assets directory for Freepik asset downloads
+                assets_dir = self.workspace / "public" / "assets"
+                assets_dir.mkdir(parents=True, exist_ok=True)
+
                 # Format transcript with timestamps if available
                 if words:
                     formatted_transcript = format_transcript_with_key_moments(words, fps)
@@ -3212,6 +3216,10 @@ async def main():
 
         # Ensure src dir exists
         generator.src_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create public/assets directory for Freepik asset downloads
+        assets_dir = generator.workspace / "public" / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
 
         # Format transcript with timestamps if available
         if words:
