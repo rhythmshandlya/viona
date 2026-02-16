@@ -153,8 +153,7 @@
       "Bash(pip show:*)",
       "Bash(python:*)",
       "Bash(claude mcp__railway-mcp-server__list-projects:*)",
-      "Bash(unset:*)",
-      "Bash(test:*)"
+      "Bash(unset:*)"
     ]
   }
 }
