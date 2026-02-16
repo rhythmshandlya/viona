@@ -97,6 +97,10 @@ export const config = {
     },
   },
 
+  freepik: {
+    apiKey: process.env.FREEPIK_API_KEY || '',
+  },
+
   remotion: {
     projectDir: resolve(process.env.REMOTION_PROJECT_DIR || join(process.cwd(), 'remotion-temp')),
     // IMPORTANT: In production, use /tmp/bundles (ephemeral but uploaded to S3)
