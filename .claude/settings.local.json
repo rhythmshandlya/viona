@@ -203,7 +203,8 @@
       "WebFetch(domain:lobehub.com)",
       "WebFetch(domain:skywork.ai)",
       "WebFetch(domain:glama.ai)",
-      "WebFetch(domain:playbooks.com)"
+      "WebFetch(domain:playbooks.com)",
+      "Bash(claude:*)"
     ]
   }
 }
