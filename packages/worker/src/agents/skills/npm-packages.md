@@ -132,15 +132,6 @@ const visualization = visualizeAudio({
 });
 ```
 
-### @remotion/lottie - After Effects Animations
-Import Lottie animations from After Effects.
-```tsx
-import { Lottie } from '@remotion/lottie';
-import animationData from './animation.json';
-
-<Lottie animationData={animationData} />
-```
-
 ### @remotion/gif - GIF Support
 Display and control GIFs frame-by-frame.
 ```tsx
@@ -228,7 +219,6 @@ npm install --save-exact @remotion/noise@4.0.414
 npm install --save-exact @remotion/transitions@4.0.414
 npm install --save-exact @remotion/media-utils@4.0.414
 npm install --save-exact @remotion/animated-emoji@4.0.414
-npm install --save-exact @remotion/lottie@4.0.414
 npm install --save-exact @remotion/gif@4.0.414
 ```
 
@@ -377,7 +367,6 @@ const snappy = spring({ frame, fps, config: { damping: 15, stiffness: 150 } });
 | Scene transitions | `@remotion/transitions` |
 | Noise/textures | `@remotion/noise` |
 | Animated emojis | `@remotion/animated-emoji` |
-| Lottie animations | `@remotion/lottie` |
 | GIF support | `@remotion/gif` |
 
 **Never install**: framer-motion, gsap, anime.js, react-spring, or any time-based animation library.

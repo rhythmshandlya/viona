@@ -1736,27 +1736,6 @@ const RollingDice: React.FC = () => {{
 ```
 </three_js_3d>
 
-<npm_package_search>
-**NPM Package Discovery**
-
-When you need specialized functionality not covered by pre-installed packages:
-
-1. Use search_npm_packages("your query") to find packages
-2. Review results - only install packages marked [+] VALID
-3. Install: npm install package-name
-4. Import and use in your composition
-
-GOOD SEARCH QUERIES:
-- "three.js physics cannon rapier" -> finds physics engines
-- "3d text troika" -> finds text rendering
-- "three particles" -> finds particle systems
-- "simplex noise procedural" -> finds noise generators
-
-DO NOT SEARCH FOR (already installed):
-- "react three fiber" / "drei" / "remotion three" / "three.js"
-- Any @remotion/* packages
-- react, react-dom
-</npm_package_search>
 
 <assets_and_visuals>
 ## PREMIUM ASSET LIBRARY — FREEPIK

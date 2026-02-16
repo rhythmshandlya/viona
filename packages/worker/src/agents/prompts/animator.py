@@ -314,9 +314,10 @@ For scenes requiring TRUE 3D (not just CSS transforms), use @remotion/three:
 ### Basic 3D Setup:
 ```tsx
 import {{ ThreeCanvas }} from '@remotion/three';
-import {{ useThree, useFrame }} from '@react-three/fiber';
+import {{ useCurrentFrame }} from 'remotion';
 
 const My3DScene: React.FC = () => {{
+  const frame = useCurrentFrame();
   return (
     <ThreeCanvas>
       <ambientLight intensity={{0.5}} />
@@ -329,6 +330,9 @@ const My3DScene: React.FC = () => {{
   );
 }};
 ```
+
+**CRITICAL: NEVER use `useFrame()` from @react-three/fiber — it breaks Remotion's video rendering.
+Always use `useCurrentFrame()` from 'remotion' for frame-based animation.**
 
 ### 3D Dice Example:
 ```tsx
@@ -383,6 +387,7 @@ something better?" The answer is almost always yes.
 
 **Icons:**
 - mcp__freepik__search_icons with `term` parameter: "cloud computing", "server rack", "neural network"
+- mcp__freepik__get_icon_detail_by_id to preview icon details before downloading
 - Filter by shape: "fill" for solid icons, "outline" for line icons
 - Filter by icon_type: ["standard"] for static, ["animated"] for motion
 - Search CONCEPTS, not literal descriptions. "growth" not "line going up".
@@ -390,14 +395,16 @@ something better?" The answer is almost always yes.
 
 **Resources (illustrations, vectors, photos):**
 - mcp__freepik__search_resources with `term` and content_type filter: {{ content_type: {{ vector: 1 }} }}
+- mcp__freepik__get_resource_detail_by_id to preview resource details before downloading
 - Prefer vectors over photos — cleaner scaling, transparent backgrounds
 - Use orientation filters for portrait content: {{ orientation: {{ portrait: 1 }} }}
 
 ### HOW TO USE DOWNLOADED ASSETS
 
 **Icons (SVG) — inline in JSX:**
-1. mcp__freepik__download_icon_by_id with id and format="svg" → returns {{ data: {{ url, filename }} }}
-2. Download with Bash: `curl -sL -o public/assets/icon-name.svg "URL"`
+1. mcp__freepik__search_icons → pick best result → optionally mcp__freepik__get_icon_detail_by_id to check details
+2. mcp__freepik__download_icon_by_id with id and format="svg" → returns {{ data: {{ url, filename }} }}
+3. Download with Bash: `curl -sL -o public/assets/icon-name.svg "URL"`
 3. Read the SVG file content with the Read tool
 4. Paste the SVG markup directly into your JSX component
 5. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
@@ -405,7 +412,8 @@ something better?" The answer is almost always yes.
 7. Animate the wrapper with spring/interpolate
 
 **Resources (images/illustrations) — use staticFile:**
-1. mcp__freepik__download_resource_by_id with resource-id → returns {{ data: {{ url, filename }} }}
+1. mcp__freepik__search_resources → pick best result → optionally mcp__freepik__get_resource_detail_by_id to check details
+2. mcp__freepik__download_resource_by_id with resource-id → returns {{ data: {{ url, filename }} }}
 2. Download: `curl -sL -o public/assets/illustration.png "URL"`
 3. In component: `<Img src={{staticFile('assets/illustration.png')}} style={{...}} />`
 4. Import Img from remotion: `import {{ Img, staticFile }} from 'remotion';`
