@@ -57,8 +57,8 @@ COPY packages/renderer ./packages/renderer
 COPY apps/web ./apps/web
 
 # Build packages in order
-RUN pnpm --filter @reelify/shared build && \
-    pnpm --filter @reelify/renderer build && \
+RUN pnpm --filter @viona/shared build && \
+    pnpm --filter @viona/renderer build && \
     pnpm --filter web build
 
 # ============================================
