@@ -573,12 +573,19 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         const controller = new AbortController();
         abortRef.current = controller;
 
-        // Safety timeout — if streaming hangs for 2 minutes total, abort.
-        // This catches cases where the SSE parser's inactivity timeout isn't
-        // enough (e.g. heartbeats keep arriving but no real events).
-        const safetyTimeout = setTimeout(() => {
+        // Safety timeout — abort if no SSE events arrive for 2 minutes.
+        // Resets on every event, so long-running jobs (10-30 min) stay alive
+        // as long as heartbeats/progress keep arriving.
+        let safetyTimeout = setTimeout(() => {
           controller.abort();
         }, 2 * 60 * 1000);
+
+        const resetSafetyTimeout = () => {
+          clearTimeout(safetyTimeout);
+          safetyTimeout = setTimeout(() => {
+            controller.abort();
+          }, 2 * 60 * 1000);
+        };
 
         try {
           const stream = await api.chatWithAgent(projectId, {
@@ -588,6 +595,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           }, controller.signal);
 
           for await (const event of parseSSEStream(stream, { signal: controller.signal })) {
+            resetSafetyTimeout();
             handleSSEEvent(event, assistantId);
           }
 
@@ -620,13 +628,23 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               content: normalizeContent(m.content),
               createdAt: m.createdAt,
             }));
-            setMessages(loaded);
-            if (data.conversationId) setConversationId(data.conversationId);
 
-            // If there's an active job, keep tracking it via WebSocket
+            // If there's an active job, restore progress bar and track via WebSocket
             if (data.activeJob) {
               setActiveJobId(data.activeJob.id);
+              const progressBlock: ProgressBlock = {
+                type: 'progress',
+                percent: data.activeJob.progress ?? 0,
+                message: data.activeJob.message || 'Processing...',
+              };
+              const lastAssistant = [...loaded].reverse().find((m) => m.role === 'assistant');
+              if (lastAssistant) {
+                lastAssistant.content = [...lastAssistant.content, progressBlock];
+              }
             }
+
+            setMessages(loaded);
+            if (data.conversationId) setConversationId(data.conversationId);
 
             clearVisualCache();
             if (reloadVisuals) reloadVisuals(projectId);

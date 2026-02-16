@@ -57,11 +57,15 @@ export async function* parseSSEStream(
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
+      let hasHeartbeat = false;
       for (const line of lines) {
         if (line.startsWith('event: ')) {
           currentEvent = line.slice(7).trim();
         } else if (line.startsWith('data: ')) {
           currentData = line.slice(6).trim();
+        } else if (line.startsWith(':')) {
+          // SSE comment (heartbeat) — flag it so we can yield a synthetic event
+          hasHeartbeat = true;
         } else if (line === '' && currentEvent && currentData) {
           try {
             yield { event: currentEvent, data: JSON.parse(currentData) };
@@ -71,6 +75,11 @@ export async function* parseSSEStream(
           currentEvent = '';
           currentData = '';
         }
+      }
+
+      // Yield heartbeat so the caller can reset its own timeouts
+      if (hasHeartbeat) {
+        yield { event: 'heartbeat', data: {} };
       }
     }
 

@@ -28,22 +28,24 @@ export interface ToolContext {
 }
 
 function normalizeProgressMessage(jobType: string, percent: number, rawMessage?: string): string {
-  if (rawMessage && !rawMessage.startsWith('Processing')) return rawMessage;
-
+  // Plan and edit jobs: always use phase-appropriate messages
+  // (raw worker messages like "refining code..." are misleading for these job types)
   if (jobType === 'plan-visuals') {
     if (percent < 20) return 'Setting up scene planning...';
     if (percent < 85) return 'Planning your scenes...';
     return 'Finalizing plan...';
   }
-  if (jobType === 'generate-visuals') {
-    if (percent < 15) return 'Preparing generation pipeline...';
-    if (percent < 80) return `Generating visuals (${percent}%)...`;
-    return 'Finishing up...';
-  }
   if (jobType === 'edit-visuals') {
     if (percent < 20) return 'Analyzing edit request...';
     if (percent < 85) return 'Editing visual...';
     return 'Validating changes...';
+  }
+  // Generate jobs: pass through meaningful subprocess messages (e.g. "Generating scene 3/8...")
+  if (jobType === 'generate-visuals') {
+    if (rawMessage && !rawMessage.startsWith('Processing')) return rawMessage;
+    if (percent < 15) return 'Preparing generation pipeline...';
+    if (percent < 80) return `Generating visuals (${percent}%)...`;
+    return 'Finishing up...';
   }
   return rawMessage || `Processing (${percent}%)...`;
 }
