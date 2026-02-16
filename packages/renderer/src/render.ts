@@ -89,18 +89,24 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     inputProps,
   });
 
+  // LOW MEMORY MODE: Scale down to 50% to reduce FFmpeg memory usage
+  // This matches the MEMORY_SCALE used in renderWithPiPLayout
+  const MEMORY_SCALE = 0.5;
+  const scaledWidth = Math.round(width * MEMORY_SCALE);
+  const scaledHeight = Math.round(height * MEMORY_SCALE);
+
   // Override composition settings
   const finalComposition = {
     ...composition,
-    width,
-    height,
+    width: scaledWidth,
+    height: scaledHeight,
     fps,
     durationInFrames,
   };
 
   console.log('Starting render...');
   console.log(`  Duration: ${durationMs}ms (${durationInFrames} frames)`);
-  console.log(`  Resolution: ${width}x${height}`);
+  console.log(`  Resolution: ${scaledWidth}x${scaledHeight} (scaled from ${width}x${height})`);
   console.log(`  FPS: ${fps}`);
   console.log(`  Subtitles: ${subtitles.length}`);
 
@@ -120,6 +126,13 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     crf: 23,
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
+    },
+    offthreadVideoCacheSizeInBytes: 50 * 1024 * 1024, // 50MB video cache limit
+    // Limit FFmpeg threads to prevent OOM on Railway (default auto-detects 60+ threads)
+    ffmpegOverride: ({ args }) => {
+      // Insert -threads 4 before the output file (last arg)
+      const outputFile = args[args.length - 1];
+      return [...args.slice(0, -1), '-threads', '4', outputFile];
     },
     onProgress: ({ progress }) => {
       const percent = Math.round(progress * 100);
