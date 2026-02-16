@@ -231,10 +231,10 @@ const COMPONENTS = {
   hr: withClass("hr", "border-foreground/20")
 };
 
-function withClass(tag: keyof JSX.IntrinsicElements, classes: string) {
+function withClass(tag: string, classes: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Component = ({ node, ...props }: any) => {
-    const Tag = tag as React.ElementType;
-    return <Tag className={classes} {...props} />;
+    return React.createElement(tag, { className: classes, ...props });
   };
   Component.displayName = tag;
   return Component;
