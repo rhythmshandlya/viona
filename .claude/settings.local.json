@@ -204,7 +204,11 @@
       "WebFetch(domain:skywork.ai)",
       "WebFetch(domain:glama.ai)",
       "WebFetch(domain:playbooks.com)",
-      "Bash(claude:*)"
+      "Bash(claude:*)",
+      "Bash(CLAUDECODE= claude -p \"say hello\" --output-format text)",
+      "WebFetch(domain:claude-did-this.com)",
+      "Bash(CLAUDECODE= claude setup-token --help)",
+      "Bash(CLAUDECODE= claude setup-token:*)"
     ]
   }
 }

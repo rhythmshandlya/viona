@@ -5,9 +5,8 @@ import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
 import { pipeline } from 'stream/promises';
 import { execSync } from 'child_process';
 import { config } from './config.js';
@@ -18,47 +17,6 @@ import { agentRoutes } from './agent/agent-router.js';
 import { setupWebSocket } from './ws/handler.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
-
-/**
- * Create Claude credentials file from environment variables.
- * The Claude CLI (spawned by Agent SDK) reads credentials from ~/.claude/.credentials.json
- */
-function setupClaudeCredentials(): void {
-  const accessToken = process.env.CLAUDE_OAUTH_ACCESS_TOKEN;
-  if (!accessToken) {
-    console.warn('⚠ No CLAUDE_OAUTH_ACCESS_TOKEN set — Creative Director agent will not work.');
-    console.warn('  Set CLAUDE_OAUTH_ACCESS_TOKEN (and optionally CLAUDE_OAUTH_REFRESH_TOKEN, CLAUDE_OAUTH_EXPIRES_AT) in Railway env vars.');
-    return;
-  }
-
-  const claudeDir = join(homedir(), '.claude');
-  const credentialsPath = join(claudeDir, '.credentials.json');
-
-  if (!existsSync(claudeDir)) {
-    mkdirSync(claudeDir, { recursive: true });
-  }
-
-  const credentials = {
-    claudeAiOauth: {
-      accessToken,
-      refreshToken: process.env.CLAUDE_OAUTH_REFRESH_TOKEN || null,
-      expiresAt: process.env.CLAUDE_OAUTH_EXPIRES_AT
-        ? parseInt(process.env.CLAUDE_OAUTH_EXPIRES_AT, 10)
-        : null,
-      scopes: [
-        'user:inference',
-        'user:mcp_servers',
-        'user:profile',
-        'user:sessions:claude_code',
-      ],
-      subscriptionType: process.env.CLAUDE_SUBSCRIPTION_TYPE || 'max',
-      rateLimitTier: process.env.CLAUDE_RATE_LIMIT_TIER || 'default_claude_max_20x',
-    },
-  };
-
-  writeFileSync(credentialsPath, JSON.stringify(credentials, null, 2));
-  console.log(`Claude credentials file created at ${credentialsPath}`);
-}
 
 async function main() {
   if (isProduction && !process.env.COOKIE_SECRET) {
@@ -286,13 +244,14 @@ async function main() {
     // Continue anyway, bucket might already exist
   }
 
-  // Set up Claude CLI credentials from env vars (Agent SDK spawns claude subprocess)
-  setupClaudeCredentials();
-
   // Verify Claude CLI is available for Agent SDK
+  // Auth handled via CLAUDE_CODE_OAUTH_TOKEN env var (long-lived token from `claude setup-token`)
   try {
     const claudeVersion = execSync('claude --version 2>&1', { encoding: 'utf-8', timeout: 10000 }).trim();
     fastify.log.info(`Claude CLI available: ${claudeVersion}`);
+    if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+      fastify.log.warn('CLAUDE_CODE_OAUTH_TOKEN not set — Creative Director agent will not work in production. Run `claude setup-token` to generate one.');
+    }
   } catch (err: any) {
     fastify.log.error(`Claude CLI check failed: ${err.message}\nstdout: ${err.stdout}\nstderr: ${err.stderr}`);
   }

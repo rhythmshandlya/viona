@@ -1,7 +1,4 @@
 import { Worker } from 'bullmq';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
@@ -14,42 +11,6 @@ import { processPreloadProjectJob, PreloadProjectJobData } from './processors/pr
 import { processPlanVisualsJob, PlanVisualsJobData } from './processors/plan-visuals.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
-
-/**
- * Create Claude credentials file from environment variables.
- * The Claude CLI reads credentials from ~/.claude/.credentials.json
- */
-function setupClaudeCredentials(): void {
-  const accessToken = process.env.CLAUDE_OAUTH_ACCESS_TOKEN;
-  if (!accessToken) {
-    logger.info('No CLAUDE_OAUTH_ACCESS_TOKEN set, skipping credentials setup');
-    return;
-  }
-
-  const claudeDir = join(homedir(), '.claude');
-  const credentialsPath = join(claudeDir, '.credentials.json');
-
-  // Create .claude directory if needed
-  if (!existsSync(claudeDir)) {
-    mkdirSync(claudeDir, { recursive: true });
-  }
-
-  // Build credentials object
-  const credentials = {
-    claudeAiOauth: {
-      accessToken,
-      refreshToken: process.env.CLAUDE_OAUTH_REFRESH_TOKEN || null,
-      expiresAt: process.env.CLAUDE_OAUTH_EXPIRES_AT
-        ? parseInt(process.env.CLAUDE_OAUTH_EXPIRES_AT, 10)
-        : null,
-      scopes: ['user:inference', 'user:profile'],
-      subscriptionType: process.env.CLAUDE_SUBSCRIPTION_TYPE || 'max',
-    },
-  };
-
-  writeFileSync(credentialsPath, JSON.stringify(credentials, null, 2));
-  logger.info({ credentialsPath }, 'Claude credentials file created from environment variables');
-}
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {
@@ -67,8 +28,10 @@ async function main() {
   const workerId = getWorkerId();
   logger.info({ workerId }, 'Starting Viona worker...');
 
-  // Setup Claude credentials from environment variables (for Railway deployment)
-  setupClaudeCredentials();
+  // Auth: Claude Agent SDK reads CLAUDE_CODE_OAUTH_TOKEN from env (long-lived token from `claude setup-token`)
+  if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    logger.warn('CLAUDE_CODE_OAUTH_TOKEN not set — visual generation will not work in production. Run `claude setup-token` to generate one.');
+  }
 
   // Ensure remotion template is available (downloads from S3 in prod)
   logger.info({ workerId }, 'Ensuring remotion template is available...');
