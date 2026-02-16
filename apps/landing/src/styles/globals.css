@@ -8,8 +8,11 @@
   --color-muted: #f5f5f5;
   --color-muted-foreground: #6b7280;
   --color-border: #e5e5e5;
-  --color-primary: #F97316;
+  --color-primary: #6B3F69;
   --color-primary-foreground: #ffffff;
+  --color-secondary: #8D5F8C;
+  --color-accent: #A376A2;
+  --color-soft: #DDC3C3;
   --color-card: #ffffff;
   --color-dark: #1a1a1a;
 
@@ -54,7 +57,7 @@ header {
   right: 0;
   bottom: -4px;
   height: 8px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M0 5 Q 12.5 0, 25 5 T 50 5 T 75 5 T 100 5' stroke='%23F97316' stroke-width='2' fill='none'/%3E%3C/svg%3E") repeat-x;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M0 5 Q 12.5 0, 25 5 T 50 5 T 75 5 T 100 5' stroke='%236B3F69' stroke-width='2' fill='none'/%3E%3C/svg%3E") repeat-x;
   background-size: 50px 8px;
   clip-path: inset(0 100% 0 0);
   transition: clip-path 0.8s ease-out;
@@ -88,7 +91,7 @@ header {
   left: -200px;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(249, 115, 22, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(107, 63, 105, 0.15) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
