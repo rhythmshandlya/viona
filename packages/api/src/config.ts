@@ -52,7 +52,7 @@ export const config = {
   corsOrigin: process.env.CORS_ORIGIN || '',
 
   // Anthropic (Creative Director agent)
-  // Auth handled by Claude Agent SDK (reads OAuth credentials internally)
+  // Requires ANTHROPIC_API_KEY in environment (Claude Agent SDK uses it for auth)
   anthropic: {
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
   },

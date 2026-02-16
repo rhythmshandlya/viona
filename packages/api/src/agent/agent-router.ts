@@ -285,7 +285,6 @@ export async function agentRoutes(fastify: FastifyInstance) {
           permissionMode: 'bypassPermissions',
           allowDangerouslySkipPermissions: true,
           model: config.anthropic.model,
-          settingSources: ['user'],
           abortController,
           tools: [],
           maxTurns: 10,
