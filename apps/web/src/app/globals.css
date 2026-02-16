@@ -256,13 +256,13 @@
 
 .moveable-line.moveable-guideline.moveable-horizontal {
   height: 1px !important;
-  background: #7C3AED !important;
+  background: var(--primary) !important;
   opacity: 0.8 !important;
 }
 
 .moveable-line.moveable-guideline.moveable-vertical {
   width: 1px !important;
-  background: #7C3AED !important;
+  background: var(--primary) !important;
   opacity: 0.8 !important;
 }
 
@@ -340,13 +340,13 @@
 
 .moveable-line.moveable-guideline.moveable-horizontal {
   height: 1px !important;
-  background: #7C3AED !important;
+  background: var(--primary) !important;
   opacity: 0.8 !important;
 }
 
 .moveable-line.moveable-guideline.moveable-vertical {
   width: 1px !important;
-  background: #7C3AED !important;
+  background: var(--primary) !important;
   opacity: 0.8 !important;
 }
 

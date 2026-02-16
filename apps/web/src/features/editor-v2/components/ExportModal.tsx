@@ -254,7 +254,7 @@ export function ExportModal({
                         cy="50"
                         r="42"
                         fill="none"
-                        stroke="#7C3AED"
+                        stroke="currentColor"
                         strokeWidth="8"
                         strokeLinecap="round"
                         strokeDasharray={`${progress * 2.64} 264`}
