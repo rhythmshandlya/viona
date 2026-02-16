@@ -151,7 +151,9 @@
       "Bash(pip install:*)",
       "Bash(python scripts/detect_head.py:*)",
       "Bash(pip show:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(claude mcp__railway-mcp-server__list-projects:*)",
+      "Bash(unset:*)"
     ]
   }
 }
