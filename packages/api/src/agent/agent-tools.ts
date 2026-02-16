@@ -27,11 +27,52 @@ export interface ToolContext {
   signal?: AbortSignal;
 }
 
+function normalizeProgressMessage(jobType: string, percent: number, rawMessage?: string): string {
+  if (rawMessage && !rawMessage.startsWith('Processing')) return rawMessage;
+
+  if (jobType === 'plan-visuals') {
+    if (percent < 20) return 'Setting up scene planning...';
+    if (percent < 85) return 'Planning your scenes...';
+    return 'Finalizing plan...';
+  }
+  if (jobType === 'generate-visuals') {
+    if (percent < 15) return 'Preparing generation pipeline...';
+    if (percent < 80) return `Generating visuals (${percent}%)...`;
+    return 'Finishing up...';
+  }
+  if (jobType === 'edit-visuals') {
+    if (percent < 20) return 'Analyzing edit request...';
+    if (percent < 85) return 'Editing visual...';
+    return 'Validating changes...';
+  }
+  return rawMessage || `Processing (${percent}%)...`;
+}
+
+function derivePhase(jobType: string, percent: number): string {
+  if (jobType === 'plan-visuals') {
+    if (percent < 20) return 'preparing';
+    if (percent < 88) return 'planning';
+    return 'finalizing';
+  }
+  if (jobType === 'generate-visuals') {
+    if (percent < 15) return 'preparing';
+    if (percent < 85) return 'generating';
+    if (percent < 95) return 'validating';
+    return 'uploading';
+  }
+  if (jobType === 'edit-visuals') {
+    if (percent < 20) return 'preparing';
+    if (percent < 85) return 'editing';
+    return 'validating';
+  }
+  return 'processing';
+}
+
 // Poll a job until it completes or fails, calling sendSSE with progress
 async function pollJobProgress(
   jobId: string,
   ctx: ToolContext,
-  options?: { suppressJobId?: boolean },
+  options?: { suppressJobId?: boolean; jobType?: string },
 ): Promise<{ status: 'complete' | 'failed' | 'timeout' | 'aborted' | 'not_found' }> {
   const POLL_INTERVAL_MS = 2000;
   const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -74,10 +115,13 @@ async function pollJobProgress(
       lastProgressChangeTime = Date.now();
     }
 
+    const jt = options?.jobType || 'unknown';
     ctx.sendSSE('progress', {
       percent: job.progress,
-      message: job.progressMessage || `Processing... (${job.progress}%)`,
+      message: normalizeProgressMessage(jt, job.progress, job.progressMessage || undefined),
       jobId: sendJobId,
+      phase: derivePhase(jt, job.progress),
+      jobType: jt,
     });
 
     if (job.status === 'complete' || job.status === 'completed') {
@@ -540,7 +584,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           // Poll job progress (blocks until complete)
           // suppressJobId: plan-visuals is an intermediate step — don't let the frontend
           // track this job via WebSocket (which would trigger "visuals are ready" on completion)
-          await pollJobProgress(job.id, ctx, { suppressJobId: true });
+          await pollJobProgress(job.id, ctx, { suppressJobId: true, jobType: 'plan-visuals' });
 
           // Read the completed job to get planData
           const completedJob = await db.query.jobs.findFirst({
@@ -666,7 +710,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual generation from approved plan...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          await pollJobProgress(job.id, ctx);
+          await pollJobProgress(job.id, ctx, { jobType: 'generate-visuals' });
 
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
@@ -761,7 +805,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting edit...' });
 
           // Poll job progress (blocks until complete)
-          await pollJobProgress(job.id, ctx);
+          await pollJobProgress(job.id, ctx, { jobType: 'edit-visuals' });
 
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({

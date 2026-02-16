@@ -321,6 +321,15 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
   setJobProjectId(jobId, projectId);
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
 
+  // Proactive lock extension — prevents BullMQ from marking 30-min jobs as stalled
+  const lockExtender = setInterval(async () => {
+    try {
+      await job.extendLock(job.token!, 120_000);
+    } catch (err) {
+      logger.error({ jobId, err }, 'Lock extension failed');
+    }
+  }, 55_000);
+
   try {
     // Update job status
     await db.update(jobs)
@@ -734,6 +743,8 @@ registerRoot(RemotionRoot);
     await publishJobError(jobId, errorMessage);
 
     throw error;
+  } finally {
+    clearInterval(lockExtender);
   }
 }
 

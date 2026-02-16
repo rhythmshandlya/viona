@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw } from 'lucide-react';
+import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw, Square, Clock, AlertCircle, Check, Circle, XCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
@@ -60,6 +60,8 @@ interface ProgressBlock {
   percent: number;
   message: string;
   error?: boolean;
+  phase?: string;
+  jobType?: string;
 }
 
 type MessageBlock = TextBlock | WidgetBlock | ProgressBlock;
@@ -91,6 +93,32 @@ function formatTimeChip(ms: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// Vertical Step Indicator constants
+// ---------------------------------------------------------------------------
+
+const PHASE_STEPS: Record<string, string[]> = {
+  'plan-visuals': ['Loading project', 'Planning scenes', 'Finalizing plan'],
+  'generate-visuals': ['Preparing pipeline', 'Generating visuals', 'Validating code', 'Uploading assets'],
+  'edit-visuals': ['Analyzing request', 'Editing visual', 'Validating changes'],
+};
+
+const PHASE_ORDER: Record<string, string[]> = {
+  'plan-visuals': ['preparing', 'planning', 'finalizing'],
+  'generate-visuals': ['preparing', 'generating', 'validating', 'uploading'],
+  'edit-visuals': ['preparing', 'editing', 'validating'],
+};
+
+function getStepStatus(currentPhase: string | undefined, jobType: string, stepIndex: number): 'done' | 'active' | 'pending' {
+  const phases = PHASE_ORDER[jobType];
+  if (!phases || !currentPhase) return stepIndex === 0 ? 'active' : 'pending';
+  const currentIdx = phases.indexOf(currentPhase);
+  if (currentIdx === -1) return 'pending';
+  if (stepIndex < currentIdx) return 'done';
+  if (stepIndex === currentIdx) return 'active';
+  return 'pending';
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -114,6 +142,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const progressSourceRef = useRef<'sse' | 'ws' | null>(null);
+
+  // Stall detection
+  const [stallState, setStallState] = useState<'ok' | 'slow' | 'stuck'>('ok');
+  const lastProgressTimeRef = useRef(Date.now());
 
   // Track active generation job for WebSocket progress
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -128,6 +161,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // WebSocket for real-time job progress (survives page refresh, unlike SSE)
   const { subscribeToJob } = useJobWebSocket(projectId, {
     onProgress: (data) => {
+      // SSE takes priority while stream is active — prevents duplicate updates
+      if (progressSourceRef.current === 'sse' && isStreaming) return;
+      progressSourceRef.current = 'ws';
+      // Reset stall timer
+      lastProgressTimeRef.current = Date.now();
+      setStallState('ok');
       if (!activeJobId) return; // Only show if we're tracking a job
       if (data.jobId !== activeJobId) return;
       setMessages((prev) => {
@@ -196,6 +235,32 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       subscribeToJob(activeJobId);
     }
   }, [activeJobId, subscribeToJob]);
+
+  // Progress received — reset stall timer
+  const onProgressReceived = useCallback(() => {
+    lastProgressTimeRef.current = Date.now();
+    setStallState('ok');
+  }, []);
+
+  // Stall check interval
+  useEffect(() => {
+    if (!isStreaming) {
+      setStallState('ok');
+      return;
+    }
+
+    const check = setInterval(() => {
+      const elapsed = Date.now() - lastProgressTimeRef.current;
+      const slowThreshold = activeJobId ? 60_000 : 15_000;
+      const stuckThreshold = activeJobId ? 120_000 : 45_000;
+
+      if (elapsed > stuckThreshold) setStallState('stuck');
+      else if (elapsed > slowThreshold) setStallState('slow');
+      else setStallState('ok');
+    }, 3_000);
+
+    return () => clearInterval(check);
+  }, [isStreaming, activeJobId]);
 
   // Abort in-flight requests on unmount
   useEffect(() => {
@@ -348,7 +413,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             }
 
             case 'progress': {
-              const progressData = data as { percent: number; message: string; error?: boolean; jobId?: string };
+              progressSourceRef.current = 'sse';
+              onProgressReceived();
+              const progressData = data as { percent: number; message: string; error?: boolean; jobId?: string; phase?: string; jobType?: string };
               // On failure, stop tracking the job so the spinner stops
               if (progressData.error) {
                 setActiveJobId(null);
@@ -363,6 +430,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 percent: progressData.percent,
                 message: progressData.message,
                 error: progressData.error,
+                phase: progressData.phase,
+                jobType: progressData.jobType,
               };
               if (progressIdx >= 0) {
                 blocks[progressIdx] = progressBlock;
@@ -394,6 +463,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           setConversationId(doneData.conversationId);
         }
         setIsStreaming(false);
+        progressSourceRef.current = null;
 
         // Trigger visual reload on completion
         clearVisualCache();
@@ -407,9 +477,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       if (eventType === 'error') {
         setIsStreaming(false);
+        progressSourceRef.current = null;
       }
     },
-    [projectId, reloadVisuals, onEditComplete]
+    [projectId, reloadVisuals, onEditComplete, onProgressReceived]
   );
 
   // -----------------------------------------------------------------------
@@ -502,12 +573,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         const controller = new AbortController();
         abortRef.current = controller;
 
-        // Safety timeout — if streaming hangs for 5 minutes total, abort.
+        // Safety timeout — if streaming hangs for 2 minutes total, abort.
         // This catches cases where the SSE parser's inactivity timeout isn't
         // enough (e.g. heartbeats keep arriving but no real events).
         const safetyTimeout = setTimeout(() => {
           controller.abort();
-        }, 5 * 60 * 1000);
+        }, 2 * 60 * 1000);
 
         try {
           const stream = await api.chatWithAgent(projectId, {
@@ -522,6 +593,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
           // If stream ends without a 'done' event, stop streaming
           setIsStreaming(false);
+          progressSourceRef.current = null;
         } finally {
           clearTimeout(safetyTimeout);
         }
@@ -627,6 +699,41 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     // Re-send — sendMessage will add a fresh assistant placeholder
     sendMessage(message, widgetResponse);
   }, [failedMessageId, isStreaming, sendMessage]);
+
+  // -----------------------------------------------------------------------
+  // Cancel / Stop handler
+  // -----------------------------------------------------------------------
+
+  const handleCancel = useCallback(async () => {
+    // 1. Abort the SSE stream immediately (instant UI feedback)
+    abortRef.current?.abort();
+
+    // 2. Tell the backend to kill the worker job
+    try {
+      await api.cancelAgent(projectId);
+    } catch {
+      // Best-effort — SSE abort already stopped the frontend
+    }
+
+    // 3. Update UI state
+    setIsStreaming(false);
+    setActiveJobId(null);
+
+    // 4. Replace progress block with cancellation message
+    setMessages(prev => {
+      const last = prev[prev.length - 1];
+      if (last?.role === 'assistant') {
+        return [...prev.slice(0, -1), {
+          ...last,
+          content: [
+            ...last.content.filter((b: any) => b.type !== 'progress'),
+            { type: 'text' as const, text: '\n\n*Generation stopped.*' },
+          ],
+        }];
+      }
+      return prev;
+    });
+  }, [projectId]);
 
   // -----------------------------------------------------------------------
   // Auto-greet: have the AI start the conversation when panel opens
@@ -803,24 +910,69 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         return <div key={index}>{renderWidget(block)}</div>;
 
       case 'progress':
+        // Inline error recovery card (Change 5)
+        if (block.error) {
+          return (
+            <div key={index} className="rounded-lg border border-red-200 bg-red-50 p-3 my-2">
+              <div className="flex items-start gap-2">
+                <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-red-700">
+                    {block.message || 'Something went wrong'}
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={handleRetry}
+                      className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={() => sendMessage('Try a different approach for this')}
+                      className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+                    >
+                      Try different approach
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         return (
           <div key={index} className="my-2">
             <div className="flex items-center gap-2 mb-1">
-              {!block.error && block.percent < 100 && (
+              {block.percent < 100 && (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-500" />
               )}
-              <span className={`text-xs ${block.error ? 'text-red-500' : 'text-[var(--editor-text-secondary)]'}`}>
+              <span className="text-xs text-[var(--editor-text-secondary)]">
                 {block.message}
               </span>
             </div>
             <div className="w-full bg-[var(--editor-bg-hover)] rounded-full h-1.5">
               <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  block.error ? 'bg-red-500' : 'bg-purple-500'
-                }`}
+                className="h-1.5 rounded-full transition-all duration-300 bg-purple-500"
                 style={{ width: `${Math.min(block.percent, 100)}%` }}
               />
             </div>
+            {block.jobType && PHASE_STEPS[block.jobType] && (
+              <div className="flex flex-col gap-1.5 my-2">
+                {PHASE_STEPS[block.jobType]!.map((label, i) => {
+                  const status = getStepStatus(block.phase, block.jobType!, i);
+                  return (
+                    <div key={i} className="flex items-center gap-2 text-xs">
+                      {status === 'done' && <Check className="w-3 h-3 text-green-500" />}
+                      {status === 'active' && <Loader2 className="w-3 h-3 text-primary animate-spin" />}
+                      {status === 'pending' && <Circle className="w-3 h-3 text-muted-foreground/30" />}
+                      <span className={status === 'active' ? 'text-foreground font-medium' : 'text-muted-foreground'}>
+                        {label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         );
     }
@@ -965,6 +1117,23 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           ))
         )}
 
+        {stallState === 'slow' && isStreaming && (
+          <div className="flex items-center gap-1.5 text-xs text-amber-500 px-3 py-1">
+            <Clock className="w-3 h-3" />
+            Taking longer than usual...
+          </div>
+        )}
+
+        {stallState === 'stuck' && isStreaming && (
+          <div className="flex items-center gap-2 text-xs text-red-500 px-3 py-1">
+            <AlertCircle className="w-3 h-3" />
+            This seems stuck.
+            <button onClick={handleCancel} className="underline hover:no-underline">
+              Stop &amp; retry
+            </button>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -1007,6 +1176,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               </button>
             </span>
           </div>
+        )}
+
+        {isStreaming && (
+          <button
+            onClick={handleCancel}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
+                       text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
+          >
+            <Square className="w-3 h-3 fill-current" />
+            Stop
+          </button>
         )}
 
         <div className="relative flex items-end gap-2">

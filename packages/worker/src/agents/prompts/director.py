@@ -143,9 +143,12 @@ Choose a palette that fits the content mood:
 </color_palettes>
 
 <visual_requirements>
-## SPECIFYING 3D AND ICON REQUIREMENTS
+## SPECIFYING 3D, ICON, AND ASSET REQUIREMENTS
 
-When planning scenes, explicitly specify when advanced visual techniques are needed:
+When planning scenes, explicitly specify when advanced visual techniques are needed.
+The Animator has access to **Freepik's premium asset library** (millions of icons,
+illustrations, and vectors via MCP tools). Plan with this in mind — your scenes can
+be far more visually rich than hand-coded SVGs alone.
 
 ### 3D Elements
 Mark scenes that need TRUE 3D rendering (not just CSS transforms):
@@ -161,18 +164,38 @@ Example:
 showing different faces as it tumbles. Ambient lighting creates realistic shadows."
 ```
 
-### Icons
-Specify icon requirements instead of describing shapes:
-- **[ICON: checkmark]** - Use a professional checkmark icon
-- **[ICON: warning]** - Use a warning/alert icon
-- **[ICON: play]** - Use a play button icon
-- **[ICON: data]** - Use a data/chart icon
+### Icons (Freepik MCP)
+The Animator can search and download professional SVG icons from Freepik.
+Specify icon needs with search terms the Animator can use:
+- **[ICON: checkmark]** - Professional checkmark/success icon
+- **[ICON: warning triangle]** - Warning/alert icon
+- **[ICON: cloud computing]** - Cloud infrastructure icon
+- **[ICON: neural network]** - AI/ML concept icon
+
+Be SPECIFIC with icon descriptions — "server rack" is better than "computer".
+The Animator searches Freepik by concept, so descriptive terms yield better results.
 
 Example:
 ```
-"visual": "Success confirmation appears with [ICON: checkmark] glowing green,
+"visual": "Success confirmation appears with [ICON: checkmark circle] glowing green,
 followed by celebration particles."
 ```
+
+### Illustrations & Vectors (Freepik MCP)
+For richer visuals, the Animator can also fetch full illustrations and vector graphics.
+Specify when a scene would benefit from a professional illustration:
+- **[ILLUSTRATION: concept]** - A full vector illustration from Freepik
+
+Example:
+```
+"visual": "[ILLUSTRATION: team collaboration] fades in as the centerpiece,
+with data flow particles animating around it."
+```
+
+Use illustrations for:
+- Hero visuals that anchor a scene (abstract concepts, people, objects)
+- Background elements that add visual depth
+- Complex visuals that would be impractical to hand-code
 
 ### When to Specify 3D:
 | Visual Need | Use 3D? |
@@ -412,7 +435,8 @@ Machine-readable with this structure:
       "buildsFrom": "previous scene connection or null",
       "connectsTo": "next scene connection",
       "requires3D": false,
-      "icons": ["checkmark", "warning"]
+      "icons": ["checkmark", "warning"],
+      "illustrations": ["concept search term if needed"]
     }}
   ]
 }}

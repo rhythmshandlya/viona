@@ -68,3 +68,5 @@ packages/worker/bundles/
 
 # Conda environments
 conda-env/
+
+bundles/

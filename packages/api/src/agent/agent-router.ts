@@ -6,6 +6,7 @@ import { eq, or, and } from 'drizzle-orm';
 import { db, projects, transcripts, visuals, jobs } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { config } from '../config.js';
+import { redis, publishJobError } from '../services/redis.js';
 import { buildSystemPrompt } from './agent-system-prompt.js';
 import { createAgentMcpServer, TOOL_NAMES } from './agent-tools.js';
 import {
@@ -17,9 +18,19 @@ import {
   deleteConversation,
 } from './conversation-store.js';
 
-// SSE helper — writes a server-sent event to a writable stream
-function sendSSE(stream: NodeJS.WritableStream, event: string, data: unknown) {
-  stream.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+// SSE helper — returns a closure that writes server-sent events with
+// auto-incrementing IDs and basic backpressure awareness.
+function createSSEWriter(stream: NodeJS.WritableStream) {
+  let eventId = 0;
+  let draining = true;
+  stream.on('drain', () => { draining = true; });
+
+  return function sendSSE(event: string, data: unknown) {
+    if ((stream as any).destroyed) return;
+    eventId++;
+    const ok = (stream as any).write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    if (!ok) draining = false;
+  };
 }
 
 // Format stored messages into text for system prompt context
@@ -203,6 +214,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
       .header('X-Accel-Buffering', 'no')
       .send(sseStream);
 
+    const sendSSE = createSSEWriter(sseStream);
+
     // Keep only recent messages for context
     const recentMessages = storedMessages.slice(-50);
     const conversationHistoryText = formatConversationHistory(recentMessages);
@@ -254,7 +267,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const mcpServer = createAgentMcpServer({
       projectId,
       sendSSE: (event, data) => {
-        sendSSE(sseStream, event, data);
+        sendSSE(event, data);
         // Capture widget events for persistence and save to DB
         if (event === 'widget') {
           flushText();
@@ -300,7 +313,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
           if (evt?.type === 'content_block_delta') {
             const delta = evt.delta as { type: string; text?: string };
             if (delta.type === 'text_delta' && delta.text) {
-              sendSSE(sseStream, 'text', { text: delta.text });
+              sendSSE('text', { text: delta.text });
               pendingText += delta.text;
             }
           }
@@ -308,7 +321,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       }
 
       // 8. Send done event
-      sendSSE(sseStream, 'done', { conversationId: conversation.id });
+      sendSSE('done', { conversationId: conversation.id });
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       fastify.log.error({ err }, 'Agent chat error');
@@ -321,7 +334,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
         errorMessage = 'AI assistant authentication failed. Please check server credentials.';
       }
 
-      sendSSE(sseStream, 'error', { message: errorMessage });
+      sendSSE('error', { message: errorMessage });
     } finally {
       clearInterval(heartbeat);
       clearInterval(persistInterval);
@@ -401,4 +414,46 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     return reply.send({ success: true });
   });
+
+  // ─── POST /projects/:id/agent/cancel — cancel active agent job ──────────
+
+  fastify.post<{ Params: { id: string } }>(
+    '/projects/:id/agent/cancel',
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const projectId = request.params.id;
+
+      // Check project ownership
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, projectId),
+      });
+      if (!project) return reply.code(404).send({ error: 'Project not found' });
+      if (project.userId && project.userId !== (request as any).user?.id) {
+        return reply.code(403).send({ error: 'Forbidden' });
+      }
+
+      // Find active job for this project
+      const activeJob = await db.query.jobs.findFirst({
+        where: and(
+          eq(jobs.projectId, projectId),
+          or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing')),
+        ),
+      });
+
+      if (activeJob) {
+        // Publish cancel to Redis — worker picks this up via registerCancelHandler
+        await redis.publish('job:cancel', JSON.stringify({ jobId: activeJob.id }));
+
+        // Mark job as failed in DB
+        await db.update(jobs)
+          .set({ status: 'failed', error: 'Cancelled by user' })
+          .where(eq(jobs.id, activeJob.id));
+
+        // Notify WebSocket clients
+        await publishJobError(activeJob.id, 'Cancelled by user');
+      }
+
+      reply.send({ ok: true, cancelledJobId: activeJob?.id ?? null });
+    }
+  );
 }

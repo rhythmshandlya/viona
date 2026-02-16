@@ -1,4 +1,4 @@
 import { registerRoot } from "remotion";
-import { RemotionRoot } from "./proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/index";
+import { RemotionRoot } from "./proj_43098bb5_2622_48a6_b6d1_6d8929c2d92e/index";
 
 registerRoot(RemotionRoot);

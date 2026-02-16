@@ -135,8 +135,9 @@ async function main() {
     {
       connection,
       concurrency: 1,
-      lockDuration: 10 * 60 * 1000,
-      stalledInterval: 5 * 60 * 1000,
+      lockDuration: 5 * 60 * 1000,
+      stalledInterval: 30_000,
+      maxStalledCount: 2,
     }
   );
 
@@ -158,8 +159,9 @@ async function main() {
     {
       connection,
       concurrency: 1,
-      lockDuration: 10 * 60 * 1000,
-      stalledInterval: 5 * 60 * 1000,
+      lockDuration: 5 * 60 * 1000,
+      stalledInterval: 30_000,
+      maxStalledCount: 2,
     }
   );
 
@@ -181,8 +183,9 @@ async function main() {
     {
       connection,
       concurrency: 1,
-      lockDuration: 10 * 60 * 1000,
-      stalledInterval: 5 * 60 * 1000,
+      lockDuration: 5 * 60 * 1000,
+      stalledInterval: 30_000,
+      maxStalledCount: 2,
     }
   );
 

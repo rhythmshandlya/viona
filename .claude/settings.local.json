@@ -153,7 +153,12 @@
       "Bash(pip show:*)",
       "Bash(python:*)",
       "Bash(claude mcp__railway-mcp-server__list-projects:*)",
-      "Bash(unset:*)"
+      "Bash(unset:*)",
+      "WebFetch(domain:glama.ai)",
+      "WebFetch(domain:docs.freepik.com)",
+      "Bash(python3:*)",
+      "Bash(pnpm --filter worker build:*)",
+      "Bash(pnpm --filter api build:*)"
     ]
   }
 }

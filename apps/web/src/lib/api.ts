@@ -542,6 +542,12 @@ class ApiClient {
     });
   }
 
+  async cancelAgent(projectId: string): Promise<{ ok: boolean; cancelledJobId: string | null }> {
+    return this.request(`/api/projects/${projectId}/agent/cancel`, {
+      method: 'POST',
+    });
+  }
+
   // Project media (B-roll assets)
   async getProjectMedia(projectId: string): Promise<{ assets: ProjectMediaAsset[] }> {
     return this.request(`/api/projects/${projectId}/media`);
