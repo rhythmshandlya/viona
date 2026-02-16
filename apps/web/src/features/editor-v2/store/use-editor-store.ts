@@ -244,6 +244,7 @@ export function useCanRedo() {
 export const useClipboard = () => useEditorStore((s) => s.clipboard);
 export const useSplitMode = () => useEditorStore((s) => s.splitMode);
 export const useApplyStyleToAll = () => useEditorStore((s) => s.applyStyleToAll);
+export const useShowCaptions = () => useEditorStore((s) => s.showCaptions);
 
 // ============================================
 // Layout Selectors
@@ -510,6 +511,9 @@ export function useEditorActions() {
 
       // AI edit request
       requestAIEdit: state.requestAIEdit,
+
+      // Captions
+      setShowCaptions: state.setShowCaptions,
 
       // Safe zone
       setSafeZonePlatform: state.setSafeZonePlatform,

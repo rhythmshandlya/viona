@@ -21,6 +21,7 @@ import {
   useSourceDimensions,
   useLayoutSettings,
   useIsAudioProject,
+  useShowCaptions,
 } from '../store/use-editor-store';
 import {
   TimelineItem,
@@ -255,15 +256,16 @@ export function Composition() {
   const sourceDimensions = useSourceDimensions();
   const layoutSettings = useLayoutSettings();
   const isAudioProject = useIsAudioProject();
+  const showCaptions = useShowCaptions();
 
   // Get items by type
   const videoItems = itemIds
     .map((id) => items[id])
     .filter((item): item is TimelineItem => item?.type === 'video');
 
-  const captionItems = itemIds
-    .map((id) => items[id])
-    .filter((item): item is TimelineItem => item?.type === 'caption');
+  const captionItems = showCaptions
+    ? itemIds.map((id) => items[id]).filter((item): item is TimelineItem => item?.type === 'caption')
+    : [];
 
   const audioItems = itemIds
     .map((id) => items[id])

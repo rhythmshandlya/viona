@@ -1,7 +1,6 @@
 import React from 'react';
 
 const themes = [
-  { id: 'minimal', label: 'Minimal', description: 'Clean, geometric, monochrome', colors: ['#1a1a2e', '#e2e8f0', '#94a3b8'] },
   { id: 'modern', label: 'Modern', description: 'Vibrant gradients, purple-blue', colors: ['#0f0f23', '#8b5cf6', '#3b82f6'] },
   { id: 'playful', label: 'Playful', description: 'Bright, bouncy, energetic', colors: ['#fef3c7', '#f59e0b', '#ec4899'] },
   { id: 'bold', label: 'Bold', description: 'High contrast, impactful', colors: ['#0f172a', '#ef4444', '#f8fafc'] },

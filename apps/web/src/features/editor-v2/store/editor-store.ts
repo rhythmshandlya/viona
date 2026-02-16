@@ -93,6 +93,9 @@ const initialState: EditorState = {
   // Caption style toggle
   applyStyleToAll: false,
 
+  // Caption visibility in player
+  showCaptions: true,
+
   // Clipboard and split mode
   clipboard: null,
   splitMode: false,
@@ -714,6 +717,12 @@ export const useEditorStore = create<EditorStore>()(
     setApplyStyleToAll: (value: boolean) => {
       set((state) => {
         state.applyStyleToAll = value;
+      });
+    },
+
+    setShowCaptions: (value: boolean) => {
+      set((state) => {
+        state.showCaptions = value;
       });
     },
 

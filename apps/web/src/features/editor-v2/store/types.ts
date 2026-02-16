@@ -503,6 +503,9 @@ export interface EditorState {
   // Caption style toggle
   applyStyleToAll: boolean;
 
+  // Caption visibility in player
+  showCaptions: boolean;
+
   // Clipboard and split mode
   clipboard: TimelineItem[] | null;
   splitMode: boolean;
@@ -546,6 +549,7 @@ export interface EditorActions {
   updateSelectedCaptionStyles: (ids: string[], style: Partial<CaptionStyle>) => void;
   updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => void;
   setApplyStyleToAll: (value: boolean) => void;
+  setShowCaptions: (value: boolean) => void;
   selectAllCaptionsOnTrack: (trackId: string) => void;
 
   // Item actions

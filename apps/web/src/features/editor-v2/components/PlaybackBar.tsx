@@ -6,12 +6,13 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Subtitles } from 'lucide-react';
 import {
   useCurrentTimeMs,
   useIsPlaying,
   useDuration,
   useEditorActions,
+  useShowCaptions,
 } from '../store/use-editor-store';
 
 function formatTime(ms: number): string {
@@ -26,7 +27,8 @@ export function PlaybackBar() {
   const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const duration = useDuration();
-  const { togglePlayback, seek } = useEditorActions();
+  const { togglePlayback, seek, setShowCaptions } = useEditorActions();
+  const showCaptions = useShowCaptions();
   const scrubberRef = useRef<HTMLDivElement>(null);
 
   const progress = duration > 0 ? (currentTimeMs / duration) * 100 : 0;
@@ -121,6 +123,21 @@ export function PlaybackBar() {
           aria-label="Skip to end"
         >
           <SkipForward className="w-4 h-4 text-[var(--editor-text-secondary)]" />
+        </button>
+
+        <div className="w-px h-5 bg-[var(--editor-border-subtle)] mx-1" />
+
+        <button
+          onClick={() => setShowCaptions(!showCaptions)}
+          className={`p-2 rounded-md transition-colors ${
+            showCaptions
+              ? 'text-[var(--editor-accent)] bg-[var(--editor-accent-muted)]'
+              : 'text-[var(--editor-text-muted)] hover:bg-[var(--editor-bg-hover)]'
+          }`}
+          aria-label={showCaptions ? 'Hide captions' : 'Show captions'}
+          title={showCaptions ? 'Hide captions' : 'Show captions'}
+        >
+          <Subtitles className="w-4 h-4" />
         </button>
       </div>
     </div>
