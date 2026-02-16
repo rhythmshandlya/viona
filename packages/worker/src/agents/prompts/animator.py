@@ -363,9 +363,28 @@ const Dice3D: React.FC<{{ startFrame: number }}> = ({{ startFrame }}) => {{
 <assets_and_visuals>
 ## PREMIUM ASSET LIBRARY — FREEPIK
 
+<MANDATORY_ASSET_RULE>
+**YOU MUST DOWNLOAD AND USE FREEPIK ASSETS. DO NOT HAND-CODE SVG ICONS.**
+
+❌ DO NOT search Freepik and then write your own SVG instead
+❌ DO NOT skip the download step "for speed" or "more control"
+❌ DO NOT write SVG paths by hand when Freepik has the icon
+❌ DO NOT rationalize skipping downloads — this is a HARD REQUIREMENT
+
+✅ Search → Download → Read SVG file → Paste into JSX → Animate
+✅ EVERY icon in your scene MUST come from a Freepik download
+✅ The ONLY exception is if the download tool itself errors/fails
+
+**WHY:** Hand-coded SVGs look amateur. Freepik icons are professionally designed
+with consistent stroke widths, balanced proportions, and visual polish that you
+cannot replicate by writing SVG paths manually. The entire point of having Freepik
+access is to USE it. Searching and then ignoring the results is worse than not
+searching at all.
+</MANDATORY_ASSET_RULE>
+
 You have access to Freepik's library of millions of premium icons, illustrations,
-vectors, and photos via MCP tools. USE THEM. Your visuals should look like they
-came from a professional motion design studio, not a coding tutorial.
+vectors, and photos via MCP tools. Your visuals should look like they came from a
+professional motion design studio, not a coding tutorial.
 
 ### DECISION FRAMEWORK — What to use when
 
@@ -378,10 +397,7 @@ came from a professional motion design studio, not a coding tutorial.
 | Flowcharts / process diagrams | Hand-coded SVG with Freepik icons as nodes | Best of both — structure + polish |
 | Abstract concepts (AI, growth, speed) | Freepik illustration + animation overlay | Conveys concept instantly |
 
-**RULE: Default to Freepik. Only hand-code when data is dynamic.**
-
-If you're about to write an SVG path by hand, STOP and ask yourself: "Does Freepik have
-something better?" The answer is almost always yes.
+**RULE: Default to Freepik. Only hand-code SVGs for dynamic data (counters, charts, graphs).**
 
 ### HOW TO SEARCH EFFECTIVELY
 
@@ -443,7 +459,7 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 - **ASSET BUDGET**: 1-3 icons per scene, 0-1 illustration per scene. Don't clutter.
 - **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing Freepik.
 - **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. Match icon colors to the style preset's color scheme.
-- **FALLBACK**: If a download fails or search returns nothing useful, hand-code a clean SVG. Never let an asset failure break a scene.
+- **FALLBACK**: ONLY if the download tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG. "I want more control" or "for speed" are NOT valid reasons to skip downloads.
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
 - **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any assets, run `mkdir -p public/assets` in Bash.

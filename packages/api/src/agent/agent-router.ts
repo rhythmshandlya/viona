@@ -320,7 +320,16 @@ export async function agentRoutes(fastify: FastifyInstance) {
         }
       }
 
-      // 8. Send done event
+      // 8. Flush all pending content to DB before signalling completion
+      flushText();
+      try { await persistPromise; } catch { /* handled below */ }
+      try {
+        await updateMessageContent(assistantRow.id, contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
+      } catch (saveErr) {
+        fastify.log.error({ err: saveErr }, 'Failed to save assistant message before done');
+      }
+
+      // 9. Send done event — DB is now consistent, frontend can safely reload
       sendSSE('done', { conversationId: conversation.id });
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
@@ -339,16 +348,13 @@ export async function agentRoutes(fastify: FastifyInstance) {
       clearInterval(heartbeat);
       clearInterval(persistInterval);
 
-      // Wait for any in-flight persistence to finish before the final save
-      try { await persistPromise; } catch { /* already handled */ }
-
-      // Final save — update the assistant row with all accumulated content.
+      // Safety net: flush any remaining content on error paths
+      // (happy path already persisted before 'done' event above)
       try {
+        await persistPromise;
         flushText();
         await updateMessageContent(assistantRow.id, contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
-      } catch (saveErr) {
-        fastify.log.error({ err: saveErr }, 'Failed to save assistant message');
-      }
+      } catch { /* best-effort — primary save already happened on success path */ }
 
       sseStream.end();
     }

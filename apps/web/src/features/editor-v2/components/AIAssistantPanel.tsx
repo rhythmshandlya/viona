@@ -1178,17 +1178,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
-        {isStreaming && (
-          <button
-            onClick={handleCancel}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium
-                       text-red-600 hover:bg-red-50 rounded-lg transition-colors border border-red-200"
-          >
-            <Square className="w-3 h-3 fill-current" />
-            Stop
-          </button>
-        )}
-
         <div className="relative flex items-end gap-2">
           <textarea
             ref={textareaRef}
@@ -1216,20 +1205,27 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                        disabled:opacity-50 disabled:cursor-not-allowed
                        transition-all resize-none"
           />
-          <button
-            onClick={() => canSend && sendMessage(input.trim())}
-            disabled={!canSend}
-            className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center
-                       rounded-full bg-purple-600 text-white
-                       hover:bg-purple-500 transition-colors
-                       disabled:bg-[var(--editor-bg-hover)] disabled:text-[var(--editor-text-muted)]"
-          >
-            {isStreaming ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
+          {isStreaming ? (
+            <button
+              onClick={handleCancel}
+              className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center
+                         rounded-full bg-red-600 text-white
+                         hover:bg-red-500 transition-colors"
+            >
+              <Square className="w-3.5 h-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              onClick={() => canSend && sendMessage(input.trim())}
+              disabled={!canSend}
+              className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center
+                         rounded-full bg-purple-600 text-white
+                         hover:bg-purple-500 transition-colors
+                         disabled:bg-[var(--editor-bg-hover)] disabled:text-[var(--editor-text-muted)]"
+            >
               <Send className="w-4 h-4" />
-            )}
-          </button>
+            </button>
+          )}
         </div>
       </div>
     </div>
