@@ -42,9 +42,9 @@ export const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
 
-  // Storage configuration is now handled by @reelify/shared StorageService
+  // Storage configuration is now handled by @viona/shared StorageService
   // This config is kept for backwards compatibility with existing code
-  // Use: import { getStorage } from '@reelify/shared/storage';
+  // Use: import { getStorage } from '@viona/shared/storage';
   storage: (() => {
     // Railway Bucket vars take precedence (auto-injected in prod)
     const endpoint = process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost';
@@ -56,7 +56,7 @@ export const config = {
       accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
       secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
       useSSL: !isInternalConnection && (!!process.env.BUCKET_ENDPOINT || process.env.S3_USE_SSL === 'true'),
-      bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
+      bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'viona',
       region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
       // Prefixes for organizing objects within single bucket
       prefixes: {
@@ -95,6 +95,10 @@ export const config = {
     get disabled() {
       return !this.enabled;
     },
+  },
+
+  freepik: {
+    apiKey: process.env.FREEPIK_API_KEY || '',
   },
 
   remotion: {

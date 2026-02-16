@@ -43,6 +43,25 @@ subscriber.on('message', (channel, message) => {
   }
 });
 
+// Cache jobId → projectId so we don't need a DB query per progress event.
+// A job's projectId never changes, so this is safe to cache indefinitely.
+const jobProjectIdCache = new Map<string, string>();
+
+/**
+ * Register a job's projectId in the cache so publishJobProgress can include it
+ * in Redis payloads without a DB lookup. Call this once at the start of each processor.
+ */
+export function setJobProjectId(jobId: string, projectId: string): void {
+  jobProjectIdCache.set(jobId, projectId);
+}
+
+/**
+ * Clear a job's cached projectId (call on job completion/failure).
+ */
+export function clearJobProjectId(jobId: string): void {
+  jobProjectIdCache.delete(jobId);
+}
+
 export async function publishJobProgress(
   jobId: string,
   progress: number,
@@ -61,9 +80,14 @@ export async function publishJobProgress(
     logger.warn({ jobId, progress, err }, 'Failed to update job progress in DB');
   }
 
+  // Include projectId so the WebSocket handler can match by project
+  // (not just by subscribed jobId). This makes progress delivery reliable
+  // even when WebSocket connections reconnect and lose their subscriptions.
+  const projectId = jobProjectIdCache.get(jobId);
+
   await redis.publish(
     `job:${jobId}:progress`,
-    JSON.stringify({ jobId, progress, message, ...extras })
+    JSON.stringify({ jobId, projectId, progress, message, ...extras })
   );
 }
 
@@ -72,6 +96,7 @@ export async function publishJobComplete(
   projectId: string,
   extras?: Record<string, unknown>,
 ) {
+  clearJobProjectId(jobId);
   await redis.publish(
     `job:${jobId}:complete`,
     JSON.stringify({ jobId, projectId, ...extras })

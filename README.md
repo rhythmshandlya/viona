@@ -1,4 +1,4 @@
-# Clipify
+# Viona
 
 A full-stack video editing platform for creating short-form social media content with AI-generated visuals, automated transcription, and professional subtitle styling.
 
@@ -20,7 +20,7 @@ A full-stack video editing platform for creating short-form social media content
 
 ## Overview
 
-Clipify is a modern video editor designed for creating Instagram Reels, TikTok videos, and YouTube Shorts. It combines:
+Viona is a modern video editor designed for creating Instagram Reels, TikTok videos, and YouTube Shorts. It combines:
 
 - **Automated Transcription**: Word-level speech-to-text using WhisperX
 - **AI Visual Generation**: Animated diagrams, charts, and infographics using LLMs + Remotion
@@ -158,7 +158,7 @@ sequenceDiagram
 ## Monorepo Structure
 
 ```
-clipify/
+viona/
 ├── apps/
 │   └── web/                    # Next.js frontend application
 │       ├── src/
@@ -469,8 +469,8 @@ stateDiagram-v2
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/cllipify.git
-cd cllipify
+git clone https://github.com/your-org/viona.git
+cd viona
 
 # 2. Install dependencies
 pnpm install
@@ -536,7 +536,7 @@ S3_PORT=9000
 S3_ACCESS_KEY=reelify
 S3_SECRET_KEY=reelify123
 S3_USE_SSL=false
-S3_BUCKET=cllipify
+S3_BUCKET=viona
 S3_REGION=us-east-1
 ```
 
@@ -552,7 +552,7 @@ S3_PORT=9000
 S3_ACCESS_KEY=reelify
 S3_SECRET_KEY=reelify123
 S3_USE_SSL=false
-S3_BUCKET=cllipify
+S3_BUCKET=viona
 
 # Transcription: "local" (WhisperX) or "api" (OpenAI Whisper API)
 TRANSCRIPTION_MODE=local
@@ -625,7 +625,7 @@ cd docker/openhands-sandbox && python -m pytest tests/ -v
 
 ### Project Structure Conventions
 
-1. **Package naming**: `@reelify/{package-name}`
+1. **Package naming**: `@viona/{package-name}`
 2. **Imports**: Use `@/` alias for src directory
 3. **Types**: Define in `packages/shared/src/types`
 4. **API routes**: RESTful naming in `packages/api/src/routes`

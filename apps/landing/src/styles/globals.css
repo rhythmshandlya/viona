@@ -3,13 +3,16 @@
 @theme inline {
   --font-sans: "DM Sans", system-ui, sans-serif;
 
-  --color-background: #FFFBF7;
+  --color-background: #FAFAFF;
   --color-foreground: #1a1a1a;
-  --color-muted: #f5f5f5;
+  --color-muted: #f3f2f8;
   --color-muted-foreground: #6b7280;
   --color-border: #e5e5e5;
-  --color-primary: #F97316;
+  --color-primary: #7C3AED;
+  --color-secondary: #A78BFA;
+  --color-accent: #C084FC;
   --color-primary-foreground: #ffffff;
+  --color-soft: #EDE9FE;
   --color-card: #ffffff;
   --color-dark: #1a1a1a;
 
@@ -54,8 +57,11 @@ header {
   right: 0;
   bottom: -4px;
   height: 8px;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M0 5 Q 12.5 0, 25 5 T 50 5 T 75 5 T 100 5' stroke='%23F97316' stroke-width='2' fill='none'/%3E%3C/svg%3E") repeat-x;
-  background-size: 50px 8px;
+  background-color: var(--color-primary);
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M0 5 Q 12.5 0, 25 5 T 50 5 T 75 5 T 100 5' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") repeat-x;
+  mask-size: 50px 8px;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M0 5 Q 12.5 0, 25 5 T 50 5 T 75 5 T 100 5' stroke='black' stroke-width='2' fill='none'/%3E%3C/svg%3E") repeat-x;
+  -webkit-mask-size: 50px 8px;
   clip-path: inset(0 100% 0 0);
   transition: clip-path 0.8s ease-out;
 }
@@ -64,13 +70,13 @@ header {
   clip-path: inset(0 0% 0 0);
 }
 
-/* Orange underline (straight) */
-.orange-underline {
+/* Accent underline (straight) */
+.accent-underline {
   position: relative;
   display: inline-block;
 }
 
-.orange-underline::after {
+.accent-underline::after {
   content: "";
   position: absolute;
   left: 0;
@@ -88,7 +94,7 @@ header {
   left: -200px;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(249, 115, 22, 0.15) 0%, transparent 70%);
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 15%, transparent) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -260,8 +266,8 @@ details > div {
   font-variant-numeric: tabular-nums;
 }
 
-/* Orange text */
-.text-orange {
+/* Brand text */
+.text-brand {
   color: var(--color-primary);
 }
 

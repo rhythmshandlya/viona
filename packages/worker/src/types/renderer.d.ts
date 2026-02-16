@@ -1,4 +1,4 @@
-declare module '@reelify/renderer' {
+declare module '@viona/renderer' {
   export interface SubtitleWord {
     text: string;
     startMs: number;

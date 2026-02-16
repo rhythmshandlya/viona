@@ -19,7 +19,7 @@ export interface HeadTrackingJobData {
 
 export async function processHeadTrackingJob(job: Job<HeadTrackingJobData>) {
   const { projectId, jobId, videoKey } = job.data;
-  const workDir = join(tmpdir(), `reelify-headtrack-${nanoid()}`);
+  const workDir = join(tmpdir(), `viona-headtrack-${nanoid()}`);
 
   try {
     await mkdir(workDir, { recursive: true });

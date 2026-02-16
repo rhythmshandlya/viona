@@ -189,7 +189,7 @@ export function ExportModal({
       <DialogContent className="sm:max-w-md bg-white border-gray-200">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-gray-900">
-            <Film className="w-5 h-5 text-orange-500" />
+            <Film className="w-5 h-5 text-violet-500" />
             Export Video
           </DialogTitle>
         </DialogHeader>
@@ -232,8 +232,8 @@ export function ExportModal({
                 <button
                   onClick={handleStartExport}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                             bg-orange-500 text-white font-medium
-                             hover:bg-orange-600 transition-colors"
+                             bg-violet-500 text-white font-medium
+                             hover:bg-violet-600 transition-colors"
                 >
                   <Download className="w-4 h-4" />
                   Start Export
@@ -248,13 +248,13 @@ export function ExportModal({
               <div className="flex flex-col items-center gap-4 py-4">
                 <div className="relative">
                   <div className="w-16 h-16 rounded-full border-4 border-gray-200">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                    <svg className="w-full h-full -rotate-90 text-primary" viewBox="0 0 100 100">
                       <circle
                         cx="50"
                         cy="50"
                         r="42"
                         fill="none"
-                        stroke="#f97316"
+                        stroke="currentColor"
                         strokeWidth="8"
                         strokeLinecap="round"
                         strokeDasharray={`${progress * 2.64} 264`}
@@ -281,7 +281,7 @@ export function ExportModal({
 
               <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
                 <div
-                  className="h-full bg-orange-500 transition-all duration-300"
+                  className="h-full bg-violet-500 transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -348,8 +348,8 @@ export function ExportModal({
               <button
                 onClick={handleExportAgain}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                           bg-orange-500 text-white font-medium
-                           hover:bg-orange-600 transition-colors"
+                           bg-violet-500 text-white font-medium
+                           hover:bg-violet-600 transition-colors"
               >
                 Try Again
               </button>

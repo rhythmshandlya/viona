@@ -198,7 +198,7 @@ function ProjectCard({
                   transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden ${className || ""}`}
     >
       {/* Thumbnail Area */}
-      <div className="aspect-video bg-gradient-to-br from-orange-50 to-amber-50 relative overflow-hidden">
+      <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-50 relative overflow-hidden">
         {project.thumbnailKey ? (
           <img
             src={api.getThumbnailUrl(project.id)}

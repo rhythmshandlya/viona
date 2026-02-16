@@ -26,7 +26,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/api/package.json ./packages/api/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --filter @reelify/api...
+RUN pnpm install --frozen-lockfile --filter @viona/api...
 
 # ============================================
 # Build stage
@@ -44,8 +44,8 @@ COPY packages/shared ./packages/shared
 COPY packages/api ./packages/api
 
 # Build shared first, then api
-RUN pnpm --filter @reelify/shared build && \
-    pnpm --filter @reelify/api build
+RUN pnpm --filter @viona/shared build && \
+    pnpm --filter @viona/api build
 
 # ============================================
 # Production stage
@@ -63,7 +63,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/api/package.json ./packages/api/
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --filter @reelify/api... --prod
+RUN pnpm install --frozen-lockfile --filter @viona/api... --prod
 
 # Install Claude Code CLI for Creative Director agent (Agent SDK spawns claude subprocess)
 RUN npm install -g @anthropic-ai/claude-code

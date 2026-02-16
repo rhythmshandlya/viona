@@ -28,7 +28,7 @@ COPY packages/renderer/package.json ./packages/renderer/
 COPY packages/worker/package.json ./packages/worker/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --filter @reelify/worker...
+RUN pnpm install --frozen-lockfile --filter @viona/worker...
 
 # ============================================
 # Build stage
@@ -48,9 +48,9 @@ COPY packages/renderer ./packages/renderer
 COPY packages/worker ./packages/worker
 
 # Build packages in order
-RUN pnpm --filter @reelify/shared build && \
-    pnpm --filter @reelify/renderer build && \
-    pnpm --filter @reelify/worker build
+RUN pnpm --filter @viona/shared build && \
+    pnpm --filter @viona/renderer build && \
+    pnpm --filter @viona/worker build
 
 # ============================================
 # Production stage
@@ -150,7 +150,7 @@ COPY packages/renderer/package.json ./packages/renderer/
 COPY packages/worker/package.json ./packages/worker/
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --filter @reelify/worker... --prod
+RUN pnpm install --frozen-lockfile --filter @viona/worker... --prod
 
 # Install Claude Code CLI globally for visual generation OAuth
 RUN npm install -g @anthropic-ai/claude-code

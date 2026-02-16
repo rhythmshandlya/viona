@@ -1758,47 +1758,90 @@ DO NOT SEARCH FOR (already installed):
 - react, react-dom
 </npm_package_search>
 
-<icons_and_svg>
-You have access to 200,000+ icons via the better-icons MCP tools.
+<assets_and_visuals>
+## PREMIUM ASSET LIBRARY — FREEPIK
 
-**Searching for icons:**
-Use `search_icons` with descriptive queries:
-- search_icons("arrow right") → finds arrow icons
-- search_icons("chart bar") → finds chart icons
-- search_icons("lightning bolt") → finds energy/power icons
+You have access to Freepik's library of millions of premium icons, illustrations,
+vectors, and photos via MCP tools. USE THEM. Your visuals should look like they
+came from a professional motion design studio, not a coding tutorial.
 
-**Getting SVG code:**
-Use `get_icon` with the icon ID (format: `prefix:name`):
-- get_icon("lucide:arrow-right") → returns SVG markup
-- get_icon("lucide:zap") → lightning bolt
-- get_icon("mdi:chart-bar") → bar chart
+### DECISION FRAMEWORK — What to use when
 
-**Popular collections:** lucide, mdi, heroicons, tabler, ph (phosphor)
+| Visual Need | Use | Why |
+|------------|-----|-----|
+| Any icon (arrows, UI, concepts) | Freepik `search_icons` → `download_icon_by_id` (format="svg") | Professional, consistent, polished |
+| Illustrations (objects, scenes, people) | Freepik `search_resources` (vector) | Hand-drawn quality impossible with code |
+| Background textures/patterns | Freepik `search_resources` (vector) | Rich visual depth |
+| Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
+| Flowcharts / process diagrams | Hand-coded SVG with Freepik icons as nodes | Best of both — structure + polish |
+| Abstract concepts (AI, growth, speed) | Freepik illustration + animation overlay | Conveys concept instantly |
 
-**Using icons in components:**
-- Inline the SVG directly in JSX
-- Wrap in a container div for positioning/animation
-- Use style prop for width/height, not SVG attributes
-- Use currentColor for dynamic coloring
+**RULE: Default to Freepik. Only hand-code when data is dynamic.**
 
-**Example:**
+If you're about to write an SVG path by hand, STOP and ask yourself: "Does Freepik have
+something better?" The answer is almost always yes.
+
+### HOW TO SEARCH EFFECTIVELY
+
+**Icons:**
+- search_icons with `term` parameter: "cloud computing", "server rack", "neural network"
+- Filter by shape: "fill" for solid icons, "outline" for line icons
+- Filter by icon_type: ["standard"] for static, ["animated"] for motion
+- Search CONCEPTS, not literal descriptions. "growth" not "line going up".
+- Try 2-3 search terms if the first doesn't match: "database" → "storage" → "server rack"
+
+**Resources (illustrations, vectors, photos):**
+- search_resources with `term` and content_type filter: {{ content_type: {{ vector: 1 }} }}
+- Prefer vectors over photos — cleaner scaling, transparent backgrounds
+- Use orientation filters for portrait content: {{ orientation: {{ portrait: 1 }} }}
+
+### HOW TO USE DOWNLOADED ASSETS
+
+**Icons (SVG) — inline in JSX:**
+1. `download_icon_by_id` with id and format="svg" → returns {{ data: {{ url, filename }} }}
+2. Download with Bash: `curl -sL -o public/assets/icon-name.svg "URL"`
+3. Read the SVG file content with the Read tool
+4. Paste the SVG markup directly into your JSX component
+5. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
+6. Use `currentColor` for dynamic coloring: wrap in div with `color: COLORS.accent`
+7. Animate the wrapper with spring/interpolate
+
+**Resources (images/illustrations) — use staticFile:**
+1. `download_resource_by_id` with resource-id → returns {{ data: {{ url, filename }} }}
+2. Download: `curl -sL -o public/assets/illustration.png "URL"`
+3. In component: `<Img src={{staticFile('assets/illustration.png')}} style={{...}} />`
+4. Import Img from remotion: `import {{ Img, staticFile }} from 'remotion';`
+5. Animate with opacity, scale, position transforms
+
+### ANIMATION WITH ASSETS
+
+Don't just place assets on screen statically. Make them come alive:
+- **Icons**: spring scale-in, stroke draw-in effect, color transitions via interpolateColors
+- **Illustrations**: parallax layers (foreground moves faster), reveal masks, zoom-and-pan
+- **Stagger**: When multiple icons appear, stagger by 6-8 frames each (never all at once)
+
+Example — animated icon entry:
 ```tsx
-// Get via: get_icon("lucide:zap")
-<div style={{{{ color: COLORS.accent, transform: `scale(${{scale}})` }}}}>
-  <svg viewBox="0 0 24 24" style={{{{ width: 48, height: 48 }}}} fill="none" stroke="currentColor" strokeWidth={{2}}>
-    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+const iconScale = spring({{ frame: frame - delay, fps, config: {{ damping: 22, stiffness: 90 }} }});
+const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapolateRight: 'clamp' }});
+
+<div style={{{{ opacity: iconOpacity, transform: `scale(${{iconScale}})`, color: COLORS.accent }}}}>
+  <svg viewBox="0 0 24 24" style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}>
+    {{/* SVG paths from Freepik download */}}
   </svg>
 </div>
 ```
 
-**Custom SVGs:**
-For diagrams, flowcharts, or concepts without matching icons, write inline SVG code.
-Use simple shapes: rect, circle, path, line, polygon.
+### GUARDRAILS
 
-**When to use icons vs custom SVG:**
-- Icons: UI elements, common concepts (arrows, charts, users, settings)
-- Custom SVG: Data visualizations, metaphors, animated diagrams
-</icons_and_svg>
+- **ASSET BUDGET**: 1-3 icons per scene, 0-1 illustration per scene. Don't clutter.
+- **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing Freepik.
+- **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. Match icon colors to the style preset's color scheme.
+- **FALLBACK**: If a download fails or search returns nothing useful, hand-code a clean SVG. Never let an asset failure break a scene.
+- **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
+- **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
+- **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any assets, run `mkdir -p public/assets` in Bash.
+</assets_and_visuals>
 
 <web_search>
 You have access to WebSearch for researching unfamiliar topics.
@@ -2782,24 +2825,24 @@ registerRoot(RemotionRoot);
                 setting_sources=["project"],  # Load skills from .claude/skills/
                 allowed_tools=[
                     "Read", "Write", "Edit", "Glob", "Grep", "Bash", "TodoWrite", "Skill",
-                    # MCP tools from better-icons server
-                    "mcp__better-icons__search_icons",
-                    "mcp__better-icons__get_icon",
-                    # MCP tools from lottiefiles server
-                    "mcp__lottiefiles__search_animations",
-                    "mcp__lottiefiles__get_animation_details",
-                    "mcp__lottiefiles__get_popular_animations",
+                    # Freepik MCP tools (premium icons, illustrations, vectors)
+                    "mcp__freepik__search_icons",
+                    "mcp__freepik__get_icon_detail_by_id",
+                    "mcp__freepik__download_icon_by_id",
+                    "mcp__freepik__search_resources",
+                    "mcp__freepik__get_resource_detail_by_id",
+                    "mcp__freepik__download_resource_by_id",
                 ],
                 mcp_servers={
-                    "better-icons": {
+                    "freepik": {
                         "type": "stdio",
                         "command": "npx",
-                        "args": ["better-icons"]
-                    },
-                    "lottiefiles": {
-                        "type": "stdio",
-                        "command": "npx",
-                        "args": ["-y", "mcp-server-lottiefiles"]
+                        "args": [
+                            "-y", "mcp-remote",
+                            "https://api.freepik.com/mcp",
+                            "--header",
+                            f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
+                        ]
                     }
                 },
                 hooks={
@@ -2917,6 +2960,10 @@ registerRoot(RemotionRoot);
                 if self.src_dir.exists():
                     shutil.rmtree(self.src_dir)
                 self.src_dir.mkdir(parents=True)
+
+                # Create public/assets directory for Freepik asset downloads
+                assets_dir = self.workspace / "public" / "assets"
+                assets_dir.mkdir(parents=True, exist_ok=True)
 
                 # Format transcript with timestamps if available
                 if words:
@@ -3169,6 +3216,10 @@ async def main():
 
         # Ensure src dir exists
         generator.src_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create public/assets directory for Freepik asset downloads
+        assets_dir = generator.workspace / "public" / "assets"
+        assets_dir.mkdir(parents=True, exist_ok=True)
 
         # Format transcript with timestamps if available
         if words:

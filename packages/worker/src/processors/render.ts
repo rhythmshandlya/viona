@@ -6,10 +6,10 @@ import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { db, projects, tracks, timelineItems, jobs, visuals } from '../db/index.js';
 import { downloadFile, uploadFile, listObjects } from '../services/minio.js';
-import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
-import { renderVideo, SubtitleItem, SubtitleStyle } from '@reelify/renderer';
+import { renderVideo, SubtitleItem, SubtitleStyle } from '@viona/renderer';
 import { renderMedia, selectComposition, getCompositions } from '@remotion/renderer';
 import { bundle } from '@remotion/bundler';
 
@@ -311,7 +311,8 @@ export interface RenderJobData {
 
 export async function processRenderJob(job: Job<RenderJobData>) {
   const { projectId, jobId, layoutSettings, fullscreenSegments } = job.data;
-  const workDir = join(tmpdir(), `reelify-render-${nanoid()}`);
+  setJobProjectId(jobId, projectId);
+  const workDir = join(tmpdir(), `viona-render-${nanoid()}`);
 
   try {
     await mkdir(workDir, { recursive: true });
@@ -992,7 +993,7 @@ function generateASSSubtitles(subtitles: any[], project: any): string {
 
   // ASS header
   let ass = `[Script Info]
-Title: Reelify Subtitles
+Title: Viona Subtitles
 ScriptType: v4.00+
 WrapStyle: 0
 PlayResX: ${width}
@@ -2530,7 +2531,7 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   // Create styles - Default for inactive words, Active for highlighted words
   // BorderStyle: 1 = outline+shadow (transparent bg), 3 = opaque box (colored bg)
   let ass = `[Script Info]
-Title: Reelify Subtitles
+Title: Viona Subtitles
 ScriptType: v4.00+
 WrapStyle: 0
 PlayResX: ${width}

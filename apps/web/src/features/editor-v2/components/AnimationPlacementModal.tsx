@@ -125,19 +125,19 @@ export function AnimationPlacementModal({
                   className={cn(
                     'flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all',
                     animationType === id
-                      ? 'border-orange-500 bg-orange-50'
+                      ? 'border-violet-500 bg-violet-50'
                       : 'border-gray-200 bg-gray-50 hover:border-gray-300',
                     isSubmitting && 'opacity-50 cursor-not-allowed'
                   )}
                 >
                   <Icon className={cn(
                     'w-6 h-6',
-                    animationType === id ? 'text-orange-500' : 'text-gray-400'
+                    animationType === id ? 'text-violet-500' : 'text-gray-400'
                   )} />
                   <div className="text-center">
                     <p className={cn(
                       'font-medium text-sm',
-                      animationType === id ? 'text-orange-700' : 'text-gray-900'
+                      animationType === id ? 'text-violet-700' : 'text-gray-900'
                     )}>
                       {name}
                     </p>
@@ -161,7 +161,7 @@ export function AnimationPlacementModal({
                   className={cn(
                     'flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border-2 text-sm transition-all',
                     animationStyle === id
-                      ? 'border-orange-500 bg-orange-50 text-orange-600'
+                      ? 'border-violet-500 bg-violet-50 text-violet-600'
                       : 'border-gray-200 bg-gray-50 text-gray-700 hover:border-gray-300',
                     isSubmitting && 'opacity-50 cursor-not-allowed'
                   )}
@@ -184,7 +184,7 @@ export function AnimationPlacementModal({
                 value={durationSeconds}
                 onChange={(e) => setDurationSeconds(parseInt(e.target.value))}
                 disabled={isSubmitting}
-                className="flex-1 accent-orange-500"
+                className="flex-1 accent-violet-500"
               />
               <span className="text-sm text-gray-600 w-12 text-right">
                 {durationSeconds}s
@@ -205,7 +205,7 @@ export function AnimationPlacementModal({
           <Button
             onClick={handleSubmit}
             disabled={isSubmitting || !imageFile}
-            className="bg-orange-500 hover:bg-orange-600 text-white"
+            className="bg-violet-500 hover:bg-violet-600 text-white"
           >
             {isSubmitting ? (
               <>

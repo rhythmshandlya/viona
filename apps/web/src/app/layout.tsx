@@ -7,7 +7,7 @@ import {
 } from "@/components/store-initializer";
 import { QueryProvider } from "@/components/query-provider";
 import { StytchProvider } from "@/components/stytch-provider";
-import { Analytics } from "@vercel/analytics/react";
+
 import { ClarityScript } from "@/components/clarity";
 
 import "./globals.css";
@@ -37,8 +37,8 @@ const dmSans = DM_Sans({
 
 export const metadata = createMetadata({
   title: {
-    template: "%s | Cllipify",
-    default: "Cllipify"
+    template: "%s | Viona Studio",
+    default: "Viona Studio"
   },
   description: "Transform your explainer videos with AI-generated visuals, auto-transcription, and animated subtitles.",
   metadataBase: baseUrl
@@ -63,7 +63,6 @@ export default async function RootLayout({
             <Toaster />
           </QueryProvider>
         </StytchProvider>
-        <Analytics />
         <ClarityScript />
       </body>
     </html>

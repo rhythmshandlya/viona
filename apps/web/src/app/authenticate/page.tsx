@@ -83,7 +83,7 @@ function AuthenticateContent() {
         {/* Header */}
         <div className="space-y-2">
           <h1 className="text-4xl font-bold tracking-tight">
-            <span className="text-primary">Cllipify</span>
+            <span className="text-primary">Viona</span> <span className="text-muted-foreground font-medium text-2xl">Studio</span>
           </h1>
         </div>
 

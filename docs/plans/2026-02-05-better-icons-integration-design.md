@@ -1,7 +1,9 @@
+> **SUPERSEDED** by `2026-02-16-freepik-mcp-integration-design.md` — Freepik MCP replaces better-icons.
+
 # Better Icons Integration Design
 
 **Date:** 2026-02-05
-**Status:** Draft
+**Status:** Superseded
 **Goal:** Enable the visual generator agent to use professional icons and custom SVG illustrations instead of emojis
 
 ## Overview

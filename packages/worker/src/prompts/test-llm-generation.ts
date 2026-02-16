@@ -111,8 +111,8 @@ async function testGeneration() {
       headers: {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://clipify.dev',
-        'X-Title': 'Clipify Visual Generation Test',
+        'HTTP-Referer': 'https://viona.com',
+        'X-Title': 'Viona Visual Generation Test',
       },
       body: JSON.stringify({
         model: selectedModel.id,

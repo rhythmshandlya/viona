@@ -17,7 +17,7 @@ import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { spawn, ChildProcess } from 'child_process';
 import { db, projects, transcripts, jobs } from '../db/index.js';
-import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
@@ -59,6 +59,7 @@ export function cancelPlanJob(jobId: string): boolean {
 
 export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
   const { projectId, jobId, stylePreset, layoutMode, dimensions, styleGuide } = job.data;
+  setJobProjectId(jobId, projectId);
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
 
   try {

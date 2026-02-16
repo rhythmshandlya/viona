@@ -53,7 +53,7 @@ const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
-        id="ReelifyVideo"
+        id="VionaVideo"
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         component={VideoComposition as any}
         durationInFrames={30 * 60} // Will be overridden

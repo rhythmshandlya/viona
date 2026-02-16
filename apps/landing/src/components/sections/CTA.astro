@@ -44,9 +44,16 @@ import { siteConfig } from "@/data/site";
       stagger: 0.5,
     });
 
+    // Read --color-primary from CSS and build rgba string for GSAP
+    const primary = getComputedStyle(document.documentElement).getPropertyValue("--color-primary").trim();
+    const hex = primary.replace("#", "");
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
     // Continuous: button glow pulse
     gsap.to('[data-cta-button]', {
-      boxShadow: "0 0 20px rgba(249, 115, 22, 0.4)",
+      boxShadow: "0 0 20px rgba(124, 58, 237, 0.4)",
       duration: 1.5,
       ease: "sine.inOut",
       repeat: -1,

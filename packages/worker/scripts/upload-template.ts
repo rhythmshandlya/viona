@@ -1,13 +1,13 @@
 #!/usr/bin/env tsx
 /**
  * Upload remotion-template to S3 storage.
- * Run: pnpm --filter @reelify/worker run upload-template
+ * Run: pnpm --filter @viona/worker run upload-template
  */
 
 import { join } from 'path';
 import { existsSync, createWriteStream, unlinkSync } from 'fs';
 import archiver from 'archiver';
-import { getStorage } from '@reelify/shared/storage';
+import { getStorage } from '@viona/shared/storage';
 import { config } from '../src/config.js';
 
 const TEMPLATE_SOURCE = join(process.cwd(), 'remotion-template');

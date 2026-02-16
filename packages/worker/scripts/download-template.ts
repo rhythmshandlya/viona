@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Download and extract remotion-template from S3 storage.
- * Run: pnpm --filter @reelify/worker run download-template
+ * Run: pnpm --filter @viona/worker run download-template
  *
  * This script is designed to be run on container startup in production.
  */
@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, createReadStream } from 'fs';
 import { rm } from 'fs/promises';
 import { pipeline } from 'stream/promises';
 import { createWriteStream } from 'fs';
-import { getStorage } from '@reelify/shared/storage';
+import { getStorage } from '@viona/shared/storage';
 import { config } from '../src/config.js';
 import unzipper from 'unzipper';
 
@@ -43,7 +43,7 @@ async function main() {
   const exists = await storage.templateExists(templateName);
   if (!exists) {
     console.error(`Template not found in storage: ${templateName}`);
-    console.error('Run: pnpm --filter @reelify/worker run upload-template');
+    console.error('Run: pnpm --filter @viona/worker run upload-template');
     process.exit(1);
   }
 
