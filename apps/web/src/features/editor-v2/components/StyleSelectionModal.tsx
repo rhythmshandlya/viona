@@ -55,10 +55,10 @@ const STYLE_OPTIONS: StyleOption[] = [
     id: 'playful',
     name: 'Playful',
     description: 'Bright colors, bouncy animations, friendly feel',
-    colors: ['#f97316', '#eab308', '#22c55e'],
+    colors: ['#7C3AED', '#eab308', '#22c55e'],
     preview: (
       <div className="w-full h-full bg-amber-100 flex items-center justify-center gap-1">
-        <div className="w-3 h-3 bg-orange-500 rounded-full" />
+        <div className="w-3 h-3 bg-violet-500 rounded-full" />
         <div className="w-3 h-3 bg-yellow-500 rounded-full" />
         <div className="w-3 h-3 bg-green-500 rounded-full" />
       </div>
@@ -331,7 +331,7 @@ export function StyleSelectionModal({
                     className={cn(
                       'flex flex-col items-center gap-1 p-2 rounded-md border transition-all',
                       selectedStyle === style.id
-                        ? 'border-orange-500 bg-orange-50'
+                        ? 'border-violet-500 bg-violet-50'
                         : 'border-gray-200 bg-gray-50 hover:border-gray-300'
                     )}
                   >
@@ -340,7 +340,7 @@ export function StyleSelectionModal({
                     </div>
                     <span className={cn(
                       'text-xs',
-                      selectedStyle === style.id ? 'text-orange-600' : 'text-gray-600'
+                      selectedStyle === style.id ? 'text-violet-600' : 'text-gray-600'
                     )}>
                       {style.name}
                     </span>
@@ -363,7 +363,7 @@ export function StyleSelectionModal({
                 // Clear error by triggering a new generation
                 handleGenerate();
               }}
-              className="bg-orange-500 hover:bg-orange-600 text-white"
+              className="bg-violet-500 hover:bg-violet-600 text-white"
             >
               Try Again
             </Button>
@@ -395,19 +395,19 @@ export function StyleSelectionModal({
               className={cn(
                 'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
                 layoutMode === 'pip'
-                  ? 'border-orange-500 bg-orange-50'
+                  ? 'border-violet-500 bg-violet-50'
                   : 'border-gray-200 bg-gray-50 hover:border-gray-300',
                 isLoading && 'opacity-50 cursor-not-allowed'
               )}
             >
               <PictureInPicture className={cn(
                 'w-6 h-6',
-                layoutMode === 'pip' ? 'text-orange-500' : 'text-gray-400'
+                layoutMode === 'pip' ? 'text-violet-500' : 'text-gray-400'
               )} />
               <div className="text-left">
                 <p className={cn(
                   'font-medium text-sm',
-                  layoutMode === 'pip' ? 'text-orange-700' : 'text-gray-900'
+                  layoutMode === 'pip' ? 'text-violet-700' : 'text-gray-900'
                 )}>
                   Picture-in-Picture
                 </p>
@@ -422,19 +422,19 @@ export function StyleSelectionModal({
               className={cn(
                 'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
                 layoutMode === 'split-horizontal'
-                  ? 'border-orange-500 bg-orange-50'
+                  ? 'border-violet-500 bg-violet-50'
                   : 'border-gray-200 bg-gray-50 hover:border-gray-300',
                 isLoading && 'opacity-50 cursor-not-allowed'
               )}
             >
               <Rows className={cn(
                 'w-6 h-6',
-                layoutMode === 'split-horizontal' ? 'text-orange-500' : 'text-gray-400'
+                layoutMode === 'split-horizontal' ? 'text-violet-500' : 'text-gray-400'
               )} />
               <div className="text-left">
                 <p className={cn(
                   'font-medium text-sm',
-                  layoutMode === 'split-horizontal' ? 'text-orange-700' : 'text-gray-900'
+                  layoutMode === 'split-horizontal' ? 'text-violet-700' : 'text-gray-900'
                 )}>
                   Split Screen
                 </p>
@@ -478,9 +478,9 @@ export function StyleSelectionModal({
                 disabled={isLoading}
                 className={cn(
                   'flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all',
-                  'hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-500',
+                  'hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-violet-500',
                   selectedStyle === style.id
-                    ? 'border-orange-500 bg-orange-50'
+                    ? 'border-violet-500 bg-violet-50'
                     : 'border-gray-200 bg-gray-50',
                   isLoading && 'opacity-50 cursor-not-allowed'
                 )}
@@ -493,7 +493,7 @@ export function StyleSelectionModal({
                 {/* Style name */}
                 <span className={cn(
                   'font-medium text-sm',
-                  selectedStyle === style.id ? 'text-orange-600' : 'text-gray-900'
+                  selectedStyle === style.id ? 'text-violet-600' : 'text-gray-900'
                 )}>
                   {style.name}
                 </span>
@@ -524,7 +524,7 @@ export function StyleSelectionModal({
             className={cn(
               'w-full h-24 px-3 py-2 rounded-lg border text-sm resize-none',
               'bg-white border-gray-300 text-gray-900 placeholder-gray-400',
-              'focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent',
+              'focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent',
               isLoading && 'opacity-50 cursor-not-allowed'
             )}
             maxLength={2000}
@@ -547,7 +547,7 @@ export function StyleSelectionModal({
           <Button
             onClick={handleGenerate}
             disabled={isLoading}
-            className="bg-orange-500 hover:bg-orange-600 text-white"
+            className="bg-violet-500 hover:bg-violet-600 text-white"
           >
             {isLoading ? (
               <>

@@ -3,7 +3,8 @@ export interface Testimonial {
   author: string;
   role: string;
   company: string;
-  avatar?: string;
+  avatar: string;
+  featured?: boolean;
 }
 
 export const testimonials: Testimonial[] = [
@@ -12,18 +13,45 @@ export const testimonials: Testimonial[] = [
     author: "James Park",
     role: "Course Creator",
     company: "CodeMentor Academy",
+    avatar: "https://i.pravatar.cc/150?img=11",
+    featured: true,
   },
   {
-    quote: "The AI actually understands what I'm explaining and creates matching diagrams. Not generic stock footage—real, contextual visuals that help my viewers learn.",
+    quote: "The AI actually understands what I'm explaining and creates matching diagrams. Not generic stock footage — real, contextual visuals that help my viewers learn.",
     author: "Dr. Lisa Chen",
     role: "EdTech Founder",
     company: "MedLearn Pro",
+    avatar: "https://i.pravatar.cc/150?img=5",
+    featured: true,
   },
   {
     quote: "We produce 30+ explainer videos a month for clients. Viona cut our production time in half while making the videos more professional.",
     author: "Marcus Webb",
     role: "Creative Director",
     company: "Explainer Studio",
+    avatar: "https://i.pravatar.cc/150?img=12",
+    featured: true,
+  },
+  {
+    quote: "The caption presets are insane. I picked the Hormozi style, tweaked the colors, and my video looked like it had a $5K editor behind it. Took me 10 minutes.",
+    author: "Priya Sharma",
+    role: "YouTube Creator",
+    company: "LearnWithPriya",
+    avatar: "https://i.pravatar.cc/150?img=32",
+  },
+  {
+    quote: "Being able to export the same video in 9:16, 16:9, and 1:1 from one project saved me from using three different tools. The safe zone preview is a game-changer.",
+    author: "Alex Rivera",
+    role: "Social Media Manager",
+    company: "GrowthLoop Agency",
+    avatar: "https://i.pravatar.cc/150?img=53",
+  },
+  {
+    quote: "I just told the AI assistant 'make the background darker and add a split layout' and it did it instantly. Feels like having a junior editor on call 24/7.",
+    author: "Tomoko Hayashi",
+    role: "Product Trainer",
+    company: "Notion",
+    avatar: "https://i.pravatar.cc/150?img=23",
   },
 ];
 
@@ -46,7 +74,7 @@ export const faqs = [
   },
   {
     question: "What about the subtitle styling options?",
-    answer: "Choose from 15+ animation presets including viral styles (bounce, shake, color-wipe), cinematic styles (fade-rise, typewriter), and display modes (karaoke, word-by-word). You can also customize fonts, colors, and positioning.",
+    answer: "Choose from 20+ animation presets including viral styles (MrBeast, Hormozi, Ali Abdaal), cinematic styles (Netflix, typewriter), and display modes (karaoke, word-by-word). Customize fonts, colors, glow effects, and positioning.",
   },
   {
     question: "Is there a free trial?",

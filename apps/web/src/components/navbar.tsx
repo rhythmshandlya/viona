@@ -41,6 +41,7 @@ export function Navbar() {
         {/* Logo */}
         <Link href="/projects" className="flex items-center space-x-2">
           <span className="text-xl font-bold text-primary">Viona</span>
+          <span className="text-xs font-medium text-muted-foreground tracking-wide uppercase">Studio</span>
         </Link>
 
         {/* Navigation Links */}

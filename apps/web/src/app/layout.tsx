@@ -37,8 +37,8 @@ const dmSans = DM_Sans({
 
 export const metadata = createMetadata({
   title: {
-    template: "%s | Viona",
-    default: "Viona"
+    template: "%s | Viona Studio",
+    default: "Viona Studio"
   },
   description: "Transform your explainer videos with AI-generated visuals, auto-transcription, and animated subtitles.",
   metadataBase: baseUrl

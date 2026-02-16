@@ -13,7 +13,7 @@ const ITEM_COLORS: Record<string, string> = {
   video: '#3b82f6',   // blue-500
   audio: '#22c55e',   // green-500
   caption: '#a855f7', // purple-500
-  text: '#f59e0b',    // amber-500
+  text: '#A78BFA',    // violet-400
   image: '#ec4899',   // pink-500
 };
 

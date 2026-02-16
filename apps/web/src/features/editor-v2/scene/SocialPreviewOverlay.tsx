@@ -940,7 +940,7 @@ function YouTubeMockup({ width, height, s }: MockupProps) {
             width: 34 * s,
             height: 34 * s,
             flexShrink: 0,
-            background: 'linear-gradient(135deg, #ef4444 0%, #f97316 100%)',
+            background: 'linear-gradient(135deg, #7C3AED 0%, #A78BFA 100%)',
           }}
         />
         <span

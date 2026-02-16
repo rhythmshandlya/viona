@@ -30,7 +30,7 @@ const AssetColor: Record<ExtractedAsset['type'], string> = {
   component: 'text-blue-400',
   element: 'text-purple-400',
   text: 'text-green-400',
-  shape: 'text-orange-400',
+  shape: 'text-violet-400',
   icon: 'text-yellow-400',
   background: 'text-gray-400',
 };

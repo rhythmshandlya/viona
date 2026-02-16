@@ -74,19 +74,19 @@ const DEFAULT_OPTIONS: CanvasRendererOptions = {
   itemColors: {
     video: '#3b82f6', // blue-500
     audio: '#22c55e', // green-500
-    caption: '#424874', // brand primary
-    text: '#f59e0b', // amber-500
+    caption: '#7C3AED', // violet (brand color)
+    text: '#A78BFA', // violet-400
     image: '#ec4899', // pink-500
     visual: '#8b5cf6', // purple-500
     broll: '#06b6d4', // cyan-500
   },
-  selectedBorderColor: '#424874', // brand primary for selection
-  playheadColor: '#424874', // brand primary playhead
-  selectionBoxColor: 'rgba(66, 72, 116, 0.15)', // brand primary with opacity
+  selectedBorderColor: '#7C3AED', // violet for selection
+  playheadColor: '#7C3AED', // violet playhead
+  selectionBoxColor: 'rgba(124, 58, 237, 0.15)', // violet with opacity
   textColor: '#1A1A1A', // dark text
   // Phase 2: Snap and preview colors
   snapLineColor: '#22c55e', // green-500
-  snapLinePlayheadColor: '#424874', // brand primary
+  snapLinePlayheadColor: '#7C3AED', // violet
   previewOpacity: 0.5,
   invalidPreviewColor: '#ef4444', // red-500
   resizeHandleColor: '#FFFFFF',
@@ -515,7 +515,7 @@ export class CanvasRenderer {
 
     // Draw vertical dashed line in red/orange
     ctx.save();
-    ctx.strokeStyle = '#424874'; // brand primary
+    ctx.strokeStyle = '#7C3AED'; // violet-500
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
     ctx.beginPath();

@@ -3,13 +3,16 @@ import { siteConfig } from "@/data/site";
 ---
 
 <section class="relative pt-24 pb-12 sm:pt-28 sm:pb-16 lg:pt-32 lg:pb-20 overflow-hidden">
-  <!-- Orange gradient blob -->
+  <!-- Three.js canvas background -->
+  <canvas id="hero-canvas" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 0;"></canvas>
+
+  <!-- Gradient blob (fallback / additional depth) -->
   <div class="hero-gradient" data-hero-gradient></div>
 
   <div class="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
     <!-- Tagline badge -->
     <div class="flex justify-center mb-6 sm:mb-8">
-      <div class="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-border bg-white text-xs sm:text-sm" data-hero-badge>
+      <div class="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-border bg-white/80 backdrop-blur-sm text-xs sm:text-sm" data-hero-badge>
         <span class="text-muted-foreground">For explainer videos & courses</span>
       </div>
     </div>
@@ -44,7 +47,7 @@ import { siteConfig } from "@/data/site";
       <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
         <!-- Before -->
         <div class="text-center w-full sm:flex-1 max-w-[280px] sm:max-w-none">
-          <div class="bg-white rounded-2xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm mb-2 sm:mb-3">
+          <div class="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm mb-2 sm:mb-3">
             <div class="aspect-video bg-gray-100 rounded-xl flex items-center justify-center">
               <!-- Person icon -->
               <svg class="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
@@ -66,7 +69,7 @@ import { siteConfig } from "@/data/site";
 
         <!-- After -->
         <div class="text-center w-full sm:flex-1 max-w-[280px] sm:max-w-none">
-          <div class="bg-white rounded-2xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm mb-2 sm:mb-3 ring-2 ring-primary/20">
+          <div class="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm mb-2 sm:mb-3 ring-2 ring-primary/20">
             <div class="aspect-video bg-white rounded-xl relative overflow-hidden border border-gray-100">
               <!-- Main visual area with chart -->
               <div class="absolute inset-2 right-12 sm:inset-3 sm:right-14 md:right-16 bg-gray-50 rounded-lg p-2 sm:p-3 flex flex-col">
@@ -98,7 +101,17 @@ import { siteConfig } from "@/data/site";
   import { gsap } from "@/scripts/animations";
 
   document.addEventListener("astro:page-load", () => {
-    // Hero entrance timeline (plays on page load, not scroll)
+    // Lazy-load Three.js scene so it doesn't block initial paint
+    const canvas = document.getElementById("hero-canvas") as HTMLCanvasElement;
+    let cleanup: (() => void) | undefined;
+    if (canvas) {
+      import("@/scripts/hero-scene").then(({ initHeroScene }) => {
+        cleanup = initHeroScene(canvas);
+        gsap.fromTo(canvas, { opacity: 0 }, { opacity: 1, duration: 1.5 });
+      });
+    }
+
+    // Hero entrance timeline
     const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
 
     tl.from('[data-hero-badge]', { y: 20, opacity: 0, duration: 0.5 })
@@ -112,7 +125,7 @@ import { siteConfig } from "@/data/site";
       document.querySelector('[data-hero-headline] .wavy-underline')?.classList.add('revealed');
     }, "-=0.3");
 
-    // Bar chart bars grow as part of page-load sequence
+    // Bar chart bars grow
     tl.from('[data-demo-bar]', {
       scaleY: 0,
       transformOrigin: "bottom",
@@ -144,5 +157,10 @@ import { siteConfig } from "@/data/site";
       repeat: -1,
       yoyo: true,
     });
+
+    // Cleanup on page transition
+    document.addEventListener("astro:before-preparation", () => {
+      cleanup?.();
+    }, { once: true });
   });
 </script>
