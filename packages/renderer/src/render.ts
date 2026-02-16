@@ -89,7 +89,7 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     inputProps,
   });
 
-  // Override composition settings
+  // Override composition settings (keep full resolution — font sizes are CSS pixels)
   const finalComposition = {
     ...composition,
     width,
@@ -120,6 +120,13 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     crf: 23,
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
+    },
+    offthreadVideoCacheSizeInBytes: 50 * 1024 * 1024, // 50MB video cache limit
+    // Limit FFmpeg threads to prevent OOM on Railway (default auto-detects 60+ threads)
+    ffmpegOverride: ({ args }) => {
+      // Insert -threads 4 before the output file (last arg)
+      const outputFile = args[args.length - 1];
+      return [...args.slice(0, -1), '-threads', '4', outputFile];
     },
     onProgress: ({ progress }) => {
       const percent = Math.round(progress * 100);
