@@ -755,6 +755,93 @@ input[type="number"]::-webkit-outer-spin-button {
   border-left-color: var(--editor-accent);
 }
 
+/* AI Agent markdown prose */
+.prose-agent {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--editor-text-primary);
+}
+.prose-agent p {
+  margin: 0.35em 0;
+}
+.prose-agent p:first-child {
+  margin-top: 0;
+}
+.prose-agent p:last-child {
+  margin-bottom: 0;
+}
+.prose-agent strong {
+  font-weight: 600;
+  color: var(--editor-text-primary);
+}
+.prose-agent code {
+  font-size: 0.8em;
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+  background: var(--editor-bg-elevated);
+  color: var(--editor-accent);
+}
+.prose-agent pre {
+  margin: 0.5em 0;
+  padding: 0.75em;
+  border-radius: 8px;
+  background: var(--editor-bg-elevated);
+  overflow-x: auto;
+}
+.prose-agent pre code {
+  padding: 0;
+  background: none;
+  font-size: 0.8em;
+}
+.prose-agent ul, .prose-agent ol {
+  margin: 0.35em 0;
+  padding-left: 1.5em;
+}
+.prose-agent li {
+  margin: 0.15em 0;
+}
+.prose-agent li::marker {
+  color: var(--editor-text-muted);
+}
+.prose-agent h1, .prose-agent h2, .prose-agent h3, .prose-agent h4 {
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+  color: var(--editor-text-primary);
+}
+.prose-agent h1 { font-size: 1.1em; }
+.prose-agent h2 { font-size: 1.05em; }
+.prose-agent h3 { font-size: 1em; }
+.prose-agent blockquote {
+  margin: 0.35em 0;
+  padding-left: 0.75em;
+  border-left: 3px solid var(--editor-accent);
+  color: var(--editor-text-secondary);
+}
+.prose-agent hr {
+  margin: 0.75em 0;
+  border: none;
+  border-top: 1px solid var(--editor-border-subtle);
+}
+.prose-agent a {
+  color: var(--editor-accent);
+  text-decoration: underline;
+}
+.prose-agent table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.5em 0;
+  font-size: 0.85em;
+}
+.prose-agent th, .prose-agent td {
+  padding: 0.35em 0.5em;
+  border: 1px solid var(--editor-border-subtle);
+  text-align: left;
+}
+.prose-agent th {
+  background: var(--editor-bg-elevated);
+  font-weight: 600;
+}
+
 /* Timeline track styles for light theme */
 .editor-theme .timeline-track {
   background-color: var(--editor-track-bg);

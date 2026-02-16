@@ -17,6 +17,7 @@ import { CaptionRenderer } from './canvas/renderers/CaptionRenderer';
 import { BaseRenderer } from './canvas/renderers/BaseRenderer';
 import { VisualRenderer } from './canvas/renderers/VisualRenderer';
 import {
+  useEditorStore,
   useTracks,
   useItems,
   useItemIds,
@@ -205,14 +206,15 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       const dragType = hitTester.getDragTypeFromHit(hit);
 
       // Handle selection
+      const isMultiSelectKey = e.shiftKey || e.ctrlKey || e.metaKey;
       if (hit.type === 'item' && hit.itemId) {
-        if (e.shiftKey) {
+        if (isMultiSelectKey) {
           select([hit.itemId], 'toggle');
         } else if (!selectedIds.includes(hit.itemId)) {
           select([hit.itemId], 'replace');
         }
       } else if (hit.type === 'empty' || hit.type === 'track') {
-        if (!e.shiftKey) {
+        if (!isMultiSelectKey) {
           clearSelection();
         }
       }

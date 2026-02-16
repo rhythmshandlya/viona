@@ -6,7 +6,6 @@ import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { spawn } from 'child_process';
-import ffmpeg from 'fluent-ffmpeg';
 import { db, projects, tracks, timelineItems, transcripts, jobs } from '../db/index.js';
 import { downloadFile } from '../services/minio.js';
 import { logger } from '../logger.js';
@@ -40,69 +39,202 @@ interface WhisperXOutput {
 }
 
 async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
-  // Normalize paths for FFmpeg on Windows (use forward slashes)
-  const normalizedInput = videoPath.replace(/\\/g, '/');
-  const normalizedOutput = audioPath.replace(/\\/g, '/');
+  // Use spawn with cwd and relative filenames to avoid Windows path issues
+  // (FFmpeg interprets colons in paths like C:/... as stream specifiers)
+  const { dirname, basename } = await import('path');
+
+  const workDir = dirname(videoPath);
+  const inputFilename = basename(videoPath);
+  const outputFilename = basename(audioPath);
+
+  // First check if the video has an audio stream
+  const hasAudio = await checkHasAudioStream(workDir, inputFilename);
+
+  if (!hasAudio) {
+    // Create a silent audio file for videos without audio
+    const args = [
+      '-f', 'lavfi',
+      '-i', 'anullsrc=r=16000:cl=mono',
+      '-t', '1',  // 1 second of silence (will be extended if needed)
+      '-y',
+      '-acodec', 'pcm_s16le',
+      '-ar', '16000',
+      '-ac', '1',
+      outputFilename
+    ];
+
+    return new Promise((resolve, reject) => {
+      const proc = spawn('ffmpeg', args, {
+        cwd: workDir,
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+
+      let stderr = '';
+      proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`ffmpeg (silent audio) exited with code ${code}: ${stderr.slice(-500)}`));
+        }
+      });
+
+      proc.on('error', (err) => {
+        reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+      });
+    });
+  }
+
+  const args = [
+    '-i', inputFilename,
+    '-y',
+    '-vn',           // No video
+    '-acodec', 'pcm_s16le',  // 16-bit PCM
+    '-ar', '16000',  // 16kHz sample rate
+    '-ac', '1',      // Mono
+    outputFilename
+  ];
 
   return new Promise((resolve, reject) => {
-    ffmpeg(normalizedInput)
-      .outputOptions([
-        '-vn',           // No video
-        '-acodec', 'pcm_s16le',  // 16-bit PCM
-        '-ar', '16000',  // 16kHz sample rate
-        '-ac', '1',      // Mono
-      ])
-      .output(normalizedOutput)
-      .on('end', () => resolve())
-      .on('error', (err) => reject(err))
-      .run();
+    const proc = spawn('ffmpeg', args, {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stderr = '';
+    proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg exited with code ${code}: ${stderr.slice(-500)}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+    });
+  });
+}
+
+async function checkHasAudioStream(workDir: string, inputFilename: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = spawn('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'a',
+      '-show_entries', 'stream=index',
+      '-of', 'csv=p=0',
+      inputFilename
+    ], {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+
+    proc.on('close', () => {
+      // If there's any output, there's an audio stream
+      resolve(stdout.trim().length > 0);
+    });
+
+    proc.on('error', () => {
+      // On error, assume there might be audio and let ffmpeg handle it
+      resolve(true);
+    });
   });
 }
 
 async function getVideoDuration(videoPath: string): Promise<number> {
-  // Normalize path for FFmpeg on Windows
-  const normalizedPath = videoPath.replace(/\\/g, '/');
+  // Use spawn with cwd to avoid Windows path issues with colons
+  const { dirname, basename } = await import('path');
+  const workDir = dirname(videoPath);
+  const inputFilename = basename(videoPath);
 
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(normalizedPath, (err, metadata) => {
-      if (err) {
-        reject(err);
-        return;
+    const proc = spawn('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      inputFilename
+    ], {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+
+    let stdout = '';
+    proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        const duration = parseFloat(stdout.trim()) || 0;
+        resolve(Math.round(duration * 1000)); // Convert to milliseconds
+      } else {
+        reject(new Error(`ffprobe exited with code ${code}`));
       }
-      const duration = metadata.format.duration || 0;
-      resolve(Math.round(duration * 1000)); // Convert to milliseconds
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to spawn ffprobe: ${err.message}`));
     });
   });
 }
 
 async function getVideoMetadata(videoPath: string): Promise<{ width: number; height: number; fps: number }> {
-  // Normalize path for FFmpeg on Windows
-  const normalizedPath = videoPath.replace(/\\/g, '/');
+  // Use spawn with cwd to avoid Windows path issues with colons
+  const { dirname, basename } = await import('path');
+  const workDir = dirname(videoPath);
+  const inputFilename = basename(videoPath);
 
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(normalizedPath, (err, metadata) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      const videoStream = metadata.streams.find(s => s.codec_type === 'video');
-      if (!videoStream) {
-        reject(new Error('No video stream found'));
-        return;
-      }
+    const proc = spawn('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=width,height,r_frame_rate',
+      '-of', 'json',
+      inputFilename
+    ], {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
 
-      // Parse fps from r_frame_rate (e.g., "30/1" or "30000/1001")
-      let fps = 30;
-      if (videoStream.r_frame_rate) {
-        const [num, den] = videoStream.r_frame_rate.split('/').map(Number);
-        fps = Math.round(num / (den || 1));
-      }
+    let stdout = '';
+    proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 
-      resolve({
-        width: videoStream.width || 1920,
-        height: videoStream.height || 1080,
-        fps,
-      });
+    proc.on('close', (code) => {
+      if (code === 0) {
+        try {
+          const data = JSON.parse(stdout);
+          const stream = data.streams?.[0];
+          if (!stream) {
+            reject(new Error('No video stream found'));
+            return;
+          }
+
+          // Parse fps from r_frame_rate (e.g., "30/1" or "30000/1001")
+          let fps = 30;
+          if (stream.r_frame_rate) {
+            const [num, den] = stream.r_frame_rate.split('/').map(Number);
+            fps = Math.round(num / (den || 1));
+          }
+
+          resolve({
+            width: stream.width || 1920,
+            height: stream.height || 1080,
+            fps,
+          });
+        } catch {
+          reject(new Error(`Failed to parse ffprobe output: ${stdout}`));
+        }
+      } else {
+        reject(new Error(`ffprobe exited with code ${code}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to spawn ffprobe: ${err.message}`));
     });
   });
 }
@@ -305,6 +437,52 @@ function groupWordsIntoPages(
   return pages;
 }
 
+// Check if a file is an audio-only file by extension
+function isAudioFile(key: string): boolean {
+  const ext = key.toLowerCase().match(/\.[^.]+$/)?.[0] || '';
+  return ['.mp3', '.m4a', '.wav', '.ogg', '.flac'].includes(ext);
+}
+
+// Convert audio to 16kHz mono WAV for Whisper
+async function convertToWhisperWav(inputPath: string, outputPath: string): Promise<void> {
+  const { dirname, basename } = await import('path');
+  const workDir = dirname(inputPath);
+  const inputFilename = basename(inputPath);
+  const outputFilename = basename(outputPath);
+
+  const args = [
+    '-i', inputFilename,
+    '-y',
+    '-vn',
+    '-acodec', 'pcm_s16le',
+    '-ar', '16000',
+    '-ac', '1',
+    outputFilename,
+  ];
+
+  return new Promise((resolve, reject) => {
+    const proc = spawn('ffmpeg', args, {
+      cwd: workDir,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+
+    let stderr = '';
+    proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg (convert WAV) exited with code ${code}: ${stderr.slice(-500)}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`Failed to spawn ffmpeg: ${err.message}`));
+    });
+  });
+}
+
 export async function processTranscribeJob(job: Job<TranscribeJobData>) {
   const { projectId, jobId, videoKey } = job.data;
   const workDir = join(tmpdir(), `reelify-${nanoid()}`);
@@ -313,7 +491,9 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     // Create working directory
     await mkdir(workDir, { recursive: true });
 
-    const videoPath = join(workDir, 'video.mp4');
+    const isAudio = isAudioFile(videoKey);
+    const inputExt = videoKey.match(/\.[^.]+$/)?.[0] || (isAudio ? '.mp3' : '.mp4');
+    const inputPath = join(workDir, `input${inputExt}`);
     const audioPath = join(workDir, 'audio.wav');
 
     // Update job status
@@ -323,31 +503,50 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
 
     const pubExtras = { projectId };
 
-    // Step 1: Download video (10%)
-    await publishJobProgress(jobId, 5, 'Downloading video...', pubExtras);
-    await downloadFile('uploads', videoKey, videoPath);
-    await publishJobProgress(jobId, 10, 'Video downloaded', pubExtras);
+    // Step 1: Download media (10%)
+    await publishJobProgress(jobId, 5, `Downloading ${isAudio ? 'audio' : 'video'}...`, pubExtras);
+    await downloadFile('uploads', videoKey, inputPath);
+    await publishJobProgress(jobId, 10, `${isAudio ? 'Audio' : 'Video'} downloaded`, pubExtras);
 
-    // Step 2: Get video metadata
-    const [durationMs, metadata] = await Promise.all([
-      getVideoDuration(videoPath),
-      getVideoMetadata(videoPath),
-    ]);
+    // Step 2: Get metadata
+    let durationMs: number;
+    if (isAudio) {
+      // Audio files: only get duration, skip video metadata
+      durationMs = await getVideoDuration(inputPath);
 
-    // Update project with video info
-    await db.update(projects)
-      .set({
-        durationMs,
-        fps: metadata.fps,
-        sourceWidth: metadata.width,
-        sourceHeight: metadata.height,
-      })
-      .where(eq(projects.id, projectId));
+      await db.update(projects)
+        .set({ durationMs })
+        .where(eq(projects.id, projectId));
+    } else {
+      // Video files: get full metadata
+      const [duration, metadata] = await Promise.all([
+        getVideoDuration(inputPath),
+        getVideoMetadata(inputPath),
+      ]);
+      durationMs = duration;
 
-    // Step 3: Extract audio (20%)
-    await publishJobProgress(jobId, 15, 'Extracting audio...', pubExtras);
-    await extractAudio(videoPath, audioPath);
-    await publishJobProgress(jobId, 20, 'Audio extracted', pubExtras);
+      await db.update(projects)
+        .set({
+          durationMs,
+          fps: metadata.fps,
+          sourceWidth: metadata.width,
+          sourceHeight: metadata.height,
+        })
+        .where(eq(projects.id, projectId));
+    }
+
+    // Step 3: Prepare audio for Whisper (20%)
+    if (isAudio) {
+      // Audio files: convert directly to 16kHz WAV (no need to extract from video)
+      await publishJobProgress(jobId, 15, 'Converting audio...', pubExtras);
+      await convertToWhisperWav(inputPath, audioPath);
+      await publishJobProgress(jobId, 20, 'Audio ready', pubExtras);
+    } else {
+      // Video files: extract audio track
+      await publishJobProgress(jobId, 15, 'Extracting audio...', pubExtras);
+      await extractAudio(inputPath, audioPath);
+      await publishJobProgress(jobId, 20, 'Audio extracted', pubExtras);
+    }
 
     // Step 4: Run transcription (25% - 70%)
     const transcriptionMode = config.transcription.mode;
@@ -407,7 +606,31 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
 
     await publishJobProgress(jobId, 90, 'Subtitle track created', pubExtras);
 
-    // Step 8: Update project status (100%)
+    // Step 8: For audio projects, create audio track + timeline item referencing uploaded audio
+    if (isAudio) {
+      const [audioTrack] = await db.insert(tracks).values({
+        projectId,
+        type: 'audio',
+        name: 'Audio',
+        position: 2,
+      }).returning();
+
+      await db.insert(timelineItems).values({
+        trackId: audioTrack.id,
+        type: 'audio',
+        startMs: 0,
+        endMs: durationMs,
+        data: {
+          src: `/api/projects/${projectId}/audio`,
+          originalSrc: `/api/projects/${projectId}/audio`,
+          isEnhanced: false,
+          sourceVideoItemId: '',
+          volume: 1,
+        },
+      });
+    }
+
+    // Step 9: Update project status (100%)
     await db.update(projects)
       .set({ status: 'ready', updatedAt: new Date() })
       .where(eq(projects.id, projectId));

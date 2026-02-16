@@ -166,7 +166,7 @@ export async function getPresignedDownloadUrlLegacy(
 export async function uploadStream(
   prefix: 'uploads' | 'outputs' | 'templates',
   key: string,
-  stream: NodeJS.ReadableStream,
+  stream: import('stream').Readable | Buffer | string,
   size?: number,
   contentType?: string
 ): Promise<void> {

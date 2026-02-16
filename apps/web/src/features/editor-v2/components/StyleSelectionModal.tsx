@@ -89,6 +89,31 @@ const STYLE_OPTIONS: StyleOption[] = [
       </div>
     ),
   },
+  {
+    id: 'apple',
+    name: 'Apple',
+    description: 'Premium minimalism, fade+blur, pure black/white',
+    colors: ['#000000', '#ffffff', '#0071e3'],
+    preview: (
+      <div className="w-full h-full bg-black flex items-center justify-center">
+        <div className="w-8 h-8 bg-white rounded-lg" />
+      </div>
+    ),
+  },
+  {
+    id: 'google',
+    name: 'Google',
+    description: 'Material Design 3, cards, Google color palette',
+    colors: ['#ffffff', '#1a73e8', '#34a853'],
+    preview: (
+      <div className="w-full h-full bg-white flex items-center justify-center gap-1.5">
+        <div className="w-2.5 h-2.5 bg-[#1a73e8] rounded-full" />
+        <div className="w-2.5 h-2.5 bg-[#ea4335] rounded-full" />
+        <div className="w-2.5 h-2.5 bg-[#fbbc04] rounded-full" />
+        <div className="w-2.5 h-2.5 bg-[#34a853] rounded-full" />
+      </div>
+    ),
+  },
 ];
 
 interface JobMetrics {

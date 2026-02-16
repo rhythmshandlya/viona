@@ -93,6 +93,9 @@ const initialState: EditorState = {
   // Caption style toggle
   applyStyleToAll: false,
 
+  // Caption visibility in player
+  showCaptions: true,
+
   // Clipboard and split mode
   clipboard: null,
   splitMode: false,
@@ -108,6 +111,13 @@ const initialState: EditorState = {
 
   // Element picker mode
   elementPickerEnabled: false,
+
+  // AI edit request
+  aiEditRequested: false,
+
+  // Safe zone settings
+  safeZonePlatform: 'none',
+  showSafeZone: false,
 };
 
 /**
@@ -157,12 +167,18 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
     ...apiVideoSettings,
   };
 
+  const projectType = (apiProject as any).projectType || 'video';
+  const isAudioProject = projectType === 'audio';
+
   const project = {
     id: apiProject.id,
     title: (apiProject as any).title || null,
     status: apiProject.status,
+    projectType: projectType as 'video' | 'audio',
     videoKey: apiProject.videoKey,
+    audioKey: (apiProject as any).audioKey || null,
     videoUrl,
+    audioUrl: (apiProject as any).audioPresignedUrl || null,
     outputKey: apiProject.outputKey || null,
     durationMs: apiProject.durationMs || 0,
     fps: apiProject.fps || DEFAULT_FPS,
@@ -187,19 +203,21 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
       };
     });
 
-  // Ensure we have a video track
-  const hasVideoTrack = tracks.some((t) => t.type === 'video');
-  if (!hasVideoTrack) {
-    tracks.push({
-      id: `video-track-${nanoid(8)}`,
-      type: 'video',
-      name: 'Video',
-      position: 0,
-      locked: false,
-      visible: true,
-      height: TRACK_HEIGHTS.video,
-      collapsed: false,
-    });
+  // Ensure we have a video track (only for video projects)
+  if (!isAudioProject) {
+    const hasVideoTrack = tracks.some((t) => t.type === 'video');
+    if (!hasVideoTrack) {
+      tracks.push({
+        id: `video-track-${nanoid(8)}`,
+        type: 'video',
+        name: 'Video',
+        position: 0,
+        locked: false,
+        visible: true,
+        height: TRACK_HEIGHTS.video,
+        collapsed: false,
+      });
+    }
   }
 
   // Ensure we have a caption track
@@ -240,8 +258,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
   const items: Record<string, TimelineItem> = {};
   const itemIds: string[] = [];
 
-  // Add video item if project has video
-  if (project.videoKey && project.videoUrl) {
+  // Add video item if project has video (not for audio projects)
+  if (!isAudioProject && project.videoKey && project.videoUrl) {
     const videoTrack = tracks.find((t) => t.type === 'video');
     if (videoTrack) {
       const videoId = `video-${nanoid(8)}`;
@@ -270,7 +288,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
     if (item.type === 'subtitle' && captionTrack) {
       const data = item.data as {
         text?: string;
-        words?: Array<{ text: string; startMs: number; endMs: number }>;
+        words?: Array<{ text: string; startMs: number; endMs: number; styleOverrides?: WordStyleOverrides }>;
         style?: Record<string, unknown>;
       };
 
@@ -298,6 +316,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             text: w.text,
             startMs: w.startMs - item.startMs, // Convert to relative time
             endMs: w.endMs - item.startMs,
+            ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
           })),
           style: captionStyle,
         } as CaptionItemData,
@@ -320,6 +339,11 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         const resolveUrl = (key: string | undefined) =>
           key ? `${API_URL}/api/media/outputs/${key}` : '';
 
+        // For audio projects, the src is already a direct API path (e.g. /api/projects/:id/audio)
+        const rawSrc = raw.src as string | undefined;
+        const isDirectUrl = rawSrc?.startsWith('/api/');
+        const directSrc = isDirectUrl ? `${API_URL}${rawSrc}` : '';
+
         const audioItem: TimelineItem = {
           id: item.id,
           type: 'audio',
@@ -327,13 +351,13 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
           startMs: item.startMs,
           endMs: item.endMs,
           data: {
-            src: isComplete ? resolveUrl(enhancedKey) : resolveUrl(originalKey),
-            originalSrc: resolveUrl(originalKey),
-            enhancedSrc: resolveUrl(enhancedKey),
-            isEnhanced: isComplete,
+            src: isDirectUrl ? directSrc : (isComplete ? resolveUrl(enhancedKey) : resolveUrl(originalKey)),
+            originalSrc: isDirectUrl ? directSrc : resolveUrl(originalKey),
+            enhancedSrc: isDirectUrl ? undefined : resolveUrl(enhancedKey),
+            isEnhanced: isDirectUrl ? false : isComplete,
             sourceVideoItemId: (raw.sourceVideoItemId as string) || '',
             volume: (raw.volume as number) ?? 1,
-            enhancementStatus: (raw.enhancementStatus as AudioItemData['enhancementStatus']) || 'idle',
+            enhancementStatus: isDirectUrl ? 'idle' : ((raw.enhancementStatus as AudioItemData['enhancementStatus']) || 'idle'),
             enhancementProgress: (raw.enhancementProgress as number) ?? 0,
           } as AudioItemData,
         };
@@ -413,6 +437,11 @@ export const useEditorStore = create<EditorStore>()(
           videoUrl
         );
 
+        // Restore persisted settings from videoSettings JSONB
+        const savedVideoSettings = (apiProject as any).videoSettings;
+        const savedLayoutSettings = savedVideoSettings?.layoutSettings;
+        const savedLayoutPresetId = savedVideoSettings?.layoutPresetId;
+
         set((state) => {
           state.project = project;
           state.tracks = tracks;
@@ -423,6 +452,18 @@ export const useEditorStore = create<EditorStore>()(
           state.isLoading = false;
           state.currentTimeMs = 0;
           state.selectedIds = [];
+          // Restore layout settings (merge with defaults for forward compat)
+          if (savedLayoutSettings) {
+            state.layoutSettings = {
+              ...DEFAULT_LAYOUT_SETTINGS,
+              ...savedLayoutSettings,
+              pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
+              split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
+            };
+          }
+          if (savedLayoutPresetId) {
+            state.layoutPresetId = savedLayoutPresetId;
+          }
           // Reset viewport
           state.viewport = {
             zoom: DEFAULT_ZOOM,
@@ -514,7 +555,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     saveProject: async () => {
-      const { project, items, itemIds } = get();
+      const { project, items, itemIds, layoutSettings, layoutPresetId } = get();
       if (!project) return;
 
       set((state) => {
@@ -522,7 +563,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       try {
-        // Convert items back to API format
+        // Convert items back to API format — include trackId and type for new items (split/merge)
         const apiItems = itemIds
           .map((id) => items[id])
           .filter((item) => item.type === 'caption')
@@ -530,6 +571,8 @@ export const useEditorStore = create<EditorStore>()(
             const data = item.data as CaptionItemData;
             return {
               id: item.id,
+              trackId: item.trackId,
+              type: 'subtitle' as const, // DB type is 'subtitle' (editor uses 'caption' internally)
               startMs: item.startMs,
               endMs: item.endMs,
               data: {
@@ -538,13 +581,29 @@ export const useEditorStore = create<EditorStore>()(
                   text: w.text,
                   startMs: w.startMs + item.startMs, // Convert back to absolute time
                   endMs: w.endMs + item.startMs,
+                  ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
                 })),
                 style: data.style,
               },
             };
           });
 
-        await api.updateProject(project.id, { items: apiItems });
+        // Collect IDs of all caption items currently in the editor
+        // The API will delete any DB caption items NOT in this list (from split/merge)
+        const captionItemIds = apiItems.map((item) => item.id);
+
+        // Persist layout settings inside videoSettings JSONB
+        const videoSettingsPayload = {
+          ...project.videoSettings,
+          layoutSettings,
+          layoutPresetId,
+        };
+
+        await api.updateProject(project.id, {
+          items: apiItems,
+          captionItemIds,
+          videoSettings: videoSettingsPayload,
+        });
 
         set((state) => {
           state.isSaving = false;
@@ -554,6 +613,7 @@ export const useEditorStore = create<EditorStore>()(
           state.error = err instanceof Error ? err.message : 'Failed to save project';
           state.isSaving = false;
         });
+        throw err; // Re-throw so callers (e.g., ExportModal) can detect save failures
       }
     },
 
@@ -635,22 +695,34 @@ export const useEditorStore = create<EditorStore>()(
         } else {
           // Merge overrides, removing undefined values
           const merged = { ...word.styleOverrides, ...overrides };
-          // Clean out undefined values
+          // Clean out undefined values — keep all WordStyleOverrides properties
           const cleaned: WordStyleOverrides = {};
           if (merged.color !== undefined) cleaned.color = merged.color;
+          if (merged.activeColor !== undefined) cleaned.activeColor = merged.activeColor;
           if (merged.fontWeight !== undefined) cleaned.fontWeight = merged.fontWeight;
+          if (merged.fontFamily !== undefined) cleaned.fontFamily = merged.fontFamily;
+          if (merged.fontSize !== undefined) cleaned.fontSize = merged.fontSize;
           if (merged.scale !== undefined) cleaned.scale = merged.scale;
+          if (merged.letterSpacing !== undefined) cleaned.letterSpacing = merged.letterSpacing;
+          if (merged.textTransform !== undefined) cleaned.textTransform = merged.textTransform;
           if (merged.emphasisBg !== undefined) cleaned.emphasisBg = merged.emphasisBg;
 
           word.styleOverrides = Object.keys(cleaned).length > 0 ? cleaned : undefined;
         }
       });
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
     },
 
     setApplyStyleToAll: (value: boolean) => {
       set((state) => {
         state.applyStyleToAll = value;
+      });
+    },
+
+    setShowCaptions: (value: boolean) => {
+      set((state) => {
+        state.showCaptions = value;
       });
     },
 
@@ -669,7 +741,7 @@ export const useEditorStore = create<EditorStore>()(
     // ========================================
 
     addItem: (trackId, itemData) => {
-      const id = itemData.id || nanoid(10);
+      const id = itemData.id || crypto.randomUUID();
 
       set((state) => {
         const track = state.tracks.find((t) => t.id === trackId);
@@ -1228,8 +1300,8 @@ export const useEditorStore = create<EditorStore>()(
         const original = state.items[itemId];
         if (!original) return;
 
-        const leftId = nanoid(10);
-        const rightId = nanoid(10);
+        const leftId = crypto.randomUUID();
+        const rightId = crypto.randomUUID();
 
         if (original.type === 'caption') {
           const data = original.data as CaptionItemData;
@@ -1355,7 +1427,7 @@ export const useEditorStore = create<EditorStore>()(
 
         const newIds: string[] = [];
         for (const item of cloned) {
-          const newId = nanoid(10);
+          const newId = crypto.randomUUID();
           item.id = newId;
           item.startMs += offset;
           item.endMs += offset;
@@ -1380,7 +1452,7 @@ export const useEditorStore = create<EditorStore>()(
 
           const cloned: TimelineItem = JSON.parse(JSON.stringify(original));
           const duration = original.endMs - original.startMs;
-          const newId = nanoid(10);
+          const newId = crypto.randomUUID();
 
           cloned.id = newId;
           cloned.startMs = original.endMs;
@@ -1469,8 +1541,8 @@ export const useEditorStore = create<EditorStore>()(
           endMs: w.endMs - rightWords[0].startMs,
         }));
 
-        const leftId = nanoid(10);
-        const rightId = nanoid(10);
+        const leftId = crypto.randomUUID();
+        const rightId = crypto.randomUUID();
 
         const leftItem: TimelineItem = {
           id: leftId,
@@ -1537,7 +1609,7 @@ export const useEditorStore = create<EditorStore>()(
         const mergedWords = [...firstData.words, ...adjustedSecondWords];
         const mergedText = mergedWords.map((w) => w.text).join(' ');
 
-        const mergedId = nanoid(10);
+        const mergedId = crypto.randomUUID();
         const mergedItem: TimelineItem = {
           id: mergedId,
           type: 'caption',
@@ -1591,6 +1663,7 @@ export const useEditorStore = create<EditorStore>()(
         };
         state.layoutPresetId = 'custom';
       });
+      debouncedSave(() => get().saveProject());
     },
 
     updatePiPSettings: (settings: Partial<PiPSettings>) => {
@@ -1601,6 +1674,7 @@ export const useEditorStore = create<EditorStore>()(
         };
         state.layoutPresetId = 'custom';
       });
+      debouncedSave(() => get().saveProject());
     },
 
     updateSplitSettings: (settings: Partial<SplitSettings>) => {
@@ -1611,6 +1685,7 @@ export const useEditorStore = create<EditorStore>()(
         };
         state.layoutPresetId = 'custom';
       });
+      debouncedSave(() => get().saveProject());
     },
 
     setLayoutPreset: (presetId: LayoutPresetId) => {
@@ -1621,6 +1696,7 @@ export const useEditorStore = create<EditorStore>()(
         state.layoutPresetId = presetId;
         state.layoutSettings = JSON.parse(JSON.stringify(preset.settings));
       });
+      debouncedSave(() => get().saveProject());
     },
 
     setLayoutMode: (mode: LayoutMode) => {
@@ -1628,6 +1704,7 @@ export const useEditorStore = create<EditorStore>()(
         state.layoutSettings.mode = mode;
         state.layoutPresetId = 'custom';
       });
+      debouncedSave(() => get().saveProject());
     },
 
     // Scene selection for AI editing
@@ -1660,6 +1737,34 @@ export const useEditorStore = create<EditorStore>()(
     setElementPickerEnabled: (enabled: boolean) => {
       set((state) => {
         state.elementPickerEnabled = enabled;
+      });
+    },
+
+    // ========================================
+    // AI Edit Request
+    // ========================================
+
+    requestAIEdit: (item) => {
+      set((state) => {
+        state.selectedTimeRange = { startMs: item.startMs, endMs: item.endMs };
+        state.selectedSceneId = null;
+        state.aiEditRequested = true;
+      });
+    },
+
+    // ========================================
+    // Safe Zone Actions
+    // ========================================
+
+    setSafeZonePlatform: (platform: string) => {
+      set((state) => {
+        state.safeZonePlatform = platform;
+      });
+    },
+
+    setShowSafeZone: (show: boolean) => {
+      set((state) => {
+        state.showSafeZone = show;
       });
     },
   }))

@@ -31,10 +31,12 @@ import {
   Trash2,
   Upload,
   FileVideo,
+  FileAudio,
   CheckCircle,
   AlertCircle,
   Sparkles,
   Play,
+  Music,
 } from "lucide-react";
 
 // ============================================
@@ -130,6 +132,50 @@ function DeleteDialog({
 }
 
 // ============================================
+// Video Thumbnail (auto-generated from video)
+// ============================================
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <Video className="w-8 h-8 text-primary/60" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
+        </div>
+      )}
+      <video
+        src={`${API_URL}/api/projects/${projectId}/video`}
+        muted
+        playsInline
+        preload="metadata"
+        className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+        crossOrigin="use-credentials"
+        onLoadedData={(e) => {
+          (e.target as HTMLVideoElement).currentTime = 1;
+        }}
+        onSeeked={() => setLoaded(true)}
+        onError={() => setError(true)}
+      />
+    </>
+  );
+}
+
+// ============================================
 // Project Card
 // ============================================
 
@@ -159,6 +205,14 @@ function ProjectCard({
             alt={projectName}
             className="w-full h-full object-cover"
           />
+        ) : project.projectType === 'audio' ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-violet-50 to-purple-50">
+            <div className="w-16 h-16 rounded-2xl bg-violet-500/10 flex items-center justify-center">
+              <Music className="w-8 h-8 text-violet-500/60" />
+            </div>
+          </div>
+        ) : project.videoKey ? (
+          <VideoThumbnail projectId={project.id} alt={projectName} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -258,6 +312,11 @@ function UploadZone({
       "video/mp4": [".mp4"],
       "video/quicktime": [".mov"],
       "video/webm": [".webm"],
+      "audio/mpeg": [".mp3"],
+      "audio/mp4": [".m4a"],
+      "audio/wav": [".wav"],
+      "audio/ogg": [".ogg"],
+      "audio/flac": [".flac"],
     },
     maxFiles: 1,
     disabled: uploadState !== "idle",
@@ -309,10 +368,10 @@ function UploadZone({
             </div>
             <div className="space-y-2">
               <p className="text-lg font-medium">
-                {isDragActive ? "Drop your video here" : "Drag & drop your video"}
+                {isDragActive ? "Drop your file here" : "Drag & drop your video or audio"}
               </p>
               <p className="text-sm text-muted-foreground">
-                or click to browse • MP4, MOV, WebM
+                or click to browse • MP4, MOV, WebM, MP3, M4A, WAV
               </p>
             </div>
           </div>
@@ -415,23 +474,27 @@ function NewProjectModal({
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
 
         // Step 1: Create project
-        const { projectId } = await api.createProject(file.name, title);
-        setStatusMessage("Uploading video...");
+        const { projectId, projectType } = await api.createProject(file.name, title);
+        const isAudio = projectType === "audio";
+        setStatusMessage(isAudio ? "Uploading audio..." : "Uploading video...");
 
         // Step 2: Upload file
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage("Processing video...");
+        setStatusMessage(isAudio ? "Processing audio..." : "Processing video...");
         setUploadState("processing");
         setProgress(0);
 
         // Step 3: Connect WebSocket and start processing
         wsClient.connect(projectId);
 
+        // Step 4: Start processing
+        const { transcribeJobId, enhanceJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
+        const totalJobs = serverTotalJobs || (enhanceJobId ? 2 : 1);
+
         const completedJobs = new Set<string>();
-        const totalJobs = 2;
 
         const removeHandler = wsClient.addHandler((message: WSMessage) => {
           if (message.type === "job:progress") {
@@ -470,10 +533,10 @@ function NewProjectModal({
           }
         });
 
-        // Step 4: Start processing
-        const { transcribeJobId, enhanceJobId } = await api.processProject(projectId);
         wsClient.subscribeToJob(transcribeJobId);
-        wsClient.subscribeToJob(enhanceJobId);
+        if (enhanceJobId) {
+          wsClient.subscribeToJob(enhanceJobId);
+        }
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -541,21 +604,24 @@ function EmptyState() {
 
       try {
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
-        const { projectId } = await api.createProject(file.name, title);
-        setStatusMessage("Uploading video...");
+        const { projectId, projectType } = await api.createProject(file.name, title);
+        const isAudio = projectType === "audio";
+        setStatusMessage(isAudio ? "Uploading audio..." : "Uploading video...");
 
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage("Processing video...");
+        setStatusMessage(isAudio ? "Processing audio..." : "Processing video...");
         setUploadState("processing");
         setProgress(0);
 
         wsClient.connect(projectId);
 
+        const { transcribeJobId, enhanceJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
+        const totalJobs = serverTotalJobs || (enhanceJobId ? 2 : 1);
+
         const completedJobs = new Set<string>();
-        const totalJobs = 2;
 
         const removeHandler = wsClient.addHandler((message: WSMessage) => {
           if (message.type === "job:progress") {
@@ -592,9 +658,10 @@ function EmptyState() {
           }
         });
 
-        const { transcribeJobId, enhanceJobId } = await api.processProject(projectId);
         wsClient.subscribeToJob(transcribeJobId);
-        wsClient.subscribeToJob(enhanceJobId);
+        if (enhanceJobId) {
+          wsClient.subscribeToJob(enhanceJobId);
+        }
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -615,7 +682,7 @@ function EmptyState() {
         Create your first project
       </h1>
       <p className="text-muted-foreground text-lg max-w-md mb-8 animate-fade-in-up stagger-2">
-        Upload a video and let AI generate stunning visuals
+        Upload a video or audio file and let AI generate stunning visuals
       </p>
 
       {/* Upload Zone */}

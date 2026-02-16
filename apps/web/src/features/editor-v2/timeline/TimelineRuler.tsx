@@ -1,15 +1,17 @@
 /**
  * Timeline Ruler Component
- * Minimal ruler with time markers
+ * Minimal ruler with time markers.
+ * Alt+drag to select a time range for AI editing.
  */
 
 'use client';
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useEffect, useCallback, useState } from 'react';
 import {
   useViewport,
   useDuration,
   useCurrentTimeMs,
+  useSelectedTimeRange,
   useEditorActions,
 } from '../store/use-editor-store';
 
@@ -58,7 +60,17 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
   const viewport = useViewport();
   const duration = useDuration();
   const currentTimeMs = useCurrentTimeMs();
-  const { setCurrentTime } = useEditorActions();
+  const selectedTimeRange = useSelectedTimeRange();
+  const { setCurrentTime, setSelectedTimeRange } = useEditorActions();
+
+  // Track whether the current drag is a range selection (Alt+drag)
+  const [rangeDrag, setRangeDrag] = useState<{ startMs: number; currentMs: number } | null>(null);
+
+  // Convert pixel x to time ms
+  const xToTime = useCallback(
+    (x: number) => Math.max(0, Math.min((x + viewport.scrollX) / viewport.zoom, duration)),
+    [viewport, duration]
+  );
 
   // Render ruler
   useEffect(() => {
@@ -80,6 +92,27 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     // Clear with editor ruler background - light theme
     ctx.fillStyle = '#FAFAFA'; // --editor-ruler-bg
     ctx.fillRect(0, 0, width, height);
+
+    // Draw selected time range highlight (committed or in-progress)
+    const activeRange = rangeDrag
+      ? { startMs: Math.min(rangeDrag.startMs, rangeDrag.currentMs), endMs: Math.max(rangeDrag.startMs, rangeDrag.currentMs) }
+      : selectedTimeRange;
+
+    if (activeRange) {
+      const x1 = activeRange.startMs * viewport.zoom - viewport.scrollX;
+      const x2 = activeRange.endMs * viewport.zoom - viewport.scrollX;
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.15)'; // indigo highlight
+      ctx.fillRect(x1, 0, x2 - x1, height);
+      // Range edges
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x1, 0);
+      ctx.lineTo(x1, height);
+      ctx.moveTo(x2, 0);
+      ctx.lineTo(x2, height);
+      ctx.stroke();
+    }
 
     // Calculate visible time range
     const visibleStartMs = viewport.scrollX / viewport.zoom;
@@ -130,7 +163,7 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     ctx.moveTo(0, height - 0.5);
     ctx.lineTo(width, height - 0.5);
     ctx.stroke();
-  }, [viewport, duration, currentTimeMs, height]);
+  }, [viewport, duration, currentTimeMs, height, selectedTimeRange, rangeDrag]);
 
   // Handle resize
   useEffect(() => {
@@ -148,7 +181,7 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, [height]);
 
-  // Handle click to seek
+  // Handle click / drag
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLCanvasElement>) => {
       const canvas = canvasRef.current;
@@ -156,12 +189,22 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
 
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const timeMs = (x + viewport.scrollX) / viewport.zoom;
+      const timeMs = xToTime(x);
 
-      setCurrentTime(Math.max(0, Math.min(timeMs, duration)));
       canvas.setPointerCapture(e.pointerId);
+
+      if (e.altKey) {
+        // Alt+drag: start range selection
+        setRangeDrag({ startMs: timeMs, currentMs: timeMs });
+        // Clear any existing range
+        setSelectedTimeRange(null);
+      } else {
+        // Normal click/drag: scrub playhead and clear any range
+        setCurrentTime(timeMs);
+        setSelectedTimeRange(null);
+      }
     },
-    [viewport, duration, setCurrentTime]
+    [xToTime, setCurrentTime, setSelectedTimeRange]
   );
 
   const handlePointerMove = useCallback(
@@ -171,11 +214,17 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
 
       const rect = canvas.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const timeMs = (x + viewport.scrollX) / viewport.zoom;
+      const timeMs = xToTime(x);
 
-      setCurrentTime(Math.max(0, Math.min(timeMs, duration)));
+      if (rangeDrag) {
+        // Update range drag
+        setRangeDrag((prev) => prev ? { ...prev, currentMs: timeMs } : null);
+      } else {
+        // Scrub playhead
+        setCurrentTime(timeMs);
+      }
     },
-    [viewport, duration, setCurrentTime]
+    [xToTime, rangeDrag, setCurrentTime]
   );
 
   const handlePointerUp = useCallback(
@@ -184,8 +233,18 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
       if (!canvas) return;
 
       canvas.releasePointerCapture(e.pointerId);
+
+      if (rangeDrag) {
+        const startMs = Math.min(rangeDrag.startMs, rangeDrag.currentMs);
+        const endMs = Math.max(rangeDrag.startMs, rangeDrag.currentMs);
+        // Only commit if the range is at least 100ms (not just a click)
+        if (endMs - startMs >= 100) {
+          setSelectedTimeRange({ startMs: Math.round(startMs), endMs: Math.round(endMs) });
+        }
+        setRangeDrag(null);
+      }
     },
-    []
+    [rangeDrag, setSelectedTimeRange]
   );
 
   return (

@@ -18,19 +18,23 @@ export interface CreateProjectResponse {
   projectId: string;
   uploadUrl: string;
   videoKey: string;
+  projectType?: 'video' | 'audio';
 }
 
 export interface ProcessProjectResponse {
   jobId: string;
   transcribeJobId: string;
-  enhanceJobId: string;
+  enhanceJobId: string | null;
+  totalJobs?: number;
 }
 
 export interface Project {
   id: string;
   title: string | null;
   status: string;
+  projectType?: 'video' | 'audio';
   videoKey: string | null;
+  audioKey?: string | null;
   outputKey: string | null;
   durationMs: number | null;
   fps: number;
@@ -41,6 +45,8 @@ export interface Project {
   tracks: Track[];
   items: TimelineItem[];
   transcript: Transcript | null;
+  videoPresignedUrl?: string | null;
+  audioPresignedUrl?: string | null;
 }
 
 export interface Track {
@@ -114,7 +120,7 @@ export interface SeparateAudioResponse {
   itemId: string;
 }
 
-export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
 
 export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
 
@@ -229,11 +235,23 @@ export interface UserProject {
   id: string;
   title: string | null;
   status: string;
+  projectType?: 'video' | 'audio';
   videoKey: string | null;
+  audioKey?: string | null;
   thumbnailKey: string | null;
   durationMs: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProjectMediaAsset {
+  id: string;
+  filename: string;
+  mimeType: string;
+  fileSize: number | null;
+  url: string;
+  previewUrl?: string;
+  createdAt: string;
 }
 
 class ApiClient {
@@ -306,7 +324,7 @@ class ApiClient {
 
   async updateProject(
     projectId: string,
-    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[] }
+    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; captionItemIds?: string[]; videoSettings?: Record<string, unknown> }
   ): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}`, {
       method: 'PATCH',
@@ -314,7 +332,7 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string, options?: { layoutSettings?: any }): Promise<ProcessProjectResponse> {
+  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> }): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
       body: JSON.stringify(options || {}),
@@ -452,6 +470,127 @@ class ApiClient {
 
   async cancelJob(jobId: string): Promise<{ success: boolean }> {
     return this.request(`/api/jobs/${jobId}/cancel`, {
+      method: 'POST',
+    });
+  }
+
+  // Agent
+  async chatWithAgent(
+    projectId: string,
+    body: {
+      message: string;
+      context?: {
+        selectedTimeRange?: { startMs: number; endMs: number };
+        selectedSceneId?: number;
+        selectedElement?: { name: string; sceneId: number };
+        selectedVisualItem?: { id: string; description: string };
+      };
+      widgetResponse?: { widgetId: string; value: unknown };
+    },
+    signal?: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>> {
+    const url = `${this.baseUrl}/api/projects/${projectId}/agent/chat`;
+    const token = getSessionToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(error.error || `Request failed: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    return response.body;
+  }
+
+  async getConversation(projectId: string): Promise<{
+    conversationId: string | null;
+    messages: Array<{
+      id: string;
+      role: 'user' | 'assistant';
+      content: unknown;
+      createdAt: string;
+    }>;
+    activeJob?: {
+      id: string;
+      type: string;
+      progress: number;
+      message: string | null;
+    } | null;
+  }> {
+    return this.request(`/api/projects/${projectId}/agent/conversation`);
+  }
+
+  async clearConversation(projectId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/projects/${projectId}/agent/conversation`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Project media (B-roll assets)
+  async getProjectMedia(projectId: string): Promise<{ assets: ProjectMediaAsset[] }> {
+    return this.request(`/api/projects/${projectId}/media`);
+  }
+
+  async uploadProjectMedia(
+    projectId: string,
+    file: File,
+    onProgress?: (progress: number) => void
+  ): Promise<ProjectMediaAsset> {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            onProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try { resolve(JSON.parse(xhr.responseText)); }
+          catch { reject(new Error('Failed to parse response')); }
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status}`));
+        }
+      });
+
+      xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+      xhr.open('POST', `${this.baseUrl}/api/projects/${projectId}/media`);
+      const token = getSessionToken();
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.withCredentials = true;
+      xhr.send(formData);
+    });
+  }
+
+  async deleteProjectMedia(projectId: string, assetId: string): Promise<{ success: boolean }> {
+    return this.request(`/api/projects/${projectId}/media/${assetId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async generateBroll(projectId: string): Promise<{ jobId: string }> {
+    return this.request(`/api/projects/${projectId}/generate-broll`, {
       method: 'POST',
     });
   }

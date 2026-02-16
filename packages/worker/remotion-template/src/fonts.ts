@@ -15,6 +15,17 @@ import { loadFont as loadPlayfairDisplay } from "@remotion/google-fonts/Playfair
 import { loadFont as loadLato } from "@remotion/google-fonts/Lato";
 import { loadFont as loadOpenSans } from "@remotion/google-fonts/OpenSans";
 import { loadFont as loadSourceSansPro } from "@remotion/google-fonts/SourceSans3";
+// Additional fonts used by caption presets and font registry
+import { loadFont as loadAnton } from "@remotion/google-fonts/Anton";
+import { loadFont as loadNunito } from "@remotion/google-fonts/Nunito";
+import { loadFont as loadLora } from "@remotion/google-fonts/Lora";
+import { loadFont as loadMerriweather } from "@remotion/google-fonts/Merriweather";
+import { loadFont as loadSpaceGrotesk } from "@remotion/google-fonts/SpaceGrotesk";
+import { loadFont as loadDMSans } from "@remotion/google-fonts/DMSans";
+import { loadFont as loadOutfit } from "@remotion/google-fonts/Outfit";
+import { loadFont as loadFiraCode } from "@remotion/google-fonts/FiraCode";
+import { loadFont as loadRubik } from "@remotion/google-fonts/Rubik";
+import { loadFont as loadJetBrainsMono } from "@remotion/google-fonts/JetBrainsMono";
 
 // Load all fonts
 const montserrat = loadMontserrat();
@@ -27,6 +38,16 @@ const playfairDisplay = loadPlayfairDisplay();
 const lato = loadLato();
 const openSans = loadOpenSans();
 const sourceSans = loadSourceSansPro();
+const anton = loadAnton();
+const nunito = loadNunito();
+const lora = loadLora();
+const merriweather = loadMerriweather();
+const spaceGrotesk = loadSpaceGrotesk();
+const dmSans = loadDMSans();
+const outfit = loadOutfit();
+const firaCode = loadFiraCode();
+const rubik = loadRubik();
+const jetBrainsMono = loadJetBrainsMono();
 
 /**
  * Font Presets - Ready-to-use font family strings
@@ -38,6 +59,7 @@ export const FONTS = {
   oswald: oswald.fontFamily,
   poppins: poppins.fontFamily,
   playfairDisplay: playfairDisplay.fontFamily,
+  anton: anton.fontFamily,
 
   // Body/Text
   inter: inter.fontFamily,
@@ -45,6 +67,21 @@ export const FONTS = {
   lato: lato.fontFamily,
   openSans: openSans.fontFamily,
   sourceSans: sourceSans.fontFamily,
+  nunito: nunito.fontFamily,
+  dmSans: dmSans.fontFamily,
+  outfit: outfit.fontFamily,
+  spaceGrotesk: spaceGrotesk.fontFamily,
+
+  // Serif
+  lora: lora.fontFamily,
+  merriweather: merriweather.fontFamily,
+
+  // Mono
+  jetBrainsMono: jetBrainsMono.fontFamily,
+  firaCode: firaCode.fontFamily,
+
+  // Display extra
+  rubik: rubik.fontFamily,
 } as const;
 
 /**

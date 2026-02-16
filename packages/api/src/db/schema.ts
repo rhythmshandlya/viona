@@ -15,7 +15,9 @@ export const projects = pgTable('projects', {
   userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
   title: varchar('title', { length: 255 }),
   status: varchar('status', { length: 50 }).notNull().default('uploading'),
+  projectType: varchar('project_type', { length: 20 }).notNull().default('video'),
   videoKey: varchar('video_key', { length: 255 }),
+  audioKey: varchar('audio_key', { length: 255 }),
   thumbnailKey: varchar('thumbnail_key', { length: 255 }),
   outputKey: varchar('output_key', { length: 255 }),
   durationMs: integer('duration_ms'),
@@ -23,6 +25,7 @@ export const projects = pgTable('projects', {
   sourceWidth: integer('source_width').default(1920),
   sourceHeight: integer('source_height').default(1080),
   videoSettings: jsonb('video_settings'),
+  headTrackingData: jsonb('head_tracking_data'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -74,6 +77,10 @@ export const jobs = pgTable('jobs', {
     screenshotsTaken?: number;
   }>(),
   logs: text('logs').array(),
+  planData: jsonb('plan_data').$type<{
+    scenePlan: string;
+    scenes: Record<string, unknown>;
+  } | null>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
 });
@@ -109,6 +116,36 @@ export const visuals = pgTable('visuals', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Project assets (uploaded images, audio, etc.)
+export const projectAssets = pgTable('project_assets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  filename: varchar('filename', { length: 255 }).notNull(),
+  storageKey: varchar('storage_key', { length: 500 }).notNull(),
+  contentType: varchar('content_type', { length: 100 }).notNull(),
+  fileSize: integer('file_size'),
+  durationMs: integer('duration_ms'),
+  width: integer('width'),
+  height: integer('height'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Conversations for Creative Director agent
+export const conversations = pgTable('conversations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+export const conversationMessages = pgTable('conversation_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
+  role: varchar('role', { length: 50 }).notNull(), // 'user' | 'assistant'
+  content: jsonb('content').notNull(), // Array of MessageContent blocks
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Type exports for Drizzle
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -124,3 +161,9 @@ export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type Visual = typeof visuals.$inferSelect;
 export type NewVisual = typeof visuals.$inferInsert;
+export type ProjectAsset = typeof projectAssets.$inferSelect;
+export type NewProjectAsset = typeof projectAssets.$inferInsert;
+export type Conversation = typeof conversations.$inferSelect;
+export type NewConversation = typeof conversations.$inferInsert;
+export type ConversationMessage = typeof conversationMessages.$inferSelect;
+export type NewConversationMessage = typeof conversationMessages.$inferInsert;

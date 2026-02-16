@@ -32,6 +32,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Header scroll effect */
+header {
+  transition: box-shadow 0.3s ease, background-color 0.3s ease;
+}
+
+.header-scrolled {
+  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.06);
+}
+
 /* Wavy underline decoration */
 .wavy-underline {
   position: relative;
@@ -47,6 +56,12 @@ body {
   height: 8px;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 10'%3E%3Cpath d='M0 5 Q 12.5 0, 25 5 T 50 5 T 75 5 T 100 5' stroke='%23F97316' stroke-width='2' fill='none'/%3E%3C/svg%3E") repeat-x;
   background-size: 50px 8px;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.8s ease-out;
+}
+
+.wavy-underline.revealed::after {
+  clip-path: inset(0 0% 0 0);
 }
 
 /* Orange underline (straight) */
@@ -187,10 +202,12 @@ body {
   border-radius: 1rem;
   overflow: hidden;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .blog-card:hover {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  transform: translateY(-4px);
 }
 
 /* Accordion */
@@ -238,7 +255,22 @@ details > div {
   background: var(--color-primary);
 }
 
+/* Tabular numbers for counters */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Orange text */
 .text-orange {
   color: var(--color-primary);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

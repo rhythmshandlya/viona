@@ -17,13 +17,16 @@ export const projects = pgTable('projects', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id'),
   status: varchar('status', { length: 50 }).notNull().default('uploading'),
+  projectType: varchar('project_type', { length: 20 }).notNull().default('video'),
   videoKey: varchar('video_key', { length: 255 }),
+  audioKey: varchar('audio_key', { length: 255 }),
   outputKey: varchar('output_key', { length: 255 }),
   durationMs: integer('duration_ms'),
   fps: integer('fps').default(30),
   sourceWidth: integer('source_width').default(1920),
   sourceHeight: integer('source_height').default(1080),
   videoSettings: jsonb('video_settings'),
+  headTrackingData: jsonb('head_tracking_data'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -67,6 +70,10 @@ export const jobs = pgTable('jobs', {
   error: text('error'),
   metrics: jsonb('metrics'),
   logs: text('logs').array(),
+  planData: jsonb('plan_data').$type<{
+    scenePlan: string;
+    scenes: Record<string, unknown>;
+  } | null>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
 });

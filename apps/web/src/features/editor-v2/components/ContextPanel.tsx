@@ -19,6 +19,7 @@ import {
   CaptionDisplayMode,
   CaptionAnimationLegacy,
   CaptionStyle,
+  CaptionPosition,
   AudioItemData,
 } from '../store/types';
 import { SUBTITLE_PRESETS, PRESET_ORDER } from '@/lib/subtitle-presets';
@@ -79,7 +80,7 @@ function CaptionStylePanel() {
         <button
           onClick={() => setApplyStyleToAll(!applyToAll)}
           className={`relative w-9 h-5 rounded-full transition-colors ${
-            applyToAll ? 'bg-[var(--editor-accent)]' : 'bg-[var(--editor-bg-elevated)]'
+            applyToAll ? 'bg-[var(--editor-accent)]' : 'bg-gray-300'
           }`}
           aria-label="Toggle apply to all captions"
         >
@@ -140,7 +141,10 @@ function CaptionStylePanel() {
                     activeBackgroundColor: preset.activeBackgroundColor,
                     textShadow: preset.textShadow,
                     textStroke: preset.textStroke,
+                    stroke: preset.stroke ?? null,
                     fontWeight: preset.fontWeight,
+                    opacity: preset.opacity ?? 1,
+                    lineHeight: preset.lineHeight ?? 1.4,
                   })
                 }
                 className={`p-3 rounded-lg border transition-all ${
@@ -209,6 +213,23 @@ function CaptionStylePanel() {
         </div>
       </Section>
 
+      {/* Line Height */}
+      <Section label="Line Height">
+        <div className="flex items-center gap-3">
+          <Slider
+            value={[style.lineHeight ?? 1.4]}
+            min={1.0}
+            max={2.5}
+            step={0.1}
+            onValueChange={([lh]) => updateStyle({ lineHeight: lh })}
+            className="flex-1"
+          />
+          <span className="text-xs text-[var(--editor-text-secondary)] w-10 text-right">
+            {(style.lineHeight ?? 1.4).toFixed(1)}
+          </span>
+        </div>
+      </Section>
+
       {/* Position */}
       <Section label="Position">
         <SegmentedControl
@@ -217,10 +238,80 @@ function CaptionStylePanel() {
             { value: 'center', label: 'Center' },
             { value: 'bottom', label: 'Bottom' },
           ]}
-          value={style.position}
-          onChange={(value) => updateStyle({ position: value as 'top' | 'center' | 'bottom' })}
+          value={typeof style.position === 'object' ? style.position.anchor : style.position}
+          onChange={(value) => {
+            const anchor = value as 'top' | 'center' | 'bottom';
+            // If current position is already an object, update just the anchor
+            // Otherwise create a new position object
+            if (typeof style.position === 'object') {
+              updateStyle({ position: { ...style.position, anchor } });
+            } else {
+              updateStyle({ position: { anchor, offsetX: 0, offsetY: 0, rotation: 0, textAlign: 'center' } });
+            }
+          }}
         />
       </Section>
+
+      <Divider />
+
+      {/* Opacity */}
+      <Section label="Opacity">
+        <div className="flex items-center gap-3">
+          <Slider
+            value={[Math.round((style.opacity ?? 1) * 100)]}
+            min={0}
+            max={100}
+            step={1}
+            onValueChange={([op]) => updateStyle({ opacity: op / 100 })}
+            className="flex-1"
+          />
+          <span className="text-xs text-[var(--editor-text-secondary)] w-10 text-right">
+            {Math.round((style.opacity ?? 1) * 100)}%
+          </span>
+        </div>
+      </Section>
+
+      <Divider />
+
+      {/* Text Stroke */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+          Stroke
+        </span>
+        <button
+          onClick={() => updateStyle({ stroke: style.stroke ? null : { width: 2, color: '#000000' } })}
+          className={`relative w-9 h-5 rounded-full transition-colors ${
+            style.stroke ? 'bg-[var(--editor-accent)]' : 'bg-gray-300'
+          }`}
+          aria-label="Toggle text stroke"
+        >
+          <span
+            className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+              style.stroke ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
+      {style.stroke && (
+        <Section label="Stroke Width">
+          <div className="flex items-center gap-3">
+            <Slider
+              value={[style.stroke.width]}
+              min={0.5}
+              max={10}
+              step={0.5}
+              onValueChange={([w]) => updateStyle({ stroke: { ...style.stroke!, width: w } })}
+              className="flex-1"
+            />
+            <input
+              type="color"
+              value={style.stroke.color}
+              onChange={(e) => updateStyle({ stroke: { ...style.stroke!, color: e.target.value } })}
+              className="w-8 h-8 rounded border border-[var(--editor-border-default)] cursor-pointer"
+            />
+          </div>
+        </Section>
+      )}
     </div>
   );
 }

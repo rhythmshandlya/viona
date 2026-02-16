@@ -277,6 +277,8 @@ export interface GenerateVisualsJobData {
   styleGuide?: string;
   /** Enable verbose logging for debugging */
   verbose?: boolean;
+  /** If set, skip Director phase and run Animator only using plan from this job */
+  planJobId?: string;
 }
 
 interface VisualMetadata {
@@ -361,9 +363,67 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       logger.debug({ srcDir, error: e }, 'Could not clean old compositions (may not exist yet)');
     }
 
-    // Create project directory in workspace
-    const projectDir = createProjectDir(compositionId);
-    logger.info({ projectDir, compositionId }, 'Created project directory');
+    // Clean current project directory so Animator starts fresh (no stale scene files)
+    const projectDir = join(workspacePath, 'src', compositionId);
+    try {
+      await rm(projectDir, { recursive: true, force: true });
+      logger.info({ projectDir }, 'Cleaned stale project directory');
+    } catch {
+      // Directory may not exist yet — that's fine
+    }
+    createProjectDir(compositionId);
+    logger.info({ projectDir, compositionId }, 'Created fresh project directory');
+
+    // If this is an Animator-only run (plan was created separately), write plan files to project dir
+    if (job.data.planJobId) {
+      const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.data.planJobId) });
+      if (planJob?.planData) {
+        const pd = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+        const scenePlanPath = join(projectDir, 'SCENE_PLAN.md');
+        const scenesJsonPath = join(projectDir, 'scenes.json');
+        await writeFile(scenePlanPath, pd.scenePlan, 'utf-8');
+        await writeFile(scenesJsonPath, JSON.stringify(pd.scenes, null, 2), 'utf-8');
+        logger.info({ projectDir, planJobId: job.data.planJobId }, 'Wrote plan files from plan job for Animator-only run');
+      } else {
+        logger.warn({ planJobId: job.data.planJobId }, 'Plan job not found or has no planData');
+      }
+    }
+
+    // Update workspace Root.tsx and index.ts to import from the correct project ID.
+    // This prevents TypeScript import errors and eliminates the self-healing cycle.
+    const compositionIdDashed = compositionId.replace(/_/g, '-'); // e.g. proj-abc-def
+    const rootTsx = join(workspacePath, 'src', 'Root.tsx');
+    const indexTs = join(workspacePath, 'src', 'index.ts');
+    try {
+      const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
+      await writeFile(rootTsx, `import "./index.css";
+import { Composition } from "remotion";
+import MainComposition from "./${compositionId}";
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <>
+      <Composition
+        id="${compositionIdDashed}"
+        component={MainComposition}
+        durationInFrames={${durationFrames}}
+        fps={${project.fps || 30}}
+        width={${dimensions?.width || 1080}}
+        height={${dimensions?.height || 1920}}
+      />
+    </>
+  );
+};
+`, 'utf-8');
+      await writeFile(indexTs, `import { registerRoot } from "remotion";
+import { RemotionRoot } from "./${compositionId}/index";
+
+registerRoot(RemotionRoot);
+`, 'utf-8');
+      logger.info({ compositionId }, 'Updated Root.tsx and index.ts with correct project imports');
+    } catch (e) {
+      logger.warn({ error: e }, 'Failed to update Root.tsx/index.ts — self-heal will fix it');
+    }
 
     await publishJobProgress(jobId, 15, 'Starting Claude Code generator...');
 
@@ -390,6 +450,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       stylePreset: stylePreset || 'modern',
       layoutMode: layoutMode || 'pip',
       styleGuide,
+      planJobId: job.data.planJobId,
     });
 
     // Store metrics in job (no token cost for OAuth)
@@ -618,27 +679,25 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       visualsTrack = newTrack;
     }
 
-    // Create timeline item for the full composition
-    const fullDurationMs = Math.round((metadata.durationInFrames / metadata.fps) * 1000);
-    const visualTypes = metadata.visuals.map(v => v.type).filter(Boolean).join(', ');
-    const visualDescriptions = metadata.visuals.map(v => v.description).filter(Boolean).join('; ');
-
-    await db.insert(timelineItems).values({
-      trackId: visualsTrack.id,
-      type: 'visual',
-      startMs: 0,
-      endMs: fullDurationMs,
-      data: {
-        visualId,
-        compositionId: metadata.compositionId,
-        bundleUrl,
-        type: visualTypes || 'visual',
-        description: visualDescriptions || 'AI-generated visual',
-        width: metadata.width,
-        height: metadata.height,
-        fps: metadata.fps,
-      },
-    });
+    // Create one timeline item per scene so they appear as separate blocks on the track
+    for (const scene of metadata.visuals) {
+      await db.insert(timelineItems).values({
+        trackId: visualsTrack.id,
+        type: 'visual',
+        startMs: scene.startMs,
+        endMs: scene.endMs,
+        data: {
+          visualId,
+          compositionId: metadata.compositionId,
+          bundleUrl,
+          type: scene.type || 'visual',
+          description: scene.description || 'AI-generated visual',
+          width: metadata.width,
+          height: metadata.height,
+          fps: metadata.fps,
+        },
+      });
+    }
 
     // Update job and project status
     await db.update(jobs)
@@ -694,6 +753,8 @@ interface ClaudeCodeOptions {
   stylePreset: string;
   layoutMode: string;
   styleGuide?: string;
+  /** If set, run only the Animator phase (plan already exists in project dir) */
+  planJobId?: string;
 }
 
 /**
@@ -705,7 +766,7 @@ interface ClaudeCodeOptions {
 async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide } = options;
+  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId } = options;
 
   const pythonPath = config.pythonPath;
   const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
@@ -765,8 +826,14 @@ async function runClaudeCodeGenerator(
       args.push('--style-guide', styleGuidePath);
     }
 
-    // Two-phase pipeline is always used
-    logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
+    // If planJobId is set, skip Director and run Animator only
+    if (planJobId) {
+      args.push('--phase', 'animator');
+      logger.info({ projectId, planJobId }, 'Using Animator-only mode (plan provided from plan job)');
+    } else {
+      // Two-phase pipeline is always used
+      logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
+    }
 
     const subprocess = spawn(pythonPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -790,25 +857,93 @@ async function runClaudeCodeGenerator(
 
     let stdout = '';
     let stderr = '';
+    let gotRealProgress = false;
+    let lastToolPercent = 18;
+
+    // Initial ticker for the startup phase (before any tool calls appear)
+    const STARTUP_MESSAGES = [
+      [18, 'Starting Claude Code generator...'],
+      [21, 'Connecting to Claude...'],
+      [24, 'Authenticating...'],
+      [27, 'Reading approved plan...'],
+    ] as const;
+    let startupIndex = 0;
+
+    const progressTicker = setInterval(() => {
+      if (gotRealProgress || startupIndex >= STARTUP_MESSAGES.length) return;
+      const [percent, message] = STARTUP_MESSAGES[startupIndex];
+      publishJobProgress(jobId, percent, message);
+      lastToolPercent = percent;
+      startupIndex++;
+    }, 5_000);
+
+    // Map Animator tool calls to user-friendly progress messages
+    function toolToProgress(toolName: string, textContext: string): string | null {
+      // Check for scene mentions in surrounding text
+      const sceneMatch = textContext.match(/Scene\s*(\d+)/i);
+      const sceneInfo = sceneMatch ? ` (Scene ${sceneMatch[1]})` : '';
+
+      switch (toolName) {
+        case 'Write': return `Writing animation code${sceneInfo}...`;
+        case 'Edit': return `Refining code${sceneInfo}...`;
+        case 'Read': return `Reading files${sceneInfo}...`;
+        case 'Glob': return 'Scanning project files...';
+        case 'Bash': return 'Running validation...';
+        case 'TodoWrite': return 'Updating task list...';
+        default: return null;
+      }
+    }
 
     subprocess.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stdout += text;
 
-      // Parse progress updates from Python script (format: PROGRESS:XX:message)
       const lines = text.split('\n');
       for (const line of lines) {
+        // Parse explicit PROGRESS:XX:message from Python script
         const progressMatch = line.match(/^PROGRESS:(\d+):(.+)$/);
         if (progressMatch) {
+          gotRealProgress = true;
           const percent = parseInt(progressMatch[1], 10);
           const message = progressMatch[2];
-          // Map Python progress (15-70%) to job progress range
           publishJobProgress(jobId, percent, message);
+          lastToolPercent = percent;
           logger.info({ projectId, percent, message }, 'Claude generator progress');
+          continue;
+        }
+
+        // Parse [Animator Tool: X] or [SelfHeal Tool: X] for live progress
+        const toolMatch = line.match(/\[(Animator|SelfHeal) Tool: (\w+)\]/);
+        if (toolMatch && !gotRealProgress) {
+          const toolName = toolMatch[2];
+          const progressMsg = toolToProgress(toolName, stdout.slice(-500));
+          if (progressMsg) {
+            // Slowly increment from 30% to 55% based on tool calls
+            lastToolPercent = Math.min(55, lastToolPercent + 1);
+            publishJobProgress(jobId, lastToolPercent, progressMsg);
+          }
+          continue;
+        }
+
+        // Parse scene completion text for higher-fidelity updates
+        const sceneDone = line.match(/(?:Scene|Scenes?)\s+([\d,-]+)\s+(?:is|are)\s+(?:also\s+)?(?:done|complete|implemented)/i);
+        if (sceneDone && !gotRealProgress) {
+          lastToolPercent = Math.min(55, lastToolPercent + 2);
+          publishJobProgress(jobId, lastToolPercent, `Completed scene${sceneDone[1].includes(',') || sceneDone[1].includes('-') ? 's' : ''} ${sceneDone[1]}...`);
+          continue;
+        }
+
+        // Parse self-heal phase
+        if (line.includes('self-healing attempt') || line.includes('Self-heal')) {
+          publishJobProgress(jobId, Math.max(lastToolPercent, 56), 'Fixing validation errors...');
+        }
+
+        // Parse "GENERATION COMPLETE"
+        if (line.includes('GENERATION COMPLETE')) {
+          publishJobProgress(jobId, 58, 'Animation code complete — validating...');
         }
       }
 
-      // Log more output for debugging
       logger.info({ projectId, output: text.slice(0, 500) }, 'Claude generator stdout');
     });
 
@@ -832,6 +967,7 @@ async function runClaudeCodeGenerator(
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
+        clearInterval(progressTicker);
         if (code === 0) {
           resolve();
         } else {
@@ -843,6 +979,7 @@ async function runClaudeCodeGenerator(
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
+        clearInterval(progressTicker);
         reject(err);
       });
     });

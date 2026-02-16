@@ -36,7 +36,6 @@ export function PiPControlPanel() {
   const layoutSettings = useLayoutSettings();
   const presetId = useLayoutPresetId();
   const { updatePiPSettings, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
-
   const { mode, pip, split } = layoutSettings;
 
   // Layout mode options

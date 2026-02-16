@@ -49,6 +49,7 @@ export interface CanvasRendererOptions {
     text: string;
     image: string;
     visual: string;
+    broll: string;
   };
   selectedBorderColor: string;
   playheadColor: string;
@@ -77,6 +78,7 @@ const DEFAULT_OPTIONS: CanvasRendererOptions = {
     text: '#f59e0b', // amber-500
     image: '#ec4899', // pink-500
     visual: '#8b5cf6', // purple-500
+    broll: '#06b6d4', // cyan-500
   },
   selectedBorderColor: '#F97316', // orange for selection
   playheadColor: '#F97316', // orange playhead
@@ -192,6 +194,7 @@ export class CanvasRenderer {
     const { ctx, options } = this;
     const width = this.getWidth();
     const { viewport, tracks } = state;
+    const canvasHeight = this.getHeight();
 
     let y = -viewport.scrollY;
 
@@ -201,7 +204,7 @@ export class CanvasRenderer {
         continue;
       }
 
-      if (y > this.getHeight()) {
+      if (y > canvasHeight) {
         break;
       }
 
@@ -230,12 +233,7 @@ export class CanvasRenderer {
     const visibleEndMs = (viewport.scrollX + width) / viewport.zoom;
 
     // Build track position map
-    const trackYMap = new Map<string, number>();
-    let y = -viewport.scrollY;
-    for (const track of tracks) {
-      trackYMap.set(track.id, y);
-      y += track.height;
-    }
+    const trackYMap = this.buildTrackYMap(state);
 
     // Draw each visible item
     for (const itemId of itemIds) {
@@ -484,6 +482,20 @@ export class CanvasRenderer {
   }
 
   /**
+   * Build a track Y position map.
+   */
+  private buildTrackYMap(state: RenderState): Map<string, number> {
+    const { viewport, tracks } = state;
+    const trackYMap = new Map<string, number>();
+    let y = -viewport.scrollY;
+    for (const track of tracks) {
+      trackYMap.set(track.id, y);
+      y += track.height;
+    }
+    return trackYMap;
+  }
+
+  /**
    * Draw split line indicator — vertical dashed red/orange line at cursor time position
    */
   private drawSplitLine(state: RenderState): void {
@@ -575,12 +587,7 @@ export class CanvasRenderer {
     if (!dragPreviews) return;
 
     // Build track position map
-    const trackYMap = new Map<string, number>();
-    let y = -viewport.scrollY;
-    for (const track of tracks) {
-      trackYMap.set(track.id, y);
-      y += track.height;
-    }
+    const trackYMap = this.buildTrackYMap(state);
 
     ctx.save();
     ctx.globalAlpha = options.previewOpacity;
@@ -681,12 +688,7 @@ export class CanvasRenderer {
     if (!item) return;
 
     // Build track position map
-    const trackYMap = new Map<string, number>();
-    let y = -viewport.scrollY;
-    for (const track of tracks) {
-      trackYMap.set(track.id, y);
-      y += track.height;
-    }
+    const trackYMap = this.buildTrackYMap(state);
 
     const trackY = trackYMap.get(item.trackId);
     if (trackY === undefined) return;

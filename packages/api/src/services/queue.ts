@@ -34,6 +34,7 @@ export interface ExportOptions {
 export interface RenderJobData {
   projectId: string;
   jobId: string;
+  projectType?: string;
   layoutSettings?: {
     mode: 'pip' | 'split-horizontal' | 'split-vertical';
     pip: {
@@ -57,6 +58,7 @@ export interface RenderJobData {
       gap: number;
     };
   };
+  fullscreenSegments?: Array<{ startMs: number; endMs: number }>;
 }
 
 // Queue job creators
@@ -115,12 +117,34 @@ export interface GenerateVisualsJobData {
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   styleGuide?: string;
+  planJobId?: string;  // ID of the plan-visuals job that created the plan
 }
 
 export const generateVisualsQueue = new Queue('generate-visuals', { connection });
 
 export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   return generateVisualsQueue.add('generate-visuals', data, {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 10000,
+    },
+  });
+}
+
+export interface PlanVisualsJobData {
+  projectId: string;
+  jobId: string;
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  layoutMode: VisualsLayoutMode;
+  dimensions: VisualsDimensions;
+  styleGuide?: string;
+}
+
+export const planVisualsQueue = new Queue('plan-visuals', { connection });
+
+export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
+  return planVisualsQueue.add('plan-visuals', data, {
     attempts: 2,
     backoff: {
       type: 'exponential',
@@ -137,6 +161,8 @@ export interface EditVisualsJobData {
   prompt: string;         // User's edit request (e.g., "Make particles bigger")
   sceneId?: number;       // Optional: target a specific scene (1-indexed)
   elementName?: string;   // Optional: target a specific element within the scene
+  transcript?: string;    // Full transcript text with timestamps for context
+  scenePlan?: string;     // JSON scene plan so the agent understands the visual structure
 }
 
 export const editVisualsQueue = new Queue('edit-visuals', { connection });

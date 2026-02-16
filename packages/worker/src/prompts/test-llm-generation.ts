@@ -132,7 +132,7 @@ async function testGeneration() {
       throw new Error(`API error: ${response.status} - ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { usage?: { prompt_tokens?: number; completion_tokens?: number }; choices?: Array<{ message?: { content?: string } }> };
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     const inputTokens = data.usage?.prompt_tokens || 0;

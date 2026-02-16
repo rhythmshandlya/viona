@@ -48,6 +48,15 @@ export const config = {
     return this.storage;
   },
 
+  // CORS — in production, restrict to explicit origins
+  corsOrigin: process.env.CORS_ORIGIN || '',
+
+  // Anthropic (Creative Director agent)
+  // Auth handled by Claude Agent SDK (reads OAuth credentials internally)
+  anthropic: {
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+  },
+
   // Stytch authentication
   stytch: {
     projectId: process.env.STYTCH_PROJECT_ID || '',

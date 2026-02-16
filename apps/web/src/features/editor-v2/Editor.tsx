@@ -12,8 +12,8 @@ import Link from 'next/link';
 import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
+import { StylePanel } from './panels/StylePanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
-import { StyleSelectionModal } from './components/StyleSelectionModal';
 import { JobLogsPanel } from './components/JobLogsPanel';
 import { ExportModal } from './components/ExportModal';
 import { AIAssistantPanel } from './components/AIAssistantPanel';
@@ -31,9 +31,11 @@ import {
   useEditorActions,
   useSelectedIds,
   useCaptionItems,
+  useAIEditRequested,
+  useEditorStore,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
-import { api, GenerateVisualsOptions, JobMetrics } from '@/lib/api';
+import { api } from '@/lib/api';
 
 interface EditorProps {
   projectId: string;
@@ -42,7 +44,7 @@ interface EditorProps {
 export function Editor({ projectId }: EditorProps) {
   // Layout state - simplified unified layout
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout' | 'assets'>('captions');
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout' | 'assets' | 'agent'>('agent');
 
   // Right panel state (settings/properties)
   const [panelOpen, setPanelOpen] = useState(false);
@@ -50,9 +52,9 @@ export function Editor({ projectId }: EditorProps) {
   const userRequestedTabRef = useRef<RightPanelTab | null>(null);
 
   // AI Assistant panel
-  const [aiPanelOpen, setAiPanelOpen] = useState(true);
+  // AI panel is now a left sidebar tab ('agent')
 
-  const [timelineHeight, setTimelineHeight] = useState(180);
+  const [timelineHeight, setTimelineHeight] = useState(250);
   const resizeRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
 
@@ -67,9 +69,7 @@ export function Editor({ projectId }: EditorProps) {
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('mockup');
   const lastPlatformRef = useRef<SocialPlatform>('instagram');
 
-  // AI Visuals generation state
-  const [showStyleModal, setShowStyleModal] = useState(false);
-  const [isGeneratingVisuals, setIsGeneratingVisuals] = useState(false);
+  // Job logs panel state
   const [showLogsPanel, setShowLogsPanel] = useState(false);
 
   // Export modal state
@@ -100,20 +100,9 @@ export function Editor({ projectId }: EditorProps) {
   const error = useError();
   const selectedIds = useSelectedIds();
   const captionItems = useCaptionItems();
-  const hasTranscript = captionItems.length > 0;
 
   // Actions
   const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus } = useEditorActions();
-
-  // Toggle transcript panel - opens left sidebar to captions tab
-  const handleToggleTranscript = useCallback(() => {
-    if (leftSidebarTab === 'captions' && leftSidebarOpen) {
-      setLeftSidebarOpen(false);
-    } else {
-      setLeftSidebarOpen(true);
-      setLeftSidebarTab('captions');
-    }
-  }, [leftSidebarTab, leftSidebarOpen]);
 
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
@@ -134,7 +123,6 @@ export function Editor({ projectId }: EditorProps) {
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
-    onToggleTranscript: handleToggleTranscript,
     onClosePanel: handleClosePanel,
   });
 
@@ -142,6 +130,15 @@ export function Editor({ projectId }: EditorProps) {
   useEffect(() => {
     loadProject(projectId);
   }, [projectId, loadProject]);
+
+  // Open AI sidebar when "Edit with AI" is requested from context menu
+  const aiEditRequested = useAIEditRequested();
+  useEffect(() => {
+    if (aiEditRequested) {
+      setLeftSidebarOpen(true);
+      setLeftSidebarTab('agent');
+    }
+  }, [aiEditRequested]);
 
   // WebSocket: listen for enhancement job progress
   useEffect(() => {
@@ -185,20 +182,8 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Auto-open properties when item is selected; restore transcript or close on deselect
-  useEffect(() => {
-    if (selectedIds.length > 0) {
-      setPanelOpen(true);
-      setActiveTab('properties');
-    } else {
-      // Deselected — restore transcript if user had it open, otherwise close
-      if (userRequestedTabRef.current === 'transcript') {
-        setActiveTab('transcript');
-      } else {
-        setPanelOpen(false);
-      }
-    }
-  }, [selectedIds]);
+  // Note: Sidebar no longer auto-opens on selection to allow easy multi-select
+  // Users can open Style panel manually via icon rail after selecting captions
 
   // Handle timeline resize
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -231,41 +216,13 @@ export function Editor({ projectId }: EditorProps) {
     setShowExportModal(true);
   };
 
-  // Generate visuals state
+  // Generate visuals state (used by job WebSocket tracking and logs panel)
   const [visualsJobId, setVisualsJobId] = useState<string | null>(null);
   const [visualsProgress, setVisualsProgress] = useState(0);
   const [visualsStatus, setVisualsStatus] = useState<string>('');
   const [visualsError, setVisualsError] = useState<string | null>(null);
   const [visualsComplete, setVisualsComplete] = useState(false);
-  const [visualsMetrics, setVisualsMetrics] = useState<JobMetrics | null>(null);
-  const [visualsPreviewUrl, setVisualsPreviewUrl] = useState<string | null>(null);
-
-  // Handle generate visuals
-  const handleOpenStyleModal = () => {
-    setShowStyleModal(true);
-  };
-
-  const handleGenerateVisuals = async (options: GenerateVisualsOptions) => {
-    if (!project) return;
-    setIsGeneratingVisuals(true);
-    setVisualsProgress(0);
-    setVisualsStatus('Starting...');
-    setVisualsError(null); // Clear any previous error
-    setVisualsComplete(false); // Reset completion state
-    setVisualsMetrics(null);
-    setVisualsPreviewUrl(null);
-    try {
-      const { jobId } = await api.generateVisuals(project.id, options);
-      console.log('Visual generation started:', jobId, options);
-      setVisualsJobId(jobId);
-      setShowLogsPanel(true); // Auto-open logs panel
-      setShowStyleModal(false); // Close modal - progress shown in logs panel
-    } catch (err) {
-      console.error('Visual generation failed:', err);
-      setIsGeneratingVisuals(false);
-      setShowStyleModal(false);
-    }
-  };
+  const [isGeneratingVisuals, setIsGeneratingVisuals] = useState(false);
 
   // WebSocket for real-time job updates
   const { isConnected: wsConnected, subscribeToJob, unsubscribeFromJob } = useJobWebSocket(
@@ -285,23 +242,12 @@ export function Editor({ projectId }: EditorProps) {
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
 
-          // Fetch job to get metrics
-          try {
-            const job = await api.getJob(data.jobId);
-            if (job.metrics) {
-              setVisualsMetrics(job.metrics);
-            }
-          } catch (err) {
-            console.error('Failed to fetch job metrics:', err);
-          }
-
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
             reloadVisuals(project.id);
           }
 
           setVisualsJobId(null);
-          setShowStyleModal(true); // Re-open modal to show completion
         }
       },
       onError: (data) => {
@@ -310,7 +256,6 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsError(data.error || 'Unknown error occurred');
           setIsGeneratingVisuals(false);
           setVisualsJobId(null);
-          setShowStyleModal(true); // Re-open modal to show error
         }
       },
     }
@@ -340,18 +285,12 @@ export function Editor({ projectId }: EditorProps) {
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
 
-          // Set metrics from job
-          if (job.metrics) {
-            setVisualsMetrics(job.metrics);
-          }
-
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
             reloadVisuals(project.id);
           }
 
           setVisualsJobId(null);
-          setShowStyleModal(true); // Re-open modal to show completion
         } else if (job.status === 'failed' || job.status === 'cancelled') {
           const errorMsg = job.status === 'cancelled'
             ? 'Generation was cancelled'
@@ -360,7 +299,6 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsError(errorMsg);
           setIsGeneratingVisuals(false);
           setVisualsJobId(null);
-          setShowStyleModal(true); // Re-open modal to show error
         } else if (job.status === 'processing') {
           setVisualsStatus('Generating visuals with AI...');
         }
@@ -381,38 +319,6 @@ export function Editor({ projectId }: EditorProps) {
     } catch (err) {
       console.error('Failed to cancel job:', err);
     }
-  };
-
-  // Confirm adding visuals to timeline
-  const handleConfirmAddVisuals = () => {
-    // Reload visuals only (preserves playback position and selection)
-    reloadVisuals(project!.id);
-    // Reset all states and close modal
-    setShowStyleModal(false);
-    setVisualsComplete(false);
-    setVisualsMetrics(null);
-    setVisualsPreviewUrl(null);
-  };
-
-  // Discard generated visuals (delete from database and close modal)
-  const handleDiscardVisuals = async () => {
-    if (!project) return;
-
-    // If visuals were generated, delete them from the database
-    if (visualsComplete) {
-      try {
-        await api.deleteVisuals(project.id);
-        console.log('Visuals deleted successfully');
-      } catch (err) {
-        console.error('Failed to delete visuals:', err);
-      }
-    }
-
-    setShowStyleModal(false);
-    setVisualsComplete(false);
-    setVisualsMetrics(null);
-    setVisualsPreviewUrl(null);
-    setVisualsError(null);
   };
 
   // Loading state
@@ -462,9 +368,6 @@ export function Editor({ projectId }: EditorProps) {
       <Header
         onOpenCommandPalette={commandPalette.open}
         onExport={handleExport}
-        onGenerateVisuals={handleOpenStyleModal}
-        isGeneratingVisuals={isGeneratingVisuals}
-        hasTranscript={hasTranscript}
         onToggleLogs={() => setShowLogsPanel(!showLogsPanel)}
         isLogsActive={showLogsPanel}
         hasActiveJob={!!visualsJobId}
@@ -472,70 +375,111 @@ export function Editor({ projectId }: EditorProps) {
 
       {/* Main content area - unified layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar - Icon Rail + Settings Panel */}
-        {leftSidebarOpen && (
-          <div className="flex flex-shrink-0 border-r border-[var(--editor-border-subtle)]">
-            {/* Icon Rail */}
-            <div className="w-16 flex flex-col items-center py-2 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)]">
+        {/* Icon Rail - always visible */}
+        <div className="w-14 flex flex-col items-center py-2 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] flex-shrink-0">
+          <button
+            onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'agent') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('agent');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'agent' ? 'active' : ''}`}
+            title="AI Agent"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 3l1.5 3.7 3.8.6-2.7 2.7.6 3.8L12 12l-3.2 1.8.6-3.8L6.7 7.3l3.8-.6L12 3z" />
+              <path d="M5 19l1 2.4 2.4.4-1.7 1.7.4 2.4L5 24.5l-2.1 1.4.4-2.4L1.6 21.8l2.4-.4L5 19z" opacity="0.6" />
+              <path d="M19 17l.7 1.8 1.8.3-1.3 1.3.3 1.8-1.5-1-1.5 1 .3-1.8-1.3-1.3 1.8-.3L19 17z" opacity="0.6" />
+            </svg>
+            <span className="text-[10px] mt-1">Agent</span>
+          </button>
+          <button
+            onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'captions') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('captions');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'captions' ? 'active' : ''}`}
+            title="Captions"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M4 6h16M4 12h10M4 18h14" />
+            </svg>
+            <span className="text-[10px] mt-1">Captions</span>
+          </button>
+          <button
+            onClick={() => setLeftSidebarTab('style')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'style' ? 'active' : ''}`}
+            title="Style"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+            <span className="text-[10px] mt-1">Style</span>
+          </button>
+          <button
+            onClick={() => setLeftSidebarTab('layout')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'layout' ? 'active' : ''}`}
+            title="Layout"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7" />
+              <rect x="14" y="3" width="7" height="7" />
+              <rect x="3" y="14" width="7" height="7" />
+              <rect x="14" y="14" width="7" height="7" />
+            </svg>
+            <span className="text-[10px] mt-1">Layout</span>
+          </button>
+          <button
+            onClick={() => setLeftSidebarTab('assets')}
+            className={`icon-rail-item w-12 ${leftSidebarTab === 'assets' ? 'active' : ''}`}
+            title="Assets"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+              <path d="M21 15l-5-5L5 21" />
+            </svg>
+            <span className="text-[10px] mt-1">Assets</span>
+          </button>
+        </div>
+
+        {/* Left Sidebar Panel */}
+        {leftSidebarOpen && leftSidebarTab === 'agent' && (
+          <AIAssistantPanel
+            projectId={project.id}
+            onEditComplete={() => reloadVisuals(project.id)}
+            className="w-[488px] flex-shrink-0"
+          />
+        )}
+        {leftSidebarOpen && leftSidebarTab !== 'agent' && (
+          <div className="w-[488px] flex-shrink-0 flex flex-col bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] overflow-hidden">
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+              <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
+                {leftSidebarTab === 'captions' && 'Caption Settings'}
+                {leftSidebarTab === 'style' && 'Style Settings'}
+                {leftSidebarTab === 'layout' && 'Layout Settings'}
+                {leftSidebarTab === 'assets' && 'Visual Assets'}
+              </h3>
               <button
-                onClick={() => setLeftSidebarTab('captions')}
-                className={`icon-rail-item w-14 ${leftSidebarTab === 'captions' ? 'active' : ''}`}
-                title="Captions"
+                onClick={() => setLeftSidebarOpen(false)}
+                className="p-1 rounded hover:bg-[var(--editor-bg-elevated)] text-[var(--editor-text-muted)]"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M4 6h16M4 12h10M4 18h14" />
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
                 </svg>
-                <span className="text-[10px] mt-1">Captions</span>
-              </button>
-              <button
-                onClick={() => setLeftSidebarTab('style')}
-                className={`icon-rail-item w-14 ${leftSidebarTab === 'style' ? 'active' : ''}`}
-                title="Style"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                </svg>
-                <span className="text-[10px] mt-1">Style</span>
-              </button>
-              <button
-                onClick={() => setLeftSidebarTab('layout')}
-                className={`icon-rail-item w-14 ${leftSidebarTab === 'layout' ? 'active' : ''}`}
-                title="Layout"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="7" height="7" />
-                  <rect x="14" y="3" width="7" height="7" />
-                  <rect x="3" y="14" width="7" height="7" />
-                  <rect x="14" y="14" width="7" height="7" />
-                </svg>
-                <span className="text-[10px] mt-1">Layout</span>
-              </button>
-              <button
-                onClick={() => setLeftSidebarTab('assets')}
-                className={`icon-rail-item w-14 ${leftSidebarTab === 'assets' ? 'active' : ''}`}
-                title="Assets"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <path d="M21 15l-5-5L5 21" />
-                </svg>
-                <span className="text-[10px] mt-1">Assets</span>
               </button>
             </div>
 
-            {/* Settings Panel */}
-            <div className="w-60 bg-[var(--editor-bg-surface)] overflow-y-auto">
-              <div className="p-4">
-                <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide mb-3">
-                  {leftSidebarTab === 'captions' && 'Caption Settings'}
-                  {leftSidebarTab === 'style' && 'Style Settings'}
-                  {leftSidebarTab === 'layout' && 'Layout Settings'}
-                  {leftSidebarTab === 'assets' && 'Visual Assets'}
-                </h3>
-
-                {/* Placeholder content - will connect to existing panels */}
-                {leftSidebarTab === 'captions' && (
+            <div className="flex-1 overflow-y-auto">
+              {leftSidebarTab === 'captions' && (
+                <div className="px-4 pb-4">
                   <RightPanel
                     isOpen={true}
                     activeTab="transcript"
@@ -544,18 +488,13 @@ export function Editor({ projectId }: EditorProps) {
                     layout="stacked"
                     embedded={true}
                   />
-                )}
-                {leftSidebarTab === 'style' && (
-                  <RightPanel
-                    isOpen={true}
-                    activeTab="properties"
-                    onTabChange={handleTabChange}
-                    onClose={handleClosePanel}
-                    layout="stacked"
-                    embedded={true}
-                  />
-                )}
-                {leftSidebarTab === 'layout' && (
+                </div>
+              )}
+              {leftSidebarTab === 'style' && (
+                <StylePanel />
+              )}
+              {leftSidebarTab === 'layout' && (
+                <div className="px-4 pb-4">
                   <RightPanel
                     isOpen={true}
                     activeTab="layout"
@@ -564,17 +503,22 @@ export function Editor({ projectId }: EditorProps) {
                     layout="stacked"
                     embedded={true}
                   />
-                )}
-                {leftSidebarTab === 'assets' && (
-                  <AssetsPanel />
-                )}
-              </div>
+                </div>
+              )}
+              {leftSidebarTab === 'assets' && (
+                <AssetsPanel
+                  onEditWithAI={() => {
+                    setLeftSidebarTab('agent');
+                    useEditorStore.setState({ aiEditRequested: true });
+                  }}
+                />
+              )}
             </div>
           </div>
         )}
 
-        {/* Center - Preview + Timeline */}
-        <div ref={mainContentRef} className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Main content */}
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Video Preview Area */}
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
             {/* Zoom control */}
@@ -622,44 +566,12 @@ export function Editor({ projectId }: EditorProps) {
           </div>
         </div>
 
-        {/* Right Panel - AI Assistant */}
-        {aiPanelOpen && (
-          <AIAssistantPanel
-            projectId={project.id}
-            onEditComplete={() => reloadVisuals(project.id)}
-            className="w-80 flex-shrink-0"
-          />
-        )}
       </div>
 
       {/* Command Palette */}
       <CommandPalette
         isOpen={commandPalette.isOpen}
         onClose={commandPalette.close}
-      />
-
-      {/* Style Selection Modal for AI Visuals */}
-      <StyleSelectionModal
-        open={showStyleModal}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleDiscardVisuals();
-          } else {
-            setShowStyleModal(open);
-          }
-        }}
-        onSelect={handleGenerateVisuals}
-        onCancel={handleCancelVisuals}
-        onConfirmAdd={handleConfirmAddVisuals}
-        isLoading={isGeneratingVisuals}
-        progress={visualsProgress}
-        status={visualsStatus}
-        error={visualsError}
-        isComplete={visualsComplete}
-        metrics={visualsMetrics}
-        previewUrl={visualsPreviewUrl}
-        canvasWidth={project?.videoSettings?.canvasWidth || 1080}
-        canvasHeight={project?.videoSettings?.canvasHeight || 1920}
       />
 
       {/* Export Modal */}

@@ -1,11 +1,34 @@
+'use client';
+
 /**
  * Editor V2 Store Hooks and Selectors
  * Provides optimized selectors for components to subscribe to specific state slices
  */
 
+import { useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
 import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData } from './types';
+
+/**
+ * Like useShallow but uses JSON.stringify for deep comparison.
+ * Needed for selectors that create nested objects (where useShallow's
+ * shallow comparison would always see new references).
+ */
+function useDeepSelector<S, U>(selector: (state: S) => U): (state: S) => U {
+  const prev = useRef<U>(undefined as U);
+  const prevJson = useRef<string>(undefined as unknown as string);
+  return (state) => {
+    const next = selector(state);
+    const nextJson = JSON.stringify(next);
+    if (nextJson === prevJson.current) {
+      return prev.current as U;
+    }
+    prevJson.current = nextJson;
+    prev.current = next;
+    return next;
+  };
+}
 
 // ============================================
 // Direct Store Access
@@ -23,6 +46,14 @@ export function useProject() {
 
 export function useProjectId() {
   return useEditorStore((state) => state.project?.id);
+}
+
+export function useProjectType(): 'video' | 'audio' {
+  return useEditorStore((state) => state.project?.projectType || 'video');
+}
+
+export function useIsAudioProject(): boolean {
+  return useEditorStore((state) => state.project?.projectType === 'audio');
 }
 
 export function useIsLoading() {
@@ -213,6 +244,7 @@ export function useCanRedo() {
 export const useClipboard = () => useEditorStore((s) => s.clipboard);
 export const useSplitMode = () => useEditorStore((s) => s.splitMode);
 export const useApplyStyleToAll = () => useEditorStore((s) => s.applyStyleToAll);
+export const useShowCaptions = () => useEditorStore((s) => s.showCaptions);
 
 // ============================================
 // Layout Selectors
@@ -286,67 +318,90 @@ export function useElementPickerEnabled() {
 }
 
 // ============================================
+// AI Edit Request Selectors
+// ============================================
+
+export function useAIEditRequested() {
+  return useEditorStore((state) => state.aiEditRequested);
+}
+
+// ============================================
 // AI Editing Context Selector
 // ============================================
 
 export function useAIEditingContext(): AIEditingContext | null {
-  return useEditorStore(
-    useShallow((state) => {
-      // Priority 1: Selected element from overlay picker
-      if (state.selectedElement) {
+  const selectedElement = useEditorStore((s) => s.selectedElement);
+  const selectedIds = useEditorStore((s) => s.selectedIds);
+  const items = useEditorStore((s) => s.items);
+  const selectedSceneId = useEditorStore((s) => s.selectedSceneId);
+
+  return useMemo(() => {
+    // Priority 1: Selected element from overlay picker
+    if (selectedElement) {
+      return {
+        type: 'element',
+        element: selectedElement,
+        sceneId: selectedElement.sceneId,
+        displayName: selectedElement.name,
+        displayDescription: selectedElement.description,
+      } as AIEditingContext;
+    }
+
+    // Priority 2: Single selected timeline item (visual or caption)
+    if (selectedIds.length === 1) {
+      const item = items[selectedIds[0]];
+      if (item && (item.type === 'visual' || item.type === 'caption')) {
+        const data = item.data;
+        const name = item.type === 'visual'
+          ? (data as VisualItemData).description || 'Visual'
+          : `"${(data as CaptionItemData).text.slice(0, 25)}${(data as CaptionItemData).text.length > 25 ? '...' : ''}"`;
+
         return {
-          type: 'element',
-          element: state.selectedElement,
-          sceneId: state.selectedElement.sceneId,
-          displayName: state.selectedElement.name,
-          displayDescription: state.selectedElement.description,
+          type: 'item',
+          item: {
+            id: item.id,
+            type: item.type,
+            name,
+            description: item.type === 'visual' ? (data as VisualItemData).type : undefined,
+          },
+          displayName: item.type === 'visual' ? 'Visual' : 'Caption',
+          displayDescription: name,
         } as AIEditingContext;
       }
+    }
 
-      // Priority 2: Single selected timeline item (visual or caption)
-      if (state.selectedIds.length === 1) {
-        const item = state.items[state.selectedIds[0]];
-        if (item && (item.type === 'visual' || item.type === 'caption')) {
-          const data = item.data;
-          const name = item.type === 'visual'
-            ? (data as VisualItemData).description || 'Visual'
-            : `"${(data as CaptionItemData).text.slice(0, 25)}${(data as CaptionItemData).text.length > 25 ? '...' : ''}"`;
+    // Priority 3: Multiple items selected
+    if (selectedIds.length > 1) {
+      return {
+        type: 'scene',
+        displayName: `${selectedIds.length} items`,
+        displayDescription: 'Edits apply to containing scene',
+      } as AIEditingContext;
+    }
 
-          return {
-            type: 'item',
-            item: {
-              id: item.id,
-              type: item.type,
-              name,
-              description: item.type === 'visual' ? (data as VisualItemData).type : undefined,
-            },
-            displayName: item.type === 'visual' ? 'Visual' : 'Caption',
-            displayDescription: name,
-          } as AIEditingContext;
-        }
-      }
+    // Priority 4: Selected scene
+    if (selectedSceneId !== null) {
+      return {
+        type: 'scene',
+        sceneId: selectedSceneId,
+        displayName: `Scene ${selectedSceneId}`,
+      } as AIEditingContext;
+    }
 
-      // Priority 3: Multiple items selected
-      if (state.selectedIds.length > 1) {
-        return {
-          type: 'scene',
-          displayName: `${state.selectedIds.length} items`,
-          displayDescription: 'Edits apply to containing scene',
-        } as AIEditingContext;
-      }
+    return null;
+  }, [selectedElement, selectedIds, items, selectedSceneId]);
+}
 
-      // Priority 4: Selected scene
-      if (state.selectedSceneId !== null) {
-        return {
-          type: 'scene',
-          sceneId: state.selectedSceneId,
-          displayName: `Scene ${state.selectedSceneId}`,
-        } as AIEditingContext;
-      }
+// ============================================
+// Safe Zone Selectors
+// ============================================
 
-      return null;
-    })
-  );
+export function useSafeZonePlatform() {
+  return useEditorStore((state) => state.safeZonePlatform);
+}
+
+export function useShowSafeZone() {
+  return useEditorStore((state) => state.showSafeZone);
 }
 
 // ============================================
@@ -453,6 +508,16 @@ export function useEditorActions() {
 
       // Element picker
       setElementPickerEnabled: state.setElementPickerEnabled,
+
+      // AI edit request
+      requestAIEdit: state.requestAIEdit,
+
+      // Captions
+      setShowCaptions: state.setShowCaptions,
+
+      // Safe zone
+      setSafeZonePlatform: state.setSafeZonePlatform,
+      setShowSafeZone: state.setShowSafeZone,
     }))
   );
 }

@@ -10,7 +10,7 @@
 
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { readFile, readdir, stat } from 'fs/promises';
+import { readFile, readdir, stat, writeFile as writeFileAsync } from 'fs/promises';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { spawn, ChildProcess, execSync } from 'child_process';
@@ -108,6 +108,8 @@ export interface EditVisualsJobData {
   prompt: string;
   sceneId?: number;       // Optional: target a specific scene (1-indexed)
   elementName?: string;   // Optional: target a specific element within the scene
+  transcript?: string;    // Full transcript text with timestamps for context
+  scenePlan?: string;     // JSON scene plan so the agent understands the visual structure
 }
 
 /**
@@ -201,8 +203,61 @@ async function compileCjs(projectDir: string, bundleDir: string): Promise<void> 
   }
 }
 
+/**
+ * Auto-fix common Remotion issues in all .tsx files within a project directory.
+ * Fixes descending interpolate ranges that crash the Remotion player.
+ */
+async function autoFixProjectFiles(projectDir: string): Promise<void> {
+  const entries = await readdir(projectDir, { recursive: true, withFileTypes: true });
+  let fixedCount = 0;
+
+  for (const entry of entries) {
+    if (!entry.isFile() || !entry.name.endsWith('.tsx')) continue;
+    const parentPath = (entry as any).parentPath ?? (entry as any).path ?? projectDir;
+    const filePath = join(parentPath, entry.name);
+
+    let content = await readFile(filePath, 'utf-8');
+    const original = content;
+
+    // Fix descending interpolate ranges by reversing both input and output
+    content = content.replace(
+      /interpolate\s*\(\s*([^,]+),\s*\[([^\]]+)\],\s*\[([^\]]+)\]/g,
+      (match, input, inputRange, outputRange) => {
+        const inputParts = inputRange.split(',').map((n: string) => n.trim());
+        const outputParts = outputRange.split(',').map((n: string) => n.trim());
+        const inputNums = inputParts.map((n: string) => parseFloat(n)).filter((n: number) => !isNaN(n));
+
+        let isDescending = false;
+        for (let i = 1; i < inputNums.length; i++) {
+          if (inputNums[i] < inputNums[i - 1]) {
+            isDescending = true;
+            break;
+          }
+        }
+
+        if (isDescending && inputNums.length === inputParts.length) {
+          const fixedInputRange = [...inputParts].reverse().join(', ');
+          const fixedOutputRange = [...outputParts].reverse().join(', ');
+          return `interpolate(${input}, [${fixedInputRange}], [${fixedOutputRange}]`;
+        }
+        return match;
+      }
+    );
+
+    if (content !== original) {
+      await writeFileAsync(filePath, content);
+      fixedCount++;
+      logger.info({ filePath }, 'Auto-fixed descending interpolate ranges');
+    }
+  }
+
+  if (fixedCount > 0) {
+    logger.info({ projectDir, fixedCount }, 'Auto-fixed files with descending interpolate ranges');
+  }
+}
+
 export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
-  const { projectId, jobId, compositionId, prompt, sceneId, elementName } = job.data;
+  const { projectId, jobId, compositionId, prompt, sceneId, elementName, transcript, scenePlan } = job.data;
 
   // Convert compositionId format: proj-xxx-xxx -> proj_xxx_xxx for workspace
   const workspaceCompositionId = compositionId.replace(/-/g, '_');
@@ -272,17 +327,19 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       logger.info({ projectId, compositionId, fileCount: downloadedFiles.length }, 'Source files restored');
     }
 
-    await publishJobProgress(jobId, 22, 'Analyzing which scene to edit...');
+    await publishJobProgress(jobId, 22, 'AI is editing your visuals...');
 
-    // Run Claude to edit the composition (includes scene detection)
+    // Run Claude to edit the composition
     const editResult = await runClaudeEditor({
       projectId: workspaceCompositionId,
       jobId,
       projectDir,
       prompt,
       existingFiles: downloadedFiles,
-      targetSceneId: sceneId,  // Pass user-selected scene ID
-      targetElementName: elementName,  // Pass user-selected element name
+      targetSceneId: sceneId,
+      targetElementName: elementName,
+      transcript,
+      scenePlan,
     });
 
     await publishJobProgress(jobId, 70, 'Reading updated metadata...');
@@ -303,6 +360,10 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
         height: visual.height,
       };
     }
+
+    // Auto-fix common issues in edited source files (descending interpolate ranges, etc.)
+    await publishJobProgress(jobId, 73, 'Auto-fixing common issues...');
+    await autoFixProjectFiles(projectDir);
 
     await publishJobProgress(jobId, 75, 'Verifying bundle...');
 
@@ -452,8 +513,10 @@ interface ClaudeEditorOptions {
   projectDir: string;
   prompt: string;
   existingFiles: string[];
-  targetSceneId?: number;       // Optional user-selected scene ID (1-indexed)
-  targetElementName?: string;   // Optional user-selected element name
+  targetSceneId?: number;
+  targetElementName?: string;
+  transcript?: string;          // Timestamped transcript of what the speaker says
+  scenePlan?: string;           // JSON scene plan describing what each scene visualizes
 }
 
 interface ClaudeEditorResult {
@@ -461,218 +524,14 @@ interface ClaudeEditorResult {
   durationMs: number;
 }
 
-interface SceneInfo {
-  id: number;
-  name: string;
-  file: string;
-  description: string;
-  frames: [number, number];
-  timestampRange: [number, number];
-}
-
-type EditMode = 'simple' | 'regenerate';
-
-/**
- * Determine if the edit request requires a full scene regeneration
- * or just a simple surgical edit.
- */
-function detectEditMode(prompt: string): EditMode {
-  const promptLower = prompt.toLowerCase();
-
-  // Keywords that suggest a simple edit (just change values)
-  const simpleKeywords = [
-    'bigger', 'smaller', 'larger', 'size',
-    'faster', 'slower', 'speed',
-    'color', 'colour', 'change to', 'make it',
-    'more', 'less', 'increase', 'decrease',
-    'brighter', 'darker', 'opacity', 'transparent',
-    'move', 'position', 'left', 'right', 'up', 'down',
-    'scale', 'rotate', 'angle',
-  ];
-
-  // Keywords that suggest regeneration (structural changes)
-  const regenerateKeywords = [
-    'add a', 'add an', 'add new', 'create a', 'create new',
-    'remove', 'delete', 'get rid of',
-    'replace with', 'change to a', 'turn into',
-    'completely', 'redesign', 'redo', 'regenerate',
-    'different style', 'new animation', 'new effect',
-    'instead of', 'swap', 'switch to',
-  ];
-
-  // Check for regeneration keywords first (they take priority)
-  for (const keyword of regenerateKeywords) {
-    if (promptLower.includes(keyword)) {
-      return 'regenerate';
-    }
-  }
-
-  // Check for simple edit keywords
-  for (const keyword of simpleKeywords) {
-    if (promptLower.includes(keyword)) {
-      return 'simple';
-    }
-  }
-
-  // Default to simple edit for short prompts, regenerate for complex ones
-  return prompt.split(' ').length > 15 ? 'regenerate' : 'simple';
-}
-
-/**
- * Phase 1: Analyze the user's request to identify which scene(s) need changes.
- * This is a fast operation that reads scenes.json and determines the target.
- */
-async function detectTargetScenes(
-  projectDir: string,
-  prompt: string,
-  existingFiles: string[]
-): Promise<{ targetScenes: SceneInfo[]; targetFiles: string[]; analysisReason: string }> {
-  // Read scenes.json to understand scene structure
-  let scenes: any[] = [];
-  let scenesJson = '';
-  try {
-    scenesJson = await readFile(join(projectDir, 'scenes.json'), 'utf-8');
-    const parsed = JSON.parse(scenesJson);
-    scenes = parsed.scenes || [];
-  } catch {
-    // No scenes.json - return all scene files
-    const sceneFiles = existingFiles.filter(f => f.startsWith('scenes/'));
-    return {
-      targetScenes: [],
-      targetFiles: sceneFiles.length > 0 ? sceneFiles : existingFiles,
-      analysisReason: 'No scenes.json found, targeting all files',
-    };
-  }
-
-  // Build scene info with file mappings
-  const sceneInfos: SceneInfo[] = scenes.map((s: any) => ({
-    id: s.id,
-    name: s.name,
-    file: `scenes/Scene${s.id}.tsx`,
-    description: s.visual || s.description || '',
-    frames: s.frames || [0, 0],
-    timestampRange: s.timestampRange || [0, 0],
-  }));
-
-  // Quick keyword matching for common edit patterns
-  const promptLower = prompt.toLowerCase();
-
-  // Check for global changes that affect all scenes or shared components
-  const globalKeywords = ['background', 'color scheme', 'all scenes', 'everywhere', 'global', 'constants'];
-  const isGlobalChange = globalKeywords.some(k => promptLower.includes(k));
-
-  if (isGlobalChange) {
-    // For global changes, target constants.ts and potentially Background.tsx
-    const targetFiles: string[] = [];
-    if (promptLower.includes('background')) {
-      targetFiles.push('components/Background.tsx');
-    }
-    if (promptLower.includes('color')) {
-      targetFiles.push('constants.ts');
-    }
-    if (targetFiles.length === 0) {
-      targetFiles.push('constants.ts');
-    }
-    return {
-      targetScenes: [],
-      targetFiles,
-      analysisReason: `Global change detected, targeting: ${targetFiles.join(', ')}`,
-    };
-  }
-
-  // Check for specific scene mentions
-  for (const scene of sceneInfos) {
-    const sceneName = scene.name.toLowerCase();
-    const sceneNum = `scene ${scene.id}`;
-    const sceneNumAlt = `scene${scene.id}`;
-
-    if (promptLower.includes(sceneName) ||
-        promptLower.includes(sceneNum) ||
-        promptLower.includes(sceneNumAlt)) {
-      return {
-        targetScenes: [scene],
-        targetFiles: [scene.file],
-        analysisReason: `User mentioned "${scene.name}" directly`,
-      };
-    }
-  }
-
-  // Check for element-based matching (particles, orb, graph, etc.)
-  const elementKeywords: Record<string, string[]> = {
-    'particle': ['particle', 'particles', 'dust', 'sparkle'],
-    'orb': ['orb', 'sphere', 'ball', 'circle', 'glow'],
-    'graph': ['graph', 'chart', 'stonks', 'line'],
-    'text': ['text', 'title', 'label', 'word'],
-  };
-
-  for (const [element, keywords] of Object.entries(elementKeywords)) {
-    if (keywords.some(k => promptLower.includes(k))) {
-      // Find scenes that mention this element
-      const matchingScenes = sceneInfos.filter(s =>
-        s.description.toLowerCase().includes(element)
-      );
-
-      if (matchingScenes.length > 0) {
-        // Also check components
-        const componentFile = existingFiles.find(f =>
-          f.toLowerCase().includes(element) && f.startsWith('components/')
-        );
-
-        const targetFiles = matchingScenes.map(s => s.file);
-        if (componentFile) {
-          targetFiles.unshift(componentFile); // Component first
-        }
-
-        return {
-          targetScenes: matchingScenes,
-          targetFiles,
-          analysisReason: `Element "${element}" found in: ${matchingScenes.map(s => s.name).join(', ')}`,
-        };
-      }
-
-      // Check if there's a component for this element
-      const componentFile = existingFiles.find(f =>
-        f.toLowerCase().includes(element) && f.startsWith('components/')
-      );
-      if (componentFile) {
-        return {
-          targetScenes: [],
-          targetFiles: [componentFile],
-          analysisReason: `Element "${element}" likely in component: ${componentFile}`,
-        };
-      }
-    }
-  }
-
-  // Default: if we can't determine, target the first scene (most common edit target)
-  if (sceneInfos.length > 0) {
-    return {
-      targetScenes: [sceneInfos[0]],
-      targetFiles: [sceneInfos[0].file],
-      analysisReason: 'Could not determine specific target, defaulting to Scene 1',
-    };
-  }
-
-  // Fallback: all scene files
-  const sceneFiles = existingFiles.filter(f => f.startsWith('scenes/'));
-  return {
-    targetScenes: [],
-    targetFiles: sceneFiles.length > 0 ? sceneFiles : existingFiles,
-    analysisReason: 'Fallback: targeting all scene files',
-  };
-}
-
 /**
  * Run Claude to edit the existing composition.
  *
- * Smart editing approach:
- * 1. First analyze which scene(s) need changes based on user's request
- * 2. Only read and modify the affected scene files
- * 3. Keep all other files untouched
- * 4. Re-bundle only if necessary
+ * Gives Claude full project context and lets it decide what to change.
+ * No pre-filtering or edit mode detection — the model is smarter than keyword heuristics.
  */
 async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEditorResult> {
-  const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId, targetElementName } = options;
+  const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId, targetElementName, transcript, scenePlan } = options;
 
   const workspacePath = getWorkspacePath();
   const bundleOutputDir = config.remotion.bundleOutputDir;
@@ -684,185 +543,105 @@ async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEdit
     existingFiles: existingFiles.length,
     targetSceneId,
     targetElementName,
+    hasTranscript: !!transcript,
+    hasScenePlan: !!scenePlan,
   }, 'Starting Claude editor...');
 
   const startTime = Date.now();
 
-  // PHASE 1: Detect edit mode and which files need to be edited
-  const editMode = detectEditMode(prompt);
-  let detection: { targetScenes: SceneInfo[]; targetFiles: string[]; analysisReason: string };
-
-  // If user selected a specific scene, use that directly instead of auto-detection
-  if (targetSceneId) {
-    // Read scenes.json to get scene info
-    let scenes: any[] = [];
+  // Read ALL source files to give Claude full context
+  const allFileContents: string[] = [];
+  for (const file of existingFiles) {
     try {
-      const scenesJson = await readFile(join(projectDir, 'scenes.json'), 'utf-8');
-      const parsed = JSON.parse(scenesJson);
-      scenes = parsed.scenes || [];
+      const content = await readFile(join(projectDir, file), 'utf-8');
+      allFileContents.push(`=== ${file} ===\n${content}`);
     } catch {
-      // No scenes.json - fallback to scene file
+      logger.warn({ projectId, file }, 'Could not read file');
     }
-
-    const sceneInfo = scenes.find((s: any) => s.id === targetSceneId);
-    const sceneFile = `scenes/Scene${targetSceneId}.tsx`;
-
-    const elementSuffix = targetElementName ? `, element "${targetElementName}"` : '';
-
-    if (sceneInfo) {
-      detection = {
-        targetScenes: [{
-          id: sceneInfo.id,
-          name: sceneInfo.name || `Scene ${targetSceneId}`,
-          file: sceneFile,
-          description: sceneInfo.visual || sceneInfo.description || '',
-          frames: sceneInfo.frames || [0, 0],
-          timestampRange: sceneInfo.timestampRange || [0, 0],
-        }],
-        targetFiles: [sceneFile],
-        analysisReason: `User selected Scene ${targetSceneId}${elementSuffix} from UI`,
-      };
-    } else {
-      // Scene not found in scenes.json, but still target the file
-      detection = {
-        targetScenes: [{
-          id: targetSceneId,
-          name: `Scene ${targetSceneId}`,
-          file: sceneFile,
-          description: '',
-          frames: [0, 0],
-          timestampRange: [0, 0],
-        }],
-        targetFiles: [sceneFile],
-        analysisReason: `User selected Scene ${targetSceneId}${elementSuffix} from UI (no metadata)`,
-      };
-    }
-
-    logger.info({
-      projectId,
-      targetSceneId,
-      targetElementName,
-      sceneFile,
-    }, 'Using user-selected scene');
-  } else {
-    // Auto-detect target scenes based on prompt
-    detection = await detectTargetScenes(projectDir, prompt, existingFiles);
   }
+
+  // Build target scene context if a specific scene was selected
+  let targetSceneContext = '';
+  if (targetSceneId) {
+    try {
+      const scenesRaw = await readFile(join(projectDir, 'scenes.json'), 'utf-8');
+      const parsed = JSON.parse(scenesRaw);
+      const scene = (parsed.scenes || []).find((s: any) => s.id === targetSceneId);
+      if (scene) {
+        targetSceneContext = `
+USER-SELECTED TARGET:
+- Scene ${scene.id}: "${scene.name}"
+- File: scenes/Scene${scene.id}.tsx
+- Frames: ${scene.frames[0]} to ${scene.frames[1]}
+- Timestamp: ${scene.timestampRange[0]}s to ${scene.timestampRange[1]}s
+- Description: ${scene.visual || scene.description || 'N/A'}`;
+      } else {
+        targetSceneContext = `\nUSER-SELECTED TARGET: Scene ${targetSceneId} (file: scenes/Scene${targetSceneId}.tsx)`;
+      }
+    } catch {
+      targetSceneContext = `\nUSER-SELECTED TARGET: Scene ${targetSceneId} (file: scenes/Scene${targetSceneId}.tsx)`;
+    }
+  }
+
+  const elementContext = targetElementName
+    ? `\nTARGET ELEMENT: "${targetElementName}" — The user wants changes focused on this specific element.`
+    : '';
+
+  // Build transcript section
+  const transcriptSection = transcript
+    ? `\nVIDEO TRANSCRIPT (what the speaker is saying at each timestamp):
+${transcript}
+
+Use this to understand the CONTENT of the video. Visuals should illustrate what's being said.
+If the user refers to "the part about X" or "when I talk about Y", match it to the transcript above.`
+    : '';
+
+  // Build scene plan section
+  const scenePlanSection = scenePlan
+    ? `\nSCENE PLAN (what each scene is supposed to visualize):
+${scenePlan}
+
+Each scene has a time range, description, and purpose. Use this to understand the visual structure.`
+    : '';
 
   logger.info({
     projectId,
-    editMode,
-    targetFiles: detection.targetFiles,
-    targetScenes: detection.targetScenes.map(s => s.name),
-    analysisReason: detection.analysisReason,
-  }, 'Edit analysis complete');
+    fileCount: allFileContents.length,
+    hasTargetScene: !!targetSceneId,
+    hasTargetElement: !!targetElementName,
+    transcriptLength: transcript?.length || 0,
+  }, 'Edit context prepared');
 
-  // Read the content of target files to provide to Claude
-  const targetFileContents: string[] = [];
-  for (const file of detection.targetFiles) {
-    try {
-      const content = await readFile(join(projectDir, file), 'utf-8');
-      targetFileContents.push(`=== ${file} ===\n${content}`);
-    } catch {
-      logger.warn({ projectId, file }, 'Could not read target file');
-    }
-  }
-
-  // Read constants.ts for context (colors, timing, etc.)
-  let constantsContent = '';
-  try {
-    constantsContent = await readFile(join(projectDir, 'constants.ts'), 'utf-8');
-  } catch {
-    // constants.ts might not exist
-  }
-
-  // Read scenes.json for full context
-  let scenesJson = '';
-  try {
-    scenesJson = await readFile(join(projectDir, 'scenes.json'), 'utf-8');
-  } catch {
-    // scenes.json might not exist
-  }
-
-  let editPrompt: string;
-
-  if (editMode === 'regenerate' && detection.targetScenes.length > 0) {
-    // REGENERATION MODE: Regenerate the specific scene(s) completely
-    const targetScene = detection.targetScenes[0]; // Focus on first matching scene
-
-    logger.info({
-      projectId,
-      sceneId: targetScene.id,
-      sceneName: targetScene.name,
-      frames: targetScene.frames,
-    }, 'Regenerating scene');
-
-    editPrompt = `
-You are regenerating a SPECIFIC SCENE in a Remotion composition.
+  const editPrompt = `
+You are editing a Remotion composition for a talking-head explainer video. You have the full project source, the video transcript (what the speaker says), and the scene plan (what each scene visualizes). Use ALL of this context to make smart edits.
 
 PROJECT DIRECTORY: ${projectDir}
+${targetSceneContext}${elementContext}
+${transcriptSection}
+${scenePlanSection}
 
-SCENE TO REGENERATE:
-- Scene ${targetScene.id}: "${targetScene.name}"
-- File: ${targetScene.file}
-- Frames: ${targetScene.frames[0]} to ${targetScene.frames[1]}
-- Timestamp: ${targetScene.timestampRange[0]}s to ${targetScene.timestampRange[1]}s
-- Original Description: ${targetScene.description}
-${targetElementName ? `\nTARGET ELEMENT: "${targetElementName}" — Focus your changes on this specific element within the scene.\n` : ''}
 USER'S REQUEST:
 "${prompt}"
 
-CONSTANTS (use these colors and timing):
-${constantsContent}
+FULL PROJECT SOURCE:
+${allFileContents.join('\n\n')}
 
-CURRENT SCENE CODE:
-${targetFileContents.join('\n\n')}
+YOUR JOB:
+You understand what the speaker is saying, what the visuals currently show, and what the user wants changed. Make edits that result in visuals that accurately illustrate the spoken content.
 
-INSTRUCTIONS:
-1. REWRITE the scene file (${targetScene.file}) to match the user's request
-2. Keep the same frame range (${targetScene.frames[0]} to ${targetScene.frames[1]})
-3. Use the existing COLORS and SPRING_CONFIG from constants.ts
-4. Export the component with the same name (Scene${targetScene.id})
-5. Follow Remotion best practices:
-   - Use useCurrentFrame() and useVideoConfig()
-   - Use spring() with damping >= 20
-   - Use interpolate() with extrapolateRight: 'clamp'
-6. After regenerating, run: npx remotion bundle src/${projectId}/index.tsx --out-dir ${bundleOutputDir}/${projectId.replace(/_/g, '-')}
+- Read the transcript to understand WHAT is being explained at each point in time.
+- Read the scene plan to understand the INTENT of each visual.
+- Read the code to understand the CURRENT implementation.
+- Then make changes that serve the user's request while keeping visuals aligned with the narration.
 
-IMPORTANT: Only modify ${targetScene.file} - do NOT touch other scene files or index.tsx.
+TECHNICAL GUIDELINES:
+- You decide what files to modify and how much to change — small tweak or full rewrite.
+- Use existing COLORS and SPRING_CONFIG from constants.ts when they exist.
+- Keep frame ranges and component export names unchanged unless the request requires it.
+- Remotion best practices: useCurrentFrame(), spring() with damping >= 20, interpolate() with extrapolateRight: 'clamp'.
+- Do NOT modify files that aren't relevant to the request.
+- After making changes, run: npx remotion bundle src/${projectId}/index.tsx --out-dir ${bundleOutputDir}/${projectId.replace(/_/g, '-')}
 `.trim();
-
-  } else {
-    // SIMPLE EDIT MODE: Make surgical changes
-    editPrompt = `
-You are making a QUICK EDIT to a Remotion composition.
-
-PROJECT DIRECTORY: ${projectDir}
-
-ANALYSIS: ${detection.analysisReason}
-
-TARGET FILE(S) TO EDIT:
-${detection.targetFiles.map(f => `- ${f}`).join('\n')}
-${targetElementName ? `\nTARGET ELEMENT: "${targetElementName}" — Focus your changes on this specific element within the scene. Only modify code related to this element.\n` : ''}
-CURRENT CONTENT:
-${targetFileContents.join('\n\n')}
-
-USER'S EDIT REQUEST:
-"${prompt}"
-
-INSTRUCTIONS:
-1. Make ONLY the minimal changes needed - change a value, not the whole file
-2. Edit ONLY the file(s) listed above
-3. Common edits:
-   - Size: change width/height/scale numbers
-   - Color: update hex values or COLORS references
-   - Speed: adjust spring damping or duration values
-   - Position: modify x/y/translateX/translateY values
-4. After editing, run: npx remotion bundle src/${projectId}/index.tsx --out-dir ${bundleOutputDir}/${projectId.replace(/_/g, '-')}
-
-This should be a 1-5 line change. Do not rewrite files.
-`.trim();
-  }
 
   // Run Claude CLI in the workspace, passing prompt via stdin to avoid shell escaping issues
   // NOTE: Do NOT use --print flag - it prevents Claude from executing tools (file edits)
@@ -885,6 +664,29 @@ This should be a 1-5 line change. Do not rewrite files.
   let stdout = '';
   let stderr = '';
 
+  // Progress ticker — publish periodic updates so the polling loop (and frontend)
+  // know the job is still alive. Without this, the agent's stall detector would
+  // fire because the Claude subprocess can run for several minutes silently.
+  const EDIT_PROGRESS_MESSAGES = [
+    'AI is analyzing your composition...',
+    'AI is planning the changes...',
+    'AI is editing your visuals...',
+    'AI is writing code changes...',
+    'AI is still working on edits...',
+    'Almost there, AI is finalizing...',
+  ];
+  let tickerIndex = 0;
+  // Slowly increment from 25% to 60% during Claude's run
+  let tickerPercent = 25;
+  const progressTicker = setInterval(() => {
+    const message = EDIT_PROGRESS_MESSAGES[Math.min(tickerIndex, EDIT_PROGRESS_MESSAGES.length - 1)];
+    tickerPercent = Math.min(60, tickerPercent + 2);
+    publishJobProgress(jobId, tickerPercent, message);
+    // Also update the DB so the polling loop sees fresh progress
+    db.update(jobs).set({ progress: tickerPercent, progressMessage: message }).where(eq(jobs.id, jobId)).catch(() => {});
+    tickerIndex++;
+  }, 15_000); // Every 15 seconds
+
   subprocess.stdout?.on('data', (chunk: Buffer) => {
     const text = chunk.toString('utf-8');
     stdout += text;
@@ -902,12 +704,14 @@ This should be a 1-5 line change. Do not rewrite files.
   // Wait for completion with timeout
   await new Promise<void>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
+      clearInterval(progressTicker);
       subprocess.kill('SIGTERM');
       reject(new Error(`Claude editor timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
     }, config.claudeAgent.timeoutSeconds * 1000);
 
     subprocess.on('close', (code) => {
       clearTimeout(timeoutId);
+      clearInterval(progressTicker);
       if (code === 0) {
         resolve();
       } else {
@@ -917,6 +721,7 @@ This should be a 1-5 line change. Do not rewrite files.
 
     subprocess.on('error', (err) => {
       clearTimeout(timeoutId);
+      clearInterval(progressTicker);
       reject(err);
     });
   });

@@ -25,10 +25,15 @@ const updateProjectSchema = z.object({
   })).optional(),
   items: z.array(z.object({
     id: z.string(),
+    trackId: z.string().optional(),
+    type: z.string().optional(),
     startMs: z.number().optional(),
     endMs: z.number().optional(),
     data: z.record(z.unknown()).optional(),
   })).optional(),
+  // IDs of all caption items currently in the editor — DB items not in this list are deleted
+  captionItemIds: z.array(z.string()).optional(),
+  videoSettings: z.record(z.unknown()).optional(),
 });
 
 // Helper to check if a user owns a project
@@ -44,33 +49,43 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/projects', { preHandler: authMiddleware }, async (request, reply) => {
     const body = createProjectSchema.parse(request.body);
 
-    // Generate video key
-    const videoKey = `${nanoid()}/${body.filename}`;
+    // Detect audio files by extension
+    const audioExtensions = ['.mp3', '.m4a', '.wav', '.ogg', '.flac'];
+    const ext = body.filename.toLowerCase().match(/\.[^.]+$/)?.[0] || '';
+    const isAudio = audioExtensions.includes(ext);
+
+    // Generate storage key
+    const storageKey = `${nanoid()}/${body.filename}`;
 
     // Create project in database with user ownership
     const [project] = await db.insert(projects).values({
       status: 'uploading' as ProjectStatus,
       title: body.title || null,
-      videoKey,
+      projectType: isAudio ? 'audio' : 'video',
+      videoKey: isAudio ? null : storageKey,
+      audioKey: isAudio ? storageKey : null,
       userId: request.user!.id, // Associate with authenticated user
     }).returning();
 
-    // Create default video track
-    await db.insert(tracks).values({
-      projectId: project.id,
-      type: 'video',
-      name: 'Video',
-      position: 0,
-    });
+    // Create default video track only for video projects
+    if (!isAudio) {
+      await db.insert(tracks).values({
+        projectId: project.id,
+        type: 'video',
+        name: 'Video',
+        position: 0,
+      });
+    }
 
     // Get presigned upload URL
-    const uploadUrl = await getPresignedUploadUrl('uploads', videoKey);
+    const uploadUrl = await getPresignedUploadUrl('uploads', storageKey);
 
     return {
       projectId: project.id,
       uploadUrl,
-      // Also return videoKey for proxy upload
-      videoKey,
+      projectType: project.projectType,
+      // Also return videoKey for proxy upload (or audioKey for audio)
+      videoKey: storageKey,
     };
   });
 
@@ -91,8 +106,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    if (!project.videoKey) {
-      return reply.status(400).send({ error: 'Project has no video key' });
+    const storageKey = project.videoKey || project.audioKey;
+    if (!storageKey) {
+      return reply.status(400).send({ error: 'Project has no storage key' });
     }
 
     try {
@@ -104,13 +120,13 @@ export async function projectRoutes(fastify: FastifyInstance) {
       // Stream the file directly to MinIO
       await uploadStream(
         'uploads',
-        project.videoKey,
+        storageKey,
         data.file,
         undefined, // size unknown for streams
         data.mimetype
       );
 
-      return { success: true, videoKey: project.videoKey };
+      return { success: true, videoKey: storageKey };
     } catch (err) {
       fastify.log.error(err, 'Failed to upload file');
       return reply.status(500).send({ error: 'Failed to upload file' });
@@ -168,6 +184,19 @@ export async function projectRoutes(fastify: FastifyInstance) {
       fastify.log.info({ projectId: id }, 'No videoKey for project, skipping presigned URL');
     }
 
+    // Generate presigned URL for audio playback (audio projects)
+    let audioPresignedUrl: string | null = null;
+    if (project.audioKey) {
+      try {
+        const exists = await objectExists('uploads', project.audioKey);
+        if (exists) {
+          audioPresignedUrl = await getPresignedDownloadUrl('uploads', project.audioKey, 3600);
+        }
+      } catch (err) {
+        fastify.log.warn({ err, audioKey: project.audioKey }, 'Failed to generate presigned URL for audio');
+      }
+    }
+
     // Trigger preload of visual source files to worker workspace (non-blocking)
     // This warms up the cache so AI edits are faster
     const visual = await db.query.visuals.findFirst({
@@ -188,6 +217,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       items,
       transcript,
       videoPresignedUrl,
+      audioPresignedUrl,
     };
   });
 
@@ -270,6 +300,70 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // Stream audio file (for audio projects)
+  fastify.get('/projects/:id/audio', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    if (!project.audioKey) {
+      return reply.status(400).send({ error: 'No audio uploaded' });
+    }
+
+    const exists = await objectExists('uploads', project.audioKey);
+    if (!exists) {
+      return reply.status(404).send({ error: 'Audio not found in storage' });
+    }
+
+    try {
+      const stat = await getObjectStat('uploads', project.audioKey);
+      const ext = project.audioKey.split('.').pop()?.toLowerCase();
+      const contentTypes: Record<string, string> = {
+        mp3: 'audio/mpeg',
+        m4a: 'audio/mp4',
+        wav: 'audio/wav',
+        ogg: 'audio/ogg',
+        flac: 'audio/flac',
+      };
+      const contentType = contentTypes[ext || ''] || 'application/octet-stream';
+
+      const range = request.headers.range;
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        const chunkSize = end - start + 1;
+
+        const stream = await getPartialObjectStream('uploads', project.audioKey, start, chunkSize);
+        reply.status(206);
+        reply.header('Content-Range', `bytes ${start}-${end}/${stat.size}`);
+        reply.header('Accept-Ranges', 'bytes');
+        reply.header('Content-Length', chunkSize);
+        reply.header('Content-Type', contentType);
+        return reply.send(stream);
+      }
+
+      const stream = await getObjectStream('uploads', project.audioKey);
+      reply.header('Content-Type', contentType);
+      reply.header('Content-Length', stat.size);
+      reply.header('Accept-Ranges', 'bytes');
+      return reply.send(stream);
+    } catch (err) {
+      fastify.log.error(err, 'Failed to stream audio');
+      return reply.status(500).send({ error: 'Failed to stream audio' });
+    }
+  });
+
   // Update a project
   fastify.patch('/projects/:id', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -301,24 +395,67 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Update timeline items if provided
+    // Upsert timeline items if provided (handles both existing and new items from split/merge)
     if (body.items) {
       for (const item of body.items) {
-        await db.update(timelineItems)
+        // Try UPDATE first
+        const result = await db.update(timelineItems)
           .set({
             startMs: item.startMs,
             endMs: item.endMs,
             data: item.data,
             updatedAt: new Date(),
           })
-          .where(eq(timelineItems.id, item.id));
+          .where(eq(timelineItems.id, item.id))
+          .returning({ id: timelineItems.id });
+
+        // If no rows updated, INSERT the new item (from split/merge)
+        if (result.length === 0 && item.trackId && item.type && item.startMs != null && item.endMs != null && item.data) {
+          await db.insert(timelineItems).values({
+            id: item.id,
+            trackId: item.trackId,
+            type: item.type,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: item.data,
+          });
+        }
       }
     }
 
-    // Update project (title and timestamp)
-    const updateData: { updatedAt: Date; title?: string } = { updatedAt: new Date() };
+    // Delete caption items that no longer exist in the editor (removed by split/merge)
+    if (body.captionItemIds) {
+      const trackIds = (await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      })).map(t => t.id);
+
+      if (trackIds.length > 0) {
+        // Find all subtitle/caption items in the project
+        const existingItems = await db.select({ id: timelineItems.id }).from(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, trackIds),
+            or(eq(timelineItems.type, 'subtitle'), eq(timelineItems.type, 'caption'))
+          ));
+
+        // Delete items not in the editor's current list
+        const idsToDelete = existingItems
+          .map(i => i.id)
+          .filter(dbId => !body.captionItemIds!.includes(dbId));
+
+        if (idsToDelete.length > 0) {
+          await db.delete(timelineItems).where(inArray(timelineItems.id, idsToDelete));
+          fastify.log.info({ deletedCount: idsToDelete.length }, 'Deleted orphaned caption items from split/merge');
+        }
+      }
+    }
+
+    // Update project fields
+    const updateData: { updatedAt: Date; title?: string; videoSettings?: unknown } = { updatedAt: new Date() };
     if (body.title !== undefined) {
       updateData.title = body.title;
+    }
+    if (body.videoSettings !== undefined) {
+      updateData.videoSettings = body.videoSettings;
     }
     await db.update(projects)
       .set(updateData)
@@ -344,14 +481,17 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
-    if (!project.videoKey) {
-      return reply.status(400).send({ error: 'No video uploaded' });
+    const isAudio = project.projectType === 'audio';
+    const mediaKey = isAudio ? project.audioKey : project.videoKey;
+
+    if (!mediaKey) {
+      return reply.status(400).send({ error: isAudio ? 'No audio uploaded' : 'No video uploaded' });
     }
 
-    // Check if video exists in storage
-    const exists = await objectExists('uploads', project.videoKey);
+    // Check if media exists in storage
+    const exists = await objectExists('uploads', mediaKey);
     if (!exists) {
-      return reply.status(400).send({ error: 'Video not found in storage' });
+      return reply.status(400).send({ error: `${isAudio ? 'Audio' : 'Video'} not found in storage` });
     }
 
     // Create transcription job
@@ -361,6 +501,29 @@ export async function projectRoutes(fastify: FastifyInstance) {
       status: 'pending',
     }).returning();
 
+    // Audio projects: only 1 job (transcribe). No enhance-audio, no audio track/item here.
+    // The transcribe worker creates the audio track for audio projects.
+    if (isAudio) {
+      // Update project status
+      await db.update(projects)
+        .set({ status: 'processing' })
+        .where(eq(projects.id, id));
+
+      await queueTranscribeJob({
+        projectId: id,
+        jobId: transcribeJob.id,
+        videoKey: mediaKey,
+      });
+
+      return {
+        jobId: transcribeJob.id,
+        transcribeJobId: transcribeJob.id,
+        enhanceJobId: null,
+        totalJobs: 1,
+      };
+    }
+
+    // Video projects: transcribe + enhance-audio in parallel
     // Create audio track, timeline item, and enhancement job
     const [audioTrack] = await db.insert(tracks).values({
       projectId: id,
@@ -401,12 +564,12 @@ export async function projectRoutes(fastify: FastifyInstance) {
       queueTranscribeJob({
         projectId: id,
         jobId: transcribeJob.id,
-        videoKey: project.videoKey,
+        videoKey: mediaKey,
       }),
       queueEnhanceAudioJob({
         projectId: id,
         jobId: enhanceJob.id,
-        videoKey: project.videoKey,
+        videoKey: mediaKey,
         audioTrackId: audioTrack.id,
         audioItemId: audioItem.id,
         videoItemId: '',
@@ -417,6 +580,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       jobId: transcribeJob.id,
       transcribeJobId: transcribeJob.id,
       enhanceJobId: enhanceJob.id,
+      totalJobs: 2,
     };
   });
 
@@ -454,7 +618,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { layoutSettings?: any } || {};
+    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -481,11 +645,13 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job with layout settings for exact preview match
+    // Queue the job with layout settings and fullscreen segments for exact preview match
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
+      projectType: project.projectType || 'video',
       layoutSettings: body.layoutSettings,
+      fullscreenSegments: body.fullscreenSegments,
     });
 
     return { jobId: job.id };
@@ -495,7 +661,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/projects/:id/generate-visuals', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
-      stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic']),
+      stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'apple', 'google']),
       layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
       dimensions: z.object({
         width: z.number().int().min(100).max(4096),
@@ -1035,6 +1201,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
       // Delete visuals from database
       await db.delete(visuals).where(eq(visuals.projectId, id));
+
+      // Delete related jobs (plan + generation) so stale planJobIds aren't referenced
+      await db.delete(jobs).where(eq(jobs.projectId, id));
 
       // Reset project status to allow re-generation
       await db.update(projects)

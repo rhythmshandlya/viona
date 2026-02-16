@@ -11,6 +11,7 @@ import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment 
 import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals.js';
 import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation.js';
 import { processPreloadProjectJob, PreloadProjectJobData } from './processors/preload-project.js';
+import { processPlanVisualsJob, PlanVisualsJobData } from './processors/plan-visuals.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
 
@@ -116,7 +117,8 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Transcribe job failed');
   });
 
-  // Render worker
+  // Render worker — lockDuration must be long enough for Remotion SSR renders
+  // (can take 2+ minutes). Default 30s causes BullMQ to declare job as stalled.
   const renderWorker = new Worker<RenderJobData>(
     'render',
     async (job) => {
@@ -125,7 +127,9 @@ async function main() {
     },
     {
       connection,
-      concurrency: 2, // Process 2 renders in parallel
+      concurrency: 2,
+      lockDuration: 10 * 60 * 1000, // 10 minutes — renders can take a while
+      stalledInterval: 5 * 60 * 1000, // Check for stalls every 5 minutes
     }
   );
 
@@ -167,7 +171,9 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1, // One at a time (AI + render intensive)
+      concurrency: 1,
+      lockDuration: 10 * 60 * 1000,
+      stalledInterval: 5 * 60 * 1000,
     }
   );
 
@@ -179,6 +185,29 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Generate-visuals job failed');
   });
 
+  // Plan visuals worker - Director phase only (creates scene plan for approval)
+  const planVisualsWorker = new Worker<PlanVisualsJobData>(
+    'plan-visuals',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing plan-visuals job');
+      await processPlanVisualsJob(job);
+    },
+    {
+      connection,
+      concurrency: 1,
+      lockDuration: 10 * 60 * 1000,
+      stalledInterval: 5 * 60 * 1000,
+    }
+  );
+
+  planVisualsWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Plan-visuals job completed');
+  });
+
+  planVisualsWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Plan-visuals job failed');
+  });
+
   // Edit visuals worker - for continuing to edit existing compositions
   const editVisualsWorker = new Worker<EditVisualsJobData>(
     'edit-visuals',
@@ -188,7 +217,9 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1, // One at a time (AI + render intensive)
+      concurrency: 1,
+      lockDuration: 10 * 60 * 1000,
+      stalledInterval: 5 * 60 * 1000,
     }
   );
 
@@ -252,6 +283,7 @@ async function main() {
     await renderWorker.close();
     await enhanceAudioWorker.close();
     await generateVisualsWorker.close();
+    await planVisualsWorker.close();
     await editVisualsWorker.close();
     await svgAnimationWorker.close();
     await preloadProjectWorker.close();

@@ -28,9 +28,9 @@ Write-Host "`n📎 Linking to cllipify project..." -ForegroundColor Yellow
 railway link --project $PROJECT_ID --environment production 2>$null
 
 # Run database migrations
+# WARNING: Never hardcode credentials here — use `railway run` to inject env vars from Railway
 Write-Host "`n🗄️  Running database migrations..." -ForegroundColor Yellow
-$env:DATABASE_URL = "postgresql://postgres:UPYDklWeXyInLXekDNkXYzORMmYsTRxK@mainline.proxy.rlwy.net:34837/railway"
-pnpm db:migrate
+railway run pnpm db:migrate
 Write-Host "✅ Migrations complete" -ForegroundColor Green
 
 # Deploy services

@@ -20,6 +20,8 @@ import {
   useVideoSettings,
   useSourceDimensions,
   useLayoutSettings,
+  useIsAudioProject,
+  useShowCaptions,
 } from '../store/use-editor-store';
 import {
   TimelineItem,
@@ -31,7 +33,12 @@ import {
   PiPSettings,
   SplitSettings,
   PIP_SIZE_MAP,
+  CaptionPosition,
+  CaptionEffects,
+  DEFAULT_CAPTION_POSITION,
+  migrateTextShadow,
 } from '../store/types';
+import { effectsToCss } from '@/lib/effects-utils';
 import { DynamicVisualLoader } from './DynamicVisualLoader';
 
 // Calculate video transform for crop/pan
@@ -117,6 +124,76 @@ function buildPiPStyle(pip: PiPSettings): React.CSSProperties {
   };
 }
 
+// Helper to resolve position (handles both legacy string and new CaptionPosition object)
+function resolvePosition(position: CaptionPosition | 'top' | 'center' | 'bottom'): CaptionPosition {
+  if (typeof position === 'object' && 'anchor' in position) {
+    return position;
+  }
+  // Legacy string format
+  return {
+    ...DEFAULT_CAPTION_POSITION,
+    anchor: position as 'top' | 'center' | 'bottom',
+  };
+}
+
+// Calculate position styles for caption rendering
+function calculatePositionStyles(
+  position: CaptionPosition,
+  lineHeight: number
+): React.CSSProperties {
+  const { anchor, offsetX, offsetY, rotation, textAlign } = position;
+
+  // Base position from anchor
+  const baseStyles: React.CSSProperties = {
+    position: 'absolute',
+    left: `${50 + offsetX}%`,
+    width: '90%',
+    maxWidth: '90%',
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '8px',
+    lineHeight,
+    textAlign,
+  };
+
+  // Build transform
+  const transforms: string[] = ['translateX(-50%)'];
+
+  switch (anchor) {
+    case 'top':
+      baseStyles.top = `${10 + offsetY}%`;
+      break;
+    case 'center':
+      baseStyles.top = `${50 + offsetY}%`;
+      transforms[0] = 'translate(-50%, -50%)';
+      break;
+    case 'bottom':
+      baseStyles.bottom = `${15 - offsetY}%`;
+      break;
+  }
+
+  if (rotation !== 0) {
+    transforms.push(`rotate(${rotation}deg)`);
+  }
+
+  baseStyles.transform = transforms.join(' ');
+
+  // Justify content based on text alignment
+  switch (textAlign) {
+    case 'left':
+      baseStyles.justifyContent = 'flex-start';
+      break;
+    case 'right':
+      baseStyles.justifyContent = 'flex-end';
+      break;
+    default:
+      baseStyles.justifyContent = 'center';
+      break;
+  }
+
+  return baseStyles;
+}
+
 // Helper to build split layout styles
 function buildSplitStyles(
   split: SplitSettings,
@@ -178,15 +255,17 @@ export function Composition() {
   const videoSettings = useVideoSettings();
   const sourceDimensions = useSourceDimensions();
   const layoutSettings = useLayoutSettings();
+  const isAudioProject = useIsAudioProject();
+  const showCaptions = useShowCaptions();
 
   // Get items by type
   const videoItems = itemIds
     .map((id) => items[id])
     .filter((item): item is TimelineItem => item?.type === 'video');
 
-  const captionItems = itemIds
-    .map((id) => items[id])
-    .filter((item): item is TimelineItem => item?.type === 'caption');
+  const captionItems = showCaptions
+    ? itemIds.map((id) => items[id]).filter((item): item is TimelineItem => item?.type === 'caption')
+    : [];
 
   const audioItems = itemIds
     .map((id) => items[id])
@@ -198,6 +277,8 @@ export function Composition() {
 
   // Check if we have visuals (triggers PiP layout for talking head)
   const hasVisuals = visualItems.length > 0;
+
+  const effectiveHasVisuals = hasVisuals;
 
   // When a separate audio item exists, mute the video to avoid playing
   // the audio twice (original in video + enhanced in audio).  We check
@@ -245,10 +326,21 @@ export function Composition() {
   let videoContainerStyle: React.CSSProperties;
   let visualContainerStyle: React.CSSProperties;
   let showVideo = true;
-  let showVisuals = hasVisuals;
+  let showVisuals = effectiveHasVisuals;
   let usePiPMode = false;
 
-  if (!hasVisuals) {
+  if (isAudioProject) {
+    // Audio project: no video, visuals fill entire canvas (or black bg)
+    showVideo = false;
+    videoContainerStyle = { display: 'none' };
+    if (effectiveHasVisuals) {
+      visualContainerStyle = fullScreenStyle;
+      showVisuals = true;
+    } else {
+      visualContainerStyle = { display: 'none' };
+      showVisuals = false;
+    }
+  } else if (!effectiveHasVisuals) {
     // No visuals: full-screen video
     videoContainerStyle = fullScreenStyle;
     visualContainerStyle = { display: 'none' };
@@ -276,48 +368,85 @@ export function Composition() {
       {/* Visual container */}
       {showVisuals && (
         <div style={visualContainerStyle}>
-          {visualItems.map((item) => {
-            const data = item.data as VisualItemData;
-            const fromFrame = Math.round((item.startMs / 1000) * fps);
-            const durationInFrames = Math.round(((item.endMs - item.startMs) / 1000) * fps);
+          {(() => {
+            // Group visual items by compositionId so each composition renders
+            // once across its full time span. The generated Remotion composition
+            // uses useCurrentFrame() internally to switch between scenes, so it
+            // must see the correct frame offset — not restart from 0 per item.
+            const groups = new Map<string, {
+              bundleUrl: string;
+              compositionId: string;
+              videoUrl: string | undefined;
+              minStartMs: number;
+              maxEndMs: number;
+              width: number;
+              height: number;
+              fps: number;
+            }>();
 
-            // Prefer rendered video URL for playback
-            const videoSrc = data.videoUrl
-              ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${data.videoUrl}`
-              : null;
+            for (const item of visualItems) {
+              const data = item.data as VisualItemData;
+              const key = data.compositionId;
+              const existing = groups.get(key);
+              if (existing) {
+                existing.minStartMs = Math.min(existing.minStartMs, item.startMs);
+                existing.maxEndMs = Math.max(existing.maxEndMs, item.endMs);
+                // Use videoUrl if any item in the group has one
+                if (data.videoUrl && !existing.videoUrl) {
+                  existing.videoUrl = data.videoUrl;
+                }
+              } else {
+                groups.set(key, {
+                  bundleUrl: data.bundleUrl,
+                  compositionId: data.compositionId,
+                  videoUrl: data.videoUrl,
+                  minStartMs: item.startMs,
+                  maxEndMs: item.endMs,
+                  width: data.width,
+                  height: data.height,
+                  fps: data.fps,
+                });
+              }
+            }
 
-            return (
-              <Sequence
-                key={item.id}
-                from={fromFrame}
-                durationInFrames={durationInFrames}
-              >
-                <AbsoluteFill>
-                  {videoSrc ? (
-                    // Use pre-rendered video for smooth playback
-                    <Video
-                      src={videoSrc}
-                      startFrom={fromFrame}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
-                      onError={(e) => {
-                        console.warn('Visual video playback error:', e?.message);
-                      }}
-                    />
-                  ) : (
-                    // Fallback to dynamic loader if no video URL
-                    <DynamicVisualLoader
-                      bundleUrl={data.bundleUrl}
-                      compositionId={data.compositionId}
-                    />
-                  )}
-                </AbsoluteFill>
-              </Sequence>
-            );
-          })}
+            return Array.from(groups.entries()).map(([key, group]) => {
+              const fromFrame = Math.round((group.minStartMs / 1000) * fps);
+              const durationInFrames = Math.round(((group.maxEndMs - group.minStartMs) / 1000) * fps);
+
+              const videoSrc = group.videoUrl
+                ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${group.videoUrl}`
+                : null;
+
+              return (
+                <Sequence
+                  key={key}
+                  from={fromFrame}
+                  durationInFrames={durationInFrames}
+                >
+                  <AbsoluteFill>
+                    {videoSrc ? (
+                      <Video
+                        src={videoSrc}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                        }}
+                        onError={(e) => {
+                          console.warn('Visual video playback error:', e?.message);
+                        }}
+                      />
+                    ) : (
+                      <DynamicVisualLoader
+                        bundleUrl={group.bundleUrl}
+                        compositionId={group.compositionId}
+                      />
+                    )}
+                  </AbsoluteFill>
+                </Sequence>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -488,22 +617,39 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     ? style.animation
     : migrateAnimation(style.animation as string);
 
-  // Position based on style
-  const offsetY = style.offsetY || 0;
-  const positionStyles: React.CSSProperties = {
-    position: 'absolute',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: '90%',
-    textAlign: style.textAlign || 'center',
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: '8px',
-    ...(style.position === 'top' && { top: `${10 + offsetY}%` }),
-    ...(style.position === 'center' && { top: `${50 + offsetY}%`, transform: 'translate(-50%, -50%)' }),
-    ...(style.position === 'bottom' && { bottom: `${15 - offsetY}%` }),
+  // Position based on style - use new position system
+  const position = resolvePosition(style.position);
+  const positionStyles = calculatePositionStyles(position, style.lineHeight ?? 1.4);
+
+  // Resolve effects (handles both legacy textShadow and new effects object)
+  const effects: CaptionEffects = style.effects ?? migrateTextShadow(style.textShadow);
+  const effectsStyles = effectsToCss(effects);
+
+  // Resolve background padding and radius from style
+  const bgPadding = style.backgroundPadding ?? { x: 4, y: 2 };
+  const bgRadius = style.backgroundRadius ?? 0;
+
+  // Helper: build padding + borderRadius only when a background is visible
+  const getBoxStyles = (bg: string | undefined): React.CSSProperties => {
+    const hasBg = bg && bg !== 'transparent';
+    return {
+      padding: hasBg ? `${bgPadding.y}px ${bgPadding.x}px` : '0 4px',
+      borderRadius: hasBg && bgRadius ? `${bgRadius}px` : undefined,
+    };
   };
+
+  // Build common typography styles
+  const getTypographyStyles = (): React.CSSProperties => ({
+    opacity: style.opacity ?? 1,
+    letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : undefined,
+    textTransform: style.textTransform ?? 'none',
+    // Use paint-order to draw stroke behind fill for cleaner rendering
+    WebkitTextStroke: style.stroke
+      ? `${style.stroke.width}px ${style.stroke.color}`
+      : undefined,
+    paintOrder: style.stroke ? 'stroke fill' : undefined,
+    ...effectsStyles,
+  });
 
   // Word-by-word mode: only show active word
   if (style.displayMode === 'word-by-word') {
@@ -522,20 +668,22 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
       isFuture: false,
     });
 
+    const activeBg = overrides?.emphasisBg || style.activeBackgroundColor || 'transparent';
     return (
       <div style={positionStyles}>
         <span
           style={{
-            fontFamily: style.fontFamily,
-            fontSize: (overrides?.scale || 1) * style.fontSize,
+            fontFamily: overrides?.fontFamily || style.fontFamily,
+            fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
             fontWeight: overrides?.fontWeight || style.fontWeight,
-            color: overrides?.color || style.activeColor,
-            backgroundColor: overrides?.emphasisBg || style.activeBackgroundColor || 'transparent',
-            textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
-            padding: '4px 12px',
-            borderRadius: '8px',
+            color: overrides?.activeColor || overrides?.color || style.activeColor,
+            backgroundColor: activeBg,
+            ...getBoxStyles(activeBg),
             display: 'inline-block',
             whiteSpace: 'nowrap',
+            ...getTypographyStyles(),
+            ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+            ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
             ...animStyle,
           }}
         >
@@ -574,24 +722,43 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             fillPercent = Math.min((elapsed / wordDurationMs) * 100, 100);
           }
 
+          const wordBg = isActive
+            ? style.activeBackgroundColor || 'transparent'
+            : style.backgroundColor || 'transparent';
+          const hasBg = wordBg && wordBg !== 'transparent';
           return (
             <span
               key={index}
               style={{
-                fontFamily: style.fontFamily,
-                fontSize: (overrides?.scale || 1) * style.fontSize,
+                fontFamily: overrides?.fontFamily || style.fontFamily,
+                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
                 fontWeight: overrides?.fontWeight || style.fontWeight,
-                padding: '4px 12px',
-                borderRadius: '8px',
+                ...getBoxStyles(wordBg),
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
-                background: hasAppeared
-                  ? `linear-gradient(90deg, ${overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
-                  : style.color,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
+                ...(hasBg
+                  ? {
+                      // With background: use solid bg color, normal text color via gradient
+                      backgroundColor: wordBg,
+                      backgroundImage: hasAppeared
+                        ? `linear-gradient(90deg, ${overrides?.activeColor || overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
+                        : `linear-gradient(90deg, ${style.color}, ${style.color})`,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                    }
+                  : {
+                      // No background: gradient fill on text
+                      backgroundImage: hasAppeared
+                        ? `linear-gradient(90deg, ${overrides?.activeColor || overrides?.color || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
+                        : `linear-gradient(90deg, ${style.color}, ${style.color})`,
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      backgroundClip: 'text',
+                    }),
+                ...getTypographyStyles(),
+                ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+                ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
                 ...animStyle,
               }}
             >
@@ -623,25 +790,27 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             isFuture: !hasAppeared,
           });
 
+          const wordBg = overrides?.emphasisBg
+            || (isActive
+              ? style.activeBackgroundColor || 'transparent'
+              : style.backgroundColor || 'transparent');
           return (
             <span
               key={index}
               style={{
-                fontFamily: style.fontFamily,
-                fontSize: (overrides?.scale || 1) * style.fontSize,
+                fontFamily: overrides?.fontFamily || style.fontFamily,
+                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
                 fontWeight: overrides?.fontWeight || style.fontWeight,
                 color: isActive
-                  ? (overrides?.color || style.activeColor)
+                  ? (overrides?.activeColor || overrides?.color || style.activeColor)
                   : (overrides?.color || style.color),
-                backgroundColor: overrides?.emphasisBg
-                  || (isActive
-                    ? style.activeBackgroundColor || 'transparent'
-                    : style.backgroundColor || 'transparent'),
-                textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
-                padding: '4px 12px',
-                borderRadius: '8px',
+                backgroundColor: wordBg,
+                ...getBoxStyles(wordBg),
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
+                ...getTypographyStyles(),
+                ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+                ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
                 ...animStyle,
               }}
             >
@@ -656,8 +825,9 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             fontSize: style.fontSize,
             fontWeight: style.fontWeight,
             color: style.color,
-            textShadow: style.textShadow || '2px 2px 4px rgba(0,0,0,0.8)',
-            padding: '4px 12px',
+            backgroundColor: style.backgroundColor || 'transparent',
+            ...getBoxStyles(style.backgroundColor),
+            ...getTypographyStyles(),
           }}
         >
           {data.text}
