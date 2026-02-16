@@ -10,6 +10,7 @@ import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { execSync } from 'child_process';
 import { config } from './config.js';
+import { runMigrations } from './db/migrate.js';
 import { ensureBuckets, getObjectStream, objectExists, listObjects } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
 import { userRoutes } from './routes/users.js';
@@ -19,6 +20,14 @@ import { setupWebSocket } from './ws/handler.js';
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
 async function main() {
+  // Run database migrations before starting the server
+  try {
+    await runMigrations();
+  } catch (err) {
+    console.error('Migration failed:', err);
+    process.exit(1);
+  }
+
   if (isProduction && !process.env.COOKIE_SECRET) {
     console.error('FATAL: COOKIE_SECRET must be set in production. Exiting.');
     process.exit(1);

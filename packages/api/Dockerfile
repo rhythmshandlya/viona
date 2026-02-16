@@ -72,6 +72,9 @@ RUN npm install -g @anthropic-ai/claude-code
 COPY --from=builder /app/packages/api/dist ./packages/api/dist
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
+# Copy migration files for auto-migration on startup
+COPY --from=builder /app/packages/api/drizzle ./packages/api/drizzle
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 api
