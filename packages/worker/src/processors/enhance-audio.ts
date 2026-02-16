@@ -235,7 +235,7 @@ function runEnhancementScript(
 
 export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
   const { projectId, jobId, videoKey, audioTrackId, audioItemId, videoItemId } = job.data;
-  const workDir = join(tmpdir(), `reelify-enhance-${nanoid()}`);
+  const workDir = join(tmpdir(), `viona-enhance-${nanoid()}`);
 
   try {
     await mkdir(workDir, { recursive: true });

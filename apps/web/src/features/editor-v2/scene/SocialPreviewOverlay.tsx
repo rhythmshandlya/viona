@@ -497,7 +497,7 @@ function InstagramMockup({ width, height, s }: MockupProps) {
             textShadow: '0 1px 3px rgba(0,0,0,0.5)',
           }}
         >
-          clipify_user
+          viona_user
         </span>
         <div
           className="rounded-md border border-white/60 flex items-center justify-center"
@@ -558,7 +558,7 @@ function InstagramMockup({ width, height, s }: MockupProps) {
             textShadow: '0 1px 2px rgba(0,0,0,0.4)',
           }}
         >
-          Original audio · clipify_user
+          Original audio · viona_user
         </span>
       </div>
 
@@ -752,7 +752,7 @@ function TikTokMockup({ width, height, s }: MockupProps) {
             textShadow: '0 1px 4px rgba(0,0,0,0.5)',
           }}
         >
-          @clipify_user
+          @viona_user
         </span>
         <span
           style={{
@@ -776,7 +776,7 @@ function TikTokMockup({ width, height, s }: MockupProps) {
               textShadow: '0 1px 2px rgba(0,0,0,0.4)',
             }}
           >
-            Original sound — clipify_user
+            Original sound — viona_user
           </span>
         </div>
       </div>
@@ -952,7 +952,7 @@ function YouTubeMockup({ width, height, s }: MockupProps) {
             textShadow: '0 1px 3px rgba(0,0,0,0.5)',
           }}
         >
-          @clipify
+          @viona
         </span>
         <div
           className="rounded-full bg-white flex items-center justify-center"

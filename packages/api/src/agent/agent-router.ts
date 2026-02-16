@@ -311,8 +311,17 @@ export async function agentRoutes(fastify: FastifyInstance) {
       // 8. Send done event
       sendSSE(sseStream, 'done', { conversationId: conversation.id });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      const rawMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       fastify.log.error({ err }, 'Agent chat error');
+
+      // Provide user-friendly error messages for common SDK failures
+      let errorMessage = rawMessage;
+      if (rawMessage.includes('exited with code 1') || rawMessage.includes('process exited')) {
+        errorMessage = 'AI assistant is temporarily unavailable. The server may need Claude credentials configured.';
+      } else if (rawMessage.includes('authentication') || rawMessage.includes('unauthorized')) {
+        errorMessage = 'AI assistant authentication failed. Please check server credentials.';
+      }
+
       sendSSE(sseStream, 'error', { message: errorMessage });
     } finally {
       clearInterval(heartbeat);

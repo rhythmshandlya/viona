@@ -69,7 +69,7 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold tracking-tight">
-            <span className="text-primary">Cllipify</span>
+            <span className="text-primary">Viona</span>
           </h1>
           <p className="text-muted-foreground">
             Sign in to start creating amazing video content

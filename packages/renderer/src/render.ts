@@ -85,7 +85,7 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
   // Select the composition
   const composition = await selectComposition({
     serveUrl: bundlePath,
-    id: 'ReelifyVideo',
+    id: 'VionaVideo',
     inputProps,
   });
 

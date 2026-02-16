@@ -11,8 +11,8 @@ import {
   resolveAnimation,
   isAnimationConfig,
   migrateAnimation,
-} from '@reelify/renderer/animations';
-import type { AnimationConfig } from '@reelify/renderer/animations';
+} from '@viona/renderer/animations';
+import type { AnimationConfig } from '@viona/renderer/animations';
 import {
   useItems,
   useItemIds,

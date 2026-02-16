@@ -6,7 +6,7 @@ import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from 
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
-import type { ProjectStatus } from '@reelify/shared';
+import type { ProjectStatus } from '@viona/shared';
 
 // Validation schemas
 const createProjectSchema = z.object({

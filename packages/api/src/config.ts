@@ -32,7 +32,7 @@ export const config = {
     accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
     secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
     useSSL: isRailway && !isInternalConnection ? true : process.env.S3_USE_SSL === 'true',
-    bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
+    bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'viona',
     region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
     // Prefixes for organizing objects within single bucket
     prefixes: {

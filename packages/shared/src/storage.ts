@@ -59,7 +59,7 @@ export function createStorageConfigFromEnv(): StorageConfig {
     useSSL: process.env.S3_USE_SSL === 'true',
     accessKey: process.env.S3_ACCESS_KEY || 'reelify',
     secretKey: process.env.S3_SECRET_KEY || 'reelify123',
-    bucket: process.env.S3_BUCKET || 'cllipify',
+    bucket: process.env.S3_BUCKET || 'viona',
     region: process.env.S3_REGION || 'us-east-1',
     prefixes: {
       uploads: 'uploads/',

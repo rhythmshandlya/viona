@@ -26,7 +26,8 @@ const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 function setupClaudeCredentials(): void {
   const accessToken = process.env.CLAUDE_OAUTH_ACCESS_TOKEN;
   if (!accessToken) {
-    console.warn('No CLAUDE_OAUTH_ACCESS_TOKEN set, skipping Claude credentials setup');
+    console.warn('⚠ No CLAUDE_OAUTH_ACCESS_TOKEN set — Creative Director agent will not work.');
+    console.warn('  Set CLAUDE_OAUTH_ACCESS_TOKEN (and optionally CLAUDE_OAUTH_REFRESH_TOKEN, CLAUDE_OAUTH_EXPIRES_AT) in Railway env vars.');
     return;
   }
 
@@ -44,8 +45,14 @@ function setupClaudeCredentials(): void {
       expiresAt: process.env.CLAUDE_OAUTH_EXPIRES_AT
         ? parseInt(process.env.CLAUDE_OAUTH_EXPIRES_AT, 10)
         : null,
-      scopes: ['user:inference', 'user:profile'],
+      scopes: [
+        'user:inference',
+        'user:mcp_servers',
+        'user:profile',
+        'user:sessions:claude_code',
+      ],
       subscriptionType: process.env.CLAUDE_SUBSCRIPTION_TYPE || 'max',
+      rateLimitTier: process.env.CLAUDE_RATE_LIMIT_TIER || 'default_claude_max_20x',
     },
   };
 
@@ -82,7 +89,7 @@ async function main() {
   });
 
   await fastify.register(cookie, {
-    secret: process.env.COOKIE_SECRET || 'cllipify-dev-secret-change-in-production',
+    secret: process.env.COOKIE_SECRET || 'viona-dev-secret-change-in-production',
   });
 
   await fastify.register(multipart, {
@@ -258,7 +265,7 @@ async function main() {
         reply.send({ code, stdout: stdout.slice(0, 500), stderr: stderr.slice(0, 500) });
         resolve(undefined);
       });
-      setTimeout(() => { proc.kill(); reply.send({ error: 'timeout' }); resolve(undefined); }, 15000);
+      setTimeout(() => { proc.kill(); reply.send({ error: 'timeout', stderr: stderr.slice(0, 500) }); resolve(undefined); }, 30000);
     });
   });
 

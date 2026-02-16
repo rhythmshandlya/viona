@@ -1,4 +1,4 @@
-import type { AnimationConfig, CaptionPosition, CaptionEffects } from '@reelify/shared';
+import type { AnimationConfig, CaptionPosition, CaptionEffects } from '@viona/shared';
 
 export type PresetCategory = 'viral' | 'cinematic' | 'minimal' | 'ad';
 
@@ -8,7 +8,7 @@ export interface StrokeStyle {
 }
 
 // Re-export effects types for convenience
-export type { CaptionEffects } from '@reelify/shared';
+export type { CaptionEffects } from '@viona/shared';
 
 // Legacy position type for backward compatibility
 export type PresetPositionLegacy = 'top' | 'center' | 'bottom';

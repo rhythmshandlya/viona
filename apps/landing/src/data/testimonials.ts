@@ -20,7 +20,7 @@ export const testimonials: Testimonial[] = [
     company: "MedLearn Pro",
   },
   {
-    quote: "We produce 30+ explainer videos a month for clients. Cllipify cut our production time in half while making the videos more professional.",
+    quote: "We produce 30+ explainer videos a month for clients. Viona cut our production time in half while making the videos more professional.",
     author: "Marcus Webb",
     role: "Creative Director",
     company: "Explainer Studio",
@@ -29,11 +29,11 @@ export const testimonials: Testimonial[] = [
 
 export const faqs = [
   {
-    question: "How does Cllipify understand what visuals to create?",
+    question: "How does Viona understand what visuals to create?",
     answer: "Our AI analyzes your transcript to identify concepts, processes, comparisons, and data points. It then generates contextually relevant visuals—like a flowchart when you explain a process, or a chart when you mention statistics—synced exactly to when you discuss each topic.",
   },
   {
-    question: "What types of visuals can Cllipify generate?",
+    question: "What types of visuals can Viona generate?",
     answer: "We support flowcharts, timelines, step sequences, 2x2 matrices, Venn diagrams, bar charts, line graphs, stat cards, side-by-side comparisons, text callouts, and more. The AI chooses the best format based on your content.",
   },
   {

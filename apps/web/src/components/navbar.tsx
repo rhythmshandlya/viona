@@ -40,7 +40,7 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-6 md:px-8 lg:px-12 flex h-16 items-center justify-between">
         {/* Logo */}
         <Link href="/projects" className="flex items-center space-x-2">
-          <span className="text-xl font-bold text-primary">Cllipify</span>
+          <span className="text-xl font-bold text-primary">Viona</span>
         </Link>
 
         {/* Navigation Links */}

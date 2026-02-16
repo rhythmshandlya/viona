@@ -37,8 +37,8 @@ const dmSans = DM_Sans({
 
 export const metadata = createMetadata({
   title: {
-    template: "%s | Cllipify",
-    default: "Cllipify"
+    template: "%s | Viona",
+    default: "Viona"
   },
   description: "Transform your explainer videos with AI-generated visuals, auto-transcription, and animated subtitles.",
   metadataBase: baseUrl

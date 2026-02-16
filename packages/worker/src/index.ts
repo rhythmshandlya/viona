@@ -65,7 +65,7 @@ const connection = parseRedisUrl(config.redis.url);
 
 async function main() {
   const workerId = getWorkerId();
-  logger.info({ workerId }, 'Starting Reelify worker...');
+  logger.info({ workerId }, 'Starting Viona worker...');
 
   // Setup Claude credentials from environment variables (for Railway deployment)
   setupClaudeCredentials();

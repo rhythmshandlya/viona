@@ -1,13 +1,13 @@
 export const siteConfig = {
-  name: "Cllipify",
-  title: "Cllipify - You Explain It. We Illustrate It.",
+  name: "Viona",
+  title: "Viona - You Explain It. We Illustrate It.",
   description: "Transform your talking-head videos into visually-rich content. AI automatically generates charts, diagrams, and graphics synced to your explanations.",
-  url: "https://cllipify.com",
+  url: "https://viona.com",
   appUrl: "https://web-production-7b3a.up.railway.app",
   ogImage: "/og-image.png",
   links: {
-    twitter: "https://twitter.com/cllipify",
-    github: "https://github.com/cllipify",
+    twitter: "https://twitter.com/viona",
+    github: "https://github.com/viona",
   },
   nav: [
     { label: "Features", href: "#features" },

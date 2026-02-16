@@ -1,5 +1,5 @@
 /**
- * Converts Reelify API project data to DesignCombo editor format
+ * Converts Viona API project data to DesignCombo editor format
  */
 
 import { Project, TimelineItem, Track } from "./api";
@@ -162,7 +162,7 @@ const DEFAULT_CAPTION_STYLE = {
 };
 
 /**
- * Convert Reelify project to DesignCombo design format
+ * Convert Viona project to DesignCombo design format
  */
 export function projectToDesignComboFormat(
   project: Project,
@@ -312,7 +312,7 @@ export function projectToDesignComboFormat(
 }
 
 /**
- * Convert DesignCombo design back to Reelify update format
+ * Convert DesignCombo design back to Viona update format
  * Used when saving changes from the editor
  */
 export function designComboToProjectUpdates(

@@ -11,7 +11,7 @@ import { downloadFile } from '../services/minio.js';
 import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
-import { DEFAULT_SUBTITLE_STYLE } from '@reelify/shared';
+import { DEFAULT_SUBTITLE_STYLE } from '@viona/shared';
 
 export interface TranscribeJobData {
   projectId: string;
@@ -485,7 +485,7 @@ async function convertToWhisperWav(inputPath: string, outputPath: string): Promi
 
 export async function processTranscribeJob(job: Job<TranscribeJobData>) {
   const { projectId, jobId, videoKey } = job.data;
-  const workDir = join(tmpdir(), `reelify-${nanoid()}`);
+  const workDir = join(tmpdir(), `viona-${nanoid()}`);
 
   try {
     // Create working directory
