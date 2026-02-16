@@ -35,6 +35,9 @@ const dmSans = DM_Sans({
   weight: ["300", "400", "500", "600", "700"]
 });
 
+// Prevent static prerendering — all pages require StytchProvider at runtime
+export const dynamic = "force-dynamic";
+
 export const metadata = createMetadata({
   title: {
     template: "%s | Viona Studio",
