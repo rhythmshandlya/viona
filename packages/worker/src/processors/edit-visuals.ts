@@ -16,7 +16,7 @@ import { existsSync } from 'fs';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { db, projects, jobs, visuals } from '../db/index.js';
-import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { downloadSourceFromStorage, uploadFile, listObjects } from '../services/minio.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
@@ -258,6 +258,7 @@ async function autoFixProjectFiles(projectDir: string): Promise<void> {
 
 export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
   const { projectId, jobId, compositionId, prompt, sceneId, elementName, transcript, scenePlan } = job.data;
+  setJobProjectId(jobId, projectId);
 
   // Convert compositionId format: proj-xxx-xxx -> proj_xxx_xxx for workspace
   const workspaceCompositionId = compositionId.replace(/-/g, '_');

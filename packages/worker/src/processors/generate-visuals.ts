@@ -13,7 +13,7 @@ import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { spawn, ChildProcess } from 'child_process';
 import { db, projects, tracks, timelineItems, transcripts, jobs, visuals } from '../db/index.js';
-import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
@@ -318,6 +318,7 @@ interface ClaudeCodeResult {
 
 export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>) {
   const { projectId, jobId, stylePreset, layoutMode, dimensions, styleGuide } = job.data;
+  setJobProjectId(jobId, projectId);
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
 
   try {

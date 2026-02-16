@@ -31,6 +31,7 @@ export interface ToolContext {
 async function pollJobProgress(
   jobId: string,
   ctx: ToolContext,
+  options?: { suppressJobId?: boolean },
 ): Promise<{ status: 'complete' | 'failed' | 'timeout' | 'aborted' | 'not_found' }> {
   const POLL_INTERVAL_MS = 2000;
   const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
@@ -41,6 +42,10 @@ async function pollJobProgress(
   const startTime = Date.now();
   let lastProgress = -1;
   let lastProgressChangeTime = Date.now();
+  // When suppressJobId is true, we don't send jobId in progress events.
+  // This prevents the frontend from tracking intermediate jobs (like plan-visuals)
+  // via WebSocket, which would trigger a premature "visuals are ready" message.
+  const sendJobId = options?.suppressJobId ? undefined : jobId;
 
   while (Date.now() - startTime < TIMEOUT_MS) {
     if (ctx.signal?.aborted) return { status: 'aborted' };
@@ -58,7 +63,7 @@ async function pollJobProgress(
         percent: 0,
         message: 'Job not found — it may have been deleted.',
         error: true,
-        jobId,
+        jobId: sendJobId,
       });
       return { status: 'not_found' };
     }
@@ -72,11 +77,11 @@ async function pollJobProgress(
     ctx.sendSSE('progress', {
       percent: job.progress,
       message: job.progressMessage || `Processing... (${job.progress}%)`,
-      jobId,
+      jobId: sendJobId,
     });
 
     if (job.status === 'complete' || job.status === 'completed') {
-      ctx.sendSSE('progress', { percent: 100, message: 'Done!', jobId });
+      ctx.sendSSE('progress', { percent: 100, message: 'Done!', jobId: sendJobId });
       return { status: 'complete' };
     }
 
@@ -85,7 +90,7 @@ async function pollJobProgress(
         percent: job.progress,
         message: `Failed: ${job.error || 'Unknown error'}`,
         error: true,
-        jobId,
+        jobId: sendJobId,
       });
       return { status: 'failed' };
     }
@@ -96,7 +101,7 @@ async function pollJobProgress(
         percent: job.progress,
         message: 'Job appears stalled — no progress updates received. The job may still complete in the background.',
         error: true,
-        jobId,
+        jobId: sendJobId,
       });
       return { status: 'timeout' };
     }
@@ -107,7 +112,7 @@ async function pollJobProgress(
     percent: lastProgress,
     message: 'Processing is taking longer than expected. The job continues in the background — check back in a moment.',
     error: true,
-    jobId,
+    jobId: sendJobId,
   });
   return { status: 'timeout' };
 }
@@ -533,7 +538,9 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual planning...' });
 
           // Poll job progress (blocks until complete)
-          await pollJobProgress(job.id, ctx);
+          // suppressJobId: plan-visuals is an intermediate step — don't let the frontend
+          // track this job via WebSocket (which would trigger "visuals are ready" on completion)
+          await pollJobProgress(job.id, ctx, { suppressJobId: true });
 
           // Read the completed job to get planData
           const completedJob = await db.query.jobs.findFirst({

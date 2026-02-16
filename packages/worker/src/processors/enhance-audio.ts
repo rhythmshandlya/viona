@@ -8,7 +8,7 @@ import { spawn } from 'child_process';
 import { db, jobs, timelineItems } from '../db/index.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
 import { logger } from '../logger.js';
-import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 
 export interface EnhanceAudioJobData {
@@ -235,6 +235,7 @@ function runEnhancementScript(
 
 export async function processEnhanceAudioJob(job: Job<EnhanceAudioJobData>) {
   const { projectId, jobId, videoKey, audioTrackId, audioItemId, videoItemId } = job.data;
+  setJobProjectId(jobId, projectId);
   const workDir = join(tmpdir(), `viona-enhance-${nanoid()}`);
 
   try {

@@ -6,7 +6,7 @@ import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { db, projects, tracks, timelineItems, jobs, visuals } from '../db/index.js';
 import { downloadFile, uploadFile, listObjects } from '../services/minio.js';
-import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { renderVideo, SubtitleItem, SubtitleStyle } from '@viona/renderer';
@@ -311,6 +311,7 @@ export interface RenderJobData {
 
 export async function processRenderJob(job: Job<RenderJobData>) {
   const { projectId, jobId, layoutSettings, fullscreenSegments } = job.data;
+  setJobProjectId(jobId, projectId);
   const workDir = join(tmpdir(), `viona-render-${nanoid()}`);
 
   try {

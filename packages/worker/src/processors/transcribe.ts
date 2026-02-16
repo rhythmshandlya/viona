@@ -9,7 +9,7 @@ import { spawn } from 'child_process';
 import { db, projects, tracks, timelineItems, transcripts, jobs } from '../db/index.js';
 import { downloadFile } from '../services/minio.js';
 import { logger } from '../logger.js';
-import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { DEFAULT_SUBTITLE_STYLE } from '@viona/shared';
 
@@ -485,6 +485,7 @@ async function convertToWhisperWav(inputPath: string, outputPath: string): Promi
 
 export async function processTranscribeJob(job: Job<TranscribeJobData>) {
   const { projectId, jobId, videoKey } = job.data;
+  setJobProjectId(jobId, projectId);
   const workDir = join(tmpdir(), `viona-${nanoid()}`);
 
   try {

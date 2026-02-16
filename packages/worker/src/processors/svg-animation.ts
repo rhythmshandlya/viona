@@ -19,7 +19,7 @@ import { fileURLToPath } from 'url';
 import { spawn, execSync } from 'child_process';
 import OpenAI from 'openai';
 import { db, projects, tracks, timelineItems, jobs, visuals, transcripts } from '../db/index.js';
-import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
@@ -942,6 +942,7 @@ export async function processSvgAnimationJob(job: Job<SvgAnimationJobData>) {
     sceneId,
     useOriginalImage,
   } = job.data;
+  setJobProjectId(jobId, projectId);
 
   const fps = 30;
   const durationMs = durationSeconds * 1000;
