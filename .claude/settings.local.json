@@ -213,5 +213,9 @@
       "Bash(CLAUDECODE= CLAUDE_CODE_OAUTH_TOKEN=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 claude -p \"say hello in 3 words\" --output-format text)",
       "Bash(pnpm --filter landing build:*)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "freepik"
+  ],
+  "enableAllProjectMcpServers": true
 }
