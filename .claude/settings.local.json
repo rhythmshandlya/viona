@@ -197,7 +197,13 @@
       "Bash(ffmpeg:*)",
       "WebFetch(domain:api-production-18ab.up.railway.app)",
       "Bash(pnpm --filter @reelify/web build:*)",
-      "WebFetch(domain:re.video)"
+      "WebFetch(domain:re.video)",
+      "WebFetch(domain:docs.freepik.com)",
+      "WebFetch(domain:www.pulsemcp.com)",
+      "WebFetch(domain:lobehub.com)",
+      "WebFetch(domain:skywork.ai)",
+      "WebFetch(domain:glama.ai)",
+      "WebFetch(domain:playbooks.com)"
     ]
   }
 }
