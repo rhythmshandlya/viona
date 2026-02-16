@@ -8,6 +8,7 @@ import {
 import { QueryProvider } from "@/components/query-provider";
 import { StytchProvider } from "@/components/stytch-provider";
 import { Analytics } from "@vercel/analytics/react";
+import { ClarityScript } from "@/components/clarity";
 
 import "./globals.css";
 
@@ -63,6 +64,7 @@ export default async function RootLayout({
           </QueryProvider>
         </StytchProvider>
         <Analytics />
+        <ClarityScript />
       </body>
     </html>
   );
