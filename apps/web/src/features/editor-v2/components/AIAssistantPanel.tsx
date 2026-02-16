@@ -11,7 +11,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
-import { parseSSEStream } from '@/lib/sse-parser';
+import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
 import { useVideoSettings, useEditorActions, useAIEditingContext, useAIEditRequested, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
@@ -502,18 +502,29 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         const controller = new AbortController();
         abortRef.current = controller;
 
-        const stream = await api.chatWithAgent(projectId, {
-          message: fullMessage,
-          context: Object.keys(context).length > 0 ? context : undefined,
-          widgetResponse,
-        }, controller.signal);
+        // Safety timeout — if streaming hangs for 5 minutes total, abort.
+        // This catches cases where the SSE parser's inactivity timeout isn't
+        // enough (e.g. heartbeats keep arriving but no real events).
+        const safetyTimeout = setTimeout(() => {
+          controller.abort();
+        }, 5 * 60 * 1000);
 
-        for await (const event of parseSSEStream(stream)) {
-          handleSSEEvent(event, assistantId);
+        try {
+          const stream = await api.chatWithAgent(projectId, {
+            message: fullMessage,
+            context: Object.keys(context).length > 0 ? context : undefined,
+            widgetResponse,
+          }, controller.signal);
+
+          for await (const event of parseSSEStream(stream, { signal: controller.signal })) {
+            handleSSEEvent(event, assistantId);
+          }
+
+          // If stream ends without a 'done' event, stop streaming
+          setIsStreaming(false);
+        } finally {
+          clearTimeout(safetyTimeout);
         }
-
-        // If stream ends without a 'done' event, stop streaming
-        setIsStreaming(false);
       } catch (err) {
         // Ignore AbortError — this fires when the component unmounts or the user navigates away
         const isAbort = (err instanceof DOMException && err.name === 'AbortError')
@@ -523,7 +534,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           return;
         }
 
-        console.error('Chat error:', err);
+        const isTimeout = err instanceof SSETimeoutError;
+        console.error('Chat error:', isTimeout ? 'SSE stream timed out' : err);
+
         // Try to recover by loading the latest conversation state from the server.
         // The backend may have completed successfully even though the stream dropped.
         try {
@@ -537,6 +550,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             }));
             setMessages(loaded);
             if (data.conversationId) setConversationId(data.conversationId);
+
+            // If there's an active job, keep tracking it via WebSocket
+            if (data.activeJob) {
+              setActiveJobId(data.activeJob.id);
+            }
+
             clearVisualCache();
             if (reloadVisuals) reloadVisuals(projectId);
             setIsStreaming(false);
@@ -544,7 +563,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           }
         } catch { /* recovery failed, show original error */ }
 
-        const errorText = err instanceof Error ? err.message : 'Connection failed';
+        const errorText = isTimeout
+          ? 'Connection timed out. Your progress has been saved — try sending another message.'
+          : (err instanceof Error ? err.message : 'Connection failed');
         setMessages((prev) =>
           prev.map((m) => {
             if (m.id !== assistantId) return m;

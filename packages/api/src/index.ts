@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
+import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
@@ -16,6 +17,11 @@ import { setupWebSocket } from './ws/handler.js';
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
 async function main() {
+  if (isProduction && !process.env.COOKIE_SECRET) {
+    console.error('FATAL: COOKIE_SECRET must be set in production. Exiting.');
+    process.exit(1);
+  }
+
   const fastify = Fastify({
     logger: {
       transport:
@@ -27,8 +33,15 @@ async function main() {
 
   // Register plugins
   await fastify.register(cors, {
-    origin: true, // Allow all origins in development
+    origin: isProduction
+      ? (config.corsOrigin ? config.corsOrigin.split(',') : true)
+      : true,
     credentials: true,
+  });
+
+  await fastify.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
   });
 
   await fastify.register(cookie, {

@@ -51,10 +51,29 @@ function formatConversationHistory(
   return '\n\nCONVERSATION HISTORY:\n' + lines.join('\n\n');
 }
 
+// Check if a job is fresh enough to show progress for.
+// Jobs with completedAt are definitively done — never treat them as active.
+// Pending jobs older than 3 min are likely orphaned (worker should pick up fast).
+// Processing jobs older than 15 min are likely stalled.
+function isJobFresh(job: { status: string; createdAt: Date; completedAt: Date | null }, thresholdMs: number): boolean {
+  if (job.completedAt) return false;
+  const age = Date.now() - new Date(job.createdAt).getTime();
+  if (job.status === 'pending') return age < Math.min(thresholdMs, 3 * 60 * 1000);
+  return age < 15 * 60 * 1000; // 15 min for processing jobs
+}
+
 export async function agentRoutes(fastify: FastifyInstance) {
   // ─── POST /projects/:id/agent/chat — SSE streaming chat ──────────────────
 
-  fastify.post('/projects/:id/agent/chat', { preHandler: authMiddleware }, async (request, reply) => {
+  fastify.post('/projects/:id/agent/chat', {
+    preHandler: authMiddleware,
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
     const { id: projectId } = request.params as { id: string };
 
     // Validate request body
@@ -214,21 +233,21 @@ export async function agentRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Persist current content to DB (non-blocking, best-effort)
-    let saveInFlight = false;
-    async function persistContent() {
-      if (saveInFlight) return;
-      saveInFlight = true;
-      try {
-        flushText();
-        if (contentBlocks.length > 0) {
-          await updateMessageContent(assistantRow.id, [...contentBlocks]);
+    // Persist current content to DB (queued to avoid race conditions)
+    let persistPromise: Promise<void> = Promise.resolve();
+    function persistContent() {
+      // Chain saves sequentially — if one is in-flight, the next one queues behind it.
+      // This prevents concurrent writes that could lose data.
+      persistPromise = persistPromise.then(async () => {
+        try {
+          flushText();
+          if (contentBlocks.length > 0) {
+            await updateMessageContent(assistantRow.id, [...contentBlocks]);
+          }
+        } catch {
+          // Non-critical — final save in `finally` will catch up
         }
-      } catch {
-        // Non-critical — final save in `finally` will catch up
-      } finally {
-        saveInFlight = false;
-      }
+      });
     }
 
     const mcpServer = createAgentMcpServer({
@@ -245,12 +264,13 @@ export async function agentRoutes(fastify: FastifyInstance) {
       signal: abortController.signal,
     });
 
-    // Periodically save accumulated content so refreshes don't lose text
+    // Periodically save accumulated content so refreshes don't lose text.
+    // 2-second interval minimizes data loss on unexpected disconnections.
     const persistInterval = setInterval(() => {
       if (pendingText || contentBlocks.length > 0) {
         persistContent();
       }
-    }, 5_000);
+    }, 2_000);
 
     try {
       fastify.log.info({ projectId }, 'Starting SDK query...');
@@ -297,6 +317,9 @@ export async function agentRoutes(fastify: FastifyInstance) {
       clearInterval(heartbeat);
       clearInterval(persistInterval);
 
+      // Wait for any in-flight persistence to finish before the final save
+      try { await persistPromise; } catch { /* already handled */ }
+
       // Final save — update the assistant row with all accumulated content.
       try {
         flushText();
@@ -325,19 +348,30 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     const data = await getConversationWithMessages(projectId);
 
-    // Check for active jobs so frontend can restore progress bar after refresh
-    const activeJob = await db.query.jobs.findFirst({
+    // Check for active jobs so frontend can restore progress bar after refresh.
+    // Only return jobs updated in the last 5 minutes — older ones are likely stale
+    // (e.g. worker crashed, server restarted). This prevents the "stuck in progress"
+    // issue when reopening the editor.
+    const STALE_JOB_MS = 5 * 60 * 1000;
+    const activeJobRow = await db.query.jobs.findFirst({
       where: and(
         eq(jobs.projectId, projectId),
         or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing')),
       ),
     });
 
+    // Filter out stale/completed jobs — completed jobs or those older than threshold are ignored
+    const activeJob = activeJobRow && isJobFresh(activeJobRow, STALE_JOB_MS) ? activeJobRow : null;
+
+    const jobPayload = activeJob
+      ? { id: activeJob.id, type: activeJob.type, progress: activeJob.progress, message: activeJob.progressMessage }
+      : null;
+
     if (!data) {
-      return reply.send({ conversationId: null, messages: [], activeJob: activeJob ? { id: activeJob.id, type: activeJob.type, progress: activeJob.progress, message: activeJob.progressMessage } : null });
+      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload });
     }
 
-    return reply.send({ ...data, activeJob: activeJob ? { id: activeJob.id, type: activeJob.type, progress: activeJob.progress, message: activeJob.progressMessage } : null });
+    return reply.send({ ...data, activeJob: jobPayload });
   });
 
   // ─── DELETE /projects/:id/agent/conversation — clear conversation ────────

@@ -3,19 +3,55 @@ export interface SSEEvent {
   data: unknown;
 }
 
+export interface SSEParserOptions {
+  /** Timeout in ms after which a stale stream is considered dead. Default: 45_000 (3x heartbeat) */
+  inactivityTimeoutMs?: number;
+  /** AbortSignal to cancel parsing */
+  signal?: AbortSignal;
+}
+
+export class SSETimeoutError extends Error {
+  constructor(timeoutMs: number) {
+    super(`SSE stream inactive for ${timeoutMs / 1000}s — connection likely dropped`);
+    this.name = 'SSETimeoutError';
+  }
+}
+
 export async function* parseSSEStream(
   stream: ReadableStream<Uint8Array>,
+  options: SSEParserOptions = {},
 ): AsyncGenerator<SSEEvent> {
+  const { inactivityTimeoutMs = 45_000, signal } = options;
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let currentEvent = '';
   let currentData = '';
 
+  // Inactivity watchdog
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let timedOut = false;
+
+  function resetWatchdog() {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      timedOut = true;
+      // Cancel the reader so the while-loop exits
+      reader.cancel().catch(() => {});
+    }, inactivityTimeoutMs);
+  }
+
   try {
+    resetWatchdog();
+
     while (true) {
+      if (signal?.aborted) break;
+
       const { done, value } = await reader.read();
       if (done) break;
+
+      // We received data — reset the watchdog
+      resetWatchdog();
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
@@ -37,7 +73,13 @@ export async function* parseSSEStream(
         }
       }
     }
+
+    // If the loop ended because of a timeout, throw so the caller can handle it
+    if (timedOut) {
+      throw new SSETimeoutError(inactivityTimeoutMs);
+    }
   } finally {
+    if (timeoutId) clearTimeout(timeoutId);
     reader.releaseLock();
   }
 }

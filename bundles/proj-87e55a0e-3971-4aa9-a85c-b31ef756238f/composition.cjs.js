@@ -4395,71 +4395,75 @@ var OrganizedIcon = ({ type, x, y, frame, delay }) => {
     }
   );
 };
-var SummaryCard = ({ title, emoji, color, side, frame, fps }) => {
-  const isLeft = side === "left";
-  const delay = isLeft ? 0 : 12;
+var SummaryCard = ({ title, emoji, color, position, frame, fps }) => {
+  const isTop = position === "top";
+  const delay = isTop ? 0 : 12;
   const cardProgress = (0, import_remotion9.spring)({
     frame: frame - delay,
     fps,
     config: SPRING_CONFIG
   });
-  const slideX = (0, import_remotion9.interpolate)(
+  const slideY = (0, import_remotion9.interpolate)(
     cardProgress,
     [0, 1],
-    [isLeft ? -60 : 60, 0],
+    [isTop ? -60 : 60, 0],
     { extrapolateRight: "clamp" }
   );
+  const topPosition = isTop ? "18%" : "48%";
   return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
     "div",
     {
       style: {
         position: "absolute",
-        left: isLeft ? "5%" : "52%",
-        top: "8%",
-        transform: `translateX(${slideX}px) scale(${cardProgress})`,
+        left: "50%",
+        top: topPosition,
+        transform: `translateX(-50%) translateY(${slideY}px) scale(${cardProgress})`,
         opacity: cardProgress,
-        width: "43%"
+        width: "85%",
+        maxWidth: 520
       },
       children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
         "div",
         {
           style: {
-            padding: "18px 16px",
-            borderRadius: 16,
-            background: `linear-gradient(135deg, ${color}20 0%, ${color}08 100%)`,
-            border: `3px solid ${color}60`,
-            boxShadow: `0 12px 40px ${color}20`,
+            padding: "22px 28px",
+            borderRadius: 22,
+            background: `linear-gradient(135deg, ${color}25 0%, ${color}10 100%)`,
+            border: `4px solid ${color}70`,
+            boxShadow: `0 18px 55px ${color}30`,
             textAlign: "center",
             position: "relative",
             overflow: "hidden"
           },
           children: [
-            isLeft && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ToolIcon, { type: "wrench", x: 5, y: 15, frame, delay: 0 }),
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ToolIcon, { type: "hammer", x: 80, y: 20, frame, delay: 3 }),
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ToolIcon, { type: "gear", x: 12, y: 70, frame, delay: 6 })
+            isTop && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ToolIcon, { type: "wrench", x: 5, y: 20, frame, delay: 0 }),
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ToolIcon, { type: "hammer", x: 88, y: 25, frame, delay: 3 }),
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ToolIcon, { type: "gear", x: 8, y: 65, frame, delay: 6 }),
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(ToolIcon, { type: "gear", x: 90, y: 60, frame, delay: 9 })
             ] }),
-            !isLeft && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(OrganizedIcon, { type: "star", x: 8, y: 18, frame, delay: 0 }),
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(OrganizedIcon, { type: "sparkle", x: 82, y: 22, frame, delay: 4 }),
-              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(OrganizedIcon, { type: "check", x: 10, y: 68, frame, delay: 8 })
+            !isTop && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(OrganizedIcon, { type: "star", x: 6, y: 22, frame, delay: 0 }),
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(OrganizedIcon, { type: "sparkle", x: 88, y: 28, frame, delay: 4 }),
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(OrganizedIcon, { type: "check", x: 8, y: 62, frame, delay: 8 }),
+              /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(OrganizedIcon, { type: "star", x: 90, y: 58, frame, delay: 12 })
             ] }),
             /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
               "div",
               {
                 style: {
-                  fontSize: 28,
+                  fontSize: 34,
                   fontWeight: 900,
                   color,
-                  textShadow: `0 3px 15px ${color}30`,
+                  textShadow: `0 4px 20px ${color}40`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 8
+                  gap: 14
                 },
                 children: [
                   /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { children: title }),
-                  /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { fontSize: 24 }, children: emoji })
+                  /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { fontSize: 30 }, children: emoji })
                 ]
               }
             )
@@ -4469,26 +4473,83 @@ var SummaryCard = ({ title, emoji, color, side, frame, fps }) => {
     }
   );
 };
-var VSSeparator = ({ frame, fps }) => {
+var HorizontalSeparator = ({ frame, fps }) => {
   const progress = (0, import_remotion9.spring)({
     frame: frame - 8,
     fps,
     config: SPRING_FAST
   });
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+  const lineWidth = (0, import_remotion9.interpolate)(progress, [0, 1], [0, 120], {
+    extrapolateRight: "clamp"
+  });
+  const glowPulse = (0, import_remotion9.interpolate)(
+    frame % 40,
+    [0, 20, 40],
+    [0.4, 0.9, 0.4],
+    { extrapolateRight: "clamp" }
+  );
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
     "div",
     {
       style: {
         position: "absolute",
         left: "50%",
-        top: "14%",
-        transform: `translate(-50%, -50%) scale(${progress})`,
-        opacity: progress * 0.6,
-        fontSize: 28,
-        fontWeight: 900,
-        color: COLORS.textDark
+        top: "39%",
+        transform: "translate(-50%, -50%)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 18,
+        opacity: progress
       },
-      children: "VS"
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+          "div",
+          {
+            style: {
+              width: `${lineWidth * 1.5}px`,
+              height: 4,
+              background: `linear-gradient(90deg, transparent, ${COLORS.textDark}50)`,
+              borderRadius: 2
+            }
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+          "div",
+          {
+            style: {
+              padding: "10px 20px",
+              borderRadius: 14,
+              background: `linear-gradient(135deg, ${COLORS.accentYellow} 0%, #FBBF24 100%)`,
+              boxShadow: `0 6px 25px ${COLORS.accentYellow}${Math.floor(glowPulse * 70).toString(16).padStart(2, "0")}`,
+              transform: `scale(${progress})`
+            },
+            children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+              "span",
+              {
+                style: {
+                  fontSize: 22,
+                  fontWeight: 900,
+                  color: COLORS.textDark,
+                  letterSpacing: 2
+                },
+                children: "VS"
+              }
+            )
+          }
+        ),
+        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+          "div",
+          {
+            style: {
+              width: `${lineWidth * 1.5}px`,
+              height: 4,
+              background: `linear-gradient(90deg, ${COLORS.textDark}50, transparent)`,
+              borderRadius: 2
+            }
+          }
+        )
+      ]
     }
   );
 };
@@ -4521,96 +4582,40 @@ var CTASparkle = ({ x, y, size, frame, delay }) => {
     }
   );
 };
-var PulsingArrow = ({ frame, fps }) => {
-  const bounce = (0, import_remotion9.interpolate)(
-    Math.sin(frame * 0.15),
-    [-1, 1],
-    [-6, 6],
-    { extrapolateRight: "clamp" }
-  );
+var CTAButton = ({ frame, fps }) => {
+  const ctaDelay = 40;
+  const buttonProgress = (0, import_remotion9.spring)({
+    frame: frame - ctaDelay,
+    fps,
+    config: { damping: 20, stiffness: 90, mass: 0.85 }
+  });
   const pulse = (0, import_remotion9.interpolate)(
     Math.sin(frame * 0.1),
     [-1, 1],
-    [0.9, 1.15],
-    { extrapolateRight: "clamp" }
-  );
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-    "div",
-    {
-      style: {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 4,
-        transform: `translateY(${bounce}px) scale(${pulse})`
-      },
-      children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-        "svg",
-        {
-          width: 48,
-          height: 48,
-          viewBox: "0 0 24 24",
-          fill: "none",
-          stroke: COLORS.accentYellow,
-          strokeWidth: 3,
-          strokeLinecap: "round",
-          strokeLinejoin: "round",
-          children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("path", { d: "M12 5v14M5 12l7 7 7-7" })
-        }
-      )
-    }
-  );
-};
-var CTABanner = ({ frame, fps }) => {
-  const ctaDelay = 60;
-  const bannerProgress = (0, import_remotion9.spring)({
-    frame: frame - ctaDelay,
-    fps,
-    config: { damping: 20, stiffness: 85, mass: 0.9 }
-  });
-  const buttonProgress = (0, import_remotion9.spring)({
-    frame: frame - ctaDelay - 20,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const subtitleProgress = (0, import_remotion9.spring)({
-    frame: frame - ctaDelay - 40,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const arrowProgress = (0, import_remotion9.spring)({
-    frame: frame - ctaDelay - 55,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const pulse = (0, import_remotion9.interpolate)(
-    Math.sin(frame * 0.08),
-    [-1, 1],
-    [0.97, 1.03],
+    [0.97, 1.04],
     { extrapolateRight: "clamp" }
   );
   const glowIntensity = (0, import_remotion9.interpolate)(
-    Math.sin(frame * 0.06),
+    Math.sin(frame * 0.08),
     [-1, 1],
-    [0.4, 1],
+    [0.5, 1],
     { extrapolateRight: "clamp" }
   );
-  const scaleY = (0, import_remotion9.interpolate)(bannerProgress, [0, 1], [0, 1], {
-    extrapolateRight: "clamp"
-  });
+  const bounceY = (0, import_remotion9.interpolate)(
+    buttonProgress,
+    [0, 0.7, 1],
+    [50, -8, 0],
+    { extrapolateRight: "clamp" }
+  );
   return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
     "div",
     {
       style: {
         position: "absolute",
         left: "50%",
-        top: "50%",
-        transform: `translate(-50%, -50%) scaleY(${scaleY})`,
-        opacity: bannerProgress,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: 16
+        top: "78%",
+        transform: `translate(-50%, -50%) translateY(${bounceY}px) scale(${buttonProgress * pulse})`,
+        opacity: buttonProgress
       },
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
@@ -4618,119 +4623,56 @@ var CTABanner = ({ frame, fps }) => {
           {
             style: {
               position: "absolute",
-              inset: -60,
+              inset: -50,
               borderRadius: 40,
-              background: `radial-gradient(circle, ${COLORS.accentYellow}${Math.floor(glowIntensity * 40).toString(16).padStart(2, "0")} 0%, transparent 70%)`,
-              filter: "blur(20px)"
+              background: `radial-gradient(circle, ${COLORS.accentYellow}${Math.floor(glowIntensity * 50).toString(16).padStart(2, "0")} 0%, transparent 70%)`,
+              filter: "blur(15px)"
             }
           }
         ),
-        frame > ctaDelay + 30 && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: -18, y: -25, size: 22, frame, delay: 0 }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: 108, y: -20, size: 18, frame, delay: 4 }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: -15, y: 95, size: 20, frame, delay: 8 }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: 105, y: 90, size: 16, frame, delay: 12 }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: 50, y: -30, size: 24, frame, delay: 2 }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: -8, y: 40, size: 14, frame, delay: 6 }),
-          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: 102, y: 50, size: 15, frame, delay: 10 })
+        frame > ctaDelay + 20 && /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(import_jsx_runtime9.Fragment, { children: [
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: -12, y: -30, size: 20, frame, delay: 0 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: 105, y: -25, size: 18, frame, delay: 4 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: -8, y: 110, size: 16, frame, delay: 8 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: 102, y: 105, size: 14, frame, delay: 12 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: 50, y: -35, size: 22, frame, delay: 2 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: -15, y: 50, size: 12, frame, delay: 6 }),
+          /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASparkle, { x: 108, y: 55, size: 13, frame, delay: 10 })
         ] }),
         /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
           "div",
           {
             style: {
-              transform: `scale(${buttonProgress * pulse})`,
-              opacity: buttonProgress
+              padding: "24px 48px",
+              borderRadius: 22,
+              background: `linear-gradient(135deg, ${COLORS.accentYellow} 0%, #FBBF24 100%)`,
+              boxShadow: `0 14px 50px ${COLORS.accentYellow}60, 0 0 70px ${COLORS.accentYellow}${Math.floor(glowIntensity * 40).toString(16).padStart(2, "0")}`,
+              border: `4px solid ${COLORS.white}95`
             },
-            children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+            children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
               "div",
               {
                 style: {
-                  padding: "28px 56px",
-                  borderRadius: 24,
-                  background: `linear-gradient(135deg, ${COLORS.accentYellow} 0%, #FBBF24 100%)`,
-                  boxShadow: `0 16px 60px ${COLORS.accentYellow}70, 0 0 80px ${COLORS.accentYellow}30`,
-                  border: `4px solid ${COLORS.white}90`
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 12
                 },
-                children: /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)(
-                  "div",
-                  {
-                    style: {
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14
-                    },
-                    children: [
-                      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { fontSize: 36 }, children: "\u{1F393}" }),
-                      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-                        "span",
-                        {
-                          style: {
-                            fontSize: 38,
-                            fontWeight: 900,
-                            color: COLORS.textDark,
-                            letterSpacing: -1
-                          },
-                          children: "FREE AI LECTURE"
-                        }
-                      )
-                    ]
-                  }
-                )
-              }
-            )
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-          "div",
-          {
-            style: {
-              transform: `scale(${subtitleProgress})`,
-              opacity: subtitleProgress,
-              textAlign: "center"
-            },
-            children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-              "span",
-              {
-                style: {
-                  fontSize: 22,
-                  fontWeight: 700,
-                  color: COLORS.textDark,
-                  opacity: 0.8
-                },
-                children: "Learn AI Product Foundations"
-              }
-            )
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-          "div",
-          {
-            style: {
-              transform: `scale(${arrowProgress})`,
-              opacity: arrowProgress,
-              marginTop: 8
-            },
-            children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(PulsingArrow, { frame, fps })
-          }
-        ),
-        /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-          "div",
-          {
-            style: {
-              transform: `scale(${arrowProgress})`,
-              opacity: arrowProgress * 0.9
-            },
-            children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-              "span",
-              {
-                style: {
-                  fontSize: 18,
-                  fontWeight: 800,
-                  color: COLORS.skillsBlue,
-                  textTransform: "uppercase",
-                  letterSpacing: 2
-                },
-                children: "\u2193 IN DESCRIPTION \u2193"
+                children: [
+                  /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("span", { style: { fontSize: 32 }, children: "\u{1F4AC}" }),
+                  /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+                    "span",
+                    {
+                      style: {
+                        fontSize: 34,
+                        fontWeight: 900,
+                        color: COLORS.textDark,
+                        letterSpacing: 1
+                      },
+                      children: "COMMENT SKILLS"
+                    }
+                  )
+                ]
               }
             )
           }
@@ -4739,11 +4681,43 @@ var CTABanner = ({ frame, fps }) => {
     }
   );
 };
+var CTASubtitle = ({ frame, fps }) => {
+  const progress = (0, import_remotion9.spring)({
+    frame: frame - 70,
+    fps,
+    config: SPRING_CONFIG
+  });
+  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: "50%",
+        top: "89%",
+        transform: `translateX(-50%) scale(${progress})`,
+        opacity: progress,
+        textAlign: "center"
+      },
+      children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+        "span",
+        {
+          style: {
+            fontSize: 18,
+            fontWeight: 700,
+            color: COLORS.textDark,
+            opacity: 0.8
+          },
+          children: "Get the free lecture link!"
+        }
+      )
+    }
+  );
+};
 var ConfettiParticle = ({ x, angle, speed, color, shape, frame, startFrame }) => {
   const time = Math.max(0, frame - startFrame);
   const gravity = 0.15;
   const posX = x + Math.cos(angle) * speed * time * 0.8;
-  const posY = 50 + Math.sin(angle) * speed * time * 0.5 + gravity * time * time * 0.3;
+  const posY = 78 + Math.sin(angle) * speed * time * 0.5 + gravity * time * time * 0.3;
   const rotation = time * (speed * 3);
   const opacity = (0, import_remotion9.interpolate)(time, [0, 15, 50, 70], [0, 1, 1, 0], {
     extrapolateRight: "clamp"
@@ -4772,7 +4746,7 @@ var ConfettiParticle = ({ x, angle, speed, color, shape, frame, startFrame }) =>
   );
 };
 var CelebrationConfetti = ({ frame }) => {
-  const startFrame = 180;
+  const startFrame = 120;
   if (frame < startFrame) return null;
   const particles = Array.from({ length: 30 });
   const colors = [COLORS.accentYellow, COLORS.skillsBlue, COLORS.successGreen, COLORS.mcpOrange, "#EC4899", "#8B5CF6"];
@@ -4796,37 +4770,6 @@ var CelebrationConfetti = ({ frame }) => {
     );
   }) });
 };
-var FinalTagline = ({ frame, fps }) => {
-  const progress = (0, import_remotion9.spring)({
-    frame: frame - 140,
-    fps,
-    config: SPRING_CONFIG
-  });
-  return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-    "div",
-    {
-      style: {
-        position: "absolute",
-        bottom: "6%",
-        left: "50%",
-        transform: `translateX(-50%) scale(${progress})`,
-        opacity: progress * 0.85,
-        textAlign: "center"
-      },
-      children: /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
-        "span",
-        {
-          style: {
-            fontSize: 20,
-            fontWeight: 700,
-            color: COLORS.textDark
-          },
-          children: "See you in the next video! \u{1F44B}"
-        }
-      )
-    }
-  );
-};
 var Scene8 = ({ startFrame }) => {
   const frame = (0, import_remotion9.useCurrentFrame)();
   const { fps } = (0, import_remotion9.useVideoConfig)();
@@ -4837,7 +4780,7 @@ var Scene8 = ({ startFrame }) => {
       {
         style: {
           position: "absolute",
-          top: "2%",
+          top: "4%",
           left: "50%",
           transform: "translateX(-50%)",
           opacity: (0, import_remotion9.interpolate)(localFrame, [0, 15], [0, 1], {
@@ -4848,10 +4791,10 @@ var Scene8 = ({ startFrame }) => {
           "span",
           {
             style: {
-              fontSize: 26,
-              fontWeight: 700,
+              fontSize: 28,
+              fontWeight: 800,
               color: COLORS.textDark,
-              opacity: 0.7
+              opacity: 0.8
             },
             children: "Quick Recap"
           }
@@ -4864,26 +4807,26 @@ var Scene8 = ({ startFrame }) => {
         title: "MCP = RAW TOOLS",
         emoji: "\u{1F527}",
         color: COLORS.mcpOrange,
-        side: "left",
+        position: "top",
         frame: localFrame,
         fps
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(VSSeparator, { frame: localFrame, fps }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(HorizontalSeparator, { frame: localFrame, fps }),
     /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
       SummaryCard,
       {
         title: "SKILLS = BEHAVIOR",
         emoji: "\u2728",
         color: COLORS.skillsBlue,
-        side: "right",
+        position: "bottom",
         frame: localFrame,
         fps
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTABanner, { frame: localFrame, fps }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CelebrationConfetti, { frame: localFrame, fps }),
-    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(FinalTagline, { frame: localFrame, fps })
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTAButton, { frame: localFrame, fps }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CelebrationConfetti, { frame: localFrame }),
+    /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CTASubtitle, { frame: localFrame, fps })
   ] });
 };
 

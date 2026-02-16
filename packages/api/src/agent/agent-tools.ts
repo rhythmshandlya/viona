@@ -31,23 +31,43 @@ export interface ToolContext {
 async function pollJobProgress(
   jobId: string,
   ctx: ToolContext,
-): Promise<void> {
+): Promise<{ status: 'complete' | 'failed' | 'timeout' | 'aborted' | 'not_found' }> {
   const POLL_INTERVAL_MS = 2000;
   const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+  // If job progress hasn't changed in 5 minutes, consider it stalled.
+  // Some jobs (edit-visuals) only update progress at 0% and 100%, so the
+  // stall window must be generous enough for the full subprocess run.
+  const STALL_TIMEOUT_MS = 5 * 60 * 1000;
   const startTime = Date.now();
+  let lastProgress = -1;
+  let lastProgressChangeTime = Date.now();
 
   while (Date.now() - startTime < TIMEOUT_MS) {
-    if (ctx.signal?.aborted) break;
+    if (ctx.signal?.aborted) return { status: 'aborted' };
 
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
 
-    if (ctx.signal?.aborted) break;
+    if (ctx.signal?.aborted) return { status: 'aborted' };
 
     const job = await db.query.jobs.findFirst({
       where: eq(jobs.id, jobId),
     });
 
-    if (!job) break;
+    if (!job) {
+      ctx.sendSSE('progress', {
+        percent: 0,
+        message: 'Job not found — it may have been deleted.',
+        error: true,
+        jobId,
+      });
+      return { status: 'not_found' };
+    }
+
+    // Track progress changes for stall detection
+    if (job.progress !== lastProgress) {
+      lastProgress = job.progress;
+      lastProgressChangeTime = Date.now();
+    }
 
     ctx.sendSSE('progress', {
       percent: job.progress,
@@ -57,7 +77,7 @@ async function pollJobProgress(
 
     if (job.status === 'complete' || job.status === 'completed') {
       ctx.sendSSE('progress', { percent: 100, message: 'Done!', jobId });
-      break;
+      return { status: 'complete' };
     }
 
     if (job.status === 'failed') {
@@ -67,12 +87,29 @@ async function pollJobProgress(
         error: true,
         jobId,
       });
-      break;
+      return { status: 'failed' };
+    }
+
+    // Detect stalled jobs (no progress change for STALL_TIMEOUT_MS)
+    if (Date.now() - lastProgressChangeTime > STALL_TIMEOUT_MS) {
+      ctx.sendSSE('progress', {
+        percent: job.progress,
+        message: 'Job appears stalled — no progress updates received. The job may still complete in the background.',
+        error: true,
+        jobId,
+      });
+      return { status: 'timeout' };
     }
   }
 
-  // If we timed out but job is still running, just keep showing its last progress
-  // — don't send a scary message. The job continues in the background.
+  // Hard timeout — job is taking too long
+  ctx.sendSSE('progress', {
+    percent: lastProgress,
+    message: 'Processing is taking longer than expected. The job continues in the background — check back in a moment.',
+    error: true,
+    jobId,
+  });
+  return { status: 'timeout' };
 }
 
 // Map raw scenes.json scene objects to widget-friendly format

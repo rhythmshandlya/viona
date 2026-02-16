@@ -20,13 +20,29 @@ const SYSTEM_FONTS_DIR = '/usr/share/fonts';
 const LOCAL_FONTS_CACHE = join(tmpdir(), 'clippify-fonts');
 
 /**
- * Escape a filesystem path for use inside FFmpeg filter strings.
- * FFmpeg's filter parser treats backslashes as escape characters, so on Windows
- * `C:\Users\...` gets mangled. Converting to forward slashes fixes it — FFmpeg
- * on Windows accepts forward slashes in filter paths.
+ * Escape a filesystem path for use inside FFmpeg filter option values
+ * (e.g. the `fontsdir` option in the `subtitles` filter).
+ *
+ * FFmpeg's filtergraph parser treats `:` as an option separator, so Windows
+ * paths like `C:\Users\...` break filters that take path arguments. The fix
+ * requires TWO levels of escaping:
+ *   1. Backslash-escape the colon: `C:` → `C\:`  (tells the parser it's literal)
+ *   2. Wrap in single quotes: `'C\:/...'`  (protects from further splitting)
+ *
+ * Verified working with FFmpeg 8.x on Windows. On Linux/macOS (no colons in
+ * paths), the function is effectively a no-op.
  */
 function escapePathForFilter(p: string): string {
-  return p.replace(/\\/g, '/');
+  const normalized = p.replace(/\\/g, '/');
+  // Windows paths contain drive letter colons (C:) which FFmpeg misparses
+  if (normalized.includes(':')) {
+    // Escape single quotes already in the path, then escape colons, then wrap
+    const escaped = normalized
+      .replace(/'/g, "'\\''")
+      .replace(/:/g, '\\:');
+    return "'" + escaped + "'";
+  }
+  return normalized;
 }
 
 // Google Fonts CSS API query strings for each font.

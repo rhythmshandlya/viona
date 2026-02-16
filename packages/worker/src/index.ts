@@ -117,7 +117,8 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Transcribe job failed');
   });
 
-  // Render worker
+  // Render worker — lockDuration must be long enough for Remotion SSR renders
+  // (can take 2+ minutes). Default 30s causes BullMQ to declare job as stalled.
   const renderWorker = new Worker<RenderJobData>(
     'render',
     async (job) => {
@@ -126,7 +127,9 @@ async function main() {
     },
     {
       connection,
-      concurrency: 2, // Process 2 renders in parallel
+      concurrency: 2,
+      lockDuration: 10 * 60 * 1000, // 10 minutes — renders can take a while
+      stalledInterval: 5 * 60 * 1000, // Check for stalls every 5 minutes
     }
   );
 
@@ -168,7 +171,9 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1, // One at a time (AI + render intensive)
+      concurrency: 1,
+      lockDuration: 10 * 60 * 1000,
+      stalledInterval: 5 * 60 * 1000,
     }
   );
 
@@ -189,7 +194,9 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1, // One at a time (AI intensive)
+      concurrency: 1,
+      lockDuration: 10 * 60 * 1000,
+      stalledInterval: 5 * 60 * 1000,
     }
   );
 
@@ -210,7 +217,9 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1, // One at a time (AI + render intensive)
+      concurrency: 1,
+      lockDuration: 10 * 60 * 1000,
+      stalledInterval: 5 * 60 * 1000,
     }
   );
 

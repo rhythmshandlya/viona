@@ -114,6 +114,20 @@ export const visuals = pgTable('visuals', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Project assets (uploaded images, audio, etc.)
+export const projectAssets = pgTable('project_assets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  filename: varchar('filename', { length: 255 }).notNull(),
+  storageKey: varchar('storage_key', { length: 500 }).notNull(),
+  contentType: varchar('content_type', { length: 100 }).notNull(),
+  fileSize: integer('file_size'),
+  durationMs: integer('duration_ms'),
+  width: integer('width'),
+  height: integer('height'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 // Conversations for Creative Director agent
 export const conversations = pgTable('conversations', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -145,6 +159,8 @@ export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
 export type Visual = typeof visuals.$inferSelect;
 export type NewVisual = typeof visuals.$inferInsert;
+export type ProjectAsset = typeof projectAssets.$inferSelect;
+export type NewProjectAsset = typeof projectAssets.$inferInsert;
 export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
 export type ConversationMessage = typeof conversationMessages.$inferSelect;

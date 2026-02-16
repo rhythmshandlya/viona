@@ -193,7 +193,8 @@
       "Bash(pnpm --filter web exec:*)",
       "Bash(pnpm --filter web dev:*)",
       "Bash(pnpm --filter @reelify/renderer add:*)",
-      "WebFetch(domain:fonts.google.com)"
+      "WebFetch(domain:fonts.google.com)",
+      "Bash(ffmpeg:*)"
     ]
   }
 }

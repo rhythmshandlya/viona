@@ -607,6 +607,29 @@ TECHNICAL GUIDELINES:
   let stdout = '';
   let stderr = '';
 
+  // Progress ticker — publish periodic updates so the polling loop (and frontend)
+  // know the job is still alive. Without this, the agent's stall detector would
+  // fire because the Claude subprocess can run for several minutes silently.
+  const EDIT_PROGRESS_MESSAGES = [
+    'AI is analyzing your composition...',
+    'AI is planning the changes...',
+    'AI is editing your visuals...',
+    'AI is writing code changes...',
+    'AI is still working on edits...',
+    'Almost there, AI is finalizing...',
+  ];
+  let tickerIndex = 0;
+  // Slowly increment from 25% to 60% during Claude's run
+  let tickerPercent = 25;
+  const progressTicker = setInterval(() => {
+    const message = EDIT_PROGRESS_MESSAGES[Math.min(tickerIndex, EDIT_PROGRESS_MESSAGES.length - 1)];
+    tickerPercent = Math.min(60, tickerPercent + 2);
+    publishJobProgress(jobId, tickerPercent, message);
+    // Also update the DB so the polling loop sees fresh progress
+    db.update(jobs).set({ progress: tickerPercent, progressMessage: message }).where(eq(jobs.id, jobId)).catch(() => {});
+    tickerIndex++;
+  }, 15_000); // Every 15 seconds
+
   subprocess.stdout?.on('data', (chunk: Buffer) => {
     const text = chunk.toString('utf-8');
     stdout += text;
@@ -624,12 +647,14 @@ TECHNICAL GUIDELINES:
   // Wait for completion with timeout
   await new Promise<void>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
+      clearInterval(progressTicker);
       subprocess.kill('SIGTERM');
       reject(new Error(`Claude editor timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
     }, config.claudeAgent.timeoutSeconds * 1000);
 
     subprocess.on('close', (code) => {
       clearTimeout(timeoutId);
+      clearInterval(progressTicker);
       if (code === 0) {
         resolve();
       } else {
@@ -639,6 +664,7 @@ TECHNICAL GUIDELINES:
 
     subprocess.on('error', (err) => {
       clearTimeout(timeoutId);
+      clearInterval(progressTicker);
       reject(err);
     });
   });

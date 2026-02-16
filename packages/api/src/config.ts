@@ -48,6 +48,9 @@ export const config = {
     return this.storage;
   },
 
+  // CORS — in production, restrict to explicit origins
+  corsOrigin: process.env.CORS_ORIGIN || '',
+
   // Anthropic (Creative Director agent)
   // Auth handled by Claude Agent SDK (reads OAuth credentials internally)
   anthropic: {
