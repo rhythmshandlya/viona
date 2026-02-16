@@ -231,6 +231,9 @@ export interface SubtitleStyle {
   letterSpacing?: number;
   textTransform?: 'none' | 'uppercase' | 'lowercase';
   stroke?: StrokeStyle | null;
+  // Display mode
+  displayMode?: 'word-by-word' | 'phrase' | 'karaoke';
+  wordsPerPhrase?: number;
 }
 
 export interface AnimatedSubtitleProps {
@@ -267,12 +270,142 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
   const { fps } = useVideoConfig();
   const style = { ...defaultStyle, ...customStyle };
 
-  const currentTimeMs = (frame / fps) * 1000;
+  // Words from the DB have absolute timing (relative to video start).
+  // Inside a Remotion Sequence, useCurrentFrame() is relative to the Sequence start.
+  // Add startMs to convert back to absolute time so word active checks match.
+  const currentTimeMs = startMs + (frame / fps) * 1000;
 
   // Position styles - use new position system
   const position = resolvePosition(style.position);
   const positionStyles = calculatePositionStyles(position, style.lineHeight ?? 1.4);
 
+  const displayMode = style.displayMode || 'phrase';
+
+  // Find active word index
+  const activeWordIndex = words.findIndex(
+    (word) => currentTimeMs >= word.startMs && currentTimeMs < word.endMs
+  );
+
+  // Resolve animation config
+  const animConfig: AnimationConfig = isAnimationConfig(style.animation)
+    ? style.animation
+    : migrateAnimation(style.animation as string);
+
+  // Resolve effects
+  const effects: CaptionEffects = style.effects ?? migrateTextShadow(style.textShadow);
+  const effectsStyles = effectsToCss(effects);
+
+  // Typography styles helper
+  const getTypographyStyles = (): React.CSSProperties => ({
+    opacity: style.opacity ?? 1,
+    letterSpacing: style.letterSpacing ? `${style.letterSpacing}px` : undefined,
+    textTransform: style.textTransform ?? 'none',
+    WebkitTextStroke: style.stroke
+      ? `${style.stroke.width}px ${style.stroke.color}`
+      : undefined,
+    paintOrder: style.stroke ? 'stroke fill' : undefined,
+    ...effectsStyles,
+  });
+
+  // ── Word-by-word mode: only show the active word ──
+  if (displayMode === 'word-by-word') {
+    if (activeWordIndex < 0) return null;
+    const activeWord = words[activeWordIndex];
+    const overrides = activeWord.styleOverrides;
+
+    const elapsedMs = currentTimeMs - activeWord.startMs;
+    const wordDurationMs = activeWord.endMs - activeWord.startMs;
+    const { style: animStyle } = resolveAnimation(animConfig, {
+      elapsedMs: Math.max(0, elapsedMs),
+      wordDurationMs,
+      isActive: true,
+      hasAppeared: false,
+      isFuture: false,
+    });
+
+    return (
+      <div style={positionStyles}>
+        <span
+          style={{
+            fontFamily: overrides?.fontFamily || style.fontFamily,
+            fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize || 56),
+            fontWeight: overrides?.fontWeight || style.fontWeight,
+            color: overrides?.activeColor || overrides?.color || style.activeColor,
+            backgroundColor: overrides?.emphasisBg || style.activeBackgroundColor || 'transparent',
+            padding: '4px 12px',
+            borderRadius: '8px',
+            display: 'inline-block',
+            whiteSpace: 'nowrap',
+            ...getTypographyStyles(),
+            ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+            ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
+            ...animStyle,
+          }}
+        >
+          {activeWord.text}
+        </span>
+      </div>
+    );
+  }
+
+  // ── Karaoke mode: progressive color fill ──
+  if (displayMode === 'karaoke') {
+    return (
+      <div style={positionStyles}>
+        {words.map((word, index) => {
+          const isActive = index === activeWordIndex;
+          const hasAppeared = currentTimeMs >= word.startMs;
+          const overrides = word.styleOverrides;
+
+          const elapsedMs = currentTimeMs - word.startMs;
+          const wordDurationMs = word.endMs - word.startMs;
+          const { style: animStyle } = resolveAnimation(animConfig, {
+            elapsedMs: Math.max(0, elapsedMs),
+            wordDurationMs,
+            isActive,
+            hasAppeared: hasAppeared && !isActive,
+            isFuture: !hasAppeared,
+          });
+
+          let fillPercent = 0;
+          if (hasAppeared && !isActive) {
+            fillPercent = 100;
+          } else if (isActive) {
+            fillPercent = Math.min((elapsedMs / wordDurationMs) * 100, 100);
+          }
+
+          return (
+            <span
+              key={index}
+              style={{
+                fontFamily: overrides?.fontFamily || style.fontFamily,
+                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize || 56),
+                fontWeight: overrides?.fontWeight || style.fontWeight,
+                padding: '4px 12px',
+                borderRadius: '8px',
+                display: 'inline-block',
+                whiteSpace: 'nowrap',
+                backgroundImage: hasAppeared
+                  ? `linear-gradient(90deg, ${overrides?.activeColor || style.activeColor} ${fillPercent}%, ${style.color} ${fillPercent}%)`
+                  : `linear-gradient(90deg, ${style.color}, ${style.color})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                ...getTypographyStyles(),
+                ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+                ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
+                ...animStyle,
+              }}
+            >
+              {word.text}
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // ── Default phrase mode: show all words, highlight active ──
   return (
     <div style={positionStyles}>
       {words.map((word, index) => (

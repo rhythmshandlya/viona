@@ -1,7 +1,8 @@
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition } from '@remotion/renderer';
-import { join, dirname } from 'path';
+import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
+import { copyFileSync, existsSync } from 'fs';
 import { VideoCompositionProps, SubtitleItem } from './components/VideoComposition';
 import { SubtitleStyle } from './components/AnimatedSubtitle';
 
@@ -60,9 +61,21 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
   // Calculate duration in frames
   const durationInFrames = Math.ceil((durationMs / 1000) * fps);
 
-  // Input props for the composition
+  // Copy the video file into the bundle directory so Remotion's dev server
+  // can serve it via HTTP. Absolute paths don't work (they get concatenated
+  // with the bundle root) and file:// URLs are rejected by Remotion.
+  let resolvedVideoUrl = videoUrl;
+  if (videoUrl.startsWith('/') && existsSync(videoUrl)) {
+    const videoFileName = basename(videoUrl);
+    const destPath = join(bundlePath, videoFileName);
+    if (!existsSync(destPath)) {
+      copyFileSync(videoUrl, destPath);
+    }
+    resolvedVideoUrl = videoFileName;
+  }
+
   const inputProps = {
-    videoUrl,
+    videoUrl: resolvedVideoUrl,
     subtitles,
     defaultSubtitleStyle,
   } as Record<string, unknown>;
