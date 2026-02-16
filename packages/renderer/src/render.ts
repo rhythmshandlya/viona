@@ -89,24 +89,18 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     inputProps,
   });
 
-  // LOW MEMORY MODE: Scale down to 50% to reduce FFmpeg memory usage
-  // This matches the MEMORY_SCALE used in renderWithPiPLayout
-  const MEMORY_SCALE = 0.5;
-  const scaledWidth = Math.round(width * MEMORY_SCALE);
-  const scaledHeight = Math.round(height * MEMORY_SCALE);
-
-  // Override composition settings
+  // Override composition settings (keep full resolution — font sizes are CSS pixels)
   const finalComposition = {
     ...composition,
-    width: scaledWidth,
-    height: scaledHeight,
+    width,
+    height,
     fps,
     durationInFrames,
   };
 
   console.log('Starting render...');
   console.log(`  Duration: ${durationMs}ms (${durationInFrames} frames)`);
-  console.log(`  Resolution: ${scaledWidth}x${scaledHeight} (scaled from ${width}x${height})`);
+  console.log(`  Resolution: ${width}x${height}`);
   console.log(`  FPS: ${fps}`);
   console.log(`  Subtitles: ${subtitles.length}`);
 
