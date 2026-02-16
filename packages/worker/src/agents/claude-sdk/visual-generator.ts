@@ -694,7 +694,9 @@ Assign each persistent element to a zone:
 - left-sidebar: Left side elements (left: width * 0.08)
 - right-sidebar: Right side elements (right: width * 0.08)
 - header: Title area (top: height * 0.08)
-- caption: Bottom text (bottom: height * 0.1)
+
+## NO CAPTIONS OR SUBTITLES
+Subtitles are rendered by a separate system. NEVER include caption zones, subtitle text, or any text that duplicates what the speaker is saying. Keep the bottom 15% of the canvas clear for the subtitle overlay. Only use text for diagram labels, data values, and concept names that are part of the visual explanation.
 
 Output a JSON visual plan with: coreConcept, visualMetaphor, persistentElements, elementPositions, colorScheme, scenes.`,
       tools: ['Read', 'Glob']
@@ -723,9 +725,13 @@ const ZONES = {
   leftSidebar: { position: 'absolute', left: width * 0.08, top: height * 0.5, transform: 'translateY(-50%)' },
   rightSidebar: { position: 'absolute', left: width * 0.92, top: height * 0.5, transform: 'translate(-100%, -50%)' },
   header: { position: 'absolute', top: height * 0.08, left: 0, width: '100%', textAlign: 'center' },
-  caption: { position: 'absolute', bottom: height * 0.1, left: 0, width: '100%', textAlign: 'center' },
+  // NO caption zone — subtitles are rendered by a separate system
+  // Keep bottom 15% of canvas CLEAR for subtitle overlay
 };
 \`\`\`
+
+## 🚫 NO CAPTIONS / SUBTITLES
+Subtitles are handled externally. NEVER render caption text, subtitle text, or any text that repeats what the speaker says. Only use text for diagram labels and data values that are part of the visual explanation.
 
 ## ⛔ CRITICAL RULES - VIOLATIONS CRASH THE APP ⛔
 

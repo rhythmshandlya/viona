@@ -196,7 +196,8 @@
       "WebFetch(domain:fonts.google.com)",
       "Bash(ffmpeg:*)",
       "WebFetch(domain:api-production-18ab.up.railway.app)",
-      "Bash(pnpm --filter @reelify/web build:*)"
+      "Bash(pnpm --filter @reelify/web build:*)",
+      "WebFetch(domain:re.video)"
     ]
   }
 }

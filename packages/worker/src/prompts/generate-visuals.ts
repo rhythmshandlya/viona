@@ -51,10 +51,11 @@ Style: Modern (Vibrant & Dynamic)
 **LAYOUT (CRITICAL - avoid overlapping):**
 - Stack elements vertically with clear separation
 - Title/heading at TOP (first 15% of height)
-- Main visual in MIDDLE (next 60% of height)
-- Labels/captions at BOTTOM (last 25% of height)
+- Main visual in MIDDLE (next 70% of height)
+- Keep bottom 15% CLEAR for subtitle overlay (rendered separately)
 - Use flexbox with RESPONSIVE gap: display: 'flex', flexDirection: 'column', gap: minDim * 0.03
 - NEVER place text directly on top of diagrams
+- NEVER add captions or subtitle text — subtitles are handled by a separate system
 
 **ANIMATION:**
 - Use spring({ damping: 12, stiffness: 80 }) - bouncy, satisfying
@@ -227,6 +228,23 @@ You're creating visuals using **Remotion** (React-based video framework) that wi
 - Cluttered screens with too many elements
 
 **Your role:** Create the visual layer that makes educational content WATCHABLE and SHAREABLE. The speech provides information; your visuals provide understanding.
+
+---
+
+## 🚫 PURE VISUAL STORYTELLING — NO TEXT OVERLAYS
+
+**Subtitles/captions are handled by a SEPARATE subtitle system that renders on top of your visuals.** Your animations must NEVER include:
+- Captions, subtitles, or any text that duplicates what the speaker is saying
+- "Caption zones" or bottom-of-screen text that mirrors the transcript
+- Title cards with the spoken words written out
+- Any text element whose purpose is to show what's being said
+
+**What IS allowed:**
+- Short labels on diagram elements (e.g., "Queue", "Server", "O(log n)")
+- Data values inside visualizations (e.g., numbers in nodes, axis labels on charts)
+- Concept names as part of the visual (e.g., "Priority Queue" as a heading on a diagram)
+
+**The rule:** If removing the text would make the VISUAL less understandable, keep it. If the text just repeats what the viewer will hear, DELETE it. Subtitles handle all text the speaker says — your job is to create stunning VISUAL explanations.
 
 ---
 
@@ -435,16 +453,8 @@ const minDim = Math.min(width, height);
       </div>
     </div>
 
-    {/* CAPTION ZONE - Fixed height (optional) */}
-    <div style={{
-      flex: '0 0 auto',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: height * 0.06,
-    }}>
-      <p style={{ fontSize: height * 0.022, textAlign: 'center', margin: 0 }}>Caption</p>
-    </div>
+    {/* NO CAPTION ZONE — subtitles are rendered by a separate system */}
+    {/* Leave bottom ~15% of canvas clear for subtitle overlay */}
   </div>
 </AbsoluteFill>
 \`\`\`
@@ -454,8 +464,10 @@ const minDim = Math.min(width, height);
 |---------|-----------------|---------------|
 | Titles | \`display: 'flex', justifyContent: 'center', alignItems: 'center'\` | \`textAlign: 'center', margin: 0\` |
 | Diagrams | \`flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center'\` | \`maxWidth: '85%', maxHeight: '90%'\` |
-| Labels | Same as titles | \`fontSize: height * 0.022\` |
+| Diagram labels | Same as titles | \`fontSize: height * 0.022\` |
 | Multi-element rows | \`display: 'flex', justifyContent: 'center', gap: minDim * 0.03\` | Each item centered |
+
+**⚠️ Leave bottom ~15% clear** — subtitles render there. Keep visuals in the top 85% of the canvas.
 
 ### Common Alignment Mistakes
 | ❌ Wrong | ✅ Correct |
@@ -720,18 +732,20 @@ Pre-built components at \`./components/\` are available as **time-savers**, not 
 
 ---
 
-## 🎬 WHAT TO VISUALIZE
+## 🎬 WHAT TO VISUALIZE — PREMIUM EXPLAINER ANIMATIONS
+
+Think **3Blue1Brown meets Apple keynote**. Every frame should feel polished, intentional, and beautiful.
 
 | Transcript Content | Visual to Create |
 |-------------------|------------------|
-| Steps/Process | Animated flowchart, nodes appear sequentially |
-| Statistics/Numbers | Animated bar chart, counters, progress rings |
-| Comparisons | Side-by-side graphics, VS animations |
-| Concepts/Frameworks | Diagrams, mind maps, Venn diagrams |
-| Hierarchies | Org charts, tree structures |
-| Relationships | Connection lines animating between nodes |
+| Steps/Process | Animated flowchart with smooth transitions, nodes appear with spring physics |
+| Statistics/Numbers | Animated bar charts, counters with easing, progress rings with glow effects |
+| Comparisons | Side-by-side with animated reveals, morphing transitions |
+| Concepts/Frameworks | Elegant diagrams, animated mind maps with flowing connections |
+| Hierarchies | Tree structures with expanding animations, depth-based lighting |
+| Relationships | Animated connection lines with particle trails between nodes |
 
-**IMPORTANT:** Don't just put text on screen. CREATE A VISUAL REPRESENTATION.
+**IMPORTANT:** PURE VISUAL STORYTELLING. Never put caption/subtitle text on screen — that's handled separately. CREATE BEAUTIFUL VISUAL REPRESENTATIONS that explain concepts through motion, color, and spatial relationships. Every animation should make the viewer think "this looks premium".
 
 ---
 

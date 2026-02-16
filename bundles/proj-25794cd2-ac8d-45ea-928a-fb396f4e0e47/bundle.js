@@ -2,257 +2,354 @@
 /******/ 	"use strict";
 /******/ 	var __webpack_modules__ = ({
 
-/***/ 6345:
+/***/ 3519:
 /***/ ((__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) => {
 
 
-// EXTERNAL MODULE: ./node_modules/remotion/dist/esm/index.mjs
-var esm = __webpack_require__(3947);
-// EXTERNAL MODULE: ./node_modules/react/jsx-runtime.js
-var jsx_runtime = __webpack_require__(4848);
-;// ./src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/constants.ts
+// EXTERNAL MODULE: ../../node_modules/.pnpm/remotion@4.0.409_react-dom@19.2.3_react@19.2.3__react@19.2.3/node_modules/remotion/dist/esm/index.mjs
+var esm = __webpack_require__(6033);
+// EXTERNAL MODULE: ../../node_modules/.pnpm/react@19.2.3/node_modules/react/jsx-runtime.js
+var jsx_runtime = __webpack_require__(8525);
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/constants.ts
 
 const COLORS = {
-  // Frustration phase (Scene 1)
-  frustrationGray: "#6B7280",
-  frustrationBlue: "#475569",
-  mutedBlue: "#64748B",
-  // Solution phase (Scene 2)
-  warmOrange: "#F97316",
-  warmYellow: "#FBBF24",
-  hopeGold: "#F59E0B",
-  // Creativity phase (Scene 3)
-  vibrantMagenta: "#EC4899",
-  vibrantCyan: "#06B6D4",
-  creativePink: "#F472B6",
-  // Action phase (Scenes 4-5)
-  electricBlue: "#3B82F6",
-  electricGreen: "#10B981",
-  actionTeal: "#14B8A6",
-  // Neutrals
-  background: "#0F172A",
-  backgroundDark: "#020617",
-  white: "#FFFFFF",
-  sparkWhite: "#F8FAFC"
+  // Scene 1: Frustration colors
+  grayDark: "#2D3436",
+  grayMedium: "#636E72",
+  grayLight: "#B2BEC3",
+  blueMuted: "#74B9FF",
+  // Scene 2: Solution colors
+  orangeWarm: "#FDCB6E",
+  yellowBright: "#F1C40F",
+  orangeDeep: "#E17055",
+  // Scene 3: Creativity colors
+  magentaVibrant: "#E056FD",
+  cyanBright: "#00CEC9",
+  pinkHot: "#FD79A8",
+  purpleDeep: "#A29BFE",
+  // Scene 4-5: Action colors
+  electricBlue: "#0984E3",
+  electricGreen: "#00B894",
+  neonCyan: "#00F5FF",
+  // Background
+  backgroundDark: "#1A1A2E",
+  backgroundMid: "#16213E",
+  // Spark colors
+  sparkYellow: "#FFE66D",
+  sparkWhite: "#FFFFFF"
 };
 const SPRING_CONFIG = { damping: 22, stiffness: 90, mass: 0.9 };
-const SPRING_GENTLE = { damping: 28, stiffness: 60, mass: 1 };
-const SPRING_SNAPPY = { damping: 20, stiffness: 120, mass: 0.8 };
 const TIMING = {
-  // Video specs from scenes.json
+  // Video specs
   totalFrames: 856,
   fps: 30,
   width: 1080,
   height: 1920,
-  // Scene timing from scenes.json
+  // Scene 1: The Creative Struggle
   scene1Start: 0,
   scene1End: 195,
   scene1KeySync: 80,
   // "but" - visual shift
+  // Scene 2: The Solution Emerges
   scene2Start: 195,
   scene2End: 270,
   scene2KeySync: 225,
   // "Clipify" - brand reveal
+  // Scene 3: The Magic Process
   scene3Start: 270,
   scene3End: 450,
   scene3KeySync: 348,
   // "add" - motion graphics spring to life
+  // Scene 4: Barriers Eliminated
   scene4Start: 450,
   scene4End: 630,
   scene4KeySync: 484,
   // "No" - barriers dissolve
+  // Scene 5: The Call to Action
   scene5Start: 630,
   scene5End: 856,
   scene5KeySync: 772
   // "Sign up" - CTA appears
 };
-const LAYOUT = {
+const RESPONSIVE = {
   safeMargin: 0.1,
-  // 10% padding from edges
-  maxContentWidth: 0.8,
-  // 80% max width
+  // 10%
   titleSize: 0.05,
-  // 5% of height = 96px
+  // 5% of height
   bodySize: 0.03,
-  // 3% of height = 58px
-  smallSize: 0.02
-  // 2% of height = 38px
+  // 3% of height
+  smallSize: 0.02,
+  // 2% of height
+  maxContentWidth: 0.8
+  // 80%
 };
 
-;// ./src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/components/Background.tsx
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/components/Background.tsx
 
 
 
 
 const Background = () => {
   const frame = (0,esm.useCurrentFrame)();
-  const glowIntensity = (0,esm.interpolate)(
+  const colorProgress = (0,esm.interpolate)(
     frame,
     [0, TIMING.scene2Start, TIMING.scene3Start, TIMING.scene4Start, TIMING.scene5Start],
-    [0.1, 0.2, 0.4, 0.5, 0.6],
+    [0, 0.25, 0.5, 0.75, 1],
     { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
   );
-  let glowColor = COLORS.frustrationBlue;
-  if (frame >= TIMING.scene5Start) {
-    glowColor = COLORS.electricBlue;
-  } else if (frame >= TIMING.scene4Start) {
-    glowColor = COLORS.electricGreen;
-  } else if (frame >= TIMING.scene3Start) {
-    glowColor = COLORS.vibrantMagenta;
-  } else if (frame >= TIMING.scene2Start) {
-    glowColor = COLORS.warmOrange;
-  }
-  const gradientY = (0,esm.interpolate)(
+  const gradientColor1 = colorProgress < 0.5 ? COLORS.backgroundDark : colorProgress < 0.75 ? COLORS.backgroundMid : COLORS.backgroundDark;
+  const gradientColor2 = COLORS.backgroundMid;
+  const glowIntensity = (0,esm.interpolate)(
     frame,
-    [0, TIMING.totalFrames],
-    [40, 60],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
+    [0, TIMING.scene3Start, TIMING.scene5Start, TIMING.totalFrames],
+    [0.1, 0.3, 0.5, 0.7],
+    { extrapolateRight: "clamp" }
   );
-  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-    esm.AbsoluteFill,
-    {
-      style: {
-        background: `
-          radial-gradient(
-            ellipse 120% 80% at 50% ${gradientY}%,
-            ${glowColor}${Math.round(glowIntensity * 40).toString(16).padStart(2, "0")} 0%,
-            ${COLORS.background} 50%,
-            ${COLORS.backgroundDark} 100%
-          )
-        `
-      },
-      children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-        esm.AbsoluteFill,
-        {
-          style: {
-            background: `
-            radial-gradient(
-              ellipse 80% 80% at 50% 50%,
-              transparent 0%,
-              ${COLORS.backgroundDark}40 100%
-            )
-          `
-          }
-        }
-      )
-    }
-  );
-};
-
-;// ./src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene1.tsx
-
-
-
-
-const Scene1 = ({ startFrame }) => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { fps, width, height } = (0,esm.useVideoConfig)();
-  const localFrame = frame - startFrame;
-  const sceneDuration = TIMING.scene1End - TIMING.scene1Start;
-  const keySyncFrame = TIMING.scene1KeySync;
-  const sceneIn = (0,esm.spring)({
-    frame: localFrame,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const postKeySync = (0,esm.interpolate)(
-    localFrame,
-    [keySyncFrame - 10, keySyncFrame + 10],
-    [0, 1],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const crackProgress = (0,esm.interpolate)(
-    localFrame,
-    [sceneDuration - 60, sceneDuration],
-    [0, 1],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const sparkCycleLength = 40;
-  const sparkCycle = localFrame % sparkCycleLength / sparkCycleLength;
-  const sparkX = (0,esm.interpolate)(
-    sparkCycle,
-    [0, 0.25, 0.5, 0.75, 1],
-    [0, 60, 0, -60, 0],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const sparkY = (0,esm.interpolate)(
-    sparkCycle,
-    [0, 0.25, 0.5, 0.75, 1],
-    [-40, 20, 50, 20, -40],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const sparkAgitation = (0,esm.interpolate)(postKeySync, [0, 1], [1, 1.5], {
-    extrapolateRight: "clamp"
-  });
-  const sparkHue = (0,esm.interpolate)(
-    postKeySync,
-    [0, 1],
-    [45, 220],
-    // yellow hue to blue hue
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const cageStress = (0,esm.interpolate)(
-    localFrame,
-    [keySyncFrame, keySyncFrame + 30],
-    [0, 1],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const text1In = (0,esm.spring)({
-    frame: localFrame - 15,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const text2In = (0,esm.spring)({
-    frame: localFrame - 50,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const butEmphasis = (0,esm.spring)({
-    frame: localFrame - keySyncFrame,
-    fps,
-    config: { damping: 20, stiffness: 100, mass: 0.8 }
-  });
-  const cageBars = [
-    { x: -80, y: -100, rotation: 30, length: 200 },
-    { x: 80, y: -100, rotation: -30, length: 200 },
-    { x: -120, y: 0, rotation: 90, length: 180 },
-    { x: 120, y: 0, rotation: 90, length: 180 },
-    { x: -80, y: 100, rotation: -30, length: 200 },
-    { x: 80, y: 100, rotation: 30, length: 200 }
-  ];
+  const getGlowColor = () => {
+    if (frame < TIMING.scene2Start) return COLORS.blueMuted;
+    if (frame < TIMING.scene3Start) return COLORS.orangeWarm;
+    if (frame < TIMING.scene4Start) return COLORS.magentaVibrant;
+    return COLORS.electricBlue;
+  };
   return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
     /* @__PURE__ */ (0,jsx_runtime.jsx)(
       "div",
       {
         style: {
+          width: "100%",
+          height: "100%",
+          background: `linear-gradient(180deg, ${gradientColor1} 0%, ${gradientColor2} 100%)`
+        }
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
           position: "absolute",
-          top: height * 0.12,
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          width: "150%",
+          height: "150%",
+          background: `radial-gradient(circle, ${getGlowColor()}${Math.round(glowIntensity * 40).toString(16).padStart(2, "0")} 0%, transparent 60%)`,
+          pointerEvents: "none"
+        }
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: 0,
           left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",
-          opacity: text1In,
-          transform: `translateY(${(0,esm.interpolate)(text1In, [0, 1], [30, 0])}px)`
-        },
-        children: /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-          "span",
+          width: "100%",
+          height: "100%",
+          backgroundImage: `
+            linear-gradient(${COLORS.grayDark}10 1px, transparent 1px),
+            linear-gradient(90deg, ${COLORS.grayDark}10 1px, transparent 1px)
+          `,
+          backgroundSize: "40px 40px",
+          opacity: (0,esm.interpolate)(frame, [0, 100], [0.3, 0.15], { extrapolateRight: "clamp" })
+        }
+      }
+    )
+  ] });
+};
+
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/components/CreativeSpark.tsx
+
+
+
+
+const CreativeSpark = ({
+  x,
+  y,
+  size = 30,
+  color = COLORS.sparkYellow,
+  glowIntensity = 1,
+  opacity = 1
+}) => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps } = (0,esm.useVideoConfig)();
+  const pulse = (0,esm.spring)({
+    frame: frame % 30,
+    // Loop every second
+    fps,
+    config: { ...SPRING_CONFIG, stiffness: 120 }
+  });
+  const scale = (0,esm.interpolate)(pulse, [0, 1], [0.9, 1.1], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        transform: `translate(-50%, -50%) scale(${scale})`,
+        opacity
+      },
+      children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
           {
             style: {
-              fontSize: height * 0.04,
-              fontWeight: 700,
-              color: COLORS.white,
-              textAlign: "center",
-              fontFamily: "Inter, system-ui, sans-serif",
-              padding: "0 60px",
-              lineHeight: 1.3
-            },
-            children: [
-              "Everyone wants to",
-              /* @__PURE__ */ (0,jsx_runtime.jsx)("br", {}),
-              "start creating content"
-            ]
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: size * 3 * glowIntensity,
+              height: size * 3 * glowIntensity,
+              borderRadius: "50%",
+              background: `radial-gradient(circle, ${color}80 0%, ${color}40 30%, transparent 70%)`,
+              filter: `blur(${size * 0.3}px)`
+            }
+          }
+        ),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: size,
+              height: size,
+              borderRadius: "50%",
+              background: `radial-gradient(circle, ${COLORS.sparkWhite} 0%, ${color} 50%, ${color}00 100%)`,
+              boxShadow: `0 0 ${size}px ${color}, 0 0 ${size * 2}px ${color}80`
+            }
           }
         )
+      ]
+    }
+  );
+};
+
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene1.tsx
+
+
+
+
+
+const CageBar = ({ x, y, width, height, rotation = 0, crackAmount }) => {
+  const crackOffset = crackAmount * 3;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width,
+        height,
+        backgroundColor: COLORS.grayMedium,
+        borderRadius: 4,
+        transform: `rotate(${rotation}deg)`,
+        boxShadow: `0 0 10px ${COLORS.grayDark}`,
+        // Crack effect - slight displacement
+        clipPath: crackAmount > 0 ? `polygon(0 0, 100% 0, 100% ${50 - crackOffset}%, ${50 + crackOffset}% 50%, 100% ${50 + crackOffset}%, 100% 100%, 0 100%, 0 ${50 + crackOffset}%, ${50 - crackOffset}% 50%, 0 ${50 - crackOffset}%)` : void 0
+      }
+    }
+  );
+};
+const Scene1 = ({ startFrame }) => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps, width, height } = (0,esm.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const keySyncFrame = TIMING.scene1KeySync - TIMING.scene1Start;
+  const entranceProgress = (0,esm.spring)({
+    frame: localFrame,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const frustrationProgress = (0,esm.interpolate)(
+    localFrame,
+    [keySyncFrame, keySyncFrame + 30],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const crackProgress = (0,esm.interpolate)(
+    localFrame,
+    [keySyncFrame + 30, 195],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const cageWidth = width * 0.5;
+  const cageHeight = height * 0.2;
+  const cageX = width * 0.5;
+  const cageY = height * 0.4;
+  const barThickness = 12;
+  const bouncePhase = localFrame % 60;
+  const sparkXOffset = (0,esm.interpolate)(
+    bouncePhase,
+    [0, 15, 30, 45, 60],
+    [0, cageWidth * 0.35, 0, -cageWidth * 0.35, 0],
+    { extrapolateRight: "clamp" }
+  );
+  const sparkYOffset = (0,esm.interpolate)(
+    bouncePhase,
+    [0, 15, 30, 45, 60],
+    [-cageHeight * 0.3, 0, cageHeight * 0.3, 0, -cageHeight * 0.3],
+    { extrapolateRight: "clamp" }
+  );
+  const sparkColor = frustrationProgress < 0.5 ? COLORS.sparkYellow : COLORS.blueMuted;
+  const sparkScale = 1 + frustrationProgress * 0.3;
+  const text1Progress = (0,esm.spring)({
+    frame: localFrame - 10,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const text2Progress = (0,esm.spring)({
+    frame: localFrame - (keySyncFrame + 10),
+    fps,
+    config: SPRING_CONFIG
+  });
+  const titleSize = height * RESPONSIVE.titleSize;
+  const bodySize = height * RESPONSIVE.bodySize;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.12,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(text1Progress, [0, 1], [30, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: text1Progress,
+          textAlign: "center",
+          width: width * 0.85
+        },
+        children: [
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize * 0.8,
+                fontWeight: 700,
+                color: COLORS.sparkWhite,
+                lineHeight: 1.2,
+                textShadow: `0 2px 20px ${COLORS.grayDark}`
+              },
+              children: "Everyone wants to start"
+            }
+          ),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize,
+                fontWeight: 800,
+                color: COLORS.orangeWarm,
+                lineHeight: 1.2,
+                marginTop: 10
+              },
+              children: "creating content"
+            }
+          )
+        ]
       }
     ),
     /* @__PURE__ */ (0,jsx_runtime.jsxs)(
@@ -260,109 +357,1941 @@ const Scene1 = ({ startFrame }) => {
       {
         style: {
           position: "absolute",
-          top: height * 0.4,
-          left: width * 0.5,
-          transform: `translate(-50%, -50%) scale(${sceneIn})`
+          left: cageX - cageWidth / 2,
+          top: cageY - cageHeight / 2,
+          width: cageWidth,
+          height: cageHeight,
+          opacity: entranceProgress,
+          transform: `scale(${(0,esm.interpolate)(entranceProgress, [0, 1], [0.8, 1], { extrapolateRight: "clamp" })})`
         },
         children: [
-          cageBars.map((bar, index) => {
-            const barShake = cageStress > 0 ? (0,esm.interpolate)(
-              (localFrame + index * 5) % 8,
-              [0, 4, 8],
-              [0, 2, 0],
-              { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-            ) * cageStress : 0;
-            const crackOffset = crackProgress * (index % 2 === 0 ? 15 : -15);
-            return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  left: bar.x + barShake + crackOffset,
-                  top: bar.y,
-                  width: 8,
-                  height: bar.length,
-                  background: (0,esm.interpolate)(
-                    crackProgress,
-                    [0, 1],
-                    [0, 1],
-                    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-                  ) > 0.3 ? `linear-gradient(180deg, ${COLORS.frustrationGray}, ${COLORS.warmOrange}40)` : COLORS.frustrationGray,
-                  borderRadius: 4,
-                  transform: `translate(-50%, -50%) rotate(${bar.rotation}deg)`,
-                  boxShadow: cageStress > 0 ? `0 0 ${10 * cageStress}px ${COLORS.warmOrange}60` : "none"
-                }
-              },
-              index
-            );
-          }),
-          crackProgress > 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-            "svg",
+          [0, 0.2, 0.4, 0.6, 0.8, 1].map((pos, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            CageBar,
             {
-              style: {
-                position: "absolute",
-                left: -150,
-                top: -150,
-                width: 300,
-                height: 300,
-                opacity: crackProgress
-              },
-              children: [
-                /* @__PURE__ */ (0,jsx_runtime.jsx)(
-                  "path",
-                  {
-                    d: `M 100 50 L ${100 + crackProgress * 30} ${50 + crackProgress * 20} L ${100 + crackProgress * 50} ${50 + crackProgress * 40}`,
-                    stroke: COLORS.warmOrange,
-                    strokeWidth: 2,
-                    fill: "none",
-                    strokeLinecap: "round"
-                  }
-                ),
-                /* @__PURE__ */ (0,jsx_runtime.jsx)(
-                  "path",
-                  {
-                    d: `M 200 100 L ${200 - crackProgress * 25} ${100 + crackProgress * 35}`,
-                    stroke: COLORS.warmYellow,
-                    strokeWidth: 2,
-                    fill: "none",
-                    strokeLinecap: "round"
-                  }
-                )
-              ]
+              x: cageWidth * pos - barThickness / 2,
+              y: 0,
+              width: barThickness,
+              height: cageHeight,
+              crackAmount: i === 2 || i === 3 ? crackProgress * 5 : 0
+            },
+            `v-${i}`
+          )),
+          [0, 0.5, 1].map((pos, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            CageBar,
+            {
+              x: 0,
+              y: cageHeight * pos - barThickness / 2,
+              width: cageWidth,
+              height: barThickness,
+              crackAmount: i === 1 ? crackProgress * 3 : 0
+            },
+            `h-${i}`
+          )),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            CreativeSpark,
+            {
+              x: cageWidth / 2 + sparkXOffset,
+              y: cageHeight / 2 + sparkYOffset,
+              size: 35 * sparkScale,
+              color: sparkColor,
+              glowIntensity: 1 + frustrationProgress * 0.5
             }
-          ) }),
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.65,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(text2Progress, [0, 1], [30, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: text2Progress,
+          textAlign: "center",
+          width: width * 0.8
+        },
+        children: [
           /* @__PURE__ */ (0,jsx_runtime.jsx)(
             "div",
             {
               style: {
-                position: "absolute",
-                left: sparkX * sparkAgitation,
-                top: sparkY * sparkAgitation,
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                background: `hsl(${sparkHue}, 80%, 60%)`,
-                boxShadow: `
-              0 0 20px hsl(${sparkHue}, 80%, 60%),
-              0 0 40px hsl(${sparkHue}, 70%, 50%),
-              0 0 60px hsl(${sparkHue}, 60%, 40%)
-            `,
-                transform: "translate(-50%, -50%)"
+                fontSize: bodySize,
+                fontWeight: 600,
+                color: COLORS.grayLight,
+                lineHeight: 1.4
               },
-              children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-                "div",
-                {
-                  style: {
-                    position: "absolute",
-                    inset: "20%",
-                    borderRadius: "50%",
-                    background: `hsl(${sparkHue}, 90%, 85%)`
-                  }
-                }
-              )
+              children: "but editing"
+            }
+          ),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize * 0.9,
+                fontWeight: 800,
+                color: COLORS.blueMuted,
+                lineHeight: 1.2,
+                marginTop: 8
+              },
+              children: "stops most people"
             }
           )
         ]
+      }
+    ),
+    frustrationProgress > 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: [0, 1, 2, 3].map((i) => {
+      const impactFrame = (localFrame + i * 15) % 60;
+      const impactOpacity = (0,esm.interpolate)(
+        impactFrame,
+        [0, 5, 15],
+        [0, 0.8, 0],
+        { extrapolateRight: "clamp" }
+      );
+      const angle = i * 90 + 45;
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: cageX + sparkXOffset,
+            top: cageY + sparkYOffset,
+            width: 40,
+            height: 4,
+            backgroundColor: sparkColor,
+            opacity: impactOpacity * frustrationProgress,
+            transform: `translate(-50%, -50%) rotate(${angle}deg) translateX(50px)`,
+            borderRadius: 2,
+            boxShadow: `0 0 10px ${sparkColor}`
+          }
+        },
+        `impact-${i}`
+      );
+    }) })
+  ] });
+};
+
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene2.tsx
+
+
+
+
+
+const CageShard = ({ index, progress, originX, originY }) => {
+  const angle = index * 45 + 22.5;
+  const distance = 200 + index % 3 * 100;
+  const rotation = index * 90 + progress * 360;
+  const x = originX + progress * distance * Math.cos(angle * Math.PI / 180);
+  const y = originY + progress * distance * Math.sin(angle * Math.PI / 180);
+  const opacity = (0,esm.interpolate)(progress, [0, 0.3, 1], [1, 0.8, 0], { extrapolateRight: "clamp" });
+  const scale = (0,esm.interpolate)(progress, [0, 1], [1, 0.3], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width: 20 + index % 3 * 10,
+        height: 8,
+        backgroundColor: COLORS.grayMedium,
+        opacity,
+        transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`,
+        borderRadius: 2
+      }
+    }
+  );
+};
+const EnergyParticle = ({ index, progress, centerX, centerY, color }) => {
+  const angle = index * 36;
+  const startRadius = 50;
+  const endRadius = 400;
+  const radius = startRadius + progress * (endRadius - startRadius);
+  const x = centerX + radius * Math.cos(angle * Math.PI / 180);
+  const y = centerY + radius * Math.sin(angle * Math.PI / 180);
+  const opacity = (0,esm.interpolate)(progress, [0, 0.2, 0.8, 1], [0, 1, 0.8, 0], { extrapolateRight: "clamp" });
+  const size = (0,esm.interpolate)(progress, [0, 0.5, 1], [5, 15, 8], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width: size,
+        height: size,
+        backgroundColor: color,
+        borderRadius: "50%",
+        opacity,
+        transform: "translate(-50%, -50%)",
+        boxShadow: `0 0 ${size * 2}px ${color}`
+      }
+    }
+  );
+};
+const Scene2 = ({ startFrame }) => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps, width, height } = (0,esm.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const keySyncLocal = TIMING.scene2KeySync - TIMING.scene2Start;
+  const shatterTrigger = localFrame >= 5 ? localFrame - 5 : 0;
+  const shatterProgress = (0,esm.spring)({
+    frame: shatterTrigger,
+    fps,
+    config: { ...SPRING_CONFIG, stiffness: 150 }
+  });
+  const logoTrigger = localFrame >= keySyncLocal - TIMING.scene2Start ? localFrame - (keySyncLocal - TIMING.scene2Start) : 0;
+  const logoProgress = (0,esm.spring)({
+    frame: logoTrigger,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const energyProgress = (0,esm.interpolate)(
+    localFrame,
+    [10, 60],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const textProgress = (0,esm.spring)({
+    frame: localFrame - 15,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const centerX = width / 2;
+  const centerY = height * 0.35;
+  const titleSize = height * RESPONSIVE.titleSize;
+  const sparkSize = (0,esm.interpolate)(shatterProgress, [0, 1], [35, 60], { extrapolateRight: "clamp" });
+  const sparkGlow = (0,esm.interpolate)(shatterProgress, [0, 1], [1, 2.5], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.12,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(textProgress, [0, 1], [20, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: textProgress,
+          textAlign: "center",
+          width: width * 0.8
+        },
+        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: titleSize * 0.7,
+              fontWeight: 600,
+              color: COLORS.sparkWhite,
+              lineHeight: 1.3
+            },
+            children: "That's where"
+          }
+        )
+      }
+    ),
+    shatterProgress > 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: Array.from({ length: 12 }).map((_, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      CageShard,
+      {
+        index: i,
+        progress: shatterProgress,
+        originX: centerX,
+        originY: centerY
+      },
+      `shard-${i}`
+    )) }),
+    energyProgress > 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: Array.from({ length: 10 }).map((_, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      EnergyParticle,
+      {
+        index: i,
+        progress: energyProgress,
+        centerX,
+        centerY,
+        color: i % 2 === 0 ? COLORS.orangeWarm : COLORS.yellowBright
+      },
+      `energy-${i}`
+    )) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      CreativeSpark,
+      {
+        x: centerX,
+        y: centerY,
+        size: sparkSize,
+        color: COLORS.orangeWarm,
+        glowIntensity: sparkGlow,
+        opacity: 1
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.5,
+          left: "50%",
+          transform: `translateX(-50%) scale(${(0,esm.interpolate)(logoProgress, [0, 1], [0.5, 1], { extrapolateRight: "clamp" })})`,
+          opacity: logoProgress,
+          textAlign: "center"
+        },
+        children: [
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize * 1.4,
+                fontWeight: 900,
+                background: `linear-gradient(135deg, ${COLORS.orangeWarm} 0%, ${COLORS.yellowBright} 50%, ${COLORS.orangeDeep} 100%)`,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                textShadow: "none",
+                filter: `drop-shadow(0 0 30px ${COLORS.orangeWarm}80)`,
+                letterSpacing: "-0.02em"
+              },
+              children: "Clipify"
+            }
+          ),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize * 0.5,
+                fontWeight: 600,
+                color: COLORS.sparkWhite,
+                marginTop: 15,
+                opacity: 0.9
+              },
+              children: "comes in"
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          left: centerX,
+          top: height * 0.55,
+          transform: "translate(-50%, -50%)",
+          width: 400 * logoProgress,
+          height: 400 * logoProgress,
+          background: `radial-gradient(circle, ${COLORS.orangeWarm}40 0%, ${COLORS.yellowBright}20 40%, transparent 70%)`,
+          borderRadius: "50%",
+          pointerEvents: "none"
+        }
+      }
+    ),
+    logoProgress > 0.5 && /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: [
+      { x: -120, y: -40, delay: 0 },
+      { x: 130, y: -30, delay: 6 },
+      { x: -100, y: 50, delay: 12 },
+      { x: 110, y: 60, delay: 18 }
+    ].map((sparkle, i) => {
+      const sparkleProgress = (0,esm.spring)({
+        frame: localFrame - keySyncLocal + TIMING.scene2Start - sparkle.delay,
+        fps,
+        config: { ...SPRING_CONFIG, stiffness: 120 }
+      });
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: centerX + sparkle.x,
+            top: height * 0.55 + sparkle.y,
+            width: 8,
+            height: 8,
+            backgroundColor: COLORS.sparkWhite,
+            borderRadius: "50%",
+            opacity: sparkleProgress * 0.8,
+            transform: `scale(${sparkleProgress})`,
+            boxShadow: `0 0 10px ${COLORS.sparkWhite}`
+          }
+        },
+        `sparkle-${i}`
+      );
+    }) })
+  ] });
+};
+
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene3.tsx
+
+
+
+
+const MouseCursor = ({ x, y, clicking, opacity }) => {
+  const scale = clicking ? 0.85 : 1;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        opacity,
+        transform: `scale(${scale})`,
+        transformOrigin: "top left",
+        zIndex: 100,
+        pointerEvents: "none"
+      },
+      children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)("svg", { width: "32", height: "40", viewBox: "0 0 24 30", fill: "none", children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "path",
+          {
+            d: "M2 2L2 24L8 18L13 28L17 26L12 16L20 16L2 2Z",
+            fill: COLORS.sparkWhite,
+            stroke: COLORS.backgroundDark,
+            strokeWidth: "2",
+            strokeLinejoin: "round"
+          }
+        ) }),
+        clicking && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: 30,
+              height: 30,
+              borderRadius: "50%",
+              border: `3px solid ${COLORS.cyanBright}`,
+              opacity: 0.8,
+              transform: "translate(-10px, -10px)"
+            }
+          }
+        )
+      ]
+    }
+  );
+};
+const UploadButton = ({ x, y, width, height, hovered, clicked, progress }) => {
+  const scale = clicked ? 0.95 : hovered ? 1.02 : 1;
+  const glowOpacity = hovered ? 0.6 : 0.3;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width,
+        height,
+        transform: `translate(-50%, -50%) scale(${scale * progress})`,
+        opacity: progress
+      },
+      children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: width * 1.2,
+              height: height * 1.4,
+              background: `radial-gradient(ellipse, ${COLORS.orangeWarm}${Math.round(glowOpacity * 100).toString(16).padStart(2, "0")} 0%, transparent 70%)`,
+              borderRadius: 30,
+              filter: "blur(15px)"
+            }
+          }
+        ),
+        /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+          "div",
+          {
+            style: {
+              width: "100%",
+              height: "100%",
+              background: `linear-gradient(135deg, ${COLORS.orangeWarm} 0%, ${COLORS.orangeDeep} 100%)`,
+              borderRadius: 20,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              boxShadow: `0 8px 30px ${COLORS.orangeWarm}50, inset 0 2px 0 rgba(255,255,255,0.2)`,
+              border: `3px solid ${hovered ? COLORS.sparkWhite : COLORS.orangeWarm}40`
+            },
+            children: [
+              /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: { display: "flex", flexDirection: "column", alignItems: "center" }, children: [
+                /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                  "div",
+                  {
+                    style: {
+                      width: 0,
+                      height: 0,
+                      borderLeft: "20px solid transparent",
+                      borderRight: "20px solid transparent",
+                      borderBottom: `28px solid ${COLORS.sparkWhite}`
+                    }
+                  }
+                ),
+                /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                  "div",
+                  {
+                    style: {
+                      width: 16,
+                      height: 20,
+                      backgroundColor: COLORS.sparkWhite,
+                      marginTop: -8
+                    }
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                "div",
+                {
+                  style: {
+                    fontSize: 28,
+                    fontWeight: 700,
+                    color: COLORS.sparkWhite,
+                    textShadow: "0 2px 8px rgba(0,0,0,0.3)"
+                  },
+                  children: "Upload Video"
+                }
+              )
+            ]
+          }
+        )
+      ]
+    }
+  );
+};
+const VideoPreview = ({ x, y, width, height, uploadProgress, appearProgress, isAnimating, animationIntensity, localFrame }) => {
+  const shimmerOffset = localFrame * 3 % 150;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width,
+        height,
+        transform: `translate(-50%, -50%) scale(${appearProgress})`,
+        opacity: appearProgress
+      },
+      children: /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+        "div",
+        {
+          style: {
+            width: "100%",
+            height: "100%",
+            backgroundColor: COLORS.backgroundMid,
+            borderRadius: 16,
+            overflow: "hidden",
+            border: `3px solid ${isAnimating ? COLORS.magentaVibrant : COLORS.grayMedium}`,
+            boxShadow: isAnimating ? `0 0 40px ${COLORS.magentaVibrant}60, 0 8px 30px rgba(0,0,0,0.4)` : "0 8px 30px rgba(0,0,0,0.4)",
+            position: "relative"
+          },
+          children: [
+            /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+              "div",
+              {
+                style: {
+                  width: "100%",
+                  height: "100%",
+                  background: `linear-gradient(135deg, ${COLORS.grayDark} 0%, ${COLORS.backgroundMid} 100%)`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  position: "relative",
+                  overflow: "hidden"
+                },
+                children: [
+                  uploadProgress < 1 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                    "div",
+                    {
+                      style: {
+                        position: "absolute",
+                        top: 0,
+                        left: `${shimmerOffset - 50}%`,
+                        width: "50%",
+                        height: "100%",
+                        background: `linear-gradient(90deg, transparent 0%, ${COLORS.grayMedium}30 50%, transparent 100%)`
+                      }
+                    }
+                  ),
+                  /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                    "div",
+                    {
+                      style: {
+                        width: 70,
+                        height: 70,
+                        backgroundColor: `${COLORS.sparkWhite}20`,
+                        borderRadius: "50%",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        border: `3px solid ${COLORS.sparkWhite}40`
+                      },
+                      children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                        "div",
+                        {
+                          style: {
+                            width: 0,
+                            height: 0,
+                            borderTop: "18px solid transparent",
+                            borderBottom: "18px solid transparent",
+                            borderLeft: `30px solid ${COLORS.sparkWhite}80`,
+                            marginLeft: 6
+                          }
+                        }
+                      )
+                    }
+                  ),
+                  /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                    "div",
+                    {
+                      style: {
+                        position: "absolute",
+                        bottom: 55,
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        backgroundColor: `${COLORS.backgroundDark}D0`,
+                        padding: "8px 16px",
+                        borderRadius: 8,
+                        fontSize: 18,
+                        fontWeight: 600,
+                        color: COLORS.grayLight
+                      },
+                      children: "my_video.mp4"
+                    }
+                  )
+                ]
+              }
+            ),
+            /* @__PURE__ */ (0,jsx_runtime.jsx)(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  height: 8,
+                  backgroundColor: COLORS.grayDark
+                },
+                children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                  "div",
+                  {
+                    style: {
+                      height: "100%",
+                      width: `${uploadProgress * 100}%`,
+                      background: uploadProgress < 1 ? `linear-gradient(90deg, ${COLORS.orangeWarm} 0%, ${COLORS.yellowBright} 100%)` : `linear-gradient(90deg, ${COLORS.magentaVibrant} 0%, ${COLORS.cyanBright} 100%)`,
+                      borderRadius: uploadProgress >= 1 ? 0 : "0 4px 4px 0"
+                    }
+                  }
+                )
+              }
+            ),
+            uploadProgress < 1 && /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  bottom: 20,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: COLORS.orangeWarm
+                },
+                children: [
+                  Math.round(uploadProgress * 100),
+                  "%"
+                ]
+              }
+            ),
+            isAnimating && animationIntensity > 0.2 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+              "div",
+              {
+                style: {
+                  position: "absolute",
+                  bottom: 20,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  fontSize: 22,
+                  fontWeight: 700,
+                  background: `linear-gradient(90deg, ${COLORS.magentaVibrant} 0%, ${COLORS.cyanBright} 100%)`,
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  backgroundClip: "text",
+                  opacity: animationIntensity
+                },
+                children: "Adding magic..."
+              }
+            )
+          ]
+        }
+      )
+    }
+  );
+};
+const MotionGraphicElement = ({ type, originX, originY, targetX, targetY, size, color, delay, localFrame, fps, label }) => {
+  const triggerFrame = Math.max(0, localFrame - delay);
+  const burstProgress = (0,esm.spring)({
+    frame: triggerFrame,
+    fps,
+    config: { ...SPRING_CONFIG, stiffness: 100 }
+  });
+  const floatPhase = triggerFrame % 50 / 50;
+  const floatOffset = burstProgress > 0.8 ? (0,esm.interpolate)(floatPhase, [0, 0.5, 1], [0, -6, 0], { extrapolateRight: "clamp" }) : 0;
+  const currentX = (0,esm.interpolate)(burstProgress, [0, 1], [originX, targetX], { extrapolateRight: "clamp" });
+  const currentY = (0,esm.interpolate)(burstProgress, [0, 1], [originY, targetY + floatOffset], { extrapolateRight: "clamp" });
+  const scale = (0,esm.interpolate)(burstProgress, [0, 0.3, 1], [0, 1.3, 1], { extrapolateRight: "clamp" });
+  const opacity = (0,esm.interpolate)(burstProgress, [0, 0.1, 1], [0, 1, 1], { extrapolateRight: "clamp" });
+  const rotation = (0,esm.interpolate)(burstProgress, [0, 1], [0, type === "square" ? 45 : 0], { extrapolateRight: "clamp" });
+  const baseStyle = {
+    position: "absolute",
+    left: currentX,
+    top: currentY,
+    transform: `translate(-50%, -50%) scale(${scale}) rotate(${rotation}deg)`,
+    opacity
+  };
+  switch (type) {
+    case "circle":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            ...baseStyle,
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            backgroundColor: color,
+            boxShadow: `0 0 ${size}px ${color}80`
+          }
+        }
+      );
+    case "square":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            ...baseStyle,
+            width: size,
+            height: size,
+            backgroundColor: color,
+            borderRadius: size * 0.15,
+            boxShadow: `0 0 ${size / 2}px ${color}60`
+          }
+        }
+      );
+    case "triangle":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            ...baseStyle,
+            width: 0,
+            height: 0,
+            borderLeft: `${size / 2}px solid transparent`,
+            borderRight: `${size / 2}px solid transparent`,
+            borderBottom: `${size}px solid ${color}`,
+            backgroundColor: "transparent",
+            filter: `drop-shadow(0 0 ${size / 3}px ${color})`
+          }
+        }
+      );
+    case "line":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            ...baseStyle,
+            width: size * 2.5,
+            height: 5,
+            backgroundColor: color,
+            borderRadius: 3,
+            boxShadow: `0 0 12px ${color}`
+          }
+        }
+      );
+    case "star":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            ...baseStyle,
+            width: size,
+            height: size,
+            backgroundColor: color,
+            clipPath: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
+            boxShadow: `0 0 ${size}px ${color}`
+          }
+        }
+      );
+    case "text":
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            ...baseStyle,
+            fontSize: size,
+            fontWeight: 800,
+            color: COLORS.sparkWhite,
+            textShadow: `0 0 20px ${color}, 0 0 40px ${color}80`,
+            whiteSpace: "nowrap"
+          },
+          children: label || "TITLE"
+        }
+      );
+    default:
+      return null;
+  }
+};
+const EnergyBurst = ({ x, y, progress }) => {
+  const size = (0,esm.interpolate)(progress, [0, 0.5, 1], [0, 400, 500], { extrapolateRight: "clamp" });
+  const opacity = (0,esm.interpolate)(progress, [0, 0.2, 0.6, 1], [0, 0.8, 0.4, 0], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width: size,
+        height: size,
+        transform: "translate(-50%, -50%)",
+        background: `radial-gradient(circle, ${COLORS.magentaVibrant}80 0%, ${COLORS.cyanBright}40 40%, transparent 70%)`,
+        borderRadius: "50%",
+        opacity,
+        pointerEvents: "none"
+      }
+    }
+  );
+};
+const Scene3 = ({ startFrame }) => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps, width, height } = (0,esm.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const keySyncLocal = TIMING.scene3KeySync - TIMING.scene3Start;
+  const buttonProgress = (0,esm.spring)({
+    frame: localFrame,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const cursorStartX = width * 0.15;
+  const cursorStartY = height * 0.15;
+  const buttonX = width / 2;
+  const buttonY = height * 0.22;
+  const cursorMoveProgress = (0,esm.interpolate)(localFrame, [5, 28], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const cursorX = (0,esm.interpolate)(cursorMoveProgress, [0, 1], [cursorStartX, buttonX + 30], { extrapolateRight: "clamp" });
+  const cursorY = (0,esm.interpolate)(cursorMoveProgress, [0, 1], [cursorStartY, buttonY + 20], { extrapolateRight: "clamp" });
+  const isClicking = localFrame >= 32 && localFrame < 38;
+  const cursorOpacity = (0,esm.interpolate)(localFrame, [0, 8, 45, 55], [0, 1, 1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const buttonVisible = localFrame < 45;
+  const buttonHovered = localFrame >= 25;
+  const buttonClicked = localFrame >= 32 && localFrame < 38;
+  const videoAppearProgress = (0,esm.spring)({
+    frame: Math.max(0, localFrame - 42),
+    fps,
+    config: SPRING_CONFIG
+  });
+  const uploadProgress = (0,esm.interpolate)(localFrame, [50, 95], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const animationStartFrame = Math.max(keySyncLocal - 10, 98);
+  const isAnimating = localFrame >= animationStartFrame;
+  const animationIntensity = (0,esm.interpolate)(localFrame, [animationStartFrame, animationStartFrame + 30], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const burstProgress = (0,esm.interpolate)(localFrame, [animationStartFrame, animationStartFrame + 35], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const titleSize = height * RESPONSIVE.titleSize;
+  const centerX = width / 2;
+  const videoY = height * 0.38;
+  const videoWidth = width * 0.7;
+  const videoHeight = height * 0.28;
+  const motionGraphics = [
+    // First wave - geometric shapes bursting outward
+    { type: "circle", targetX: width * 0.15, targetY: height * 0.25, size: 45, color: COLORS.magentaVibrant, delay: animationStartFrame },
+    { type: "square", targetX: width * 0.85, targetY: height * 0.28, size: 38, color: COLORS.cyanBright, delay: animationStartFrame + 4 },
+    { type: "triangle", targetX: width * 0.12, targetY: height * 0.48, size: 35, color: COLORS.pinkHot, delay: animationStartFrame + 8 },
+    { type: "star", targetX: width * 0.88, targetY: height * 0.45, size: 40, color: COLORS.yellowBright, delay: animationStartFrame + 12 },
+    // Second wave - text animations
+    { type: "text", targetX: width * 0.22, targetY: height * 0.58, size: 26, color: COLORS.magentaVibrant, delay: animationStartFrame + 16, label: "WOW" },
+    { type: "line", targetX: width * 0.78, targetY: height * 0.55, size: 25, color: COLORS.cyanBright, delay: animationStartFrame + 20 },
+    // Third wave - more shapes
+    { type: "circle", targetX: width * 0.25, targetY: height * 0.32, size: 28, color: COLORS.purpleDeep, delay: animationStartFrame + 24 },
+    { type: "square", targetX: width * 0.75, targetY: height * 0.58, size: 32, color: COLORS.orangeWarm, delay: animationStartFrame + 28 },
+    { type: "triangle", targetX: width * 0.9, targetY: height * 0.32, size: 30, color: COLORS.electricGreen, delay: animationStartFrame + 32 },
+    { type: "star", targetX: width * 0.1, targetY: height * 0.38, size: 35, color: COLORS.cyanBright, delay: animationStartFrame + 36 },
+    // Fourth wave - accent elements
+    { type: "line", targetX: width * 0.3, targetY: height * 0.62, size: 20, color: COLORS.pinkHot, delay: animationStartFrame + 40 },
+    { type: "circle", targetX: width * 0.7, targetY: height * 0.22, size: 22, color: COLORS.magentaVibrant, delay: animationStartFrame + 44 },
+    { type: "text", targetX: width * 0.78, targetY: height * 0.62, size: 22, color: COLORS.cyanBright, delay: animationStartFrame + 48, label: "PRO" }
+  ];
+  const topTextProgress = (0,esm.spring)({
+    frame: localFrame - 5,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const bottomTextProgress = (0,esm.spring)({
+    frame: Math.max(0, localFrame - animationStartFrame - 10),
+    fps,
+    config: SPRING_CONFIG
+  });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.05,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(topTextProgress, [0, 1], [20, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: topTextProgress,
+          textAlign: "center",
+          width: width * 0.9
+        },
+        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: titleSize * 0.6,
+              fontWeight: 600,
+              color: COLORS.sparkWhite,
+              lineHeight: 1.3
+            },
+            children: "Just upload your video"
+          }
+        )
+      }
+    ),
+    buttonVisible && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      UploadButton,
+      {
+        x: buttonX,
+        y: buttonY,
+        width: width * 0.55,
+        height: height * 0.12,
+        hovered: buttonHovered,
+        clicked: buttonClicked,
+        progress: buttonProgress
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      MouseCursor,
+      {
+        x: cursorX,
+        y: cursorY,
+        clicking: isClicking,
+        opacity: cursorOpacity
+      }
+    ),
+    localFrame >= 42 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      VideoPreview,
+      {
+        x: centerX,
+        y: videoY,
+        width: videoWidth,
+        height: videoHeight,
+        uploadProgress,
+        appearProgress: videoAppearProgress,
+        isAnimating,
+        animationIntensity,
+        localFrame
+      }
+    ),
+    burstProgress > 0 && burstProgress < 1 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      EnergyBurst,
+      {
+        x: centerX,
+        y: videoY,
+        progress: burstProgress
+      }
+    ),
+    motionGraphics.map((mg, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      MotionGraphicElement,
+      {
+        type: mg.type,
+        originX: centerX,
+        originY: videoY,
+        targetX: mg.targetX,
+        targetY: mg.targetY,
+        size: mg.size,
+        color: mg.color,
+        delay: mg.delay,
+        localFrame,
+        fps,
+        label: "label" in mg ? mg.label : void 0
+      },
+      `mg-${i}`
+    )),
+    isAnimating && /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: Array.from({ length: 12 }).map((_, i) => {
+      const particleDelay = animationStartFrame + i * 5;
+      const particleProgress = (0,esm.interpolate)(
+        localFrame - particleDelay,
+        [0, 40],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+      if (particleProgress <= 0) return null;
+      const angle = i * 30;
+      const distance = 80 + particleProgress * 200;
+      const px = centerX + distance * Math.cos(angle * Math.PI / 180);
+      const py = videoY + distance * 0.6 * Math.sin(angle * Math.PI / 180);
+      const sparkleOpacity = (0,esm.interpolate)(particleProgress, [0, 0.2, 0.7, 1], [0, 1, 0.8, 0], { extrapolateRight: "clamp" });
+      const colors = [COLORS.magentaVibrant, COLORS.cyanBright, COLORS.pinkHot, COLORS.sparkWhite];
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: px,
+            top: py,
+            width: 7,
+            height: 7,
+            borderRadius: "50%",
+            backgroundColor: colors[i % colors.length],
+            opacity: sparkleOpacity,
+            transform: "translate(-50%, -50%)",
+            boxShadow: `0 0 12px ${colors[i % colors.length]}`
+          }
+        },
+        `particle-${i}`
+      );
+    }) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.72,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(bottomTextProgress, [0, 1], [30, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: bottomTextProgress,
+          textAlign: "center",
+          width: width * 0.85
+        },
+        children: [
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize * 0.55,
+                fontWeight: 600,
+                color: COLORS.sparkWhite,
+                lineHeight: 1.4
+              },
+              children: "and we automatically add"
+            }
+          ),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize * 0.85,
+                fontWeight: 800,
+                background: `linear-gradient(135deg, ${COLORS.magentaVibrant} 0%, ${COLORS.cyanBright} 100%)`,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                marginTop: 10
+              },
+              children: "beautiful motion graphics"
+            }
+          ),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize * 0.45,
+                fontWeight: 600,
+                color: COLORS.grayLight,
+                marginTop: 12,
+                opacity: 0.9
+              },
+              children: "that make your content look professional"
+            }
+          )
+        ]
+      }
+    )
+  ] });
+};
+
+// EXTERNAL MODULE: ../../node_modules/.pnpm/react@19.2.3/node_modules/react/index.js
+var react = __webpack_require__(9081);
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene4.tsx
+
+
+
+
+
+const ExplosionShard = ({ originX, originY, index, progress, intensity, color }) => {
+  const baseAngle = index * (360 / (12 + intensity * 4)) + index * 7;
+  const angle = baseAngle + Math.random() * 1e-3 * index;
+  const baseDistance = 150 + intensity * 80;
+  const distance = baseDistance + index % 5 * 50;
+  const xProgress = progress;
+  const yProgress = progress + progress * progress * 0.3;
+  const x = originX + xProgress * distance * Math.cos(angle * Math.PI / 180);
+  const y = originY + yProgress * distance * 0.8 * Math.sin(angle * Math.PI / 180);
+  const opacity = (0,esm.interpolate)(progress, [0, 0.1, 0.7, 1], [1, 1, 0.6, 0], { extrapolateRight: "clamp" });
+  const rotation = progress * (300 + index * 40);
+  const scale = (0,esm.interpolate)(progress, [0, 0.2, 1], [1, 1.2, 0.3], { extrapolateRight: "clamp" });
+  const shardWidth = 15 + index % 4 * 8;
+  const shardHeight = 6 + index % 3 * 4;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        width: shardWidth,
+        height: shardHeight,
+        backgroundColor: color,
+        opacity,
+        transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${scale})`,
+        borderRadius: 2,
+        boxShadow: `0 0 ${10 + intensity * 5}px ${color}`
+      }
+    }
+  );
+};
+const ImpactFlash = ({ progress, intensity, color }) => {
+  const flashOpacity = (0,esm.interpolate)(progress, [0, 0.05, 0.15, 0.4], [0, 0.3 + intensity * 0.15, 0.1, 0], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: 0,
+        top: 0,
+        width: "100%",
+        height: "100%",
+        backgroundColor: color,
+        opacity: flashOpacity,
+        pointerEvents: "none",
+        zIndex: 100
+      }
+    }
+  );
+};
+const EnergyWave = ({ progress, y, width, height, intensity }) => {
+  const waveWidth = (0,esm.interpolate)(progress, [0, 1], [0, width * 2], { extrapolateRight: "clamp" });
+  const waveOpacity = (0,esm.interpolate)(progress, [0, 0.1, 0.5, 1], [0, 0.8, 0.4, 0], { extrapolateRight: "clamp" });
+  const waveHeight = 100 + intensity * 40;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: width / 2,
+        top: y,
+        width: waveWidth,
+        height: waveHeight,
+        transform: "translate(-50%, -50%)",
+        background: `radial-gradient(ellipse at center,
+          ${COLORS.electricGreen}${Math.round(waveOpacity * 80).toString(16).padStart(2, "0")} 0%,
+          ${COLORS.cyanBright}${Math.round(waveOpacity * 50).toString(16).padStart(2, "0")} 40%,
+          transparent 70%)`,
+        opacity: waveOpacity,
+        pointerEvents: "none",
+        filter: `blur(${20 - intensity * 3}px)`
+      }
+    }
+  );
+};
+const ExperienceBarrier = ({ scale, opacity }) => {
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 8,
+    transform: `scale(${scale})`,
+    opacity
+  }, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    width: 70,
+    height: 70,
+    backgroundColor: COLORS.grayMedium,
+    borderRadius: 8,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    border: `3px solid ${COLORS.grayLight}`,
+    position: "relative"
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      width: 35,
+      height: 35,
+      backgroundColor: COLORS.grayLight,
+      clipPath: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)"
+    } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      fontSize: 12,
+      fontWeight: 700,
+      color: COLORS.grayLight,
+      marginTop: 4
+    }, children: "PRO" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      position: "absolute",
+      bottom: -20,
+      display: "flex",
+      gap: 3
+    }, children: [0, 1, 2, 3, 4].map((i) => /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      width: 8,
+      height: 14 - i * 2,
+      backgroundColor: i < 3 ? COLORS.orangeWarm : COLORS.grayDark,
+      borderRadius: 2
+    } }, i)) })
+  ] }) });
+};
+const SoftwareBarrier = ({ scale, opacity }) => {
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 8,
+    transform: `scale(${scale})`,
+    opacity
+  }, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    width: 120,
+    height: 80,
+    backgroundColor: COLORS.grayDark,
+    borderRadius: 8,
+    overflow: "hidden",
+    border: `2px solid ${COLORS.grayMedium}`,
+    display: "flex",
+    flexDirection: "column"
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      height: 14,
+      backgroundColor: COLORS.grayMedium,
+      display: "flex",
+      alignItems: "center",
+      padding: "0 6px",
+      gap: 3
+    }, children: [0, 1, 2].map((i) => /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      width: 6,
+      height: 6,
+      borderRadius: "50%",
+      backgroundColor: i === 0 ? "#E74C3C" : i === 1 ? "#F39C12" : "#27AE60"
+    } }, i)) }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      flex: 1,
+      padding: 4,
+      display: "flex",
+      flexDirection: "column",
+      gap: 3
+    }, children: [0, 1, 2, 3].map((i) => /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      height: 10,
+      display: "flex",
+      gap: 2
+    }, children: [0, 1, 2, 3].map((j) => /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      width: 20 + j * i % 15,
+      height: "100%",
+      backgroundColor: [COLORS.magentaVibrant, COLORS.cyanBright, COLORS.orangeWarm, COLORS.purpleDeep][j % 4] + "60",
+      borderRadius: 2
+    } }, j)) }, i)) })
+  ] }) });
+};
+const PriceBarrier = ({ scale, opacity }) => {
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 8,
+    transform: `scale(${scale})`,
+    opacity
+  }, children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("div", { style: {
+    backgroundColor: "#E74C3C",
+    padding: "12px 24px",
+    borderRadius: 8,
+    position: "relative",
+    boxShadow: "0 4px 15px rgba(231, 76, 60, 0.4)"
+  }, children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      position: "absolute",
+      left: -8,
+      top: "50%",
+      transform: "translateY(-50%)",
+      width: 16,
+      height: 16,
+      backgroundColor: COLORS.backgroundDark,
+      borderRadius: "50%",
+      border: `3px solid #E74C3C`
+    } }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      fontSize: 32,
+      fontWeight: 900,
+      color: COLORS.sparkWhite,
+      letterSpacing: "-0.02em"
+    }, children: "$499" }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)("div", { style: {
+      fontSize: 14,
+      fontWeight: 600,
+      color: COLORS.sparkWhite,
+      opacity: 0.8,
+      textAlign: "center"
+    }, children: "/year" })
+  ] }) });
+};
+const Barrier = ({ type, label, x, y, entranceDelay, shatterProgress, localFrame, fps, intensity, width, height }) => {
+  const entranceProgress = (0,esm.spring)({
+    frame: Math.max(0, localFrame - entranceDelay),
+    fps,
+    config: SPRING_CONFIG
+  });
+  const tensionProgress = (0,esm.interpolate)(shatterProgress, [0, 0.05], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const tensionScale = 1 + tensionProgress * 0.1;
+  const shatterScale = shatterProgress > 0.05 ? (0,esm.interpolate)(shatterProgress, [0.05, 0.2], [1.1, 0], { extrapolateRight: "clamp" }) : 1;
+  const shatterOpacity = shatterProgress > 0.05 ? (0,esm.interpolate)(shatterProgress, [0.05, 0.15], [1, 0], { extrapolateRight: "clamp" }) : 1;
+  const shakeAmount = tensionProgress * 4;
+  const shakeX = shatterProgress < 0.05 ? shakeAmount * Math.sin(localFrame * 2) : 0;
+  const shakeY = shatterProgress < 0.05 ? shakeAmount * Math.cos(localFrame * 3) : 0;
+  const finalScale = entranceProgress * tensionScale * shatterScale;
+  const finalOpacity = entranceProgress * shatterOpacity;
+  const renderBarrierIcon = () => {
+    switch (type) {
+      case "experience":
+        return /* @__PURE__ */ (0,jsx_runtime.jsx)(ExperienceBarrier, { scale: 1, opacity: 1 });
+      case "software":
+        return /* @__PURE__ */ (0,jsx_runtime.jsx)(SoftwareBarrier, { scale: 1, opacity: 1 });
+      case "price":
+        return /* @__PURE__ */ (0,jsx_runtime.jsx)(PriceBarrier, { scale: 1, opacity: 1 });
+      default:
+        return null;
+    }
+  };
+  const shatterColors = {
+    experience: [COLORS.orangeWarm, COLORS.yellowBright, COLORS.grayLight],
+    software: [COLORS.magentaVibrant, COLORS.cyanBright, COLORS.grayMedium],
+    price: ["#E74C3C", "#C0392B", COLORS.sparkWhite]
+  };
+  const colors = shatterColors[type];
+  const shardCount = 12 + intensity * 6;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
+    shatterOpacity > 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          left: x + shakeX,
+          top: y + shakeY,
+          transform: `translate(-50%, -50%) scale(${finalScale})`,
+          opacity: finalOpacity,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 16
+        },
+        children: /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+          "div",
+          {
+            style: {
+              backgroundColor: `${COLORS.grayDark}F0`,
+              borderRadius: 20,
+              padding: "24px 32px",
+              border: `3px solid ${tensionProgress > 0 ? "#E74C3C" : COLORS.grayMedium}`,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 16,
+              boxShadow: tensionProgress > 0 ? `0 0 ${30 * tensionProgress}px rgba(231, 76, 60, 0.6)` : "0 8px 30px rgba(0,0,0,0.4)",
+              transition: "border-color 0.1s"
+            },
+            children: [
+              renderBarrierIcon(),
+              /* @__PURE__ */ (0,jsx_runtime.jsx)(
+                "div",
+                {
+                  style: {
+                    fontSize: 24,
+                    fontWeight: 700,
+                    color: COLORS.sparkWhite,
+                    textAlign: "center",
+                    textShadow: "0 2px 8px rgba(0,0,0,0.5)"
+                  },
+                  children: label
+                }
+              )
+            ]
+          }
+        )
+      }
+    ),
+    shatterProgress > 0.05 && /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: Array.from({ length: shardCount }).map((_, i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      ExplosionShard,
+      {
+        originX: x,
+        originY: y,
+        index: i,
+        progress: (0,esm.interpolate)(shatterProgress, [0.05, 0.8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+        intensity,
+        color: colors[i % colors.length]
+      },
+      `shard-${i}`
+    )) }),
+    shatterProgress > 0 && shatterProgress < 0.4 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      ImpactFlash,
+      {
+        progress: shatterProgress,
+        intensity,
+        color: colors[0]
+      }
+    )
+  ] });
+};
+const NoText = ({ progress, x, y, intensity, fps, localFrame }) => {
+  const slamProgress = (0,esm.spring)({
+    frame: Math.max(0, Math.round(progress * 30)),
+    fps,
+    config: { damping: 20, stiffness: 200, mass: 0.8 }
+  });
+  const scale = (0,esm.interpolate)(slamProgress, [0, 1], [3, 1], { extrapolateRight: "clamp" });
+  const opacity = (0,esm.interpolate)(progress, [0, 0.1, 0.8, 1], [0, 1, 1, 0], { extrapolateRight: "clamp" });
+  const baseSize = 80 + intensity * 20;
+  return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        transform: `translate(-50%, -50%) scale(${scale})`,
+        opacity,
+        fontSize: baseSize,
+        fontWeight: 900,
+        color: "#E74C3C",
+        textShadow: `0 0 ${20 + intensity * 10}px rgba(231, 76, 60, 0.8), 0 0 ${40 + intensity * 20}px rgba(231, 76, 60, 0.4)`,
+        letterSpacing: "-0.05em",
+        zIndex: 50
+      },
+      children: "NO"
+    }
+  );
+};
+const ClearPath = ({ progress, width, height, localFrame }) => {
+  const pathOpacity = (0,esm.interpolate)(progress, [0, 0.5, 1], [0, 0.3, 0.6], { extrapolateRight: "clamp" });
+  const pathScale = (0,esm.interpolate)(progress, [0, 1], [0.5, 1], { extrapolateRight: "clamp" });
+  const particleCount = 20;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          left: width / 2,
+          top: height * 0.1,
+          width: width * 0.15,
+          height: height * 0.8,
+          transform: `translateX(-50%) scaleY(${pathScale})`,
+          background: `linear-gradient(180deg,
+            transparent 0%,
+            ${COLORS.electricGreen}${Math.round(pathOpacity * 50).toString(16).padStart(2, "0")} 20%,
+            ${COLORS.cyanBright}${Math.round(pathOpacity * 60).toString(16).padStart(2, "0")} 50%,
+            ${COLORS.electricGreen}${Math.round(pathOpacity * 50).toString(16).padStart(2, "0")} 80%,
+            transparent 100%
+          )`,
+          opacity: pathOpacity,
+          filter: "blur(30px)",
+          pointerEvents: "none"
+        }
+      }
+    ),
+    progress > 0.3 && Array.from({ length: particleCount }).map((_, i) => {
+      const particlePhase = (localFrame + i * 12) % 90 / 90;
+      const baseX = width / 2 + (i % 2 === 0 ? -1 : 1) * (10 + i % 5 * 15);
+      const startY = height * 0.85;
+      const endY = height * 0.1;
+      const currentY = (0,esm.interpolate)(particlePhase, [0, 1], [startY, endY], { extrapolateRight: "clamp" });
+      const particleOpacity = (0,esm.interpolate)(particlePhase, [0, 0.1, 0.8, 1], [0, 0.8, 0.8, 0], { extrapolateRight: "clamp" }) * progress;
+      const colors = [COLORS.electricGreen, COLORS.cyanBright, COLORS.neonCyan, COLORS.sparkWhite];
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: baseX,
+            top: currentY,
+            width: 6 + i % 3 * 2,
+            height: 6 + i % 3 * 2,
+            backgroundColor: colors[i % colors.length],
+            borderRadius: "50%",
+            opacity: particleOpacity,
+            transform: "translate(-50%, -50%)",
+            boxShadow: `0 0 12px ${colors[i % colors.length]}`
+          }
+        },
+        `flow-${i}`
+      );
+    })
+  ] });
+};
+const Scene4 = ({ startFrame }) => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps, width, height } = (0,esm.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const noTimings = [33, 78, 126];
+  const barriers = [
+    {
+      type: "experience",
+      label: "Experience Required",
+      y: height * 0.25,
+      entranceDelay: 0,
+      shatterFrame: noTimings[0],
+      intensity: 1
+    },
+    {
+      type: "software",
+      label: "Complicated Software",
+      y: height * 0.48,
+      entranceDelay: 8,
+      shatterFrame: noTimings[1],
+      intensity: 2
+    },
+    {
+      type: "price",
+      label: "Expensive Cost",
+      y: height * 0.71,
+      entranceDelay: 16,
+      shatterFrame: noTimings[2],
+      intensity: 3
+      // Most powerful
+    }
+  ];
+  const titleProgress = (0,esm.spring)({
+    frame: localFrame - 5,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const clearPathProgress = (0,esm.interpolate)(
+    localFrame,
+    [noTimings[2] + 20, noTimings[2] + 60],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  const subtitleProgress = (0,esm.spring)({
+    frame: Math.max(0, localFrame - noTimings[2] - 40),
+    fps,
+    config: SPRING_CONFIG
+  });
+  const titleSize = height * RESPONSIVE.titleSize;
+  const centerX = width / 2;
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
+    clearPathProgress > 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      ClearPath,
+      {
+        progress: clearPathProgress,
+        width,
+        height,
+        localFrame
+      }
+    ),
+    barriers.map((barrier, i) => {
+      const shatterDuration = 45;
+      const shatterProgress = (0,esm.interpolate)(
+        localFrame,
+        [barrier.shatterFrame, barrier.shatterFrame + shatterDuration],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+      const waveDelay = 10;
+      const waveProgress = (0,esm.interpolate)(
+        localFrame,
+        [barrier.shatterFrame + waveDelay, barrier.shatterFrame + waveDelay + 35],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+      const noTextProgress = (0,esm.interpolate)(
+        localFrame,
+        [barrier.shatterFrame, barrier.shatterFrame + 40],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+      return /* @__PURE__ */ (0,jsx_runtime.jsxs)(react.Fragment, { children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          Barrier,
+          {
+            type: barrier.type,
+            label: barrier.label,
+            x: centerX,
+            y: barrier.y,
+            entranceDelay: barrier.entranceDelay,
+            shatterProgress,
+            localFrame,
+            fps,
+            intensity: barrier.intensity,
+            width,
+            height
+          }
+        ),
+        waveProgress > 0 && waveProgress < 1 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          EnergyWave,
+          {
+            progress: waveProgress,
+            y: barrier.y,
+            width,
+            height,
+            intensity: barrier.intensity
+          }
+        ),
+        noTextProgress > 0 && noTextProgress < 1 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          NoText,
+          {
+            progress: noTextProgress,
+            x: centerX,
+            y: barrier.y,
+            intensity: barrier.intensity,
+            fps,
+            localFrame
+          }
+        )
+      ] }, `barrier-${i}`);
+    }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.04,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(titleProgress, [0, 1], [20, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: titleProgress,
+          textAlign: "center",
+          width: width * 0.9,
+          zIndex: 10
+        },
+        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: titleSize * 0.7,
+              fontWeight: 700,
+              color: COLORS.grayLight,
+              lineHeight: 1.3
+            },
+            children: "Traditional editing means..."
+          }
+        )
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.86,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(subtitleProgress, [0, 1], [30, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: subtitleProgress,
+          textAlign: "center",
+          width: width * 0.85,
+          zIndex: 10
+        },
+        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              fontSize: titleSize * 0.9,
+              fontWeight: 800,
+              background: `linear-gradient(135deg, ${COLORS.electricBlue} 0%, ${COLORS.electricGreen} 50%, ${COLORS.neonCyan} 100%)`,
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text"
+            },
+            children: "The path is clear."
+          }
+        )
+      }
+    ),
+    barriers.map((barrier, i) => {
+      const impactFrame = barrier.shatterFrame;
+      const shakeProgress = (0,esm.interpolate)(
+        localFrame,
+        [impactFrame, impactFrame + 8],
+        [1, 0],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+      if (shakeProgress <= 0) return null;
+      return null;
+    })
+  ] });
+};
+
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene5.tsx
+
+
+
+
+const EnergyStream = ({ startX, startY, endX, endY, progress, color, width }) => {
+  const currentX = startX + (endX - startX) * progress;
+  const currentY = startY + (endY - startY) * progress;
+  const trailProgress = Math.max(0, progress - 0.2);
+  const trailX = startX + (endX - startX) * trailProgress;
+  const trailY = startY + (endY - startY) * trailProgress;
+  const opacity = (0,esm.interpolate)(progress, [0, 0.1, 0.8, 1], [0, 1, 1, 0], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(jsx_runtime.Fragment, { children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          left: trailX,
+          top: trailY,
+          width: Math.sqrt(Math.pow(currentX - trailX, 2) + Math.pow(currentY - trailY, 2)),
+          height: width,
+          backgroundColor: color,
+          opacity: opacity * 0.5,
+          transform: `translate(0, -50%) rotate(${Math.atan2(currentY - trailY, currentX - trailX) * (180 / Math.PI)}deg)`,
+          transformOrigin: "left center",
+          borderRadius: width / 2,
+          filter: `blur(${width / 2}px)`
+        }
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          left: currentX,
+          top: currentY,
+          width: width * 2,
+          height: width * 2,
+          backgroundColor: color,
+          borderRadius: "50%",
+          opacity,
+          transform: "translate(-50%, -50%)",
+          boxShadow: `0 0 ${width * 3}px ${color}`
+        }
+      }
+    )
+  ] });
+};
+const CTAButton = ({ x, y, width: btnWidth, height: btnHeight, progress, localFrame, fps }) => {
+  const pulsePhase = localFrame % 30 / 30;
+  const pulse = (0,esm.interpolate)(pulsePhase, [0, 0.5, 1], [1, 1.05, 1], { extrapolateRight: "clamp" });
+  const scale = progress * pulse;
+  const glowIntensity = (0,esm.interpolate)(pulsePhase, [0, 0.5, 1], [0.5, 1, 0.5], { extrapolateRight: "clamp" });
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+    "div",
+    {
+      style: {
+        position: "absolute",
+        left: x,
+        top: y,
+        transform: `translate(-50%, -50%) scale(${scale})`,
+        opacity: progress
+      },
+      children: [
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              width: btnWidth * 1.3,
+              height: btnHeight * 1.5,
+              background: `radial-gradient(ellipse, ${COLORS.electricGreen}${Math.round(glowIntensity * 60).toString(16).padStart(2, "0")} 0%, transparent 70%)`,
+              borderRadius: btnHeight,
+              filter: "blur(20px)"
+            }
+          }
+        ),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              width: btnWidth,
+              height: btnHeight,
+              background: `linear-gradient(135deg, ${COLORS.electricGreen} 0%, ${COLORS.electricBlue} 100%)`,
+              borderRadius: btnHeight / 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: `
+            0 8px 30px ${COLORS.electricGreen}60,
+            0 0 60px ${COLORS.electricBlue}40,
+            inset 0 2px 0 rgba(255,255,255,0.2)
+          `,
+              border: `3px solid ${COLORS.sparkWhite}30`
+            },
+            children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+              "span",
+              {
+                style: {
+                  fontSize: 42,
+                  fontWeight: 900,
+                  color: COLORS.sparkWhite,
+                  textShadow: "0 2px 10px rgba(0,0,0,0.3)",
+                  letterSpacing: "-0.02em"
+                },
+                children: "Start Free Today"
+              }
+            )
+          }
+        ),
+        /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: btnWidth,
+              height: btnHeight,
+              borderRadius: btnHeight / 2,
+              background: `linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.2) 50%, transparent 60%)`,
+              backgroundSize: "200% 100%",
+              backgroundPosition: `${-100 + pulsePhase * 300}% 0`,
+              pointerEvents: "none"
+            }
+          }
+        )
+      ]
+    }
+  );
+};
+const Scene5 = ({ startFrame }) => {
+  const frame = (0,esm.useCurrentFrame)();
+  const { fps, width, height } = (0,esm.useVideoConfig)();
+  const localFrame = frame - startFrame;
+  const keySyncLocal = TIMING.scene5KeySync - TIMING.scene5Start;
+  const sceneDuration = TIMING.scene5End - TIMING.scene5Start;
+  const urgencyProgress = (0,esm.spring)({
+    frame: localFrame - 10,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const ctaProgress = (0,esm.spring)({
+    frame: Math.max(0, localFrame - keySyncLocal + 50),
+    fps,
+    config: { ...SPRING_CONFIG, stiffness: 80 }
+  });
+  const brandProgress = (0,esm.spring)({
+    frame: localFrame - keySyncLocal - 20,
+    fps,
+    config: SPRING_CONFIG
+  });
+  const titleSize = height * RESPONSIVE.titleSize;
+  const centerX = width / 2;
+  const ctaY = height * 0.55;
+  const energyStreams = [
+    { startX: 0, startY: height * 0.2, color: COLORS.electricBlue, delay: 0, width: 4 },
+    { startX: width, startY: height * 0.3, color: COLORS.electricGreen, delay: 8, width: 5 },
+    { startX: 0, startY: height * 0.5, color: COLORS.cyanBright, delay: 16, width: 3 },
+    { startX: width, startY: height * 0.6, color: COLORS.magentaVibrant, delay: 24, width: 4 },
+    { startX: 0, startY: height * 0.8, color: COLORS.electricGreen, delay: 32, width: 5 },
+    { startX: width, startY: height * 0.9, color: COLORS.electricBlue, delay: 40, width: 3 },
+    { startX: width * 0.2, startY: 0, color: COLORS.neonCyan, delay: 12, width: 4 },
+    { startX: width * 0.8, startY: height, color: COLORS.pinkHot, delay: 28, width: 4 }
+  ];
+  const finalBurstProgress = (0,esm.interpolate)(
+    localFrame,
+    [sceneDuration - 30, sceneDuration],
+    [0, 1],
+    { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+  );
+  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
+    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.12,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(urgencyProgress, [0, 1], [30, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: urgencyProgress,
+          textAlign: "center",
+          width: width * 0.9
+        },
+        children: [
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize * 0.65,
+                fontWeight: 600,
+                color: COLORS.sparkWhite,
+                lineHeight: 1.3
+              },
+              children: "Ready to create"
+            }
+          ),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: titleSize,
+                fontWeight: 900,
+                background: `linear-gradient(135deg, ${COLORS.electricBlue} 0%, ${COLORS.electricGreen} 50%, ${COLORS.neonCyan} 100%)`,
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                lineHeight: 1.2,
+                marginTop: 8
+              },
+              children: "stunning content?"
+            }
+          )
+        ]
+      }
+    ),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      "div",
+      {
+        style: {
+          position: "absolute",
+          top: height * 0.35,
+          left: "50%",
+          transform: `translateX(-50%) scale(${urgencyProgress})`,
+          opacity: urgencyProgress
+        },
+        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
+          "div",
+          {
+            style: {
+              backgroundColor: COLORS.electricGreen,
+              color: COLORS.backgroundDark,
+              fontSize: 28,
+              fontWeight: 800,
+              padding: "12px 30px",
+              borderRadius: 50,
+              boxShadow: `0 4px 20px ${COLORS.electricGreen}60`
+            },
+            children: "100% FREE"
+          }
+        )
+      }
+    ),
+    energyStreams.map((stream, i) => {
+      const streamProgress = (0,esm.interpolate)(
+        localFrame - stream.delay,
+        [0, 60],
+        [0, 1],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" }
+      );
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        EnergyStream,
+        {
+          startX: stream.startX,
+          startY: stream.startY,
+          endX: centerX,
+          endY: ctaY,
+          progress: streamProgress,
+          color: stream.color,
+          width: stream.width
+        },
+        `stream-${i}`
+      );
+    }),
+    /* @__PURE__ */ (0,jsx_runtime.jsx)(
+      CTAButton,
+      {
+        x: centerX,
+        y: ctaY,
+        width: width * 0.75,
+        height: 100,
+        progress: ctaProgress,
+        localFrame,
+        fps
       }
     ),
     /* @__PURE__ */ (0,jsx_runtime.jsx)(
@@ -371,429 +2300,20 @@ const Scene1 = ({ startFrame }) => {
         style: {
           position: "absolute",
           top: height * 0.68,
-          left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",
-          opacity: text2In,
-          transform: `translateY(${(0,esm.interpolate)(text2In, [0, 1], [30, 0])}px)`
-        },
-        children: /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-          "span",
-          {
-            style: {
-              fontSize: height * 0.038,
-              fontWeight: 600,
-              color: COLORS.mutedBlue,
-              textAlign: "center",
-              fontFamily: "Inter, system-ui, sans-serif",
-              padding: "0 60px",
-              lineHeight: 1.3
-            },
-            children: [
-              /* @__PURE__ */ (0,jsx_runtime.jsx)(
-                "span",
-                {
-                  style: {
-                    color: (0,esm.interpolate)(butEmphasis, [0, 1], [0, 1]) > 0.5 ? COLORS.warmOrange : COLORS.mutedBlue,
-                    fontWeight: 700,
-                    transform: `scale(${1 + butEmphasis * 0.1})`,
-                    display: "inline-block"
-                  },
-                  children: "but"
-                }
-              ),
-              " ",
-              "editing stops",
-              /* @__PURE__ */ (0,jsx_runtime.jsx)("br", {}),
-              "most people"
-            ]
-          }
-        )
-      }
-    )
-  ] });
-};
-
-;// ./src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene2.tsx
-
-
-
-
-const Scene2 = ({ startFrame }) => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { fps, width, height } = (0,esm.useVideoConfig)();
-  const localFrame = frame - startFrame;
-  const sceneDuration = TIMING.scene2End - TIMING.scene2Start;
-  const keySyncLocal = TIMING.scene2KeySync - TIMING.scene2Start;
-  const explodeProgress = (0,esm.spring)({
-    frame: localFrame,
-    fps,
-    config: SPRING_SNAPPY
-  });
-  const sparkGrowth = (0,esm.spring)({
-    frame: localFrame,
-    fps,
-    config: { damping: 24, stiffness: 80, mass: 1 }
-  });
-  const brandReveal = (0,esm.spring)({
-    frame: localFrame - keySyncLocal,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const exitProgress = (0,esm.interpolate)(
-    localFrame,
-    [sceneDuration - 20, sceneDuration],
-    [0, 1],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const cageFragments = [
-    { angle: 30, speed: 1.2 },
-    { angle: 90, speed: 1 },
-    { angle: 150, speed: 1.3 },
-    { angle: 210, speed: 1.1 },
-    { angle: 270, speed: 1 },
-    { angle: 330, speed: 1.2 }
-  ];
-  const particles = Array.from({ length: 12 }, (_, i) => ({
-    angle: i * 30,
-    delay: i * 2,
-    size: 8 + i % 3 * 4
-  }));
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.12,
-          left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",
-          opacity: (0,esm.interpolate)(localFrame, [0, 15], [0, 1], {
-            extrapolateRight: "clamp",
-            extrapolateLeft: "clamp"
-          }),
-          transform: `translateY(${(0,esm.interpolate)(localFrame, [0, 15], [20, 0], { extrapolateRight: "clamp", extrapolateLeft: "clamp" })}px)`
+          left: "50%",
+          transform: `translateX(-50%)`,
+          opacity: ctaProgress,
+          textAlign: "center"
         },
         children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: height * 0.035,
-              fontWeight: 600,
-              color: COLORS.warmYellow,
-              textAlign: "center",
-              fontFamily: "Inter, system-ui, sans-serif",
-              textShadow: `0 0 30px ${COLORS.warmOrange}80`
-            },
-            children: "That's why we built"
-          }
-        )
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.35,
-          left: width * 0.5,
-          transform: "translate(-50%, -50%)"
-        },
-        children: [
-          cageFragments.map((frag, index) => {
-            const distance = explodeProgress * 300 * frag.speed;
-            const fragX = distance * Math.cos(frag.angle * Math.PI / 180);
-            const fragY = distance * Math.sin(frag.angle * Math.PI / 180);
-            const fragOpacity = (0,esm.interpolate)(
-              explodeProgress,
-              [0, 0.3, 1],
-              [1, 0.8, 0],
-              { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-            );
-            return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  left: fragX,
-                  top: fragY,
-                  width: 6,
-                  height: 40,
-                  background: COLORS.frustrationGray,
-                  borderRadius: 3,
-                  transform: `translate(-50%, -50%) rotate(${frag.angle + explodeProgress * 180}deg)`,
-                  opacity: fragOpacity
-                }
-              },
-              index
-            );
-          }),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                left: 0,
-                top: 0,
-                width: (0,esm.interpolate)(sparkGrowth, [0, 1], [40, 120], {
-                  extrapolateRight: "clamp"
-                }),
-                height: (0,esm.interpolate)(sparkGrowth, [0, 1], [40, 120], {
-                  extrapolateRight: "clamp"
-                }),
-                borderRadius: "50%",
-                background: `radial-gradient(circle, ${COLORS.warmYellow} 0%, ${COLORS.warmOrange} 60%, transparent 100%)`,
-                boxShadow: `
-              0 0 40px ${COLORS.warmYellow},
-              0 0 80px ${COLORS.warmOrange}80,
-              0 0 120px ${COLORS.hopeGold}40
-            `,
-                transform: "translate(-50%, -50%)",
-                opacity: (0,esm.interpolate)(brandReveal, [0, 0.5], [1, 0], {
-                  extrapolateRight: "clamp",
-                  extrapolateLeft: "clamp"
-                })
-              }
-            }
-          ),
-          particles.map((particle, index) => {
-            const burstDelay = particle.delay;
-            const burstSpring = (0,esm.spring)({
-              frame: localFrame - keySyncLocal - burstDelay,
-              fps,
-              config: { damping: 25, stiffness: 70, mass: 0.8 }
-            });
-            const distance = burstSpring * 250;
-            const particleX = distance * Math.cos(particle.angle * Math.PI / 180);
-            const particleY = distance * Math.sin(particle.angle * Math.PI / 180);
-            return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  left: particleX,
-                  top: particleY,
-                  width: particle.size,
-                  height: particle.size,
-                  borderRadius: "50%",
-                  background: index % 2 === 0 ? COLORS.warmYellow : COLORS.warmOrange,
-                  boxShadow: `0 0 ${particle.size * 2}px ${index % 2 === 0 ? COLORS.warmYellow : COLORS.warmOrange}`,
-                  transform: "translate(-50%, -50%)",
-                  opacity: (0,esm.interpolate)(
-                    burstSpring,
-                    [0, 0.3, 1],
-                    [0, 1, 0.3],
-                    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-                  )
-                }
-              },
-              index
-            );
-          })
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.35,
-          left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",
-          opacity: brandReveal,
-          transform: `scale(${(0,esm.interpolate)(brandReveal, [0, 1], [0.5, 1], { extrapolateRight: "clamp" })})`
-        },
-        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: height * 0.08,
-              fontWeight: 800,
-              color: COLORS.white,
-              textAlign: "center",
-              fontFamily: "Inter, system-ui, sans-serif",
-              letterSpacing: "-0.02em",
-              textShadow: `
-              0 0 40px ${COLORS.warmOrange},
-              0 0 80px ${COLORS.warmYellow}80
-            `
-            },
-            children: "Clipify"
-          }
-        )
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.5,
-          left: width * 0.5,
-          transform: "translate(-50%, 0)",
-          opacity: exitProgress
-        },
-        children: [0, 1, 2].map((i) => /* @__PURE__ */ (0,jsx_runtime.jsx)(
           "div",
           {
             style: {
-              position: "absolute",
-              left: (i - 1) * 30,
-              top: exitProgress * 200,
-              width: 4,
-              height: 60,
-              background: `linear-gradient(180deg, ${COLORS.warmOrange}, transparent)`,
-              borderRadius: 2,
-              opacity: 0.6 - i * 0.15
-            }
-          },
-          i
-        ))
-      }
-    )
-  ] });
-};
-
-;// ./src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene3.tsx
-
-
-
-
-const Scene3 = ({ startFrame }) => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { fps, width, height } = (0,esm.useVideoConfig)();
-  const localFrame = frame - startFrame;
-  const keySyncLocal = TIMING.scene3KeySync - TIMING.scene3Start;
-  const uploadIn = (0,esm.spring)({
-    frame: localFrame,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const uploadPulse = (0,esm.interpolate)(
-    localFrame,
-    [keySyncLocal - 30, keySyncLocal],
-    [1, 1.1],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const explosionProgress = (0,esm.spring)({
-    frame: localFrame - keySyncLocal,
-    fps,
-    config: { damping: 20, stiffness: 80, mass: 0.9 }
-  });
-  const uploadDissolve = (0,esm.interpolate)(
-    localFrame,
-    [keySyncLocal, keySyncLocal + 15],
-    [1, 0],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const motionElements = [
-    { type: "circle", x: -180, y: -100, size: 60, color: COLORS.vibrantMagenta, delay: 0 },
-    { type: "triangle", x: 150, y: -80, size: 50, color: COLORS.vibrantCyan, delay: 8 },
-    { type: "rect", x: -120, y: 80, size: 45, color: COLORS.creativePink, delay: 16 },
-    { type: "circle", x: 180, y: 100, size: 40, color: COLORS.warmYellow, delay: 24 },
-    { type: "triangle", x: -60, y: -150, size: 55, color: COLORS.vibrantCyan, delay: 32 },
-    { type: "rect", x: 80, y: 140, size: 50, color: COLORS.vibrantMagenta, delay: 40 },
-    { type: "circle", x: 0, y: -180, size: 35, color: COLORS.warmOrange, delay: 48 },
-    { type: "triangle", x: -150, y: 150, size: 45, color: COLORS.creativePink, delay: 56 }
-  ];
-  const particles = Array.from({ length: 20 }, (_, i) => ({
-    x: i * 137 % 400 - 200,
-    y: i * 89 % 350 - 175,
-    size: 4 + i % 4 * 2,
-    delay: i * 4,
-    color: i % 3 === 0 ? COLORS.vibrantMagenta : i % 3 === 1 ? COLORS.vibrantCyan : COLORS.warmYellow
-  }));
-  const textIn = (0,esm.spring)({
-    frame: localFrame - keySyncLocal - 40,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const renderShape = (type, size, color, progress) => {
-    const scale = (0,esm.interpolate)(progress, [0, 1], [0, 1], {
-      extrapolateRight: "clamp"
-    });
-    const rotation = (0,esm.interpolate)(progress, [0, 1], [0, 15], {
-      extrapolateRight: "clamp"
-    });
-    if (type === "circle") {
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-        "div",
-        {
-          style: {
-            width: size,
-            height: size,
-            borderRadius: "50%",
-            background: color,
-            boxShadow: `0 0 ${size}px ${color}80`,
-            transform: `scale(${scale})`
-          }
-        }
-      );
-    }
-    if (type === "triangle") {
-      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-        "div",
-        {
-          style: {
-            width: 0,
-            height: 0,
-            borderLeft: `${size / 2}px solid transparent`,
-            borderRight: `${size / 2}px solid transparent`,
-            borderBottom: `${size}px solid ${color}`,
-            filter: `drop-shadow(0 0 ${size / 2}px ${color}80)`,
-            transform: `scale(${scale}) rotate(${rotation}deg)`
-          }
-        }
-      );
-    }
-    return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          width: size,
-          height: size * 0.6,
-          borderRadius: 8,
-          background: color,
-          boxShadow: `0 0 ${size}px ${color}80`,
-          transform: `scale(${scale}) rotate(${rotation}deg)`
-        }
-      }
-    );
-  };
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.08,
-          left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",
-          opacity: (0,esm.interpolate)(localFrame, [0, 20], [0, 1], {
-            extrapolateRight: "clamp",
-            extrapolateLeft: "clamp"
-          })
-        },
-        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: height * 0.038,
-              fontWeight: 600,
-              color: COLORS.white,
-              textAlign: "center",
-              fontFamily: "Inter, system-ui, sans-serif",
-              padding: "0 60px"
+              fontSize: 26,
+              fontWeight: 500,
+              color: COLORS.grayLight
             },
-            children: "Just upload your video"
+            children: "No credit card required"
           }
         )
       }
@@ -803,804 +2323,94 @@ const Scene3 = ({ startFrame }) => {
       {
         style: {
           position: "absolute",
-          top: height * 0.42,
-          left: width * 0.5,
-          transform: "translate(-50%, -50%)"
+          top: height * 0.85,
+          left: "50%",
+          transform: `translateX(-50%) translateY(${(0,esm.interpolate)(brandProgress, [0, 1], [20, 0], { extrapolateRight: "clamp" })}px)`,
+          opacity: brandProgress,
+          textAlign: "center"
         },
         children: [
           /* @__PURE__ */ (0,jsx_runtime.jsx)(
             "div",
             {
               style: {
-                position: "absolute",
-                left: -120,
-                top: -80,
-                width: 240,
-                height: 160,
-                border: `3px dashed ${COLORS.mutedBlue}`,
-                borderRadius: 16,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                opacity: uploadDissolve * uploadIn,
-                transform: `scale(${uploadPulse * uploadIn})`
-              },
-              children: /* @__PURE__ */ (0,jsx_runtime.jsxs)("svg", { width: "60", height: "60", viewBox: "0 0 24 24", fill: "none", children: [
-                /* @__PURE__ */ (0,jsx_runtime.jsx)(
-                  "path",
-                  {
-                    d: "M12 4L12 16M12 4L8 8M12 4L16 8",
-                    stroke: COLORS.mutedBlue,
-                    strokeWidth: "2",
-                    strokeLinecap: "round",
-                    strokeLinejoin: "round"
-                  }
-                ),
-                /* @__PURE__ */ (0,jsx_runtime.jsx)(
-                  "path",
-                  {
-                    d: "M4 17V19C4 20.1046 4.89543 21 6 21H18C19.1046 21 20 20.1046 20 19V17",
-                    stroke: COLORS.mutedBlue,
-                    strokeWidth: "2",
-                    strokeLinecap: "round",
-                    strokeLinejoin: "round"
-                  }
-                )
-              ] })
-            }
-          ),
-          motionElements.map((elem, index) => {
-            const elemProgress = (0,esm.spring)({
-              frame: localFrame - keySyncLocal - elem.delay,
-              fps,
-              config: SPRING_CONFIG
-            });
-            const floatOffset = (0,esm.interpolate)(
-              localFrame - keySyncLocal - elem.delay,
-              [30, 60, 90, 120],
-              [0, 8, 0, -8],
-              { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-            );
-            return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  left: elem.x * explosionProgress,
-                  top: elem.y * explosionProgress + floatOffset,
-                  transform: "translate(-50%, -50%)",
-                  opacity: elemProgress
-                },
-                children: renderShape(elem.type, elem.size, elem.color, elemProgress)
-              },
-              index
-            );
-          }),
-          particles.map((particle, index) => {
-            const particleProgress = (0,esm.spring)({
-              frame: localFrame - keySyncLocal - particle.delay,
-              fps,
-              config: { damping: 28, stiffness: 60, mass: 0.6 }
-            });
-            return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  left: particle.x * particleProgress,
-                  top: particle.y * particleProgress,
-                  width: particle.size,
-                  height: particle.size,
-                  borderRadius: "50%",
-                  background: particle.color,
-                  boxShadow: `0 0 ${particle.size * 2}px ${particle.color}`,
-                  transform: "translate(-50%, -50%)",
-                  opacity: (0,esm.interpolate)(
-                    particleProgress,
-                    [0, 0.3, 1],
-                    [0, 1, 0.7],
-                    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-                  )
-                }
-              },
-              `p-${index}`
-            );
-          })
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.78,
-          left: 0,
-          right: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 8,
-          opacity: textIn,
-          transform: `translateY(${(0,esm.interpolate)(textIn, [0, 1], [30, 0], { extrapolateRight: "clamp" })}px)`
-        },
-        children: [
-          /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-            "span",
-            {
-              style: {
-                fontSize: height * 0.035,
-                fontWeight: 600,
-                color: COLORS.white,
-                textAlign: "center",
-                fontFamily: "Inter, system-ui, sans-serif"
-              },
-              children: [
-                "and we'll",
-                " ",
-                /* @__PURE__ */ (0,jsx_runtime.jsx)("span", { style: { color: COLORS.vibrantMagenta }, children: "add" })
-              ]
-            }
-          ),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "span",
-            {
-              style: {
-                fontSize: height * 0.042,
-                fontWeight: 700,
-                background: `linear-gradient(90deg, ${COLORS.vibrantMagenta}, ${COLORS.vibrantCyan})`,
+                fontSize: titleSize * 0.8,
+                fontWeight: 900,
+                background: `linear-gradient(135deg, ${COLORS.orangeWarm} 0%, ${COLORS.yellowBright} 100%)`,
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
-                textAlign: "center",
-                fontFamily: "Inter, system-ui, sans-serif"
+                backgroundClip: "text"
               },
-              children: "beautiful motion graphics"
+              children: "Clipify"
+            }
+          ),
+          /* @__PURE__ */ (0,jsx_runtime.jsx)(
+            "div",
+            {
+              style: {
+                fontSize: 20,
+                fontWeight: 500,
+                color: COLORS.grayLight,
+                marginTop: 5
+              },
+              children: "Create. Captivate. Convert."
             }
           )
         ]
       }
-    )
+    ),
+    finalBurstProgress > 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(jsx_runtime.Fragment, { children: Array.from({ length: 20 }).map((_, i) => {
+      const angle = i * 18;
+      const distance = 50 + finalBurstProgress * 300;
+      const x = centerX + distance * Math.cos(angle * Math.PI / 180);
+      const y = ctaY + distance * 0.6 * Math.sin(angle * Math.PI / 180);
+      const colors = [COLORS.electricGreen, COLORS.electricBlue, COLORS.neonCyan, COLORS.sparkWhite];
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: x,
+            top: y,
+            width: 8,
+            height: 8,
+            backgroundColor: colors[i % colors.length],
+            borderRadius: "50%",
+            opacity: (0,esm.interpolate)(finalBurstProgress, [0, 0.3, 1], [0, 1, 0], { extrapolateRight: "clamp" }),
+            transform: "translate(-50%, -50%)",
+            boxShadow: `0 0 15px ${colors[i % colors.length]}`
+          }
+        },
+        `burst-${i}`
+      );
+    }) }),
+    Array.from({ length: 6 }).map((_, i) => {
+      const floatPhase = (localFrame + i * 30) % 90 / 90;
+      const baseY = height * (0.3 + i % 3 * 0.2);
+      const floatY = baseY + (0,esm.interpolate)(floatPhase, [0, 0.5, 1], [0, -15, 0], { extrapolateRight: "clamp" });
+      const baseX = width * (0.15 + i % 4 * 0.2);
+      return /* @__PURE__ */ (0,jsx_runtime.jsx)(
+        "div",
+        {
+          style: {
+            position: "absolute",
+            left: baseX,
+            top: floatY,
+            width: 6,
+            height: 6,
+            backgroundColor: i % 2 === 0 ? COLORS.electricBlue : COLORS.electricGreen,
+            borderRadius: "50%",
+            opacity: 0.4,
+            boxShadow: `0 0 10px ${i % 2 === 0 ? COLORS.electricBlue : COLORS.electricGreen}`
+          }
+        },
+        `ambient-${i}`
+      );
+    })
   ] });
 };
 
-;// ./src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene4.tsx
-
-
-
-
-const Scene4 = ({ startFrame }) => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { fps, width, height } = (0,esm.useVideoConfig)();
-  const localFrame = frame - startFrame;
-  const keySyncLocal = TIMING.scene4KeySync - TIMING.scene4Start;
-  const barriers = [
-    {
-      label: "Complex Software",
-      icon: "timeline",
-      y: 0.22,
-      dissolveDelay: 0
-    },
-    {
-      label: "Expensive Tools",
-      icon: "price",
-      y: 0.42,
-      dissolveDelay: 15
-    },
-    {
-      label: "Skills Required",
-      icon: "skills",
-      y: 0.62,
-      dissolveDelay: 30
-    }
-  ];
-  const barrierIn = (0,esm.spring)({
-    frame: localFrame,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const noEmphasis = (0,esm.spring)({
-    frame: localFrame - keySyncLocal,
-    fps,
-    config: { damping: 18, stiffness: 100, mass: 0.8 }
-  });
-  const clearPath = (0,esm.spring)({
-    frame: localFrame - keySyncLocal - 60,
-    fps,
-    config: { damping: 25, stiffness: 70, mass: 1 }
-  });
-  const renderBarrier = (barrier, index) => {
-    const dissolveProgress = (0,esm.interpolate)(
-      localFrame - keySyncLocal - barrier.dissolveDelay,
-      [0, 40],
-      [0, 1],
-      { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-    );
-    const barrierOpacity = (0,esm.interpolate)(
-      dissolveProgress,
-      [0, 0.5, 1],
-      [1, 0.5, 0],
-      { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-    );
-    const barrierScale = (0,esm.interpolate)(
-      dissolveProgress,
-      [0, 0.3, 1],
-      [1, 1.05, 0.8],
-      { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-    );
-    const sparkles = Array.from({ length: 8 }, (_, i) => ({
-      x: i * 45 % 200 - 100,
-      y: i * 30 % 60 - 30,
-      delay: i * 3
-    }));
-    const renderIcon = () => {
-      if (barrier.icon === "timeline") {
-        return /* @__PURE__ */ (0,jsx_runtime.jsxs)("svg", { width: "28", height: "28", viewBox: "0 0 24 24", fill: "none", children: [
-          /* @__PURE__ */ (0,jsx_runtime.jsx)("rect", { x: "2", y: "4", width: "20", height: "4", rx: "1", fill: COLORS.frustrationGray }),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)("rect", { x: "2", y: "10", width: "14", height: "4", rx: "1", fill: COLORS.frustrationGray }),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)("rect", { x: "2", y: "16", width: "18", height: "4", rx: "1", fill: COLORS.frustrationGray })
-        ] });
-      }
-      if (barrier.icon === "price") {
-        return /* @__PURE__ */ (0,jsx_runtime.jsx)("svg", { width: "28", height: "28", viewBox: "0 0 24 24", fill: "none", children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "text",
-          {
-            x: "12",
-            y: "17",
-            textAnchor: "middle",
-            fontSize: "16",
-            fontWeight: "bold",
-            fill: COLORS.frustrationGray,
-            children: "$$$"
-          }
-        ) });
-      }
-      return /* @__PURE__ */ (0,jsx_runtime.jsxs)("svg", { width: "28", height: "28", viewBox: "0 0 24 24", fill: "none", children: [
-        /* @__PURE__ */ (0,jsx_runtime.jsx)("circle", { cx: "12", cy: "8", r: "4", fill: COLORS.frustrationGray }),
-        /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "path",
-          {
-            d: "M4 20c0-4 4-6 8-6s8 2 8 6",
-            fill: COLORS.frustrationGray
-          }
-        )
-      ] });
-    };
-    return /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * barrier.y,
-          left: width * 0.5,
-          transform: `translate(-50%, -50%) scale(${barrierIn * barrierScale})`,
-          opacity: barrierOpacity * barrierIn
-        },
-        children: [
-          /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-            "div",
-            {
-              style: {
-                display: "flex",
-                alignItems: "center",
-                gap: 16,
-                padding: "16px 32px",
-                background: `${COLORS.frustrationBlue}40`,
-                border: `2px solid ${COLORS.frustrationGray}`,
-                borderRadius: 12,
-                backdropFilter: "blur(8px)"
-              },
-              children: [
-                renderIcon(),
-                /* @__PURE__ */ (0,jsx_runtime.jsx)(
-                  "span",
-                  {
-                    style: {
-                      fontSize: height * 0.028,
-                      fontWeight: 600,
-                      color: COLORS.frustrationGray,
-                      fontFamily: "Inter, system-ui, sans-serif"
-                    },
-                    children: barrier.label
-                  }
-                )
-              ]
-            }
-          ),
-          dissolveProgress > 0 && sparkles.map((sparkle, sIdx) => {
-            const sparkleProgress = (0,esm.interpolate)(
-              localFrame - keySyncLocal - barrier.dissolveDelay - sparkle.delay,
-              [0, 30],
-              [0, 1],
-              { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-            );
-            return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  left: sparkle.x * sparkleProgress * 2,
-                  top: sparkle.y * sparkleProgress * 3 - 20,
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: sIdx % 2 === 0 ? COLORS.electricGreen : COLORS.electricBlue,
-                  boxShadow: `0 0 12px ${sIdx % 2 === 0 ? COLORS.electricGreen : COLORS.electricBlue}`,
-                  opacity: (0,esm.interpolate)(
-                    sparkleProgress,
-                    [0, 0.3, 1],
-                    [0, 1, 0],
-                    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-                  )
-                }
-              },
-              sIdx
-            );
-          })
-        ]
-      },
-      index
-    );
-  };
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.08,
-          left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",
-          opacity: noEmphasis,
-          transform: `scale(${(0,esm.interpolate)(noEmphasis, [0, 1], [0.8, 1], { extrapolateRight: "clamp" })})`
-        },
-        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: height * 0.06,
-              fontWeight: 800,
-              color: COLORS.electricGreen,
-              textAlign: "center",
-              fontFamily: "Inter, system-ui, sans-serif",
-              textShadow: `0 0 30px ${COLORS.electricGreen}80`
-            },
-            children: "No"
-          }
-        )
-      }
-    ),
-    barriers.map((barrier, index) => renderBarrier(barrier, index)),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.42,
-          left: width * 0.5,
-          transform: "translate(-50%, -50%)",
-          opacity: clearPath
-        },
-        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "div",
-          {
-            style: {
-              width: width * 0.8 * clearPath,
-              height: 4,
-              background: `linear-gradient(90deg, transparent, ${COLORS.electricGreen}, transparent)`,
-              borderRadius: 2
-            }
-          }
-        )
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.82,
-          left: 0,
-          right: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 4,
-          opacity: clearPath,
-          transform: `translateY(${(0,esm.interpolate)(clearPath, [0, 1], [20, 0], { extrapolateRight: "clamp" })}px)`
-        },
-        children: [
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "span",
-            {
-              style: {
-                fontSize: height * 0.032,
-                fontWeight: 500,
-                color: COLORS.white,
-                textAlign: "center",
-                fontFamily: "Inter, system-ui, sans-serif"
-              },
-              children: "editing skills required"
-            }
-          ),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "span",
-            {
-              style: {
-                fontSize: height * 0.032,
-                fontWeight: 500,
-                color: COLORS.white,
-                textAlign: "center",
-                fontFamily: "Inter, system-ui, sans-serif"
-              },
-              children: "expensive software needed"
-            }
-          ),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "span",
-            {
-              style: {
-                fontSize: height * 0.032,
-                fontWeight: 500,
-                color: COLORS.white,
-                textAlign: "center",
-                fontFamily: "Inter, system-ui, sans-serif"
-              },
-              children: "ongoing subscription costs"
-            }
-          )
-        ]
-      }
-    )
-  ] });
-};
-
-;// ./src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/scenes/Scene5.tsx
-
-
-
-
-const Scene5 = ({ startFrame }) => {
-  const frame = (0,esm.useCurrentFrame)();
-  const { fps, width, height } = (0,esm.useVideoConfig)();
-  const localFrame = frame - startFrame;
-  const sceneDuration = TIMING.scene5End - TIMING.scene5Start;
-  const keySyncLocal = TIMING.scene5KeySync - TIMING.scene5Start;
-  const ctaReveal = (0,esm.spring)({
-    frame: localFrame - keySyncLocal + 30,
-    // Start earlier for buildup
-    fps,
-    config: { damping: 20, stiffness: 80, mass: 0.9 }
-  });
-  const pulsePhase = (localFrame - keySyncLocal) / 20;
-  const pulseMagnitude = (0,esm.interpolate)(
-    pulsePhase % 1,
-    [0, 0.5, 1],
-    [1, 1.03, 1],
-    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-  );
-  const finalBurst = (0,esm.spring)({
-    frame: localFrame - sceneDuration + 30,
-    fps,
-    config: { damping: 15, stiffness: 100, mass: 0.8 }
-  });
-  const energyStreams = [
-    { angle: 0, delay: 0 },
-    { angle: 45, delay: 8 },
-    { angle: 90, delay: 4 },
-    { angle: 135, delay: 12 },
-    { angle: 180, delay: 6 },
-    { angle: 225, delay: 10 },
-    { angle: 270, delay: 2 },
-    { angle: 315, delay: 14 }
-  ];
-  const particles = Array.from({ length: 24 }, (_, i) => ({
-    angle: i * 15,
-    distance: 400 + i % 3 * 100,
-    size: 6 + i % 4 * 2,
-    delay: i % 8 * 4,
-    color: i % 3 === 0 ? COLORS.electricBlue : i % 3 === 1 ? COLORS.electricGreen : COLORS.actionTeal
-  }));
-  const urgencyIn = (0,esm.spring)({
-    frame: localFrame - 30,
-    fps,
-    config: SPRING_CONFIG
-  });
-  const brandIn = (0,esm.spring)({
-    frame: localFrame - keySyncLocal - 20,
-    fps,
-    config: SPRING_CONFIG
-  });
-  return /* @__PURE__ */ (0,jsx_runtime.jsxs)(esm.AbsoluteFill, { children: [
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.15,
-          left: 0,
-          right: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 8,
-          opacity: urgencyIn,
-          transform: `translateY(${(0,esm.interpolate)(urgencyIn, [0, 1], [30, 0], { extrapolateRight: "clamp" })}px)`
-        },
-        children: [
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "span",
-            {
-              style: {
-                fontSize: height * 0.035,
-                fontWeight: 600,
-                color: COLORS.white,
-                textAlign: "center",
-                fontFamily: "Inter, system-ui, sans-serif"
-              },
-              children: "Ready to create?"
-            }
-          ),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "span",
-            {
-              style: {
-                fontSize: height * 0.028,
-                fontWeight: 500,
-                color: COLORS.electricGreen,
-                textAlign: "center",
-                fontFamily: "Inter, system-ui, sans-serif"
-              },
-              children: "Start for free today"
-            }
-          )
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.55,
-          left: width * 0.5,
-          transform: "translate(-50%, -50%)"
-        },
-        children: [
-          energyStreams.map((stream, index) => {
-            const streamProgress = (0,esm.interpolate)(
-              localFrame - stream.delay,
-              [0, keySyncLocal],
-              [0, 1],
-              { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-            );
-            const startDist = 350;
-            const endDist = 80;
-            const currentDist = (0,esm.interpolate)(
-              streamProgress,
-              [0, 1],
-              [startDist, endDist],
-              { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-            );
-            const streamX = currentDist * Math.cos(stream.angle * Math.PI / 180);
-            const streamY = currentDist * Math.sin(stream.angle * Math.PI / 180);
-            return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  left: 0,
-                  top: 0,
-                  width: 60,
-                  height: 4,
-                  background: `linear-gradient(90deg, ${COLORS.electricBlue}, ${COLORS.electricGreen})`,
-                  borderRadius: 2,
-                  transform: `translate(${streamX}px, ${streamY}px) rotate(${stream.angle + 180}deg)`,
-                  transformOrigin: "left center",
-                  opacity: streamProgress * 0.8,
-                  boxShadow: `0 0 15px ${COLORS.electricBlue}80`
-                }
-              },
-              index
-            );
-          }),
-          particles.map((particle, index) => {
-            const particleProgress = (0,esm.interpolate)(
-              localFrame - particle.delay,
-              [0, keySyncLocal + 20],
-              [0, 1],
-              { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-            );
-            const currentDist = (0,esm.interpolate)(
-              particleProgress,
-              [0, 1],
-              [particle.distance, 0],
-              { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-            );
-            const particleX = currentDist * Math.cos(particle.angle * Math.PI / 180);
-            const particleY = currentDist * Math.sin(particle.angle * Math.PI / 180);
-            return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-              "div",
-              {
-                style: {
-                  position: "absolute",
-                  left: particleX,
-                  top: particleY,
-                  width: particle.size,
-                  height: particle.size,
-                  borderRadius: "50%",
-                  background: particle.color,
-                  boxShadow: `0 0 ${particle.size * 2}px ${particle.color}`,
-                  transform: "translate(-50%, -50%)",
-                  opacity: (0,esm.interpolate)(
-                    particleProgress,
-                    [0, 0.1, 0.9, 1],
-                    [0, 1, 1, 0],
-                    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-                  )
-                }
-              },
-              index
-            );
-          })
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsxs)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.55,
-          left: width * 0.5,
-          transform: `translate(-50%, -50%) scale(${ctaReveal * pulseMagnitude})`,
-          opacity: ctaReveal
-        },
-        children: [
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "div",
-            {
-              style: {
-                padding: "24px 56px",
-                background: `linear-gradient(135deg, ${COLORS.electricBlue}, ${COLORS.electricGreen})`,
-                borderRadius: 16,
-                boxShadow: `
-              0 0 40px ${COLORS.electricBlue}80,
-              0 0 80px ${COLORS.electricGreen}40,
-              inset 0 1px 0 rgba(255,255,255,0.2)
-            `
-              },
-              children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-                "span",
-                {
-                  style: {
-                    fontSize: height * 0.042,
-                    fontWeight: 700,
-                    color: COLORS.white,
-                    fontFamily: "Inter, system-ui, sans-serif",
-                    letterSpacing: "-0.01em",
-                    textShadow: "0 2px 4px rgba(0,0,0,0.3)"
-                  },
-                  children: "Start Free Today"
-                }
-              )
-            }
-          ),
-          /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                inset: -8,
-                borderRadius: 24,
-                border: `2px solid ${COLORS.electricGreen}40`,
-                opacity: pulseMagnitude - 1 + 0.5
-              }
-            }
-          )
-        ]
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.72,
-          left: 0,
-          right: 0,
-          display: "flex",
-          justifyContent: "center",
-          opacity: ctaReveal,
-          transform: `translateY(${(0,esm.interpolate)(ctaReveal, [0, 1], [20, 0], { extrapolateRight: "clamp" })}px)`
-        },
-        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: height * 0.03,
-              fontWeight: 500,
-              color: COLORS.sparkWhite,
-              textAlign: "center",
-              fontFamily: "Inter, system-ui, sans-serif",
-              opacity: 0.8
-            },
-            children: "Sign up now and start creating"
-          }
-        )
-      }
-    ),
-    /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.88,
-          left: width * 0.5,
-          transform: `translate(-50%, -50%) scale(${brandIn})`,
-          opacity: brandIn
-        },
-        children: /* @__PURE__ */ (0,jsx_runtime.jsx)(
-          "span",
-          {
-            style: {
-              fontSize: height * 0.045,
-              fontWeight: 800,
-              color: COLORS.white,
-              fontFamily: "Inter, system-ui, sans-serif",
-              letterSpacing: "-0.02em",
-              textShadow: `0 0 20px ${COLORS.electricBlue}60`
-            },
-            children: "Clipify"
-          }
-        )
-      }
-    ),
-    finalBurst > 0 && /* @__PURE__ */ (0,jsx_runtime.jsx)(
-      "div",
-      {
-        style: {
-          position: "absolute",
-          top: height * 0.55,
-          left: width * 0.5,
-          transform: "translate(-50%, -50%)"
-        },
-        children: Array.from({ length: 16 }, (_, i) => {
-          const burstAngle = i * 22.5;
-          const burstDist = finalBurst * 200;
-          const burstX = burstDist * Math.cos(burstAngle * Math.PI / 180);
-          const burstY = burstDist * Math.sin(burstAngle * Math.PI / 180);
-          return /* @__PURE__ */ (0,jsx_runtime.jsx)(
-            "div",
-            {
-              style: {
-                position: "absolute",
-                left: burstX,
-                top: burstY,
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: i % 2 === 0 ? COLORS.electricBlue : COLORS.electricGreen,
-                boxShadow: `0 0 20px ${i % 2 === 0 ? COLORS.electricBlue : COLORS.electricGreen}`,
-                transform: "translate(-50%, -50%)",
-                opacity: (0,esm.interpolate)(
-                  finalBurst,
-                  [0, 0.5, 1],
-                  [0, 1, 0],
-                  { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-                )
-              }
-            },
-            i
-          );
-        })
-      }
-    )
-  ] });
-};
-
-;// ./src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/index.tsx
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/src/proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47/index.tsx
 
 
 
@@ -1676,7 +2486,7 @@ const RemotionRoot = () => {
 };
 /* harmony default export */ const proj_25794cd2_ac8d_45ea_928a_fb396f4e0e47 = ((/* unused pure expression or super */ null && (MainComposition)));
 
-;// ./src/index.ts
+;// ../../../../AppData/Local/Temp/remotion-rebuild-xlP_yP7w54XJBgs4hRnSS/index.tsx
 
 
 
@@ -1685,7 +2495,7 @@ const RemotionRoot = () => {
 
 /***/ }),
 
-/***/ 6507:
+/***/ 5422:
 /***/ ((__unused_webpack_module, exports) => {
 
 var __webpack_unused_export__;
@@ -1833,11 +2643,11 @@ exports.d = injectCSS;
 
 /***/ }),
 
-/***/ 3610:
+/***/ 3395:
 /***/ ((__unused_webpack_module, __unused_webpack___webpack_exports__, __webpack_require__) => {
 
 var react__WEBPACK_IMPORTED_MODULE_0___namespace_cache;
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(6540);
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(9081);
 
 
 if (typeof globalThis === 'undefined') {
@@ -1849,7 +2659,7 @@ if (typeof globalThis === 'undefined') {
 
 /***/ }),
 
-/***/ 1247:
+/***/ 2018:
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 /**
@@ -1866,9 +2676,9 @@ if (typeof globalThis === 'undefined') {
  Modernizr 3.0.0pre (Custom Build) | MIT
 */
 
-var Scheduler = __webpack_require__(9982),
-  React = __webpack_require__(6540),
-  ReactDOM = __webpack_require__(961);
+var Scheduler = __webpack_require__(1099),
+  React = __webpack_require__(9081),
+  ReactDOM = __webpack_require__(8092);
 function formatProdErrorMessage(code) {
   var url = "https://react.dev/errors/" + code;
   if (1 < arguments.length) {
@@ -17905,7 +18715,7 @@ exports.version = "19.2.3";
 
 /***/ }),
 
-/***/ 6221:
+/***/ 1466:
 /***/ ((__unused_webpack_module, exports, __webpack_require__) => {
 
 /**
@@ -17919,7 +18729,7 @@ exports.version = "19.2.3";
  */
 
 
-var React = __webpack_require__(6540);
+var React = __webpack_require__(9081);
 function formatProdErrorMessage(code) {
   var url = "https://react.dev/errors/" + code;
   if (1 < arguments.length) {
@@ -18122,7 +18932,7 @@ exports.version = "19.2.3";
 
 /***/ }),
 
-/***/ 5338:
+/***/ 8181:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 
@@ -18150,13 +18960,13 @@ if (true) {
   // DCE check should happen before ReactDOM bundle executes so that
   // DevTools can report bad minification during injection.
   checkDCE();
-  module.exports = __webpack_require__(1247);
+  module.exports = __webpack_require__(2018);
 } else {}
 
 
 /***/ }),
 
-/***/ 961:
+/***/ 8092:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 
@@ -18184,13 +18994,13 @@ if (true) {
   // DCE check should happen before ReactDOM bundle executes so that
   // DevTools can report bad minification during injection.
   checkDCE();
-  module.exports = __webpack_require__(6221);
+  module.exports = __webpack_require__(1466);
 } else {}
 
 
 /***/ }),
 
-/***/ 9698:
+/***/ 1357:
 /***/ ((__unused_webpack_module, exports) => {
 
 /**
@@ -18231,7 +19041,7 @@ exports.jsxs = jsxProd;
 
 /***/ }),
 
-/***/ 9869:
+/***/ 6686:
 /***/ ((__unused_webpack_module, exports) => {
 
 /**
@@ -18780,31 +19590,31 @@ exports.version = "19.2.3";
 
 /***/ }),
 
-/***/ 6540:
+/***/ 9081:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 
 
 if (true) {
-  module.exports = __webpack_require__(9869);
+  module.exports = __webpack_require__(6686);
 } else {}
 
 
 /***/ }),
 
-/***/ 4848:
+/***/ 8525:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 
 
 if (true) {
-  module.exports = __webpack_require__(9698);
+  module.exports = __webpack_require__(1357);
 } else {}
 
 
 /***/ }),
 
-/***/ 4477:
+/***/ 7146:
 /***/ ((__unused_webpack_module, exports) => {
 
 /**
@@ -19151,27 +19961,27 @@ exports.unstable_wrapCallback = function (callback) {
 
 /***/ }),
 
-/***/ 9982:
+/***/ 1099:
 /***/ ((module, __unused_webpack_exports, __webpack_require__) => {
 
 
 
 if (true) {
-  module.exports = __webpack_require__(4477);
+  module.exports = __webpack_require__(7146);
 } else {}
 
 
 /***/ }),
 
-/***/ 3482:
+/***/ 1100:
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 /* unused harmony export setBundleModeAndUpdate */
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(6540);
-/* harmony import */ var react_dom_client__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(5338);
-/* harmony import */ var remotion__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(3947);
-/* harmony import */ var remotion_no_react__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(9382);
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(4848);
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(9081);
+/* harmony import */ var react_dom_client__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(8181);
+/* harmony import */ var remotion__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(6033);
+/* harmony import */ var remotion_no_react__WEBPACK_IMPORTED_MODULE_3__ = __webpack_require__(252);
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__ = __webpack_require__(8525);
 
 
 // src/renderEntry.tsx
@@ -19369,7 +20179,7 @@ var renderContent = (Root) => {
     renderToDOM(/* @__PURE__ */ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)("div", {
       children: /* @__PURE__ */ (0,react_jsx_runtime__WEBPACK_IMPORTED_MODULE_4__.jsx)(DelayedSpinner, {})
     }));
-    Promise.all(/* import() */[__webpack_require__.e(858), __webpack_require__.e(845)]).then(__webpack_require__.bind(__webpack_require__, 8858)).then(({ StudioInternals }) => {
+    Promise.all(/* import() */[__webpack_require__.e(353), __webpack_require__.e(654)]).then(__webpack_require__.bind(__webpack_require__, 5353)).then(({ StudioInternals }) => {
       window.remotion_isStudio = true;
       window.remotion_isReadOnlyStudio = true;
       window.remotion_inputProps = "{}";
@@ -19513,7 +20323,7 @@ if (typeof window !== "undefined") {
 
 /***/ }),
 
-/***/ 3947:
+/***/ 6033:
 /***/ ((__webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 __webpack_require__.r(__webpack_exports__);
@@ -19563,9 +20373,9 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export */   useVideoConfig: () => (/* binding */ useVideoConfig),
 /* harmony export */   watchStaticFile: () => (/* binding */ watchStaticFile)
 /* harmony export */ });
-/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(6540);
-/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(4848);
-/* harmony import */ var react_dom__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(961);
+/* harmony import */ var react__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(9081);
+/* harmony import */ var react_jsx_runtime__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(8525);
+/* harmony import */ var react_dom__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(8092);
 var __defProp = Object.defineProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -19678,7 +20488,7 @@ function truthy(value) {
 }
 
 // src/version.ts
-var VERSION = "4.0.414";
+var VERSION = "4.0.409";
 
 // src/multiple-versions-warning.ts
 var checkMultipleRemotionVersions = () => {
@@ -28019,7 +28829,7 @@ addSequenceStackTraces(Sequence);
 
 /***/ }),
 
-/***/ 9382:
+/***/ 252:
 /***/ ((__unused_webpack___webpack_module__, __webpack_exports__, __webpack_require__) => {
 
 __webpack_require__.r(__webpack_exports__);
@@ -28839,7 +29649,7 @@ var NoReactInternals = {
 /******/ 	/* webpack/runtime/load script */
 /******/ 	(() => {
 /******/ 		var inProgress = {};
-/******/ 		var dataWebpackPrefix = "remotion-workspace:";
+/******/ 		var dataWebpackPrefix = "@reelify/worker:";
 /******/ 		// loadScript function to load a script via script tag
 /******/ 		__webpack_require__.l = (url, done, key, chunkId) => {
 /******/ 			if(inProgress[url]) { inProgress[url].push(done); return; }
@@ -29001,7 +29811,7 @@ var NoReactInternals = {
 /******/ 		
 /******/ 		}
 /******/ 		
-/******/ 		var chunkLoadingGlobal = self["webpackChunkremotion_workspace"] = self["webpackChunkremotion_workspace"] || [];
+/******/ 		var chunkLoadingGlobal = self["webpackChunk_reelify_worker"] = self["webpackChunk_reelify_worker"] || [];
 /******/ 		chunkLoadingGlobal.forEach(webpackJsonpCallback.bind(null, 0));
 /******/ 		chunkLoadingGlobal.push = webpackJsonpCallback.bind(null, chunkLoadingGlobal.push.bind(chunkLoadingGlobal));
 /******/ 	})();
@@ -29011,10 +29821,10 @@ var NoReactInternals = {
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
 /******/ 	// This entry module is referenced by other modules so it can't be inlined
-/******/ 	__webpack_require__(6507);
-/******/ 	__webpack_require__(6345);
-/******/ 	__webpack_require__(3610);
-/******/ 	var __webpack_exports__ = __webpack_require__(3482);
+/******/ 	__webpack_require__(5422);
+/******/ 	__webpack_require__(3519);
+/******/ 	__webpack_require__(3395);
+/******/ 	var __webpack_exports__ = __webpack_require__(1100);
 /******/ 	
 /******/ })()
 ;

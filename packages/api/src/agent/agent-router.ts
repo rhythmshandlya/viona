@@ -69,7 +69,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     preHandler: authMiddleware,
     config: {
       rateLimit: {
-        max: 10,
+        max: 30,
         timeWindow: '1 minute',
       },
     },
