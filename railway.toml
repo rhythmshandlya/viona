@@ -1,10 +1,11 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "apps/landing/Dockerfile"
-watchPatterns = ["apps/landing/**"]
+dockerfilePath = "apps/web/Dockerfile"
+# Build from repo root to include workspace dependencies
+watchPatterns = ["apps/web/**", "packages/shared/**", "packages/renderer/**"]
 
 [deploy]
-healthcheckPath = "/health"
+healthcheckPath = "/"
 healthcheckTimeout = 30
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
