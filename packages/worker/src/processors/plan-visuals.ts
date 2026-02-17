@@ -9,7 +9,7 @@
  * No API key costs - included in subscription.
  */
 
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { writeFile, rm } from 'fs/promises';
 import { join, dirname } from 'path';
@@ -21,6 +21,7 @@ import { publishJobProgress, publishJobComplete, publishJobError, registerCancel
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
+import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -31,7 +32,7 @@ const runningProcesses = new Map<string, ChildProcess>();
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
   layoutMode: 'pip' | 'split-horizontal' | 'split-vertical';
   dimensions: {
     width: number;
@@ -62,90 +63,112 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
   setJobProjectId(jobId, projectId);
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
 
+  // Proactive lock extension — prevents BullMQ from marking 10-15 min jobs as stalled
+  const lockExtender = setInterval(async () => {
+    try {
+      await job.extendLock(job.token!, 120_000);
+    } catch (err) {
+      logger.error({ jobId, err }, 'Lock extension failed');
+    }
+  }, 55_000);
+
   try {
-    // Update job status
-    await db.update(jobs)
-      .set({ status: 'processing', progress: 0 })
-      .where(eq(jobs.id, jobId));
+    let heartbeat: { stop: () => void } | null = null;
 
-    await publishJobProgress(jobId, 5, 'Loading project...');
+    try {
+      // Update job status
+      await db.update(jobs)
+        .set({ status: 'processing', progress: 0 })
+        .where(eq(jobs.id, jobId));
 
-    // Load project and transcript
-    const project = await db.query.projects.findFirst({
-      where: eq(projects.id, projectId),
-    });
+      await publishJobProgress(jobId, 5, 'Loading project...');
 
-    if (!project) {
-      throw new Error('Project not found');
+      // Load project and transcript
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, projectId),
+      });
+
+      if (!project) {
+        throw new Error('Project not found');
+      }
+
+      const transcript = await db.query.transcripts.findFirst({
+        where: eq(transcripts.projectId, projectId),
+      });
+
+      if (!transcript || !transcript.words) {
+        throw new Error('Project has no transcript');
+      }
+
+      await publishJobProgress(jobId, 10, 'Preparing workspace...');
+
+      // Create project directory in workspace
+      const projectDir = createProjectDir(compositionId);
+      logger.info({ projectDir, compositionId }, 'Created project directory for plan');
+
+      await publishJobProgress(jobId, 15, 'Starting Director phase...');
+
+      // Calculate duration in frames
+      const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
+
+      // Prepare transcript text and words
+      const words = transcript.words as any[];
+      const transcriptText = words
+        .map((w: any) => w.word || w.text || '')
+        .join(' ');
+
+      // Run the Director phase
+      await publishJobProgress(jobId, 20, 'Planning scenes — this may take a few minutes...');
+      heartbeat = startHeartbeatProgress(jobId, 20, 88, 12 * 60 * 1000); // 12 min estimate
+
+      const planData = await runDirectorPhase({
+        projectId: compositionId,
+        jobId,
+        transcript: transcriptText,
+        words,
+        durationFrames,
+        fps: project.fps || 30,
+        width: dimensions?.width || 1080,
+        height: dimensions?.height || 1920,
+        stylePreset: stylePreset || 'modern',
+        layoutMode: layoutMode || 'pip',
+        styleGuide,
+      });
+
+      heartbeat.stop();
+      await publishJobProgress(jobId, 90, 'Parsing scene plan...');
+
+      // Store plan data in the job record
+      await db.update(jobs)
+        .set({
+          status: 'complete',
+          progress: 100,
+          completedAt: new Date(),
+          planData,
+        })
+        .where(eq(jobs.id, jobId));
+
+      await publishJobProgress(jobId, 100, 'Plan ready');
+      await publishJobComplete(jobId, projectId);
+
+      logger.info({ projectId, compositionId, sceneCount: (planData.scenes as any)?.scenes?.length ?? 'unknown' }, 'Plan visuals complete');
+
+    } catch (error) {
+      heartbeat?.stop();
+      logger.error({ projectId, err: error }, 'Plan visuals failed');
+
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+      await db.update(jobs)
+        .set({ status: 'failed', error: errorMessage })
+        .where(eq(jobs.id, jobId));
+
+      await publishJobError(jobId, errorMessage);
+
+      throw error;
     }
-
-    const transcript = await db.query.transcripts.findFirst({
-      where: eq(transcripts.projectId, projectId),
-    });
-
-    if (!transcript || !transcript.words) {
-      throw new Error('Project has no transcript');
-    }
-
-    await publishJobProgress(jobId, 10, 'Preparing workspace...');
-
-    // Create project directory in workspace
-    const projectDir = createProjectDir(compositionId);
-    logger.info({ projectDir, compositionId }, 'Created project directory for plan');
-
-    await publishJobProgress(jobId, 15, 'Starting Director phase...');
-
-    // Calculate duration in frames
-    const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
-
-    // Prepare transcript text and words
-    const words = transcript.words as any[];
-    const transcriptText = words
-      .map((w: any) => w.word || w.text || '')
-      .join(' ');
-
-    // Run the Director phase
-    const planData = await runDirectorPhase({
-      projectId: compositionId,
-      jobId,
-      transcript: transcriptText,
-      words,
-      durationFrames,
-      fps: project.fps || 30,
-      width: dimensions?.width || 1080,
-      height: dimensions?.height || 1920,
-      stylePreset: stylePreset || 'modern',
-      layoutMode: layoutMode || 'pip',
-      styleGuide,
-    });
-
-    // Store plan data in the job record
-    await db.update(jobs)
-      .set({
-        status: 'complete',
-        progress: 100,
-        completedAt: new Date(),
-        planData,
-      })
-      .where(eq(jobs.id, jobId));
-
-    await publishJobProgress(jobId, 100, 'Plan ready');
-    await publishJobComplete(jobId, projectId);
-
-    logger.info({ projectId, compositionId, sceneCount: (planData.scenes as any)?.scenes?.length ?? 'unknown' }, 'Plan visuals complete');
-
-  } catch (error) {
-    logger.error({ projectId, err: error }, 'Plan visuals failed');
-
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-
-    await db.update(jobs)
-      .set({ status: 'failed', error: errorMessage })
-      .where(eq(jobs.id, jobId));
-
-    await publishJobError(jobId, errorMessage);
-
-    throw error;
+  } finally {
+    clearInterval(lockExtender);
   }
 }
 
@@ -324,8 +347,8 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
       logger.error({ projectId, stderr: text.slice(0, 1000) }, 'Director phase stderr');
     });
 
-    // Wait for completion with 10 minute timeout (Director is faster than full pipeline)
-    const DIRECTOR_TIMEOUT_MS = 10 * 60 * 1000;
+    // Use the same configurable timeout as generate/edit visuals
+    const DIRECTOR_TIMEOUT_MS = config.claudeAgent.timeoutSeconds * 1000;
 
     await new Promise<void>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
@@ -333,25 +356,35 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
         setTimeout(() => {
           if (!subprocess.killed) {
             subprocess.kill('SIGKILL');
+            setTimeout(() => {
+              if (!subprocess.killed) {
+                logger.error({ jobId }, 'CRITICAL: subprocess survived SIGKILL — potential zombie');
+              }
+            }, 5000);
           }
         }, 10000);
-        reject(new Error('Director phase timed out after 10 minutes'));
+        reject(new Error(`Director phase timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
       }, DIRECTOR_TIMEOUT_MS);
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
         clearInterval(progressTicker);
+        runningProcesses.delete(jobId);
+        unregisterCancelHandler(jobId);
         if (code === 0) {
           resolve();
         } else {
           const errorOutput = stderr || stdout.slice(-1000);
-          reject(new Error(`Director phase exited with code ${code}: ${errorOutput}`));
+          // Non-zero exit = bad input/prompt, don't retry
+          reject(new UnrecoverableError(`Director phase exited with code ${code}: ${errorOutput}`));
         }
       });
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
         clearInterval(progressTicker);
+        runningProcesses.delete(jobId);
+        unregisterCancelHandler(jobId);
         reject(err);
       });
     });
@@ -387,23 +420,23 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
     // Clean up temp files
     try {
       await rm(transcriptPath);
-    } catch {
-      // Ignore cleanup errors
+    } catch (err) {
+      logger.warn({ jobId, path: transcriptPath, err }, 'Failed to clean temp file');
     }
 
     if (wordsPath) {
       try {
         await rm(wordsPath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        logger.warn({ jobId, path: wordsPath, err }, 'Failed to clean temp file');
       }
     }
 
     if (styleGuidePath) {
       try {
         await rm(styleGuidePath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        logger.warn({ jobId, path: styleGuidePath, err }, 'Failed to clean temp file');
       }
     }
   }

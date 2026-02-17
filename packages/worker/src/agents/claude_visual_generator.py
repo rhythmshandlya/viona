@@ -1736,34 +1736,32 @@ const RollingDice: React.FC = () => {{
 ```
 </three_js_3d>
 
-<npm_package_search>
-**NPM Package Discovery**
-
-When you need specialized functionality not covered by pre-installed packages:
-
-1. Use search_npm_packages("your query") to find packages
-2. Review results - only install packages marked [+] VALID
-3. Install: npm install package-name
-4. Import and use in your composition
-
-GOOD SEARCH QUERIES:
-- "three.js physics cannon rapier" -> finds physics engines
-- "3d text troika" -> finds text rendering
-- "three particles" -> finds particle systems
-- "simplex noise procedural" -> finds noise generators
-
-DO NOT SEARCH FOR (already installed):
-- "react three fiber" / "drei" / "remotion three" / "three.js"
-- Any @remotion/* packages
-- react, react-dom
-</npm_package_search>
 
 <assets_and_visuals>
 ## PREMIUM ASSET LIBRARY — FREEPIK
 
+<MANDATORY_ASSET_RULE>
+**YOU MUST DOWNLOAD AND USE FREEPIK ASSETS. DO NOT HAND-CODE SVG ICONS.**
+
+❌ DO NOT search Freepik and then write your own SVG instead
+❌ DO NOT skip the download step "for speed" or "more control"
+❌ DO NOT write SVG paths by hand when Freepik has the icon
+❌ DO NOT rationalize skipping downloads — this is a HARD REQUIREMENT
+
+✅ Search → Download → Read SVG file → Paste into JSX → Animate
+✅ EVERY icon in your scene MUST come from a Freepik download
+✅ The ONLY exception is if the download tool itself errors/fails
+
+**WHY:** Hand-coded SVGs look amateur. Freepik icons are professionally designed
+with consistent stroke widths, balanced proportions, and visual polish that you
+cannot replicate by writing SVG paths manually. The entire point of having Freepik
+access is to USE it. Searching and then ignoring the results is worse than not
+searching at all.
+</MANDATORY_ASSET_RULE>
+
 You have access to Freepik's library of millions of premium icons, illustrations,
-vectors, and photos via MCP tools. USE THEM. Your visuals should look like they
-came from a professional motion design studio, not a coding tutorial.
+vectors, and photos via MCP tools. Your visuals should look like they came from a
+professional motion design studio, not a coding tutorial.
 
 ### DECISION FRAMEWORK — What to use when
 
@@ -1776,10 +1774,7 @@ came from a professional motion design studio, not a coding tutorial.
 | Flowcharts / process diagrams | Hand-coded SVG with Freepik icons as nodes | Best of both — structure + polish |
 | Abstract concepts (AI, growth, speed) | Freepik illustration + animation overlay | Conveys concept instantly |
 
-**RULE: Default to Freepik. Only hand-code when data is dynamic.**
-
-If you're about to write an SVG path by hand, STOP and ask yourself: "Does Freepik have
-something better?" The answer is almost always yes.
+**RULE: Default to Freepik. Only hand-code SVGs for dynamic data (counters, charts, graphs).**
 
 ### HOW TO SEARCH EFFECTIVELY
 
@@ -1837,7 +1832,7 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 - **ASSET BUDGET**: 1-3 icons per scene, 0-1 illustration per scene. Don't clutter.
 - **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing Freepik.
 - **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. Match icon colors to the style preset's color scheme.
-- **FALLBACK**: If a download fails or search returns nothing useful, hand-code a clean SVG. Never let an asset failure break a scene.
+- **FALLBACK**: ONLY if the download tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG. "I want more control" or "for speed" are NOT valid reasons to skip downloads.
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
 - **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any assets, run `mkdir -p public/assets` in Bash.
@@ -2649,6 +2644,9 @@ registerRoot(RemotionRoot);
 
         print(f"[ClaudeGenerator] Phase 1: Director analyzing transcript...")
 
+        # Ensure src_dir exists before running Claude
+        self.src_dir.mkdir(parents=True, exist_ok=True)
+
         director_message = build_director_user_message(
             project_id=self.project_id,
             formatted_transcript=formatted_transcript,
@@ -2659,10 +2657,37 @@ registerRoot(RemotionRoot);
             style_preset=style_preset,
             layout_mode=layout_mode,
             style_guide=style_guide,
+            output_dir=str(self.src_dir),
         )
 
-        # Director uses Sonnet for fast planning
-        # Use claude_code preset with append to preserve TodoWrite functionality
+        # Write restricted security settings for the Director — only allow writes
+        # within the project directory (src_dir). This prevents Claude from writing
+        # plan files to the workspace root.
+        director_settings_dir = self.src_dir / ".claude"
+        director_settings_dir.mkdir(parents=True, exist_ok=True)
+        director_settings = {
+            "permissions": {
+                "defaultMode": "acceptEdits",
+                "allow": [
+                    "Read(./**)",
+                    "Write(./**)",
+                    "Edit(./**)",
+                    "Glob(./**)",
+                    "Grep(./**)",
+                    # Also allow reading from workspace root (for CLAUDE.md, config files)
+                    f"Read({str(self.workspace).replace(chr(92), '/')}/**)",
+                    f"Glob({str(self.workspace).replace(chr(92), '/')}/**)",
+                    f"Grep({str(self.workspace).replace(chr(92), '/')}/**)",
+                    "Bash(*)",
+                ],
+            },
+        }
+        with open(director_settings_dir / "settings.local.json", "w", encoding="utf-8") as f:
+            json.dump(director_settings, f, indent=2)
+
+        # Director uses Sonnet for fast planning.
+        # cwd is set to src_dir so Claude writes SCENE_PLAN.md and scenes.json
+        # directly in the project directory — prevents misplaced files at workspace root.
         client = ClaudeSDKClient(
             options=ClaudeAgentOptions(
                 model="claude-sonnet-4-20250514",
@@ -2671,11 +2696,10 @@ registerRoot(RemotionRoot);
                     "preset": "claude_code",
                     "append": DIRECTOR_SYSTEM_PROMPT
                 },
-                cwd=str(self.workspace),
+                cwd=str(self.src_dir),
                 max_turns=50,  # Enough turns for research + planning + writing
                 max_thinking_tokens=5000,
-                setting_sources=["project"],  # Load skills from .claude/skills/
-                allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch", "Skill", "TodoWrite"],
+                allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch", "TodoWrite"],
                 cli_path=CLAUDE_CLI_PATH,
             )
         )
@@ -2729,6 +2753,44 @@ registerRoot(RemotionRoot);
             print(f"[ClaudeGenerator] Files in src_dir: {[f.name for f in existing_files]}")
         else:
             print(f"[ClaudeGenerator] WARNING: src_dir does not exist!")
+            self.src_dir.mkdir(parents=True, exist_ok=True)
+
+        # ── Fallback file recovery ──
+        # Claude sometimes writes plan files to the wrong location (workspace root,
+        # flattened path in filename, etc.). Search common wrong locations and move them.
+        if not scene_plan.exists() or not scenes_json.exists():
+            import shutil
+            print(f"[ClaudeGenerator] Plan files not in expected location, searching for misplaced files...")
+
+            # Search patterns: workspace root, with project prefix in filename, src/ root
+            search_locations = [
+                # Workspace root — Claude ignores the path and writes to cwd
+                (self.workspace / "SCENE_PLAN.md", self.workspace / "scenes.json"),
+                # Workspace root with project prefix flattened into filename
+                (self.workspace / f"{self.project_id}_SCENE_PLAN.md", self.workspace / f"{self.project_id}_scenes.json"),
+                # src/ root (one level up from project dir)
+                (self.workspace / "src" / "SCENE_PLAN.md", self.workspace / "src" / "scenes.json"),
+            ]
+
+            for alt_plan, alt_scenes in search_locations:
+                if alt_plan.exists() and not scene_plan.exists():
+                    print(f"[ClaudeGenerator] Found misplaced SCENE_PLAN.md at {alt_plan}, moving to {scene_plan}")
+                    shutil.move(str(alt_plan), str(scene_plan))
+                if alt_scenes.exists() and not scenes_json.exists():
+                    print(f"[ClaudeGenerator] Found misplaced scenes.json at {alt_scenes}, moving to {scenes_json}")
+                    shutil.move(str(alt_scenes), str(scenes_json))
+
+            # Also search for any SCENE_PLAN.md in the workspace root with any prefix
+            if not scene_plan.exists():
+                for f in self.workspace.glob("*SCENE_PLAN.md"):
+                    print(f"[ClaudeGenerator] Found misplaced plan file: {f}, moving to {scene_plan}")
+                    shutil.move(str(f), str(scene_plan))
+                    break
+            if not scenes_json.exists():
+                for f in self.workspace.glob("*scenes.json"):
+                    print(f"[ClaudeGenerator] Found misplaced scenes file: {f}, moving to {scenes_json}")
+                    shutil.move(str(f), str(scenes_json))
+                    break
 
         if not scene_plan.exists():
             return {

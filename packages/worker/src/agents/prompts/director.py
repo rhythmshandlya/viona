@@ -143,9 +143,12 @@ Choose a palette that fits the content mood:
 </color_palettes>
 
 <visual_requirements>
-## SPECIFYING 3D AND ICON REQUIREMENTS
+## SPECIFYING 3D, ICON, AND ASSET REQUIREMENTS
 
-When planning scenes, explicitly specify when advanced visual techniques are needed:
+When planning scenes, explicitly specify when advanced visual techniques are needed.
+The Animator has access to **Freepik's premium asset library** (millions of icons,
+illustrations, and vectors via MCP tools). Plan with this in mind — your scenes can
+be far more visually rich than hand-coded SVGs alone.
 
 ### 3D Elements
 Mark scenes that need TRUE 3D rendering (not just CSS transforms):
@@ -161,18 +164,38 @@ Example:
 showing different faces as it tumbles. Ambient lighting creates realistic shadows."
 ```
 
-### Icons
-Specify icon requirements instead of describing shapes:
-- **[ICON: checkmark]** - Use a professional checkmark icon
-- **[ICON: warning]** - Use a warning/alert icon
-- **[ICON: play]** - Use a play button icon
-- **[ICON: data]** - Use a data/chart icon
+### Icons (Freepik MCP)
+The Animator can search and download professional SVG icons from Freepik.
+Specify icon needs with search terms the Animator can use:
+- **[ICON: checkmark]** - Professional checkmark/success icon
+- **[ICON: warning triangle]** - Warning/alert icon
+- **[ICON: cloud computing]** - Cloud infrastructure icon
+- **[ICON: neural network]** - AI/ML concept icon
+
+Be SPECIFIC with icon descriptions — "server rack" is better than "computer".
+The Animator searches Freepik by concept, so descriptive terms yield better results.
 
 Example:
 ```
-"visual": "Success confirmation appears with [ICON: checkmark] glowing green,
+"visual": "Success confirmation appears with [ICON: checkmark circle] glowing green,
 followed by celebration particles."
 ```
+
+### Illustrations & Vectors (Freepik MCP)
+For richer visuals, the Animator can also fetch full illustrations and vector graphics.
+Specify when a scene would benefit from a professional illustration:
+- **[ILLUSTRATION: concept]** - A full vector illustration from Freepik
+
+Example:
+```
+"visual": "[ILLUSTRATION: team collaboration] fades in as the centerpiece,
+with data flow particles animating around it."
+```
+
+Use illustrations for:
+- Hero visuals that anchor a scene (abstract concepts, people, objects)
+- Background elements that add visual depth
+- Complex visuals that would be impractical to hand-code
 
 ### When to Specify 3D:
 | Visual Need | Use 3D? |
@@ -280,8 +303,15 @@ def build_director_user_message(
     style_preset: str = "modern",
     layout_mode: str = "pip",
     style_guide: str | None = None,
+    output_dir: str | None = None,
 ) -> str:
-    """Build the user message for the Director agent."""
+    """Build the user message for the Director agent.
+
+    Args:
+        output_dir: Absolute path to the directory where SCENE_PLAN.md and scenes.json
+                     should be written. If provided, the prompt uses absolute paths to
+                     prevent Claude from writing files to the wrong location.
+    """
 
     duration_seconds = duration_frames / fps
 
@@ -302,6 +332,15 @@ The user has provided the following specific guidance:
 Incorporate these preferences into your scene planning while maintaining quality standards.
 
 """
+
+    # Use absolute paths when output_dir is provided (prevents Claude from writing to wrong location)
+    if output_dir:
+        # Normalize to forward slashes for cross-platform compatibility
+        abs_plan_path = output_dir.replace("\\", "/") + "/SCENE_PLAN.md"
+        abs_scenes_path = output_dir.replace("\\", "/") + "/scenes.json"
+    else:
+        abs_plan_path = f"SCENE_PLAN.md"
+        abs_scenes_path = f"scenes.json"
 
     return f"""
 ## PROJECT: {project_id}
@@ -362,10 +401,10 @@ Ensure scenes connect:
 
 ## OUTPUT FILES
 
-**CRITICAL: You MUST use the Write tool to create these files. Do not just describe them - actually write them.**
+**CRITICAL: You MUST use the Write tool to create these files at the EXACT paths below. Do not just describe them - actually write them.**
 
 ### 1. SCENE_PLAN.md
-Path: `src/{project_id}/SCENE_PLAN.md`
+**EXACT path (use this VERBATIM in your Write tool call):** `{abs_plan_path}`
 Human-readable plan with:
 - Transcript analysis
 - Story arc breakdown
@@ -373,7 +412,7 @@ Human-readable plan with:
 - Scene-by-scene breakdown with sync points
 
 ### 2. scenes.json
-Path: `src/{project_id}/scenes.json`
+**EXACT path (use this VERBATIM in your Write tool call):** `{abs_scenes_path}`
 Machine-readable with this structure:
 ```json
 {{
@@ -403,6 +442,14 @@ Machine-readable with this structure:
         "frame": frameNumber,
         "visualEvent": "what happens"
       }},
+      "syncPoints": [
+        {{
+          "word": "important word",
+          "timestamp": secondsFloat,
+          "frame": frameNumber,
+          "visualEvent": "what visual change happens at this word"
+        }}
+      ],
       "visual": "detailed description with RELATIVE positioning (percentages)",
       "layout": {{
         "primary": {{ "x": "center", "y": "20%", "width": "60%", "height": "auto" }},
@@ -412,13 +459,22 @@ Machine-readable with this structure:
       "buildsFrom": "previous scene connection or null",
       "connectsTo": "next scene connection",
       "requires3D": false,
-      "icons": ["checkmark", "warning"]
+      "icons": ["checkmark", "warning"],
+      "illustrations": ["concept search term if needed"]
     }}
   ]
 }}
 ```
 
 **CRITICAL: All positions use percentages or "center"/"auto". Never use pixel values.**
+
+**SYNC POINTS:**
+- `keySync` is the SINGLE most important word-visual pair in the scene (required)
+- `syncPoints` is an array of ALL important word-visual pairs (2-5 per scene recommended)
+- Include the keySync word in syncPoints too, plus any other words that should trigger visual events
+- The Animator will use these to align animations precisely with the narration
+- Frame values MUST be calculated as: `round(timestamp_seconds * {fps})`
+- Example: if narrator says "overflow" at 4.5s in a 30fps video, frame = round(4.5 * 30) = 135
 
 **CRITICAL DURATION CONSTRAINT:**
 - The video is EXACTLY {duration_frames} frames ({duration_seconds:.1f} seconds) at {fps} FPS
@@ -429,17 +485,17 @@ Machine-readable with this structure:
 
 ## REMEMBER
 - Maximum 8 scenes (one per narrative beat, not per line)
-- Every scene needs a keySync point
+- Every scene needs a keySync point AND 2-5 syncPoints
 - Visual continuity: same element transforms across scenes
 - Be SPECIFIC about visuals, not generic
 - **TOTAL FRAMES MUST EQUAL {duration_frames}**
 
 ## FINAL CHECKLIST
 Before responding "PLANNING COMPLETE":
-1. [ ] Used Write tool to create SCENE_PLAN.md
-2. [ ] Used Write tool to create scenes.json
+1. [ ] Used Write tool to create `{abs_plan_path}`
+2. [ ] Used Write tool to create `{abs_scenes_path}`
 3. [ ] scenes.json has valid JSON structure
-4. [ ] Both files are in src/{project_id}/ directory
+4. [ ] Both files written to the EXACT paths above (not the workspace root!)
 
 **You MUST write both files using the Write tool. The Animator cannot proceed without them.**
 

@@ -6,8 +6,9 @@ import { eq, or, and } from 'drizzle-orm';
 import { db, projects, transcripts, visuals, jobs } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { config } from '../config.js';
+import { redis, publishJobError } from '../services/redis.js';
 import { buildSystemPrompt } from './agent-system-prompt.js';
-import { createAgentMcpServer, TOOL_NAMES } from './agent-tools.js';
+import { createAgentMcpServer, TOOL_NAMES, derivePhase, normalizeProgressMessage } from './agent-tools.js';
 import {
   getOrCreateConversation,
   getConversationMessages,
@@ -17,10 +18,46 @@ import {
   deleteConversation,
 } from './conversation-store.js';
 
-// SSE helper — writes a server-sent event to a writable stream
-function sendSSE(stream: NodeJS.WritableStream, event: string, data: unknown) {
-  stream.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+// Per-project event buffer for Last-Event-ID resumption
+const EVENT_BUFFER_SIZE = 100;
+const projectEventBuffers = new Map<string, Array<{ id: number; event: string; data: string }>>();
+
+// SSE helper — returns a closure that writes server-sent events with
+// auto-incrementing IDs, basic backpressure awareness, and event buffering
+// for Last-Event-ID resumption.
+function createSSEWriter(stream: NodeJS.WritableStream, projectId: string) {
+  let eventId = 0;
+  let draining = true;
+  stream.on('drain', () => { draining = true; });
+
+  // Always create a fresh buffer — replaces any stale buffer from a prior stream
+  const buffer: Array<{ id: number; event: string; data: string }> = [];
+  projectEventBuffers.set(projectId, buffer);
+
+  function sendSSE(event: string, data: unknown, skipBuffer = false) {
+    if ((stream as any).destroyed) return;
+    eventId++;
+    const serialized = JSON.stringify(data);
+
+    // Buffer for potential replay (skip for replayed events to prevent duplicates)
+    if (!skipBuffer) {
+      buffer.push({ id: eventId, event, data: serialized });
+      if (buffer.length > EVENT_BUFFER_SIZE) buffer.shift();
+    }
+
+    try {
+      const ok = (stream as any).write(`id: ${eventId}\nevent: ${event}\ndata: ${serialized}\n\n`);
+      if (!ok) draining = false;
+    } catch {
+      // Stream closed — ignore
+    }
+  }
+
+  return { sendSSE, buffer };
 }
+
+// Per-project concurrent SSE stream counter
+const activeStreams = new Map<string, number>();
 
 // Format stored messages into text for system prompt context
 function formatConversationHistory(
@@ -97,7 +134,16 @@ export async function agentRoutes(fastify: FastifyInstance) {
       });
     }
 
-    // 1. Load the project
+    // Validate context
+    if (body.context?.selectedTimeRange) {
+      const { startMs, endMs } = body.context.selectedTimeRange;
+      if (typeof startMs !== 'number' || typeof endMs !== 'number' || startMs < 0 || endMs <= startMs || endMs > 24 * 60 * 60 * 1000) {
+        return reply.code(400).send({ error: 'Invalid selectedTimeRange' });
+      }
+    }
+
+    // 1. Load and validate the project BEFORE incrementing activeStreams
+    //    (early returns must not leak the counter)
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, projectId),
     });
@@ -110,6 +156,13 @@ export async function agentRoutes(fastify: FastifyInstance) {
     if (project.userId && project.userId !== (request as any).user?.id) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
+
+    // Concurrent SSE limit per project (after validation — no early returns past here)
+    const currentCount = activeStreams.get(projectId) || 0;
+    if (currentCount >= 2) {
+      return reply.code(429).send({ error: 'Too many active AI sessions for this project. Please wait.' });
+    }
+    activeStreams.set(projectId, currentCount + 1);
 
     // 2. Gather context for system prompt
     const transcript = await db.query.transcripts.findFirst({
@@ -138,8 +191,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // 3. Get or create conversation
     const conversation = await getOrCreateConversation(projectId);
 
-    // 4. Load previous messages
-    const storedMessages = await getConversationMessages(conversation.id);
+    // 4. Load previous messages (limit to last 50 for system prompt context)
+    const storedMessages = await getConversationMessages(conversation.id, 50);
 
     // 5. Build user message with optional context metadata
     let userText = message;
@@ -203,9 +256,26 @@ export async function agentRoutes(fastify: FastifyInstance) {
       .header('X-Accel-Buffering', 'no')
       .send(sseStream);
 
-    // Keep only recent messages for context
-    const recentMessages = storedMessages.slice(-50);
-    const conversationHistoryText = formatConversationHistory(recentMessages);
+    // Snapshot old event buffer BEFORE createSSEWriter replaces it with a fresh one
+    const prevBuffer = projectEventBuffers.get(projectId);
+
+    const { sendSSE, buffer: streamBuffer } = createSSEWriter(sseStream, projectId);
+
+    // Replay missed events if client reconnects with Last-Event-ID
+    // Uses skipBuffer=true to prevent replayed events from being re-buffered
+    // (which would cause duplicates on subsequent reconnections)
+    const lastEventIdHeader = request.headers['last-event-id'];
+    if (lastEventIdHeader && prevBuffer && prevBuffer.length > 0) {
+      const lastId = parseInt(lastEventIdHeader as string, 10);
+      if (!isNaN(lastId)) {
+        const missed = prevBuffer.filter(e => e.id > lastId);
+        for (const e of missed) {
+          sendSSE(e.event, JSON.parse(e.data), true);
+        }
+      }
+    }
+
+    const conversationHistoryText = formatConversationHistory(storedMessages);
 
     // 7. Create MCP server and run SDK query
     const abortController = new AbortController();
@@ -254,7 +324,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     const mcpServer = createAgentMcpServer({
       projectId,
       sendSSE: (event, data) => {
-        sendSSE(sseStream, event, data);
+        sendSSE(event, data);
         // Capture widget events for persistence and save to DB
         if (event === 'widget') {
           flushText();
@@ -300,15 +370,24 @@ export async function agentRoutes(fastify: FastifyInstance) {
           if (evt?.type === 'content_block_delta') {
             const delta = evt.delta as { type: string; text?: string };
             if (delta.type === 'text_delta' && delta.text) {
-              sendSSE(sseStream, 'text', { text: delta.text });
+              sendSSE('text', { text: delta.text });
               pendingText += delta.text;
             }
           }
         }
       }
 
-      // 8. Send done event
-      sendSSE(sseStream, 'done', { conversationId: conversation.id });
+      // 8. Flush all pending content to DB before signalling completion
+      flushText();
+      try { await persistPromise; } catch { /* handled below */ }
+      try {
+        await updateMessageContent(assistantRow.id, contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
+      } catch (saveErr) {
+        fastify.log.error({ err: saveErr }, 'Failed to save assistant message before done');
+      }
+
+      // 9. Send done event — DB is now consistent, frontend can safely reload
+      sendSSE('done', { conversationId: conversation.id });
     } catch (err) {
       const rawMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       fastify.log.error({ err }, 'Agent chat error');
@@ -321,21 +400,31 @@ export async function agentRoutes(fastify: FastifyInstance) {
         errorMessage = 'AI assistant authentication failed. Please check server credentials.';
       }
 
-      sendSSE(sseStream, 'error', { message: errorMessage });
+      sendSSE('error', { message: errorMessage });
     } finally {
       clearInterval(heartbeat);
       clearInterval(persistInterval);
 
-      // Wait for any in-flight persistence to finish before the final save
-      try { await persistPromise; } catch { /* already handled */ }
+      // Decrement concurrent SSE counter
+      const c = activeStreams.get(projectId) || 1;
+      if (c <= 1) activeStreams.delete(projectId);
+      else activeStreams.set(projectId, c - 1);
 
-      // Final save — update the assistant row with all accumulated content.
+      // Clean up event buffer after 2 minutes (enough time for reconnection).
+      // Only delete if it's still OUR buffer — a newer stream may have replaced it.
+      setTimeout(() => {
+        if (projectEventBuffers.get(projectId) === streamBuffer) {
+          projectEventBuffers.delete(projectId);
+        }
+      }, 2 * 60 * 1000);
+
+      // Safety net: flush any remaining content on error paths
+      // (happy path already persisted before 'done' event above)
       try {
+        await persistPromise;
         flushText();
         await updateMessageContent(assistantRow.id, contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
-      } catch (saveErr) {
-        fastify.log.error({ err: saveErr }, 'Failed to save assistant message');
-      }
+      } catch { /* best-effort — primary save already happened on success path */ }
 
       sseStream.end();
     }
@@ -362,18 +451,30 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // (e.g. worker crashed, server restarted). This prevents the "stuck in progress"
     // issue when reopening the editor.
     const STALE_JOB_MS = 5 * 60 * 1000;
-    const activeJobRow = await db.query.jobs.findFirst({
-      where: and(
+    // Return any active job (including plan-visuals) so the frontend can restore
+    // progress after refresh. The frontend uses the `jobType` field to decide
+    // whether to subscribe to WebSocket (it skips plan-visuals to avoid false
+    // "visuals ready" notifications).
+    const activeJobRows = await db.select().from(jobs).where(
+      and(
         eq(jobs.projectId, projectId),
         or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing')),
       ),
-    });
+    );
+    const activeJobRow = activeJobRows[0];
 
     // Filter out stale/completed jobs — completed jobs or those older than threshold are ignored
     const activeJob = activeJobRow && isJobFresh(activeJobRow, STALE_JOB_MS) ? activeJobRow : null;
 
     const jobPayload = activeJob
-      ? { id: activeJob.id, type: activeJob.type, progress: activeJob.progress, message: activeJob.progressMessage }
+      ? {
+          id: activeJob.id,
+          type: activeJob.type,
+          progress: activeJob.progress,
+          message: normalizeProgressMessage(activeJob.type, activeJob.progress, activeJob.progressMessage || undefined),
+          phase: derivePhase(activeJob.type, activeJob.progress),
+          jobType: activeJob.type,
+        }
       : null;
 
     if (!data) {
@@ -401,4 +502,46 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     return reply.send({ success: true });
   });
+
+  // ─── POST /projects/:id/agent/cancel — cancel active agent job ──────────
+
+  fastify.post<{ Params: { id: string } }>(
+    '/projects/:id/agent/cancel',
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const projectId = request.params.id;
+
+      // Check project ownership
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, projectId),
+      });
+      if (!project) return reply.code(404).send({ error: 'Project not found' });
+      if (project.userId && project.userId !== (request as any).user?.id) {
+        return reply.code(403).send({ error: 'Forbidden' });
+      }
+
+      // Find active job for this project
+      const activeJob = await db.query.jobs.findFirst({
+        where: and(
+          eq(jobs.projectId, projectId),
+          or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing')),
+        ),
+      });
+
+      if (activeJob) {
+        // Publish cancel to Redis — worker picks this up via registerCancelHandler
+        await redis.publish('job:cancel', JSON.stringify({ jobId: activeJob.id }));
+
+        // Mark job as cancelled in DB
+        await db.update(jobs)
+          .set({ status: 'cancelled', error: 'Cancelled by user' })
+          .where(eq(jobs.id, activeJob.id));
+
+        // Notify WebSocket clients
+        await publishJobError(activeJob.id, 'Cancelled by user');
+      }
+
+      reply.send({ ok: true, cancelledJobId: activeJob?.id ?? null });
+    }
+  );
 }

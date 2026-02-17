@@ -5,7 +5,7 @@
  * No API key costs - included in subscription.
  */
 
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { mkdir, rm, writeFile, readFile, readdir } from 'fs/promises';
 import { join, dirname } from 'path';
@@ -270,7 +270,7 @@ export interface VisualsDimensions {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** User-provided style/layout guidance for the Director agent */
@@ -320,6 +320,15 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
   const { projectId, jobId, stylePreset, layoutMode, dimensions, styleGuide } = job.data;
   setJobProjectId(jobId, projectId);
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
+
+  // Proactive lock extension — prevents BullMQ from marking 30-min jobs as stalled
+  const lockExtender = setInterval(async () => {
+    try {
+      await job.extendLock(job.token!, 120_000);
+    } catch (err) {
+      logger.error({ jobId, err }, 'Lock extension failed');
+    }
+  }, 55_000);
 
   try {
     // Update job status
@@ -622,97 +631,100 @@ registerRoot(RemotionRoot);
 
     await publishJobProgress(jobId, 85, 'Registering visual...');
 
-    // Clean up old visuals for this project
-    const existingVisuals = await db.select().from(visuals).where(eq(visuals.projectId, projectId));
-    if (existingVisuals.length > 0) {
-      logger.info({ projectId, count: existingVisuals.length }, 'Cleaning up existing visuals');
+    // Wrap DB completion in a transaction — ensures frontend is never notified
+    // before DB is consistent.
+    await db.transaction(async (tx) => {
+      // Clean up old visuals for this project
+      const existingVisuals = await tx.select().from(visuals).where(eq(visuals.projectId, projectId));
+      if (existingVisuals.length > 0) {
+        logger.info({ projectId, count: existingVisuals.length }, 'Cleaning up existing visuals');
 
-      for (const oldVisual of existingVisuals) {
-        const allItems = await db.select().from(timelineItems);
-        for (const item of allItems) {
-          if (item.type === 'visual' && (item.data as any)?.visualId === oldVisual.id) {
-            await db.delete(timelineItems).where(eq(timelineItems.id, item.id));
+        for (const oldVisual of existingVisuals) {
+          const allItems = await tx.select().from(timelineItems);
+          for (const item of allItems) {
+            if (item.type === 'visual' && (item.data as any)?.visualId === oldVisual.id) {
+              await tx.delete(timelineItems).where(eq(timelineItems.id, item.id));
+            }
+          }
+
+          if (oldVisual.compositionId) {
+            const oldBundleDir = join(config.remotion.bundleOutputDir, oldVisual.compositionId);
+            try {
+              await rm(oldBundleDir, { recursive: true, force: true });
+            } catch {
+              // Ignore cleanup errors
+            }
           }
         }
 
-        if (oldVisual.compositionId) {
-          const oldBundleDir = join(config.remotion.bundleOutputDir, oldVisual.compositionId);
-          try {
-            await rm(oldBundleDir, { recursive: true, force: true });
-          } catch {
-            // Ignore cleanup errors
-          }
-        }
+        await tx.delete(visuals).where(eq(visuals.projectId, projectId));
       }
 
-      await db.delete(visuals).where(eq(visuals.projectId, projectId));
-    }
-
-    // Insert into visuals table
-    const [insertedVisual] = await db.insert(visuals).values({
-      projectId,
-      compositionId: metadata.compositionId,
-      bundleUrl,
-      sourceUrl, // Source project files for AI context restoration
-      durationFrames: metadata.durationInFrames,
-      fps: metadata.fps,
-      width: metadata.width,
-      height: metadata.height,
-      stylePreset,
-      llmModel,
-      timestamps: metadata.visuals,
-    }).returning({ id: visuals.id });
-    const visualId = insertedVisual.id;
-
-    await publishJobProgress(jobId, 90, 'Creating timeline items...');
-
-    // Find or create visuals track
-    const existingTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
-    let visualsTrack = existingTracks.find(t => t.type === 'visual');
-
-    if (!visualsTrack) {
-      const [newTrack] = await db.insert(tracks).values({
+      // Insert into visuals table
+      const [insertedVisual] = await tx.insert(visuals).values({
         projectId,
-        type: 'visual',
-        name: 'Visuals',
-        position: existingTracks.length,
-      }).returning();
-      visualsTrack = newTrack;
-    }
+        compositionId: metadata.compositionId,
+        bundleUrl,
+        sourceUrl, // Source project files for AI context restoration
+        durationFrames: metadata.durationInFrames,
+        fps: metadata.fps,
+        width: metadata.width,
+        height: metadata.height,
+        stylePreset,
+        llmModel,
+        timestamps: metadata.visuals,
+      }).returning({ id: visuals.id });
+      const visualId = insertedVisual.id;
 
-    // Create one timeline item per scene so they appear as separate blocks on the track
-    for (const scene of metadata.visuals) {
-      await db.insert(timelineItems).values({
-        trackId: visualsTrack.id,
-        type: 'visual',
-        startMs: scene.startMs,
-        endMs: scene.endMs,
-        data: {
-          visualId,
-          compositionId: metadata.compositionId,
-          bundleUrl,
-          type: scene.type || 'visual',
-          description: scene.description || 'AI-generated visual',
-          width: metadata.width,
-          height: metadata.height,
-          fps: metadata.fps,
-        },
-      });
-    }
+      // Find or create visuals track
+      const existingTracks = await tx.select().from(tracks).where(eq(tracks.projectId, projectId));
+      let visualsTrack = existingTracks.find(t => t.type === 'visual');
 
-    // Update job and project status
-    await db.update(jobs)
-      .set({
-        status: 'complete',
-        progress: 100,
-        completedAt: new Date(),
-      })
-      .where(eq(jobs.id, jobId));
+      if (!visualsTrack) {
+        const [newTrack] = await tx.insert(tracks).values({
+          projectId,
+          type: 'visual',
+          name: 'Visuals',
+          position: existingTracks.length,
+        }).returning();
+        visualsTrack = newTrack;
+      }
 
-    await db.update(projects)
-      .set({ status: 'ready', outputKey: null, updatedAt: new Date() })
-      .where(eq(projects.id, projectId));
+      // Create one timeline item per scene so they appear as separate blocks on the track
+      for (const scene of metadata.visuals) {
+        await tx.insert(timelineItems).values({
+          trackId: visualsTrack.id,
+          type: 'visual',
+          startMs: scene.startMs,
+          endMs: scene.endMs,
+          data: {
+            visualId,
+            compositionId: metadata.compositionId,
+            bundleUrl,
+            type: scene.type || 'visual',
+            description: scene.description || 'AI-generated visual',
+            width: metadata.width,
+            height: metadata.height,
+            fps: metadata.fps,
+          },
+        });
+      }
 
+      // Update job and project status
+      await tx.update(jobs)
+        .set({
+          status: 'complete',
+          progress: 100,
+          completedAt: new Date(),
+        })
+        .where(eq(jobs.id, jobId));
+
+      await tx.update(projects)
+        .set({ status: 'ready', outputKey: null, updatedAt: new Date() })
+        .where(eq(projects.id, projectId));
+    });
+
+    // Only AFTER transaction succeeds — notify frontend
     await publishJobProgress(jobId, 100, 'Complete');
     await publishJobComplete(jobId, projectId);
 
@@ -723,17 +735,21 @@ registerRoot(RemotionRoot);
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    await db.update(jobs)
-      .set({ status: 'failed', error: errorMessage })
-      .where(eq(jobs.id, jobId));
+    await db.transaction(async (tx) => {
+      await tx.update(jobs)
+        .set({ status: 'failed', error: errorMessage })
+        .where(eq(jobs.id, jobId));
 
-    await db.update(projects)
-      .set({ status: 'failed' })
-      .where(eq(projects.id, projectId));
+      await tx.update(projects)
+        .set({ status: 'failed' })
+        .where(eq(projects.id, projectId));
+    });
 
     await publishJobError(jobId, errorMessage);
 
     throw error;
+  } finally {
+    clearInterval(lockExtender);
   }
 }
 
@@ -961,6 +977,11 @@ async function runClaudeCodeGenerator(
         setTimeout(() => {
           if (!subprocess.killed) {
             subprocess.kill('SIGKILL');
+            setTimeout(() => {
+              if (!subprocess.killed) {
+                logger.error({ jobId }, 'CRITICAL: subprocess survived SIGKILL — potential zombie');
+              }
+            }, 5000);
           }
         }, 10000);
         reject(new Error(`Claude Agent generator timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
@@ -969,18 +990,23 @@ async function runClaudeCodeGenerator(
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
         clearInterval(progressTicker);
+        runningProcesses.delete(jobId);
+        unregisterCancelHandler(jobId);
         if (code === 0) {
           resolve();
         } else {
           // Include both stderr and last part of stdout for debugging
           const errorOutput = stderr || stdout.slice(-1000);
-          reject(new Error(`Claude Code generator exited with code ${code}: ${errorOutput}`));
+          // Non-zero exit = bad input/prompt, don't retry
+          reject(new UnrecoverableError(`Claude Code generator exited with code ${code}: ${errorOutput}`));
         }
       });
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
         clearInterval(progressTicker);
+        runningProcesses.delete(jobId);
+        unregisterCancelHandler(jobId);
         reject(err);
       });
     });
@@ -1082,23 +1108,23 @@ async function runClaudeCodeGenerator(
 
     try {
       await rm(transcriptPath);
-    } catch {
-      // Ignore cleanup errors
+    } catch (err) {
+      logger.warn({ jobId, path: transcriptPath, err }, 'Failed to clean temp file');
     }
 
     if (wordsPath) {
       try {
         await rm(wordsPath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        logger.warn({ jobId, path: wordsPath, err }, 'Failed to clean temp file');
       }
     }
 
     if (styleGuidePath) {
       try {
         await rm(styleGuidePath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        logger.warn({ jobId, path: styleGuidePath, err }, 'Failed to clean temp file');
       }
     }
   }

@@ -488,6 +488,7 @@ class ApiClient {
       widgetResponse?: { widgetId: string; value: unknown };
     },
     signal?: AbortSignal,
+    lastEventId?: number,
   ): Promise<ReadableStream<Uint8Array>> {
     const url = `${this.baseUrl}/api/projects/${projectId}/agent/chat`;
     const token = getSessionToken();
@@ -496,6 +497,9 @@ class ApiClient {
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+    if (lastEventId !== undefined) {
+      headers['Last-Event-ID'] = String(lastEventId);
     }
 
     const response = await fetch(url, {
@@ -531,6 +535,8 @@ class ApiClient {
       type: string;
       progress: number;
       message: string | null;
+      phase?: string;
+      jobType?: string;
     } | null;
   }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`);
@@ -539,6 +545,12 @@ class ApiClient {
   async clearConversation(projectId: string): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`, {
       method: 'DELETE',
+    });
+  }
+
+  async cancelAgent(projectId: string): Promise<{ ok: boolean; cancelledJobId: string | null }> {
+    return this.request(`/api/projects/${projectId}/agent/cancel`, {
+      method: 'POST',
     });
   }
 

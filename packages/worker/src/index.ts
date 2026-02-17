@@ -135,8 +135,17 @@ async function main() {
     {
       connection,
       concurrency: 1,
-      lockDuration: 10 * 60 * 1000,
-      stalledInterval: 5 * 60 * 1000,
+      lockDuration: 5 * 60 * 1000,
+      stalledInterval: 30_000,
+      maxStalledCount: 2,
+      settings: {
+        // Jittered exponential backoff: base * 2^attempt + random jitter (0-2s)
+        backoffStrategy: (attemptsMade: number) => {
+          const base = Math.min(5000 * Math.pow(2, attemptsMade), 30000);
+          const jitter = Math.random() * 2000;
+          return base + jitter;
+        },
+      },
     }
   );
 
@@ -158,8 +167,16 @@ async function main() {
     {
       connection,
       concurrency: 1,
-      lockDuration: 10 * 60 * 1000,
-      stalledInterval: 5 * 60 * 1000,
+      lockDuration: 5 * 60 * 1000,
+      stalledInterval: 30_000,
+      maxStalledCount: 2,
+      settings: {
+        backoffStrategy: (attemptsMade: number) => {
+          const base = Math.min(5000 * Math.pow(2, attemptsMade), 30000);
+          const jitter = Math.random() * 2000;
+          return base + jitter;
+        },
+      },
     }
   );
 
@@ -181,8 +198,16 @@ async function main() {
     {
       connection,
       concurrency: 1,
-      lockDuration: 10 * 60 * 1000,
-      stalledInterval: 5 * 60 * 1000,
+      lockDuration: 5 * 60 * 1000,
+      stalledInterval: 30_000,
+      maxStalledCount: 2,
+      settings: {
+        backoffStrategy: (attemptsMade: number) => {
+          const base = Math.min(5000 * Math.pow(2, attemptsMade), 30000);
+          const jitter = Math.random() * 2000;
+          return base + jitter;
+        },
+      },
     }
   );
 
@@ -239,22 +264,23 @@ async function main() {
 
   logger.info('Worker started, waiting for jobs...');
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    logger.info('Shutting down worker...');
-    await transcribeWorker.close();
-    await renderWorker.close();
-    await enhanceAudioWorker.close();
-    await generateVisualsWorker.close();
-    await planVisualsWorker.close();
-    await editVisualsWorker.close();
-    await svgAnimationWorker.close();
-    await preloadProjectWorker.close();
+  // Graceful shutdown — close all workers in parallel, waiting for in-progress
+  // jobs to finish. This prevents stalled jobs on deploys/restarts.
+  const allWorkers = [
+    transcribeWorker, renderWorker, enhanceAudioWorker,
+    generateVisualsWorker, planVisualsWorker, editVisualsWorker,
+    svgAnimationWorker, preloadProjectWorker,
+  ];
+
+  const shutdown = async (signal: string) => {
+    logger.info({ signal }, 'Received shutdown signal, closing workers...');
+    await Promise.allSettled(allWorkers.map(w => w.close()));
+    logger.info('All workers closed');
     process.exit(0);
   };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main().catch((err) => {

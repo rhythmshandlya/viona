@@ -8,7 +8,7 @@
  * 4. Uploading the new bundle and sources back to MinIO
  */
 
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { readFile, readdir, stat, writeFile as writeFileAsync } from 'fs/promises';
 import { join, dirname } from 'path';
@@ -16,7 +16,8 @@ import { existsSync } from 'fs';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { db, projects, jobs, visuals } from '../db/index.js';
-import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
+import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler, setJobProjectId } from '../services/redis.js';
+import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
 import { downloadSourceFromStorage, uploadFile, listObjects } from '../services/minio.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
@@ -24,6 +25,8 @@ import { getWorkspacePath, createProjectDir } from '../workspace.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+const runningProcesses = new Map<string, ChildProcess>();
 
 /**
  * Asset type for extracted components
@@ -263,6 +266,14 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
   // Convert compositionId format: proj-xxx-xxx -> proj_xxx_xxx for workspace
   const workspaceCompositionId = compositionId.replace(/-/g, '_');
 
+  const lockExtender = setInterval(async () => {
+    try {
+      await job.extendLock(job.token!, 120_000);
+    } catch (err) {
+      logger.error({ jobId, err }, 'Lock extension failed');
+    }
+  }, 55_000);
+
   try {
     // Update job status
     await db.update(jobs)
@@ -343,7 +354,9 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       scenePlan,
     });
 
-    await publishJobProgress(jobId, 70, 'Reading updated metadata...');
+    await publishJobProgress(jobId, 85, 'Validating changes...');
+
+    await publishJobProgress(jobId, 86, 'Reading updated metadata...');
 
     // Read updated metadata
     const metadataPath = join(projectDir, 'metadata.json');
@@ -363,10 +376,10 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
     }
 
     // Auto-fix common issues in edited source files (descending interpolate ranges, etc.)
-    await publishJobProgress(jobId, 73, 'Auto-fixing common issues...');
+    await publishJobProgress(jobId, 87, 'Auto-fixing common issues...');
     await autoFixProjectFiles(projectDir);
 
-    await publishJobProgress(jobId, 75, 'Verifying bundle...');
+    await publishJobProgress(jobId, 88, 'Verifying bundle...');
 
     // Verify bundle exists
     const bundleDir = join(config.remotion.bundleOutputDir, compositionId);
@@ -380,19 +393,19 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
     }
 
     // Compile composition to CJS for dynamic frontend loading
-    await publishJobProgress(jobId, 78, 'Compiling for preview...');
+    await publishJobProgress(jobId, 89, 'Compiling for preview...');
     await compileCjs(projectDir, bundleDir);
 
     // Upload updated bundle to S3
-    await publishJobProgress(jobId, 80, 'Uploading updated bundle...');
+    await publishJobProgress(jobId, 91, 'Uploading updated bundle...');
     await uploadBundleToStorage(bundleDir, compositionId);
 
     // Upload updated source files to S3
-    await publishJobProgress(jobId, 85, 'Uploading updated sources...');
+    await publishJobProgress(jobId, 93, 'Uploading updated sources...');
     const sourceUrl = await uploadSourceToStorage(projectDir, compositionId);
 
     // Extract and upload assets
-    await publishJobProgress(jobId, 88, 'Extracting assets...');
+    await publishJobProgress(jobId, 95, 'Extracting assets...');
     const extractedAssets = await extractAssets(projectDir);
     try {
       const assetsPath = join(projectDir, 'assets.json');
@@ -402,7 +415,7 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       logger.warn({ projectId, error: err }, 'Failed to upload assets.json');
     }
 
-    await publishJobProgress(jobId, 90, 'Updating database...');
+    await publishJobProgress(jobId, 97, 'Updating database...');
 
     // Try to read scenes.json for detailed scene information (scenesPath already defined above)
     let timestamps: any[] | undefined;
@@ -505,6 +518,8 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
     await publishJobError(jobId, errorMessage);
 
     throw error;
+  } finally {
+    clearInterval(lockExtender);
   }
 }
 
@@ -636,12 +651,18 @@ You understand what the speaker is saying, what the visuals currently show, and 
 - Then make changes that serve the user's request while keeping visuals aligned with the narration.
 
 TECHNICAL GUIDELINES:
-- You decide what files to modify and how much to change — small tweak or full rewrite.
 - Use existing COLORS and SPRING_CONFIG from constants.ts when they exist.
 - Keep frame ranges and component export names unchanged unless the request requires it.
 - Remotion best practices: useCurrentFrame(), spring() with damping >= 20, interpolate() with extrapolateRight: 'clamp'.
 - Do NOT modify files that aren't relevant to the request.
 - After making changes, run: npx remotion bundle src/${projectId}/index.tsx --out-dir ${bundleOutputDir}/${projectId.replace(/_/g, '-')}
+${targetSceneId ? `
+SCOPE RESTRICTION (MANDATORY):
+- You MUST ONLY edit scenes/Scene${targetSceneId}.tsx and its direct dependencies (components/ or constants.ts).
+- Do NOT touch other scene files (Scene1.tsx, Scene3.tsx, etc.) — they are NOT part of this edit.
+- Do NOT modify index.tsx unless the user explicitly asks to change scene ordering/structure.
+- If the edit requires changes to shared components, make them backward-compatible so other scenes still work.
+` : ''}
 `.trim();
 
   // Run Claude CLI in the workspace, passing prompt via stdin to avoid shell escaping issues
@@ -662,31 +683,18 @@ TECHNICAL GUIDELINES:
   subprocess.stdin?.write(editPrompt);
   subprocess.stdin?.end();
 
+  // Register subprocess for cancellation support
+  runningProcesses.set(jobId, subprocess);
+  registerCancelHandler(jobId, () => {
+    subprocess.kill('SIGTERM');
+  });
+
   let stdout = '';
   let stderr = '';
 
-  // Progress ticker — publish periodic updates so the polling loop (and frontend)
-  // know the job is still alive. Without this, the agent's stall detector would
-  // fire because the Claude subprocess can run for several minutes silently.
-  const EDIT_PROGRESS_MESSAGES = [
-    'AI is analyzing your composition...',
-    'AI is planning the changes...',
-    'AI is editing your visuals...',
-    'AI is writing code changes...',
-    'AI is still working on edits...',
-    'Almost there, AI is finalizing...',
-  ];
-  let tickerIndex = 0;
-  // Slowly increment from 25% to 60% during Claude's run
-  let tickerPercent = 25;
-  const progressTicker = setInterval(() => {
-    const message = EDIT_PROGRESS_MESSAGES[Math.min(tickerIndex, EDIT_PROGRESS_MESSAGES.length - 1)];
-    tickerPercent = Math.min(60, tickerPercent + 2);
-    publishJobProgress(jobId, tickerPercent, message);
-    // Also update the DB so the polling loop sees fresh progress
-    db.update(jobs).set({ progress: tickerPercent, progressMessage: message }).where(eq(jobs.id, jobId)).catch(() => {});
-    tickerIndex++;
-  }, 15_000); // Every 15 seconds
+  // Heartbeat progress — exponential decay curve from 20% to 83% over ~8 minutes
+  await publishJobProgress(jobId, 20, 'AI is editing your visuals...');
+  const heartbeat = startHeartbeatProgress(jobId, 20, 83, 8 * 60 * 1000);
 
   subprocess.stdout?.on('data', (chunk: Buffer) => {
     const text = chunk.toString('utf-8');
@@ -705,24 +713,31 @@ TECHNICAL GUIDELINES:
   // Wait for completion with timeout
   await new Promise<void>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      clearInterval(progressTicker);
+      heartbeat.stop();
+      runningProcesses.delete(jobId);
+      unregisterCancelHandler(jobId);
       subprocess.kill('SIGTERM');
       reject(new Error(`Claude editor timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
     }, config.claudeAgent.timeoutSeconds * 1000);
 
     subprocess.on('close', (code) => {
       clearTimeout(timeoutId);
-      clearInterval(progressTicker);
+      heartbeat.stop();
+      runningProcesses.delete(jobId);
+      unregisterCancelHandler(jobId);
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`Claude editor exited with code ${code}: ${stderr || stdout.slice(-500)}`));
+        // Non-zero exit = bad input/prompt, don't retry
+        reject(new UnrecoverableError(`Claude editor exited with code ${code}: ${stderr || stdout.slice(-500)}`));
       }
     });
 
     subprocess.on('error', (err) => {
       clearTimeout(timeoutId);
-      clearInterval(progressTicker);
+      heartbeat.stop();
+      runningProcesses.delete(jobId);
+      unregisterCancelHandler(jobId);
       reject(err);
     });
   });

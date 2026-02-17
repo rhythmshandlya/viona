@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight } from 'lucide-react';
+import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight, type LucideIcon } from 'lucide-react';
 import { api, ExtractedAsset, SceneInfo } from '@/lib/api';
 import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItems } from '../store/use-editor-store';
 
@@ -16,7 +16,7 @@ interface AssetsPanelProps {
 }
 
 // Icon mapping for asset types
-const AssetIcon: Record<ExtractedAsset['type'], React.ElementType> = {
+const AssetIcon: Record<ExtractedAsset['type'], LucideIcon> = {
   component: Box,
   element: Layers,
   text: Type,

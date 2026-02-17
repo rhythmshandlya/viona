@@ -134,6 +134,7 @@ export function Player({ className }: PlayerProps) {
         controls={false}
         loop={false}
         clickToPlay={false}
+        acknowledgeRemotionLicense
       />
       <SafeZoneOverlay platform={safeZonePlatform} />
     </div>
