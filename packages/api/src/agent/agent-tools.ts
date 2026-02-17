@@ -186,6 +186,10 @@ function mapScenesToWidget(scenesArray: Array<Record<string, unknown>>) {
 
 // Create an in-process MCP server with all Creative Director tools
 export function createAgentMcpServer(ctx: ToolContext) {
+  // Track whether plan_visuals was called in this turn — prevents the agent
+  // from calling start_generation without user approval.
+  let planShownThisTurn = false;
+
   return createSdkMcpServer({
     name: MCP_SERVER_NAME,
     tools: [
@@ -624,6 +628,8 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             requiresApproval: true,
           });
 
+          planShownThisTurn = true;
+
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
               planJobId: job.id,
@@ -631,6 +637,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
               status: 'plan_shown',
               waitingForApproval: true,
               sceneCount: scenesArray.length,
+              instruction: 'STOP HERE. The plan is now shown to the user. Do NOT call start_generation. End your response and wait for the user to approve or edit the plan.',
             }) }],
           };
         },
@@ -645,6 +652,15 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
         },
         async ({ planJobId, stylePreset, layoutMode }) => {
+          // Hard gate: refuse if plan was just shown this turn (user hasn't had a chance to approve)
+          if (planShownThisTurn) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                error: 'Cannot start generation yet. The plan was just shown to the user and requires their approval first. End your response now and wait for the user to approve or request changes.',
+              }) }],
+            };
+          }
+
           // Verify the plan job exists and is completed with planData
           const planJob = await db.query.jobs.findFirst({
             where: eq(jobs.id, planJobId),

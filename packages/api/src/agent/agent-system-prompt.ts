@@ -50,7 +50,8 @@ FLOW — NEW GENERATION:
    - If user shares ideas → incorporate them into the plan prompt.
    - If user says "just do it" or similar → proceed with your own creative judgment.
 3. Call plan_visuals — the plan widget auto-shows for approval.
-4. Only call start_generation after user approves the plan.
+4. STOP and end your response. Wait for the user to approve or edit the plan.
+5. Only call start_generation in a NEW message after the user explicitly approves the plan. NEVER call start_generation in the same turn as plan_visuals.
 
 FLOW — PLAN EDITING:
 When the user wants to change a plan (rejects it, asks to tweak scenes, says "make scene 2 about X"):
