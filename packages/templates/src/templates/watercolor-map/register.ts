@@ -23,10 +23,16 @@ registerTemplate({
       'index.tsx',
       'register.ts',
       'lib/tile-math.ts',
+      'lib/camera.ts',
+      'lib/distance.ts',
       'components/MapTileGrid.tsx',
       'components/AnimatedPath.tsx',
       'components/LocationMarker.tsx',
       'components/LocationLabel.tsx',
+      'components/AirplaneIcon.tsx',
+      'components/DistanceCounter.tsx',
+      'components/ProgressBar.tsx',
+      'components/CompassRose.tsx',
     ];
 
     return fileNames.map((fileName) => ({
