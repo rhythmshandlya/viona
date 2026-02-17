@@ -2894,6 +2894,11 @@ registerRoot(RemotionRoot);
                     "mcp__freepik__search_resources",
                     "mcp__freepik__get_resource_detail_by_id",
                     "mcp__freepik__download_resource_by_id",
+                    # Iconify MCP tools (200k+ open-source icons via better-icons)
+                    "mcp__better-icons__search_icons",
+                    "mcp__better-icons__get_icon",
+                    "mcp__better-icons__recommend_icons",
+                    "mcp__better-icons__find_similar_icons",
                 ],
                 mcp_servers={
                     "freepik": {
@@ -2905,6 +2910,11 @@ registerRoot(RemotionRoot);
                             "--header",
                             f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
                         ]
+                    },
+                    "better-icons": {
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": ["better-icons"]
                     }
                 },
                 hooks={
