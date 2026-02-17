@@ -358,7 +358,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
           abortController,
           tools: [],
           maxTurns: 10,
-          thinking: { type: 'disabled' },
+          thinking: { type: 'enabled', budgetTokens: 8000 },
           persistSession: false,
           env: { ...process.env, CLAUDECODE: undefined },
           stderr: (data: string) => fastify.log.warn({ stderr: data }, 'SDK stderr'),

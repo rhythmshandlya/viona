@@ -1,0 +1,12 @@
+{
+  "slug": "watercolor-map",
+  "name": "Watercolor Map",
+  "description": "Animated travel route between two locations on a watercolor-style map with markers and a connecting line",
+  "category": "social",
+  "tags": ["map", "travel", "watercolor", "route", "geography", "animation"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

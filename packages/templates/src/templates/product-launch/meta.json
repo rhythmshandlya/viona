@@ -1,0 +1,12 @@
+{
+  "slug": "product-launch",
+  "name": "Product Launch",
+  "description": "Bold product launch announcement with feature showcase, pricing, and call-to-action",
+  "category": "marketing",
+  "tags": ["product", "launch", "announcement", "features", "pricing", "cta"],
+  "stylePreset": "modernTech",
+  "aspectRatio": "9:16",
+  "sceneCount": 4,
+  "estimatedDuration": "15s",
+  "thumbnail": "thumbnail.png"
+}

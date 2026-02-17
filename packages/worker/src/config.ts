@@ -23,7 +23,7 @@ export const config = {
   // Claude Agent SDK visual generator (uses OAuth authentication)
   claudeAgent: {
     // Model for visual generation
-    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-5-20251101',
+    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-6',
     // Extended thinking tokens for planning
     maxThinkingTokens: parseInt(process.env.CLAUDE_AGENT_MAX_THINKING_TOKENS || '10000', 10),
     // Maximum agent turns
