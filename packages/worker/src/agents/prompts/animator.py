@@ -758,12 +758,12 @@ export const Scene1: React.FC<Scene1Props> = ({{ startFrame }}) => {{
   return (
     <AbsoluteFill>
       {{/* Setup/anticipation elements (visible before key word) */}}
-      <div style={{{{ opacity: setupProgress }}}}>
+      <div data-element-name="setup" style={{{{ opacity: setupProgress }}}}>
         {{/* Background elements, secondary visuals */}}
       </div>
 
       {{/* KEY SYNC EVENT: triggers at the exact frame the narrator says the key word */}}
-      <div style={{{{ opacity: keySyncProgress, transform: `scale(${{keySyncProgress}})` }}}}>
+      <div data-element-name="primary" style={{{{ opacity: keySyncProgress, transform: `scale(${{keySyncProgress}})` }}}}>
         {{/* Main visual event described in keySync.visualEvent */}}
       </div>
     </AbsoluteFill>

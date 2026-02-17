@@ -1738,67 +1738,84 @@ const RollingDice: React.FC = () => {{
 
 
 <assets_and_visuals>
-## PREMIUM ASSET LIBRARY — FREEPIK
+## PREMIUM ASSET LIBRARIES — FREEPIK + ICONIFY
 
 <MANDATORY_ASSET_RULE>
-**YOU MUST DOWNLOAD AND USE FREEPIK ASSETS. DO NOT HAND-CODE SVG ICONS.**
+**YOU MUST DOWNLOAD AND USE PROFESSIONAL ASSETS. DO NOT HAND-CODE SVG ICONS.**
 
-❌ DO NOT search Freepik and then write your own SVG instead
+❌ DO NOT search for icons and then write your own SVG instead
 ❌ DO NOT skip the download step "for speed" or "more control"
-❌ DO NOT write SVG paths by hand when Freepik has the icon
+❌ DO NOT write SVG paths by hand when Freepik or Iconify has the icon
 ❌ DO NOT rationalize skipping downloads — this is a HARD REQUIREMENT
 
-✅ Search → Download → Read SVG file → Paste into JSX → Animate
-✅ EVERY icon in your scene MUST come from a Freepik download
-✅ The ONLY exception is if the download tool itself errors/fails
-
-**WHY:** Hand-coded SVGs look amateur. Freepik icons are professionally designed
-with consistent stroke widths, balanced proportions, and visual polish that you
-cannot replicate by writing SVG paths manually. The entire point of having Freepik
-access is to USE it. Searching and then ignoring the results is worse than not
-searching at all.
+✅ Search → Download/Get → Read SVG → Paste into JSX → Animate
+✅ EVERY icon in your scene MUST come from Freepik or Iconify
+✅ The ONLY exception is if the download/get tool itself errors/fails
 </MANDATORY_ASSET_RULE>
 
-You have access to Freepik's library of millions of premium icons, illustrations,
-vectors, and photos via MCP tools. Your visuals should look like they came from a
+You have TWO asset libraries. Your visuals should look like they came from a
 professional motion design studio, not a coding tutorial.
+
+### DUAL ASSET SOURCES
+
+1. **Freepik** (premium icons, illustrations, vectors, photos)
+   - Best for: premium illustrations, complex vectors, photos, branded assets
+   - Tools: `search_icons` → `download_icon_by_id`, `search_resources` → `download_resource_by_id`
+
+2. **Iconify / better-icons** (200k+ open-source icons from 150+ collections)
+   - Best for: clean UI-style icons, consistent icon sets (Lucide, Material, Heroicons, Tabler, Phosphor)
+   - Tools: `search_icons`, `get_icon`, `recommend_icons`, `find_similar_icons`
+   - Icon ID format: `prefix:name` (e.g., `lucide:home`, `mdi:chart-bar`)
 
 ### DECISION FRAMEWORK — What to use when
 
 | Visual Need | Use | Why |
 |------------|-----|-----|
-| Any icon (arrows, UI, concepts) | Freepik `search_icons` → `download_icon_by_id` (format="svg") | Professional, consistent, polished |
-| Illustrations (objects, scenes, people) | Freepik `search_resources` (vector) | Hand-drawn quality impossible with code |
-| Background textures/patterns | Freepik `search_resources` (vector) | Rich visual depth |
-| Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
-| Flowcharts / process diagrams | Hand-coded SVG with Freepik icons as nodes | Best of both — structure + polish |
-| Abstract concepts (AI, growth, speed) | Freepik illustration + animation overlay | Conveys concept instantly |
+| UI icons (arrows, chevrons, checkmarks) | Iconify `search_icons` → `get_icon` | Consistent sets, clean stroke/fill |
+| Concept icons (lightbulb, rocket, gear) | Iconify `search_icons` → `get_icon` | Fast, many variations across collections |
+| Multiple matching icons from one set | Iconify (pick a prefix like `lucide:`) | Collections ensure consistency |
+| Premium illustrations (isometric, 3D) | Freepik `search_resources` → `download_resource_by_id` | Hand-drawn quality impossible with code |
+| Photos, textures, backgrounds | Freepik `search_resources` → `download_resource_by_id` | Only source for photos |
+| Branded/complex visuals | Freepik `search_icons` → `download_icon_by_id` | Premium library |
+| Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values |
+| Flowcharts / process diagrams | Hand-coded SVG with Iconify/Freepik icons as nodes | Best of both |
 
-**RULE: Default to Freepik. Only hand-code SVGs for dynamic data (counters, charts, graphs).**
+**RULE: For simple/UI icons, start with Iconify (faster, consistent sets). For rich visuals and illustrations, use Freepik. Only hand-code SVGs for dynamic data.**
 
 ### HOW TO SEARCH EFFECTIVELY
 
-**Icons:**
-- search_icons with `term` parameter: "cloud computing", "server rack", "neural network"
+**Iconify (better-icons):**
+- `search_icons` with query: "arrow right", "chart bar", "cloud server"
+- Search CONCEPTS, not literal descriptions
+- Get SVG: `get_icon` with icon ID like "lucide:arrow-right" returns SVG markup directly
+- Popular prefixes: lucide, mdi, heroicons, tabler, ph (phosphor)
+- Use `find_similar_icons` to explore variations across collections
+- Use `recommend_icons` when unsure which icon fits a concept
+
+**Freepik:**
+- `search_icons` with `term` parameter: "cloud computing", "server rack", "neural network"
 - Filter by shape: "fill" for solid icons, "outline" for line icons
 - Filter by icon_type: ["standard"] for static, ["animated"] for motion
-- Search CONCEPTS, not literal descriptions. "growth" not "line going up".
-- Try 2-3 search terms if the first doesn't match: "database" → "storage" → "server rack"
-
-**Resources (illustrations, vectors, photos):**
-- search_resources with `term` and content_type filter: {{ content_type: {{ vector: 1 }} }}
+- `search_resources` with `term` and content_type filter: {{ content_type: {{ vector: 1 }} }}
 - Prefer vectors over photos — cleaner scaling, transparent backgrounds
-- Use orientation filters for portrait content: {{ orientation: {{ portrait: 1 }} }}
+- Try 2-3 search terms if the first doesn't match
 
 ### HOW TO USE DOWNLOADED ASSETS
 
-**Icons (SVG) — inline in JSX:**
+**Iconify icons — inline in JSX:**
+1. `get_icon` with icon ID (e.g., "lucide:zap") → returns SVG markup
+2. Paste the SVG markup directly into your JSX component
+3. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
+4. Use `currentColor` for dynamic coloring: wrap in div with `color: COLORS.accent`
+5. Animate the wrapper with spring/interpolate
+
+**Freepik icons (SVG) — download then inline:**
 1. `download_icon_by_id` with id and format="svg" → returns {{ data: {{ url, filename }} }}
 2. Download with Bash: `curl -sL -o public/assets/icon-name.svg "URL"`
 3. Read the SVG file content with the Read tool
 4. Paste the SVG markup directly into your JSX component
-5. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
-6. Use `currentColor` for dynamic coloring: wrap in div with `color: COLORS.accent`
+5. Replace hardcoded width/height with style prop
+6. Use `currentColor` for dynamic coloring
 7. Animate the wrapper with spring/interpolate
 
 **Resources (images/illustrations) — use staticFile:**
@@ -1822,7 +1839,7 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 
 <div style={{{{ opacity: iconOpacity, transform: `scale(${{iconScale}})`, color: COLORS.accent }}}}>
   <svg viewBox="0 0 24 24" style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}>
-    {{/* SVG paths from Freepik download */}}
+    {{/* SVG paths from Iconify or Freepik download */}}
   </svg>
 </div>
 ```
@@ -1830,12 +1847,12 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 ### GUARDRAILS
 
 - **ASSET BUDGET**: 1-3 icons per scene, 0-1 illustration per scene. Don't clutter.
-- **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing Freepik.
-- **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. Match icon colors to the style preset's color scheme.
-- **FALLBACK**: ONLY if the download tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG. "I want more control" or "for speed" are NOT valid reasons to skip downloads.
-- **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
-- **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
-- **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any assets, run `mkdir -p public/assets` in Bash.
+- **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing.
+- **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. If using Iconify, stick to ONE prefix (e.g., all `lucide:` or all `tabler:`). Match icon colors to the style preset's color scheme.
+- **FALLBACK**: ONLY if the download/get tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG.
+- **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients.
+- **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match.
+- **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any Freepik assets, run `mkdir -p public/assets` in Bash.
 </assets_and_visuals>
 
 <web_search>
@@ -2894,6 +2911,11 @@ registerRoot(RemotionRoot);
                     "mcp__freepik__search_resources",
                     "mcp__freepik__get_resource_detail_by_id",
                     "mcp__freepik__download_resource_by_id",
+                    # Iconify MCP tools (200k+ open-source icons via better-icons)
+                    "mcp__better-icons__search_icons",
+                    "mcp__better-icons__get_icon",
+                    "mcp__better-icons__recommend_icons",
+                    "mcp__better-icons__find_similar_icons",
                 ],
                 mcp_servers={
                     "freepik": {
@@ -2905,6 +2927,11 @@ registerRoot(RemotionRoot);
                             "--header",
                             f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
                         ]
+                    },
+                    "better-icons": {
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": ["better-icons"]
                     }
                 },
                 hooks={

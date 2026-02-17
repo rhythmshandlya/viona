@@ -867,6 +867,19 @@ const ZONES = {
 };
 \`\`\`
 
+## 🏷️ MANDATORY: data-element-name Attributes
+Every distinct visual element MUST include a \`data-element-name\` attribute on its outermost wrapper div. This enables the editor's element selection/highlighting feature.
+
+\`\`\`tsx
+// ✅ CORRECT
+<div data-element-name="header" style={ZONES.header}>Title</div>
+<div data-element-name="center" style={ZONES.center}>Diagram</div>
+<div data-element-name="leftSidebar" style={ZONES.leftSidebar}>Labels</div>
+
+// ❌ WRONG — missing data-element-name
+<div style={ZONES.header}>Title</div>
+\`\`\`
+
 ## 🚫 NO CAPTIONS / SUBTITLES
 Subtitles are handled externally. NEVER render caption text, subtitle text, or any text that repeats what the speaker says. Only use text for diagram labels and data values that are part of the visual explanation.
 

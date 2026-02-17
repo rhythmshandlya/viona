@@ -115,6 +115,8 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
       type: asset.type,
       sceneId: asset.sceneId,
       description: asset.description,
+      position: asset.position,
+      size: asset.size,
     });
 
     // Pause playback and seek to the last second of the scene

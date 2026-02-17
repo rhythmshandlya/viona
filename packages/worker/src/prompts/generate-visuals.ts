@@ -419,7 +419,7 @@ const minDim = Math.min(width, height);
     boxSizing: 'border-box',  // CRITICAL: Prevents overflow
   }}>
     {/* TITLE ZONE - Fixed height, always centered */}
-    <div style={{
+    <div data-element-name="title" style={{
       flex: '0 0 auto',
       display: 'flex',
       justifyContent: 'center',
@@ -434,7 +434,7 @@ const minDim = Math.min(width, height);
     </div>
 
     {/* VISUAL ZONE - Expands to fill, centers content */}
-    <div style={{
+    <div data-element-name="visual" style={{
       flex: 1,
       display: 'flex',
       justifyContent: 'center',
@@ -458,6 +458,26 @@ const minDim = Math.min(width, height);
   </div>
 </AbsoluteFill>
 \`\`\`
+
+### 🏷️ MANDATORY: data-element-name Attributes
+Every distinct visual element (title, diagram, icon group, label, sidebar, etc.) MUST include a \`data-element-name\` attribute on its outermost wrapper. This enables the editor to highlight selected elements.
+
+\`\`\`tsx
+// ✅ CORRECT — each zone/element is tagged
+<div data-element-name="title" style={{...}}>Title</div>
+<div data-element-name="diagram" style={{...}}>Chart content</div>
+<div data-element-name="icon-group" style={{...}}>Icons</div>
+
+// ✅ For mapped items, use semantic names
+{steps.map((step, i) => (
+  <div key={i} data-element-name={\`step-\${i + 1}\`} style={{...}}>{step}</div>
+))}
+
+// ❌ WRONG — missing data-element-name
+<div style={{...}}>Title</div>
+\`\`\`
+
+Use names that match the layout keys from scenes.json (primary, secondary, title, center, header, etc.) or describe the semantic purpose (diagram, icon-row, label, sidebar).
 
 ### Alignment Rules (STRICT)
 | Element | Container Style | Content Style |

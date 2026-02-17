@@ -1104,7 +1104,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             scenes={widget.scenes || []}
             scenePlanMarkdown={widget.scenePlanMarkdown}
             metadata={widget.metadata}
-            onApprove={() => handleWidgetResponse(widget.id, { approved: true, planJobId })}
+            onApprove={(iconSelections) => handleWidgetResponse(widget.id, {
+              approved: true,
+              planJobId,
+              ...(iconSelections ? { selectedIcons: iconSelections } : {}),
+            })}
             onReject={() => handleWidgetResponse(widget.id, { approved: false, planJobId })}
             onEditScene={(sceneIndex, sceneTitle) => {
               const tag: SceneTag = { sceneIndex: sceneIndex + 1, sceneTitle, planJobId };
