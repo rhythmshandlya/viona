@@ -114,15 +114,16 @@ export interface TileInfo {
 export function getTilesForViewport(
   viewport: Viewport,
   width: number,
-  height: number
+  height: number,
+  margin: number = 0
 ): TileInfo[] {
   const { zoom, offsetX, offsetY } = viewport;
 
-  // Convert viewport corners to tile coordinates
-  const worldLeft = -offsetX;
-  const worldTop = -offsetY;
-  const worldRight = worldLeft + width;
-  const worldBottom = worldTop + height;
+  // Convert viewport corners to tile coordinates (with optional margin for camera panning)
+  const worldLeft = -offsetX - margin;
+  const worldTop = -offsetY - margin;
+  const worldRight = worldLeft + width + margin * 2;
+  const worldBottom = worldTop + height + margin * 2;
 
   const tileXMin = Math.floor(worldLeft / TILE_SIZE);
   const tileXMax = Math.floor(worldRight / TILE_SIZE);
@@ -185,6 +186,104 @@ export const MAP_STYLES: Record<MapStyle, MapStyleConfig> = {
     darkMap: false,
   },
 };
+
+export interface MultiPointViewport {
+  zoom: number;
+  offsetX: number;
+  offsetY: number;
+  points: { x: number; y: number }[];
+}
+
+/**
+ * Compute a viewport that fits an arbitrary list of coordinates.
+ * Used by multiStop and hubAndSpoke animation types.
+ */
+export function computeMultiPointViewport(
+  coords: { lat: number; lng: number }[],
+  width: number,
+  height: number,
+  padding: number
+): MultiPointViewport {
+  if (coords.length < 2) {
+    throw new Error('computeMultiPointViewport requires at least 2 coordinates');
+  }
+
+  const lats = coords.map((c) => c.lat);
+  const lngs = coords.map((c) => c.lng);
+
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+
+  // Find highest zoom where bounding box fits
+  const zoom = fitZoom(minLat, minLng, maxLat, maxLng, width, height, padding);
+
+  // Convert all coords to pixel space
+  const pixelPoints = coords.map((c) => ({
+    px: lngToPixelX(c.lng, zoom),
+    py: latToPixelY(c.lat, zoom),
+  }));
+
+  // Center bounding box in viewport
+  const allPx = pixelPoints.map((p) => p.px);
+  const allPy = pixelPoints.map((p) => p.py);
+  const centerX = (Math.min(...allPx) + Math.max(...allPx)) / 2;
+  const centerY = (Math.min(...allPy) + Math.max(...allPy)) / 2;
+
+  const offsetX = width / 2 - centerX;
+  const offsetY = height / 2 - centerY;
+
+  return {
+    zoom,
+    offsetX,
+    offsetY,
+    points: pixelPoints.map((p) => ({
+      x: p.px + offsetX,
+      y: p.py + offsetY,
+    })),
+  };
+}
+
+/**
+ * Compute the control point for a quadratic bezier curve between two points.
+ */
+export function computeBezierControl(
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  curveIntensity: number
+): { cx: number; cy: number } {
+  const midX = (x1 + x2) / 2;
+  const midY = (y1 + y2) / 2;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const offset = curveIntensity * dist * 0.4;
+  const nx = -dy / dist;
+  const ny = dx / dist;
+  return { cx: midX + nx * offset, cy: midY + ny * offset };
+}
+
+/**
+ * Get a point along a quadratic bezier curve at parameter t (0–1).
+ */
+export function getPointOnQuadBezier(
+  x1: number,
+  y1: number,
+  cx: number,
+  cy: number,
+  x2: number,
+  y2: number,
+  t: number
+): { x: number; y: number } {
+  const u = 1 - t;
+  return {
+    x: u * u * x1 + 2 * u * t * cx + t * t * x2,
+    y: u * u * y1 + 2 * u * t * cy + t * t * y2,
+  };
+}
 
 /**
  * Get the tile URL for the given style and coordinates.

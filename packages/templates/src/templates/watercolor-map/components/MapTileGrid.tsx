@@ -8,10 +8,11 @@ interface MapTileGridProps {
   width: number;
   height: number;
   mapStyle: MapStyle;
+  margin?: number;
 }
 
-const MapTileGrid: React.FC<MapTileGridProps> = ({ viewport, width, height, mapStyle }) => {
-  const tiles = getTilesForViewport(viewport, width, height);
+const MapTileGrid: React.FC<MapTileGridProps> = ({ viewport, width, height, mapStyle, margin = 0 }) => {
+  const tiles = getTilesForViewport(viewport, width, height, margin);
 
   return (
     <>

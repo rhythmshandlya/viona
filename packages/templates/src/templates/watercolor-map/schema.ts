@@ -9,6 +9,14 @@ const coordSchema = z.object({
 export const schema = z.object({
   startCoord: coordSchema.default({ lat: 48.8566, lng: 2.3522, label: 'Paris' }),
   endCoord: coordSchema.default({ lat: 41.9028, lng: 12.4964, label: 'Rome' }),
+  animationType: z
+    .enum(['followDraw', 'zoomReveal', 'kenBurns', 'airplaneArc', 'multiStop', 'hubAndSpoke'])
+    .default('followDraw'),
+  markerStyle: z.enum(['pulse', 'pinDrop', 'ripple']).default('pulse'),
+  waypoints: z.array(coordSchema).default([]),
+  showDistance: z.boolean().default(false),
+  showProgressBar: z.boolean().default(false),
+  showCompass: z.boolean().default(false),
   mapStyle: z
     .enum(['watercolor', 'toner', 'tonerLite', 'terrain', 'osm'])
     .default('watercolor'),
