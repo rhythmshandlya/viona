@@ -495,8 +495,35 @@ function NewProjectModal({
         const totalJobs = serverTotalJobs || (enhanceJobId ? 2 : 1);
 
         const completedJobs = new Set<string>();
+        let done = false;
+        let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+        const handleDone = (navigateToProjectId: string) => {
+          if (done) return;
+          done = true;
+          if (pollInterval) clearInterval(pollInterval);
+          removeHandler();
+          setUploadState("complete");
+          setStatusMessage("Processing complete!");
+          setProgress(100);
+          setTimeout(() => {
+            onOpenChange(false);
+            resetState();
+            router.push(`/project/${navigateToProjectId}`);
+          }, 800);
+        };
+
+        const handleError = (errorMsg: string) => {
+          if (done) return;
+          done = true;
+          if (pollInterval) clearInterval(pollInterval);
+          removeHandler();
+          setUploadState("error");
+          setError(errorMsg);
+        };
 
         const removeHandler = wsClient.addHandler((message: WSMessage) => {
+          if (done) return;
           if (message.type === "job:progress") {
             const payload = message.payload as JobProgressPayload;
             jobProgressRef.current[payload.jobId] = payload.progress;
@@ -512,24 +539,13 @@ function NewProjectModal({
             jobProgressRef.current[payload.jobId] = 100;
 
             if (completedJobs.size >= totalJobs) {
-              setUploadState("complete");
-              setStatusMessage("Processing complete!");
-              setProgress(100);
-              removeHandler();
-
-              setTimeout(() => {
-                onOpenChange(false);
-                resetState();
-                router.push(`/project/${payload.projectId}`);
-              }, 800);
+              handleDone(payload.projectId);
             } else {
               setStatusMessage("Finishing up...");
             }
           } else if (message.type === "job:error") {
             const payload = message.payload as JobErrorPayload;
-            setUploadState("error");
-            setError(payload.error);
-            removeHandler();
+            handleError(payload.error);
           }
         });
 
@@ -537,6 +553,30 @@ function NewProjectModal({
         if (enhanceJobId) {
           wsClient.subscribeToJob(enhanceJobId);
         }
+
+        // Fallback poll: catches completion if WS misses the event
+        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : [])];
+        pollInterval = setInterval(async () => {
+          if (done) { clearInterval(pollInterval!); return; }
+          try {
+            for (const jid of jobIds) {
+              if (completedJobs.has(jid)) continue;
+              const job = await api.getJob(jid);
+              if (job.status === "complete") {
+                completedJobs.add(jid);
+                jobProgressRef.current[jid] = 100;
+              } else if (job.status === "failed") {
+                handleError(job.error || "Processing failed");
+                return;
+              }
+            }
+            if (completedJobs.size >= totalJobs) {
+              handleDone(projectId);
+            }
+          } catch {
+            // Ignore poll errors, WS may still deliver
+          }
+        }, 3000);
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -622,8 +662,33 @@ function EmptyState() {
         const totalJobs = serverTotalJobs || (enhanceJobId ? 2 : 1);
 
         const completedJobs = new Set<string>();
+        let done = false;
+        let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+        const handleDone = (navigateToProjectId: string) => {
+          if (done) return;
+          done = true;
+          if (pollInterval) clearInterval(pollInterval);
+          removeHandler();
+          setUploadState("complete");
+          setStatusMessage("Processing complete!");
+          setProgress(100);
+          setTimeout(() => {
+            router.push(`/project/${navigateToProjectId}`);
+          }, 800);
+        };
+
+        const handleError = (errorMsg: string) => {
+          if (done) return;
+          done = true;
+          if (pollInterval) clearInterval(pollInterval);
+          removeHandler();
+          setUploadState("error");
+          setError(errorMsg);
+        };
 
         const removeHandler = wsClient.addHandler((message: WSMessage) => {
+          if (done) return;
           if (message.type === "job:progress") {
             const payload = message.payload as JobProgressPayload;
             jobProgressRef.current[payload.jobId] = payload.progress;
@@ -639,22 +704,13 @@ function EmptyState() {
             jobProgressRef.current[payload.jobId] = 100;
 
             if (completedJobs.size >= totalJobs) {
-              setUploadState("complete");
-              setStatusMessage("Processing complete!");
-              setProgress(100);
-              removeHandler();
-
-              setTimeout(() => {
-                router.push(`/project/${payload.projectId}`);
-              }, 800);
+              handleDone(payload.projectId);
             } else {
               setStatusMessage("Finishing up...");
             }
           } else if (message.type === "job:error") {
             const payload = message.payload as JobErrorPayload;
-            setUploadState("error");
-            setError(payload.error);
-            removeHandler();
+            handleError(payload.error);
           }
         });
 
@@ -662,6 +718,30 @@ function EmptyState() {
         if (enhanceJobId) {
           wsClient.subscribeToJob(enhanceJobId);
         }
+
+        // Fallback poll: catches completion if WS misses the event
+        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : [])];
+        pollInterval = setInterval(async () => {
+          if (done) { clearInterval(pollInterval!); return; }
+          try {
+            for (const jid of jobIds) {
+              if (completedJobs.has(jid)) continue;
+              const job = await api.getJob(jid);
+              if (job.status === "complete") {
+                completedJobs.add(jid);
+                jobProgressRef.current[jid] = 100;
+              } else if (job.status === "failed") {
+                handleError(job.error || "Processing failed");
+                return;
+              }
+            }
+            if (completedJobs.size >= totalJobs) {
+              handleDone(projectId);
+            }
+          } catch {
+            // Ignore poll errors, WS may still deliver
+          }
+        }, 3000);
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");

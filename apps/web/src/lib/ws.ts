@@ -85,6 +85,8 @@ class WebSocketClient {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
+  private pendingSubscriptions: Set<string> = new Set();
+  private activeSubscriptions: Set<string> = new Set();
 
   connect(projectId: string): void {
     if (this.ws && this.projectId === projectId) {
@@ -107,6 +109,16 @@ class WebSocketClient {
     this.ws.onopen = () => {
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
+      // Flush pending subscriptions
+      for (const jobId of this.pendingSubscriptions) {
+        this.ws!.send(JSON.stringify({ type: 'subscribe:job', jobId }));
+        this.activeSubscriptions.add(jobId);
+      }
+      this.pendingSubscriptions.clear();
+      // Re-subscribe to active jobs (on reconnect)
+      for (const jobId of this.activeSubscriptions) {
+        this.ws!.send(JSON.stringify({ type: 'subscribe:job', jobId }));
+      }
     };
 
     this.ws.onmessage = (event) => {
@@ -151,15 +163,23 @@ class WebSocketClient {
     }
     this.projectId = null;
     this.reconnectAttempts = 0;
+    this.pendingSubscriptions.clear();
+    this.activeSubscriptions.clear();
   }
 
   subscribeToJob(jobId: string): void {
+    this.activeSubscriptions.add(jobId);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'subscribe:job', jobId }));
+    } else {
+      // Queue for when connection opens
+      this.pendingSubscriptions.add(jobId);
     }
   }
 
   unsubscribeFromJob(jobId: string): void {
+    this.activeSubscriptions.delete(jobId);
+    this.pendingSubscriptions.delete(jobId);
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: 'unsubscribe:job', jobId }));
     }
