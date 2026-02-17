@@ -99,10 +99,17 @@ For EACH scene (do not batch multiple scenes):
       - What animation technique fits best? (spring, interpolate, stagger)
       - What components from `components/` can I reuse?
 
-      ### 4. SYNC STRATEGY
-      - The key word "{word}" is spoken at {timestamp}s = frame {frame}
-      - What visual event triggers at this exact frame?
-      - How do I ensure the timing is precise?
+      ### 4. SYNC STRATEGY (MOST IMPORTANT SECTION)
+      - The key word "{word}" is spoken at {timestamp}s = local frame {localFrame}
+      - What visual event triggers at this exact frame? (from keySync.visualEvent)
+      - Additional sync points from syncPoints[]:
+        - "{word2}" at local frame {localFrame2} → {visualEvent2}
+        - "{word3}" at local frame {localFrame3} → {visualEvent3}
+      - Animation timeline:
+        - Frames 0 to keySync: setup/anticipation elements
+        - Frame keySync: MAIN visual event (spring trigger)
+        - Frames after keySync: secondary reactions, reveals
+        - Additional syncPoint frames: secondary visual events
 
       ### 5. IMPLEMENTATION PLAN
       Step 1: [what I'll do first]
@@ -161,18 +168,26 @@ CRITICAL: You are implementing the DIRECTOR'S vision, not your own.
 - If plan says "container cracks at frame 135" -> animate crack at frame 135
 - If plan says "same particles from Scene 1" -> reuse the SAME particle component
 - If plan says "Cyber Neon palette" -> use those exact colors
+- If keySync says word "overflow" at frame 50 (local) -> the overflow visual MUST trigger at frame 50
 
 You can decide:
 - Spring configurations (damping, stiffness)
-- Stagger timing
+- Stagger timing for secondary elements
 - Easing functions
 - Component structure
 
 You cannot change:
 - What visual metaphor to use
-- When key events happen (frame sync)
+- When key events happen (keySync frames — these are NON-NEGOTIABLE)
 - How scenes connect
 - Color palette
+
+**AUDIO SYNC IS THE #1 PRIORITY:**
+The keySync frame is when the narrator says the KEY WORD for each scene.
+Your main visual event MUST trigger at that exact frame. This is what makes
+the animation feel "alive" and connected to the audio. Everything else is
+secondary — if you get keySync right, the video feels professional.
+If you ignore keySync, the video feels random and disconnected.
 </plan_adherence>
 
 <logging_requirement>
@@ -191,7 +206,8 @@ For EVERY scene: Write reasoning FIRST → Then write code → Then validate
 
 **VALIDATION CHECKLIST (add after implementing):**
 - [ ] Matches plan's visual description
-- [ ] Key sync triggers at correct frame
+- [ ] Key sync triggers at TIMING.sceneNKeySync frame (not generic delay)
+- [ ] Additional syncPoints trigger at their correct local frames
 - [ ] Connects visually to previous scene
 - [ ] Used @remotion/three if requires3D was true
 - [ ] Used Freepik MCP for any icons (no emojis/text)
@@ -218,13 +234,46 @@ const progress = spring({{frame: frame - startFrame, fps, config: SPRING_CONFIG}
 ))}}
 ```
 
-### Key Sync Pattern
+### Key Sync Pattern (CRITICAL — audio-visual alignment)
 ```tsx
-// Plan says: "overflow" at 4.5s = frame 135
-<Sequence from={{135}} key="overflow-scene">
-  <ContainerCrack /> {{/* Triggered exactly when word is spoken */}}
-</Sequence>
+// Each scene has a keySync frame from scenes.json stored in TIMING constants.
+// The keySync frame is RELATIVE to the scene start (convert in constants.ts).
+// Use it to trigger the most important visual event at the exact moment the word is spoken.
+
+// In constants.ts:
+export const TIMING = {{
+  scene3Start: 225,
+  scene3End: 393,
+  scene3KeySync: 275 - 225, // = 50 (frame 275 is absolute, subtract scene start for local frame)
+  // ... etc
+}};
+
+// In Scene3.tsx — trigger key visual at the sync frame:
+const keySyncProgress = spring({{
+  frame: localFrame - TIMING.scene3KeySync,
+  fps,
+  config: SPRING_CONFIG,
+}});
+// Use keySyncProgress for the MAIN visual event (the one described in keySync.visualEvent)
+
+// Elements that should be visible BEFORE the key word is spoken:
+// animate from frame 0 to keySyncFrame (setup/anticipation)
+const setupProgress = interpolate(localFrame, [0, TIMING.scene3KeySync], [0, 1], {{
+  extrapolateRight: 'clamp',
+}});
+
+// Elements that appear AFTER/AT the key word:
+// animate from keySyncFrame onward (the payoff)
+const payoffProgress = spring({{
+  frame: localFrame - TIMING.scene3KeySync,
+  fps,
+  config: SPRING_CONFIG,
+}});
 ```
+
+**RULE: The keySync visual event MUST trigger at exactly TIMING.sceneNKeySync.
+This is the single most important animation in each scene — it's what makes
+the visuals feel "in sync" with the narration. Do NOT ignore keySync data.**
 
 ### Glassmorphism (for cards/containers)
 ```tsx
@@ -638,11 +687,28 @@ export const TIMING = {{
   scene2Start: /* from scenes.json.scenes[1].frames[0] */,
   scene2End: /* from scenes.json.scenes[1].frames[1] */,
   // ... etc for all scenes
+
+  // KEY SYNC FRAMES — relative to scene start (absolute keySync.frame - sceneStart)
+  // These tell you the EXACT local frame when the key word is spoken.
+  // The most important visual event in each scene MUST trigger at this frame.
+  scene1KeySync: /* scenes.json.scenes[0].keySync.frame - scenes.json.scenes[0].frames[0] */,
+  scene2KeySync: /* scenes.json.scenes[1].keySync.frame - scenes.json.scenes[1].frames[0] */,
+  // ... etc for all scenes
+
+  // ADDITIONAL SYNC POINTS — from scenes.json.scenes[].syncPoints[]
+  // Each scene may have 2-5 additional sync points for secondary visual events.
+  // Convert to local frames: syncPoint.frame - sceneStart
+  // Example: scene2Sync_overflow: 135 - 80, // = 55 (local frame for "overflow")
+  //          scene2Sync_crash: 160 - 80,     // = 80 (local frame for "crash")
 }};
 ```
 
 **CRITICAL:** The `totalFrames` value in TIMING MUST match `scenes.json.totalFrames` exactly.
 The Animator does NOT decide the video duration - it comes from the Director's plan.
+
+**CRITICAL:** Each `sceneNKeySync` is a LOCAL frame offset (relative to scene start).
+Use it in scene code as: `spring({{ frame: localFrame - TIMING.sceneNKeySync, fps, config: SPRING_CONFIG }})`.
+This is what syncs your animation to the spoken narration.
 
 ### components/Background.tsx (example)
 ```tsx
@@ -664,8 +730,8 @@ export const Background: React.FC = () => {{
 ### scenes/Scene1.tsx (example)
 ```tsx
 import React from 'react';
-import {{ AbsoluteFill, useCurrentFrame, spring, useVideoConfig }} from 'remotion';
-import {{ COLORS, SPRING_CONFIG }} from '../constants';
+import {{ AbsoluteFill, useCurrentFrame, spring, useVideoConfig, interpolate }} from 'remotion';
+import {{ COLORS, SPRING_CONFIG, TIMING }} from '../constants';
 
 interface Scene1Props {{
   startFrame: number;
@@ -674,16 +740,32 @@ interface Scene1Props {{
 export const Scene1: React.FC<Scene1Props> = ({{ startFrame }}) => {{
   const frame = useCurrentFrame();
   const {{ fps }} = useVideoConfig();
+  const localFrame = frame - startFrame;
 
-  const progress = spring({{
-    frame: frame - startFrame,
+  // Setup elements: animate BEFORE the key word is spoken (anticipation)
+  const setupProgress = interpolate(localFrame, [0, TIMING.scene1KeySync], [0, 1], {{
+    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp',
+  }});
+
+  // KEY SYNC: Main visual event triggers when the narrator says the key word
+  const keySyncProgress = spring({{
+    frame: localFrame - TIMING.scene1KeySync,
     fps,
     config: SPRING_CONFIG,
   }});
 
   return (
     <AbsoluteFill>
-      {{/* Scene 1 content */}}
+      {{/* Setup/anticipation elements (visible before key word) */}}
+      <div style={{{{ opacity: setupProgress }}}}>
+        {{/* Background elements, secondary visuals */}}
+      </div>
+
+      {{/* KEY SYNC EVENT: triggers at the exact frame the narrator says the key word */}}
+      <div style={{{{ opacity: keySyncProgress, transform: `scale(${{keySyncProgress}})` }}}}>
+        {{/* Main visual event described in keySync.visualEvent */}}
+      </div>
     </AbsoluteFill>
   );
 }};

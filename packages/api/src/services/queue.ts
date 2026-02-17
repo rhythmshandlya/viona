@@ -113,7 +113,7 @@ export interface VisualsDimensions {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   styleGuide?: string;
@@ -124,6 +124,7 @@ export const generateVisualsQueue = new Queue('generate-visuals', { connection }
 
 export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   return generateVisualsQueue.add('generate-visuals', data, {
+    jobId: `${data.projectId}:generate:${Date.now()}`,
     attempts: 2,
     backoff: {
       type: 'exponential',
@@ -135,7 +136,7 @@ export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   styleGuide?: string;
@@ -145,6 +146,7 @@ export const planVisualsQueue = new Queue('plan-visuals', { connection });
 
 export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
   return planVisualsQueue.add('plan-visuals', data, {
+    jobId: `${data.projectId}:plan:${Date.now()}`,
     attempts: 2,
     backoff: {
       type: 'exponential',
@@ -169,6 +171,7 @@ export const editVisualsQueue = new Queue('edit-visuals', { connection });
 
 export async function queueEditVisualsJob(data: EditVisualsJobData) {
   return editVisualsQueue.add('edit-visuals', data, {
+    jobId: `${data.projectId}:edit:${Date.now()}`,
     attempts: 2,
     backoff: {
       type: 'exponential',

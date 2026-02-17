@@ -1,6 +1,6 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, sql, isNotNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { projects, visuals, transcripts, jobs } from '../db/schema.js';
 import { queueGenerateVisualsJob, queueEditVisualsJob, queuePlanVisualsJob } from '../services/queue.js';
@@ -27,22 +27,25 @@ export interface ToolContext {
   signal?: AbortSignal;
 }
 
-function normalizeProgressMessage(jobType: string, percent: number, rawMessage?: string): string {
-  // Plan and edit jobs: always use phase-appropriate messages
-  // (raw worker messages like "refining code..." are misleading for these job types)
+export function normalizeProgressMessage(jobType: string, percent: number, rawMessage?: string): string {
+  // Pass through meaningful raw worker messages for all job types
+  // Only fall back to generic phase messages when no useful raw message exists
+  const hasRawMessage = rawMessage && !rawMessage.startsWith('Processing') && rawMessage.trim().length > 0;
+
   if (jobType === 'plan-visuals') {
+    if (hasRawMessage) return rawMessage;
     if (percent < 20) return 'Setting up scene planning...';
     if (percent < 85) return 'Planning your scenes...';
     return 'Finalizing plan...';
   }
   if (jobType === 'edit-visuals') {
+    if (hasRawMessage) return rawMessage;
     if (percent < 20) return 'Analyzing edit request...';
     if (percent < 85) return 'Editing visual...';
     return 'Validating changes...';
   }
-  // Generate jobs: pass through meaningful subprocess messages (e.g. "Generating scene 3/8...")
   if (jobType === 'generate-visuals') {
-    if (rawMessage && !rawMessage.startsWith('Processing')) return rawMessage;
+    if (hasRawMessage) return rawMessage;
     if (percent < 15) return 'Preparing generation pipeline...';
     if (percent < 80) return `Generating visuals (${percent}%)...`;
     return 'Finishing up...';
@@ -50,7 +53,7 @@ function normalizeProgressMessage(jobType: string, percent: number, rawMessage?:
   return rawMessage || `Processing (${percent}%)...`;
 }
 
-function derivePhase(jobType: string, percent: number): string {
+export function derivePhase(jobType: string, percent: number): string {
   if (jobType === 'plan-visuals') {
     if (percent < 20) return 'preparing';
     if (percent < 88) return 'planning';
@@ -70,25 +73,56 @@ function derivePhase(jobType: string, percent: number): string {
   return 'processing';
 }
 
+// Get average duration of recent completed jobs for a given type (for ETA estimation)
+async function getAvgJobDurationMs(jobType: string): Promise<number | null> {
+  try {
+    const result = await db
+      .select({
+        avgMs: sql<number>`ROUND(AVG(EXTRACT(EPOCH FROM (${jobs.completedAt} - ${jobs.createdAt})) * 1000))`,
+      })
+      .from(jobs)
+      .where(
+        and(
+          eq(jobs.type, jobType),
+          eq(jobs.status, 'complete'),
+          isNotNull(jobs.completedAt),
+        ),
+      )
+      .limit(1);
+    const avg = result[0]?.avgMs;
+    return avg && avg > 0 ? avg : null;
+  } catch {
+    return null;
+  }
+}
+
 // Poll a job until it completes or fails, calling sendSSE with progress
 async function pollJobProgress(
   jobId: string,
   ctx: ToolContext,
-  options?: { suppressJobId?: boolean; jobType?: string },
+  options?: { suppressJobId?: boolean; jobType?: string; initialPercent?: number },
 ): Promise<{ status: 'complete' | 'failed' | 'timeout' | 'aborted' | 'not_found' }> {
   const POLL_INTERVAL_MS = 2000;
-  const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-  // If job progress hasn't changed in 5 minutes, consider it stalled.
-  // Some jobs (edit-visuals) only update progress at 0% and 100%, so the
-  // stall window must be generous enough for the full subprocess run.
-  const STALL_TIMEOUT_MS = 5 * 60 * 1000;
+  const TIMEOUT_MS = 50 * 60 * 1000; // 50 minutes — must exceed worker timeout (default 45 min)
+  // If job progress hasn't changed in 10 minutes, consider it stalled.
+  // Plan jobs update progress slowly (heartbeat crawl), and edit-visuals
+  // may only update at 0% and 100%, so this must be generous.
+  const STALL_TIMEOUT_MS = 10 * 60 * 1000;
   const startTime = Date.now();
   let lastProgress = -1;
   let lastProgressChangeTime = Date.now();
+  // High-water mark: never send progress lower than previously sent.
+  // Prevents the 5% → 0% regression when initial SSE fires at 5% but
+  // first DB poll reads 0% before the worker starts.
+  let highWaterMark = options?.initialPercent ?? 0;
   // When suppressJobId is true, we don't send jobId in progress events.
   // This prevents the frontend from tracking intermediate jobs (like plan-visuals)
   // via WebSocket, which would trigger a premature "visuals are ready" message.
   const sendJobId = options?.suppressJobId ? undefined : jobId;
+
+  // Query historical average duration for time-based ETA
+  const jt = options?.jobType || 'unknown';
+  const avgDurationMs = await getAvgJobDurationMs(jt);
 
   while (Date.now() - startTime < TIMEOUT_MS) {
     if (ctx.signal?.aborted) return { status: 'aborted' };
@@ -97,9 +131,15 @@ async function pollJobProgress(
 
     if (ctx.signal?.aborted) return { status: 'aborted' };
 
-    const job = await db.query.jobs.findFirst({
-      where: eq(jobs.id, jobId),
-    });
+    let job;
+    try {
+      job = await db.query.jobs.findFirst({
+        where: eq(jobs.id, jobId),
+      });
+    } catch (dbErr) {
+      // Transient DB failure — skip this poll, try again next iteration
+      continue;
+    }
 
     if (!job) {
       ctx.sendSSE('progress', {
@@ -117,18 +157,32 @@ async function pollJobProgress(
       lastProgressChangeTime = Date.now();
     }
 
-    const jt = options?.jobType || 'unknown';
+    // Never send progress lower than previously sent (high-water mark)
+    const effectivePercent = Math.max(job.progress, highWaterMark);
+    highWaterMark = effectivePercent;
     ctx.sendSSE('progress', {
-      percent: job.progress,
-      message: normalizeProgressMessage(jt, job.progress, job.progressMessage || undefined),
+      percent: effectivePercent,
+      message: normalizeProgressMessage(jt, effectivePercent, job.progressMessage || undefined),
       jobId: sendJobId,
-      phase: derivePhase(jt, job.progress),
+      phase: derivePhase(jt, effectivePercent),
       jobType: jt,
+      // Time-based ETA: send avg duration + job start time so frontend can compute remaining
+      ...(avgDurationMs ? { avgDurationMs, jobStartedAt: job.createdAt.toISOString() } : {}),
     });
 
-    if (job.status === 'complete' || job.status === 'completed') {
+    if (job.status === 'complete') {
       ctx.sendSSE('progress', { percent: 100, message: 'Done!', jobId: sendJobId });
       return { status: 'complete' };
+    }
+
+    if (job.status === 'cancelled') {
+      ctx.sendSSE('progress', {
+        percent: job.progress,
+        message: 'Cancelled by user',
+        error: true,
+        jobId: sendJobId,
+      });
+      return { status: 'failed' };
     }
 
     if (job.status === 'failed') {
@@ -356,7 +410,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             mergeWithSceneId: z.number().optional().describe('Adjacent scene ID to merge with'),
             mergedName: z.string().optional().describe('Combined scene name'),
             mergedVisual: z.string().optional().describe('Combined visual description'),
-          })).describe('Array of scene operations'),
+          })).min(1, 'At least one scene update required').describe('Array of scene operations'),
         },
         async ({ planJobId, sceneUpdates }) => {
           // Resolve plan job
@@ -590,14 +644,29 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           // Poll job progress (blocks until complete)
           // suppressJobId: plan-visuals is an intermediate step — don't let the frontend
           // track this job via WebSocket (which would trigger "visuals are ready" on completion)
-          await pollJobProgress(job.id, ctx, { suppressJobId: true, jobType: 'plan-visuals' });
+          const pollResult = await pollJobProgress(job.id, ctx, { suppressJobId: true, jobType: 'plan-visuals', initialPercent: 5 });
+
+          if (pollResult.status === 'aborted') {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({ error: 'Planning was cancelled.' }) }],
+            };
+          }
+
+          if (pollResult.status === 'timeout') {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                error: 'Planning is taking longer than expected. The job is still running in the background — the plan will appear when you refresh the page.',
+                jobId: job.id,
+              }) }],
+            };
+          }
 
           // Read the completed job to get planData
           const completedJob = await db.query.jobs.findFirst({
             where: eq(jobs.id, job.id),
           });
 
-          if (!completedJob || (completedJob.status !== 'complete' && completedJob.status !== 'completed') || !completedJob.planData) {
+          if (!completedJob || completedJob.status !== 'complete' || !completedJob.planData) {
             return {
               content: [{ type: 'text' as const, text: JSON.stringify({
                 error: 'Planning failed or produced no plan data.',
@@ -672,7 +741,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             };
           }
 
-          if ((planJob.status !== 'complete' && planJob.status !== 'completed') || !planJob.planData) {
+          if (planJob.status !== 'complete' || !planJob.planData) {
             return {
               content: [{ type: 'text' as const, text: JSON.stringify({
                 error: 'Plan job is not completed or has no plan data.',
@@ -728,7 +797,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual generation from approved plan...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          await pollJobProgress(job.id, ctx, { jobType: 'generate-visuals' });
+          await pollJobProgress(job.id, ctx, { jobType: 'generate-visuals', initialPercent: 5 });
 
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
@@ -820,10 +889,10 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             scenePlan,
           });
 
-          ctx.sendSSE('progress', { percent: 5, message: 'Starting edit...' });
+          ctx.sendSSE('progress', { percent: 5, message: 'Starting edit...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          await pollJobProgress(job.id, ctx, { jobType: 'edit-visuals' });
+          await pollJobProgress(job.id, ctx, { jobType: 'edit-visuals', initialPercent: 5 });
 
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({

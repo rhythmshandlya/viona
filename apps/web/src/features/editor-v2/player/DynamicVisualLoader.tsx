@@ -115,6 +115,14 @@ export function DynamicVisualLoader({
                 }),
               };
             }
+            // Fix shorthand/longhand CSS conflicts from generated code
+            if (props?.style) {
+              const s = props.style;
+              if (s.textDecoration && (s.textDecorationColor || s.textDecorationStyle || s.textDecorationThickness)) {
+                const { textDecoration, ...rest } = s;
+                props = { ...props, style: { textDecorationLine: textDecoration, ...rest } };
+              }
+            }
             if (key !== undefined) {
               return React.createElement(type, { ...props, key });
             }
@@ -140,6 +148,14 @@ export function DynamicVisualLoader({
                   return child;
                 }),
               };
+            }
+            // Fix shorthand/longhand CSS conflicts from generated code
+            if (props?.style) {
+              const s = props.style;
+              if (s.textDecoration && (s.textDecorationColor || s.textDecorationStyle || s.textDecorationThickness)) {
+                const { textDecoration, ...rest } = s;
+                props = { ...props, style: { textDecorationLine: textDecoration, ...rest } };
+              }
             }
             if (key !== undefined) {
               return React.createElement(type, { ...props, key });

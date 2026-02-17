@@ -2644,6 +2644,9 @@ registerRoot(RemotionRoot);
 
         print(f"[ClaudeGenerator] Phase 1: Director analyzing transcript...")
 
+        # Ensure src_dir exists before running Claude
+        self.src_dir.mkdir(parents=True, exist_ok=True)
+
         director_message = build_director_user_message(
             project_id=self.project_id,
             formatted_transcript=formatted_transcript,
@@ -2654,10 +2657,37 @@ registerRoot(RemotionRoot);
             style_preset=style_preset,
             layout_mode=layout_mode,
             style_guide=style_guide,
+            output_dir=str(self.src_dir),
         )
 
-        # Director uses Sonnet for fast planning
-        # Use claude_code preset with append to preserve TodoWrite functionality
+        # Write restricted security settings for the Director — only allow writes
+        # within the project directory (src_dir). This prevents Claude from writing
+        # plan files to the workspace root.
+        director_settings_dir = self.src_dir / ".claude"
+        director_settings_dir.mkdir(parents=True, exist_ok=True)
+        director_settings = {
+            "permissions": {
+                "defaultMode": "acceptEdits",
+                "allow": [
+                    "Read(./**)",
+                    "Write(./**)",
+                    "Edit(./**)",
+                    "Glob(./**)",
+                    "Grep(./**)",
+                    # Also allow reading from workspace root (for CLAUDE.md, config files)
+                    f"Read({str(self.workspace).replace(chr(92), '/')}/**)",
+                    f"Glob({str(self.workspace).replace(chr(92), '/')}/**)",
+                    f"Grep({str(self.workspace).replace(chr(92), '/')}/**)",
+                    "Bash(*)",
+                ],
+            },
+        }
+        with open(director_settings_dir / "settings.local.json", "w", encoding="utf-8") as f:
+            json.dump(director_settings, f, indent=2)
+
+        # Director uses Sonnet for fast planning.
+        # cwd is set to src_dir so Claude writes SCENE_PLAN.md and scenes.json
+        # directly in the project directory — prevents misplaced files at workspace root.
         client = ClaudeSDKClient(
             options=ClaudeAgentOptions(
                 model="claude-sonnet-4-20250514",
@@ -2666,11 +2696,10 @@ registerRoot(RemotionRoot);
                     "preset": "claude_code",
                     "append": DIRECTOR_SYSTEM_PROMPT
                 },
-                cwd=str(self.workspace),
+                cwd=str(self.src_dir),
                 max_turns=50,  # Enough turns for research + planning + writing
                 max_thinking_tokens=5000,
-                setting_sources=["project"],  # Load skills from .claude/skills/
-                allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch", "Skill", "TodoWrite"],
+                allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch", "TodoWrite"],
                 cli_path=CLAUDE_CLI_PATH,
             )
         )
@@ -2724,6 +2753,44 @@ registerRoot(RemotionRoot);
             print(f"[ClaudeGenerator] Files in src_dir: {[f.name for f in existing_files]}")
         else:
             print(f"[ClaudeGenerator] WARNING: src_dir does not exist!")
+            self.src_dir.mkdir(parents=True, exist_ok=True)
+
+        # ── Fallback file recovery ──
+        # Claude sometimes writes plan files to the wrong location (workspace root,
+        # flattened path in filename, etc.). Search common wrong locations and move them.
+        if not scene_plan.exists() or not scenes_json.exists():
+            import shutil
+            print(f"[ClaudeGenerator] Plan files not in expected location, searching for misplaced files...")
+
+            # Search patterns: workspace root, with project prefix in filename, src/ root
+            search_locations = [
+                # Workspace root — Claude ignores the path and writes to cwd
+                (self.workspace / "SCENE_PLAN.md", self.workspace / "scenes.json"),
+                # Workspace root with project prefix flattened into filename
+                (self.workspace / f"{self.project_id}_SCENE_PLAN.md", self.workspace / f"{self.project_id}_scenes.json"),
+                # src/ root (one level up from project dir)
+                (self.workspace / "src" / "SCENE_PLAN.md", self.workspace / "src" / "scenes.json"),
+            ]
+
+            for alt_plan, alt_scenes in search_locations:
+                if alt_plan.exists() and not scene_plan.exists():
+                    print(f"[ClaudeGenerator] Found misplaced SCENE_PLAN.md at {alt_plan}, moving to {scene_plan}")
+                    shutil.move(str(alt_plan), str(scene_plan))
+                if alt_scenes.exists() and not scenes_json.exists():
+                    print(f"[ClaudeGenerator] Found misplaced scenes.json at {alt_scenes}, moving to {scenes_json}")
+                    shutil.move(str(alt_scenes), str(scenes_json))
+
+            # Also search for any SCENE_PLAN.md in the workspace root with any prefix
+            if not scene_plan.exists():
+                for f in self.workspace.glob("*SCENE_PLAN.md"):
+                    print(f"[ClaudeGenerator] Found misplaced plan file: {f}, moving to {scene_plan}")
+                    shutil.move(str(f), str(scene_plan))
+                    break
+            if not scenes_json.exists():
+                for f in self.workspace.glob("*scenes.json"):
+                    print(f"[ClaudeGenerator] Found misplaced scenes file: {f}, moving to {scenes_json}")
+                    shutil.move(str(f), str(scenes_json))
+                    break
 
         if not scene_plan.exists():
             return {

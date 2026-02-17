@@ -92,6 +92,23 @@ function formatTimeChip(ms: number): string {
   return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
+/** Estimate remaining seconds from recent progress samples. Returns null if insufficient data. */
+function computeTimeBasedEta(avgDurationMs: number, jobStartedAt: string): number | null {
+  const startTime = new Date(jobStartedAt).getTime();
+  if (isNaN(startTime)) return null;
+  const elapsedMs = Date.now() - startTime;
+  const remainingMs = avgDurationMs - elapsedMs;
+  // If we've exceeded the average, don't show negative — hide ETA
+  if (remainingMs < 30_000) return null;
+  return Math.min(remainingMs / 1000, 3600);
+}
+
+function formatEta(seconds: number): string {
+  const mins = Math.ceil(seconds / 60);
+  if (mins <= 1) return '~1 min remaining';
+  return `~${mins} min remaining`;
+}
+
 // ---------------------------------------------------------------------------
 // Vertical Step Indicator constants
 // ---------------------------------------------------------------------------
@@ -142,14 +159,39 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const progressSourceRef = useRef<'sse' | 'ws' | null>(null);
+  const progressSourceRef = useRef<'sse' | 'ws' | 'http' | null>(null);
+  const pendingWidgetResponseRef = useRef<Array<{ widgetId: string; value: unknown }>>([]);
+  const lastEventIdRef = useRef<number | undefined>(undefined);
 
   // Stall detection
   const [stallState, setStallState] = useState<'ok' | 'slow' | 'stuck'>('ok');
   const lastProgressTimeRef = useRef(Date.now());
+  // High-water mark for HTTP polling — prevents progress going backward
+  const httpHighWaterRef = useRef(0);
 
-  // Track active generation job for WebSocket progress
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  // ETA tracking — stores recent (timestamp, percent) samples to compute progress rate
+  // Track avg duration and job start time from backend for time-based ETA
+  const etaInfoRef = useRef<{ avgDurationMs: number; jobStartedAt: string } | null>(null);
+  const [etaSeconds, setEtaSeconds] = useState<number | null>(null);
+
+  // Track active generation job for WebSocket/HTTP polling progress.
+  // Initialize from sessionStorage so it survives remount/navigation.
+  const [activeJobId, setActiveJobId] = useState<string | null>(() => {
+    try {
+      return sessionStorage.getItem(`viona:activeJobId:${projectId}`) || null;
+    } catch { return null; }
+  });
+
+  // Persist activeJobId to sessionStorage whenever it changes
+  useEffect(() => {
+    try {
+      if (activeJobId) {
+        sessionStorage.setItem(`viona:activeJobId:${projectId}`, activeJobId);
+      } else {
+        sessionStorage.removeItem(`viona:activeJobId:${projectId}`);
+      }
+    } catch { /* sessionStorage unavailable */ }
+  }, [activeJobId, projectId]);
 
   // Store hooks
   const videoSettings = useVideoSettings();
@@ -193,21 +235,29 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     onComplete: (data) => {
       if (data.jobId !== activeJobId) return;
       setActiveJobId(null);
-      // Add completion message
-      const doneMsg: Message = {
-        id: generateId(),
-        role: 'assistant',
-        content: [{ type: 'text', text: 'Your visuals are ready! Take a look and let me know if you\'d like any changes.' }],
-        createdAt: new Date().toISOString(),
-      };
+      progressSourceRef.current = null;
       setMessages((prev) => {
-        // Remove progress block from the last assistant message
+        // Mark progress blocks as completed (100% + green bar) instead of removing them
         const updated = prev.map((m) => {
-          if (m.role === 'assistant') {
-            return { ...m, content: m.content.filter((b) => b.type !== 'progress') };
-          }
-          return m;
+          if (m.role !== 'assistant') return m;
+          const hasProgress = m.content.some((b) => b.type === 'progress');
+          if (!hasProgress) return m;
+          return {
+            ...m,
+            content: m.content.map((b) =>
+              b.type === 'progress'
+                ? { ...b, percent: 100, message: 'Done!' }
+                : b,
+            ),
+          };
         });
+        // Add completion message
+        const doneMsg: Message = {
+          id: generateId(),
+          role: 'assistant',
+          content: [{ type: 'text', text: 'Your visuals are ready! Take a look and let me know if you\'d like any changes.' }],
+          createdAt: new Date().toISOString(),
+        };
         return [...updated, doneMsg];
       });
       clearVisualCache();
@@ -216,13 +266,18 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     onError: (data) => {
       if (data.jobId !== activeJobId) return;
       setActiveJobId(null);
+      progressSourceRef.current = null;
       setMessages((prev) => {
         const last = [...prev].reverse().find((m) => m.role === 'assistant');
         if (!last) return prev;
         return prev.map((m) => {
           if (m.id !== last.id) return m;
-          const blocks = m.content.filter((b) => b.type !== 'progress');
-          blocks.push({ type: 'text', text: `\n\nGeneration failed: ${data.error}` });
+          // Mark progress as error state instead of removing
+          const blocks = m.content.map((b) =>
+            b.type === 'progress'
+              ? { ...b, error: true, message: data.error || 'Generation failed' }
+              : b,
+          );
           return { ...m, content: blocks };
         });
       });
@@ -235,6 +290,124 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       subscribeToJob(activeJobId);
     }
   }, [activeJobId, subscribeToJob]);
+
+  // HTTP polling fallback — activates when activeJobId is set but SSE is not streaming.
+  // Polls every 3s as a tertiary progress channel (after SSE and WebSocket).
+  useEffect(() => {
+    if (!activeJobId || isStreaming) return;
+    // Reset high-water mark when a new job starts being polled
+    httpHighWaterRef.current = 0;
+
+    const poll = async () => {
+      // Don't override SSE or WS while they're actively providing progress
+      if (progressSourceRef.current === 'sse' || progressSourceRef.current === 'ws') return;
+      try {
+        const job = await api.getJob(activeJobId);
+        progressSourceRef.current = 'http';
+        lastProgressTimeRef.current = Date.now();
+        setStallState('ok');
+
+        if (job.status === 'complete') {
+          setActiveJobId(null);
+          progressSourceRef.current = null;
+          httpHighWaterRef.current = 0;
+          setMessages(prev => {
+            const updated = prev.map(m => {
+              if (m.role !== 'assistant') return m;
+              const hasProgress = m.content.some(b => b.type === 'progress');
+              if (!hasProgress) return m;
+              return {
+                ...m,
+                content: m.content.map(b =>
+                  b.type === 'progress' ? { ...b, percent: 100, message: 'Done!' } : b,
+                ),
+              };
+            });
+            return [...updated, {
+              id: generateId(),
+              role: 'assistant' as const,
+              content: [{ type: 'text' as const, text: 'Your visuals are ready! Take a look and let me know if you\'d like any changes.' }],
+              createdAt: new Date().toISOString(),
+            }];
+          });
+          clearVisualCache();
+          if (reloadVisuals) reloadVisuals(projectId);
+          return;
+        }
+
+        if (job.status === 'failed' || job.status === 'cancelled') {
+          setActiveJobId(null);
+          progressSourceRef.current = null;
+          httpHighWaterRef.current = 0;
+          setMessages(prev => {
+            const last = [...prev].reverse().find(m => m.role === 'assistant');
+            if (!last) return prev;
+            return prev.map(m => {
+              if (m.id !== last.id) return m;
+              return {
+                ...m,
+                content: m.content.map(b =>
+                  b.type === 'progress'
+                    ? { ...b, error: true, message: job.error || 'Generation failed' }
+                    : b,
+                ),
+              };
+            });
+          });
+          return;
+        }
+
+        // Apply high-water mark — never show progress going backward
+        const effectivePercent = Math.max(job.progress, httpHighWaterRef.current);
+        httpHighWaterRef.current = effectivePercent;
+
+        // Derive phase from job type + percent (matches backend derivePhase logic)
+        const jt = job.type;
+        const phases = PHASE_ORDER[jt];
+        let phase: string | undefined;
+        if (phases) {
+          if (jt === 'plan-visuals') {
+            phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 88 ? 'planning' : 'finalizing';
+          } else if (jt === 'generate-visuals') {
+            phase = effectivePercent < 15 ? 'preparing' : effectivePercent < 85 ? 'generating' : effectivePercent < 95 ? 'validating' : 'uploading';
+          } else if (jt === 'edit-visuals') {
+            phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 85 ? 'editing' : 'validating';
+          }
+        }
+
+        // Processing — update progress block with enriched data
+        setMessages(prev => {
+          const last = [...prev].reverse().find(m => m.role === 'assistant');
+          if (!last) return prev;
+          return prev.map(m => {
+            if (m.id !== last.id) return m;
+            const blocks = [...m.content];
+            const progIdx = blocks.findIndex(b => b.type === 'progress');
+            const progressBlock: ProgressBlock = {
+              type: 'progress',
+              percent: effectivePercent,
+              message: job.progressMessage || `Processing... (${effectivePercent}%)`,
+              phase,
+              jobType: jt,
+            };
+            if (progIdx >= 0) {
+              blocks[progIdx] = progressBlock;
+            } else {
+              blocks.push(progressBlock);
+            }
+            return { ...m, content: blocks };
+          });
+        });
+      } catch {
+        // Polling failed — will retry on next interval
+      }
+    };
+
+    // Initial poll immediately, then every 3s
+    poll();
+    const interval = setInterval(poll, 3000);
+    return () => clearInterval(interval);
+  }, [activeJobId, isStreaming, projectId, reloadVisuals]);
 
   // Progress received — reset stall timer
   const onProgressReceived = useCallback(() => {
@@ -251,8 +424,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
     const check = setInterval(() => {
       const elapsed = Date.now() - lastProgressTimeRef.current;
-      const slowThreshold = activeJobId ? 60_000 : 15_000;
-      const stuckThreshold = activeJobId ? 120_000 : 45_000;
+      const slowThreshold = activeJobId ? 120_000 : 60_000;
+      const stuckThreshold = activeJobId ? 300_000 : 120_000;
 
       if (elapsed > stuckThreshold) setStallState('stuck');
       else if (elapsed > slowThreshold) setStallState('slow');
@@ -279,7 +452,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     const el = textareaRef.current;
     if (el) {
       el.style.height = 'auto';
-      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+      el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
     }
   }, [input]);
 
@@ -321,11 +494,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           // Do this BEFORE filtering so the progress block attaches to the correct
           // assistant message (which may be an empty placeholder created at stream start).
           if (data.activeJob) {
-            setActiveJobId(data.activeJob.id);
+            // Only subscribe to WebSocket for generate/edit jobs.
+            // Plan-visuals should show progress but NOT trigger "visuals ready" on completion.
+            if (data.activeJob.jobType !== 'plan-visuals') {
+              setActiveJobId(data.activeJob.id);
+            }
             const progressBlock: ProgressBlock = {
               type: 'progress',
               percent: data.activeJob.progress ?? 0,
               message: data.activeJob.message || 'Processing...',
+              phase: data.activeJob.phase,
+              jobType: data.activeJob.jobType,
             };
             const lastAssistant = [...loaded].reverse().find((m) => m.role === 'assistant');
             if (lastAssistant) {
@@ -388,6 +567,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     (event: { event: string; data: unknown }, assistantMessageId: string) => {
       const { event: eventType, data } = event;
 
+      // Reset stall timer on any meaningful SSE activity (not just progress events)
+      if (eventType === 'text' || eventType === 'widget' || eventType === 'progress' || eventType === 'heartbeat') {
+        lastProgressTimeRef.current = Date.now();
+        setStallState('ok');
+      }
+
       setMessages((prev) =>
         prev.map((m) => {
           if (m.id !== assistantMessageId) return m;
@@ -415,14 +600,32 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             case 'progress': {
               progressSourceRef.current = 'sse';
               onProgressReceived();
-              const progressData = data as { percent: number; message: string; error?: boolean; jobId?: string; phase?: string; jobType?: string };
+              const progressData = data as {
+                percent: number; message: string; error?: boolean;
+                jobId?: string; phase?: string; jobType?: string;
+                avgDurationMs?: number; jobStartedAt?: string;
+              };
               // On failure, stop tracking the job so the spinner stops
               if (progressData.error) {
                 setActiveJobId(null);
+                etaInfoRef.current = null;
+                setEtaSeconds(null);
               } else if (progressData.jobId) {
                 // Track the job ID so WebSocket can pick up progress if SSE drops
                 setActiveJobId(progressData.jobId);
               }
+
+              // Time-based ETA: store avg duration info from backend, compute remaining
+              if (!progressData.error && progressData.avgDurationMs && progressData.jobStartedAt) {
+                etaInfoRef.current = { avgDurationMs: progressData.avgDurationMs, jobStartedAt: progressData.jobStartedAt };
+              }
+              if (!progressData.error && etaInfoRef.current && progressData.percent < 95) {
+                const eta = computeTimeBasedEta(etaInfoRef.current.avgDurationMs, etaInfoRef.current.jobStartedAt);
+                setEtaSeconds(eta);
+              } else if (progressData.error || progressData.percent >= 95) {
+                setEtaSeconds(null);
+              }
+
               // Update existing progress block or add new one
               const progressIdx = blocks.findIndex((b) => b.type === 'progress');
               const progressBlock: ProgressBlock = {
@@ -436,6 +639,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               if (progressIdx >= 0) {
                 blocks[progressIdx] = progressBlock;
               } else {
+                // New job starting — reset ETA
+                etaInfoRef.current = null;
+                setEtaSeconds(null);
                 blocks.push(progressBlock);
               }
               break;
@@ -464,6 +670,25 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         }
         setIsStreaming(false);
         progressSourceRef.current = null;
+        etaInfoRef.current = null;
+        setEtaSeconds(null);
+
+        // Mark any remaining progress block as completed instead of removing it
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.role !== 'assistant') return m;
+            const hasProgress = m.content.some((b) => b.type === 'progress');
+            if (!hasProgress) return m;
+            return {
+              ...m,
+              content: m.content.map((b) =>
+                b.type === 'progress'
+                  ? { ...b, percent: 100, message: 'Done!' }
+                  : b,
+              ),
+            };
+          }),
+        );
 
         // Trigger visual reload on completion
         clearVisualCache();
@@ -478,6 +703,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       if (eventType === 'error') {
         setIsStreaming(false);
         progressSourceRef.current = null;
+        etaInfoRef.current = null;
+        setEtaSeconds(null);
       }
     },
     [projectId, reloadVisuals, onEditComplete, onProgressReceived]
@@ -592,10 +819,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             message: fullMessage,
             context: Object.keys(context).length > 0 ? context : undefined,
             widgetResponse,
-          }, controller.signal);
+          }, controller.signal, lastEventIdRef.current);
 
-          for await (const event of parseSSEStream(stream, { signal: controller.signal })) {
+          for await (const event of parseSSEStream(stream, { signal: controller.signal, inactivityTimeoutMs: 90_000 })) {
             resetSafetyTimeout();
+            if (event.id !== undefined) lastEventIdRef.current = event.id;
             handleSSEEvent(event, assistantId);
           }
 
@@ -630,12 +858,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             }));
 
             // If there's an active job, restore progress bar and track via WebSocket
+            // (skip WebSocket subscription for plan-visuals to avoid false "visuals ready")
             if (data.activeJob) {
-              setActiveJobId(data.activeJob.id);
+              if (data.activeJob.jobType !== 'plan-visuals') {
+                setActiveJobId(data.activeJob.id);
+              }
               const progressBlock: ProgressBlock = {
                 type: 'progress',
                 percent: data.activeJob.progress ?? 0,
                 message: data.activeJob.message || 'Processing...',
+                phase: data.activeJob.phase,
+                jobType: data.activeJob.jobType,
               };
               const lastAssistant = [...loaded].reverse().find((m) => m.role === 'assistant');
               if (lastAssistant) {
@@ -679,6 +912,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
   const handleWidgetResponse = useCallback(
     (widgetId: string, value: unknown) => {
+      if (isStreaming) {
+        // Queue the response — it will be sent when the current stream ends
+        pendingWidgetResponseRef.current.push({ widgetId, value });
+        return;
+      }
+
       // Mark the widget as responded in the UI
       setMessages((prev) =>
         prev.map((m) => ({
@@ -695,8 +934,18 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       // Send the response back to the agent
       sendMessage('', { widgetId, value });
     },
-    [sendMessage]
+    [sendMessage, isStreaming]
   );
+
+  // Flush queued widget responses one at a time when streaming stops.
+  // Processing one triggers sendMessage → isStreaming=true → effect re-fires
+  // on next stream completion, draining the queue sequentially.
+  useEffect(() => {
+    if (!isStreaming && pendingWidgetResponseRef.current.length > 0) {
+      const next = pendingWidgetResponseRef.current.shift()!;
+      handleWidgetResponse(next.widgetId, next.value);
+    }
+  }, [isStreaming, handleWidgetResponse]);
 
   // -----------------------------------------------------------------------
   // Retry failed message
@@ -959,18 +1208,25 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         }
 
         return (
-          <div key={index} className="my-2">
+          <div key={index} className="my-2" role="status" aria-live="polite">
             <div className="flex items-center gap-2 mb-1">
-              {block.percent < 100 && (
+              {block.percent >= 100 ? (
+                <Check className="w-3.5 h-3.5 text-green-500" />
+              ) : (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-500" />
               )}
               <span className="text-xs text-[var(--editor-text-secondary)]">
                 {block.message}
               </span>
+              {etaSeconds !== null && block.percent < 95 && !block.error && (
+                <span className="text-[10px] text-[var(--editor-text-muted)] ml-auto">
+                  {formatEta(etaSeconds)}
+                </span>
+              )}
             </div>
             <div className="w-full bg-[var(--editor-bg-hover)] rounded-full h-1.5">
               <div
-                className="h-1.5 rounded-full transition-all duration-300 bg-purple-500"
+                className={`h-1.5 rounded-full transition-all duration-300 ${block.percent >= 100 ? 'bg-green-500' : 'bg-purple-500'}`}
                 style={{ width: `${Math.min(block.percent, 100)}%` }}
               />
             </div>
@@ -1053,7 +1309,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && !isStreaming ? (
+        {!historyLoaded ? (
+          <div className="flex flex-col items-center justify-center h-full">
+            <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+            <p className="text-xs text-[var(--editor-text-muted)] mt-2">Loading conversation...</p>
+          </div>
+        ) : messages.length === 0 && !isStreaming ? (
           /* Empty state — only show if not already auto-greeting */
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
             <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center mb-4">
@@ -1156,7 +1417,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       </div>
 
       {/* Input Area */}
-      <div className="p-4 border-t border-[var(--editor-border-subtle)]">
+      <div className="px-3 pb-3 pt-2">
         {/* Scene tag chips */}
         {sceneTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
@@ -1196,7 +1457,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
-        <div className="relative flex items-end gap-2">
+        <div className="relative flex items-end gap-2 rounded-2xl border border-[var(--editor-border-subtle)]
+                        bg-[var(--editor-bg-hover)] focus-within:border-purple-500/40 focus-within:ring-1 focus-within:ring-purple-500/20
+                        transition-all">
           <textarea
             ref={textareaRef}
             value={input}
@@ -1215,31 +1478,33 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             }
             disabled={isStreaming}
             rows={1}
-            className="flex-1 bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] text-sm
+            className="flex-1 bg-transparent text-[var(--editor-text-primary)] text-sm
                        placeholder:text-[var(--editor-text-muted)]
-                       rounded-xl px-4 py-3 pr-12
-                       border border-[var(--editor-border-subtle)]
-                       focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30
+                       pl-4 pr-12 py-3
+                       focus:outline-none
                        disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-all resize-none"
+                       resize-none"
           />
           {isStreaming ? (
             <button
               onClick={handleCancel}
-              className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center
-                         rounded-full bg-red-600 text-white
-                         hover:bg-red-500 transition-colors"
+              className="absolute right-2 bottom-1.5 w-8 h-8 flex items-center justify-center
+                         rounded-full border border-[var(--editor-border-subtle)]
+                         bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)]
+                         hover:bg-[var(--editor-bg-hover)] hover:text-[var(--editor-text-primary)]
+                         transition-colors"
+              title="Stop generating"
             >
-              <Square className="w-3.5 h-3.5 fill-current" />
+              <Square className="w-3 h-3 fill-current" />
             </button>
           ) : (
             <button
               onClick={() => canSend && sendMessage(input.trim())}
               disabled={!canSend}
-              className="absolute right-2 bottom-2 w-8 h-8 flex items-center justify-center
+              className="absolute right-2 bottom-1.5 w-8 h-8 flex items-center justify-center
                          rounded-full bg-purple-600 text-white
                          hover:bg-purple-500 transition-colors
-                         disabled:bg-[var(--editor-bg-hover)] disabled:text-[var(--editor-text-muted)]"
+                         disabled:bg-transparent disabled:text-[var(--editor-text-muted)]"
             >
               <Send className="w-4 h-4" />
             </button>

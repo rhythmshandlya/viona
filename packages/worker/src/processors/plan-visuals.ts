@@ -9,7 +9,7 @@
  * No API key costs - included in subscription.
  */
 
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { writeFile, rm } from 'fs/promises';
 import { join, dirname } from 'path';
@@ -32,7 +32,7 @@ const runningProcesses = new Map<string, ChildProcess>();
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
   layoutMode: 'pip' | 'split-horizontal' | 'split-vertical';
   dimensions: {
     width: number;
@@ -347,8 +347,8 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
       logger.error({ projectId, stderr: text.slice(0, 1000) }, 'Director phase stderr');
     });
 
-    // Wait for completion with 10 minute timeout (Director is faster than full pipeline)
-    const DIRECTOR_TIMEOUT_MS = 10 * 60 * 1000;
+    // Use the same configurable timeout as generate/edit visuals
+    const DIRECTOR_TIMEOUT_MS = config.claudeAgent.timeoutSeconds * 1000;
 
     await new Promise<void>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
@@ -356,25 +356,35 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
         setTimeout(() => {
           if (!subprocess.killed) {
             subprocess.kill('SIGKILL');
+            setTimeout(() => {
+              if (!subprocess.killed) {
+                logger.error({ jobId }, 'CRITICAL: subprocess survived SIGKILL — potential zombie');
+              }
+            }, 5000);
           }
         }, 10000);
-        reject(new Error('Director phase timed out after 10 minutes'));
+        reject(new Error(`Director phase timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
       }, DIRECTOR_TIMEOUT_MS);
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
         clearInterval(progressTicker);
+        runningProcesses.delete(jobId);
+        unregisterCancelHandler(jobId);
         if (code === 0) {
           resolve();
         } else {
           const errorOutput = stderr || stdout.slice(-1000);
-          reject(new Error(`Director phase exited with code ${code}: ${errorOutput}`));
+          // Non-zero exit = bad input/prompt, don't retry
+          reject(new UnrecoverableError(`Director phase exited with code ${code}: ${errorOutput}`));
         }
       });
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
         clearInterval(progressTicker);
+        runningProcesses.delete(jobId);
+        unregisterCancelHandler(jobId);
         reject(err);
       });
     });
@@ -410,23 +420,23 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
     // Clean up temp files
     try {
       await rm(transcriptPath);
-    } catch {
-      // Ignore cleanup errors
+    } catch (err) {
+      logger.warn({ jobId, path: transcriptPath, err }, 'Failed to clean temp file');
     }
 
     if (wordsPath) {
       try {
         await rm(wordsPath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        logger.warn({ jobId, path: wordsPath, err }, 'Failed to clean temp file');
       }
     }
 
     if (styleGuidePath) {
       try {
         await rm(styleGuidePath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        logger.warn({ jobId, path: styleGuidePath, err }, 'Failed to clean temp file');
       }
     }
   }

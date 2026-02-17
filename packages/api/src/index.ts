@@ -254,13 +254,11 @@ async function main() {
   }
 
   // Verify Claude CLI is available for Agent SDK
-  // Auth handled via CLAUDE_CODE_OAUTH_TOKEN env var (long-lived token from `claude setup-token`)
+  // Auth is handled automatically by the Agent SDK via the user's existing Claude Code
+  // OAuth session (from `claude login`). No separate token env var is needed.
   try {
     const claudeVersion = execSync('claude --version 2>&1', { encoding: 'utf-8', timeout: 10000 }).trim();
     fastify.log.info(`Claude CLI available: ${claudeVersion}`);
-    if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-      fastify.log.warn('CLAUDE_CODE_OAUTH_TOKEN not set — Creative Director agent will not work in production. Run `claude setup-token` to generate one.');
-    }
   } catch (err: any) {
     fastify.log.error(`Claude CLI check failed: ${err.message}\nstdout: ${err.stdout}\nstderr: ${err.stderr}`);
   }

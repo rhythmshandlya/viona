@@ -108,6 +108,7 @@ export async function publishJobError(
   error: string,
   extras?: Record<string, unknown>,
 ) {
+  clearJobProjectId(jobId);
   await redis.publish(
     `job:${jobId}:error`,
     JSON.stringify({ jobId, error, ...extras })

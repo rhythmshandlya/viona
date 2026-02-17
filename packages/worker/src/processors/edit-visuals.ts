@@ -8,7 +8,7 @@
  * 4. Uploading the new bundle and sources back to MinIO
  */
 
-import { Job } from 'bullmq';
+import { Job, UnrecoverableError } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { readFile, readdir, stat, writeFile as writeFileAsync } from 'fs/promises';
 import { join, dirname } from 'path';
@@ -651,12 +651,18 @@ You understand what the speaker is saying, what the visuals currently show, and 
 - Then make changes that serve the user's request while keeping visuals aligned with the narration.
 
 TECHNICAL GUIDELINES:
-- You decide what files to modify and how much to change — small tweak or full rewrite.
 - Use existing COLORS and SPRING_CONFIG from constants.ts when they exist.
 - Keep frame ranges and component export names unchanged unless the request requires it.
 - Remotion best practices: useCurrentFrame(), spring() with damping >= 20, interpolate() with extrapolateRight: 'clamp'.
 - Do NOT modify files that aren't relevant to the request.
 - After making changes, run: npx remotion bundle src/${projectId}/index.tsx --out-dir ${bundleOutputDir}/${projectId.replace(/_/g, '-')}
+${targetSceneId ? `
+SCOPE RESTRICTION (MANDATORY):
+- You MUST ONLY edit scenes/Scene${targetSceneId}.tsx and its direct dependencies (components/ or constants.ts).
+- Do NOT touch other scene files (Scene1.tsx, Scene3.tsx, etc.) — they are NOT part of this edit.
+- Do NOT modify index.tsx unless the user explicitly asks to change scene ordering/structure.
+- If the edit requires changes to shared components, make them backward-compatible so other scenes still work.
+` : ''}
 `.trim();
 
   // Run Claude CLI in the workspace, passing prompt via stdin to avoid shell escaping issues
@@ -722,7 +728,8 @@ TECHNICAL GUIDELINES:
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`Claude editor exited with code ${code}: ${stderr || stdout.slice(-500)}`));
+        // Non-zero exit = bad input/prompt, don't retry
+        reject(new UnrecoverableError(`Claude editor exited with code ${code}: ${stderr || stdout.slice(-500)}`));
       }
     });
 

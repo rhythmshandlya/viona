@@ -19,7 +19,16 @@ export async function getOrCreateConversation(projectId: string) {
   return conversation;
 }
 
-export async function getConversationMessages(conversationId: string) {
+export async function getConversationMessages(conversationId: string, limit?: number) {
+  if (limit) {
+    // Get last N messages: order DESC with limit, then reverse in JS
+    const rows = await db.query.conversationMessages.findMany({
+      where: eq(conversationMessages.conversationId, conversationId),
+      orderBy: desc(conversationMessages.createdAt),
+      limit,
+    });
+    return rows.reverse();
+  }
   return db.query.conversationMessages.findMany({
     where: eq(conversationMessages.conversationId, conversationId),
     orderBy: conversationMessages.createdAt,
