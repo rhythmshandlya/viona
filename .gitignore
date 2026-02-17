@@ -20,7 +20,8 @@ build/
 *.swo
 
 # Claude Code
-.claude/settings.local.json
+.claude/*
+!.claude/skills/
 
 # OS
 .DS_Store
