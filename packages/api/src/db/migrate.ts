@@ -2,6 +2,7 @@ import pg from 'pg';
 import { readdir, readFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { existsSync } from 'fs';
 import { config } from '../config.js';
 
 export async function runMigrations() {
@@ -26,8 +27,13 @@ export async function runMigrations() {
     const appliedSet = new Set(applied.map(r => r.name));
 
     // Get migration files - resolve relative to this file's location
+    // In dev (src/db/), ../../drizzle reaches packages/api/drizzle correctly.
+    // In prod bundle (dist/), ../../drizzle goes too far up. Use ../drizzle instead.
     const currentDir = dirname(fileURLToPath(import.meta.url));
-    const migrationsDir = join(currentDir, '../../drizzle');
+    let migrationsDir = join(currentDir, '../../drizzle');
+    if (!existsSync(migrationsDir)) {
+      migrationsDir = join(currentDir, '../drizzle');
+    }
     const files = await readdir(migrationsDir);
     const sqlFiles = files.filter(f => f.endsWith('.sql')).sort();
 
