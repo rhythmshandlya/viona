@@ -132,10 +132,37 @@ function DeleteDialog({
 }
 
 // ============================================
-// Video Thumbnail (auto-generated from video)
+// Thumbnails
 // ============================================
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+function ThumbnailImage({ projectId, alt, hasVideoKey }: { projectId: string; alt: string; hasVideoKey: boolean }) {
+  const [error, setError] = useState(false);
+
+  if (error && hasVideoKey) {
+    return <VideoThumbnail projectId={projectId} alt={alt} />;
+  }
+
+  if (error) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <Video className="w-8 h-8 text-primary/60" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={api.getThumbnailUrl(projectId)}
+      alt={alt}
+      className="w-full h-full object-cover"
+      onError={() => setError(true)}
+    />
+  );
+}
 
 function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) {
   const [loaded, setLoaded] = useState(false);
@@ -155,7 +182,7 @@ function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) 
     <>
       {!loaded && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
         </div>
       )}
       <video
@@ -164,7 +191,6 @@ function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) 
         playsInline
         preload="metadata"
         className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
-        crossOrigin="use-credentials"
         onLoadedData={(e) => {
           (e.target as HTMLVideoElement).currentTime = 1;
         }}
@@ -200,11 +226,7 @@ function ProjectCard({
       {/* Thumbnail Area */}
       <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-50 relative overflow-hidden">
         {project.thumbnailKey ? (
-          <img
-            src={api.getThumbnailUrl(project.id)}
-            alt={projectName}
-            className="w-full h-full object-cover"
-          />
+          <ThumbnailImage projectId={project.id} alt={projectName} hasVideoKey={!!project.videoKey} />
         ) : project.projectType === 'audio' ? (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-violet-50 to-purple-50">
             <div className="w-16 h-16 rounded-2xl bg-violet-500/10 flex items-center justify-center">
@@ -435,6 +457,118 @@ function UploadZone({
 }
 
 // ============================================
+// Job monitoring: WebSocket + HTTP polling fallback
+// ============================================
+
+/**
+ * Starts monitoring jobs via WebSocket events with HTTP polling fallback.
+ * Returns a cleanup function that stops polling and removes the WS handler.
+ */
+function startJobMonitor(opts: {
+  projectId: string;
+  jobIds: string[];
+  totalJobs: number;
+  jobProgressRef: React.MutableRefObject<Record<string, number>>;
+  setProgress: (p: number) => void;
+  setStatusMessage: (m: string) => void;
+  onAllComplete: () => void;
+  onError: (error: string) => void;
+}): () => void {
+  const { projectId, jobIds, totalJobs, jobProgressRef, setProgress, setStatusMessage, onAllComplete, onError } = opts;
+  const completedJobs = new Set<string>();
+  let cleaned = false;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  function cleanup() {
+    if (cleaned) return;
+    cleaned = true;
+    if (pollTimer) clearInterval(pollTimer);
+    removeHandler();
+  }
+
+  function checkAllComplete() {
+    if (completedJobs.size >= totalJobs) {
+      cleanup();
+      onAllComplete();
+      return true;
+    }
+    return false;
+  }
+
+  // --- WebSocket handler (primary) ---
+  const removeHandler = wsClient.addHandler((message: WSMessage) => {
+    if (cleaned) return;
+
+    if (message.type === "job:progress") {
+      const payload = message.payload as JobProgressPayload;
+      jobProgressRef.current[payload.jobId] = payload.progress;
+      const values = Object.values(jobProgressRef.current);
+      const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
+      setProgress(avg);
+      if (payload.message) {
+        setStatusMessage(payload.message);
+      }
+    } else if (message.type === "job:complete") {
+      const payload = message.payload as JobCompletePayload;
+      completedJobs.add(payload.jobId);
+      jobProgressRef.current[payload.jobId] = 100;
+
+      if (!checkAllComplete()) {
+        setStatusMessage("Finishing up...");
+      }
+    } else if (message.type === "job:error") {
+      const payload = message.payload as JobErrorPayload;
+      cleanup();
+      onError(payload.error);
+    }
+  });
+
+  // Subscribe to job events
+  for (const jid of jobIds) {
+    wsClient.subscribeToJob(jid);
+  }
+
+  // --- HTTP polling fallback (every 3s) ---
+  // Catches cases where WS events are missed (subscription race, reconnect, etc.)
+  pollTimer = setInterval(async () => {
+    if (cleaned) return;
+    try {
+      for (const jid of jobIds) {
+        if (completedJobs.has(jid)) continue;
+        const job = await api.getJob(jid);
+
+        if (job.status === "complete") {
+          completedJobs.add(jid);
+          jobProgressRef.current[jid] = 100;
+          if (checkAllComplete()) return;
+          setStatusMessage("Finishing up...");
+        } else if (job.status === "failed") {
+          cleanup();
+          onError(job.error || "Job failed");
+          return;
+        } else {
+          // Update progress from HTTP if higher than what we have
+          const current = jobProgressRef.current[jid] || 0;
+          if (job.progress > current) {
+            jobProgressRef.current[jid] = job.progress;
+            const values = Object.values(jobProgressRef.current);
+            const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
+            setProgress(avg);
+            if (job.progressMessage) {
+              setStatusMessage(job.progressMessage);
+            }
+          }
+        }
+      }
+    } catch {
+      // Polling errors are non-fatal; WS may still deliver events
+    }
+  }, 3000);
+
+  return cleanup;
+}
+
+// ============================================
 // New Project Modal
 // ============================================
 
@@ -452,8 +586,11 @@ function NewProjectModal({
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const jobProgressRef = useRef<Record<string, number>>({});
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   const resetState = () => {
+    cleanupRef.current?.();
+    cleanupRef.current = null;
     setProjectName("");
     setUploadState("idle");
     setProgress(0);
@@ -493,50 +630,32 @@ function NewProjectModal({
         // Step 4: Start processing
         const { transcribeJobId, enhanceJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
         const totalJobs = serverTotalJobs || (enhanceJobId ? 2 : 1);
+        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : [])];
 
-        const completedJobs = new Set<string>();
+        // Step 5: Monitor jobs via WS + polling fallback
+        cleanupRef.current = startJobMonitor({
+          projectId,
+          jobIds,
+          totalJobs,
+          jobProgressRef,
+          setProgress,
+          setStatusMessage,
+          onAllComplete: () => {
+            setUploadState("complete");
+            setStatusMessage("Processing complete!");
+            setProgress(100);
 
-        const removeHandler = wsClient.addHandler((message: WSMessage) => {
-          if (message.type === "job:progress") {
-            const payload = message.payload as JobProgressPayload;
-            jobProgressRef.current[payload.jobId] = payload.progress;
-            const values = Object.values(jobProgressRef.current);
-            const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
-            setProgress(avg);
-            if (payload.message) {
-              setStatusMessage(payload.message);
-            }
-          } else if (message.type === "job:complete") {
-            const payload = message.payload as JobCompletePayload;
-            completedJobs.add(payload.jobId);
-            jobProgressRef.current[payload.jobId] = 100;
-
-            if (completedJobs.size >= totalJobs) {
-              setUploadState("complete");
-              setStatusMessage("Processing complete!");
-              setProgress(100);
-              removeHandler();
-
-              setTimeout(() => {
-                onOpenChange(false);
-                resetState();
-                router.push(`/project/${payload.projectId}`);
-              }, 800);
-            } else {
-              setStatusMessage("Finishing up...");
-            }
-          } else if (message.type === "job:error") {
-            const payload = message.payload as JobErrorPayload;
+            setTimeout(() => {
+              onOpenChange(false);
+              resetState();
+              router.push(`/project/${projectId}`);
+            }, 800);
+          },
+          onError: (errMsg) => {
             setUploadState("error");
-            setError(payload.error);
-            removeHandler();
-          }
+            setError(errMsg);
+          },
         });
-
-        wsClient.subscribeToJob(transcribeJobId);
-        if (enhanceJobId) {
-          wsClient.subscribeToJob(enhanceJobId);
-        }
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -585,8 +704,11 @@ function EmptyState() {
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const jobProgressRef = useRef<Record<string, number>>({});
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   const resetState = () => {
+    cleanupRef.current?.();
+    cleanupRef.current = null;
     setProjectName("");
     setUploadState("idle");
     setProgress(0);
@@ -620,48 +742,29 @@ function EmptyState() {
 
         const { transcribeJobId, enhanceJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
         const totalJobs = serverTotalJobs || (enhanceJobId ? 2 : 1);
+        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : [])];
 
-        const completedJobs = new Set<string>();
+        cleanupRef.current = startJobMonitor({
+          projectId,
+          jobIds,
+          totalJobs,
+          jobProgressRef,
+          setProgress,
+          setStatusMessage,
+          onAllComplete: () => {
+            setUploadState("complete");
+            setStatusMessage("Processing complete!");
+            setProgress(100);
 
-        const removeHandler = wsClient.addHandler((message: WSMessage) => {
-          if (message.type === "job:progress") {
-            const payload = message.payload as JobProgressPayload;
-            jobProgressRef.current[payload.jobId] = payload.progress;
-            const values = Object.values(jobProgressRef.current);
-            const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
-            setProgress(avg);
-            if (payload.message) {
-              setStatusMessage(payload.message);
-            }
-          } else if (message.type === "job:complete") {
-            const payload = message.payload as JobCompletePayload;
-            completedJobs.add(payload.jobId);
-            jobProgressRef.current[payload.jobId] = 100;
-
-            if (completedJobs.size >= totalJobs) {
-              setUploadState("complete");
-              setStatusMessage("Processing complete!");
-              setProgress(100);
-              removeHandler();
-
-              setTimeout(() => {
-                router.push(`/project/${payload.projectId}`);
-              }, 800);
-            } else {
-              setStatusMessage("Finishing up...");
-            }
-          } else if (message.type === "job:error") {
-            const payload = message.payload as JobErrorPayload;
+            setTimeout(() => {
+              router.push(`/project/${projectId}`);
+            }, 800);
+          },
+          onError: (errMsg) => {
             setUploadState("error");
-            setError(payload.error);
-            removeHandler();
-          }
+            setError(errMsg);
+          },
         });
-
-        wsClient.subscribeToJob(transcribeJobId);
-        if (enhanceJobId) {
-          wsClient.subscribeToJob(enhanceJobId);
-        }
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");

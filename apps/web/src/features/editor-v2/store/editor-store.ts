@@ -340,9 +340,12 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
           key ? `${API_URL}/api/media/outputs/${key}` : '';
 
         // For audio projects, the src is already a direct API path (e.g. /api/projects/:id/audio)
+        // Use presigned URL when available (avoids cross-origin auth issues with <Audio> element)
         const rawSrc = raw.src as string | undefined;
         const isDirectUrl = rawSrc?.startsWith('/api/');
-        const directSrc = isDirectUrl ? `${API_URL}${rawSrc}` : '';
+        const directSrc = isDirectUrl
+          ? (project.audioUrl || `${API_URL}${rawSrc}`)
+          : '';
 
         const audioItem: TimelineItem = {
           id: item.id,
