@@ -218,24 +218,31 @@ async function pollJobProgress(
 }
 
 // Map raw scenes.json scene objects to widget-friendly format
-function mapScenesToWidget(scenesArray: Array<Record<string, unknown>>) {
-  return scenesArray.map((s: any) => ({
-    startMs: Math.round((s.timestampRange?.[0] || 0) * 1000),
-    endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
-    title: s.name || `Scene ${s.id}`,
-    description: s.visual || s.emotion || '',
-    emotion: s.emotion || '',
-    keySync: s.keySync ? {
-      word: s.keySync.word,
-      timestamp: s.keySync.timestamp,
-      visualEvent: s.keySync.visualEvent,
-    } : undefined,
-    buildsFrom: s.buildsFrom || null,
-    connectsTo: s.connectsTo || null,
-    layout: s.layout || null,
-    frames: s.frames || null,
-    icons: s.icons || [],
-  }));
+function mapScenesToWidget(
+  scenesArray: Array<Record<string, unknown>>,
+  svgOptions?: Record<string, Record<string, Array<{ id: string; name: string; thumbnailUrl: string }>>>,
+) {
+  return scenesArray.map((s: any) => {
+    const sceneId = String(s.id ?? s.name ?? '');
+    return {
+      startMs: Math.round((s.timestampRange?.[0] || 0) * 1000),
+      endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
+      title: s.name || `Scene ${s.id}`,
+      description: s.visual || s.emotion || '',
+      emotion: s.emotion || '',
+      keySync: s.keySync ? {
+        word: s.keySync.word,
+        timestamp: s.keySync.timestamp,
+        visualEvent: s.keySync.visualEvent,
+      } : undefined,
+      buildsFrom: s.buildsFrom || null,
+      connectsTo: s.connectsTo || null,
+      layout: s.layout || null,
+      frames: s.frames || null,
+      icons: s.icons || [],
+      svgOptions: svgOptions?.[sceneId] || undefined,
+    };
+  });
 }
 
 // Create an in-process MCP server with all Creative Director tools
@@ -676,7 +683,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             };
           }
 
-          const planData = completedJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+          const planData = completedJob.planData as { scenePlan: string; scenes: Record<string, unknown>; svgOptions?: Record<string, Record<string, Array<{ id: string; name: string; thumbnailUrl: string }>>> };
           const scenesObj = planData.scenes as Record<string, unknown>;
           const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
           const widgetId = nanoid(8);
@@ -685,7 +692,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             id: widgetId,
             kind: 'scene_plan',
             planJobId: job.id,
-            scenes: mapScenesToWidget(scenesArray),
+            scenes: mapScenesToWidget(scenesArray, planData.svgOptions),
             scenePlanMarkdown: planData.scenePlan,
             metadata: {
               primaryMetaphor: scenesObj.primaryMetaphor,

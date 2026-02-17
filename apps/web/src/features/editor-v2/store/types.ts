@@ -953,6 +953,8 @@ export interface SelectedElement {
   type: string;
   sceneId: number;
   description?: string;
+  position?: { x: string; y: string };
+  size?: { width: string; height: string };
 }
 
 // ============================================

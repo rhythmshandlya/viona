@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   Clock, ExternalLink, Layers, Palette, Sparkles, Zap,
-  ArrowRight, FileText, Pencil, Move, Box,
+  ArrowRight, FileText, Pencil, Move, Box, Check,
 } from 'lucide-react';
 import {
   Dialog,
@@ -11,6 +11,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+
+interface IconOption {
+  id: string;
+  name: string;
+  thumbnailUrl: string;
+}
 
 interface Scene {
   startMs: number;
@@ -24,6 +30,7 @@ interface Scene {
   layout?: Record<string, unknown> | null;
   frames?: [number, number] | null;
   icons?: string[];
+  svgOptions?: Record<string, IconOption[]>;
 }
 
 interface ScenePlanMetadata {
@@ -38,7 +45,7 @@ interface ScenePlanCardProps {
   scenes: Scene[];
   scenePlanMarkdown?: string;
   metadata?: ScenePlanMetadata;
-  onApprove: () => void;
+  onApprove: (iconSelections?: Record<number, Record<string, string>>) => void;
   onReject: () => void;
   onEditScene?: (sceneIndex: number, sceneTitle: string) => void;
   disabled?: boolean;
@@ -86,6 +93,31 @@ export function ScenePlanCard({
 }: ScenePlanCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<'scenes' | 'markdown'>('scenes');
+  // Icon selections state: sceneIndex → keyword → iconId
+  const [iconSelections, setIconSelections] = useState<Record<number, Record<string, string>>>(() => {
+    // Default: pre-select first option for each keyword
+    const defaults: Record<number, Record<string, string>> = {};
+    scenes.forEach((scene, i) => {
+      if (scene.svgOptions) {
+        defaults[i] = {};
+        for (const [keyword, options] of Object.entries(scene.svgOptions)) {
+          if (options.length > 0) {
+            defaults[i][keyword] = options[0].id;
+          }
+        }
+      }
+    });
+    return defaults;
+  });
+
+  const handleIconSelect = (sceneIndex: number, keyword: string, iconId: string) => {
+    setIconSelections(prev => ({
+      ...prev,
+      [sceneIndex]: { ...prev[sceneIndex], [keyword]: iconId },
+    }));
+  };
+
+  const hasIconSelections = Object.keys(iconSelections).length > 0;
 
   const sceneCount = metadata?.totalScenes ?? scenes.length;
   const duration = metadata?.durationSeconds;
@@ -317,7 +349,7 @@ export function ScenePlanCard({
                           <p className="text-foreground/70 font-mono">{formatLayout(scene.layout)}</p>
                         </div>
                       )}
-                      {scene.icons && scene.icons.length > 0 && (
+                      {scene.icons && scene.icons.length > 0 && !scene.svgOptions && (
                         <div>
                           <span className="font-medium text-muted-foreground flex items-center gap-1">
                             <Box className="w-3 h-3" /> Elements
@@ -326,6 +358,57 @@ export function ScenePlanCard({
                         </div>
                       )}
                     </div>
+
+                    {/* Icon picker */}
+                    {scene.svgOptions && Object.keys(scene.svgOptions).length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        <span className="font-medium text-xs text-muted-foreground flex items-center gap-1">
+                          <Box className="w-3 h-3" /> Icon Selection
+                        </span>
+                        {Object.entries(scene.svgOptions).map(([keyword, options]) => (
+                          <div key={keyword} className="space-y-1">
+                            <span className="text-[11px] text-muted-foreground capitalize">{keyword}</span>
+                            <div className="flex gap-1.5 flex-wrap">
+                              {options.map((option) => {
+                                const isSelected = iconSelections[i]?.[keyword] === option.id;
+                                return (
+                                  <button
+                                    key={option.id}
+                                    onClick={() => !disabled && handleIconSelect(i, keyword, option.id)}
+                                    disabled={disabled}
+                                    className={`relative w-10 h-10 rounded-md border-2 overflow-hidden transition-all
+                                      ${isSelected
+                                        ? 'border-purple-500 ring-1 ring-purple-500/30'
+                                        : 'border-transparent hover:border-foreground/20'
+                                      }
+                                      ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                                      bg-foreground/5`}
+                                    title={option.name}
+                                  >
+                                    {option.thumbnailUrl ? (
+                                      <img
+                                        src={option.thumbnailUrl}
+                                        alt={option.name}
+                                        className="w-full h-full object-contain p-0.5"
+                                      />
+                                    ) : (
+                                      <div className="w-full h-full flex items-center justify-center text-[8px] text-muted-foreground">
+                                        {option.name.slice(0, 3)}
+                                      </div>
+                                    )}
+                                    {isSelected && (
+                                      <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-purple-500 rounded-full flex items-center justify-center">
+                                        <Check className="w-2 h-2 text-white" />
+                                      </div>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
 
                     {/* Scene transitions */}
                     {(scene.buildsFrom || scene.connectsTo) && (
@@ -360,7 +443,7 @@ export function ScenePlanCard({
       {!disabled && (
         <div className="px-3 py-2 bg-[var(--editor-bg-hover)] border-t border-[var(--editor-border-subtle)] flex gap-2">
           <button
-            onClick={onApprove}
+            onClick={() => onApprove(hasIconSelections ? iconSelections : undefined)}
             className="flex-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-md transition-colors"
           >
             Approve & Generate
