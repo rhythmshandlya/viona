@@ -25,6 +25,7 @@ COPY patches ./patches/
 # Copy package.json files for all packages needed
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/renderer/package.json ./packages/renderer/
+COPY packages/templates/package.json ./packages/templates/
 COPY packages/worker/package.json ./packages/worker/
 
 # Install dependencies
@@ -38,6 +39,7 @@ FROM base AS builder
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=deps /app/packages/renderer/node_modules ./packages/renderer/node_modules
+COPY --from=deps /app/packages/templates/node_modules ./packages/templates/node_modules
 COPY --from=deps /app/packages/worker/node_modules ./packages/worker/node_modules
 
 # Copy source files
@@ -45,11 +47,13 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY patches ./patches/
 COPY packages/shared ./packages/shared
 COPY packages/renderer ./packages/renderer
+COPY packages/templates ./packages/templates
 COPY packages/worker ./packages/worker
 
 # Build packages in order
 RUN pnpm --filter @viona/shared build && \
     pnpm --filter @viona/renderer build && \
+    pnpm --filter @viona/templates build && \
     pnpm --filter @viona/worker build
 
 # ============================================
@@ -147,6 +151,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY patches ./patches/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/renderer/package.json ./packages/renderer/
+COPY packages/templates/package.json ./packages/templates/
 COPY packages/worker/package.json ./packages/worker/
 
 # Install production dependencies only
@@ -162,6 +167,7 @@ COPY --from=builder /app/packages/worker/src/agents ./packages/worker/agents
 COPY --from=builder /app/packages/worker/scripts ./packages/worker/scripts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/renderer/dist ./packages/renderer/dist
+COPY --from=builder /app/packages/templates/dist ./packages/templates/dist
 # Copy renderer source files for Remotion bundler (remotion-entry.tsx, components, animations)
 # Remotion's bundle() needs the original TSX files to create the browser bundle
 COPY --from=builder /app/packages/renderer/src ./packages/renderer/src
