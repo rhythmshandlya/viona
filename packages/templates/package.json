@@ -17,22 +17,16 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@remotion/google-fonts": "4.0.422",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "remotion": "4.0.422",
     "zod": "^3.22.4"
   },
-  "peerDependencies": {
-    "@remotion/google-fonts": "^4.0.0",
-    "react": "^18.0.0 || ^19.0.0",
-    "react-dom": "^18.0.0 || ^19.0.0",
-    "remotion": "^4.0.0"
-  },
   "devDependencies": {
-    "@remotion/google-fonts": "4.0.422",
     "@types/node": "^20.10.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "remotion": "4.0.422",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3"
   }
