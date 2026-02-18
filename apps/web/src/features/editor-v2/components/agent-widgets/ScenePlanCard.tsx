@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   Clock, ExternalLink, Layers, Palette, Sparkles, Zap,
-  ArrowRight, FileText, Pencil, Move, Box, Check,
+  ArrowRight, FileText, Pencil, Move, Box, Check, Mic,
 } from 'lucide-react';
 import {
   Dialog,
@@ -31,6 +31,8 @@ interface Scene {
   frames?: [number, number] | null;
   icons?: string[];
   svgOptions?: Record<string, IconOption[]>;
+  displayMode?: 'pip' | 'fullscreen' | 'overlay';
+  transition?: string;
 }
 
 interface ScenePlanMetadata {
@@ -79,6 +81,42 @@ function formatLayout(layout: Record<string, unknown>): string {
   if (primary.y) parts.push(`y: ${primary.y}`);
   if (primary.width) parts.push(`w: ${primary.width}`);
   return parts.join(', ');
+}
+
+const DISPLAY_MODE_BADGE: Record<string, { label: string; color: string }> = {
+  pip: { label: 'PiP', color: '#3b82f6' },
+  fullscreen: { label: 'Fullscreen', color: '#8b5cf6' },
+  overlay: { label: 'Overlay', color: '#f97316' },
+};
+
+function DisplayModeBadge({ mode }: { mode: string }) {
+  const cfg = DISPLAY_MODE_BADGE[mode] || DISPLAY_MODE_BADGE.pip;
+  return (
+    <span
+      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none"
+      style={{ backgroundColor: cfg.color, color: '#fff' }}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+function SpeakerGapIndicator({ startMs, endMs }: { startMs: number; endMs: number }) {
+  const durationMs = endMs - startMs;
+  const seconds = Math.round(durationMs / 1000);
+  return (
+    <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] text-[var(--editor-text-muted)]">
+      <div className="flex-1 border-t border-dashed border-[var(--editor-border-subtle)]" />
+      <span
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium leading-none"
+        style={{ backgroundColor: '#22c55e', color: '#fff' }}
+      >
+        <Mic className="w-2.5 h-2.5" />
+        Speaker {seconds}s
+      </span>
+      <div className="flex-1 border-t border-dashed border-[var(--editor-border-subtle)]" />
+    </div>
+  );
 }
 
 export function ScenePlanCard({
@@ -166,9 +204,9 @@ export function ScenePlanCard({
 
       {/* Primary metaphor */}
       {metadata?.primaryMetaphor && (
-        <div className="px-3 py-1.5 border-b border-[var(--editor-border-subtle)] bg-purple-500/5 flex items-center gap-1.5">
-          <Sparkles className="w-3 h-3 text-purple-500 shrink-0" />
-          <span className="text-xs text-purple-400 italic truncate">
+        <div className="px-3 py-1.5 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-accent-soft)] flex items-center gap-1.5">
+          <Sparkles className="w-3 h-3 text-[var(--editor-accent)] shrink-0" />
+          <span className="text-xs text-[var(--editor-accent)] italic truncate">
             {metadata.primaryMetaphor}
           </span>
         </div>
@@ -177,28 +215,35 @@ export function ScenePlanCard({
       {/* Compact scene list */}
       <div className="divide-y divide-[var(--editor-border-subtle)]">
         {scenes.map((scene, i) => (
-          <div key={i} className="px-3 py-2 group">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-xs font-mono text-[var(--editor-text-muted)] shrink-0">
-                {formatTime(scene.startMs)}-{formatTime(scene.endMs)}
-              </span>
-              <span className="text-sm font-medium text-[var(--editor-text-primary)] truncate flex-1">
-                {scene.title}
-              </span>
-              {!disabled && onEditScene && (
-                <button
-                  onClick={() => onEditScene(i, scene.title)}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)] transition-all"
-                  title={`Edit ${scene.title}`}
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-              )}
+          <React.Fragment key={i}>
+            {/* Speaker gap indicator between consecutive scenes */}
+            {i > 0 && scenes[i - 1].endMs < scene.startMs && (
+              <SpeakerGapIndicator startMs={scenes[i - 1].endMs} endMs={scene.startMs} />
+            )}
+            <div className="px-3 py-2 group">
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className="text-xs font-mono text-[var(--editor-text-muted)] shrink-0">
+                  {formatTime(scene.startMs)}-{formatTime(scene.endMs)}
+                </span>
+                <DisplayModeBadge mode={scene.displayMode || 'pip'} />
+                <span className="text-sm font-medium text-[var(--editor-text-primary)] truncate flex-1">
+                  {scene.title}
+                </span>
+                {!disabled && onEditScene && (
+                  <button
+                    onClick={() => onEditScene(i, scene.title)}
+                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)] transition-all"
+                    title={`Edit ${scene.title}`}
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-[var(--editor-text-secondary)] line-clamp-1">
+                {scene.description}
+              </p>
             </div>
-            <p className="text-xs text-[var(--editor-text-secondary)] line-clamp-1">
-              {scene.description}
-            </p>
-          </div>
+          </React.Fragment>
         ))}
       </div>
 
@@ -230,7 +275,7 @@ export function ScenePlanCard({
             {/* Metadata pills */}
             <div className="flex flex-wrap gap-2 mt-2">
               {metadata?.primaryMetaphor && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] text-xs">
                   <Sparkles className="w-3 h-3" />
                   {metadata.primaryMetaphor}
                 </span>
@@ -281,7 +326,12 @@ export function ScenePlanCard({
             {modalTab === 'scenes' ? (
               <div className="space-y-3">
                 {scenes.map((scene, i) => (
-                  <div key={i} className="rounded-lg border p-4 space-y-3">
+                  <React.Fragment key={i}>
+                    {/* Speaker gap indicator between consecutive scenes */}
+                    {i > 0 && scenes[i - 1].endMs < scene.startMs && (
+                      <SpeakerGapIndicator startMs={scenes[i - 1].endMs} endMs={scene.startMs} />
+                    )}
+                    <div className="rounded-lg border p-4 space-y-3">
                     {/* Scene header */}
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2.5">
@@ -289,6 +339,7 @@ export function ScenePlanCard({
                           {i + 1}
                         </span>
                         <h3 className="font-semibold text-sm">{scene.title}</h3>
+                        <DisplayModeBadge mode={scene.displayMode || 'pip'} />
                       </div>
                       <div className="flex items-center gap-2">
                         {!disabled && onEditScene && (
@@ -378,7 +429,7 @@ export function ScenePlanCard({
                                     disabled={disabled}
                                     className={`relative w-10 h-10 rounded-md border-2 overflow-hidden transition-all
                                       ${isSelected
-                                        ? 'border-purple-500 ring-1 ring-purple-500/30'
+                                        ? 'border-[var(--editor-accent)] ring-1 ring-[var(--editor-accent)]/30'
                                         : 'border-transparent hover:border-foreground/20'
                                       }
                                       ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
@@ -397,7 +448,7 @@ export function ScenePlanCard({
                                       </div>
                                     )}
                                     {isSelected && (
-                                      <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-purple-500 rounded-full flex items-center justify-center">
+                                      <div className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-[var(--editor-accent)] rounded-full flex items-center justify-center">
                                         <Check className="w-2 h-2 text-white" />
                                       </div>
                                     )}
@@ -425,7 +476,8 @@ export function ScenePlanCard({
                         )}
                       </div>
                     )}
-                  </div>
+                    </div>
+                  </React.Fragment>
                 ))}
               </div>
             ) : (
@@ -444,7 +496,7 @@ export function ScenePlanCard({
         <div className="px-3 py-2 bg-[var(--editor-bg-hover)] border-t border-[var(--editor-border-subtle)] flex gap-2">
           <button
             onClick={() => onApprove(hasIconSelections ? iconSelections : undefined)}
-            className="flex-1 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-md transition-colors"
+            className="flex-1 px-3 py-1.5 bg-[var(--editor-accent)] hover:bg-[var(--editor-accent-hover)] text-white text-sm rounded-md active:scale-[0.97] transition-all"
           >
             Approve & Generate
           </button>

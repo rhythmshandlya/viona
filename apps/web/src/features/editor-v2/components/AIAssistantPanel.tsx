@@ -41,6 +41,8 @@ interface WidgetBlock {
       layout?: Record<string, unknown> | null;
       frames?: [number, number] | null;
       icons?: string[];
+      displayMode?: 'pip' | 'fullscreen' | 'overlay';
+      transition?: string;
     }>;
     scenePlanMarkdown?: string;
     metadata?: {
@@ -1218,7 +1220,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               {block.percent >= 100 ? (
                 <Check className="w-3.5 h-3.5 text-green-500" />
               ) : (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-500" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--editor-accent)]" />
               )}
               <span className="text-xs text-[var(--editor-text-secondary)]">
                 {block.message}
@@ -1231,7 +1233,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             </div>
             <div className="w-full bg-[var(--editor-bg-hover)] rounded-full h-1.5">
               <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${block.percent >= 100 ? 'bg-green-500' : 'bg-purple-500'}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${block.percent >= 100 ? 'bg-green-500' : 'bg-[var(--editor-accent)]'}`}
                 style={{ width: `${Math.min(block.percent, 100)}%` }}
               />
             </div>
@@ -1264,22 +1266,19 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   return (
     <div className={`flex flex-col h-full bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 h-14 border-b border-[var(--editor-border-subtle)]">
+      <div className="flex items-center justify-between px-4 h-12 border-b border-[var(--editor-border-subtle)]">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-purple-500" />
-          </div>
-          <span className="text-sm font-semibold text-[var(--editor-text-primary)]">Creative Director</span>
+          <span className="text-sm font-semibold text-[var(--editor-text-primary)]">Chat</span>
         </div>
         <div className="flex items-center gap-1">
           {aiContext && (
             <span
               className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full ${
                 aiContext.type === 'element'
-                  ? 'bg-purple-500/10 text-purple-600'
+                  ? 'bg-[var(--editor-accent-soft)] text-[var(--editor-accent)]'
                   : aiContext.type === 'item'
-                    ? 'bg-blue-500/10 text-blue-600'
-                    : 'bg-purple-500/10 text-purple-600'
+                    ? 'bg-[var(--editor-info-soft)] text-[var(--editor-info)]'
+                    : 'bg-[var(--editor-accent-soft)] text-[var(--editor-accent)]'
               }`}
             >
               {aiContext.type === 'element' && <Target className="w-3 h-3" />}
@@ -1316,14 +1315,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {!historyLoaded ? (
           <div className="flex flex-col items-center justify-center h-full">
-            <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+            <Loader2 className="w-6 h-6 text-[var(--editor-accent)] animate-spin" />
             <p className="text-xs text-[var(--editor-text-muted)] mt-2">Loading conversation...</p>
           </div>
         ) : messages.length === 0 && !isStreaming ? (
           /* Empty state — only show if not already auto-greeting */
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center mb-4">
-              <Sparkles className="w-6 h-6 text-purple-500 opacity-60" />
+            <div className="w-12 h-12 rounded-full bg-[var(--editor-accent-soft)] flex items-center justify-center mb-4">
+              <Sparkles className="w-6 h-6 text-[var(--editor-accent)] opacity-60" />
             </div>
             {aiContext ? (
               <>
@@ -1365,22 +1364,22 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               <div
                 className={`max-w-[90%] text-sm ${
                   message.role === 'user'
-                    ? 'bg-purple-500/10 border border-purple-500/20 text-[var(--editor-text-primary)] rounded-2xl rounded-br-md px-4 py-2.5'
+                    ? 'bg-[var(--editor-accent-soft)] border border-[var(--editor-accent)]/20 text-[var(--editor-text-primary)] rounded-2xl rounded-br-md px-4 py-2.5'
                     : 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] rounded-2xl rounded-bl-md px-4 py-2.5'
                 }`}
               >
                 {message.content.length === 0 && isStreaming && (
                   <div className="flex gap-1 py-1">
                     <span
-                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-[var(--editor-accent)] rounded-full animate-bounce"
                       style={{ animationDelay: '0ms' }}
                     />
                     <span
-                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-[var(--editor-accent)] rounded-full animate-bounce"
                       style={{ animationDelay: '150ms' }}
                     />
                     <span
-                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-[var(--editor-accent)] rounded-full animate-bounce"
                       style={{ animationDelay: '300ms' }}
                     />
                   </div>
@@ -1390,7 +1389,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                   <button
                     onClick={handleRetry}
                     disabled={isStreaming}
-                    className="mt-2 flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+                    className="mt-2 flex items-center gap-1.5 text-xs text-[var(--editor-accent)] hover:text-[var(--editor-accent-hover)] transition-colors disabled:opacity-50"
                   >
                     <RefreshCw className="w-3 h-3" />
                     Retry
@@ -1423,19 +1422,19 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       {/* Input Area */}
       <div className="px-3 pb-3 pt-2">
-        {/* Scene tag chips */}
+        {/* Context chips */}
         {sceneTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             {sceneTags.map((tag) => (
               <span
                 key={`${tag.planJobId}-${tag.sceneIndex}`}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
-                           bg-purple-500/15 text-purple-400 border border-purple-500/25"
+                           bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25"
               >
                 Scene {tag.sceneIndex}: {tag.sceneTitle}
                 <button
                   onClick={() => setSceneTags((prev) => prev.filter((t) => t.sceneIndex !== tag.sceneIndex || t.planJobId !== tag.planJobId))}
-                  className="ml-0.5 hover:text-purple-300 transition-colors"
+                  className="ml-0.5 hover:text-[var(--editor-accent-hover)] transition-colors"
                   aria-label={`Remove Scene ${tag.sceneIndex}`}
                 >
                   <X className="w-3 h-3" />
@@ -1445,15 +1444,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
-        {/* Time range chip */}
         {selectedTimeRange && sceneTags.length === 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
-                             bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                             bg-[var(--editor-info-soft)] text-[var(--editor-info)] border border-[var(--editor-info)]/25">
               {formatTimeChip(selectedTimeRange.startMs)} – {formatTimeChip(selectedTimeRange.endMs)}
               <button
                 onClick={() => setSelectedTimeRange(null)}
-                className="ml-0.5 hover:text-blue-300 transition-colors"
+                className="ml-0.5 hover:text-[var(--editor-info)] transition-colors"
                 aria-label="Remove time range"
               >
                 <X className="w-3 h-3" />
@@ -1462,9 +1460,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
-        <div className="relative flex items-end gap-2 rounded-2xl border border-[var(--editor-border-subtle)]
-                        bg-[var(--editor-bg-hover)] focus-within:border-purple-500/40 focus-within:ring-1 focus-within:ring-purple-500/20
-                        transition-all">
+        <div className="relative flex items-end rounded-xl border border-[var(--editor-border-subtle)]
+                        bg-[var(--editor-bg-elevated)]">
           <textarea
             ref={textareaRef}
             value={input}
@@ -1479,25 +1476,24 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                     ? `Describe changes for ${formatTimeChip(selectedTimeRange.startMs)} – ${formatTimeChip(selectedTimeRange.endMs)}...`
                     : aiContext
                       ? `Describe changes to ${aiContext.displayName}...`
-                      : 'Describe what you want to create...'
+                      : 'Ask anything...'
             }
             disabled={isStreaming}
-            rows={1}
+            rows={3}
             className="flex-1 bg-transparent text-[var(--editor-text-primary)] text-sm
                        placeholder:text-[var(--editor-text-muted)]
-                       pl-4 pr-12 py-3
-                       focus:outline-none
+                       pl-3.5 pr-11 py-3
+                       outline-none! focus:outline-none! focus-visible:outline-none!
                        disabled:opacity-50 disabled:cursor-not-allowed
                        resize-none"
           />
           {isStreaming ? (
             <button
               onClick={handleCancel}
-              className="absolute right-2 bottom-1.5 w-8 h-8 flex items-center justify-center
-                         rounded-full border border-[var(--editor-border-subtle)]
+              className="absolute right-2 bottom-2 w-7 h-7 flex items-center justify-center
+                         rounded-lg border border-[var(--editor-border-default)]
                          bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)]
-                         hover:bg-[var(--editor-bg-hover)] hover:text-[var(--editor-text-primary)]
-                         transition-colors"
+                         hover:bg-[var(--editor-bg-hover)] active:scale-95 transition-all"
               title="Stop generating"
             >
               <Square className="w-3 h-3 fill-current" />
@@ -1506,12 +1502,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             <button
               onClick={() => canSend && sendMessage(input.trim())}
               disabled={!canSend}
-              className="absolute right-2 bottom-1.5 w-8 h-8 flex items-center justify-center
-                         rounded-full bg-purple-600 text-white
-                         hover:bg-purple-500 transition-colors
-                         disabled:bg-transparent disabled:text-[var(--editor-text-muted)]"
+              className="absolute right-2 bottom-2 w-7 h-7 flex items-center justify-center
+                         rounded-lg active:scale-95 transition-all
+                         bg-white text-[var(--editor-text-primary)] hover:bg-[var(--editor-bg-hover)]
+                         disabled:bg-[var(--editor-bg-hover)] disabled:text-[var(--editor-text-muted)]"
             >
-              <Send className="w-4 h-4" />
+              <Send className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
