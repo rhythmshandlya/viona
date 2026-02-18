@@ -18,7 +18,7 @@ export const schema = z.object({
   showProgressBar: z.boolean().default(false),
   showCompass: z.boolean().default(false),
   mapStyle: z
-    .enum(['watercolor', 'toner', 'tonerLite', 'terrain', 'osm'])
+    .enum(['satellite', 'watercolor', 'toner', 'tonerLite', 'terrain', 'osm'])
     .default('watercolor'),
   lineColor: z.string().default('#D64933'),
   lineWidth: z.number().min(1).max(12).default(4),

@@ -151,7 +151,7 @@ export function getTilesForViewport(
   return tiles;
 }
 
-export type MapStyle = 'watercolor' | 'toner' | 'tonerLite' | 'terrain' | 'osm';
+export type MapStyle = 'satellite' | 'watercolor' | 'toner' | 'tonerLite' | 'terrain' | 'osm';
 
 export interface MapStyleConfig {
   urlTemplate: string;
@@ -160,6 +160,12 @@ export interface MapStyleConfig {
 }
 
 export const MAP_STYLES: Record<MapStyle, MapStyleConfig> = {
+  satellite: {
+    urlTemplate:
+      'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    background: '#1a1a2e',
+    darkMap: true,
+  },
   watercolor: {
     urlTemplate: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg',
     background: '#F5F0EB',
