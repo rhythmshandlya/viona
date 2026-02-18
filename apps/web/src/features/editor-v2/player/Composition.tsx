@@ -29,7 +29,6 @@ import {
   AudioItemData,
   CaptionItemData,
   VisualItemData,
-  LayoutSettings,
   PiPSettings,
   SplitSettings,
   PIP_SIZE_MAP,
@@ -248,6 +247,33 @@ function buildSplitStyles(
   }
 }
 
+// Compute eased transition progress (ease-out cubic) for enter/exit animations
+function getTransitionProgress(
+  currentTimeMs: number,
+  transitionStartMs: number,
+  transitionDurationMs: number,
+): number {
+  if (transitionDurationMs <= 0) return 1;
+  const elapsed = currentTimeMs - transitionStartMs;
+  if (elapsed <= 0) return 0;
+  if (elapsed >= transitionDurationMs) return 1;
+  const t = elapsed / transitionDurationMs;
+  return 1 - Math.pow(1 - t, 3); // ease-out cubic
+}
+
+// Find the visual item whose time range contains currentTimeMs
+function findActiveVisualItem(
+  visualItems: TimelineItem[],
+  currentTimeMs: number,
+): TimelineItem | null {
+  for (const item of visualItems) {
+    if (currentTimeMs >= item.startMs && currentTimeMs < item.endMs) {
+      return item;
+    }
+  }
+  return null;
+}
+
 export function Composition() {
   const fps = useFps();
   const items = useItems();
@@ -323,14 +349,28 @@ export function Composition() {
     overflow: 'hidden',
   };
 
-  // Calculate styles based on layout mode
+  // For pip mode with visuals (non-audio), delegate to DynamicLayoutComposition
+  // which switches compositing mode per-frame based on each item's displayMode.
+  // Split modes and audio projects keep the original static layout path.
+  const useDynamicLayout =
+    !isAudioProject &&
+    effectiveHasVisuals &&
+    (mode === 'pip' || (mode !== 'split-horizontal' && mode !== 'split-vertical'));
+
+  // Calculate styles for the STATIC layout path (audio, split, no visuals)
   let videoContainerStyle: React.CSSProperties;
   let visualContainerStyle: React.CSSProperties;
   let showVideo = true;
   let showVisuals = effectiveHasVisuals;
   let usePiPMode = false;
 
-  if (isAudioProject) {
+  if (useDynamicLayout) {
+    // These won't be used — DynamicLayoutComposition handles rendering
+    videoContainerStyle = { display: 'none' };
+    visualContainerStyle = { display: 'none' };
+    showVideo = false;
+    showVisuals = false;
+  } else if (isAudioProject) {
     // Audio project: no video, visuals fill entire canvas (or black bg)
     showVideo = false;
     videoContainerStyle = { display: 'none' };
@@ -346,11 +386,6 @@ export function Composition() {
     videoContainerStyle = fullScreenStyle;
     visualContainerStyle = { display: 'none' };
     showVisuals = false;
-  } else if (mode === 'pip') {
-    // PiP mode: full-screen visuals, video as overlay
-    videoContainerStyle = buildPiPStyle(pip);
-    visualContainerStyle = fullScreenStyle;
-    usePiPMode = true;
   } else if (mode === 'split-horizontal' || mode === 'split-vertical') {
     // Split mode: both side by side
     const isHorizontal = mode === 'split-horizontal';
@@ -358,186 +393,44 @@ export function Composition() {
     videoContainerStyle = styles.videoStyle;
     visualContainerStyle = styles.visualsStyle;
   } else {
-    // Default: PiP mode
-    videoContainerStyle = buildPiPStyle(pip);
-    visualContainerStyle = fullScreenStyle;
-    usePiPMode = true;
+    // Fallback: full-screen video (should not reach here due to useDynamicLayout)
+    videoContainerStyle = fullScreenStyle;
+    visualContainerStyle = { display: 'none' };
+    showVisuals = false;
   }
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
-      {/* Visual container */}
+      {/* Dynamic layout: per-frame compositing for pip mode */}
+      {useDynamicLayout && (
+        <DynamicLayoutComposition
+          fps={fps}
+          visualItems={visualItems}
+          videoItems={videoItems}
+          pip={pip}
+          transform={transform}
+          hasSeparateAudio={hasSeparateAudio}
+          fullScreenStyle={fullScreenStyle}
+        />
+      )}
+
+      {/* Static visual container (audio project / split modes) */}
       {showVisuals && (
         <div style={visualContainerStyle}>
-          {(() => {
-            // Group visual items by compositionId so each composition renders
-            // once across its full time span. The generated Remotion composition
-            // uses useCurrentFrame() internally to switch between scenes, so it
-            // must see the correct frame offset — not restart from 0 per item.
-            const groups = new Map<string, {
-              bundleUrl: string;
-              compositionId: string;
-              videoUrl: string | undefined;
-              minStartMs: number;
-              maxEndMs: number;
-              width: number;
-              height: number;
-              fps: number;
-            }>();
-
-            for (const item of visualItems) {
-              const data = item.data as VisualItemData;
-              const key = data.compositionId;
-              const existing = groups.get(key);
-              if (existing) {
-                existing.minStartMs = Math.min(existing.minStartMs, item.startMs);
-                existing.maxEndMs = Math.max(existing.maxEndMs, item.endMs);
-                // Use videoUrl if any item in the group has one
-                if (data.videoUrl && !existing.videoUrl) {
-                  existing.videoUrl = data.videoUrl;
-                }
-              } else {
-                groups.set(key, {
-                  bundleUrl: data.bundleUrl,
-                  compositionId: data.compositionId,
-                  videoUrl: data.videoUrl,
-                  minStartMs: item.startMs,
-                  maxEndMs: item.endMs,
-                  width: data.width,
-                  height: data.height,
-                  fps: data.fps,
-                });
-              }
-            }
-
-            return Array.from(groups.entries()).map(([key, group]) => {
-              const fromFrame = Math.round((group.minStartMs / 1000) * fps);
-              const durationInFrames = Math.round(((group.maxEndMs - group.minStartMs) / 1000) * fps);
-
-              const videoSrc = group.videoUrl
-                ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${group.videoUrl}`
-                : null;
-
-              return (
-                <Sequence
-                  key={key}
-                  from={fromFrame}
-                  durationInFrames={durationInFrames}
-                >
-                  <AbsoluteFill>
-                    {videoSrc ? (
-                      <Video
-                        src={videoSrc}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                        }}
-                        onError={(e) => {
-                          console.warn('Visual video playback error:', e?.message);
-                        }}
-                      />
-                    ) : (
-                      <DynamicVisualLoader
-                        bundleUrl={group.bundleUrl}
-                        compositionId={group.compositionId}
-                      />
-                    )}
-                  </AbsoluteFill>
-                </Sequence>
-              );
-            });
-          })()}
+          <VisualSequences visualItems={visualItems} fps={fps} />
         </div>
       )}
 
-      {/* Video container */}
+      {/* Static video container (split modes / no visuals) */}
       {showVideo && (
         <div style={videoContainerStyle}>
-          {videoItems.map((item) => {
-            const data = item.data as VideoItemData;
-            if (!data.src) return null;
-            const fromFrame = Math.round((item.startMs / 1000) * fps);
-            // Subtract 3 frames (~100 ms @ 30 fps) to avoid seeking past the
-            // media file's actual end.  Probe/container-level durations can
-            // overstate the real decodable length by several frames.
-            const durationInFrames = Math.max(
-              1,
-              Math.floor(((item.endMs - item.startMs) / 1000) * fps) - 2,
-            );
-
-            // If the item has trim data, tell Remotion where inside the source
-            // media to start and stop so we never exceed the actual content.
-            const trimStartFrame = item.trim
-              ? Math.round((item.trim.startMs / 1000) * fps)
-              : undefined;
-            const trimEndFrame = item.trim
-              ? Math.max(
-                  (trimStartFrame ?? 0) + 1,
-                  Math.floor((item.trim.endMs / 1000) * fps) - 2,
-                )
-              : undefined;
-
-            // Use object-fit cover for PiP/split modes, crop/pan for video-only
-            const useSimpleRender = usePiPMode || mode === 'split-horizontal' || mode === 'split-vertical';
-
-            return (
-              <Sequence
-                key={item.id}
-                from={fromFrame}
-                durationInFrames={durationInFrames}
-              >
-                <AbsoluteFill style={{ overflow: 'hidden' }}>
-                  {useSimpleRender ? (
-                    // PiP/Split mode: use object-fit cover to fill container
-                    <Video
-                      src={data.src}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      }}
-                      muted={hasSeparateAudio}
-                      volume={hasSeparateAudio ? undefined : data.volume}
-                      playbackRate={data.playbackRate || 1}
-                      startFrom={trimStartFrame}
-                      endAt={trimEndFrame}
-                      onError={(e) => {
-                        console.warn('Video playback error (suppressed):', e?.message);
-                      }}
-                    />
-                  ) : (
-                    // Full-screen mode: use crop/pan transform
-                    <div
-                      style={{
-                        position: 'absolute',
-                        width: data.width,
-                        height: data.height,
-                        transform: `translate(${transform.translateX}px, ${transform.translateY}px) scale(${transform.scale})`,
-                        transformOrigin: 'top left',
-                      }}
-                    >
-                      <Video
-                        src={data.src}
-                        style={{
-                          width: data.width,
-                          height: data.height,
-                        }}
-                        muted={hasSeparateAudio}
-                        volume={hasSeparateAudio ? undefined : data.volume}
-                        playbackRate={data.playbackRate || 1}
-                      startFrom={trimStartFrame}
-                      endAt={trimEndFrame}
-                      onError={(e) => {
-                        console.warn('Video playback error (suppressed):', e?.message);
-                      }}
-                    />
-                  </div>
-                  )}
-                </AbsoluteFill>
-              </Sequence>
-            );
-          })}
+          <VideoSequences
+            videoItems={videoItems}
+            fps={fps}
+            hasSeparateAudio={hasSeparateAudio}
+            transform={transform}
+            useSimpleRender={usePiPMode || mode === 'split-horizontal' || mode === 'split-vertical'}
+          />
         </div>
       )}
 
@@ -587,6 +480,365 @@ export function Composition() {
         );
       })}
     </AbsoluteFill>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Extracted sub-components for visual and video sequences
+// ---------------------------------------------------------------------------
+
+/** Renders grouped visual item Sequences (shared by static and dynamic paths) */
+function VisualSequences({
+  visualItems,
+  fps,
+}: {
+  visualItems: TimelineItem[];
+  fps: number;
+}) {
+  // Group visual items by compositionId so each composition renders
+  // once across its full time span. The generated Remotion composition
+  // uses useCurrentFrame() internally to switch between scenes, so it
+  // must see the correct frame offset — not restart from 0 per item.
+  const groups = new Map<string, {
+    bundleUrl: string;
+    compositionId: string;
+    videoUrl: string | undefined;
+    minStartMs: number;
+    maxEndMs: number;
+    width: number;
+    height: number;
+    fps: number;
+  }>();
+
+  for (const item of visualItems) {
+    const data = item.data as VisualItemData;
+    const key = data.compositionId;
+    const existing = groups.get(key);
+    if (existing) {
+      existing.minStartMs = Math.min(existing.minStartMs, item.startMs);
+      existing.maxEndMs = Math.max(existing.maxEndMs, item.endMs);
+      if (data.videoUrl && !existing.videoUrl) {
+        existing.videoUrl = data.videoUrl;
+      }
+    } else {
+      groups.set(key, {
+        bundleUrl: data.bundleUrl,
+        compositionId: data.compositionId,
+        videoUrl: data.videoUrl,
+        minStartMs: item.startMs,
+        maxEndMs: item.endMs,
+        width: data.width,
+        height: data.height,
+        fps: data.fps,
+      });
+    }
+  }
+
+  return (
+    <>
+      {Array.from(groups.entries()).map(([key, group]) => {
+        const fromFrame = Math.round((group.minStartMs / 1000) * fps);
+        const durationInFrames = Math.round(((group.maxEndMs - group.minStartMs) / 1000) * fps);
+
+        const videoSrc = group.videoUrl
+          ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${group.videoUrl}`
+          : null;
+
+        return (
+          <Sequence
+            key={key}
+            from={fromFrame}
+            durationInFrames={durationInFrames}
+          >
+            <AbsoluteFill>
+              {videoSrc ? (
+                <Video
+                  src={videoSrc}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                  onError={(e) => {
+                    console.warn('Visual video playback error:', e?.message);
+                  }}
+                />
+              ) : (
+                <DynamicVisualLoader
+                  bundleUrl={group.bundleUrl}
+                  compositionId={group.compositionId}
+                />
+              )}
+            </AbsoluteFill>
+          </Sequence>
+        );
+      })}
+    </>
+  );
+}
+
+/** Renders video item Sequences with crop/pan or simple cover mode */
+function VideoSequences({
+  videoItems,
+  fps,
+  hasSeparateAudio,
+  transform,
+  useSimpleRender,
+}: {
+  videoItems: TimelineItem[];
+  fps: number;
+  hasSeparateAudio: boolean;
+  transform: { scale: number; translateX: number; translateY: number };
+  useSimpleRender: boolean;
+}) {
+  return (
+    <>
+      {videoItems.map((item) => {
+        const data = item.data as VideoItemData;
+        if (!data.src) return null;
+        const fromFrame = Math.round((item.startMs / 1000) * fps);
+        const durationInFrames = Math.max(
+          1,
+          Math.floor(((item.endMs - item.startMs) / 1000) * fps) - 2,
+        );
+
+        const trimStartFrame = item.trim
+          ? Math.round((item.trim.startMs / 1000) * fps)
+          : undefined;
+        const trimEndFrame = item.trim
+          ? Math.max(
+              (trimStartFrame ?? 0) + 1,
+              Math.floor((item.trim.endMs / 1000) * fps) - 2,
+            )
+          : undefined;
+
+        return (
+          <Sequence
+            key={item.id}
+            from={fromFrame}
+            durationInFrames={durationInFrames}
+          >
+            <AbsoluteFill style={{ overflow: 'hidden' }}>
+              {useSimpleRender ? (
+                <Video
+                  src={data.src}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                  muted={hasSeparateAudio}
+                  volume={hasSeparateAudio ? undefined : data.volume}
+                  playbackRate={data.playbackRate || 1}
+                  startFrom={trimStartFrame}
+                  endAt={trimEndFrame}
+                  onError={(e) => {
+                    console.warn('Video playback error (suppressed):', e?.message);
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    position: 'absolute',
+                    width: data.width,
+                    height: data.height,
+                    transform: `translate(${transform.translateX}px, ${transform.translateY}px) scale(${transform.scale})`,
+                    transformOrigin: 'top left',
+                  }}
+                >
+                  <Video
+                    src={data.src}
+                    style={{
+                      width: data.width,
+                      height: data.height,
+                    }}
+                    muted={hasSeparateAudio}
+                    volume={hasSeparateAudio ? undefined : data.volume}
+                    playbackRate={data.playbackRate || 1}
+                    startFrom={trimStartFrame}
+                    endAt={trimEndFrame}
+                    onError={(e) => {
+                      console.warn('Video playback error (suppressed):', e?.message);
+                    }}
+                  />
+                </div>
+              )}
+            </AbsoluteFill>
+          </Sequence>
+        );
+      })}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DynamicLayoutComposition — per-frame layout switching
+// ---------------------------------------------------------------------------
+
+interface DynamicLayoutProps {
+  fps: number;
+  visualItems: TimelineItem[];
+  videoItems: TimelineItem[];
+  pip: PiPSettings;
+  transform: { scale: number; translateX: number; translateY: number };
+  hasSeparateAudio: boolean;
+  fullScreenStyle: React.CSSProperties;
+}
+
+/**
+ * Renders the visual + video layers with per-frame compositing.
+ * On each frame it looks up the active visual item and picks the
+ * compositing mode from `item.data.displayMode`:
+ *   - gap (no item)   → speaker video fullscreen
+ *   - 'pip'           → visual fullscreen + video as PiP bubble
+ *   - 'fullscreen'    → visual fullscreen, video hidden
+ *   - 'overlay'       → video fullscreen + visual on top at 0.7 opacity
+ *
+ * Enter/exit transitions (fade, zoom) are applied at item boundaries.
+ */
+function DynamicLayoutComposition({
+  fps,
+  visualItems,
+  videoItems,
+  pip,
+  transform,
+  hasSeparateAudio,
+  fullScreenStyle,
+}: DynamicLayoutProps) {
+  const frame = useCurrentFrame();
+  const currentTimeMs = (frame / fps) * 1000;
+
+  // Determine the active visual item at the current time
+  const activeItem = findActiveVisualItem(visualItems, currentTimeMs);
+  const activeData = activeItem ? (activeItem.data as VisualItemData) : null;
+  const displayMode = activeData?.displayMode ?? 'pip';
+
+  // Calculate transition opacity/scale for the active item
+  let transitionOpacity = 1;
+  let transitionScale = 1;
+
+  if (activeItem && activeData?.transition) {
+    const itemDurationMs = activeItem.endMs - activeItem.startMs;
+    const { enter, exit } = activeData.transition;
+
+    // Clamp transition durations to at most half the item duration
+    const maxDuration = itemDurationMs / 2;
+    const enterDuration = Math.min(enter.durationMs, maxDuration);
+    const exitDuration = Math.min(exit.durationMs, maxDuration);
+
+    // Enter transition
+    if (enter.type !== 'cut' && enterDuration > 0) {
+      const enterProgress = getTransitionProgress(
+        currentTimeMs,
+        activeItem.startMs,
+        enterDuration,
+      );
+
+      if (enter.type === 'fade') {
+        transitionOpacity = Math.min(transitionOpacity, enterProgress);
+      } else if (enter.type === 'zoom-in') {
+        // Scale from 1.3 down to 1.0
+        transitionOpacity = Math.min(transitionOpacity, enterProgress);
+        transitionScale *= 1.3 - 0.3 * enterProgress;
+      } else if (enter.type === 'zoom-out') {
+        // Scale from 0.7 up to 1.0
+        transitionOpacity = Math.min(transitionOpacity, enterProgress);
+        transitionScale *= 0.7 + 0.3 * enterProgress;
+      }
+    }
+
+    // Exit transition
+    const exitStartMs = activeItem.endMs - exitDuration;
+    if (exit.type !== 'cut' && exitDuration > 0 && currentTimeMs >= exitStartMs) {
+      const exitProgress = getTransitionProgress(
+        currentTimeMs,
+        exitStartMs,
+        exitDuration,
+      );
+
+      if (exit.type === 'fade') {
+        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
+      } else if (exit.type === 'zoom-in') {
+        // Scale from 1.0 to 1.3
+        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
+        transitionScale *= 1.0 + 0.3 * exitProgress;
+      } else if (exit.type === 'zoom-out') {
+        // Scale from 1.0 to 0.7
+        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
+        transitionScale *= 1.0 - 0.3 * exitProgress;
+      }
+    }
+  }
+
+  // Build container styles based on the current display mode
+  const isGap = !activeItem;
+  const showVideoLayer = isGap || displayMode === 'pip' || displayMode === 'overlay';
+  const showVisualLayer = !isGap;
+  const hideVideoCompletely = !isGap && displayMode === 'fullscreen';
+
+  // Video layer style
+  let videoLayerStyle: React.CSSProperties;
+  if (isGap || displayMode === 'overlay') {
+    // Fullscreen video (speaker-only gap or overlay background)
+    videoLayerStyle = fullScreenStyle;
+  } else if (displayMode === 'pip') {
+    // Video as PiP bubble on top of visual
+    videoLayerStyle = buildPiPStyle(pip);
+  } else {
+    // displayMode === 'fullscreen' — video hidden
+    videoLayerStyle = { display: 'none' };
+  }
+
+  // Visual layer style — always fullscreen when visible, but with transition effects
+  const visualLayerStyle: React.CSSProperties = {
+    ...fullScreenStyle,
+    opacity: transitionOpacity,
+    transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
+    transformOrigin: 'center center',
+  };
+
+  // For overlay mode, visuals sit on top of video at reduced opacity
+  const overlayVisualStyle: React.CSSProperties = {
+    ...fullScreenStyle,
+    opacity: 0.7 * transitionOpacity,
+    transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
+    transformOrigin: 'center center',
+    zIndex: 5,
+  };
+
+  // Determine whether the video should use simple (cover) or crop/pan rendering
+  // In dynamic mode, PiP uses simple render; fullscreen/overlay/gap use crop/pan
+  const videoUseSimpleRender = !isGap && displayMode === 'pip';
+
+  return (
+    <>
+      {/* Visual layer (behind video for pip, on top for overlay) */}
+      {displayMode !== 'overlay' && showVisualLayer && (
+        <div style={visualLayerStyle}>
+          <VisualSequences visualItems={visualItems} fps={fps} />
+        </div>
+      )}
+
+      {/* Video layer */}
+      {showVideoLayer && !hideVideoCompletely && (
+        <div style={videoLayerStyle}>
+          <VideoSequences
+            videoItems={videoItems}
+            fps={fps}
+            hasSeparateAudio={hasSeparateAudio}
+            transform={transform}
+            useSimpleRender={videoUseSimpleRender}
+          />
+        </div>
+      )}
+
+      {/* Overlay mode: visual on top of video at reduced opacity */}
+      {displayMode === 'overlay' && showVisualLayer && (
+        <div style={overlayVisualStyle}>
+          <VisualSequences visualItems={visualItems} fps={fps} />
+        </div>
+      )}
+    </>
   );
 }
 
