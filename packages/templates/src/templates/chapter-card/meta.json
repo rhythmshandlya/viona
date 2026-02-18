@@ -1,0 +1,19 @@
+{
+  "slug": "chapter-card",
+  "name": "Chapter Card",
+  "description": "Full-screen chapter transition with number and title",
+  "category": "corporate",
+  "tags": [
+    "chapter",
+    "section",
+    "transition",
+    "number",
+    "break",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

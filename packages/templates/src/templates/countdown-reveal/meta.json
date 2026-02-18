@@ -1,0 +1,21 @@
+{
+  "slug": "countdown-reveal",
+  "name": "Countdown Reveal",
+  "description": "Top 5 countdown with dramatic item reveals — perfect for rankings, product launches, and listicles",
+  "category": "entertainment",
+  "tags": [
+    "countdown",
+    "top5",
+    "ranking",
+    "reveal",
+    "list",
+    "trending",
+    "viral",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

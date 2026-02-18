@@ -10,11 +10,12 @@
 // @ts-expect-error — installed at runtime via Claude Code OAuth, not in package.json
 import { query, ClaudeAgentOptions, AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
 import { mkdir, writeFile, readFile } from 'fs/promises';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
 import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
 import { config } from '../../config.js';
 import { STYLE_GUIDELINES } from '../../prompts/generate-visuals.js';
+import { buildStudioTemplateCatalog } from '../../prompts/studio-templates.js';
 
 export interface TranscriptWord {
   text: string;
@@ -933,7 +934,7 @@ const bad = interpolate(progress, [0, 1], [colorRed, colorBlue]); // CRASH!
 ### 8. Output ONLY TypeScript/React code, no markdown fences
 
 Canvas: ${width}x${height}px @ ${fps}fps`,
-      tools: ['Read', 'Write', 'Edit']
+      tools: ['Read', 'Write', 'Edit', 'Glob', 'Grep']
     },
 
     'validation-agent': {
@@ -1220,6 +1221,40 @@ export async function generateVisualsWithClaudeSDK(
     const scenesDir = join(compositionDir, 'scenes');
     await mkdir(scenesDir, { recursive: true });
 
+    // Studio theme: write template catalog and source files to workspace
+    let studioTemplateCatalog = '';
+    if (stylePreset === 'studio') {
+      try {
+        const { listTemplates } = await import('@viona/templates');
+        studioTemplateCatalog = buildStudioTemplateCatalog();
+
+        // Write catalog as a reference file
+        const catalogPath = join(absoluteWorkspace, 'src', '.template-catalog.md');
+        await writeFile(catalogPath, studioTemplateCatalog);
+
+        // Write template source files so the agent can read them
+        const templatesDir = join(absoluteWorkspace, 'src', '.templates');
+        await mkdir(templatesDir, { recursive: true });
+
+        const templates = listTemplates({ theme: 'studio' });
+        for (const t of templates) {
+          const files = await t.getFiles();
+          const tDir = join(templatesDir, t.meta.slug);
+          await mkdir(tDir, { recursive: true });
+          for (const f of files) {
+            // Ensure subdirectories exist for nested file paths
+            const filePath = join(tDir, f.path);
+            await mkdir(dirname(filePath), { recursive: true });
+            await writeFile(filePath, f.content);
+          }
+        }
+
+        log(`Studio templates: wrote ${templates.length} template sources to workspace`);
+      } catch (e) {
+        log(`Warning: Could not load studio templates: ${e}`);
+      }
+    }
+
     // Get agent definitions
     const agents = getAgentDefinitions(stylePreset, width, height, fps);
 
@@ -1355,15 +1390,21 @@ You have access to Read, Glob, and Grep tools. Before writing code:
 - Use Read to study the \`constants.ts\` file if it exists: \`src/*/constants.ts\`
 - If scene files from earlier in this generation exist in \`${compositionDir}/scenes/\`, read them to maintain visual consistency (same color usage, animation timing, element sizing).
 ${i > 0 ? `- IMPORTANT: Read the previously generated scene at \`${join(scenesDir, visualPlan.scenes[i - 1].id + '.tsx')}\` to ensure visual continuity.` : ''}
+${stylePreset === 'studio' && studioTemplateCatalog ? `
+## TEMPLATE REFERENCE
+If a template matches this scene's purpose, read its source from src/.templates/{slug}/ and use it as a starting point. Customize the data, colors, and timing to match the transcript content. Maintain DotGrid background and FONT_PAIRS typography.
+
+${studioTemplateCatalog}` : ''}
 
 Output ONLY TypeScript/React code. No markdown fences. Start with imports, end with export default.`;
 
       let sceneCode = '';
 
+      const sceneTools = ['Read', 'Write', 'Edit', 'Glob', 'Grep'];
       for await (const message of query({
         prompt: scenePrompt,
         options: {
-          allowedTools: ['Read', 'Glob', 'Grep'],
+          allowedTools: sceneTools,
           permissionMode: 'bypassPermissions',
           allowDangerouslySkipPermissions: true,
           model: config.claudeAgent.model,

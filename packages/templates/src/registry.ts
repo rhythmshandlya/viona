@@ -29,6 +29,10 @@ export function listTemplates(filters?: TemplateFilters): TemplateRegistryEntry[
     );
   }
 
+  if (filters.theme) {
+    entries = entries.filter((e) => e.meta.tags.includes(`${filters.theme}-theme`));
+  }
+
   if (filters.search) {
     const q = filters.search.toLowerCase();
     entries = entries.filter(

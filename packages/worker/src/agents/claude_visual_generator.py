@@ -2650,7 +2650,7 @@ registerRoot(RemotionRoot);
             height: Video height
             duration_frames: Total frames
             fps: Frames per second
-            style_preset: Visual style preset (minimal, modern, playful, bold, classic)
+            style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
             layout_mode: Layout mode (pip, split-horizontal, split-vertical)
             style_guide: Optional user-provided style/layout guidance
 
@@ -2676,6 +2676,17 @@ registerRoot(RemotionRoot);
             style_guide=style_guide,
             output_dir=str(self.src_dir),
         )
+
+        # For studio style: inject template catalog directly into the Director prompt
+        # so it can plan scenes around available templates without needing to discover files
+        if style_preset == "studio":
+            catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
+            if catalog_path.exists():
+                catalog_content = catalog_path.read_text(encoding="utf-8")
+                director_message += f"\n\n{catalog_content}"
+                safe_print(f"[ClaudeGenerator] Injected studio template catalog ({len(catalog_content)} chars) into Director prompt")
+            else:
+                safe_print("[ClaudeGenerator] WARNING: STUDIO_TEMPLATES.md not found, Director will plan without template catalog")
 
         # Write restricted security settings for the Director — only allow writes
         # within the project directory (src_dir). This prevents Claude from writing
@@ -3012,7 +3023,7 @@ registerRoot(RemotionRoot);
             fps: Frames per second
             timeout_seconds: Total timeout for both phases
             max_retries: Retry attempts per phase
-            style_preset: Visual style preset (minimal, modern, playful, bold, classic)
+            style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
             layout_mode: Layout mode (pip, split-horizontal, split-vertical)
             style_guide: Optional user-provided style/layout guidance
 
@@ -3251,7 +3262,7 @@ async def main():
     parser.add_argument("--transcript", required=True, help="Transcript text or file path")
     parser.add_argument("--words-json", help="Path to words JSON file with timestamps")
     parser.add_argument("--style-guide", help="Path to user style guide text file")
-    parser.add_argument("--style-preset", default="modern", help="Visual style preset (minimal, modern, playful, bold, classic)")
+    parser.add_argument("--style-preset", default="modern", help="Visual style preset (minimal, modern, playful, bold, classic, studio)")
     parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, split-horizontal, split-vertical)")
     parser.add_argument("--width", type=int, default=1920, help="Video width")
     parser.add_argument("--height", type=int, default=1080, help="Video height")

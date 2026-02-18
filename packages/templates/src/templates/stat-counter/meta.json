@@ -3,7 +3,15 @@
   "name": "Stat Counter",
   "description": "Big animated number counting up with trend badge — perfect for revenue, users, or growth metrics",
   "category": "marketing",
-  "tags": ["stats", "counter", "number", "growth", "metrics", "dashboard"],
+  "tags": [
+    "stats",
+    "counter",
+    "number",
+    "growth",
+    "metrics",
+    "dashboard",
+    "studio-theme"
+  ],
   "stylePreset": "cleanMinimal",
   "aspectRatio": "1:1",
   "sceneCount": 1,

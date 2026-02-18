@@ -661,7 +661,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/projects/:id/generate-visuals', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
-      stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'apple', 'google']),
+      stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'apple', 'google', 'studio']),
       layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
       dimensions: z.object({
         width: z.number().int().min(100).max(4096),

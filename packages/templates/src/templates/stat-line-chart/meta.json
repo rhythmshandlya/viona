@@ -3,7 +3,17 @@
   "name": "Stat Line Chart",
   "description": "SVG line graph drawn progressively with gradient fill — perfect for growth trends and time series",
   "category": "marketing",
-  "tags": ["stats", "line", "chart", "graph", "trend", "growth", "metrics", "dashboard"],
+  "tags": [
+    "stats",
+    "line",
+    "chart",
+    "graph",
+    "trend",
+    "growth",
+    "metrics",
+    "dashboard",
+    "studio-theme"
+  ],
   "stylePreset": "cleanMinimal",
   "aspectRatio": "1:1",
   "sceneCount": 1,

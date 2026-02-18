@@ -22,6 +22,7 @@
   "dependencies": {
     "@viona/renderer": "workspace:*",
     "@viona/shared": "workspace:*",
+    "@viona/templates": "workspace:*",
     "@remotion/bundler": "^4.0.409",
     "@remotion/captions": "^4.0.0",
     "@remotion/cli": "^4.0.0",

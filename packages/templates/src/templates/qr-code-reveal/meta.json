@@ -1,0 +1,20 @@
+{
+  "slug": "qr-code-reveal",
+  "name": "QR Code Reveal",
+  "description": "Animated QR code that builds itself with scan prompt",
+  "category": "marketing",
+  "tags": [
+    "qr",
+    "code",
+    "scan",
+    "link",
+    "url",
+    "mobile",
+    "studio-theme"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

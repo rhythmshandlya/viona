@@ -1,0 +1,19 @@
+{
+  "slug": "speaker-id",
+  "name": "Speaker ID",
+  "description": "Animated lower-third name tag with name, title, and affiliation",
+  "category": "social",
+  "tags": [
+    "lower-third",
+    "name",
+    "speaker",
+    "identity",
+    "intro",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

@@ -1,0 +1,19 @@
+{
+  "slug": "popup-fact",
+  "name": "Popup Fact",
+  "description": "Notification-style popup cards with surprising facts",
+  "category": "education",
+  "tags": [
+    "popup",
+    "fact",
+    "notification",
+    "toast",
+    "info",
+    "tip",
+    "studio-theme"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

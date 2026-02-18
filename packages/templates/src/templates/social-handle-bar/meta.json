@@ -1,0 +1,20 @@
+{
+  "slug": "social-handle-bar",
+  "name": "Social Handle Bar",
+  "description": "Animated social media handles with platform icons",
+  "category": "social",
+  "tags": [
+    "social",
+    "handles",
+    "youtube",
+    "instagram",
+    "tiktok",
+    "twitter",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

@@ -1,0 +1,20 @@
+{
+  "slug": "step-counter",
+  "name": "Step Counter",
+  "description": "Step indicator with progress ring for tutorials and how-tos",
+  "category": "education",
+  "tags": [
+    "step",
+    "counter",
+    "progress",
+    "tutorial",
+    "howto",
+    "guide",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

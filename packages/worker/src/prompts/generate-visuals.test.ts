@@ -213,6 +213,7 @@ describe('STYLE_GUIDELINES', () => {
     expect(STYLE_GUIDELINES).toHaveProperty('playful');
     expect(STYLE_GUIDELINES).toHaveProperty('bold');
     expect(STYLE_GUIDELINES).toHaveProperty('classic');
+    expect(STYLE_GUIDELINES).toHaveProperty('studio');
   });
 
   it('each style has meaningful content', () => {

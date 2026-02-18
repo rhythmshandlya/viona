@@ -98,7 +98,7 @@ The generation pipeline has access to Freepik's premium asset library — millio
 - For data/charts, say so explicitly: "animated bar chart showing growth" (these get hand-coded, not sourced from Freepik)
 Think like a creative director briefing a motion designer who has access to a premium asset library.
 
-STYLES: minimal (clean geometric, monochrome), modern (gradients, purple-blue), playful (bright, bouncy), bold (high contrast, big text), classic (muted, elegant)
+STYLES: minimal (clean geometric, monochrome), modern (gradients, purple-blue), playful (bright, bouncy), bold (high contrast, big text), classic (muted, elegant), studio (polished card animations with dot-grid backgrounds — has a pre-built template library for stats, charts, polls, transitions, and more)
 LAYOUTS: pip (visuals fullscreen, video overlay), split-vertical (stacked top/bottom)${isAudio ? `
 
 AUDIO PROJECT RULES:

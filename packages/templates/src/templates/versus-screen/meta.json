@@ -1,0 +1,20 @@
+{
+  "slug": "versus-screen",
+  "name": "Versus Screen",
+  "description": "Dramatic split-screen VS comparison with attributes",
+  "category": "social",
+  "tags": [
+    "versus",
+    "vs",
+    "comparison",
+    "battle",
+    "matchup",
+    "split",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

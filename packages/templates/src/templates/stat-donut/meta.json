@@ -3,7 +3,16 @@
   "name": "Stat Donut",
   "description": "SVG donut chart with animated arc drawing — great for revenue breakdowns and distribution data",
   "category": "marketing",
-  "tags": ["stats", "donut", "pie", "chart", "breakdown", "metrics", "dashboard"],
+  "tags": [
+    "stats",
+    "donut",
+    "pie",
+    "chart",
+    "breakdown",
+    "metrics",
+    "dashboard",
+    "studio-theme"
+  ],
   "stylePreset": "cleanMinimal",
   "aspectRatio": "1:1",
   "sceneCount": 1,

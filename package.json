@@ -6,7 +6,6 @@
     "dev:web": "pnpm --filter web dev",
     "dev:api": "pnpm --filter @viona/api dev",
     "dev:worker": "pnpm --filter @viona/worker dev",
-    "dev:landing": "pnpm --filter landing dev",
     "dev:templates": "pnpm --filter templates dev",
     "build": "pnpm run --parallel build:*",
     "build:web": "pnpm --filter web build",

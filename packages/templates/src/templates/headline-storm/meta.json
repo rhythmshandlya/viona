@@ -3,7 +3,16 @@
   "name": "Headline Storm",
   "description": "Text match cut effect — rapidly cycling news articles with the brand name always at center, highlighted",
   "category": "marketing",
-  "tags": ["headlines", "news", "viral", "brand", "match-cut", "trending", "newspaper"],
+  "tags": [
+    "headlines",
+    "news",
+    "viral",
+    "brand",
+    "match-cut",
+    "trending",
+    "newspaper",
+    "studio-theme"
+  ],
   "stylePreset": "cleanMinimal",
   "aspectRatio": "1:1",
   "sceneCount": 1,

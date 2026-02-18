@@ -44,4 +44,5 @@ export interface TemplateFilters {
   aspectRatio?: AspectRatio;
   tags?: string[];
   search?: string;
+  theme?: string;
 }

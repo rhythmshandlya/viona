@@ -1,0 +1,19 @@
+{
+  "slug": "source-cite",
+  "name": "Source Cite",
+  "description": "Editorial reference card for citing sources and quotes",
+  "category": "education",
+  "tags": [
+    "source",
+    "cite",
+    "reference",
+    "quote",
+    "article",
+    "research",
+    "studio-theme"
+  ],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

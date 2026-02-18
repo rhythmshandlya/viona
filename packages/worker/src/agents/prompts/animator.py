@@ -555,6 +555,62 @@ interpolate(frame, [0, 30], [0, 1], {{extrapolateRight: 'clamp'}})
 - MAX 3 animated elements visible at once
 - Bottom 15% reserved for subtitles
 </remotion_rules>
+
+<studio_templates>
+## STUDIO THEME — TEMPLATE LIBRARY
+
+When the Director's plan uses the **Studio** style preset, you have access to a library of
+pre-built template source code in `src/.templates/`.
+
+### How to Use Templates:
+
+1. **Check STUDIO_TEMPLATES.md** in the `src/` directory for the full catalog with descriptions
+2. **Read template source** from `src/.templates/{slug}/` — each template has:
+   - `index.tsx` — Main composition component (the most important file)
+   - `constants.ts` — Color and timing constants
+   - `schema.ts` — Props schema with types
+   - `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
+3. **Copy and customize** — Take the template code and adapt it:
+   - Change data values (numbers, labels, colors) to match the transcript content
+   - Adjust timing to fit the scene's frame range
+   - Modify colors to use the Director's planned palette
+   - Keep the DotGrid background pattern and card-based layout
+4. **Compose templates** — You can use multiple templates in one scene:
+   - e.g., `stat-counter` for a number reveal + `bar-chart` for a comparison
+
+### Studio Design System (MANDATORY when plan says "Studio"):
+
+**DotGrid Background (MUST include in EVERY scene):**
+```tsx
+<svg style={{{{ position: 'absolute', inset: 0 }}}} width="100%" height="100%">
+  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.03)" />
+  </pattern>
+  <rect width="100%" height="100%" fill="#0B0F1A" />
+  <rect width="100%" height="100%" fill="url(#dots)" />
+</svg>
+```
+
+**Card Containers:**
+- borderRadius: 20px, padding: 48px, maxWidth: 85%
+- Background: rgba(255,255,255,0.05) with backdropFilter: blur(20px)
+- Border: 1px solid rgba(255,255,255,0.08)
+
+**Font Pairs (import from Google Fonts):**
+- Default: Oswald (bold titles) + Inter (body text)
+- Tech: Space Grotesk + IBM Plex Mono
+- Friendly: Nunito + Source Code Pro
+
+**Spring Config for Studio:**
+- Card entrances: {{ damping: 14, stiffness: 80 }}
+- Element staggers: 8-12 frames apart
+
+**If NO template matches:** Create custom visuals but ALWAYS maintain:
+- DotGrid SVG background
+- Card-based layout
+- Studio color palette (#0B0F1A, #6366F1, #F8FAFC)
+- Font pair from the list above
+</studio_templates>
 """
 
 

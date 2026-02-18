@@ -148,6 +148,51 @@ Style: Apple (Premium Minimalism)
 - Hold each element for at least 60 frames before transitioning
 - Movement should feel like breathing — unhurried, confident`,
 
+  studio: `
+Style: Studio (Polished Card Animations)
+
+**DESIGN SYSTEM — DotGrid Theme:**
+This style has a complete template library. When possible, USE EXISTING TEMPLATES as building blocks (see template catalog below). Copy their code into the workspace, customize props, and compose them into scenes.
+
+**DESIGN:**
+- Polished card-based layouts floating on dot-grid backgrounds
+- Centered content containers with generous padding and rounded corners
+- Dark/light mode support with consistent color tokens
+- Clean typography hierarchy using Google Font pairs
+
+**COLOR PALETTE:**
+- Dark mode: Background #0B0F1A, text #FFFFFF, muted #94A3B8, grid #FFFFFF08
+- Light mode: Background #F8FAFC, text #0F172A, muted #64748B, grid #0F172A08
+- Accent: Indigo #6366F1 (primary), customizable per-scene
+
+**BACKGROUND:**
+Every scene MUST include a DotGrid SVG background layer:
+\`\`\`tsx
+<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
+  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill={gridColor} />
+  </pattern>
+  <rect width="100%" height="100%" fill={bg} />
+  <rect width="100%" height="100%" fill="url(#dots)" />
+</svg>
+\`\`\`
+
+**TYPOGRAPHY (FONT_PAIRS):**
+Use Google Fonts pairs. Default: boldImpact (Oswald + Inter).
+Available: modernTech (Space Grotesk + IBM Plex Mono), friendlyTech (Nunito + Source Code Pro), strongReadable (Bebas Neue + Open Sans), elegantEditorial (Cormorant Garamond + Lato), cleanMinimal (Plus Jakarta Sans + JetBrains Mono).
+
+**CARD LAYOUT:**
+Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background.
+
+**ANIMATION:**
+- Use spring({ damping: 14, stiffness: 80 }) for card entrances
+- Stagger elements by 8-12 frames
+- Standard timeline: fade-in (0-15 frames), content animate (20-260), hold (280-330), fade-out (330-360)
+- Progress bars, counters, charts use smooth interpolate over 100+ frames
+
+**MANDATORY: { extrapolateRight: 'clamp' } on ALL interpolate calls**
+`,
+
   google: `
 Style: Google (Material Design 3)
 

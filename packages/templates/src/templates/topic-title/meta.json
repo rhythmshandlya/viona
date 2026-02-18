@@ -1,0 +1,19 @@
+{
+  "slug": "topic-title",
+  "name": "Topic Title",
+  "description": "Bold animated section title with subtitle and accent underline",
+  "category": "social",
+  "tags": [
+    "title",
+    "topic",
+    "section",
+    "header",
+    "intro",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

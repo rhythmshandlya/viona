@@ -3,7 +3,15 @@
   "name": "Country Highlight",
   "description": "Highlight a country on a satellite map with animated zoom, colored overlay, and location labels",
   "category": "social",
-  "tags": ["map", "country", "geography", "highlight", "satellite", "animation"],
+  "tags": [
+    "map",
+    "country",
+    "geography",
+    "highlight",
+    "satellite",
+    "animation",
+    "studio-theme"
+  ],
   "stylePreset": "boldImpact",
   "aspectRatio": "1:1",
   "sceneCount": 1,

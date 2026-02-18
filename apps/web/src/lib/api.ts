@@ -120,7 +120,7 @@ export interface SeparateAudioResponse {
   itemId: string;
 }
 
-export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
+export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
 
 export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
 

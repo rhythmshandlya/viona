@@ -3,7 +3,15 @@
   "name": "Stat Bar Chart",
   "description": "Horizontal bars growing with staggered spring animation — ideal for channel breakdowns and rankings",
   "category": "marketing",
-  "tags": ["stats", "bar", "chart", "ranking", "metrics", "dashboard"],
+  "tags": [
+    "stats",
+    "bar",
+    "chart",
+    "ranking",
+    "metrics",
+    "dashboard",
+    "studio-theme"
+  ],
   "stylePreset": "cleanMinimal",
   "aspectRatio": "1:1",
   "sceneCount": 1,

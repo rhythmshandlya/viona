@@ -1,0 +1,21 @@
+{
+  "slug": "fact-flash",
+  "name": "Fact Flash",
+  "description": "Rapid-fire animated facts with big numbers and context — perfect for 'Did You Know' content and industry stats",
+  "category": "education",
+  "tags": [
+    "facts",
+    "didyouknow",
+    "stats",
+    "trivia",
+    "education",
+    "numbers",
+    "viral",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

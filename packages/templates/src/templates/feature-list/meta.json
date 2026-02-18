@@ -1,0 +1,19 @@
+{
+  "slug": "feature-list",
+  "name": "Feature List",
+  "description": "Cascading feature list with icons and descriptions",
+  "category": "marketing",
+  "tags": [
+    "features",
+    "product",
+    "list",
+    "showcase",
+    "highlights",
+    "studio-theme"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

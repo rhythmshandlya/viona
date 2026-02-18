@@ -286,7 +286,7 @@ export interface SubtitleData {
 // ============================================
 
 export interface VisualStyle {
-  theme: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
+  theme: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   primaryColor: string;
   secondaryColor?: string;
   backgroundColor?: string;

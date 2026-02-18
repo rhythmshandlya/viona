@@ -126,6 +126,7 @@ const PHASE_ORDER: Record<string, string[]> = {
 };
 
 function getStepStatus(currentPhase: string | undefined, jobType: string, stepIndex: number): 'done' | 'active' | 'pending' {
+  if (currentPhase === 'done') return 'done';
   const phases = PHASE_ORDER[jobType];
   if (!phases || !currentPhase) return stepIndex === 0 ? 'active' : 'pending';
   const currentIdx = phases.indexOf(currentPhase);
@@ -683,7 +684,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               ...m,
               content: m.content.map((b) =>
                 b.type === 'progress'
-                  ? { ...b, percent: 100, message: 'Done!' }
+                  ? { ...b, percent: 100, message: 'Done!', phase: 'done' }
                   : b,
               ),
             };

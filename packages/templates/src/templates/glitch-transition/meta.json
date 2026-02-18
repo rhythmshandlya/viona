@@ -1,0 +1,20 @@
+{
+  "slug": "glitch-transition",
+  "name": "Glitch Transition",
+  "description": "Digital glitch effect with RGB split, scan lines, and corruption blocks",
+  "category": "entertainment",
+  "tags": [
+    "glitch",
+    "transition",
+    "digital",
+    "rgb",
+    "distortion",
+    "tech",
+    "studio-theme"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}
