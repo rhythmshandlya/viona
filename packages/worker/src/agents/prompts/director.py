@@ -208,6 +208,38 @@ Use illustrations for:
 | 3D model/character | Yes - [3D REQUIRED] |
 
 This helps the Animator know when to use @remotion/three vs CSS transforms.
+
+### Images (Photos & Illustrations)
+The pipeline can automatically fetch **real photographs** from Pexels and **vector illustrations**
+from Freepik for your scenes. Tag image needs in your scene descriptions:
+
+- **[IMAGE: keyword]** — Request a photo or illustration for the scene
+
+Each image entry in scenes.json specifies:
+- `type`: `"photo"` (real photographs from Pexels) or `"illustration"` (vector art from Freepik)
+- `purpose`: How prominent the image should be:
+  - `"hero"` — Large, central focal point (60-80% of canvas)
+  - `"accent"` — Supporting visual element (30-50%)
+  - `"background"` — Full-bleed behind other elements, with overlay
+- `placement`: Where in the scene: `"center"`, `"background"`, `"left"`, or `"right"`
+- `description`: What the image should depict (helps with search)
+
+**When to use images vs icons:**
+| Need | Use |
+|------|-----|
+| Real-world objects, people, nature, places | `type: "photo"` (Pexels) |
+| Abstract concepts, processes, diagrams | `type: "illustration"` (Freepik vectors) |
+| UI elements, symbols, small accents | Icons (`[ICON: keyword]`) |
+| Data visualizations, charts | Hand-coded SVG (Animator) |
+
+**Example scene description:**
+```
+"visual": "[IMAGE: team brainstorming] A vibrant photo of a team collaborating fades in
+as the hero image, with [ICON: lightbulb] accents appearing around it."
+```
+
+**Budget constraints:** Max 2 images per scene, max 10 images total across all scenes.
+Images are downloaded before the Animator runs, so they're available as static files.
 </visual_requirements>
 
 <web_research>
@@ -240,6 +272,53 @@ STYLE_PRESET_DESCRIPTIONS = {
     "playful": "Bright colors, bouncy animations, friendly feel. Fun and energetic with playful motion.",
     "bold": "High contrast, large text, dramatic impact. Strong visual statements with stark contrasts.",
     "classic": "Traditional charts, serif fonts, professional tones. Timeless and business-appropriate.",
+    "studio": """Polished card animations with dot-grid backgrounds. This style has a PRE-BUILT TEMPLATE LIBRARY.
+
+**DESIGN SYSTEM — Studio (DotGrid Theme):**
+
+**COLOR PALETTE:**
+- Dark mode: Background #0B0F1A, text #FFFFFF, muted #94A3B8, grid #FFFFFF08
+- Light mode: Background #F8FAFC, text #0F172A, muted #64748B, grid #0F172A08
+- Accent: Indigo #6366F1 (primary), customizable per-scene
+
+**BACKGROUND:**
+Every scene MUST include a DotGrid SVG background layer:
+```tsx
+<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
+  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill={gridColor} />
+  </pattern>
+  <rect width="100%" height="100%" fill={bg} />
+  <rect width="100%" height="100%" fill="url(#dots)" />
+</svg>
+```
+
+**TYPOGRAPHY (FONT_PAIRS):**
+Use Google Fonts pairs. Default: boldImpact (Oswald + Inter).
+Available: modernTech (Space Grotesk + IBM Plex Mono), friendlyTech (Nunito + Source Code Pro),
+strongReadable (Bebas Neue + Open Sans), elegantEditorial (Cormorant Garamond + Lato),
+cleanMinimal (Plus Jakarta Sans + JetBrains Mono).
+
+**CARD LAYOUT:**
+Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%.
+Cards float on the dot-grid background.
+
+**ANIMATION:**
+- Use spring({ damping: 14, stiffness: 80 }) for card entrances
+- Stagger elements by 8-12 frames
+- Progress bars, counters, charts use smooth interpolate over 100+ frames
+
+**TEMPLATE LIBRARY:**
+Check src/.templates/ for pre-built template source code. If a template matches the scene purpose,
+plan the scene around that template's structure. The Animator will read the template code and
+customize it. Available template categories: stats, charts, polls, timelines, transitions,
+social, titles, cards, and more.
+
+If a STUDIO_TEMPLATES.md file exists in the workspace src/ directory, READ IT FIRST for the full
+template catalog with descriptions. Plan scenes that can leverage existing templates when possible.
+
+MANDATORY: { extrapolateRight: 'clamp' } on ALL interpolate calls.
+""",
 }
 
 
@@ -460,7 +539,16 @@ Machine-readable with this structure:
       "connectsTo": "next scene connection",
       "requires3D": false,
       "icons": ["checkmark", "warning"],
-      "illustrations": ["concept search term if needed"]
+      "illustrations": ["concept search term if needed"],
+      "images": [
+        {{
+          "keyword": "search term for photo/illustration",
+          "type": "photo or illustration",
+          "purpose": "hero, accent, or background",
+          "description": "what the image should depict",
+          "placement": "center, background, left, or right"
+        }}
+      ]
     }}
   ]
 }}

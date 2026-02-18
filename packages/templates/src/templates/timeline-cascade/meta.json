@@ -1,0 +1,20 @@
+{
+  "slug": "timeline-cascade",
+  "name": "Timeline Cascade",
+  "description": "Vertical timeline with animated milestone nodes — ideal for company history, project roadmaps, and event sequences",
+  "category": "corporate",
+  "tags": [
+    "timeline",
+    "milestones",
+    "history",
+    "roadmap",
+    "events",
+    "chronological",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

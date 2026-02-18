@@ -98,8 +98,20 @@ The generation pipeline has access to Freepik's premium asset library — millio
 - For data/charts, say so explicitly: "animated bar chart showing growth" (these get hand-coded, not sourced from Freepik)
 Think like a creative director briefing a motion designer who has access to a premium asset library.
 
-STYLES: minimal (clean geometric, monochrome), modern (gradients, purple-blue), playful (bright, bouncy), bold (high contrast, big text), classic (muted, elegant)
-LAYOUTS: pip (visuals fullscreen, video overlay), split-vertical (stacked top/bottom)${isAudio ? `
+STYLES: minimal (clean geometric, monochrome), modern (gradients, purple-blue), playful (bright, bouncy), bold (high contrast, big text), classic (muted, elegant), studio (polished card animations with dot-grid backgrounds — has a pre-built template library for stats, charts, polls, transitions, and more)
+LAYOUTS: pip (visuals fullscreen, video overlay), split-vertical (stacked top/bottom)
+
+CAPTION PRESETS: viral (MrBeast, Hormozi, Ali Abdaal, etc.), cinematic (Netflix, Documentary, etc.), minimal (Clean, Classic), ad (Apple, Google), motion (Spotlight, Film Grain, Glitch, Slam, Wave, Versus, Spin Entry, Zoom Focus — bold AutoAE-inspired animation effects)
+
+SCENE COMPOSITION PATTERNS — suggest these when content fits:
+- "Versus" for comparisons (X vs Y) → split screen with dramatic divider
+- "Podium" for rankings (top 3, best/worst) → tiered reveal
+- "Hub & Orbit" for ecosystems/features → central concept with satellites
+- "Card Flip" for reveals/before-after → 3D flip transition
+- "Process Steps" for walkthroughs → sequential animated chain
+- "Spotlight" for key stats/hero features → single illuminated element
+- "Graph Draw" for data/trends → animated chart drawing
+- "Speech Bubble" for quotes/dialogue → conversational bubbles${isAudio ? `
 
 AUDIO PROJECT RULES:
 - This project has NO source video. Visuals fill the entire ${ctx.canvasWidth}x${ctx.canvasHeight} canvas.

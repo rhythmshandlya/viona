@@ -1,0 +1,19 @@
+{
+  "slug": "number-ticker",
+  "name": "Number Ticker",
+  "description": "Large animated counter with prefix and suffix overlay",
+  "category": "social",
+  "tags": [
+    "number",
+    "ticker",
+    "counter",
+    "stat",
+    "overlay",
+    "minimal",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

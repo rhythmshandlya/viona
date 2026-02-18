@@ -1,0 +1,19 @@
+{
+  "slug": "location-tag",
+  "name": "Location Tag",
+  "description": "Map pin location overlay with name and coordinates",
+  "category": "social",
+  "tags": [
+    "location",
+    "pin",
+    "map",
+    "place",
+    "venue",
+    "geo",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

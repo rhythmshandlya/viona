@@ -1,0 +1,19 @@
+{
+  "slug": "event-announce",
+  "name": "Event Announce",
+  "description": "Bold event announcement with date, location, and call-to-action",
+  "category": "social",
+  "tags": [
+    "event",
+    "announcement",
+    "date",
+    "conference",
+    "meetup",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

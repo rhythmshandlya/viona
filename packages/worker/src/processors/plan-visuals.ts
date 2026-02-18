@@ -22,6 +22,8 @@ import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
 import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
+import { searchIcons, type IconOption } from '../services/freepik.js';
+import { fetchImageOptionsForPlan } from '../services/image-fetcher.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -32,7 +34,7 @@ const runningProcesses = new Map<string, ChildProcess>();
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   layoutMode: 'pip' | 'split-horizontal' | 'split-vertical';
   dimensions: {
     width: number;
@@ -136,7 +138,17 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
       });
 
       heartbeat.stop();
-      await publishJobProgress(jobId, 90, 'Parsing scene plan...');
+      await publishJobProgress(jobId, 90, 'Fetching icon options...');
+
+      // Fetch SVG options for each icon keyword in the plan
+      const planDataWithIcons = await fetchSvgOptionsForPlan(planData);
+
+      await publishJobProgress(jobId, 92, 'Fetching image options...');
+
+      // Fetch image options (thumbnails) for photo/illustration keywords in the plan
+      const planDataWithImages = await fetchImageOptionsForPlan(planDataWithIcons as PlanData & Record<string, unknown>);
+
+      await publishJobProgress(jobId, 95, 'Parsing scene plan...');
 
       // Store plan data in the job record
       await db.update(jobs)
@@ -144,7 +156,7 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
           status: 'complete',
           progress: 100,
           completedAt: new Date(),
-          planData,
+          planData: planDataWithImages as PlanData,
         })
         .where(eq(jobs.id, jobId));
 
@@ -440,4 +452,62 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
       }
     }
   }
+}
+
+// =============================================================================
+// SVG Options Fetching
+// =============================================================================
+
+/**
+ * Extract icon keywords from plan scenes and fetch 5 SVG options per keyword
+ * from Freepik. Returns planData with svgOptions merged in.
+ */
+async function fetchSvgOptionsForPlan(planData: PlanData): Promise<PlanData & { svgOptions?: Record<string, Record<string, IconOption[]>> }> {
+  const scenesObj = planData.scenes as Record<string, unknown>;
+  const scenesArray = (scenesObj?.scenes as Array<Record<string, unknown>>) || [];
+
+  // Collect all unique icon keywords across scenes, mapped to scene IDs
+  const keywordToScenes = new Map<string, string[]>();
+  for (const scene of scenesArray) {
+    const icons = scene.icons as string[] | undefined;
+    const sceneId = String(scene.id ?? scene.name ?? '');
+    if (icons && Array.isArray(icons)) {
+      for (const keyword of icons) {
+        const existing = keywordToScenes.get(keyword) || [];
+        existing.push(sceneId);
+        keywordToScenes.set(keyword, existing);
+      }
+    }
+  }
+
+  if (keywordToScenes.size === 0) {
+    logger.info('No icon keywords found in plan — skipping SVG options fetch');
+    return planData;
+  }
+
+  logger.info({ keywordCount: keywordToScenes.size, keywords: [...keywordToScenes.keys()] }, 'Fetching SVG options for icon keywords');
+
+  // Fetch 5 options per unique keyword in parallel
+  const keywords = [...keywordToScenes.keys()];
+  const results = await Promise.all(
+    keywords.map(async (keyword) => {
+      const options = await searchIcons(keyword, 5);
+      return { keyword, options };
+    })
+  );
+
+  // Build svgOptions map: { sceneId: { keyword: IconOption[] } }
+  const svgOptions: Record<string, Record<string, IconOption[]>> = {};
+  for (const { keyword, options } of results) {
+    if (options.length === 0) continue;
+    const sceneIds = keywordToScenes.get(keyword) || [];
+    for (const sceneId of sceneIds) {
+      if (!svgOptions[sceneId]) svgOptions[sceneId] = {};
+      svgOptions[sceneId][keyword] = options;
+    }
+  }
+
+  logger.info({ sceneCount: Object.keys(svgOptions).length }, 'SVG options fetched for plan');
+
+  return { ...planData, svgOptions };
 }

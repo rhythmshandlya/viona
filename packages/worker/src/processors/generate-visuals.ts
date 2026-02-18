@@ -18,6 +18,8 @@ import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
 import { uploadFile } from '../services/minio.js';
+import { buildStudioTemplateCatalog } from '../prompts/studio-templates.js';
+import { listTemplates, getTemplateFiles } from '@viona/templates';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -270,7 +272,7 @@ export interface VisualsDimensions {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** User-provided style/layout guidance for the Director agent */
@@ -433,6 +435,42 @@ registerRoot(RemotionRoot);
       logger.info({ compositionId }, 'Updated Root.tsx and index.ts with correct project imports');
     } catch (e) {
       logger.warn({ error: e }, 'Failed to update Root.tsx/index.ts — self-heal will fix it');
+    }
+
+    // Write Studio template catalog + source files to workspace when studio style is selected
+    if (stylePreset === 'studio') {
+      await publishJobProgress(jobId, 13, 'Loading studio templates...');
+      try {
+        const srcDir = join(workspacePath, 'src');
+        const templatesDir = join(srcDir, '.templates');
+        await mkdir(templatesDir, { recursive: true });
+
+        // Write template catalog markdown
+        const catalog = buildStudioTemplateCatalog();
+        await writeFile(join(srcDir, 'STUDIO_TEMPLATES.md'), catalog, 'utf-8');
+
+        // Copy template source files so the Animator agent can read them
+        const studioTemplates = listTemplates({ theme: 'studio' });
+        for (const t of studioTemplates) {
+          const tDir = join(templatesDir, t.meta.slug);
+          await mkdir(tDir, { recursive: true });
+          try {
+            const files = await getTemplateFiles(t.meta.slug);
+            for (const f of files) {
+              const filePath = join(tDir, f.path);
+              // Ensure subdirectories exist (e.g., components/, lib/)
+              await mkdir(dirname(filePath), { recursive: true });
+              await writeFile(filePath, f.content, 'utf-8');
+            }
+          } catch (err) {
+            logger.warn({ slug: t.meta.slug, err }, 'Failed to copy template files');
+          }
+        }
+
+        logger.info({ templateCount: studioTemplates.length, templatesDir }, 'Studio templates written to workspace');
+      } catch (err) {
+        logger.warn({ err }, 'Failed to write studio templates to workspace (non-fatal)');
+      }
     }
 
     await publishJobProgress(jobId, 15, 'Starting Claude Code generator...');

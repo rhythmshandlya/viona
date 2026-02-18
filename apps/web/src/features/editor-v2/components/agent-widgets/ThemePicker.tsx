@@ -5,6 +5,7 @@ const themes = [
   { id: 'playful', label: 'Playful', description: 'Bright, bouncy, energetic', colors: ['#fef3c7', '#f59e0b', '#ec4899'] },
   { id: 'bold', label: 'Bold', description: 'High contrast, impactful', colors: ['#0f172a', '#ef4444', '#f8fafc'] },
   { id: 'classic', label: 'Classic', description: 'Muted, elegant, professional', colors: ['#1e293b', '#d4c5a9', '#8b9dc3'] },
+  { id: 'studio', label: 'Studio', description: 'Polished cards, dot-grid, dark/light', colors: ['#0B0F1A', '#6366F1', '#F8FAFC'] },
 ];
 
 interface ThemePickerProps {

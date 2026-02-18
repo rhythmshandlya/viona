@@ -1,0 +1,21 @@
+{
+  "slug": "quote-pulse",
+  "name": "Quote Pulse",
+  "description": "Kinetic typography with dramatic word-by-word reveals — perfect for quotes, taglines, and key messages",
+  "category": "social",
+  "tags": [
+    "quote",
+    "typography",
+    "kinetic",
+    "text",
+    "motivation",
+    "tagline",
+    "social",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

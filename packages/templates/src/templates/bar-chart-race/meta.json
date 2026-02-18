@@ -1,0 +1,22 @@
+{
+  "slug": "bar-chart-race",
+  "name": "Bar Chart Race",
+  "description": "Ranked horizontal bars that reorder over time — perfect for GDP rankings, brand battles, and trending data",
+  "category": "education",
+  "tags": [
+    "race",
+    "ranking",
+    "bar",
+    "chart",
+    "animated",
+    "data",
+    "competition",
+    "trending",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

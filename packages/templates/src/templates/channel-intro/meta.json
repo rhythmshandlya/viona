@@ -1,0 +1,19 @@
+{
+  "slug": "channel-intro",
+  "name": "Channel Intro",
+  "description": "Animated channel branding intro with floating geometric elements",
+  "category": "marketing",
+  "tags": [
+    "intro",
+    "channel",
+    "brand",
+    "opening",
+    "logo",
+    "youtube",
+    "studio-theme"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

@@ -41,9 +41,14 @@ export function bounce(t: number): number {
   }
 }
 
+export function easeInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+}
+
 const EASING_MAP: Record<EasingType, (t: number) => number> = {
   linear,
   'ease-out': easeOut,
+  'ease-in-out': easeInOut,
   spring,
   elastic,
   bounce,

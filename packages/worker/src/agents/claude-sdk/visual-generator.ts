@@ -10,10 +10,12 @@
 // @ts-expect-error — installed at runtime via Claude Code OAuth, not in package.json
 import { query, ClaudeAgentOptions, AgentDefinition } from '@anthropic-ai/claude-agent-sdk';
 import { mkdir, writeFile, readFile } from 'fs/promises';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
 import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
+import { config } from '../../config.js';
 import { STYLE_GUIDELINES } from '../../prompts/generate-visuals.js';
+import { buildStudioTemplateCatalog } from '../../prompts/studio-templates.js';
 
 export interface TranscriptWord {
   text: string;
@@ -713,10 +715,146 @@ ${styleGuideline}
 \`\`\`tsx
 // ALWAYS include interpolateColors if you interpolate color values!
 import { AbsoluteFill, useVideoConfig, useCurrentFrame, interpolate, interpolateColors, spring, Sequence } from 'remotion';
-import {
-  FadeIn, SlideUp, ScaleIn, BounceIn, FadeInUp, ZoomIn, GlowPulse, PremiumStagger,
-} from '../../animations';
 \`\`\`
+
+## REFERENCE EXAMPLES — Study these patterns closely
+
+### Example 1: Feature cards with staggered entrances
+\`\`\`tsx
+import React from 'react';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
+
+const FeatureScene: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+
+  const features = [
+    { title: 'Fast Setup', description: 'Get started in minutes' },
+    { title: 'Auto Scale', description: 'Handles any traffic' },
+  ];
+
+  return (
+    <AbsoluteFill style={{
+      backgroundColor: '#0f0f23',
+      display: 'flex', flexDirection: 'column',
+      justifyContent: 'center', alignItems: 'center',
+      padding: width * 0.06, gap: height * 0.03,
+    }}>
+      {/* Section title */}
+      <div style={{
+        fontSize: width * 0.048, fontWeight: 700, color: '#ffffff',
+        textAlign: 'center', marginBottom: height * 0.02,
+        opacity: interpolate(
+          spring({ frame, fps, config: { damping: 20, stiffness: 60 } }),
+          [0, 1], [0, 1], { extrapolateRight: 'clamp' }
+        ),
+      }}>
+        Features
+      </div>
+
+      {/* Staggered feature cards */}
+      {features.map((feature, index) => {
+        const staggerDelay = index * 20;
+        const cardSpring = spring({ frame: frame - staggerDelay, fps, config: { damping: 18, stiffness: 80 } });
+        const translateX = interpolate(cardSpring, [0, 1], [width * 0.2, 0], { extrapolateRight: 'clamp' });
+        const opacity = interpolate(cardSpring, [0, 1], [0, 1], { extrapolateRight: 'clamp' });
+
+        return (
+          <div key={index} style={{
+            display: 'flex', flexDirection: 'row', alignItems: 'stretch',
+            width: '100%', maxWidth: width * 0.85,
+            backgroundColor: 'rgba(139, 92, 246, 0.1)', borderRadius: width * 0.015,
+            overflow: 'hidden', opacity, transform: \\\`translateX(\\\${translateX}px)\\\`,
+          }}>
+            <div style={{ width: width * 0.006, backgroundColor: '#06b6d4', flexShrink: 0 }} />
+            <div style={{ padding: width * 0.03, display: 'flex', flexDirection: 'column', gap: height * 0.008 }}>
+              <div style={{ fontSize: width * 0.032, fontWeight: 700, color: '#ffffff' }}>{feature.title}</div>
+              <div style={{ fontSize: width * 0.022, color: 'rgba(255,255,255,0.7)' }}>{feature.description}</div>
+            </div>
+          </div>
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+export default FeatureScene;
+\`\`\`
+
+### Example 2: Animated checklist with spring physics
+\`\`\`tsx
+import React from 'react';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate } from 'remotion';
+
+const ChecklistScene: React.FC = () => {
+  const frame = useCurrentFrame();
+  const { fps, width, height } = useVideoConfig();
+
+  const items = ['Lightning fast', 'Fully secure', 'Always available'];
+
+  const headerSpring = spring({ frame, fps, config: { damping: 20, stiffness: 60 }, durationInFrames: 30 });
+  const headerOpacity = interpolate(headerSpring, [0, 1], [0, 1], { extrapolateRight: 'clamp' });
+  const headerY = interpolate(headerSpring, [0, 1], [-height * 0.03, 0], { extrapolateRight: 'clamp' });
+
+  return (
+    <AbsoluteFill style={{
+      backgroundColor: '#000000',
+      display: 'flex', flexDirection: 'column',
+      justifyContent: 'center', alignItems: 'center',
+      padding: width * 0.065,
+    }}>
+      <div style={{
+        fontSize: width * 0.055, fontWeight: 700, color: '#ffffff',
+        textAlign: 'center', marginBottom: height * 0.05,
+        opacity: headerOpacity, transform: \\\`translateY(\\\${headerY}px)\\\`,
+      }}>
+        Why You Need This
+      </div>
+
+      {items.map((item, index) => {
+        const staggerDelay = 10 + index * 18;
+        const itemSpring = spring({ frame: frame - staggerDelay, fps, config: { damping: 15, stiffness: 100 }, durationInFrames: 30 });
+        const itemOpacity = interpolate(itemSpring, [0, 1], [0, 1], { extrapolateRight: 'clamp' });
+        const itemY = interpolate(itemSpring, [0, 1], [height * 0.03, 0], { extrapolateRight: 'clamp' });
+        const checkSpring = spring({ frame: frame - staggerDelay - 4, fps, config: { damping: 12, stiffness: 150 }, durationInFrames: 20 });
+        const checkScale = interpolate(checkSpring, [0, 1], [0, 1], { extrapolateRight: 'clamp' });
+
+        return (
+          <div key={index} style={{
+            display: 'flex', alignItems: 'center',
+            marginBottom: height * 0.03, opacity: itemOpacity,
+            transform: \\\`translateY(\\\${itemY}px)\\\`, width: '100%', maxWidth: width * 0.8,
+          }}>
+            <div style={{
+              width: width * 0.05, height: width * 0.05, borderRadius: '50%',
+              backgroundColor: '#ef4444', display: 'flex',
+              justifyContent: 'center', alignItems: 'center', flexShrink: 0,
+              transform: \\\`scale(\\\${checkScale})\\\`,
+            }}>
+              <div style={{ fontSize: width * 0.028, fontWeight: 700, color: '#000' }}>✓</div>
+            </div>
+            <div style={{
+              fontSize: width * 0.038, fontWeight: 700, color: '#ffffff',
+              marginLeft: width * 0.025,
+            }}>
+              {item}
+            </div>
+          </div>
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+export default ChecklistScene;
+\`\`\`
+
+## KEY PATTERNS FROM EXAMPLES
+- ALL sizing uses \`width * 0.XX\` or \`height * 0.XX\` — NEVER hardcoded pixels
+- \`spring()\` with \`frame - staggerDelay\` for cascading entrances
+- \`interpolate()\` ALWAYS has \`{ extrapolateRight: 'clamp' }\`
+- \`key={index}\` on ALL \`.map()\` children
+- Simple, clean JSX — no unnecessary wrapper components
 
 ## MANDATORY POSITION ZONES
 \`\`\`tsx
@@ -728,6 +866,19 @@ const ZONES = {
   // NO caption zone — subtitles are rendered by a separate system
   // Keep bottom 15% of canvas CLEAR for subtitle overlay
 };
+\`\`\`
+
+## 🏷️ MANDATORY: data-element-name Attributes
+Every distinct visual element MUST include a \`data-element-name\` attribute on its outermost wrapper div. This enables the editor's element selection/highlighting feature.
+
+\`\`\`tsx
+// ✅ CORRECT
+<div data-element-name="header" style={ZONES.header}>Title</div>
+<div data-element-name="center" style={ZONES.center}>Diagram</div>
+<div data-element-name="leftSidebar" style={ZONES.leftSidebar}>Labels</div>
+
+// ❌ WRONG — missing data-element-name
+<div style={ZONES.header}>Title</div>
 \`\`\`
 
 ## 🚫 NO CAPTIONS / SUBTITLES
@@ -783,7 +934,7 @@ const bad = interpolate(progress, [0, 1], [colorRed, colorBlue]); // CRASH!
 ### 8. Output ONLY TypeScript/React code, no markdown fences
 
 Canvas: ${width}x${height}px @ ${fps}fps`,
-      tools: ['Read', 'Write', 'Edit']
+      tools: ['Read', 'Write', 'Edit', 'Glob', 'Grep']
     },
 
     'validation-agent': {
@@ -980,6 +1131,52 @@ export const RemotionRoot: React.FC = () => {
 }
 
 /**
+ * Run TypeScript type-check on a single scene file and return errors (if any).
+ * Uses `npx tsc --noEmit` scoped to the workspace so it picks up the project's
+ * tsconfig and Remotion type definitions.
+ */
+async function tscValidateScene(
+  workspace: string,
+  scenePath: string,
+): Promise<{ ok: boolean; errors: string }> {
+  return new Promise((resolve) => {
+    const proc = spawn('npx', [
+      'tsc', '--noEmit', '--pretty', 'false', '--strict', 'false',
+      '--skipLibCheck', 'true', scenePath,
+    ], {
+      cwd: workspace,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 30_000,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve({ ok: true, errors: '' });
+      } else {
+        // Filter to only errors from the target file (ignore node_modules noise)
+        const relevantErrors = (stdout + stderr)
+          .split('\n')
+          .filter((l) => l.includes(scenePath) || l.startsWith(' '))
+          .slice(0, 30) // Cap at 30 lines to avoid huge prompts
+          .join('\n')
+          .trim();
+        resolve({ ok: false, errors: relevantErrors || stdout.slice(0, 2000) });
+      }
+    });
+
+    proc.on('error', () => {
+      // tsc not available — skip validation
+      resolve({ ok: true, errors: '' });
+    });
+  });
+}
+
+/**
  * Main function: Generate visuals using Claude Agent SDK
  */
 export async function generateVisualsWithClaudeSDK(
@@ -1024,6 +1221,40 @@ export async function generateVisualsWithClaudeSDK(
     const scenesDir = join(compositionDir, 'scenes');
     await mkdir(scenesDir, { recursive: true });
 
+    // Studio theme: write template catalog and source files to workspace
+    let studioTemplateCatalog = '';
+    if (stylePreset === 'studio') {
+      try {
+        const { listTemplates } = await import('@viona/templates');
+        studioTemplateCatalog = buildStudioTemplateCatalog();
+
+        // Write catalog as a reference file
+        const catalogPath = join(absoluteWorkspace, 'src', '.template-catalog.md');
+        await writeFile(catalogPath, studioTemplateCatalog);
+
+        // Write template source files so the agent can read them
+        const templatesDir = join(absoluteWorkspace, 'src', '.templates');
+        await mkdir(templatesDir, { recursive: true });
+
+        const templates = listTemplates({ theme: 'studio' });
+        for (const t of templates) {
+          const files = await t.getFiles();
+          const tDir = join(templatesDir, t.meta.slug);
+          await mkdir(tDir, { recursive: true });
+          for (const f of files) {
+            // Ensure subdirectories exist for nested file paths
+            const filePath = join(tDir, f.path);
+            await mkdir(dirname(filePath), { recursive: true });
+            await writeFile(filePath, f.content);
+          }
+        }
+
+        log(`Studio templates: wrote ${templates.length} template sources to workspace`);
+      } catch (e) {
+        log(`Warning: Could not load studio templates: ${e}`);
+      }
+    }
+
     // Get agent definitions
     const agents = getAgentDefinitions(stylePreset, width, height, fps);
 
@@ -1060,6 +1291,8 @@ Each scene needs: id, startMs, endMs, transcript, visualFocus, visualAction, tra
         allowedTools: ['Read', 'Glob'],
         permissionMode: 'bypassPermissions',
         allowDangerouslySkipPermissions: true,
+        model: config.claudeAgent.model,
+        thinking: { type: 'enabled', budgetTokens: config.claudeAgent.maxThinkingTokens },
         cwd: absoluteWorkspace,
         settingSources: ['user'], // Use Claude Code CLI login credentials
       } as ClaudeAgentOptions,
@@ -1151,16 +1384,31 @@ ${scene.endState ? `- End state: ${scene.endState}` : ''}
 4. **IMPORTS** - Include interpolateColors if using color transitions:
    \`import { AbsoluteFill, useVideoConfig, useCurrentFrame, interpolate, interpolateColors, spring, Sequence } from 'remotion';\`
 
+## CODEBASE ACCESS
+You have access to Read, Glob, and Grep tools. Before writing code:
+- Use Glob to find existing scene files in this project: \`src/*/scenes/*.tsx\`
+- Use Read to study the \`constants.ts\` file if it exists: \`src/*/constants.ts\`
+- If scene files from earlier in this generation exist in \`${compositionDir}/scenes/\`, read them to maintain visual consistency (same color usage, animation timing, element sizing).
+${i > 0 ? `- IMPORTANT: Read the previously generated scene at \`${join(scenesDir, visualPlan.scenes[i - 1].id + '.tsx')}\` to ensure visual continuity.` : ''}
+${stylePreset === 'studio' && studioTemplateCatalog ? `
+## TEMPLATE REFERENCE
+If a template matches this scene's purpose, read its source from src/.templates/{slug}/ and use it as a starting point. Customize the data, colors, and timing to match the transcript content. Maintain DotGrid background and FONT_PAIRS typography.
+
+${studioTemplateCatalog}` : ''}
+
 Output ONLY TypeScript/React code. No markdown fences. Start with imports, end with export default.`;
 
       let sceneCode = '';
 
+      const sceneTools = ['Read', 'Write', 'Edit', 'Glob', 'Grep'];
       for await (const message of query({
         prompt: scenePrompt,
         options: {
-          allowedTools: ['Read'],
+          allowedTools: sceneTools,
           permissionMode: 'bypassPermissions',
           allowDangerouslySkipPermissions: true,
+          model: config.claudeAgent.model,
+          thinking: { type: 'enabled', budgetTokens: config.claudeAgent.maxThinkingTokens },
           cwd: absoluteWorkspace,
           settingSources: ['user'], // Use Claude Code CLI login credentials
         } as ClaudeAgentOptions,
@@ -1185,6 +1433,63 @@ Output ONLY TypeScript/React code. No markdown fences. Start with imports, end w
 
         const scenePath = join(scenesDir, `${scene.id}.tsx`);
         await writeFile(scenePath, sceneCode);
+
+        // TypeScript compilation check — retry once if errors found
+        const tscResult = await tscValidateScene(absoluteWorkspace, scenePath);
+        if (!tscResult.ok) {
+          log(`Scene ${scene.id} has TypeScript errors, retrying with error feedback...`);
+
+          const retryPrompt = `The following Remotion scene component has TypeScript compilation errors. Fix ALL errors and return the COMPLETE corrected component.
+
+## TypeScript Errors
+\`\`\`
+${tscResult.errors}
+\`\`\`
+
+## Original Code
+\`\`\`tsx
+${sceneCode}
+\`\`\`
+
+Fix every error. Output ONLY the corrected TypeScript/React code. No markdown fences. Start with imports, end with export default.`;
+
+          let fixedCode = '';
+          for await (const retryMsg of query({
+            prompt: retryPrompt,
+            options: {
+              allowedTools: ['Read'],
+              permissionMode: 'bypassPermissions',
+              allowDangerouslySkipPermissions: true,
+              model: config.claudeAgent.model,
+              thinking: { type: 'enabled', budgetTokens: 4000 },
+              cwd: absoluteWorkspace,
+              settingSources: ['user'],
+            } as ClaudeAgentOptions,
+          })) {
+            if ('result' in retryMsg) {
+              fixedCode = String((retryMsg as any).result)
+                .replace(/^```(?:tsx?|typescript|javascript)?\s*/gim, '')
+                .replace(/```\s*$/gim, '')
+                .trim();
+            }
+          }
+
+          if (fixedCode) {
+            fixedCode = autoFixSceneCode(fixedCode);
+            await writeFile(scenePath, fixedCode);
+            sceneCode = fixedCode;
+            log(`Scene ${scene.id} retry complete`);
+
+            // Second tsc check (just log, don't retry again)
+            const recheck = await tscValidateScene(absoluteWorkspace, scenePath);
+            if (!recheck.ok) {
+              log(`Scene ${scene.id} still has TypeScript errors after retry: ${recheck.errors.slice(0, 200)}`);
+            } else {
+              log(`Scene ${scene.id} TypeScript errors resolved`);
+            }
+          }
+        }
+
         generatedSceneCodes.set(scene.id, sceneCode);
         scenesGenerated++;
         log(`Scene ${scene.id} written (${sceneCode.length} chars)`);

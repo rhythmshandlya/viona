@@ -1,0 +1,21 @@
+{
+  "slug": "stat-progress",
+  "name": "Stat Progress",
+  "description": "Multiple progress bars filling with staggered spring animation — ideal for objectives, KPIs, and completion tracking",
+  "category": "marketing",
+  "tags": [
+    "stats",
+    "progress",
+    "bar",
+    "objectives",
+    "KPI",
+    "metrics",
+    "dashboard",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

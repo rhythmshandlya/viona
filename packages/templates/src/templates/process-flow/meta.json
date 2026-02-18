@@ -1,0 +1,21 @@
+{
+  "slug": "process-flow",
+  "name": "Process Flow",
+  "description": "Step-by-step workflow with animated connecting arrows — ideal for funnels, how-to guides, and onboarding flows",
+  "category": "corporate",
+  "tags": [
+    "process",
+    "workflow",
+    "steps",
+    "funnel",
+    "howto",
+    "flow",
+    "onboarding",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

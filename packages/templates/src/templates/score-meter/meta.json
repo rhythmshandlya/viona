@@ -1,0 +1,20 @@
+{
+  "slug": "score-meter",
+  "name": "Score Meter",
+  "description": "Animated semicircular gauge with sweeping needle and score",
+  "category": "entertainment",
+  "tags": [
+    "score",
+    "meter",
+    "gauge",
+    "rating",
+    "performance",
+    "measure",
+    "studio-theme"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

@@ -1,0 +1,20 @@
+{
+  "slug": "kinetic-caption",
+  "name": "Kinetic Caption",
+  "description": "Word-by-word animated captions with highlight effects",
+  "category": "social",
+  "tags": [
+    "caption",
+    "subtitle",
+    "text",
+    "kinetic",
+    "words",
+    "animated",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

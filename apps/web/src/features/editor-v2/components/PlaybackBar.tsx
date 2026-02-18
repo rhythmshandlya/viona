@@ -14,6 +14,7 @@ import {
   useEditorActions,
   useShowCaptions,
 } from '../store/use-editor-store';
+import { sharedPlayerRef } from '../player/player-ref';
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -105,7 +106,19 @@ export function PlaybackBar() {
         </button>
 
         <button
-          onClick={togglePlayback}
+          onClickCapture={(e) => {
+            // Call player.play(event) directly from the user gesture so browsers
+            // allow audio playback (autoplay policy requires user interaction).
+            const player = sharedPlayerRef.current;
+            if (player) {
+              if (isPlaying) {
+                player.pause();
+              } else {
+                player.play(e);
+              }
+            }
+            togglePlayback();
+          }}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-[var(--editor-accent)] text-white
                      hover:bg-[var(--editor-accent-hover)] transition-colors shadow-sm"
           aria-label={isPlaying ? 'Pause' : 'Play'}

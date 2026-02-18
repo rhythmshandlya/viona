@@ -1,0 +1,19 @@
+{
+  "slug": "keyword-pop",
+  "name": "Keyword Pop",
+  "description": "Bold keyword slam animation with impact effect",
+  "category": "social",
+  "tags": [
+    "keyword",
+    "pop",
+    "emphasis",
+    "bold",
+    "slam",
+    "text",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

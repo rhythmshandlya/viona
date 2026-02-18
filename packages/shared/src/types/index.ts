@@ -96,7 +96,10 @@ export type AnimationType =
   | 'soft-scale'
   | 'underline-wipe'
   // Ad / Premium
-  | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal';
+  | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal'
+  // Motion (AutoAE-inspired)
+  | 'spotlight-reveal' | 'film-burn' | 'glitch' | 'spin-reveal'
+  | 'drop-slam' | 'wave' | 'blur-zoom' | 'chromatic-split';
 
 export type EasingType = 'linear' | 'ease-out' | 'ease-in-out' | 'spring' | 'elastic' | 'bounce';
 
@@ -286,7 +289,7 @@ export interface SubtitleData {
 // ============================================
 
 export interface VisualStyle {
-  theme: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
+  theme: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   primaryColor: string;
   secondaryColor?: string;
   backgroundColor?: string;

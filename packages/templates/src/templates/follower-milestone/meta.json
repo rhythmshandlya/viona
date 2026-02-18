@@ -1,0 +1,19 @@
+{
+  "slug": "follower-milestone",
+  "name": "Follower Milestone",
+  "description": "Animated subscriber count reaching a milestone with celebration effects",
+  "category": "social",
+  "tags": [
+    "followers",
+    "milestone",
+    "subscribers",
+    "counter",
+    "celebration",
+    "confetti",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

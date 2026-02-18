@@ -1,0 +1,19 @@
+{
+  "slug": "alert-banner",
+  "name": "Alert Banner",
+  "description": "Full-width alert banner with icon and attention-grabbing color",
+  "category": "social",
+  "tags": [
+    "alert",
+    "banner",
+    "warning",
+    "notice",
+    "important",
+    "urgent",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

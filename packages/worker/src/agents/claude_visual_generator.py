@@ -1738,67 +1738,86 @@ const RollingDice: React.FC = () => {{
 
 
 <assets_and_visuals>
-## PREMIUM ASSET LIBRARY — FREEPIK
+## PREMIUM ASSET LIBRARIES — FREEPIK + ICONIFY
 
 <MANDATORY_ASSET_RULE>
-**YOU MUST DOWNLOAD AND USE FREEPIK ASSETS. DO NOT HAND-CODE SVG ICONS.**
+**YOU MUST DOWNLOAD AND USE PROFESSIONAL ASSETS. DO NOT HAND-CODE SVG ICONS.**
 
-❌ DO NOT search Freepik and then write your own SVG instead
+❌ DO NOT search for icons and then write your own SVG instead
 ❌ DO NOT skip the download step "for speed" or "more control"
-❌ DO NOT write SVG paths by hand when Freepik has the icon
+❌ DO NOT write SVG paths by hand when Freepik or Iconify has the icon
 ❌ DO NOT rationalize skipping downloads — this is a HARD REQUIREMENT
 
-✅ Search → Download → Read SVG file → Paste into JSX → Animate
-✅ EVERY icon in your scene MUST come from a Freepik download
-✅ The ONLY exception is if the download tool itself errors/fails
-
-**WHY:** Hand-coded SVGs look amateur. Freepik icons are professionally designed
-with consistent stroke widths, balanced proportions, and visual polish that you
-cannot replicate by writing SVG paths manually. The entire point of having Freepik
-access is to USE it. Searching and then ignoring the results is worse than not
-searching at all.
+✅ Search → Download/Get → Read SVG → Paste into JSX → Animate
+✅ EVERY icon in your scene MUST come from Freepik or Iconify
+✅ The ONLY exception is if the download/get tool itself errors/fails
 </MANDATORY_ASSET_RULE>
 
-You have access to Freepik's library of millions of premium icons, illustrations,
-vectors, and photos via MCP tools. Your visuals should look like they came from a
+You have TWO asset libraries. Your visuals should look like they came from a
 professional motion design studio, not a coding tutorial.
+
+### DUAL ASSET SOURCES
+
+1. **Freepik** (premium icons, illustrations, vectors, photos)
+   - Best for: premium illustrations, complex vectors, photos, branded assets
+   - Tools: `search_icons` → `download_icon_by_id`, `search_resources` → `download_resource_by_id`
+
+2. **Iconify / better-icons** (200k+ open-source icons from 150+ collections)
+   - Best for: clean UI-style icons, consistent icon sets (Lucide, Material, Heroicons, Tabler, Phosphor)
+   - Tools: `search_icons`, `get_icon`, `recommend_icons`, `find_similar_icons`
+   - Icon ID format: `prefix:name` (e.g., `lucide:home`, `mdi:chart-bar`)
 
 ### DECISION FRAMEWORK — What to use when
 
 | Visual Need | Use | Why |
 |------------|-----|-----|
-| Any icon (arrows, UI, concepts) | Freepik `search_icons` → `download_icon_by_id` (format="svg") | Professional, consistent, polished |
-| Illustrations (objects, scenes, people) | Freepik `search_resources` (vector) | Hand-drawn quality impossible with code |
-| Background textures/patterns | Freepik `search_resources` (vector) | Rich visual depth |
-| Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
-| Flowcharts / process diagrams | Hand-coded SVG with Freepik icons as nodes | Best of both — structure + polish |
-| Abstract concepts (AI, growth, speed) | Freepik illustration + animation overlay | Conveys concept instantly |
+| Hero/featured icons (main visual focus) | Freepik `search_icons` → `download_icon_by_id` (SVG) | Premium polish, gradients, detail |
+| Polished concept visuals (AI, cloud, growth) | Freepik `search_icons` → `download_icon_by_id` (SVG) | Professional quality, unique designs |
+| Premium illustrations (isometric, 3D) | Freepik `search_resources` → `download_resource_by_id` | Hand-drawn quality impossible with code |
+| Photos, textures, backgrounds | Freepik `search_resources` → `download_resource_by_id` | Only source for photos |
+| UI/supporting icons (arrows, chevrons, checkmarks) | Iconify `search_icons` → `get_icon` | Consistent sets, clean stroke/fill |
+| Multiple matching icons from one set | Iconify (pick a prefix like `lucide:`) | Collections ensure consistency |
+| Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values |
+| Flowcharts / process diagrams | Hand-coded SVG with Freepik/Iconify icons as nodes | Best of both |
 
-**RULE: Default to Freepik. Only hand-code SVGs for dynamic data (counters, charts, graphs).**
+**RULE: Use BOTH sources in every generation. Freepik for hero visuals, featured icons, and illustrations. Iconify for supporting UI icons and consistent icon sets. Only hand-code SVGs for dynamic data.**
+
+**MINIMUM USAGE: Every generation MUST use at least one Freepik asset (icon or illustration). Iconify supplements with clean UI icons. Do NOT use only one source — the whole point is leveraging both libraries.**
 
 ### HOW TO SEARCH EFFECTIVELY
 
-**Icons:**
-- search_icons with `term` parameter: "cloud computing", "server rack", "neural network"
+**Freepik (search FIRST for hero/featured visuals):**
+- `search_icons` with `term` parameter: "cloud computing", "server rack", "neural network"
 - Filter by shape: "fill" for solid icons, "outline" for line icons
 - Filter by icon_type: ["standard"] for static, ["animated"] for motion
-- Search CONCEPTS, not literal descriptions. "growth" not "line going up".
-- Try 2-3 search terms if the first doesn't match: "database" → "storage" → "server rack"
-
-**Resources (illustrations, vectors, photos):**
-- search_resources with `term` and content_type filter: {{ content_type: {{ vector: 1 }} }}
+- `search_resources` with `term` and content_type filter: {{ content_type: {{ vector: 1 }} }}
 - Prefer vectors over photos — cleaner scaling, transparent backgrounds
-- Use orientation filters for portrait content: {{ orientation: {{ portrait: 1 }} }}
+- Try 2-3 search terms if the first doesn't match
+
+**Iconify (better-icons — for supporting/UI icons):**
+- `search_icons` with query: "arrow right", "chart bar", "cloud server"
+- Search CONCEPTS, not literal descriptions
+- Get SVG: `get_icon` with icon ID like "lucide:arrow-right" returns SVG markup directly
+- Popular prefixes: lucide, mdi, heroicons, tabler, ph (phosphor)
+- Use `find_similar_icons` to explore variations across collections
+- Use `recommend_icons` when unsure which icon fits a concept
 
 ### HOW TO USE DOWNLOADED ASSETS
 
-**Icons (SVG) — inline in JSX:**
+**Iconify icons — inline in JSX:**
+1. `get_icon` with icon ID (e.g., "lucide:zap") → returns SVG markup
+2. Paste the SVG markup directly into your JSX component
+3. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
+4. Use `currentColor` for dynamic coloring: wrap in div with `color: COLORS.accent`
+5. Animate the wrapper with spring/interpolate
+
+**Freepik icons (SVG) — download then inline:**
 1. `download_icon_by_id` with id and format="svg" → returns {{ data: {{ url, filename }} }}
 2. Download with Bash: `curl -sL -o public/assets/icon-name.svg "URL"`
 3. Read the SVG file content with the Read tool
 4. Paste the SVG markup directly into your JSX component
-5. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
-6. Use `currentColor` for dynamic coloring: wrap in div with `color: COLORS.accent`
+5. Replace hardcoded width/height with style prop
+6. Use `currentColor` for dynamic coloring
 7. Animate the wrapper with spring/interpolate
 
 **Resources (images/illustrations) — use staticFile:**
@@ -1822,7 +1841,7 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 
 <div style={{{{ opacity: iconOpacity, transform: `scale(${{iconScale}})`, color: COLORS.accent }}}}>
   <svg viewBox="0 0 24 24" style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}>
-    {{/* SVG paths from Freepik download */}}
+    {{/* SVG paths from Iconify or Freepik download */}}
   </svg>
 </div>
 ```
@@ -1830,12 +1849,12 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 ### GUARDRAILS
 
 - **ASSET BUDGET**: 1-3 icons per scene, 0-1 illustration per scene. Don't clutter.
-- **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing Freepik.
-- **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. Match icon colors to the style preset's color scheme.
-- **FALLBACK**: ONLY if the download tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG. "I want more control" or "for speed" are NOT valid reasons to skip downloads.
-- **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
-- **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
-- **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any assets, run `mkdir -p public/assets` in Bash.
+- **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing.
+- **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. If using Iconify, stick to ONE prefix (e.g., all `lucide:` or all `tabler:`). Match icon colors to the style preset's color scheme.
+- **FALLBACK**: ONLY if the download/get tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG.
+- **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients.
+- **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match.
+- **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any Freepik assets, run `mkdir -p public/assets` in Bash.
 </assets_and_visuals>
 
 <web_search>
@@ -2330,6 +2349,187 @@ class ClaudeVisualGenerator:
 
         return settings_path
 
+    async def _fetch_scene_images(self) -> int:
+        """
+        Fetch images for scenes based on the Director's [IMAGE: keyword] entries.
+
+        Reads scenes.json, downloads photos from Pexels and illustrations from Freepik,
+        saves them to public/assets/images/, and updates scenes.json in-place.
+
+        Returns the count of successfully downloaded images.
+        """
+        import httpx
+        import re
+
+        scenes_json_path = self.src_dir / "scenes.json"
+        if not scenes_json_path.exists():
+            print("[ClaudeGenerator] No scenes.json found — skipping image fetch")
+            return 0
+
+        with open(scenes_json_path, encoding="utf-8") as f:
+            scenes_data = json.load(f)
+
+        scenes = scenes_data.get("scenes", [])
+        if not scenes:
+            return 0
+
+        # Collect all image requests
+        image_tasks = []
+        for si, scene in enumerate(scenes):
+            images = scene.get("images", [])
+            if not isinstance(images, list):
+                continue
+            for ii, img in enumerate(images[:2]):  # Max 2 per scene
+                if len(image_tasks) >= 10:  # Max 10 total
+                    break
+                keyword = img.get("keyword", "")
+                img_type = img.get("type", "photo")
+                purpose = img.get("purpose", "accent")
+                if keyword:
+                    image_tasks.append({
+                        "scene_index": si,
+                        "image_index": ii,
+                        "keyword": keyword,
+                        "type": img_type,
+                        "purpose": purpose,
+                    })
+            if len(image_tasks) >= 10:
+                break
+
+        if not image_tasks:
+            print("[ClaudeGenerator] No image requests in scenes — skipping")
+            return 0
+
+        print(f"[ClaudeGenerator] Fetching {len(image_tasks)} images for scenes...")
+
+        # Create images directory
+        images_dir = self.workspace / "public" / "assets" / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+
+        pexels_api_key = os.environ.get("PEXELS_API_KEY", "")
+        freepik_api_key = os.environ.get("FREEPIK_API_KEY", "")
+
+        downloaded = 0
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for task in image_tasks:
+                try:
+                    scene_id = scenes[task["scene_index"]].get("id", task["scene_index"] + 1)
+                    slug = re.sub(r'[^a-z0-9]+', '-', task["keyword"].lower()).strip('-')[:30]
+                    filename = f"scene{scene_id}-{task['purpose']}-{slug}.jpg"
+                    dest_path = images_dir / filename
+
+                    if task["type"] == "photo" and pexels_api_key:
+                        # Search Pexels
+                        resp = await client.get(
+                            "https://api.pexels.com/v1/search",
+                            params={"query": task["keyword"], "per_page": "3"},
+                            headers={"Authorization": pexels_api_key},
+                        )
+                        if resp.status_code != 200:
+                            continue
+                        data = resp.json()
+                        photos = data.get("photos", [])
+                        if not photos:
+                            continue
+
+                        photo = photos[0]
+                        photo_url = photo.get("src", {}).get("large", "")
+                        if not photo_url:
+                            continue
+
+                        # Download
+                        dl_resp = await client.get(photo_url)
+                        if dl_resp.status_code != 200:
+                            continue
+                        dest_path.write_bytes(dl_resp.content)
+
+                        # Update scene data
+                        img_entry = scenes[task["scene_index"]]["images"][task["image_index"]]
+                        img_entry["localPath"] = str(dest_path)
+                        img_entry["remotionPath"] = f"assets/images/{filename}"
+                        img_entry["source"] = "pexels"
+                        img_entry["attribution"] = f"Photo by {photo.get('photographer', 'Unknown')} on Pexels"
+                        img_entry["width"] = photo.get("width")
+                        img_entry["height"] = photo.get("height")
+                        downloaded += 1
+                        print(f"[ClaudeGenerator] Downloaded photo: {filename}")
+
+                    elif task["type"] == "illustration" and freepik_api_key:
+                        # Search Freepik resources
+                        resp = await client.get(
+                            "https://api.freepik.com/v1/resources",
+                            params={
+                                "term": task["keyword"],
+                                "limit": "3",
+                                "filters[content_type][vector]": "1",
+                            },
+                            headers={
+                                "x-freepik-api-key": freepik_api_key,
+                                "Accept": "application/json",
+                            },
+                        )
+                        if resp.status_code != 200:
+                            continue
+                        data = resp.json()
+                        resources = data.get("data", [])
+                        if not resources:
+                            continue
+
+                        resource = resources[0]
+                        resource_id = str(resource.get("id", ""))
+                        if not resource_id:
+                            continue
+
+                        # Get download URL
+                        dl_info_resp = await client.get(
+                            f"https://api.freepik.com/v1/resources/{resource_id}/download",
+                            headers={
+                                "x-freepik-api-key": freepik_api_key,
+                                "Accept": "application/json",
+                            },
+                        )
+                        if dl_info_resp.status_code != 200:
+                            continue
+                        dl_info = dl_info_resp.json()
+                        dl_url = dl_info.get("data", {}).get("url", "")
+                        if not dl_url:
+                            continue
+
+                        # Download
+                        dl_resp = await client.get(dl_url)
+                        if dl_resp.status_code != 200:
+                            continue
+                        dest_path.write_bytes(dl_resp.content)
+
+                        # Update scene data
+                        img_entry = scenes[task["scene_index"]]["images"][task["image_index"]]
+                        img_entry["localPath"] = str(dest_path)
+                        img_entry["remotionPath"] = f"assets/images/{filename}"
+                        img_entry["source"] = "freepik"
+                        img_entry["attribution"] = "Illustration from Freepik"
+                        downloaded += 1
+                        print(f"[ClaudeGenerator] Downloaded illustration: {filename}")
+
+                except Exception as e:
+                    print(f"[ClaudeGenerator] Image fetch failed for '{task['keyword']}': {e}")
+                    continue
+
+        # Remove image entries that weren't successfully fetched
+        for scene in scenes:
+            if "images" in scene and isinstance(scene["images"], list):
+                scene["images"] = [
+                    img for img in scene["images"]
+                    if isinstance(img, dict) and img.get("remotionPath")
+                ]
+
+        # Write updated scenes.json
+        with open(scenes_json_path, "w", encoding="utf-8") as f:
+            json.dump(scenes_data, f, indent=2)
+
+        print(f"[ClaudeGenerator] Image fetch complete: {downloaded}/{len(image_tasks)} downloaded")
+        return downloaded
+
     async def _verify_typescript(self) -> tuple[bool, str]:
         """Run TypeScript validation on the generated code.
 
@@ -2633,7 +2833,7 @@ registerRoot(RemotionRoot);
             height: Video height
             duration_frames: Total frames
             fps: Frames per second
-            style_preset: Visual style preset (minimal, modern, playful, bold, classic)
+            style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
             layout_mode: Layout mode (pip, split-horizontal, split-vertical)
             style_guide: Optional user-provided style/layout guidance
 
@@ -2659,6 +2859,17 @@ registerRoot(RemotionRoot);
             style_guide=style_guide,
             output_dir=str(self.src_dir),
         )
+
+        # For studio style: inject template catalog directly into the Director prompt
+        # so it can plan scenes around available templates without needing to discover files
+        if style_preset == "studio":
+            catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
+            if catalog_path.exists():
+                catalog_content = catalog_path.read_text(encoding="utf-8")
+                director_message += f"\n\n{catalog_content}"
+                safe_print(f"[ClaudeGenerator] Injected studio template catalog ({len(catalog_content)} chars) into Director prompt")
+            else:
+                safe_print("[ClaudeGenerator] WARNING: STUDIO_TEMPLATES.md not found, Director will plan without template catalog")
 
         # Write restricted security settings for the Director — only allow writes
         # within the project directory (src_dir). This prevents Claude from writing
@@ -2894,6 +3105,11 @@ registerRoot(RemotionRoot);
                     "mcp__freepik__search_resources",
                     "mcp__freepik__get_resource_detail_by_id",
                     "mcp__freepik__download_resource_by_id",
+                    # Iconify MCP tools (200k+ open-source icons via better-icons)
+                    "mcp__better-icons__search_icons",
+                    "mcp__better-icons__get_icon",
+                    "mcp__better-icons__recommend_icons",
+                    "mcp__better-icons__find_similar_icons",
                 ],
                 mcp_servers={
                     "freepik": {
@@ -2905,6 +3121,11 @@ registerRoot(RemotionRoot);
                             "--header",
                             f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
                         ]
+                    },
+                    "better-icons": {
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": ["better-icons"]
                     }
                 },
                 hooks={
@@ -2985,7 +3206,7 @@ registerRoot(RemotionRoot);
             fps: Frames per second
             timeout_seconds: Total timeout for both phases
             max_retries: Retry attempts per phase
-            style_preset: Visual style preset (minimal, modern, playful, bold, classic)
+            style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
             layout_mode: Layout mode (pip, split-horizontal, split-vertical)
             style_guide: Optional user-provided style/layout guidance
 
@@ -3053,6 +3274,12 @@ registerRoot(RemotionRoot);
                 scene_count = director_result['sceneCount']
                 print(f"[ClaudeGenerator] Director created {scene_count} scenes")
                 emit_progress(35, f"Phase 1 complete: {scene_count} scenes planned")
+
+                # Phase 1.5: Fetch images for scenes
+                emit_progress(36, "Fetching images for scenes...")
+                image_count = await self._fetch_scene_images()
+                if image_count > 0:
+                    emit_progress(37, f"Downloaded {image_count} images")
 
                 emit_progress(38, f"Phase 2: Animator implementing {scene_count} scenes...")
 
@@ -3224,7 +3451,7 @@ async def main():
     parser.add_argument("--transcript", required=True, help="Transcript text or file path")
     parser.add_argument("--words-json", help="Path to words JSON file with timestamps")
     parser.add_argument("--style-guide", help="Path to user style guide text file")
-    parser.add_argument("--style-preset", default="modern", help="Visual style preset (minimal, modern, playful, bold, classic)")
+    parser.add_argument("--style-preset", default="modern", help="Visual style preset (minimal, modern, playful, bold, classic, studio)")
     parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, split-horizontal, split-vertical)")
     parser.add_argument("--width", type=int, default=1920, help="Video width")
     parser.add_argument("--height", type=int, default=1080, help="Video height")
@@ -3306,6 +3533,12 @@ async def main():
             print(json.dumps(director_result, indent=2))
             sys.stdout.flush()
             sys.exit(1)
+
+        # Phase 1.5: Fetch images for scenes
+        emit_progress(36, "Fetching images for scenes...")
+        image_count = await generator._fetch_scene_images()
+        if image_count > 0:
+            emit_progress(37, f"Downloaded {image_count} images")
 
         # Read plan files and output PLAN_READY signal for the worker to capture
         scenes_json_path = generator.src_dir / "scenes.json"

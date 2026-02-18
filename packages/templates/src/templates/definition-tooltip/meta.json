@@ -1,0 +1,19 @@
+{
+  "slug": "definition-tooltip",
+  "name": "Definition Tooltip",
+  "description": "Dictionary-style tooltip with term, pronunciation, and definition",
+  "category": "education",
+  "tags": [
+    "definition",
+    "tooltip",
+    "dictionary",
+    "glossary",
+    "term",
+    "vocabulary",
+    "studio-theme"
+  ],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

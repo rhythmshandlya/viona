@@ -113,7 +113,7 @@ export interface VisualsDimensions {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   styleGuide?: string;
@@ -136,7 +136,7 @@ export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   styleGuide?: string;

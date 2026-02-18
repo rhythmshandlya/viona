@@ -126,6 +126,7 @@ const PHASE_ORDER: Record<string, string[]> = {
 };
 
 function getStepStatus(currentPhase: string | undefined, jobType: string, stepIndex: number): 'done' | 'active' | 'pending' {
+  if (currentPhase === 'done') return 'done';
   const phases = PHASE_ORDER[jobType];
   if (!phases || !currentPhase) return stepIndex === 0 ? 'active' : 'pending';
   const currentIdx = phases.indexOf(currentPhase);
@@ -683,7 +684,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               ...m,
               content: m.content.map((b) =>
                 b.type === 'progress'
-                  ? { ...b, percent: 100, message: 'Done!' }
+                  ? { ...b, percent: 100, message: 'Done!', phase: 'done' }
                   : b,
               ),
             };
@@ -1104,7 +1105,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             scenes={widget.scenes || []}
             scenePlanMarkdown={widget.scenePlanMarkdown}
             metadata={widget.metadata}
-            onApprove={() => handleWidgetResponse(widget.id, { approved: true, planJobId })}
+            onApprove={(iconSelections) => handleWidgetResponse(widget.id, {
+              approved: true,
+              planJobId,
+              ...(iconSelections ? { selectedIcons: iconSelections } : {}),
+            })}
             onReject={() => handleWidgetResponse(widget.id, { approved: false, planJobId })}
             onEditScene={(sceneIndex, sceneTitle) => {
               const tag: SceneTag = { sceneIndex: sceneIndex + 1, sceneTitle, planJobId };

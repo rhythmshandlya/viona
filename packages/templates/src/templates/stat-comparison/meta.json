@@ -1,0 +1,21 @@
+{
+  "slug": "stat-comparison",
+  "name": "Stat Comparison",
+  "description": "Two numbers side-by-side with animated arrow and change indicator — perfect for year-over-year and before/after comparisons",
+  "category": "marketing",
+  "tags": [
+    "stats",
+    "comparison",
+    "before-after",
+    "growth",
+    "change",
+    "metrics",
+    "dashboard",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

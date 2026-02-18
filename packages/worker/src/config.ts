@@ -1,6 +1,12 @@
 import 'dotenv/config';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { hostname } from 'os';
+
+// Worker package root (packages/worker/) — used for resolving relative script paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const WORKER_ROOT = resolve(__dirname, '..');
 
 export const config = {
   // Worker identification and workspace
@@ -23,7 +29,7 @@ export const config = {
   // Claude Agent SDK visual generator (uses OAuth authentication)
   claudeAgent: {
     // Model for visual generation
-    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-5-20251101',
+    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-6',
     // Extended thinking tokens for planning
     maxThinkingTokens: parseInt(process.env.CLAUDE_AGENT_MAX_THINKING_TOKENS || '10000', 10),
     // Maximum agent turns
@@ -79,7 +85,7 @@ export const config = {
   },
 
   whisperx: {
-    scriptPath: process.env.WHISPERX_SCRIPT_PATH || './scripts/whisperx_transcribe.py',
+    scriptPath: process.env.WHISPERX_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'whisperx_transcribe.py'),
     model: process.env.WHISPER_MODEL || 'base',
     language: process.env.WHISPER_LANGUAGE || 'en',
     device: process.env.WHISPER_DEVICE || 'auto',
@@ -88,7 +94,7 @@ export const config = {
   },
 
   enhance: {
-    scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
+    scriptPath: process.env.ENHANCE_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'enhance_audio.py'),
     // Set AUDIO_ENHANCEMENT_ENABLED=false to skip the enhancement pipeline
     enabled: process.env.AUDIO_ENHANCEMENT_ENABLED !== 'false',
     // Inverse of enabled for backwards compatibility
@@ -99,6 +105,10 @@ export const config = {
 
   freepik: {
     apiKey: process.env.FREEPIK_API_KEY || '',
+  },
+
+  pexels: {
+    apiKey: process.env.PEXELS_API_KEY || '',
   },
 
   remotion: {

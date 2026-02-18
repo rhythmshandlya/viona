@@ -414,8 +414,15 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Captions</span>
           </button>
           <button
-            onClick={() => setLeftSidebarTab('style')}
-            className={`icon-rail-item w-12 ${leftSidebarTab === 'style' ? 'active' : ''}`}
+            onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'style') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('style');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'style' ? 'active' : ''}`}
             title="Style"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -424,8 +431,15 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Style</span>
           </button>
           <button
-            onClick={() => setLeftSidebarTab('layout')}
-            className={`icon-rail-item w-12 ${leftSidebarTab === 'layout' ? 'active' : ''}`}
+            onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'layout') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('layout');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'layout' ? 'active' : ''}`}
             title="Layout"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -437,8 +451,15 @@ export function Editor({ projectId }: EditorProps) {
             <span className="text-[10px] mt-1">Layout</span>
           </button>
           <button
-            onClick={() => setLeftSidebarTab('assets')}
-            className={`icon-rail-item w-12 ${leftSidebarTab === 'assets' ? 'active' : ''}`}
+            onClick={() => {
+              if (leftSidebarOpen && leftSidebarTab === 'assets') {
+                setLeftSidebarOpen(false);
+              } else {
+                setLeftSidebarTab('assets');
+                setLeftSidebarOpen(true);
+              }
+            }}
+            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'assets' ? 'active' : ''}`}
             title="Assets"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

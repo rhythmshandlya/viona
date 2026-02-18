@@ -1,0 +1,20 @@
+{
+  "slug": "product-card",
+  "name": "Product Card",
+  "description": "Floating product showcase card with price, rating, and description",
+  "category": "marketing",
+  "tags": [
+    "product",
+    "card",
+    "price",
+    "rating",
+    "showcase",
+    "review",
+    "studio-theme"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

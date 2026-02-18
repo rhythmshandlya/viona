@@ -1,0 +1,21 @@
+{
+  "slug": "logo-stinger",
+  "name": "Logo Stinger",
+  "description": "Branded logo reveal with geometric motion graphics — perfect for video intros, outros, and bumpers",
+  "category": "marketing",
+  "tags": [
+    "logo",
+    "brand",
+    "intro",
+    "outro",
+    "reveal",
+    "stinger",
+    "motion",
+    "studio-theme"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

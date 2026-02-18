@@ -1,0 +1,20 @@
+{
+  "slug": "rating-display",
+  "name": "Rating Display",
+  "description": "Animated star rating with score counter and review count",
+  "category": "social",
+  "tags": [
+    "rating",
+    "stars",
+    "score",
+    "review",
+    "feedback",
+    "product",
+    "studio-theme"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

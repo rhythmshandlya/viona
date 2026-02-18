@@ -512,6 +512,64 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
 - **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any assets, run `mkdir -p public/assets` in Bash.
+
+### PRE-FETCHED IMAGES (Photos & Illustrations)
+
+The pipeline may pre-download photos (from Pexels) and illustrations (from Freepik) before
+you start. Check each scene's `images` array in scenes.json for entries with a `remotionPath`.
+
+**How to use pre-fetched images:**
+```tsx
+import {{ Img, staticFile }} from 'remotion';
+
+// Use the remotionPath from scenes.json images array
+<Img src={{staticFile('assets/images/scene1-hero-team.jpg')}} style={{{{ width: '100%' }}}} />
+```
+
+**Purpose-based sizing:**
+| Purpose | Sizing | Style |
+|---------|--------|-------|
+| `hero` | 60-80% of canvas width, centered | Main focal point with spring scale-in |
+| `accent` | 30-50% width, positioned per `placement` | Supporting visual with fade-in |
+| `background` | Full-bleed (100% width/height) | Behind content with dark overlay (0.4-0.6 opacity) |
+
+**Animation suggestions for images:**
+- **Hero images**: Spring scale-in from 0.8 to 1.0, or slide up with opacity fade
+- **Accent images**: Fade in with slight translateY, stagger if multiple
+- **Background images**: Ken Burns effect (slow zoom + pan), always with gradient overlay
+
+**Example — hero image with spring entrance:**
+```tsx
+const imgScale = spring({{ frame: localFrame - entryFrame, fps, config: {{ damping: 22, stiffness: 90 }} }});
+const imgOpacity = interpolate(localFrame, [entryFrame, entryFrame + 15], [0, 1], {{ extrapolateRight: 'clamp' }});
+
+<div style={{{{
+  opacity: imgOpacity,
+  transform: `scale(${{0.8 + imgScale * 0.2}})`,
+  width: '70%',
+  margin: '0 auto',
+  borderRadius: 16,
+  overflow: 'hidden',
+}}}}>
+  <Img src={{staticFile('assets/images/scene1-hero-team.jpg')}} style={{{{ width: '100%' }}}} />
+</div>
+```
+
+**Example — background image with overlay:**
+```tsx
+<AbsoluteFill>
+  <Img src={{staticFile('assets/images/scene2-background-city.jpg')}}
+    style={{{{ width: '100%', height: '100%', objectFit: 'cover' }}}} />
+  <div style={{{{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}}} />
+  {{/* Scene content on top */}}
+</AbsoluteFill>
+```
+
+**IMPORTANT:**
+- Only use images that have a `remotionPath` populated in scenes.json
+- If an image entry is missing `remotionPath`, skip it — the download may have failed
+- Do NOT try to fetch images yourself — they are already in `public/assets/images/`
+- Always wrap images in containers with `overflow: 'hidden'` and `borderRadius` for polish
 </assets_and_visuals>
 
 
@@ -555,6 +613,62 @@ interpolate(frame, [0, 30], [0, 1], {{extrapolateRight: 'clamp'}})
 - MAX 3 animated elements visible at once
 - Bottom 15% reserved for subtitles
 </remotion_rules>
+
+<studio_templates>
+## STUDIO THEME — TEMPLATE LIBRARY
+
+When the Director's plan uses the **Studio** style preset, you have access to a library of
+pre-built template source code in `src/.templates/`.
+
+### How to Use Templates:
+
+1. **Check STUDIO_TEMPLATES.md** in the `src/` directory for the full catalog with descriptions
+2. **Read template source** from `src/.templates/{slug}/` — each template has:
+   - `index.tsx` — Main composition component (the most important file)
+   - `constants.ts` — Color and timing constants
+   - `schema.ts` — Props schema with types
+   - `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
+3. **Copy and customize** — Take the template code and adapt it:
+   - Change data values (numbers, labels, colors) to match the transcript content
+   - Adjust timing to fit the scene's frame range
+   - Modify colors to use the Director's planned palette
+   - Keep the DotGrid background pattern and card-based layout
+4. **Compose templates** — You can use multiple templates in one scene:
+   - e.g., `stat-counter` for a number reveal + `bar-chart` for a comparison
+
+### Studio Design System (MANDATORY when plan says "Studio"):
+
+**DotGrid Background (MUST include in EVERY scene):**
+```tsx
+<svg style={{{{ position: 'absolute', inset: 0 }}}} width="100%" height="100%">
+  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.03)" />
+  </pattern>
+  <rect width="100%" height="100%" fill="#0B0F1A" />
+  <rect width="100%" height="100%" fill="url(#dots)" />
+</svg>
+```
+
+**Card Containers:**
+- borderRadius: 20px, padding: 48px, maxWidth: 85%
+- Background: rgba(255,255,255,0.05) with backdropFilter: blur(20px)
+- Border: 1px solid rgba(255,255,255,0.08)
+
+**Font Pairs (import from Google Fonts):**
+- Default: Oswald (bold titles) + Inter (body text)
+- Tech: Space Grotesk + IBM Plex Mono
+- Friendly: Nunito + Source Code Pro
+
+**Spring Config for Studio:**
+- Card entrances: {{ damping: 14, stiffness: 80 }}
+- Element staggers: 8-12 frames apart
+
+**If NO template matches:** Create custom visuals but ALWAYS maintain:
+- DotGrid SVG background
+- Card-based layout
+- Studio color palette (#0B0F1A, #6366F1, #F8FAFC)
+- Font pair from the list above
+</studio_templates>
 """
 
 
@@ -758,12 +872,12 @@ export const Scene1: React.FC<Scene1Props> = ({{ startFrame }}) => {{
   return (
     <AbsoluteFill>
       {{/* Setup/anticipation elements (visible before key word) */}}
-      <div style={{{{ opacity: setupProgress }}}}>
+      <div data-element-name="setup" style={{{{ opacity: setupProgress }}}}>
         {{/* Background elements, secondary visuals */}}
       </div>
 
       {{/* KEY SYNC EVENT: triggers at the exact frame the narrator says the key word */}}
-      <div style={{{{ opacity: keySyncProgress, transform: `scale(${{keySyncProgress}})` }}}}>
+      <div data-element-name="primary" style={{{{ opacity: keySyncProgress, transform: `scale(${{keySyncProgress}})` }}}}>
         {{/* Main visual event described in keySync.visualEvent */}}
       </div>
     </AbsoluteFill>

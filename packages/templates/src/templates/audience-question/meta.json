@@ -1,0 +1,20 @@
+{
+  "slug": "audience-question",
+  "name": "Audience Question",
+  "description": "Bold question prompt to drive viewer engagement and comments",
+  "category": "social",
+  "tags": [
+    "question",
+    "audience",
+    "engagement",
+    "comment",
+    "prompt",
+    "interactive",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

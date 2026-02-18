@@ -218,24 +218,31 @@ async function pollJobProgress(
 }
 
 // Map raw scenes.json scene objects to widget-friendly format
-function mapScenesToWidget(scenesArray: Array<Record<string, unknown>>) {
-  return scenesArray.map((s: any) => ({
-    startMs: Math.round((s.timestampRange?.[0] || 0) * 1000),
-    endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
-    title: s.name || `Scene ${s.id}`,
-    description: s.visual || s.emotion || '',
-    emotion: s.emotion || '',
-    keySync: s.keySync ? {
-      word: s.keySync.word,
-      timestamp: s.keySync.timestamp,
-      visualEvent: s.keySync.visualEvent,
-    } : undefined,
-    buildsFrom: s.buildsFrom || null,
-    connectsTo: s.connectsTo || null,
-    layout: s.layout || null,
-    frames: s.frames || null,
-    icons: s.icons || [],
-  }));
+function mapScenesToWidget(
+  scenesArray: Array<Record<string, unknown>>,
+  svgOptions?: Record<string, Record<string, Array<{ id: string; name: string; thumbnailUrl: string }>>>,
+) {
+  return scenesArray.map((s: any) => {
+    const sceneId = String(s.id ?? s.name ?? '');
+    return {
+      startMs: Math.round((s.timestampRange?.[0] || 0) * 1000),
+      endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
+      title: s.name || `Scene ${s.id}`,
+      description: s.visual || s.emotion || '',
+      emotion: s.emotion || '',
+      keySync: s.keySync ? {
+        word: s.keySync.word,
+        timestamp: s.keySync.timestamp,
+        visualEvent: s.keySync.visualEvent,
+      } : undefined,
+      buildsFrom: s.buildsFrom || null,
+      connectsTo: s.connectsTo || null,
+      layout: s.layout || null,
+      frames: s.frames || null,
+      icons: s.icons || [],
+      svgOptions: svgOptions?.[sceneId] || undefined,
+    };
+  });
 }
 
 // Create an in-process MCP server with all Creative Director tools
@@ -590,7 +597,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         'plan_visuals',
         'Run the Director phase to create a scene-by-scene visual plan based on the transcript. This queues a planning job that analyzes the transcript and produces a detailed plan. The plan is then shown to the user as an interactive widget for approval before any generation begins. Only call this after the user has selected a theme and layout.',
         {
-          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic']),
+          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio']),
           layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
           styleGuide: z.string().optional(),
         },
@@ -633,7 +640,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           await queuePlanVisualsJob({
             projectId: ctx.projectId,
             jobId: job.id,
-            stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic',
+            stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
             styleGuide,
@@ -676,7 +683,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             };
           }
 
-          const planData = completedJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+          const planData = completedJob.planData as { scenePlan: string; scenes: Record<string, unknown>; svgOptions?: Record<string, Record<string, Array<{ id: string; name: string; thumbnailUrl: string }>>> };
           const scenesObj = planData.scenes as Record<string, unknown>;
           const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
           const widgetId = nanoid(8);
@@ -685,7 +692,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             id: widgetId,
             kind: 'scene_plan',
             planJobId: job.id,
-            scenes: mapScenesToWidget(scenesArray),
+            scenes: mapScenesToWidget(scenesArray, planData.svgOptions),
             scenePlanMarkdown: planData.scenePlan,
             metadata: {
               primaryMetaphor: scenesObj.primaryMetaphor,
@@ -717,7 +724,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         'Start generating visuals from an approved plan. This takes the planJobId from a completed plan_visuals run and triggers the full generation pipeline. Only call this after the user has approved the plan. Pass the same stylePreset and layoutMode that were used in plan_visuals.',
         {
           planJobId: z.string(),
-          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic']),
+          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio']),
           layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
         },
         async ({ planJobId, stylePreset, layoutMode }) => {
@@ -788,7 +795,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           await queueGenerateVisualsJob({
             projectId: ctx.projectId,
             jobId: job.id,
-            stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic',
+            stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
             planJobId,

@@ -1,0 +1,20 @@
+{
+  "slug": "emoji-slider-poll",
+  "name": "Emoji Slider Poll",
+  "description": "Instagram-style emoji slider poll with animated result",
+  "category": "social",
+  "tags": [
+    "emoji",
+    "slider",
+    "poll",
+    "instagram",
+    "interactive",
+    "vote",
+    "studio-theme"
+  ],
+  "stylePreset": "friendlyTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

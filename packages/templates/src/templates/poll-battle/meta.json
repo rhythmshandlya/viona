@@ -1,0 +1,21 @@
+{
+  "slug": "poll-battle",
+  "name": "Poll Battle",
+  "description": "Animated poll results racing to fill — options compete visually with a winner crowned at the end",
+  "category": "social",
+  "tags": [
+    "poll",
+    "survey",
+    "vote",
+    "versus",
+    "battle",
+    "comparison",
+    "social",
+    "studio-theme"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}
