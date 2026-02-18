@@ -42,6 +42,8 @@ export interface PlanVisualsJobData {
   };
   /** User-provided style/layout guidance for the Director agent */
   styleGuide?: string;
+  sourceWidth?: number;
+  sourceHeight?: number;
 }
 
 interface PlanData {
@@ -135,6 +137,8 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         stylePreset: stylePreset || 'modern',
         layoutMode: layoutMode || 'pip',
         styleGuide,
+        sourceWidth: job.data.sourceWidth,
+        sourceHeight: job.data.sourceHeight,
       });
 
       heartbeat.stop();
@@ -200,6 +204,8 @@ interface DirectorPhaseOptions {
   stylePreset: string;
   layoutMode: string;
   styleGuide?: string;
+  sourceWidth?: number;
+  sourceHeight?: number;
 }
 
 /**
@@ -268,6 +274,12 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
     // Add style guide path if provided
     if (styleGuidePath) {
       args.push('--style-guide', styleGuidePath);
+    }
+
+    // Add source video dimensions if available (for coverage-aware layout planning)
+    if (options.sourceWidth && options.sourceHeight) {
+      args.push('--source-width', String(options.sourceWidth));
+      args.push('--source-height', String(options.sourceHeight));
     }
 
     logger.info({ projectId }, 'Running Director phase only (--phase director)');
