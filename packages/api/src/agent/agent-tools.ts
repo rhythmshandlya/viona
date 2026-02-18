@@ -241,6 +241,8 @@ function mapScenesToWidget(
       frames: s.frames || null,
       icons: s.icons || [],
       svgOptions: svgOptions?.[sceneId] || undefined,
+      displayMode: s.displayMode || 'pip',
+      transition: s.transition || undefined,
     };
   });
 }
@@ -417,6 +419,18 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             mergeWithSceneId: z.number().optional().describe('Adjacent scene ID to merge with'),
             mergedName: z.string().optional().describe('Combined scene name'),
             mergedVisual: z.string().optional().describe('Combined visual description'),
+            // Display mode & transitions (for "update" action)
+            displayMode: z.enum(['pip', 'fullscreen', 'overlay']).optional().describe('Display mode for this scene'),
+            transition: z.object({
+              enter: z.object({
+                type: z.enum(['cut', 'fade', 'zoom-in', 'zoom-out']),
+                durationMs: z.number(),
+              }),
+              exit: z.object({
+                type: z.enum(['cut', 'fade', 'zoom-in', 'zoom-out']),
+                durationMs: z.number(),
+              }),
+            }).optional().describe('Enter/exit transition config'),
           })).min(1, 'At least one scene update required').describe('Array of scene operations'),
         },
         async ({ planJobId, sceneUpdates }) => {
@@ -468,6 +482,8 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                 if (op.visual !== undefined) scene.visual = op.visual;
                 if (op.emotion !== undefined) scene.emotion = op.emotion;
                 if (op.name !== undefined) scene.name = op.name;
+                if (op.displayMode !== undefined) scene.displayMode = op.displayMode;
+                if (op.transition !== undefined) scene.transition = op.transition;
                 changeLog.push(`Updated "${scene.name}"`);
                 break;
               }
