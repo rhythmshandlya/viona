@@ -1,6 +1,12 @@
 import 'dotenv/config';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { hostname } from 'os';
+
+// Worker package root (packages/worker/) — used for resolving relative script paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const WORKER_ROOT = resolve(__dirname, '..');
 
 export const config = {
   // Worker identification and workspace
@@ -79,7 +85,7 @@ export const config = {
   },
 
   whisperx: {
-    scriptPath: process.env.WHISPERX_SCRIPT_PATH || './scripts/whisperx_transcribe.py',
+    scriptPath: process.env.WHISPERX_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'whisperx_transcribe.py'),
     model: process.env.WHISPER_MODEL || 'base',
     language: process.env.WHISPER_LANGUAGE || 'en',
     device: process.env.WHISPER_DEVICE || 'auto',
@@ -88,7 +94,7 @@ export const config = {
   },
 
   enhance: {
-    scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
+    scriptPath: process.env.ENHANCE_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'enhance_audio.py'),
     // Set AUDIO_ENHANCEMENT_ENABLED=false to skip the enhancement pipeline
     enabled: process.env.AUDIO_ENHANCEMENT_ENABLED !== 'false',
     // Inverse of enabled for backwards compatibility
