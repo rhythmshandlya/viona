@@ -112,6 +112,11 @@ export const FONT_PAIRS = {
     body: FONTS.lato,
     mood: "Elegant Editorial",
   },
+  newspaperClassic: {
+    headline: FONTS.playfairDisplay,
+    body: FONTS.lora,
+    mood: "Newspaper Classic",
+  },
   cleanMinimal: {
     headline: FONTS.inter,
     body: FONTS.inter,

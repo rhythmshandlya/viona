@@ -104,10 +104,10 @@ const HeadlineStorm: React.FC<HeadlineStormProps> = (props) => {
         articleIndex={articleIndex % articleCount}
       />
 
-      {/* White flash on switch */}
+      {/* Warm flash on switch */}
       <AbsoluteFill
         style={{
-          backgroundColor: '#FFFFFF',
+          backgroundColor: '#FAF9F6',
           opacity: flashOpacity,
           pointerEvents: 'none',
         }}

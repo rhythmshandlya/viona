@@ -15,13 +15,17 @@ interface ArticleFrameProps {
 
 const SOURCE_ACCENTS: Record<string, string> = {
   'The New York Times': '#121212',
-  'The Wall Street Journal': '#0274B6',
-  'Financial Times': '#0D7680',
+  'The Wall Street Journal': '#0080C6',
+  'Financial Times': '#FCD0B1',
   'The Washington Post': '#1C1E21',
-  'Reuters': '#FF8000',
+  'Reuters': '#FF6600',
   'The Guardian': '#052962',
-  'Bloomberg': '#472A91',
+  'Bloomberg': '#1E1034',
   'BBC News': '#BB1919',
+};
+
+const SOURCE_BG: Record<string, string> = {
+  'Financial Times': '#FFF1E5',
 };
 
 function highlightBrand(
@@ -29,6 +33,7 @@ function highlightBrand(
   brandName: string,
   highlightColor: string,
   scale: number,
+  bodyFont: string,
 ): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   const lower = text.toLowerCase();
@@ -53,9 +58,11 @@ function highlightBrand(
         key={`hl-${idx}`}
         style={{
           backgroundColor: highlightColor,
-          color: '#111111',
-          padding: `${2 * scale}px ${6 * scale}px`,
-          borderRadius: 3 * scale,
+          color: '#0D0D0D',
+          padding: `${1 * scale}px ${5 * scale}px`,
+          borderRadius: 2 * scale,
+          fontWeight: 700,
+          fontFamily: bodyFont,
           boxDecorationBreak: 'clone' as const,
           WebkitBoxDecorationBreak: 'clone' as const,
         }}
@@ -79,6 +86,12 @@ function highlightBrand(
   return parts;
 }
 
+/**
+ * Zoom factor — all font sizes and spacing are multiplied by this
+ * to create the zoomed-in effect without a CSS transform.
+ */
+const Z = 1.6;
+
 const ArticleFrame: React.FC<ArticleFrameProps> = ({
   article,
   brandName,
@@ -91,194 +104,146 @@ const ArticleFrame: React.FC<ArticleFrameProps> = ({
   const { width, height } = useVideoConfig();
   const s = width / 1080;
 
-  const bg = '#FFFFFF';
-  const textPrimary = '#111111';
-  const textSecondary = '#555555';
-  const textMuted = '#999999';
-  const borderLight = '#E5E5E5';
-  const sourceAccent = SOURCE_ACCENTS[article.source] || '#111111';
+  const bg = '#FAF9F6';
+  const textPrimary = '#1C1C1C';
+  const textSecondary = '#4A4A4A';
+  const textMuted = '#8A8A8A';
+  const ruleLine = '#D5D0C8';
+  const sourceAccent = SOURCE_ACCENTS[article.source] || '#1C1C1C';
 
-  const px = 55 * s;
-  const bodyFontSize = 24 * s;
-  const bodyLH = 1.7;
+  // All sizes scaled by Z for the zoomed-in feel
+  const px = 44 * s * Z;
+  const bodyFontSize = 23 * s * Z;
+  const bodyLH = 1.75;
   const lineHeightPx = bodyFontSize * bodyLH;
 
-  // Estimate which line the brand name sits on, so we can
-  // shift the entire block to place it at the vertical center.
-  const contentWidth = width - 2 * px;
-  const avgCharWidth = bodyFontSize * 0.48; // approximate for sans-serif
-  const charsPerLine = Math.floor(contentWidth / avgCharWidth);
-
-  const fullText = article.body;
-  const lowerFull = fullText.toLowerCase();
-  const brandIdx = lowerFull.indexOf(brandName.toLowerCase());
-  const charsBefore = brandIdx >= 0 ? brandIdx : Math.floor(fullText.length / 2);
-
-  // Line number where brand appears (0-indexed)
-  const brandLine = charsBefore / charsPerLine;
-
-  // Header height estimate: source bar + headline + byline + separator
-  const headerHeight =
-    (26 * s) +       // source bar
-    (12 * s) +       // gap
-    ((article.headline.length > 55 ? 32 : 38) * s * 1.15 * 2) + // headline (~2 lines)
-    (8 * s) +        // gap
-    (20 * s) +       // byline
-    (14 * s) +       // gap
-    1 +              // separator
-    (12 * s);        // gap after separator
-
-  // Y position of brand name relative to top of the content block
-  const brandY = headerHeight + brandLine * lineHeightPx;
-
-  // We want brandY to appear at height/2, so shift the block up
-  const offsetY = height / 2 - brandY;
+  // Body text first line is vertically centered on screen
+  const bodyY = height / 2 - lineHeightPx / 2;
 
   return (
     <AbsoluteFill style={{ backgroundColor: bg, overflow: 'hidden' }}>
-      {/* Single continuous content block, shifted so brand name is at vertical center */}
+      {/* ── Header: grows upward from just above body text ── */}
       <div
         style={{
           position: 'absolute',
-          top: offsetY,
           left: px,
           right: px,
+          bottom: height - bodyY + 14 * s * Z,
         }}
       >
-        {/* Header */}
-        <div style={{ marginBottom: 14 * s }}>
-          {/* Source + section */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10 * s,
-              marginBottom: 12 * s,
-            }}
-          >
-            <div
-              style={{
-                width: 4 * s,
-                height: 26 * s,
-                backgroundColor: sourceAccent,
-                borderRadius: 2 * s,
-                flexShrink: 0,
-              }}
-            />
-            <div
-              style={{
-                fontFamily: headlineFont,
-                fontSize: 20 * s,
-                fontWeight: 700,
-                color: textPrimary,
-              }}
-            >
-              {article.source}
-            </div>
-            <span
-              style={{
-                fontFamily: bodyFont,
-                fontSize: 11 * s,
-                fontWeight: 700,
-                color: sourceAccent,
-                textTransform: 'uppercase',
-                letterSpacing: '0.06em',
-                padding: `${2 * s}px ${8 * s}px`,
-                backgroundColor: `${sourceAccent}14`,
-                borderRadius: 3 * s,
-                marginLeft: 'auto',
-              }}
-            >
-              {article.section}
-            </span>
-          </div>
-
-          {/* Headline — also highlight brand in headline */}
-          <div
-            style={{
-              fontFamily: headlineFont,
-              fontSize: (article.headline.length > 55 ? 32 : 38) * s,
-              fontWeight: 800,
-              color: textPrimary,
-              lineHeight: 1.15,
-              letterSpacing: '-0.02em',
-              marginBottom: 8 * s,
-            }}
-          >
-            {highlightBrand(article.headline, brandName, highlightColor, s)}
-          </div>
-
-          {/* Byline */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6 * s,
-            }}
-          >
-            <div
-              style={{
-                width: 20 * s,
-                height: 20 * s,
-                borderRadius: '50%',
-                backgroundColor: borderLight,
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontFamily: bodyFont,
-                fontSize: 11 * s,
-                fontWeight: 600,
-                color: textSecondary,
-              }}
-            >
-              {article.author}
-            </span>
-            <span
-              style={{
-                fontFamily: bodyFont,
-                fontSize: 11 * s,
-                color: textMuted,
-              }}
-            >
-              {article.date}
-            </span>
-          </div>
+        {/* Source name — large, newspaper masthead style */}
+        <div
+          style={{
+            fontFamily: headlineFont,
+            fontSize: 16 * s * Z,
+            fontWeight: 400,
+            fontStyle: 'italic',
+            color: textSecondary,
+            letterSpacing: '0.02em',
+            marginBottom: 6 * s * Z,
+          }}
+        >
+          {article.source}
         </div>
 
-        {/* Separator */}
+        {/* Section tag */}
+        <div
+          style={{
+            display: 'inline-block',
+            fontFamily: bodyFont,
+            fontSize: 9 * s * Z,
+            fontWeight: 700,
+            color: sourceAccent,
+            textTransform: 'uppercase',
+            letterSpacing: '0.12em',
+            borderBottom: `${2 * s * Z}px solid ${sourceAccent}`,
+            paddingBottom: 2 * s * Z,
+            marginBottom: 14 * s * Z,
+          }}
+        >
+          {article.section}
+        </div>
+
+        {/* Headline — big serif */}
+        <div
+          style={{
+            fontFamily: headlineFont,
+            fontSize: (article.headline.length > 55 ? 28 : 34) * s * Z,
+            fontWeight: 700,
+            color: textPrimary,
+            lineHeight: 1.18,
+            letterSpacing: '-0.015em',
+            marginBottom: 10 * s * Z,
+          }}
+        >
+          {highlightBrand(article.headline, brandName, highlightColor, s * Z, bodyFont)}
+        </div>
+
+        {/* Byline — thin, understated */}
+        <div
+          style={{
+            fontFamily: bodyFont,
+            fontSize: 10 * s * Z,
+            fontWeight: 400,
+            color: textMuted,
+            letterSpacing: '0.01em',
+            marginBottom: 14 * s * Z,
+          }}
+        >
+          {article.author}
+          <span style={{ margin: `0 ${6 * s * Z}px`, color: '#CCC' }}>|</span>
+          {article.date}
+        </div>
+
+        {/* Rule line — thin newspaper separator */}
         <div
           style={{
             width: '100%',
             height: 1,
-            backgroundColor: borderLight,
-            marginBottom: 12 * s,
+            backgroundColor: ruleLine,
           }}
         />
-
-        {/* Body text — one continuous flow with brand highlighted inline */}
-        <div
-          style={{
-            fontFamily: bodyFont,
-            fontSize: bodyFontSize,
-            lineHeight: bodyLH,
-            color: textPrimary,
-          }}
-        >
-          {highlightBrand(fullText, brandName, highlightColor, s)}
-        </div>
       </div>
 
-      {/* Radial vignette */}
+      {/* ── Body text: starts at fixed Y ── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: bodyY,
+          left: px,
+          right: px,
+          fontFamily: bodyFont,
+          fontSize: bodyFontSize,
+          lineHeight: bodyLH,
+          color: textPrimary,
+          fontWeight: 400,
+          letterSpacing: '0.005em',
+        }}
+      >
+        {highlightBrand(article.body, brandName, highlightColor, s * Z, bodyFont)}
+      </div>
+
+      {/* ── Paper texture overlay ── */}
+      <AbsoluteFill
+        style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`,
+          backgroundRepeat: 'repeat',
+          backgroundSize: `${256 * s}px`,
+          pointerEvents: 'none',
+          mixBlendMode: 'multiply',
+          zIndex: 2,
+        }}
+      />
+
+      {/* ── Vignette — warm off-white edges ── */}
       {blurEnabled && (
         <AbsoluteFill
           style={{
             background: `radial-gradient(
-              ellipse 65% 50% at 50% 50%,
+              ellipse 58% 42% at 50% 50%,
               transparent 0%,
-              ${bg}${Math.round(blurIntensity * 220).toString(16).padStart(2, '0')} 60%,
-              ${bg}F0 80%,
+              ${bg}${Math.round(blurIntensity * 180).toString(16).padStart(2, '0')} 50%,
+              ${bg}E8 70%,
               ${bg} 100%
             )`,
             pointerEvents: 'none',

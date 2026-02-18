@@ -1,0 +1,12 @@
+{
+  "slug": "stat-donut",
+  "name": "Stat Donut",
+  "description": "SVG donut chart with animated arc drawing — great for revenue breakdowns and distribution data",
+  "category": "marketing",
+  "tags": ["stats", "donut", "pie", "chart", "breakdown", "metrics", "dashboard"],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}
