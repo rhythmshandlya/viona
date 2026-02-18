@@ -660,8 +660,8 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
             styleGuide,
-            sourceWidth: project.sourceWidth,
-            sourceHeight: project.sourceHeight,
+            sourceWidth: project.sourceWidth ?? undefined,
+            sourceHeight: project.sourceHeight ?? undefined,
           });
 
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual planning...' });
