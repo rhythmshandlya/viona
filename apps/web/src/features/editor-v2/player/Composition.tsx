@@ -280,12 +280,13 @@ export function Composition() {
 
   const effectiveHasVisuals = hasVisuals;
 
-  // When a separate audio item exists, mute the video to avoid playing
-  // the audio twice (original in video + enhanced in audio).  We check
-  // for the item's *existence* rather than a truthy `src` because the
-  // enhancement job may still be in progress (src === ''), and the
-  // video's audio track can trigger browser decode errors if not muted.
-  const hasSeparateAudio = audioItems.length > 0;
+  // Mute the video only when a separate audio item has a playable source.
+  // If the audio item exists but has no src (e.g., enhancement still processing
+  // or failed), keep the video unmuted so the user hears the original audio.
+  const hasSeparateAudio = audioItems.some((item) => {
+    const data = item.data as AudioItemData;
+    return !!data.src;
+  });
 
   // Calculate video transform for crop/pan
   // Ensure we have valid dimensions to avoid NaN

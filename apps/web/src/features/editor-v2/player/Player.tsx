@@ -6,7 +6,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Player as RemotionPlayer, PlayerRef, CallbackListener } from '@remotion/player';
+import { Player as RemotionPlayer, CallbackListener } from '@remotion/player';
 import { Composition } from './Composition';
 import {
   useProject,
@@ -18,13 +18,14 @@ import {
   useSafeZonePlatform,
 } from '../store/use-editor-store';
 import { SafeZoneOverlay } from '../components/SafeZoneOverlay';
+import { sharedPlayerRef } from './player-ref';
 
 interface PlayerProps {
   className?: string;
 }
 
 export function Player({ className }: PlayerProps) {
-  const playerRef = useRef<PlayerRef>(null);
+  const playerRef = sharedPlayerRef;
   const isInternalUpdate = useRef(false);
 
   // State
