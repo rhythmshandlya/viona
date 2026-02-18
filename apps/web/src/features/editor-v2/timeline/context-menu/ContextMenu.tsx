@@ -19,6 +19,7 @@ import {
   useSelectedTimeRange,
   useEditorStore,
 } from '../../store/use-editor-store';
+import { VisualItemData } from '../../store/types';
 
 // ============================================
 // Types
@@ -34,16 +35,27 @@ interface MenuItemDef {
   shortcut?: string;
   action: () => void;
   disabled?: boolean;
+  checked?: boolean;
 }
 
 interface SeparatorDef {
   type: 'separator';
 }
 
-type MenuEntry = MenuItemDef | SeparatorDef;
+interface SubMenuDef {
+  type: 'submenu';
+  label: string;
+  items: MenuItemDef[];
+}
+
+type MenuEntry = MenuItemDef | SeparatorDef | SubMenuDef;
 
 function isSeparator(entry: MenuEntry): entry is SeparatorDef {
   return 'type' in entry && entry.type === 'separator';
+}
+
+function isSubMenu(entry: MenuEntry): entry is SubMenuDef {
+  return 'type' in entry && entry.type === 'submenu';
 }
 
 // ============================================
@@ -69,6 +81,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     updateTrack,
     select,
     requestAIEdit,
+    updateVisualDisplayMode,
   } = useEditorActions();
 
   // Close on outside click
@@ -193,10 +206,31 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             },
             disabled: !track,
           },
-          // "Edit with AI" for visual items
+          // Display Mode submenu and "Edit with AI" for visual items
           ...(item?.type === 'visual'
             ? [
                 { type: 'separator' as const },
+                {
+                  type: 'submenu' as const,
+                  label: 'Display Mode',
+                  items: [
+                    {
+                      label: 'PiP (speaker in corner)',
+                      action: withSelection(() => updateVisualDisplayMode(itemId, 'pip')),
+                      checked: ((item.data as VisualItemData).displayMode || 'pip') === 'pip',
+                    },
+                    {
+                      label: 'Fullscreen (animation only)',
+                      action: withSelection(() => updateVisualDisplayMode(itemId, 'fullscreen')),
+                      checked: (item.data as VisualItemData).displayMode === 'fullscreen',
+                    },
+                    {
+                      label: 'Overlay (animation over speaker)',
+                      action: withSelection(() => updateVisualDisplayMode(itemId, 'overlay')),
+                      checked: (item.data as VisualItemData).displayMode === 'overlay',
+                    },
+                  ],
+                },
                 {
                   label: 'Edit with AI',
                   shortcut: 'E',
@@ -257,6 +291,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       pasteItems,
       updateTrack,
       requestAIEdit,
+      updateVisualDisplayMode,
     ]
   );
 
@@ -274,7 +309,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
         top: state.y,
         zIndex: 9999,
         minWidth: 160,
-        maxWidth: 200,
+        maxWidth: 260,
         background: 'var(--editor-bg-elevated, #1e1e2e)',
         border: '1px solid var(--editor-border-subtle, #333)',
         borderRadius: 8,
@@ -294,6 +329,76 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
                 margin: '4px 0',
               }}
             />
+          );
+        }
+
+        if (isSubMenu(entry)) {
+          return (
+            <div key={entry.label}>
+              <div
+                style={{
+                  padding: '4px 12px 2px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: 'var(--editor-text-secondary, #888)',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                }}
+              >
+                {entry.label}
+              </div>
+              {entry.items.map((subItem) => (
+                <button
+                  key={subItem.label}
+                  role="menuitem"
+                  disabled={subItem.disabled}
+                  onClick={() => handleAction(subItem.action)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    width: '100%',
+                    padding: '5px 12px 5px 20px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: subItem.disabled
+                      ? 'var(--editor-text-disabled, #555)'
+                      : 'var(--editor-text-primary, #e0e0e0)',
+                    fontSize: 13,
+                    lineHeight: '20px',
+                    cursor: subItem.disabled ? 'default' : 'pointer',
+                    textAlign: 'left',
+                    outline: 'none',
+                    opacity: subItem.disabled ? 0.5 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!subItem.disabled) {
+                      (e.currentTarget as HTMLButtonElement).style.background =
+                        'var(--editor-bg-hover, rgba(255, 255, 255, 0.08))';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+                  }}
+                >
+                  <span>
+                    {subItem.checked ? '\u2713 ' : '  '}
+                    {subItem.label}
+                  </span>
+                  {subItem.shortcut && (
+                    <span
+                      style={{
+                        color: 'var(--editor-text-secondary, #888)',
+                        fontSize: 11,
+                        marginLeft: 16,
+                      }}
+                    >
+                      {subItem.shortcut}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
           );
         }
 

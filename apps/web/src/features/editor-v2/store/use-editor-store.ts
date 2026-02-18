@@ -512,6 +512,9 @@ export function useEditorActions() {
       // AI edit request
       requestAIEdit: state.requestAIEdit,
 
+      // Visual display mode
+      updateVisualDisplayMode: state.updateVisualDisplayMode,
+
       // Captions
       setShowCaptions: state.setShowCaptions,
 

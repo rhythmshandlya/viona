@@ -647,6 +647,9 @@ export interface EditorActions {
   // AI edit request
   requestAIEdit: (item: TimelineItem) => void;
 
+  // Visual display mode
+  updateVisualDisplayMode: (itemId: string, displayMode: 'pip' | 'fullscreen' | 'overlay') => void;
+
   // Safe zone actions
   setSafeZonePlatform: (platform: string) => void;
   setShowSafeZone: (show: boolean) => void;

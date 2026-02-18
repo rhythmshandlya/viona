@@ -1756,6 +1756,20 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     // ========================================
+    // Visual Display Mode Actions
+    // ========================================
+
+    updateVisualDisplayMode: (itemId: string, displayMode: 'pip' | 'fullscreen' | 'overlay') => {
+      set((state) => {
+        const item = state.items[itemId];
+        if (item?.type === 'visual') {
+          (item.data as VisualItemData).displayMode = displayMode;
+        }
+      });
+      get().pushHistory();
+    },
+
+    // ========================================
     // Safe Zone Actions
     // ========================================
 
