@@ -23,6 +23,7 @@ import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
 import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
 import { searchIcons, type IconOption } from '../services/freepik.js';
+import { fetchImageOptionsForPlan } from '../services/image-fetcher.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -142,6 +143,11 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
       // Fetch SVG options for each icon keyword in the plan
       const planDataWithIcons = await fetchSvgOptionsForPlan(planData);
 
+      await publishJobProgress(jobId, 92, 'Fetching image options...');
+
+      // Fetch image options (thumbnails) for photo/illustration keywords in the plan
+      const planDataWithImages = await fetchImageOptionsForPlan(planDataWithIcons as PlanData & Record<string, unknown>);
+
       await publishJobProgress(jobId, 95, 'Parsing scene plan...');
 
       // Store plan data in the job record
@@ -150,7 +156,7 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
           status: 'complete',
           progress: 100,
           completedAt: new Date(),
-          planData: planDataWithIcons,
+          planData: planDataWithImages as PlanData,
         })
         .where(eq(jobs.id, jobId));
 

@@ -512,6 +512,64 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
 - **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any assets, run `mkdir -p public/assets` in Bash.
+
+### PRE-FETCHED IMAGES (Photos & Illustrations)
+
+The pipeline may pre-download photos (from Pexels) and illustrations (from Freepik) before
+you start. Check each scene's `images` array in scenes.json for entries with a `remotionPath`.
+
+**How to use pre-fetched images:**
+```tsx
+import {{ Img, staticFile }} from 'remotion';
+
+// Use the remotionPath from scenes.json images array
+<Img src={{staticFile('assets/images/scene1-hero-team.jpg')}} style={{{{ width: '100%' }}}} />
+```
+
+**Purpose-based sizing:**
+| Purpose | Sizing | Style |
+|---------|--------|-------|
+| `hero` | 60-80% of canvas width, centered | Main focal point with spring scale-in |
+| `accent` | 30-50% width, positioned per `placement` | Supporting visual with fade-in |
+| `background` | Full-bleed (100% width/height) | Behind content with dark overlay (0.4-0.6 opacity) |
+
+**Animation suggestions for images:**
+- **Hero images**: Spring scale-in from 0.8 to 1.0, or slide up with opacity fade
+- **Accent images**: Fade in with slight translateY, stagger if multiple
+- **Background images**: Ken Burns effect (slow zoom + pan), always with gradient overlay
+
+**Example — hero image with spring entrance:**
+```tsx
+const imgScale = spring({{ frame: localFrame - entryFrame, fps, config: {{ damping: 22, stiffness: 90 }} }});
+const imgOpacity = interpolate(localFrame, [entryFrame, entryFrame + 15], [0, 1], {{ extrapolateRight: 'clamp' }});
+
+<div style={{{{
+  opacity: imgOpacity,
+  transform: `scale(${{0.8 + imgScale * 0.2}})`,
+  width: '70%',
+  margin: '0 auto',
+  borderRadius: 16,
+  overflow: 'hidden',
+}}}}>
+  <Img src={{staticFile('assets/images/scene1-hero-team.jpg')}} style={{{{ width: '100%' }}}} />
+</div>
+```
+
+**Example — background image with overlay:**
+```tsx
+<AbsoluteFill>
+  <Img src={{staticFile('assets/images/scene2-background-city.jpg')}}
+    style={{{{ width: '100%', height: '100%', objectFit: 'cover' }}}} />
+  <div style={{{{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}}} />
+  {{/* Scene content on top */}}
+</AbsoluteFill>
+```
+
+**IMPORTANT:**
+- Only use images that have a `remotionPath` populated in scenes.json
+- If an image entry is missing `remotionPath`, skip it — the download may have failed
+- Do NOT try to fetch images yourself — they are already in `public/assets/images/`
+- Always wrap images in containers with `overflow: 'hidden'` and `borderRadius` for polish
 </assets_and_visuals>
 
 

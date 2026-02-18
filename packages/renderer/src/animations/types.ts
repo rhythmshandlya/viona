@@ -4,14 +4,17 @@ export type AnimationType =
   | 'none'
   // Viral
   | 'elastic-pop' | 'bounce-up' | 'shake' | 'color-wipe'
-  | '3d-flip' | 'punch'
+  | '3d-flip' | 'punch' | 'scale-bounce' | 'slide-up' | 'weight-shift' | 'float'
   // Cinematic
-  | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
+  | 'fade' | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
   | 'underline-wipe'
   // Ad / Premium
-  | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal';
+  | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal'
+  // Motion (AutoAE-inspired)
+  | 'spotlight-reveal' | 'film-burn' | 'glitch' | 'spin-reveal'
+  | 'drop-slam' | 'wave' | 'blur-zoom' | 'chromatic-split';
 
-export type EasingType = 'linear' | 'ease-out' | 'spring' | 'elastic' | 'bounce';
+export type EasingType = 'linear' | 'ease-out' | 'ease-in-out' | 'spring' | 'elastic' | 'bounce';
 
 export interface AnimationConfig {
   in: AnimationType;

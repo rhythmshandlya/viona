@@ -2349,6 +2349,187 @@ class ClaudeVisualGenerator:
 
         return settings_path
 
+    async def _fetch_scene_images(self) -> int:
+        """
+        Fetch images for scenes based on the Director's [IMAGE: keyword] entries.
+
+        Reads scenes.json, downloads photos from Pexels and illustrations from Freepik,
+        saves them to public/assets/images/, and updates scenes.json in-place.
+
+        Returns the count of successfully downloaded images.
+        """
+        import httpx
+        import re
+
+        scenes_json_path = self.src_dir / "scenes.json"
+        if not scenes_json_path.exists():
+            print("[ClaudeGenerator] No scenes.json found — skipping image fetch")
+            return 0
+
+        with open(scenes_json_path, encoding="utf-8") as f:
+            scenes_data = json.load(f)
+
+        scenes = scenes_data.get("scenes", [])
+        if not scenes:
+            return 0
+
+        # Collect all image requests
+        image_tasks = []
+        for si, scene in enumerate(scenes):
+            images = scene.get("images", [])
+            if not isinstance(images, list):
+                continue
+            for ii, img in enumerate(images[:2]):  # Max 2 per scene
+                if len(image_tasks) >= 10:  # Max 10 total
+                    break
+                keyword = img.get("keyword", "")
+                img_type = img.get("type", "photo")
+                purpose = img.get("purpose", "accent")
+                if keyword:
+                    image_tasks.append({
+                        "scene_index": si,
+                        "image_index": ii,
+                        "keyword": keyword,
+                        "type": img_type,
+                        "purpose": purpose,
+                    })
+            if len(image_tasks) >= 10:
+                break
+
+        if not image_tasks:
+            print("[ClaudeGenerator] No image requests in scenes — skipping")
+            return 0
+
+        print(f"[ClaudeGenerator] Fetching {len(image_tasks)} images for scenes...")
+
+        # Create images directory
+        images_dir = self.workspace / "public" / "assets" / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+
+        pexels_api_key = os.environ.get("PEXELS_API_KEY", "")
+        freepik_api_key = os.environ.get("FREEPIK_API_KEY", "")
+
+        downloaded = 0
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for task in image_tasks:
+                try:
+                    scene_id = scenes[task["scene_index"]].get("id", task["scene_index"] + 1)
+                    slug = re.sub(r'[^a-z0-9]+', '-', task["keyword"].lower()).strip('-')[:30]
+                    filename = f"scene{scene_id}-{task['purpose']}-{slug}.jpg"
+                    dest_path = images_dir / filename
+
+                    if task["type"] == "photo" and pexels_api_key:
+                        # Search Pexels
+                        resp = await client.get(
+                            "https://api.pexels.com/v1/search",
+                            params={"query": task["keyword"], "per_page": "3"},
+                            headers={"Authorization": pexels_api_key},
+                        )
+                        if resp.status_code != 200:
+                            continue
+                        data = resp.json()
+                        photos = data.get("photos", [])
+                        if not photos:
+                            continue
+
+                        photo = photos[0]
+                        photo_url = photo.get("src", {}).get("large", "")
+                        if not photo_url:
+                            continue
+
+                        # Download
+                        dl_resp = await client.get(photo_url)
+                        if dl_resp.status_code != 200:
+                            continue
+                        dest_path.write_bytes(dl_resp.content)
+
+                        # Update scene data
+                        img_entry = scenes[task["scene_index"]]["images"][task["image_index"]]
+                        img_entry["localPath"] = str(dest_path)
+                        img_entry["remotionPath"] = f"assets/images/{filename}"
+                        img_entry["source"] = "pexels"
+                        img_entry["attribution"] = f"Photo by {photo.get('photographer', 'Unknown')} on Pexels"
+                        img_entry["width"] = photo.get("width")
+                        img_entry["height"] = photo.get("height")
+                        downloaded += 1
+                        print(f"[ClaudeGenerator] Downloaded photo: {filename}")
+
+                    elif task["type"] == "illustration" and freepik_api_key:
+                        # Search Freepik resources
+                        resp = await client.get(
+                            "https://api.freepik.com/v1/resources",
+                            params={
+                                "term": task["keyword"],
+                                "limit": "3",
+                                "filters[content_type][vector]": "1",
+                            },
+                            headers={
+                                "x-freepik-api-key": freepik_api_key,
+                                "Accept": "application/json",
+                            },
+                        )
+                        if resp.status_code != 200:
+                            continue
+                        data = resp.json()
+                        resources = data.get("data", [])
+                        if not resources:
+                            continue
+
+                        resource = resources[0]
+                        resource_id = str(resource.get("id", ""))
+                        if not resource_id:
+                            continue
+
+                        # Get download URL
+                        dl_info_resp = await client.get(
+                            f"https://api.freepik.com/v1/resources/{resource_id}/download",
+                            headers={
+                                "x-freepik-api-key": freepik_api_key,
+                                "Accept": "application/json",
+                            },
+                        )
+                        if dl_info_resp.status_code != 200:
+                            continue
+                        dl_info = dl_info_resp.json()
+                        dl_url = dl_info.get("data", {}).get("url", "")
+                        if not dl_url:
+                            continue
+
+                        # Download
+                        dl_resp = await client.get(dl_url)
+                        if dl_resp.status_code != 200:
+                            continue
+                        dest_path.write_bytes(dl_resp.content)
+
+                        # Update scene data
+                        img_entry = scenes[task["scene_index"]]["images"][task["image_index"]]
+                        img_entry["localPath"] = str(dest_path)
+                        img_entry["remotionPath"] = f"assets/images/{filename}"
+                        img_entry["source"] = "freepik"
+                        img_entry["attribution"] = "Illustration from Freepik"
+                        downloaded += 1
+                        print(f"[ClaudeGenerator] Downloaded illustration: {filename}")
+
+                except Exception as e:
+                    print(f"[ClaudeGenerator] Image fetch failed for '{task['keyword']}': {e}")
+                    continue
+
+        # Remove image entries that weren't successfully fetched
+        for scene in scenes:
+            if "images" in scene and isinstance(scene["images"], list):
+                scene["images"] = [
+                    img for img in scene["images"]
+                    if isinstance(img, dict) and img.get("remotionPath")
+                ]
+
+        # Write updated scenes.json
+        with open(scenes_json_path, "w", encoding="utf-8") as f:
+            json.dump(scenes_data, f, indent=2)
+
+        print(f"[ClaudeGenerator] Image fetch complete: {downloaded}/{len(image_tasks)} downloaded")
+        return downloaded
+
     async def _verify_typescript(self) -> tuple[bool, str]:
         """Run TypeScript validation on the generated code.
 
@@ -3094,6 +3275,12 @@ registerRoot(RemotionRoot);
                 print(f"[ClaudeGenerator] Director created {scene_count} scenes")
                 emit_progress(35, f"Phase 1 complete: {scene_count} scenes planned")
 
+                # Phase 1.5: Fetch images for scenes
+                emit_progress(36, "Fetching images for scenes...")
+                image_count = await self._fetch_scene_images()
+                if image_count > 0:
+                    emit_progress(37, f"Downloaded {image_count} images")
+
                 emit_progress(38, f"Phase 2: Animator implementing {scene_count} scenes...")
 
                 # Phase 2: Animator
@@ -3346,6 +3533,12 @@ async def main():
             print(json.dumps(director_result, indent=2))
             sys.stdout.flush()
             sys.exit(1)
+
+        # Phase 1.5: Fetch images for scenes
+        emit_progress(36, "Fetching images for scenes...")
+        image_count = await generator._fetch_scene_images()
+        if image_count > 0:
+            emit_progress(37, f"Downloaded {image_count} images")
 
         # Read plan files and output PLAN_READY signal for the worker to capture
         scenes_json_path = generator.src_dir / "scenes.json"

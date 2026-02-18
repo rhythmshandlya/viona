@@ -208,6 +208,38 @@ Use illustrations for:
 | 3D model/character | Yes - [3D REQUIRED] |
 
 This helps the Animator know when to use @remotion/three vs CSS transforms.
+
+### Images (Photos & Illustrations)
+The pipeline can automatically fetch **real photographs** from Pexels and **vector illustrations**
+from Freepik for your scenes. Tag image needs in your scene descriptions:
+
+- **[IMAGE: keyword]** — Request a photo or illustration for the scene
+
+Each image entry in scenes.json specifies:
+- `type`: `"photo"` (real photographs from Pexels) or `"illustration"` (vector art from Freepik)
+- `purpose`: How prominent the image should be:
+  - `"hero"` — Large, central focal point (60-80% of canvas)
+  - `"accent"` — Supporting visual element (30-50%)
+  - `"background"` — Full-bleed behind other elements, with overlay
+- `placement`: Where in the scene: `"center"`, `"background"`, `"left"`, or `"right"`
+- `description`: What the image should depict (helps with search)
+
+**When to use images vs icons:**
+| Need | Use |
+|------|-----|
+| Real-world objects, people, nature, places | `type: "photo"` (Pexels) |
+| Abstract concepts, processes, diagrams | `type: "illustration"` (Freepik vectors) |
+| UI elements, symbols, small accents | Icons (`[ICON: keyword]`) |
+| Data visualizations, charts | Hand-coded SVG (Animator) |
+
+**Example scene description:**
+```
+"visual": "[IMAGE: team brainstorming] A vibrant photo of a team collaborating fades in
+as the hero image, with [ICON: lightbulb] accents appearing around it."
+```
+
+**Budget constraints:** Max 2 images per scene, max 10 images total across all scenes.
+Images are downloaded before the Animator runs, so they're available as static files.
 </visual_requirements>
 
 <web_research>
@@ -507,7 +539,16 @@ Machine-readable with this structure:
       "connectsTo": "next scene connection",
       "requires3D": false,
       "icons": ["checkmark", "warning"],
-      "illustrations": ["concept search term if needed"]
+      "illustrations": ["concept search term if needed"],
+      "images": [
+        {{
+          "keyword": "search term for photo/illustration",
+          "type": "photo or illustration",
+          "purpose": "hero, accent, or background",
+          "description": "what the image should depict",
+          "placement": "center, background, left, or right"
+        }}
+      ]
     }}
   ]
 }}

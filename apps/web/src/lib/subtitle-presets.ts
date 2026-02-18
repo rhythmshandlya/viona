@@ -1,6 +1,6 @@
 import type { AnimationConfig, CaptionPosition, CaptionEffects } from '@viona/shared';
 
-export type PresetCategory = 'viral' | 'cinematic' | 'minimal' | 'ad';
+export type PresetCategory = 'viral' | 'cinematic' | 'minimal' | 'ad' | 'motion';
 
 export interface StrokeStyle {
   width: number;
@@ -679,6 +679,250 @@ export const SUBTITLE_PRESETS: Record<string, SubtitlePreset> = {
       textAlign: 'center',
     },
   },
+
+  // ============================================
+  // MOTION PRESETS - AutoAE-inspired animation templates
+  // ============================================
+
+  // Spotlight — cinematic light sweep with warm gold
+  'spotlight': {
+    id: 'spotlight',
+    name: 'Spotlight',
+    category: 'motion',
+    fontFamily: 'Playfair Display, serif',
+    fontSize: 52,
+    fontWeight: 700,
+    textTransform: 'none',
+    letterSpacing: 1,
+    color: '#ffffff',
+    activeColor: '#fbbf24',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 0, offsetY: 2, blur: 12, color: '#000000', opacity: 0.8 },
+      shadowSecondary: null,
+      glow: { enabled: true, color: '#fbbf24', intensity: 0.4, size: 20 },
+    },
+    animation: { in: 'spotlight-reveal', active: 'spotlight-reveal', out: 'fade', easing: 'ease-in-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Film Grain — retro film aesthetic with warm tones
+  'film-grain': {
+    id: 'film-grain',
+    name: 'Film Grain',
+    category: 'motion',
+    fontFamily: 'Georgia, Times New Roman, serif',
+    fontSize: 46,
+    fontWeight: 400,
+    textTransform: 'none',
+    letterSpacing: 0.5,
+    color: '#f5e6d0',
+    activeColor: '#ff9f43',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 1, offsetY: 1, blur: 6, color: '#000000', opacity: 0.7 },
+      shadowSecondary: null,
+      glow: { enabled: true, color: '#ff9f43', intensity: 0.3, size: 15 },
+    },
+    animation: { in: 'film-burn', active: 'none', out: 'film-burn', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'bottom',
+      offsetX: 0,
+      offsetY: 8,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Glitch Text — digital/cyberpunk with cyan/magenta
+  'glitch-text': {
+    id: 'glitch-text',
+    name: 'Glitch',
+    category: 'motion',
+    fontFamily: 'JetBrains Mono, Consolas, monospace',
+    fontSize: 50,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: 2,
+    color: '#ffffff',
+    activeColor: '#00ffff',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 2, offsetY: 0, blur: 0, color: '#ff00ff', opacity: 0.8 },
+      shadowSecondary: { offsetX: -2, offsetY: 0, blur: 0, color: '#00ffff', opacity: 0.8 },
+      glow: null,
+    },
+    animation: { in: 'glitch', active: 'glitch', out: 'glitch', easing: 'linear' },
+    displayMode: 'word-by-word',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Slam — heavy impact, bold uppercase
+  'slam': {
+    id: 'slam',
+    name: 'Slam',
+    category: 'motion',
+    fontFamily: 'Impact, Arial Black, sans-serif',
+    fontSize: 62,
+    fontWeight: 900,
+    textTransform: 'uppercase',
+    letterSpacing: 0,
+    color: '#ffffff',
+    activeColor: '#ef4444',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    stroke: { width: 3, color: '#000000' },
+    effects: {
+      shadow: { offsetX: 3, offsetY: 3, blur: 0, color: '#000000', opacity: 1 },
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'drop-slam', active: 'none', out: 'none', easing: 'bounce' },
+    displayMode: 'word-by-word',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Wave Bounce — playful bouncing wave
+  'wave-bounce': {
+    id: 'wave-bounce',
+    name: 'Wave',
+    category: 'motion',
+    fontFamily: 'Nunito, system-ui, sans-serif',
+    fontSize: 50,
+    fontWeight: 700,
+    textTransform: 'none',
+    color: '#ffffff',
+    activeColor: '#a78bfa',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 0, offsetY: 2, blur: 6, color: '#000000', opacity: 0.6 },
+      shadowSecondary: null,
+      glow: { enabled: true, color: '#a78bfa', intensity: 0.5, size: 18 },
+    },
+    animation: { in: 'bounce-up', active: 'wave', out: 'none', easing: 'spring' },
+    displayMode: 'word-by-word',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Versus — high contrast VS style with chromatic split
+  'versus': {
+    id: 'versus',
+    name: 'Versus',
+    category: 'motion',
+    fontFamily: 'Anton, Impact, sans-serif',
+    fontSize: 60,
+    fontWeight: 400,
+    textTransform: 'uppercase',
+    letterSpacing: 3,
+    color: '#ffffff',
+    activeColor: '#ff4444',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    stroke: { width: 2, color: '#000000' },
+    effects: {
+      shadow: { offsetX: 3, offsetY: 0, blur: 0, color: '#ff0000', opacity: 0.6 },
+      shadowSecondary: { offsetX: -3, offsetY: 0, blur: 0, color: '#0088ff', opacity: 0.6 },
+      glow: null,
+    },
+    animation: { in: 'chromatic-split', active: 'chromatic-split', out: 'chromatic-split', easing: 'ease-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Spin Entry — dynamic rotating entry
+  'spin-entry': {
+    id: 'spin-entry',
+    name: 'Spin Entry',
+    category: 'motion',
+    fontFamily: 'Poppins, system-ui, sans-serif',
+    fontSize: 52,
+    fontWeight: 700,
+    textTransform: 'none',
+    color: '#ffffff',
+    activeColor: '#22d3ee',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 0, offsetY: 2, blur: 8, color: '#000000', opacity: 0.7 },
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'spin-reveal', active: 'none', out: 'spin-reveal', easing: 'spring' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
+
+  // Zoom Focus — cinematic focus pull
+  'zoom-focus': {
+    id: 'zoom-focus',
+    name: 'Zoom Focus',
+    category: 'motion',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    fontSize: 50,
+    fontWeight: 600,
+    textTransform: 'none',
+    letterSpacing: -0.5,
+    color: '#ffffff',
+    activeColor: '#ffffff',
+    backgroundColor: 'transparent',
+    activeBackgroundColor: 'transparent',
+    effects: {
+      shadow: { offsetX: 0, offsetY: 0, blur: 12, color: '#000000', opacity: 0.6 },
+      shadowSecondary: null,
+      glow: null,
+    },
+    animation: { in: 'blur-zoom', active: 'none', out: 'blur-zoom', easing: 'ease-in-out' },
+    displayMode: 'phrase',
+    position: {
+      anchor: 'center',
+      offsetX: 0,
+      offsetY: 0,
+      rotation: 0,
+      textAlign: 'center',
+    },
+  },
 };
 
 export const PRESET_ORDER = [
@@ -690,6 +934,8 @@ export const PRESET_ORDER = [
   'default', 'minimal', 'box-highlight', 'classic',
   // Ad
   'apple-clean', 'google-material', 'ad-headline',
+  // Motion (AutoAE-inspired)
+  'spotlight', 'film-grain', 'glitch-text', 'slam', 'wave-bounce', 'versus', 'spin-entry', 'zoom-focus',
 ] as const;
 
 export const PRESET_CATEGORIES: { id: PresetCategory; label: string }[] = [
@@ -697,6 +943,7 @@ export const PRESET_CATEGORIES: { id: PresetCategory; label: string }[] = [
   { id: 'cinematic', label: 'Cinematic' },
   { id: 'minimal', label: 'Minimal' },
   { id: 'ad', label: 'Ad' },
+  { id: 'motion', label: 'Motion' },
 ];
 
 export const DEFAULT_PRESET_ID = 'mrbeast';
