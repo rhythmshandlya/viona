@@ -140,6 +140,8 @@ export interface PlanVisualsJobData {
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   styleGuide?: string;
+  sourceWidth?: number;
+  sourceHeight?: number;
 }
 
 export const planVisualsQueue = new Queue('plan-visuals', { connection });
