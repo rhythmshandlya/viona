@@ -294,6 +294,11 @@ interface VisualMetadata {
     endMs: number;
     type: string;
     description: string;
+    displayMode?: 'pip' | 'fullscreen' | 'overlay';
+    transition?: {
+      enter: { type: string; durationMs: number };
+      exit: { type: string; durationMs: number };
+    };
   }>;
 }
 
@@ -744,6 +749,8 @@ registerRoot(RemotionRoot);
             width: metadata.width,
             height: metadata.height,
             fps: metadata.fps,
+            displayMode: scene.displayMode || 'pip',
+            transition: scene.transition || undefined,
           },
         });
       }
