@@ -335,6 +335,13 @@ export interface VisualItemData {
   width: number;
   height: number;
   fps: number;
+  /** How this visual composites with speaker video. Defaults to 'pip' for backwards compat. */
+  displayMode?: 'pip' | 'fullscreen' | 'overlay';
+  /** Enter/exit transitions at segment boundaries */
+  transition?: {
+    enter: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
+    exit: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
+  };
 }
 
 export interface BrollItemData {
