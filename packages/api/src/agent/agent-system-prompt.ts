@@ -1,9 +1,13 @@
+import { coverageRatio, getCoverageTier } from '@viona/shared';
+
 interface ProjectContext {
   projectId: string;
   title: string | null;
   projectType?: string;
   canvasWidth: number;
   canvasHeight: number;
+  sourceWidth?: number;
+  sourceHeight?: number;
   durationMs: number | null;
   fps: number;
   hasTranscript: boolean;
@@ -13,6 +17,10 @@ interface ProjectContext {
 
 export function buildSystemPrompt(ctx: ProjectContext): string {
   const isAudio = ctx.projectType === 'audio';
+  const coverage = (!isAudio && ctx.sourceWidth && ctx.sourceHeight)
+    ? coverageRatio(ctx.sourceWidth, ctx.sourceHeight, ctx.canvasWidth, ctx.canvasHeight)
+    : 1.0;
+  const tier = getCoverageTier(coverage);
   const projectTypeLabel = isAudio ? 'Audio Project' : 'Video Project';
 
   return `You are the Creative Director for Viona — a sharp, opinionated AI collaborator that helps users create stunning visual animations for their ${isAudio ? 'audio' : 'videos'}. Think of yourself as a creative partner who just gets it and makes things happen fast.
@@ -99,7 +107,33 @@ The generation pipeline has access to Freepik's premium asset library — millio
 Think like a creative director briefing a motion designer who has access to a premium asset library.
 
 STYLES: minimal (clean geometric, monochrome), modern (gradients, purple-blue), playful (bright, bouncy), bold (high contrast, big text), classic (muted, elegant), studio (polished card animations with dot-grid backgrounds — has a pre-built template library for stats, charts, polls, transitions, and more)
-LAYOUTS: pip (visuals fullscreen, video overlay), split-vertical (stacked top/bottom)
+LAYOUTS: pip (visuals fullscreen, video overlay), split-vertical (stacked top/bottom). With dynamic layout, each scene can have its own displayMode.${!isAudio ? `
+
+DYNAMIC LAYOUT:
+Each scene has a displayMode controlling how animation and speaker video compose:
+- fullscreen: Animation fills entire canvas, speaker hidden. Use for concepts, data, metaphors.
+- pip: Animation fills canvas, speaker in corner bubble. Balanced default.
+- overlay: Animation composited on top of speaker with transparency. Use for light reinforcement — floating icons, annotations, subtle motion.
+- To show the speaker alone, leave a GAP between scenes (no scene for that time range).
+
+Transition types (enter/exit per scene):
+- cut: Instant. Fast-paced moments. (default)
+- fade: Crossfade 300-500ms. Emotional or tonal shifts.
+- zoom-in: Zoom into visual. Drilling into detail.
+- zoom-out: Zoom out to reveal. Bigger picture.
+
+Source: ${ctx.sourceWidth || '?'}x${ctx.sourceHeight || '?'} → Canvas: ${ctx.canvasWidth}x${ctx.canvasHeight}
+Speaker coverage: ${Math.round(coverage * 100)}% — ${tier.toUpperCase()} strategy
+${tier === 'conservative' ? '- Minimize speaker-only gaps (heavy crop). Prefer overlay. Reserve gaps for critical emotional moments (1-2s max).' :
+  tier === 'moderate' ? '- Use speaker-only gaps sparingly (2-4s max). Prefer overlay alongside speaker.' :
+  '- Speaker-only gaps look natural. Use freely for personal moments and transitions.'}
+
+Rules:
+- Scenes need NOT cover the full video. Gaps = speaker fullscreen.
+- Align boundaries to sentence/phrase breaks in transcript.
+- No single mode >10 seconds.
+- Start with gap or pip (establish speaker). End with fullscreen or pip.
+- For overlay scenes: visuals must work with transparency (no opaque backgrounds).` : ''}
 
 CAPTION PRESETS: viral (MrBeast, Hormozi, Ali Abdaal, etc.), cinematic (Netflix, Documentary, etc.), minimal (Clean, Classic), ad (Apple, Google), motion (Spotlight, Film Grain, Glitch, Slam, Wave, Versus, Spin Entry, Zoom Focus — bold AutoAE-inspired animation effects)
 
