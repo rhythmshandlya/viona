@@ -393,6 +393,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             width: (raw.width as number) || 1920,
             height: (raw.height as number) || 1080,
             fps: (raw.fps as number) || 30,
+            displayMode: (raw.displayMode as VisualDisplayMode) || undefined,
+            transition: (raw.transition as VisualItemData['transition']) || undefined,
           } as VisualItemData,
         };
 
@@ -592,6 +594,21 @@ export const useEditorStore = create<EditorStore>()(
             };
           });
 
+        // Also save visual items (displayMode, transition, timing changes)
+        const visualItems = itemIds
+          .map((id) => items[id])
+          .filter((item) => item.type === 'visual')
+          .map((item) => ({
+            id: item.id,
+            trackId: item.trackId,
+            type: 'visual' as const,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: item.data as unknown as Record<string, unknown>,
+          }));
+
+        const allItems = [...apiItems, ...visualItems];
+
         // Collect IDs of all caption items currently in the editor
         // The API will delete any DB caption items NOT in this list (from split/merge)
         const captionItemIds = apiItems.map((item) => item.id);
@@ -604,7 +621,7 @@ export const useEditorStore = create<EditorStore>()(
         };
 
         await api.updateProject(project.id, {
-          items: apiItems,
+          items: allItems,
           captionItemIds,
           videoSettings: videoSettingsPayload,
         });
@@ -1768,6 +1785,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
     },
 
     // ========================================

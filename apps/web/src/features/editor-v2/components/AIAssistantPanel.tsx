@@ -42,7 +42,10 @@ interface WidgetBlock {
       frames?: [number, number] | null;
       icons?: string[];
       displayMode?: 'pip' | 'fullscreen' | 'overlay';
-      transition?: string;
+      transition?: {
+        enter: { type: string; durationMs: number };
+        exit: { type: string; durationMs: number };
+      };
     }>;
     scenePlanMarkdown?: string;
     metadata?: {
