@@ -27,8 +27,5 @@ export {
 } from './fonts';
 
 // Register all templates
-import './templates/product-launch/register';
-import './templates/tutorial-intro/register';
-import './templates/social-promo/register';
 import './templates/headline-storm/register';
 import './templates/watercolor-map/register';
