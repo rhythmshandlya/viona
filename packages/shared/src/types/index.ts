@@ -302,6 +302,58 @@ export interface VisualData {
 }
 
 // ============================================
+// Dynamic Layout Types
+// ============================================
+
+/** How a visual item composites with the speaker video */
+export type DisplayMode = 'pip' | 'fullscreen' | 'overlay';
+
+/** Transition type for layout segment boundaries */
+export type LayoutTransitionType = 'cut' | 'fade' | 'zoom-in' | 'zoom-out';
+
+/** Enter/exit transition for a visual layout segment */
+export interface LayoutTransition {
+  enter: { type: LayoutTransitionType; durationMs: number };
+  exit: { type: LayoutTransitionType; durationMs: number };
+}
+
+export const DEFAULT_LAYOUT_TRANSITION: LayoutTransition = {
+  enter: { type: 'cut', durationMs: 0 },
+  exit: { type: 'cut', durationMs: 0 },
+};
+
+/**
+ * Calculate what percentage of the source frame is visible when
+ * cover-fitting it into the canvas. Used by the Director to decide
+ * how aggressively to use speaker-only gaps.
+ *
+ * Returns a number between 0 and 1:
+ *   1.0 = perfect fit (same aspect ratio)
+ *   0.31 = 16:9 source on 9:16 canvas (heavy crop)
+ */
+export function coverageRatio(
+  sourceW: number,
+  sourceH: number,
+  canvasW: number,
+  canvasH: number,
+): number {
+  if (sourceW <= 0 || sourceH <= 0 || canvasW <= 0 || canvasH <= 0) return 1;
+  const sourceAR = sourceW / sourceH;
+  const canvasAR = canvasW / canvasH;
+  return sourceAR > canvasAR
+    ? canvasAR / sourceAR
+    : sourceAR / canvasAR;
+}
+
+export type CoverageTier = 'flexible' | 'moderate' | 'conservative';
+
+export function getCoverageTier(ratio: number): CoverageTier {
+  if (ratio > 0.8) return 'flexible';
+  if (ratio >= 0.5) return 'moderate';
+  return 'conservative';
+}
+
+// ============================================
 // Audio Types (Future)
 // ============================================
 
