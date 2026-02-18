@@ -1771,34 +1771,36 @@ professional motion design studio, not a coding tutorial.
 
 | Visual Need | Use | Why |
 |------------|-----|-----|
-| UI icons (arrows, chevrons, checkmarks) | Iconify `search_icons` → `get_icon` | Consistent sets, clean stroke/fill |
-| Concept icons (lightbulb, rocket, gear) | Iconify `search_icons` → `get_icon` | Fast, many variations across collections |
-| Multiple matching icons from one set | Iconify (pick a prefix like `lucide:`) | Collections ensure consistency |
+| Hero/featured icons (main visual focus) | Freepik `search_icons` → `download_icon_by_id` (SVG) | Premium polish, gradients, detail |
+| Polished concept visuals (AI, cloud, growth) | Freepik `search_icons` → `download_icon_by_id` (SVG) | Professional quality, unique designs |
 | Premium illustrations (isometric, 3D) | Freepik `search_resources` → `download_resource_by_id` | Hand-drawn quality impossible with code |
 | Photos, textures, backgrounds | Freepik `search_resources` → `download_resource_by_id` | Only source for photos |
-| Branded/complex visuals | Freepik `search_icons` → `download_icon_by_id` | Premium library |
+| UI/supporting icons (arrows, chevrons, checkmarks) | Iconify `search_icons` → `get_icon` | Consistent sets, clean stroke/fill |
+| Multiple matching icons from one set | Iconify (pick a prefix like `lucide:`) | Collections ensure consistency |
 | Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values |
-| Flowcharts / process diagrams | Hand-coded SVG with Iconify/Freepik icons as nodes | Best of both |
+| Flowcharts / process diagrams | Hand-coded SVG with Freepik/Iconify icons as nodes | Best of both |
 
-**RULE: For simple/UI icons, start with Iconify (faster, consistent sets). For rich visuals and illustrations, use Freepik. Only hand-code SVGs for dynamic data.**
+**RULE: Use BOTH sources in every generation. Freepik for hero visuals, featured icons, and illustrations. Iconify for supporting UI icons and consistent icon sets. Only hand-code SVGs for dynamic data.**
+
+**MINIMUM USAGE: Every generation MUST use at least one Freepik asset (icon or illustration). Iconify supplements with clean UI icons. Do NOT use only one source — the whole point is leveraging both libraries.**
 
 ### HOW TO SEARCH EFFECTIVELY
 
-**Iconify (better-icons):**
-- `search_icons` with query: "arrow right", "chart bar", "cloud server"
-- Search CONCEPTS, not literal descriptions
-- Get SVG: `get_icon` with icon ID like "lucide:arrow-right" returns SVG markup directly
-- Popular prefixes: lucide, mdi, heroicons, tabler, ph (phosphor)
-- Use `find_similar_icons` to explore variations across collections
-- Use `recommend_icons` when unsure which icon fits a concept
-
-**Freepik:**
+**Freepik (search FIRST for hero/featured visuals):**
 - `search_icons` with `term` parameter: "cloud computing", "server rack", "neural network"
 - Filter by shape: "fill" for solid icons, "outline" for line icons
 - Filter by icon_type: ["standard"] for static, ["animated"] for motion
 - `search_resources` with `term` and content_type filter: {{ content_type: {{ vector: 1 }} }}
 - Prefer vectors over photos — cleaner scaling, transparent backgrounds
 - Try 2-3 search terms if the first doesn't match
+
+**Iconify (better-icons — for supporting/UI icons):**
+- `search_icons` with query: "arrow right", "chart bar", "cloud server"
+- Search CONCEPTS, not literal descriptions
+- Get SVG: `get_icon` with icon ID like "lucide:arrow-right" returns SVG markup directly
+- Popular prefixes: lucide, mdi, heroicons, tabler, ph (phosphor)
+- Use `find_similar_icons` to explore variations across collections
+- Use `recommend_icons` when unsure which icon fits a concept
 
 ### HOW TO USE DOWNLOADED ASSETS
 
