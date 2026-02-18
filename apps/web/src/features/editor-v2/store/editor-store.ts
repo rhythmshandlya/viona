@@ -25,6 +25,7 @@ import {
   VideoItemData,
   AudioItemData,
   VisualItemData,
+  VisualDisplayMode,
   VideoSettings,
   CaptionStyle,
   AnimationConfig,
@@ -1759,7 +1760,7 @@ export const useEditorStore = create<EditorStore>()(
     // Visual Display Mode Actions
     // ========================================
 
-    updateVisualDisplayMode: (itemId: string, displayMode: 'pip' | 'fullscreen' | 'overlay') => {
+    updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => {
       set((state) => {
         const item = state.items[itemId];
         if (item?.type === 'visual') {

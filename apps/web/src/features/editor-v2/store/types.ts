@@ -325,6 +325,8 @@ export interface ImageItemData {
   opacity: number;
 }
 
+export type VisualDisplayMode = 'pip' | 'fullscreen' | 'overlay';
+
 export interface VisualItemData {
   visualId: string;
   compositionId: string;
@@ -336,7 +338,7 @@ export interface VisualItemData {
   height: number;
   fps: number;
   /** How this visual composites with speaker video. Defaults to 'pip' for backwards compat. */
-  displayMode?: 'pip' | 'fullscreen' | 'overlay';
+  displayMode?: VisualDisplayMode;
   /** Enter/exit transitions at segment boundaries */
   transition?: {
     enter: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
@@ -648,7 +650,7 @@ export interface EditorActions {
   requestAIEdit: (item: TimelineItem) => void;
 
   // Visual display mode
-  updateVisualDisplayMode: (itemId: string, displayMode: 'pip' | 'fullscreen' | 'overlay') => void;
+  updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => void;
 
   // Safe zone actions
   setSafeZonePlatform: (platform: string) => void;
