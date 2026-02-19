@@ -337,6 +337,10 @@ export interface VisualItemData {
   width: number;
   height: number;
   fps: number;
+  /** Effective viewport width for this scene (may differ from width for pip-in-split) */
+  effectiveWidth?: number;
+  /** Effective viewport height for this scene (may differ from height for pip-in-split) */
+  effectiveHeight?: number;
   /** How this visual composites with speaker video. Defaults to 'pip' for backwards compat. */
   displayMode?: VisualDisplayMode;
   /** Enter/exit transitions at segment boundaries */

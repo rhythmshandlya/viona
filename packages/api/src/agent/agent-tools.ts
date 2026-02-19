@@ -634,13 +634,16 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           const canvasHeight =
             (project.videoSettings as Record<string, unknown>)?.canvasHeight as number | undefined ?? 1920;
 
-          // Audio projects always use full canvas (no split/PiP with video)
-          let dimensions = { width: canvasWidth, height: canvasHeight };
+          // Always generate at full canvas dimensions
+          const dimensions = { width: canvasWidth, height: canvasHeight };
+
+          // Compute per-displayMode effective dimensions for pip scenes
+          let pipEffective = { width: canvasWidth, height: canvasHeight };
           if (!isAudioProject) {
             if (layoutMode === 'split-horizontal') {
-              dimensions = { width: Math.round(canvasWidth / 2), height: canvasHeight };
+              pipEffective = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
             } else if (layoutMode === 'split-vertical') {
-              dimensions = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
+              pipEffective = { width: Math.round(canvasWidth / 2), height: canvasHeight };
             }
           }
 
@@ -659,6 +662,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
+            pipEffective,
             styleGuide,
             sourceWidth: project.sourceWidth ?? undefined,
             sourceHeight: project.sourceHeight ?? undefined,
@@ -791,13 +795,16 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           const canvasWidth = (videoSettings.canvasWidth as number | undefined) ?? 1080;
           const canvasHeight = (videoSettings.canvasHeight as number | undefined) ?? 1920;
 
-          // Audio projects always use full canvas (no split/PiP with video)
-          let dimensions = { width: canvasWidth, height: canvasHeight };
+          // Always generate at full canvas dimensions
+          const dimensions = { width: canvasWidth, height: canvasHeight };
+
+          // Compute per-displayMode effective dimensions for pip scenes
+          let pipEffective = { width: canvasWidth, height: canvasHeight };
           if (!isAudioProject) {
             if (layoutMode === 'split-horizontal') {
-              dimensions = { width: Math.round(canvasWidth / 2), height: canvasHeight };
+              pipEffective = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
             } else if (layoutMode === 'split-vertical') {
-              dimensions = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
+              pipEffective = { width: Math.round(canvasWidth / 2), height: canvasHeight };
             }
           }
 
@@ -816,6 +823,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
+            pipEffective,
             planJobId,
           });
 

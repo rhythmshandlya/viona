@@ -275,6 +275,8 @@ export interface GenerateVisualsJobData {
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
+  /** Effective dimensions for pip scenes in split layouts */
+  pipEffective?: VisualsDimensions;
   /** User-provided style/layout guidance for the Director agent */
   styleGuide?: string;
   /** Enable verbose logging for debugging */
@@ -391,7 +393,19 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     createProjectDir(compositionId);
     logger.info({ projectDir, compositionId }, 'Created fresh project directory');
 
+    // Write head tracking data for spatial overlay awareness
+    if (project.headTrackingData) {
+      const htPath = join(projectDir, 'head_tracking.json');
+      await writeFile(htPath, JSON.stringify(project.headTrackingData), 'utf-8');
+      logger.info({ projectDir }, 'Wrote head_tracking.json for spatial overlay');
+    }
+
     // If this is an Animator-only run (plan was created separately), write plan files to project dir
+    // Also enrich scenes.json with per-scene effectiveDimensions
+    const canvasWidth = dimensions?.width || 1080;
+    const canvasHeight = dimensions?.height || 1920;
+    const pipEffective = job.data.pipEffective || { width: canvasWidth, height: canvasHeight };
+
     if (job.data.planJobId) {
       const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.data.planJobId) });
       if (planJob?.planData) {
@@ -399,8 +413,20 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
         const scenePlanPath = join(projectDir, 'SCENE_PLAN.md');
         const scenesJsonPath = join(projectDir, 'scenes.json');
         await writeFile(scenePlanPath, pd.scenePlan, 'utf-8');
-        await writeFile(scenesJsonPath, JSON.stringify(pd.scenes, null, 2), 'utf-8');
-        logger.info({ projectDir, planJobId: job.data.planJobId }, 'Wrote plan files from plan job for Animator-only run');
+
+        // Enrich scenes with per-scene effectiveDimensions before writing
+        const scenesObj = pd.scenes as Record<string, unknown>;
+        const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+        for (const scene of scenesArray) {
+          const dm = (scene.displayMode as string) || 'pip';
+          if (dm === 'fullscreen' || dm === 'overlay') {
+            scene.effectiveDimensions = { width: canvasWidth, height: canvasHeight };
+          } else {
+            scene.effectiveDimensions = { width: pipEffective.width, height: pipEffective.height };
+          }
+        }
+        await writeFile(scenesJsonPath, JSON.stringify({ ...scenesObj, scenes: scenesArray }, null, 2), 'utf-8');
+        logger.info({ projectDir, planJobId: job.data.planJobId, sceneCount: scenesArray.length }, 'Wrote enriched plan files from plan job for Animator-only run');
       } else {
         logger.warn({ planJobId: job.data.planJobId }, 'Plan job not found or has no planData');
       }
@@ -498,12 +524,14 @@ registerRoot(RemotionRoot);
       words,  // Always pass words for two-phase pipeline
       durationFrames,
       fps: project.fps || 30,
-      width: dimensions?.width || 1080,
-      height: dimensions?.height || 1920,
+      width: canvasWidth,
+      height: canvasHeight,
       stylePreset: stylePreset || 'modern',
       layoutMode: layoutMode || 'pip',
       styleGuide,
       planJobId: job.data.planJobId,
+      pipWidth: pipEffective.width,
+      pipHeight: pipEffective.height,
     });
 
     // Store metrics in job (no token cost for OAuth)
@@ -625,8 +653,8 @@ registerRoot(RemotionRoot);
         compositionId,
         durationInFrames: durationFrames,
         fps: project.fps || 30,
-        width: dimensions?.width || 1920,
-        height: dimensions?.height || 1080,
+        width: canvasWidth,
+        height: canvasHeight,
         visuals: [{
           startMs: 0,
           endMs: project.durationMs || 60000,
@@ -737,6 +765,13 @@ registerRoot(RemotionRoot);
 
       // Create one timeline item per scene so they appear as separate blocks on the track
       for (const scene of metadata.visuals) {
+        // Compute per-scene effective dimensions
+        const sceneDm = scene.displayMode || 'pip';
+        const sceneEffectiveW = (sceneDm === 'fullscreen' || sceneDm === 'overlay')
+          ? canvasWidth : pipEffective.width;
+        const sceneEffectiveH = (sceneDm === 'fullscreen' || sceneDm === 'overlay')
+          ? canvasHeight : pipEffective.height;
+
         await tx.insert(timelineItems).values({
           trackId: visualsTrack.id,
           type: 'visual',
@@ -748,10 +783,12 @@ registerRoot(RemotionRoot);
             bundleUrl,
             type: scene.type || 'visual',
             description: scene.description || 'AI-generated visual',
-            width: metadata.width,
-            height: metadata.height,
+            width: canvasWidth,
+            height: canvasHeight,
             fps: metadata.fps,
-            displayMode: scene.displayMode || 'pip',
+            effectiveWidth: sceneEffectiveW,
+            effectiveHeight: sceneEffectiveH,
+            displayMode: sceneDm,
             transition: scene.transition || undefined,
           },
         });
@@ -834,6 +871,9 @@ interface ClaudeCodeOptions {
   styleGuide?: string;
   /** If set, run only the Animator phase (plan already exists in project dir) */
   planJobId?: string;
+  /** Effective pip dimensions for per-scene dimension-aware generation */
+  pipWidth?: number;
+  pipHeight?: number;
 }
 
 /**
@@ -845,7 +885,7 @@ interface ClaudeCodeOptions {
 async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId } = options;
+  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId, pipWidth, pipHeight } = options;
 
   const pythonPath = config.pythonPath;
   const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
@@ -903,6 +943,12 @@ async function runClaudeCodeGenerator(
     // Add style guide path if provided
     if (styleGuidePath) {
       args.push('--style-guide', styleGuidePath);
+    }
+
+    // Add pip effective dimensions for per-scene dimension-aware generation
+    if (pipWidth && pipHeight) {
+      args.push('--pip-width', String(pipWidth));
+      args.push('--pip-height', String(pipHeight));
     }
 
     // If planJobId is set, skip Director and run Animator only

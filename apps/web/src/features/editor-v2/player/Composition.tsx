@@ -31,6 +31,7 @@ import {
   VisualItemData,
   PiPSettings,
   SplitSettings,
+  LayoutMode,
   PIP_SIZE_MAP,
   CaptionPosition,
   CaptionEffects,
@@ -349,15 +350,12 @@ export function Composition() {
     overflow: 'hidden',
   };
 
-  // For pip mode with visuals (non-audio), delegate to DynamicLayoutComposition
+  // For non-audio projects with visuals, delegate to DynamicLayoutComposition
   // which switches compositing mode per-frame based on each item's displayMode.
-  // Split modes and audio projects keep the original static layout path.
-  const useDynamicLayout =
-    !isAudioProject &&
-    effectiveHasVisuals &&
-    (mode === 'pip' || (mode !== 'split-horizontal' && mode !== 'split-vertical'));
+  // This supports pip, split-horizontal, and split-vertical layout modes.
+  const useDynamicLayout = !isAudioProject && effectiveHasVisuals;
 
-  // Calculate styles for the STATIC layout path (audio, split, no visuals)
+  // Calculate styles for the STATIC layout path (audio project or no visuals)
   let videoContainerStyle: React.CSSProperties;
   let visualContainerStyle: React.CSSProperties;
   let showVideo = true;
@@ -401,27 +399,31 @@ export function Composition() {
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
-      {/* Dynamic layout: per-frame compositing for pip mode */}
+      {/* Dynamic layout: per-frame compositing with displayMode switching */}
       {useDynamicLayout && (
         <DynamicLayoutComposition
           fps={fps}
           visualItems={visualItems}
           videoItems={videoItems}
           pip={pip}
+          split={split}
+          mode={mode}
+          canvasWidth={videoSettings?.canvasWidth || 1920}
+          canvasHeight={videoSettings?.canvasHeight || 1080}
           transform={transform}
           hasSeparateAudio={hasSeparateAudio}
           fullScreenStyle={fullScreenStyle}
         />
       )}
 
-      {/* Static visual container (audio project / split modes) */}
+      {/* Static visual container (audio project / no dynamic layout) */}
       {showVisuals && (
         <div style={visualContainerStyle}>
           <VisualSequences visualItems={visualItems} fps={fps} />
         </div>
       )}
 
-      {/* Static video container (split modes / no visuals) */}
+      {/* Static video container (audio project / no visuals) */}
       {showVideo && (
         <div style={videoContainerStyle}>
           <VideoSequences
@@ -487,7 +489,9 @@ export function Composition() {
 // Extracted sub-components for visual and video sequences
 // ---------------------------------------------------------------------------
 
-/** Renders grouped visual item Sequences (shared by static and dynamic paths) */
+/** Renders grouped visual item Sequences (shared by static and dynamic paths).
+ *  Visuals are generated at full canvas dimensions with per-scene effective areas.
+ *  The container clips via overflow:hidden — no contain-fit scaling needed. */
 function VisualSequences({
   visualItems,
   fps,
@@ -680,6 +684,10 @@ interface DynamicLayoutProps {
   visualItems: TimelineItem[];
   videoItems: TimelineItem[];
   pip: PiPSettings;
+  split: SplitSettings;
+  mode: LayoutMode;
+  canvasWidth: number;
+  canvasHeight: number;
   transform: { scale: number; translateX: number; translateY: number };
   hasSeparateAudio: boolean;
   fullScreenStyle: React.CSSProperties;
@@ -690,9 +698,10 @@ interface DynamicLayoutProps {
  * On each frame it looks up the active visual item and picks the
  * compositing mode from `item.data.displayMode`:
  *   - gap (no item)   → speaker video fullscreen
- *   - 'pip'           → visual fullscreen + video as PiP bubble
- *   - 'fullscreen'    → visual fullscreen, video hidden
- *   - 'overlay'       → video fullscreen + visual on top at 0.7 opacity
+ *   - 'pip'           → pip mode: visual fullscreen + video as PiP bubble
+ *                        split modes: side-by-side layout (top/bottom or left/right)
+ *   - 'fullscreen'    → visual fullscreen, video hidden (all layouts)
+ *   - 'overlay'       → video fullscreen + visual on top at 0.7 opacity (all layouts)
  *
  * Enter/exit transitions (fade, zoom) are applied at item boundaries.
  */
@@ -701,6 +710,10 @@ function DynamicLayoutComposition({
   visualItems,
   videoItems,
   pip,
+  split,
+  mode,
+  canvasWidth,
+  canvasHeight,
   transform,
   hasSeparateAudio,
   fullScreenStyle,
@@ -776,26 +789,53 @@ function DynamicLayoutComposition({
   const showVisualLayer = !isGap;
   const hideVideoCompletely = !isGap && displayMode === 'fullscreen';
 
+  // For split modes, displayMode 'pip' means "use the split layout" (the default compositing)
+  const isSplitMode = mode === 'split-horizontal' || mode === 'split-vertical';
+  const useSplitLayout = isSplitMode && displayMode === 'pip' && !isGap;
+
   // Video layer style
   let videoLayerStyle: React.CSSProperties;
-  if (isGap || displayMode === 'overlay') {
+  let visualLayerStyle: React.CSSProperties;
+
+  if (useSplitLayout) {
+    // Split layout: video and visuals side-by-side
+    const isHorizontal = mode === 'split-horizontal';
+    const styles = buildSplitStyles(split, isHorizontal);
+    videoLayerStyle = styles.videoStyle;
+    visualLayerStyle = {
+      ...styles.visualsStyle,
+      opacity: transitionOpacity,
+      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
+      transformOrigin: 'center center',
+    };
+  } else if (isGap || displayMode === 'overlay') {
     // Fullscreen video (speaker-only gap or overlay background)
     videoLayerStyle = fullScreenStyle;
+    visualLayerStyle = {
+      ...fullScreenStyle,
+      opacity: transitionOpacity,
+      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
+      transformOrigin: 'center center',
+    };
   } else if (displayMode === 'pip') {
     // Video as PiP bubble on top of visual
     videoLayerStyle = buildPiPStyle(pip);
+    visualLayerStyle = {
+      ...fullScreenStyle,
+      opacity: transitionOpacity,
+      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
+      transformOrigin: 'center center',
+    };
   } else {
     // displayMode === 'fullscreen' — video hidden
     videoLayerStyle = { display: 'none' };
+    visualLayerStyle = {
+      ...fullScreenStyle,
+      opacity: transitionOpacity,
+      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
+      transformOrigin: 'center center',
+    };
   }
-
-  // Visual layer style — always fullscreen when visible, but with transition effects
-  const visualLayerStyle: React.CSSProperties = {
-    ...fullScreenStyle,
-    opacity: transitionOpacity,
-    transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-    transformOrigin: 'center center',
-  };
 
   // For overlay mode, visuals sit on top of video at reduced opacity
   const overlayVisualStyle: React.CSSProperties = {
@@ -807,15 +847,21 @@ function DynamicLayoutComposition({
   };
 
   // Determine whether the video should use simple (cover) or crop/pan rendering
-  // In dynamic mode, PiP uses simple render; fullscreen/overlay/gap use crop/pan
+  // PiP bubble and split modes use simple render; fullscreen/overlay/gap use crop/pan
   const videoUseSimpleRender = !isGap && displayMode === 'pip';
+
+  // No contain-fit scaling needed — visuals are generated at full canvas dimensions
+  // with per-scene effective areas. The container clips via overflow:hidden.
 
   return (
     <>
-      {/* Visual layer (behind video for pip, on top for overlay) */}
+      {/* Visual layer (behind video for pip/split, on top for overlay) */}
       {displayMode !== 'overlay' && showVisualLayer && (
         <div style={visualLayerStyle}>
-          <VisualSequences visualItems={visualItems} fps={fps} />
+          <VisualSequences
+            visualItems={visualItems}
+            fps={fps}
+          />
         </div>
       )}
 
@@ -835,7 +881,10 @@ function DynamicLayoutComposition({
       {/* Overlay mode: visual on top of video at reduced opacity */}
       {displayMode === 'overlay' && showVisualLayer && (
         <div style={overlayVisualStyle}>
-          <VisualSequences visualItems={visualItems} fps={fps} />
+          <VisualSequences
+            visualItems={visualItems}
+            fps={fps}
+          />
         </div>
       )}
     </>

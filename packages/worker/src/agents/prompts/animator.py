@@ -437,16 +437,18 @@ professional motion design studio, not a coding tutorial.
 
 ### DECISION FRAMEWORK — What to use when
 
-| Visual Need | Use | Why |
-|------------|-----|-----|
-| Any icon (arrows, UI, concepts) | Freepik `search_icons` → `download_icon_by_id` (format="svg") | Professional, consistent, polished |
-| Illustrations (objects, scenes, people) | Freepik `search_resources` (vector) | Hand-drawn quality impossible with code |
-| Background textures/patterns | Freepik `search_resources` (vector) | Rich visual depth |
+| Visual Need | Tool | Remotion Usage |
+|------------|------|----------------|
+| Icons (arrows, UI, concepts) | Freepik `search_icons` → `download_file` | Inline SVG in JSX, animate with spring |
+| Illustrations (objects, scenes) | Freepik `search_resources` → `download_file` | `<Img src={{staticFile('assets/...')}} />` |
+| Real-world product/app screenshots | `mcp__assets__screenshot` | `<Img>` with zoom/pan/highlight animations |
+| Stock photos (people, places, concepts) | `search_unsplash`/`search_pexels` → `download_stock_photo` | `<Img>` with Ken Burns, overlays, masks |
 | Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
 | Flowcharts / process diagrams | Hand-coded SVG with Freepik icons as nodes | Best of both — structure + polish |
-| Abstract concepts (AI, growth, speed) | Freepik illustration + animation overlay | Conveys concept instantly |
+| Company logos / branding | Freepik `search_icons` ("youtube", "google") → `download_file` | Inline SVG — NEVER hand-draw a logo |
+| Code snippets / terminal | Hand-coded with syntax highlighting | Typed-in animation |
 
-**RULE: Default to Freepik. Only hand-code SVGs for dynamic data (counters, charts, graphs).**
+**RULE: Default to Freepik for icons/illustrations/logos. Use screenshots for websites/apps. Use stock photos for real-world subjects. Only hand-code SVGs for dynamic data.**
 
 ### HOW TO SEARCH EFFECTIVELY
 
@@ -469,20 +471,20 @@ professional motion design studio, not a coding tutorial.
 **Icons (SVG) — inline in JSX:**
 1. mcp__freepik__search_icons → pick best result → optionally mcp__freepik__get_icon_detail_by_id to check details
 2. mcp__freepik__download_icon_by_id with id and format="svg" → returns {{ data: {{ url, filename }} }}
-3. Download with Bash: `curl -sL -o public/assets/icon-name.svg "URL"`
-3. Read the SVG file content with the Read tool
-4. Paste the SVG markup directly into your JSX component
-5. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
-6. Use `currentColor` for dynamic coloring: wrap in div with `color: COLORS.accent`
-7. Animate the wrapper with spring/interpolate
+3. mcp__assets__download_file with the url and filename="icon-name.svg"
+4. Read the SVG file content with the Read tool
+5. Paste the SVG markup directly into your JSX component
+6. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
+7. Use `currentColor` for dynamic coloring: wrap in div with `color: COLORS.accent`
+8. Animate the wrapper with spring/interpolate
 
 **Resources (images/illustrations) — use staticFile:**
 1. mcp__freepik__search_resources → pick best result → optionally mcp__freepik__get_resource_detail_by_id to check details
 2. mcp__freepik__download_resource_by_id with resource-id → returns {{ data: {{ url, filename }} }}
-2. Download: `curl -sL -o public/assets/illustration.png "URL"`
-3. In component: `<Img src={{staticFile('assets/illustration.png')}} style={{...}} />`
-4. Import Img from remotion: `import {{ Img, staticFile }} from 'remotion';`
-5. Animate with opacity, scale, position transforms
+3. mcp__assets__download_file with the url and filename="illustration.png"
+4. In component: `<Img src={{staticFile('assets/illustration.png')}} style={{...}} />`
+5. Import Img from remotion: `import {{ Img, staticFile }} from 'remotion';`
+6. Animate with opacity, scale, position transforms
 
 ### ANIMATION WITH ASSETS
 
@@ -509,9 +511,10 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 - **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing Freepik.
 - **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. Match icon colors to the style preset's color scheme.
 - **FALLBACK**: ONLY if the download tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG. "I want more control" or "for speed" are NOT valid reasons to skip downloads.
+- **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Spotify, etc.) must ALWAYS be downloaded from Freepik — search the company name. Hand-drawn logos look amateur and are often inaccurate.
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
-- **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any assets, run `mkdir -p public/assets` in Bash.
+- **ASSET DIRECTORY**: The `mcp__assets__download_file` tool automatically creates `public/assets/` — no need to mkdir manually.
 
 ### PRE-FETCHED IMAGES (Photos & Illustrations)
 
@@ -570,6 +573,138 @@ const imgOpacity = interpolate(localFrame, [entryFrame, entryFrame + 15], [0, 1]
 - If an image entry is missing `remotionPath`, skip it — the download may have failed
 - Do NOT try to fetch images yourself — they are already in `public/assets/images/`
 - Always wrap images in containers with `overflow: 'hidden'` and `borderRadius` for polish
+
+### WEBSITE SCREENSHOTS
+
+Use screenshots when the transcript references a specific website, app UI, dashboard, or tool.
+
+**Workflow:**
+1. mcp__assets__screenshot with url, filename, optional width/height
+2. In composition: `<Img src={{staticFile('assets/screenshot.png')}} style={{{{...}}}} />`
+
+**Animation patterns for screenshots:**
+- **Browser frame mockup**: Wrap screenshot in a rounded-corner container with a fake
+  address bar to make it look like a browser window
+- **Zoom-to-region**: Start with the full page, then use scale + translate to zoom
+  into a specific area the narrator is discussing
+- **Scroll reveal**: Use translateY animation to simulate scrolling down a page
+- **Highlight overlay**: Overlay a semi-transparent colored box that pulses to draw
+  attention to a specific UI element
+
+**Example — screenshot with browser chrome + zoom:**
+```tsx
+const zoomProgress = interpolate(frame, [30, 90], [1, 2.5], {{{{ extrapolateRight: 'clamp' }}}});
+const panX = interpolate(frame, [30, 90], [0, -200], {{{{ extrapolateRight: 'clamp' }}}});
+const panY = interpolate(frame, [30, 90], [0, -150], {{{{ extrapolateRight: 'clamp' }}}});
+
+<div style={{{{
+  borderRadius: 12, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)',
+  boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+}}}}>
+  {{/* Browser chrome bar */}}
+  <div style={{{{ height: 32, background: '#1e1e2e', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6 }}}}>
+    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }}}} />
+    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }}}} />
+    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }}}} />
+  </div>
+  {{/* Screenshot with zoom */}}
+  <div style={{{{ overflow: 'hidden' }}}}>
+    <Img
+      src={{staticFile('assets/website-screenshot.png')}}
+      style={{{{
+        width: '100%', display: 'block',
+        transform: `scale(${{zoomProgress}}) translate(${{panX}}px, ${{panY}}px)`,
+        transformOrigin: 'top left',
+      }}}}
+    />
+  </div>
+</div>
+```
+
+### STOCK PHOTOS (Unsplash + Pexels)
+
+Use stock photos when the transcript discusses real-world concepts that benefit from
+photographic imagery (people, nature, cities, objects, abstract textures).
+
+**Workflow:**
+1. mcp__assets__search_unsplash or mcp__assets__search_pexels with a descriptive query
+2. Pick the best result from returned list
+3. mcp__assets__download_stock_photo with the photo's download URL and filename
+4. In composition: `<Img src={{staticFile('assets/photo.jpg')}} style={{{{...}}}} />`
+
+**When to use photos vs illustrations:**
+- Photos: Real-world subjects, emotional impact, establishing shots, hero backgrounds
+- Illustrations/vectors: Abstract concepts, diagrams, icons, technical content
+
+**Animation patterns for photos:**
+- **Ken Burns**: Slow zoom + pan creates cinematic motion from a still image
+- **Parallax layers**: Photo as background, animated elements in foreground
+- **Color overlay**: Semi-transparent gradient over photo to match color palette
+- **Mask reveal**: Clip-path or opacity mask that reveals the photo progressively
+- **Split comparison**: Two photos side by side with a sliding divider
+
+**Example — Ken Burns effect:**
+```tsx
+const zoom = interpolate(frame, [0, durationInFrames], [1, 1.15], {{{{ extrapolateRight: 'clamp' }}}});
+const panX = interpolate(frame, [0, durationInFrames], [0, -30], {{{{ extrapolateRight: 'clamp' }}}});
+
+<div style={{{{ overflow: 'hidden', borderRadius: 16, width: '80%', margin: '0 auto' }}}}>
+  <Img
+    src={{staticFile('assets/hero-photo.jpg')}}
+    style={{{{
+      width: '100%', display: 'block',
+      transform: `scale(${{zoom}}) translateX(${{panX}}px)`,
+    }}}}
+  />
+  {{/* Color overlay to match palette */}}
+  <div style={{{{
+    position: 'absolute', inset: 0,
+    background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.2))',
+  }}}} />
+</div>
+```
+
+**STOCK PHOTO GUARDRAILS:**
+- Max 1 photo per scene — photos dominate visual attention
+- Always add a color overlay or vignette to match the scene's palette
+- Never use raw unprocessed photos as full backgrounds — too visually noisy
+- Prefer landscape-oriented photos for horizontal video, portrait for vertical
+
+### OVERLAY MODE — SPATIAL AWARENESS
+
+When implementing a scene with `displayMode: "overlay"`, you MUST:
+
+1. Call `mcp__assets__get_speaker_grid` with the scene's startMs and endMs
+2. The tool returns a 6x6 grid where 1 = speaker present, 0 = safe zone
+3. Design your composition to place elements ONLY in safe (0) cells
+4. Use TRANSPARENT backgrounds — no opaque fills, no solid color backgrounds
+5. Think of overlay as floating annotations on top of the speaker
+
+**Reading the grid:**
+```
+Grid:  0 0 0 0 1 1      <- speaker is on the right side
+       0 0 0 1 1 1
+       0 0 0 1 1 1      1-cell buffer around speaker = avoid column 3 too
+       0 0 0 1 1 1
+       0 0 0 0 1 1
+       0 0 0 0 0 0
+
+-> Safe: left half, bottom row
+-> Place title text top-left, stats stacked on left, annotation arrows pointing toward speaker
+```
+
+**Rules:**
+- Background MUST be `transparent` or `rgba(0,0,0,0)` — NEVER a solid color
+- Place text, icons, charts in safe zones (0 cells) only
+- Leave a 1-cell buffer around occupied cells for breathing room
+- Use opacity 0.8-0.9 on overlay elements — slightly see-through
+- Prefer edges/corners away from the speaker
+- If occupancy > 50%, use minimal floating annotations only (small labels, corner icons)
+- If `get_speaker_grid` returns an error, design centered with generous margins on all sides
+
+**Overlay uses full canvas dimensions** — the scene's `effectiveDimensions` will be the full
+canvas size (same as fullscreen). Use these dimensions for positioning, but remember elements
+must avoid the speaker's grid cells.
 </assets_and_visuals>
 
 
@@ -593,6 +728,44 @@ Every element in a children array needs a unique key:
 </AbsoluteFill>
 ```
 </react_keys>
+
+<per_scene_viewport>
+## PER-SCENE VIEWPORT DIMENSIONS (CRITICAL)
+
+Each scene in scenes.json has an `effectiveDimensions` field: {{ width, height }}.
+This is the ACTUAL pixel area the scene will be displayed in.
+
+### Required Workflow — Tools & Skills
+1. **BEFORE writing any scene code**: Call `mcp__viewport__get_scene_dimensions` to get the exact effective dimensions, displayMode, and design tips for each scene.
+2. **Load the `effective-dimensions` skill** (via the Skill tool) for detailed sizing patterns, display mode rules, and common mistakes.
+3. **AFTER writing each scene**: Call `mcp__viewport__validate_scene_code` with the scene path and number to verify correctness. Fix any issues before moving on.
+
+### Core Pattern
+Your Remotion canvas is always the full canvas (from useVideoConfig()), but each
+scene's CONTENT must fit within its effectiveDimensions, positioned from top-left (0,0).
+
+Pattern for EVERY scene:
+```tsx
+const {{ width: W, height: H }} = useVideoConfig(); // full canvas
+const EW = TIMING.scene1EffectiveWidth;   // from scenes.json effectiveDimensions
+const EH = TIMING.scene1EffectiveHeight;  // from scenes.json effectiveDimensions
+
+// Clip content to effective area
+<div style={{{{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}}}>
+  {{/* Position ALL elements within (0,0) to (EW, EH) */}}
+  {{/* Font sizes: EH * 0.04 (not H * 0.04) */}}
+  {{/* Center X: EW / 2 (not W / 2) */}}
+  {{/* Safe margin: EW * 0.1 from edges */}}
+</div>
+```
+
+- If effectiveDimensions equals the full canvas → scene fills everything (fullscreen/overlay)
+- If effectiveDimensions is smaller → scene fills a portion (pip in split layout)
+- NEVER position content outside the effective area
+- For displayMode "overlay": use full canvas dimensions BUT do NOT render any background
+  (no Background component, no background color). Only render foreground elements so the
+  speaker video is visible behind the visual layer.
+</per_scene_viewport>
 
 <remotion_rules>
 ## REMOTION RULES
@@ -792,14 +965,23 @@ export const TIMING = {{
   // Video specs from scenes.json (MUST MATCH EXACTLY)
   totalFrames: /* from scenes.json.totalFrames */,
   fps: /* from scenes.json.fps */,
-  width: /* from project specs */,
-  height: /* from project specs */,
+  width: /* full canvas width from project specs */,
+  height: /* full canvas height from project specs */,
 
   // Scene timing from scenes.json.scenes[].frames
   scene1Start: 0,
   scene1End: /* from scenes.json.scenes[0].frames[1] */,
   scene2Start: /* from scenes.json.scenes[1].frames[0] */,
   scene2End: /* from scenes.json.scenes[1].frames[1] */,
+  // ... etc for all scenes
+
+  // PER-SCENE EFFECTIVE VIEWPORT — from scenes.json.scenes[].effectiveDimensions
+  // Each scene designs content for these dimensions (positioned from top-left 0,0).
+  // pip-in-split scenes get the split area; fullscreen/overlay get full canvas.
+  scene1EffectiveWidth: /* from scenes.json.scenes[0].effectiveDimensions.width */,
+  scene1EffectiveHeight: /* from scenes.json.scenes[0].effectiveDimensions.height */,
+  scene2EffectiveWidth: /* from scenes.json.scenes[1].effectiveDimensions.width */,
+  scene2EffectiveHeight: /* from scenes.json.scenes[1].effectiveDimensions.height */,
   // ... etc for all scenes
 
   // KEY SYNC FRAMES — relative to scene start (absolute keySync.frame - sceneStart)
@@ -856,6 +1038,10 @@ export const Scene1: React.FC<Scene1Props> = ({{ startFrame }}) => {{
   const {{ fps }} = useVideoConfig();
   const localFrame = frame - startFrame;
 
+  // Per-scene effective viewport — content must fit within these dimensions
+  const EW = TIMING.scene1EffectiveWidth;
+  const EH = TIMING.scene1EffectiveHeight;
+
   // Setup elements: animate BEFORE the key word is spoken (anticipation)
   const setupProgress = interpolate(localFrame, [0, TIMING.scene1KeySync], [0, 1], {{
     extrapolateRight: 'clamp',
@@ -871,14 +1057,24 @@ export const Scene1: React.FC<Scene1Props> = ({{ startFrame }}) => {{
 
   return (
     <AbsoluteFill>
-      {{/* Setup/anticipation elements (visible before key word) */}}
-      <div data-element-name="setup" style={{{{ opacity: setupProgress }}}}>
-        {{/* Background elements, secondary visuals */}}
-      </div>
+      {{/* Clip content to effective area */}}
+      <div style={{{{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}}}>
+        {{/* Setup/anticipation elements (visible before key word) */}}
+        <div data-element-name="setup" style={{{{ opacity: setupProgress }}}}>
+          {{/* Background elements, secondary visuals — use EW/EH for sizing */}}
+        </div>
 
-      {{/* KEY SYNC EVENT: triggers at the exact frame the narrator says the key word */}}
-      <div data-element-name="primary" style={{{{ opacity: keySyncProgress, transform: `scale(${{keySyncProgress}})` }}}}>
-        {{/* Main visual event described in keySync.visualEvent */}}
+        {{/* KEY SYNC EVENT: triggers at the exact frame the narrator says the key word */}}
+        <div data-element-name="primary" style={{{{
+          opacity: keySyncProgress,
+          transform: `scale(${{keySyncProgress}})`,
+          position: 'absolute',
+          left: EW / 2,
+          top: EH * 0.3,
+          // Font sizes relative to EH, positions relative to EW/EH
+        }}}}>
+          {{/* Main visual event described in keySync.visualEvent */}}
+        </div>
       </div>
     </AbsoluteFill>
   );

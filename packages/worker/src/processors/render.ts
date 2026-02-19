@@ -301,6 +301,11 @@ export interface FullscreenSegment {
   endMs: number;
 }
 
+interface DisplayModeSegment {
+  startMs: number;
+  endMs: number;
+}
+
 export interface RenderJobData {
   projectId: string;
   jobId: string;
@@ -310,7 +315,7 @@ export interface RenderJobData {
 }
 
 export async function processRenderJob(job: Job<RenderJobData>) {
-  const { projectId, jobId, layoutSettings, fullscreenSegments } = job.data;
+  const { projectId, jobId, layoutSettings } = job.data;
   setJobProjectId(jobId, projectId);
   const workDir = join(tmpdir(), `viona-render-${nanoid()}`);
 
@@ -344,6 +349,46 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         .where(eq(timelineItems.trackId, track.id));
       allItems.push(...items);
     }
+
+    // Extract display mode segments from visual timeline items
+    const visualItems = allItems
+      .filter((item: any) => item.type === 'visual')
+      .sort((a: any, b: any) => a.startMs - b.startMs);
+
+    const fullscreenVisualSegments: DisplayModeSegment[] = [];
+    const overlaySegments: DisplayModeSegment[] = [];
+
+    for (const item of visualItems) {
+      const dm = (item.data as any)?.displayMode || 'pip';
+      if (dm === 'fullscreen') {
+        fullscreenVisualSegments.push({ startMs: item.startMs, endMs: item.endMs });
+      } else if (dm === 'overlay') {
+        overlaySegments.push({ startMs: item.startMs, endMs: item.endMs });
+      }
+    }
+
+    // Gap segments: time ranges where no visual is active (speaker fullscreen)
+    const gapSegments: DisplayModeSegment[] = [];
+    if (layoutSettings?.mode === 'split-horizontal' || layoutSettings?.mode === 'split-vertical') {
+      const durationMs = project.durationMs || 0;
+      let cursor = 0;
+      for (const item of visualItems) {
+        if (item.startMs > cursor) {
+          gapSegments.push({ startMs: cursor, endMs: item.startMs });
+        }
+        cursor = Math.max(cursor, item.endMs);
+      }
+      if (cursor < durationMs) {
+        gapSegments.push({ startMs: cursor, endMs: durationMs });
+      }
+    }
+
+    logger.info({
+      fullscreenVisualCount: fullscreenVisualSegments.length,
+      overlayCount: overlaySegments.length,
+      gapCount: gapSegments.length,
+      visualItemCount: visualItems.length,
+    }, 'Extracted display mode segments from DB');
 
     const isAudioProject = (job.data.projectType || project.projectType || 'video') === 'audio';
 
@@ -558,7 +603,9 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           width: outputWidth,
           height: outputHeight,
           layoutSettings,
-          fullscreenSegments,
+          fullscreenVisualSegments,
+          overlaySegments,
+          gapSegments,
           fontsDir,
           resolvedFontFamily,
           onProgress: (progress) => {
@@ -1592,7 +1639,9 @@ interface RenderWithPiPLayoutOptions {
   width: number;
   height: number;
   layoutSettings?: LayoutSettings;
-  fullscreenSegments?: FullscreenSegment[];
+  fullscreenVisualSegments?: DisplayModeSegment[];
+  overlaySegments?: DisplayModeSegment[];
+  gapSegments?: DisplayModeSegment[];
   onProgress?: (progress: number) => void;
   fontsDir: string;
   resolvedFontFamily?: string;
@@ -1615,7 +1664,9 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     width: fullWidth,
     height: fullHeight,
     layoutSettings,
-    fullscreenSegments,
+    fullscreenVisualSegments,
+    overlaySegments,
+    gapSegments,
     onProgress,
     fontsDir,
     resolvedFontFamily,
@@ -1809,34 +1860,108 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     ].join(';');
   }
 
-  // Add fullscreen segment overlay if segments are defined
-  // During fullscreen segments, the source video covers the entire frame (hiding visuals)
-  const hasFullscreenSegments = fullscreenSegments && fullscreenSegments.length > 0;
-  if (hasFullscreenSegments) {
-    // Build FFmpeg enable expression: between(t,start1,end1)+between(t,start2,end2)+...
-    const enableExpr = fullscreenSegments
-      .map(seg => `between(t,${(seg.startMs / 1000).toFixed(3)},${(seg.endMs / 1000).toFixed(3)})`)
-      .join('+');
+  // Per-scene display mode switching via FFmpeg overlay layers with enable expressions
+  // Fullscreen visual segments: Remotion fills entire canvas (hides split/pip layout)
+  // Gap segments: Source video fills entire canvas (no visuals active)
+  // Overlay segments: Source video fullscreen with Remotion at reduced opacity on top
+  const needsFullscreen = fullscreenVisualSegments && fullscreenVisualSegments.length > 0;
+  const needsOverlay = overlaySegments && overlaySegments.length > 0;
+  const needsGaps = gapSegments && gapSegments.length > 0;
+  const hasNonPipSegments = needsFullscreen || needsOverlay || needsGaps;
 
-    // Split source video so we can use it both in layout and fullscreen overlay
-    // Replace [0:v] references in filterComplex with [src_layout]
+  if (hasNonPipSegments) {
+    // Helper: build FFmpeg enable expression from segments
+    const buildEnableExpr = (segs: DisplayModeSegment[]): string =>
+      segs.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+');
+
+    // Calculate how many copies of each stream we need
+    // Source (0:v): 1 for layout + 1 if gaps or overlay need fullscreen source
+    const srcSplitCount = 1 + (needsGaps || needsOverlay ? 1 : 0);
+    // Remotion (1:v): 1 for layout + 1 if fullscreen + 1 if overlay
+    const visSplitCount = 1 + (needsFullscreen ? 1 : 0) + (needsOverlay ? 1 : 0);
+
+    // Replace raw input refs in existing filter with split output labels
     filterComplex = filterComplex.replace(/\[0:v\]/g, '[src_layout]');
+    filterComplex = filterComplex.replace(/\[1:v\]/g, '[vis_layout]');
 
-    // Prepend the split filter and fullscreen source scale
-    filterComplex = [
-      `[0:v]split=2[src_layout][src_fs]`,
-      `[src_fs]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[fs_src]`,
-      filterComplex,
-    ].join(';');
+    // Build split filters
+    const splitFilters: string[] = [];
 
-    // Rename [outv] to [layout_out], then overlay fullscreen source on top
-    filterComplex = filterComplex.replace('[outv]', '[layout_out]');
-    filterComplex += `;[layout_out][fs_src]overlay=0:0:enable='${enableExpr}'[outv]`;
+    // Source split
+    const srcLabels = ['src_layout'];
+    if (needsGaps || needsOverlay) srcLabels.push('src_extra');
+    if (srcSplitCount > 1) {
+      splitFilters.push(`[0:v]split=${srcSplitCount}${srcLabels.map(l => `[${l}]`).join('')}`);
+    } else {
+      splitFilters.push(`[0:v]copy[src_layout]`);
+    }
+
+    // Remotion split
+    const visLabels = ['vis_layout'];
+    if (needsFullscreen) visLabels.push('vis_fs');
+    if (needsOverlay) visLabels.push('vis_ovl');
+    if (visSplitCount > 1) {
+      splitFilters.push(`[1:v]split=${visSplitCount}${visLabels.map(l => `[${l}]`).join('')}`);
+    } else {
+      splitFilters.push(`[1:v]copy[vis_layout]`);
+    }
+
+    // Prepend split filters before existing layout filter
+    filterComplex = [...splitFilters, filterComplex].join(';');
+
+    // Rename current output to chain through overlay layers
+    let currentOut = 'outv';
+
+    // Layer 1: Fullscreen visual — Remotion fills canvas (hides split/pip)
+    if (needsFullscreen) {
+      const prevOut = currentOut;
+      currentOut = 'after_fs';
+      const expr = buildEnableExpr(fullscreenVisualSegments!);
+      filterComplex = filterComplex.replace(`[${prevOut}]`, `[${prevOut === 'outv' ? 'base' : prevOut}]`);
+      // Only replace the last occurrence (the output label)
+      const baseLabel = prevOut === 'outv' ? 'base' : prevOut;
+      filterComplex += `;[vis_fs]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[vis_fs_scaled]`;
+      filterComplex += `;[${baseLabel}][vis_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
+    }
+
+    // Layer 2: Gap + Overlay background — Source video fills canvas
+    const gapAndOverlaySegs = [...(gapSegments || []), ...(overlaySegments || [])];
+    if (gapAndOverlaySegs.length > 0) {
+      const prevOut = currentOut;
+      currentOut = 'after_src';
+      // Rename previous output label if it's still 'outv'
+      if (prevOut === 'outv') {
+        filterComplex = filterComplex.replace('[outv]', '[base]');
+      }
+      const expr = buildEnableExpr(gapAndOverlaySegs);
+      filterComplex += `;[src_extra]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[src_fs_scaled]`;
+      filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][src_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
+    }
+
+    // Layer 3: Overlay visuals — Remotion at 0.7 opacity on top of source
+    if (needsOverlay) {
+      const prevOut = currentOut;
+      currentOut = 'after_ovl';
+      if (prevOut === 'outv') {
+        filterComplex = filterComplex.replace('[outv]', '[base]');
+      }
+      const expr = buildEnableExpr(overlaySegments!);
+      filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=0.7[vis_ovl_alpha]`;
+      filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_alpha]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+    }
+
+    // Final output must be [outv] for downstream subtitle filter and mapping
+    if (currentOut !== 'outv') {
+      filterComplex += `;[${currentOut}]copy[outv]`;
+    }
 
     logger.info({
-      segmentCount: fullscreenSegments.length,
-      enableExpr,
-    }, 'Added fullscreen segment overlay to FFmpeg filter');
+      fullscreenVisualCount: fullscreenVisualSegments?.length || 0,
+      overlayCount: overlaySegments?.length || 0,
+      gapCount: gapSegments?.length || 0,
+      srcSplitCount,
+      visSplitCount,
+    }, 'Added per-scene display mode overlays to FFmpeg filter');
   }
 
   // Generate ASS subtitles if we have any - AFTER layout settings are parsed

@@ -40,6 +40,11 @@ export interface PlanVisualsJobData {
     width: number;
     height: number;
   };
+  /** Effective dimensions for pip scenes in split layouts */
+  pipEffective?: {
+    width: number;
+    height: number;
+  };
   /** User-provided style/layout guidance for the Director agent */
   styleGuide?: string;
   sourceWidth?: number;
@@ -110,6 +115,13 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
       const projectDir = createProjectDir(compositionId);
       logger.info({ projectDir, compositionId }, 'Created project directory for plan');
 
+      // Write head tracking data to project folder for spatial overlay awareness
+      if (project.headTrackingData) {
+        const htPath = join(projectDir, 'head_tracking.json');
+        await writeFile(htPath, JSON.stringify(project.headTrackingData), 'utf-8');
+        logger.info({ projectDir }, 'Wrote head_tracking.json for spatial overlay');
+      }
+
       await publishJobProgress(jobId, 15, 'Starting Director phase...');
 
       // Calculate duration in frames
@@ -139,6 +151,8 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         styleGuide,
         sourceWidth: job.data.sourceWidth,
         sourceHeight: job.data.sourceHeight,
+        pipWidth: job.data.pipEffective?.width,
+        pipHeight: job.data.pipEffective?.height,
       });
 
       heartbeat.stop();
@@ -206,6 +220,8 @@ interface DirectorPhaseOptions {
   styleGuide?: string;
   sourceWidth?: number;
   sourceHeight?: number;
+  pipWidth?: number;
+  pipHeight?: number;
 }
 
 /**
@@ -280,6 +296,12 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
     if (options.sourceWidth && options.sourceHeight) {
       args.push('--source-width', String(options.sourceWidth));
       args.push('--source-height', String(options.sourceHeight));
+    }
+
+    // Add pip effective dimensions for per-scene dimension-aware generation
+    if (options.pipWidth && options.pipHeight) {
+      args.push('--pip-width', String(options.pipWidth));
+      args.push('--pip-height', String(options.pipHeight));
     }
 
     logger.info({ projectId }, 'Running Director phase only (--phase director)');

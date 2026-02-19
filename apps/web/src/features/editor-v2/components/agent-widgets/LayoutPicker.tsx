@@ -12,7 +12,7 @@ const layouts = [
     ),
   },
   {
-    id: 'split-vertical',
+    id: 'split-horizontal',
     label: 'Stacked',
     description: 'Video and visuals above/below',
     icon: (
