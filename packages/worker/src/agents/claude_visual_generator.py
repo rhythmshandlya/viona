@@ -3458,6 +3458,8 @@ async def main():
     parser.add_argument("--duration", type=int, default=1800, help="Duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Frames per second")
     parser.add_argument("--model", default="claude-opus-4-5-20251101", help="Claude model")
+    parser.add_argument("--source-width", type=int, default=None, help="Source video width (for coverage-aware layout)")
+    parser.add_argument("--source-height", type=int, default=None, help="Source video height (for coverage-aware layout)")
     parser.add_argument("--phase", choices=["director", "animator"], default=None,
                         help="Run only a specific phase (director or animator). Default: both.")
 

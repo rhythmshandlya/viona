@@ -1,17 +1,17 @@
 import "./index.css";
 import { Composition } from "remotion";
-import MainComposition from "./proj_e704b900_4010_408b_b7e5_a22b0114d4d1";
+import MainComposition from "./proj_ec296bcb_9669_466e_a319_fa4291695177";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
-        id="proj-e704b900-4010-408b-b7e5-a22b0114d4d1"
+        id="proj-ec296bcb-9669-466e-a319-fa4291695177"
         component={MainComposition}
-        durationInFrames={2208}
+        durationInFrames={2967}
         fps={30}
         width={1080}
-        height={1920}
+        height={960}
       />
     </>
   );

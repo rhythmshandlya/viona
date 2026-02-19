@@ -106,7 +106,7 @@ function DisplayModeBadge({ mode }: { mode: string }) {
 
 function SpeakerGapIndicator({ startMs, endMs }: { startMs: number; endMs: number }) {
   const durationMs = endMs - startMs;
-  const seconds = Math.round(durationMs / 1000);
+  const seconds = (durationMs / 1000).toFixed(1);
   return (
     <div className="flex items-center gap-1.5 px-3 py-1 text-[10px] text-[var(--editor-text-muted)]">
       <div className="flex-1 border-t border-dashed border-[var(--editor-border-subtle)]" />
@@ -115,7 +115,7 @@ function SpeakerGapIndicator({ startMs, endMs }: { startMs: number; endMs: numbe
         style={{ backgroundColor: '#22c55e', color: '#fff' }}
       >
         <Mic className="w-2.5 h-2.5" />
-        Speaker {seconds}s
+        Speaker only · {seconds}s
       </span>
       <div className="flex-1 border-t border-dashed border-[var(--editor-border-subtle)]" />
     </div>

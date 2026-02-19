@@ -581,6 +581,8 @@ registerRoot(RemotionRoot);
               endMs: Math.round(scene.timestampRange[1] * 1000),
               type: scene.name || `Scene ${scene.id}`,
               description: scene.visual || scene.emotion || '',
+              displayMode: scene.displayMode || undefined,
+              transition: scene.transition || undefined,
               elements: elements.length > 0 ? elements : undefined,
             };
           });
@@ -764,8 +766,23 @@ registerRoot(RemotionRoot);
         })
         .where(eq(jobs.id, jobId));
 
+      // Persist layoutMode into project videoSettings so the editor/export
+      // uses the same layout the user selected at generation time.
+      const existingVideoSettings = (project.videoSettings as Record<string, unknown>) || {};
+      const existingLayoutSettings = (existingVideoSettings.layoutSettings as Record<string, unknown>) || {};
       await tx.update(projects)
-        .set({ status: 'ready', outputKey: null, updatedAt: new Date() })
+        .set({
+          status: 'ready',
+          outputKey: null,
+          updatedAt: new Date(),
+          videoSettings: {
+            ...existingVideoSettings,
+            layoutSettings: {
+              ...existingLayoutSettings,
+              mode: layoutMode,
+            },
+          },
+        })
         .where(eq(projects.id, projectId));
     });
 

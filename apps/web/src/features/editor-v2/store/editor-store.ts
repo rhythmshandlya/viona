@@ -553,6 +553,18 @@ export const useEditorStore = create<EditorStore>()(
             state.project.outputKey = (apiProject as any).outputKey || null;
           }
 
+          // Reload layout settings in case generation persisted a new layoutMode
+          const savedVideoSettings = (apiProject as any).videoSettings;
+          const savedLayoutSettings = savedVideoSettings?.layoutSettings;
+          if (savedLayoutSettings) {
+            state.layoutSettings = {
+              ...DEFAULT_LAYOUT_SETTINGS,
+              ...savedLayoutSettings,
+              pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
+              split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
+            };
+          }
+
           // Don't reset playback position, selection, viewport, or history
         });
       } catch (err) {
