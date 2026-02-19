@@ -40,7 +40,7 @@ export function LayoutPicker({ onSelect, disabled, selectedValue }: LayoutPicker
           disabled={disabled}
           className={`flex-1 p-3 rounded-lg border text-center transition-all ${
             selectedValue === layout.id
-              ? 'border-purple-500 bg-purple-500/10'
+              ? 'border-[var(--editor-accent)] bg-[var(--editor-accent-soft)]'
               : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-border-default)] bg-[var(--editor-bg-hover)]'
           } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
         >

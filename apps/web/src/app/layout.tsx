@@ -1,4 +1,4 @@
-import { Geist_Mono, Geist, DM_Sans, Outfit } from "next/font/google";
+import { Geist_Mono, Geist, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { baseUrl, createMetadata } from "@/utils/metadata";
 import {
@@ -23,14 +23,8 @@ const geist = Geist({
   weight: ["300", "400", "500", "600", "700"]
 });
 
-const outfit = Outfit({
-  variable: "--font-outfit",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"]
-});
-
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"]
 });
@@ -55,7 +49,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistMono.variable} ${geist.variable} ${outfit.variable} ${dmSans.variable} antialiased font-sans bg-background`}
+        className={`${geistMono.variable} ${geist.variable} ${inter.variable} antialiased font-sans bg-background`}
         suppressHydrationWarning
       >
         <StytchProvider>

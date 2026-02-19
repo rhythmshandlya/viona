@@ -64,42 +64,45 @@ export function PlaybackBar() {
   };
 
   return (
-    <div className="h-16 flex items-center justify-center gap-4 px-6 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
+    <div className="h-12 flex items-center justify-center gap-4 px-6 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
       {/* Time display - left */}
-      <span className="text-sm font-mono text-[var(--editor-text-secondary)] w-20 text-right">
+      <span className="text-sm font-mono text-[var(--editor-text-secondary)] w-20 text-right tabular-nums" style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}>
         {formatTime(currentTimeMs)}
       </span>
 
-      {/* Scrubber */}
+      {/* Scrubber - increased hit area */}
       <div
         ref={scrubberRef}
         onClick={handleScrubberClick}
         onMouseMove={handleScrubberDrag}
-        className="flex-1 max-w-lg h-1 bg-[var(--editor-border-subtle)] rounded-full cursor-pointer group"
+        className="flex-1 max-w-lg h-6 flex items-center cursor-pointer group"
       >
-        <div
-          className="h-full bg-[var(--editor-accent)] rounded-full relative transition-all"
-          style={{ width: `${progress}%` }}
-        >
-          {/* Scrubber handle */}
+        <div className="w-full h-1.5 bg-[var(--editor-border-subtle)] rounded-full relative">
           <div
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2
-                       w-3.5 h-3.5 bg-white border-2 border-[var(--editor-accent)] rounded-full
-                       shadow-md transition-transform group-hover:scale-110"
-          />
+            className="h-full bg-[var(--editor-accent)] rounded-full relative transition-all"
+            style={{ width: `${progress}%` }}
+          >
+            {/* Scrubber handle */}
+            <div
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2
+                         w-3.5 h-3.5 bg-white border-2 border-[var(--editor-accent)] rounded-full
+                         shadow-md transition-transform group-hover:scale-125"
+              style={{ boxShadow: 'var(--editor-shadow-sm), 0 0 0 2px var(--editor-accent-soft)' }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Time display - right */}
-      <span className="text-sm font-mono text-[var(--editor-text-muted)] w-20">
+      <span className="text-sm font-mono text-[var(--editor-text-muted)] w-20 tabular-nums" style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}>
         {formatTime(duration)}
       </span>
 
-      {/* Play controls - below scrubber */}
+      {/* Play controls */}
       <div className="flex items-center gap-2 ml-4">
         <button
           onClick={handleSkipBack}
-          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all"
           aria-label="Skip to start"
         >
           <SkipBack className="w-4 h-4 text-[var(--editor-text-secondary)]" />
@@ -107,8 +110,6 @@ export function PlaybackBar() {
 
         <button
           onClickCapture={(e) => {
-            // Call player.play(event) directly from the user gesture so browsers
-            // allow audio playback (autoplay policy requires user interaction).
             const player = sharedPlayerRef.current;
             if (player) {
               if (isPlaying) {
@@ -119,20 +120,20 @@ export function PlaybackBar() {
             }
             togglePlayback();
           }}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-[var(--editor-accent)] text-white
-                     hover:bg-[var(--editor-accent-hover)] transition-colors shadow-sm"
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--editor-accent)] text-white
+                     hover:bg-[var(--editor-accent-hover)] active:scale-95 transition-all shadow-sm"
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? (
-            <Pause className="w-5 h-5" />
+            <Pause className="w-4.5 h-4.5" />
           ) : (
-            <Play className="w-5 h-5 ml-0.5" />
+            <Play className="w-4.5 h-4.5 ml-0.5" />
           )}
         </button>
 
         <button
           onClick={handleSkipForward}
-          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all"
           aria-label="Skip to end"
         >
           <SkipForward className="w-4 h-4 text-[var(--editor-text-secondary)]" />
@@ -142,7 +143,7 @@ export function PlaybackBar() {
 
         <button
           onClick={() => setShowCaptions(!showCaptions)}
-          className={`p-2 rounded-md transition-colors ${
+          className={`p-2 rounded-md active:scale-[0.97] transition-all ${
             showCaptions
               ? 'text-[var(--editor-accent)] bg-[var(--editor-accent-muted)]'
               : 'text-[var(--editor-text-muted)] hover:bg-[var(--editor-bg-hover)]'

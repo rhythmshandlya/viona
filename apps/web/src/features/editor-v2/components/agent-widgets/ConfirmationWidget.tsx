@@ -26,7 +26,7 @@ export function ConfirmationWidget({ message, onConfirm, onCancel, disabled, con
         <button
           onClick={onConfirm}
           disabled={disabled}
-          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-sm rounded-md transition-colors disabled:opacity-50"
+          className="px-3 py-1.5 bg-[var(--editor-accent)] hover:bg-[var(--editor-accent-hover)] text-white text-sm rounded-md active:scale-[0.97] transition-all disabled:opacity-50"
         >
           Yes
         </button>

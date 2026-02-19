@@ -89,7 +89,7 @@ export function Timeline({ className }: TimelineProps) {
   return (
     <div
       ref={containerRef}
-      className={`flex flex-row bg-[var(--editor-bg-surface)] ${className || ''}`}
+      className={`flex flex-row bg-[var(--editor-bg-surface)] select-none ${className || ''}`}
     >
       {/* Track headers - fixed width left column */}
       <TrackHeaders rulerHeight={RULER_HEIGHT} />
@@ -121,20 +121,20 @@ export function Timeline({ className }: TimelineProps) {
           <button
             onClick={handleZoomOut}
             className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-secondary)]
-                       hover:text-[var(--editor-text-primary)] transition-colors"
+                       hover:text-[var(--editor-text-primary)] active:scale-[0.97] transition-all"
             title="Zoom out (⌘-)"
           >
             <ZoomOut size={14} />
           </button>
 
-          <span className="text-[10px] text-[var(--editor-text-muted)] w-10 text-center font-mono">
+          <span className="text-[10px] text-[var(--editor-text-muted)] w-10 text-center font-mono tabular-nums">
             {Math.round(viewport.zoom * 1000)}%
           </span>
 
           <button
             onClick={handleZoomIn}
             className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-secondary)]
-                       hover:text-[var(--editor-text-primary)] transition-colors"
+                       hover:text-[var(--editor-text-primary)] active:scale-[0.97] transition-all"
             title="Zoom in (⌘+)"
           >
             <ZoomIn size={14} />
@@ -145,7 +145,7 @@ export function Timeline({ className }: TimelineProps) {
           <button
             onClick={zoomToFit}
             className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-secondary)]
-                       hover:text-[var(--editor-text-primary)] transition-colors"
+                       hover:text-[var(--editor-text-primary)] active:scale-[0.97] transition-all"
             title="Fit to view"
           >
             <Maximize2 size={14} />

@@ -24,7 +24,7 @@ export function ThemePicker({ onSelect, disabled, selectedValue }: ThemePickerPr
           disabled={disabled}
           className={`p-3 rounded-lg border text-left transition-all ${
             selectedValue === theme.id
-              ? 'border-purple-500 bg-purple-500/10'
+              ? 'border-[var(--editor-accent)] bg-[var(--editor-accent-soft)]'
               : 'border-[var(--editor-border-subtle)] hover:border-[var(--editor-border-default)] bg-[var(--editor-bg-hover)]'
           } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
         >
