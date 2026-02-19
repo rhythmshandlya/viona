@@ -1072,10 +1072,23 @@ async function runClaudeCodeGenerator(
       logger.info({ projectId, output: text.slice(0, 500) }, 'Claude generator stdout');
     });
 
+    let fatalStderrDetected = false;
+
     subprocess.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stderr += text;
       logger.error({ projectId, stderr: text.slice(0, 1000) }, 'Claude generator stderr');
+      // Detect fatal crashes: unhandled rejections mean the CLI is likely hung
+      if (
+        text.includes('unhandled') ||
+        text.includes('UnhandledPromiseRejection') ||
+        text.includes('rejecting a promise which was not handled') ||
+        text.includes('uncaughtException')
+      ) {
+        logger.error({ projectId, stderr: text.slice(0, 500) }, 'Claude generator fatal error detected, killing subprocess');
+        fatalStderrDetected = true;
+        subprocess.kill('SIGTERM');
+      }
     });
 
     // Wait for completion with timeout
@@ -1100,7 +1113,9 @@ async function runClaudeCodeGenerator(
         clearInterval(progressTicker);
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
-        if (code === 0) {
+        if (fatalStderrDetected) {
+          reject(new UnrecoverableError(`Claude generator crashed (unhandled rejection): ${stderr.slice(-500)}`));
+        } else if (code === 0) {
           resolve();
         } else {
           // Include both stderr and last part of stdout for debugging

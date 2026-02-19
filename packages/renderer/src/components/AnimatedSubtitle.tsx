@@ -304,6 +304,7 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
       ? `${style.stroke.width}px ${style.stroke.color}`
       : undefined,
     paintOrder: style.stroke ? 'stroke fill' : undefined,
+    WebkitFontSmoothing: 'antialiased' as const,
     ...effectsStyles,
   });
 
@@ -468,6 +469,7 @@ const Word: React.FC<WordProps> = ({
       ? `${style.stroke.width}px ${style.stroke.color}`
       : undefined,
     paintOrder: style.stroke ? 'stroke fill' : undefined,
+    WebkitFontSmoothing: 'antialiased' as const,
     ...effectsStyles,
   });
 

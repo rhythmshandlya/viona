@@ -513,6 +513,7 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 - **FALLBACK**: ONLY if the download tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG. "I want more control" or "for speed" are NOT valid reasons to skip downloads.
 - **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Spotify, etc.) must ALWAYS be downloaded from Freepik — search the company name. Hand-drawn logos look amateur and are often inaccurate.
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
+- **NO EXTERNAL IMAGE URLS**: NEVER use `<Img src="https://icons8.com/...">` or any remote URL for icons/images. External URLs fail during rendering (CORS, rate limits, downtime) and crash the entire export. Always download assets first, then use `staticFile()` or inline SVG.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
 - **ASSET DIRECTORY**: The `mcp__assets__download_file` tool automatically creates `public/assets/` — no need to mkdir manually.
 

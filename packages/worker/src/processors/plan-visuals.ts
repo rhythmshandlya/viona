@@ -387,10 +387,23 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
       logger.info({ projectId, output: text.slice(0, 500) }, 'Director phase stdout');
     });
 
+    let fatalStderrDetected = false;
+
     subprocess.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stderr += text;
       logger.error({ projectId, stderr: text.slice(0, 1000) }, 'Director phase stderr');
+      // Detect fatal crashes: unhandled rejections mean the CLI is likely hung
+      if (
+        text.includes('unhandled') ||
+        text.includes('UnhandledPromiseRejection') ||
+        text.includes('rejecting a promise which was not handled') ||
+        text.includes('uncaughtException')
+      ) {
+        logger.error({ projectId, stderr: text.slice(0, 500) }, 'Director phase fatal error detected, killing subprocess');
+        fatalStderrDetected = true;
+        subprocess.kill('SIGTERM');
+      }
     });
 
     // Use the same configurable timeout as generate/edit visuals
@@ -417,7 +430,9 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
         clearInterval(progressTicker);
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
-        if (code === 0) {
+        if (fatalStderrDetected) {
+          reject(new UnrecoverableError(`Director phase crashed (unhandled rejection): ${stderr.slice(-500)}`));
+        } else if (code === 0) {
           resolve();
         } else {
           const errorOutput = stderr || stdout.slice(-1000);

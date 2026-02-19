@@ -65,6 +65,8 @@ IMPORTANT CONSTRAINTS:
 - Each scene must be at least 90 frames (3 seconds at 30fps)
 - Adjacent transcript lines about the same concept belong in ONE scene
 - One scene per narrative beat, NOT one scene per transcript line
+- Scenes MUST be contiguous — NO gaps between scenes. Each scene's start must equal the previous scene's end.
+- For speaker-focused moments (personal anecdotes, emotional beats, transitions), create an `"overlay"` scene with a minimal visual description. The Animator will keep these lightweight. This is preferred over leaving a gap.
 </scene_constraints>
 
 <output_format>
@@ -373,20 +375,17 @@ def _coverage_tier(source_width: int | None, source_height: int | None, canvas_w
     if ratio > 0.8:
         return (
             "COVERAGE TIER: **flexible** (source and canvas share a similar aspect ratio).\n"
-            "- Speaker-only gaps (no visual) look natural — use freely for personal moments and transitions.\n"
             "- `overlay` mode works well — the speaker crops cleanly.\n"
             "- All three display modes are equally viable."
         )
     if ratio >= 0.5:
         return (
             "COVERAGE TIER: **moderate** (some cropping when showing full speaker).\n"
-            "- Use speaker-only gaps sparingly (2-4 s max).\n"
             "- Prefer `overlay` alongside a visual rather than raw speaker fill.\n"
             "- `pip` and `fullscreen` are your strongest modes."
         )
     return (
         "COVERAGE TIER: **conservative** (heavy crop when fitting source to canvas).\n"
-        "- Minimize speaker-only gaps (the speaker is heavily cropped). 1-2 s max for critical emotional moments.\n"
         "- Prefer `overlay` to show the speaker without dedicating the full canvas to them.\n"
         "- `pip` and `fullscreen` should dominate the plan; use `overlay` as a secondary accent."
     )
@@ -401,12 +400,12 @@ Each scene MUST specify a `displayMode` that controls how the visual composites 
 |------|-------------|-------------|
 | `"pip"` | Visual fullscreen, speaker in small bubble | DEFAULT — normal explanation, diagrams, animations |
 | `"fullscreen"` | Visual fills entire canvas, speaker HIDDEN | Complex diagrams, big data reveals, dramatic moments, title cards |
-| `"overlay"` | Speaker fullscreen, visual layered on top (transparent bg, spatially aware) | Speaker credibility moments, emotional beats — Animator uses speaker grid to avoid covering face |
+| `"overlay"` | Speaker fullscreen, visual layered on top (transparent bg, spatially aware) | Speaker credibility moments, emotional beats, personal anecdotes, transitions between topics — Animator uses speaker grid to avoid covering face. Also use for speaker-focused moments where heavy animation isn't needed (give a minimal visual description and the Animator will keep it lightweight). |
 
 **PLANNING GUIDELINES:**
 - Use `"pip"` for most scenes (60-70%) — the bread and butter
 - Use `"fullscreen"` for 1-3 key moments — big reveals, complex visuals that need full attention
-- Use `"overlay"` sparingly — the Animator has a `get_speaker_grid` tool that tells it where the speaker is, so overlay visuals will use transparent backgrounds and float around the speaker
+- Use `"overlay"` for speaker-focused moments — personal stories, emotional beats, or transitions. These scenes still need a visual description but it can be minimal (e.g., "subtle accent shapes"). The Animator will generate lightweight visuals for these.
 - NEVER use the same displayMode for ALL scenes — variety creates visual rhythm
 - Transition between modes at natural narrative beats (topic changes, revelations, conclusions)
 
@@ -731,6 +730,7 @@ Machine-readable with this structure:
 - The video is EXACTLY {duration_frames} frames ({duration_seconds:.1f} seconds) at {fps} FPS
 - Scene 1 MUST start at frame 0
 - The LAST scene MUST end at frame {duration_frames}
+- Scenes MUST be contiguous with NO gaps — each scene starts exactly where the previous one ends
 - Scene frames MUST match transcript timestamps: frame = timestamp_seconds * {fps}
 - DO NOT invent your own duration. Use the EXACT frame count given.
 
@@ -740,6 +740,7 @@ Machine-readable with this structure:
 - Visual continuity: same element transforms across scenes
 - Be SPECIFIC about visuals, not generic
 - **TOTAL FRAMES MUST EQUAL {duration_frames}**
+- **NO GAPS between scenes** — scenes must be back-to-back, covering every frame
 
 ## FINAL CHECKLIST
 Before responding "PLANNING COMPLETE":
@@ -747,7 +748,8 @@ Before responding "PLANNING COMPLETE":
 2. [ ] Used Write tool to create `{abs_scenes_path}`
 3. [ ] scenes.json has valid JSON structure
 4. [ ] Both files written to the EXACT paths above (not the workspace root!)
-{display_mode_checklist}
+{display_mode_checklist}6. [ ] Scenes are contiguous — no gaps between any two consecutive scenes
+7. [ ] Scene 1 starts at frame 0, last scene ends at frame {duration_frames}
 
 **You MUST write both files using the Write tool. The Animator cannot proceed without them.**
 

@@ -112,12 +112,11 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     codec: 'h264',
     outputLocation: outputPath,
     inputProps,
-    // Memory-saving settings for constrained environments
+    // Balance quality vs memory — 'faster' is much better than 'ultrafast' for text
     concurrency: 1,
-    imageFormat: 'jpeg',
-    jpegQuality: 85,
-    x264Preset: 'ultrafast',
-    crf: 23,
+    imageFormat: 'png',
+    x264Preset: 'faster',
+    crf: 18,
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
     },

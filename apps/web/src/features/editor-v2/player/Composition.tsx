@@ -248,6 +248,65 @@ function buildSplitStyles(
   }
 }
 
+// Build animated split styles that interpolate from fullscreen to split position.
+// progress=0 means fullscreen (visual 100%, video 0%), progress=1 means final split.
+function buildAnimatedSplitStyles(
+  split: SplitSettings,
+  isHorizontal: boolean,
+  progress: number,
+): { visualsStyle: React.CSSProperties; videoStyle: React.CSSProperties } {
+  const targetVisualsPercent = split.ratio;
+  const targetVideoPercent = 100 - split.ratio;
+  const targetGap = split.gap;
+
+  // Interpolate: visual goes from 100% to its ratio, video from 0% to its ratio, gap from 0 to gap
+  const currentVisualsPercent = 100 - (100 - targetVisualsPercent) * progress;
+  const currentVideoPercent = targetVideoPercent * progress;
+  const currentGap = targetGap * progress;
+
+  if (isHorizontal) {
+    const isVisualsFirst = split.position === 'visuals-first';
+    return {
+      visualsStyle: {
+        position: 'absolute',
+        left: 0,
+        [isVisualsFirst ? 'top' : 'bottom']: 0,
+        width: '100%',
+        height: `calc(${currentVisualsPercent}% - ${currentGap / 2}px)`,
+        overflow: 'hidden',
+      },
+      videoStyle: {
+        position: 'absolute',
+        left: 0,
+        [isVisualsFirst ? 'bottom' : 'top']: 0,
+        width: '100%',
+        height: `calc(${currentVideoPercent}% - ${currentGap / 2}px)`,
+        overflow: 'hidden',
+      },
+    };
+  } else {
+    const isVisualsFirst = split.position === 'visuals-first';
+    return {
+      visualsStyle: {
+        position: 'absolute',
+        top: 0,
+        [isVisualsFirst ? 'left' : 'right']: 0,
+        width: `calc(${currentVisualsPercent}% - ${currentGap / 2}px)`,
+        height: '100%',
+        overflow: 'hidden',
+      },
+      videoStyle: {
+        position: 'absolute',
+        top: 0,
+        [isVisualsFirst ? 'right' : 'left']: 0,
+        width: `calc(${currentVideoPercent}% - ${currentGap / 2}px)`,
+        height: '100%',
+        overflow: 'hidden',
+      },
+    };
+  }
+}
+
 // Compute eased transition progress (ease-out cubic) for enter/exit animations
 function getTransitionProgress(
   currentTimeMs: number,
@@ -273,6 +332,43 @@ function findActiveVisualItem(
     }
   }
   return null;
+}
+
+// Find the visual item immediately before the given item (by startMs order)
+function findPreviousVisualItem(
+  visualItems: TimelineItem[],
+  currentItem: TimelineItem,
+): TimelineItem | null {
+  let prev: TimelineItem | null = null;
+  for (const item of visualItems) {
+    if (item.endMs <= currentItem.startMs) {
+      if (!prev || item.endMs > prev.endMs) prev = item;
+    }
+  }
+  return prev;
+}
+
+// Find the visual item immediately after the given item (by startMs order)
+function findNextVisualItem(
+  visualItems: TimelineItem[],
+  currentItem: TimelineItem,
+): TimelineItem | null {
+  let next: TimelineItem | null = null;
+  for (const item of visualItems) {
+    if (item.startMs >= currentItem.endMs) {
+      if (!next || item.startMs < next.startMs) next = item;
+    }
+  }
+  return next;
+}
+
+// Get the effective layout mode for an item ('gap' if null, otherwise its displayMode)
+function getEffectiveLayout(item: TimelineItem | null, isSplitMode: boolean): string {
+  if (!item) return 'gap';
+  const dm = (item.data as VisualItemData)?.displayMode ?? 'pip';
+  // In split mode, 'pip' becomes 'split' for layout comparison purposes
+  if (isSplitMode && dm === 'pip') return 'split';
+  return dm;
 }
 
 export function Composition() {
@@ -726,9 +822,32 @@ function DynamicLayoutComposition({
   const activeData = activeItem ? (activeItem.data as VisualItemData) : null;
   const displayMode = activeData?.displayMode ?? 'pip';
 
+  // Determine previous/next items and whether the layout actually changes
+  const isSplitMode = mode === 'split-horizontal' || mode === 'split-vertical';
+  const currentLayout = getEffectiveLayout(activeItem, isSplitMode);
+  const prevItem = activeItem ? findPreviousVisualItem(visualItems, activeItem) : null;
+  const prevLayout = activeItem ? getEffectiveLayout(
+    // If there's a gap between prev and current, the previous layout is 'gap'
+    prevItem && prevItem.endMs >= activeItem.startMs - 50 ? prevItem : null,
+    isSplitMode,
+  ) : 'gap';
+
+  const nextItem = activeItem ? findNextVisualItem(visualItems, activeItem) : null;
+  const nextLayout = activeItem ? getEffectiveLayout(
+    nextItem && nextItem.startMs <= activeItem.endMs + 50 ? nextItem : null,
+    isSplitMode,
+  ) : 'gap';
+
+  const layoutChangesOnEnter = currentLayout !== prevLayout;
+  const layoutChangesOnExit = currentLayout !== nextLayout;
+
   // Calculate transition opacity/scale for the active item
   let transitionOpacity = 1;
   let transitionScale = 1;
+  // Layout progress: 0 = previous layout, 1 = current layout (for animating split/pip positions)
+  // Only used when layout actually changes between scenes
+  let layoutEnterProgress = 1;
+  let layoutExitProgress = 0;
 
   if (activeItem && activeData?.transition) {
     const itemDurationMs = activeItem.endMs - activeItem.startMs;
@@ -746,6 +865,10 @@ function DynamicLayoutComposition({
         activeItem.startMs,
         enterDuration,
       );
+      // Only animate layout if the display mode actually changed
+      if (layoutChangesOnEnter) {
+        layoutEnterProgress = enterProgress;
+      }
 
       if (enter.type === 'fade') {
         transitionOpacity = Math.min(transitionOpacity, enterProgress);
@@ -768,6 +891,10 @@ function DynamicLayoutComposition({
         exitStartMs,
         exitDuration,
       );
+      // Only animate layout if the next scene has a different layout
+      if (layoutChangesOnExit) {
+        layoutExitProgress = exitProgress;
+      }
 
       if (exit.type === 'fade') {
         transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
@@ -790,7 +917,6 @@ function DynamicLayoutComposition({
   const hideVideoCompletely = !isGap && displayMode === 'fullscreen';
 
   // For split modes, displayMode 'pip' means "use the split layout" (the default compositing)
-  const isSplitMode = mode === 'split-horizontal' || mode === 'split-vertical';
   const useSplitLayout = isSplitMode && displayMode === 'pip' && !isGap;
 
   // Video layer style
@@ -799,8 +925,10 @@ function DynamicLayoutComposition({
 
   if (useSplitLayout) {
     // Split layout: video and visuals side-by-side
+    // Animate layout from fullscreen → split during enter, split → fullscreen during exit
     const isHorizontal = mode === 'split-horizontal';
-    const styles = buildSplitStyles(split, isHorizontal);
+    const layoutProgress = Math.min(layoutEnterProgress, 1 - layoutExitProgress);
+    const styles = buildAnimatedSplitStyles(split, isHorizontal, layoutProgress);
     videoLayerStyle = styles.videoStyle;
     visualLayerStyle = {
       ...styles.visualsStyle,
@@ -837,10 +965,12 @@ function DynamicLayoutComposition({
     };
   }
 
-  // For overlay mode, visuals sit on top of video at reduced opacity
+  // For overlay mode, visuals sit on top of video with screen blend
+  // so dark/black background areas become transparent
   const overlayVisualStyle: React.CSSProperties = {
     ...fullScreenStyle,
-    opacity: 0.7 * transitionOpacity,
+    opacity: transitionOpacity,
+    mixBlendMode: 'screen',
     transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
     transformOrigin: 'center center',
     zIndex: 5,

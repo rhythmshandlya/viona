@@ -304,6 +304,8 @@ export interface FullscreenSegment {
 interface DisplayModeSegment {
   startMs: number;
   endMs: number;
+  enterDurationMs?: number; // transition duration when entering (0 = cut)
+  exitDurationMs?: number;  // transition duration when exiting (0 = cut)
 }
 
 export interface RenderJobData {
@@ -357,29 +359,79 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
     const fullscreenVisualSegments: DisplayModeSegment[] = [];
     const overlaySegments: DisplayModeSegment[] = [];
+    const isSplitLayout = layoutSettings?.mode === 'split-horizontal' || layoutSettings?.mode === 'split-vertical';
 
-    for (const item of visualItems) {
+    for (let i = 0; i < visualItems.length; i++) {
+      const item = visualItems[i];
       const dm = (item.data as any)?.displayMode || 'pip';
+      const transition = (item.data as any)?.transition;
+
+      // Determine if layout changes at enter/exit boundaries
+      // For split mode, 'pip' is the base split layout — only non-pip modes need overlay layers
+      const prevItem = i > 0 ? visualItems[i - 1] : null;
+      const nextItem = i < visualItems.length - 1 ? visualItems[i + 1] : null;
+      const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'pip') : 'gap';
+      const nextDm = nextItem ? ((nextItem.data as any)?.displayMode || 'pip') : 'gap';
+
+      // Check if there's a gap between prev and current (gap = different layout)
+      const hasPrevGap = !prevItem || prevItem.endMs < item.startMs - 50;
+      const hasNextGap = !nextItem || nextItem.startMs > item.endMs + 50;
+      const effectivePrevLayout = hasPrevGap ? 'gap' : prevDm;
+      const effectiveNextLayout = hasNextGap ? 'gap' : nextDm;
+
+      const layoutChangesOnEnter = dm !== effectivePrevLayout;
+      const layoutChangesOnExit = dm !== effectiveNextLayout;
+
+      // Only include transition durations when the layout actually changes
+      const enterDurationMs = (layoutChangesOnEnter && transition?.enter?.type !== 'cut')
+        ? (transition?.enter?.durationMs || 0) : 0;
+      const exitDurationMs = (layoutChangesOnExit && transition?.exit?.type !== 'cut')
+        ? (transition?.exit?.durationMs || 0) : 0;
+
       if (dm === 'fullscreen') {
-        fullscreenVisualSegments.push({ startMs: item.startMs, endMs: item.endMs });
+        fullscreenVisualSegments.push({ startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs });
       } else if (dm === 'overlay') {
-        overlaySegments.push({ startMs: item.startMs, endMs: item.endMs });
+        overlaySegments.push({ startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs });
       }
     }
 
     // Gap segments: time ranges where no visual is active (speaker fullscreen)
+    // Computed for ALL layout modes — in pip mode, gaps need the source video
+    // overlaid fullscreen so the Remotion black frames don't show through.
     const gapSegments: DisplayModeSegment[] = [];
-    if (layoutSettings?.mode === 'split-horizontal' || layoutSettings?.mode === 'split-vertical') {
+    {
       const durationMs = project.durationMs || 0;
       let cursor = 0;
-      for (const item of visualItems) {
+      for (let i = 0; i < visualItems.length; i++) {
+        const item = visualItems[i];
         if (item.startMs > cursor) {
-          gapSegments.push({ startMs: cursor, endMs: item.startMs });
+          // For gap enter: check transition of the preceding visual item (its exit)
+          const prevItem = i > 0 ? visualItems[i - 1] : null;
+          const prevTransition = prevItem ? (prevItem.data as any)?.transition : null;
+          const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'pip') : 'pip';
+          const gapEnterDuration = (prevDm !== 'gap' && prevTransition?.exit?.type !== 'cut')
+            ? (prevTransition?.exit?.durationMs || 0) : 0;
+
+          // For gap exit: check transition of the next visual item (its enter)
+          const nextTransition = (item.data as any)?.transition;
+          const nextDm = (item.data as any)?.displayMode || 'pip';
+          const gapExitDuration = (nextDm !== 'gap' && nextTransition?.enter?.type !== 'cut')
+            ? (nextTransition?.enter?.durationMs || 0) : 0;
+
+          gapSegments.push({
+            startMs: cursor, endMs: item.startMs,
+            enterDurationMs: gapEnterDuration, exitDurationMs: gapExitDuration,
+          });
         }
         cursor = Math.max(cursor, item.endMs);
       }
       if (cursor < durationMs) {
-        gapSegments.push({ startMs: cursor, endMs: durationMs });
+        const lastItem = visualItems[visualItems.length - 1];
+        const lastTransition = lastItem ? (lastItem.data as any)?.transition : null;
+        const lastDm = lastItem ? ((lastItem.data as any)?.displayMode || 'pip') : 'pip';
+        const enterDuration = (lastDm !== 'gap' && lastTransition?.exit?.type !== 'cut')
+          ? (lastTransition?.exit?.durationMs || 0) : 0;
+        gapSegments.push({ startMs: cursor, endMs: durationMs, enterDurationMs: enterDuration, exitDurationMs: 0 });
       }
     }
 
@@ -650,7 +702,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
         args.push('-y');
         args.push('-vf', `subtitles=${escapePathForFilter(assPath)}:fontsdir=${fontsDir}`);
-        args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
+        args.push('-c:v', 'libx264', '-preset', 'faster', '-crf', '18', '-threads', '4');
 
         if (enhancedAudioPath) {
           args.push('-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-shortest');
@@ -680,7 +732,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           '-i', `color=c=black:s=1080x1920:d=${durationSec}:r=30`,
           '-i', audioFilename,
           '-y',
-          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23',
+          '-c:v', 'libx264', '-preset', 'faster', '-crf', '18',
           '-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-shortest',
           outputPath,
         ];
@@ -1286,17 +1338,13 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
   }, 'Composition selected');
 
   // Render the composition to video
-  // CRITICAL: Railway containers have limited RAM (~512MB-2GB)
-  // x264 auto-detects 60 threads which requires 8-16GB RAM
-  // Solution: Render at 50% scale to reduce memory by ~75%, then the final
-  // composite step will scale back up
+  // Railway containers have limited RAM — use concurrency 1 and 'faster' preset
+  // to keep memory reasonable while maintaining text/caption quality
 
   logger.info({
     concurrency: 1,
-    scale: 0.5,
     originalSize: `${composition.width}x${composition.height}`,
-    scaledSize: `${Math.round(composition.width * 0.5)}x${Math.round(composition.height * 0.5)}`
-  }, 'Starting renderMedia with reduced resolution for memory savings');
+  }, 'Starting renderMedia at full resolution');
 
   await renderMedia({
     composition,
@@ -1306,18 +1354,10 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
     },
-    // CRITICAL: Use concurrency 1 to minimize memory - render one frame at a time
     concurrency: 1,
-    // CRITICAL: Render at 50% scale to reduce memory usage by ~75%
-    // This renders at 540x960 instead of 1080x1920
-    scale: 0.5,
-    // Use JPEG for faster rendering (no transparency needed for final output)
-    imageFormat: 'jpeg',
-    jpegQuality: 80,
-    // Use 'ultrafast' preset - uses MUCH less memory than 'faster' or default
-    x264Preset: 'ultrafast',
-    // Higher CRF = lower quality but less memory (23 is still good quality)
-    crf: 23,
+    imageFormat: 'png',
+    x264Preset: 'faster',
+    crf: 18,
     // Progress callback
     onProgress: ({ progress }) => {
       if (onProgress) {
@@ -1398,11 +1438,11 @@ async function compositeVideos(
     args.push('-map', '0:a?');  // Use source audio if available
   }
 
-  // LOW MEMORY MODE: Use ultrafast preset and limit threads
+  // Encoding: 'faster' preset balances quality and memory usage
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '23',
+    '-preset', 'faster',
+    '-crf', '18',
     '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
@@ -1587,7 +1627,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
   // Add subtitles filter if we have them, otherwise copy video
   if (assFilename) {
     args.push('-vf', `subtitles=${assFilename}:fontsdir=${fontsDir}`);
-    args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
+    args.push('-c:v', 'libx264', '-preset', 'faster', '-crf', '18', '-threads', '4');
   } else {
     args.push('-c:v', 'copy');
   }
@@ -1672,19 +1712,14 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     resolvedFontFamily,
   } = options;
 
-  // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
-  // This matches the 0.5 scale used in Remotion rendering
-  const MEMORY_SCALE = 0.5;
-  const width = Math.round(fullWidth * MEMORY_SCALE);
-  const height = Math.round(fullHeight * MEMORY_SCALE);
+  // Render at full resolution for caption/text quality
+  const width = fullWidth;
+  const height = fullHeight;
 
   logger.info({
-    fullWidth,
-    fullHeight,
-    scaledWidth: width,
-    scaledHeight: height,
-    scale: MEMORY_SCALE,
-  }, 'Using reduced resolution for low memory composite');
+    width,
+    height,
+  }, 'Compositing at full resolution');
 
   const { spawn, execSync } = await import('child_process');
   const { basename } = await import('path');
@@ -1747,34 +1782,33 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     const pipHeight = Math.round(pipWidth); // Square aspect ratio for PiP
 
     // Calculate position based on settings
+    const scaledOffsetX = Math.round(pip.offsetX);
+    const scaledOffsetY = Math.round(pip.offsetY);
     let pipX: number, pipY: number;
     switch (pip.position) {
       case 'top-left':
-        pipX = pip.offsetX;
-        pipY = pip.offsetY;
+        pipX = scaledOffsetX;
+        pipY = scaledOffsetY;
         break;
       case 'top-right':
-        pipX = width - pipWidth - pip.offsetX;
-        pipY = pip.offsetY;
+        pipX = width - pipWidth - scaledOffsetX;
+        pipY = scaledOffsetY;
         break;
       case 'bottom-left':
-        pipX = pip.offsetX;
-        pipY = height - pipHeight - pip.offsetY;
+        pipX = scaledOffsetX;
+        pipY = height - pipHeight - scaledOffsetY;
         break;
       case 'bottom-right':
       default:
-        pipX = width - pipWidth - pip.offsetX;
-        pipY = height - pipHeight - pip.offsetY;
+        pipX = width - pipWidth - scaledOffsetX;
+        pipY = height - pipHeight - scaledOffsetY;
         break;
     }
 
     logger.info({
       mode,
       pipDimensions: { pipWidth, pipHeight, pipX, pipY },
-    }, 'Rendering with simplified PiP layout (low memory mode)');
-
-    // LOW MEMORY MODE: Simple overlay without shadows, borders, or rounded corners
-    // This uses minimal FFmpeg filters to prevent OOM on Railway
+    }, 'Rendering with PiP layout');
     filterComplex = [
       // Scale Remotion visuals to full screen
       `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
@@ -1788,7 +1822,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     // Split horizontal (top/bottom)
     const visualsPercent = split.ratio / 100;
     const videoPercent = 1 - visualsPercent;
-    const gap = split.gap;
+    const gap = Math.round(split.gap);
     const isVisualsFirst = split.position === 'visuals-first';
 
     const visualsHeight = Math.round((height - gap) * visualsPercent);
@@ -1801,16 +1835,19 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     }, 'Rendering with horizontal split layout');
 
     // Use scale + crop to fill containers without black bars
+    // IMPORTANT: Visual stream (1:v) must crop from top-left (0:0) because Remotion
+    // renders visual content at position (0,0) with effective dimensions.
+    // Center crop (default) would clip the visual content and show background instead.
     if (isVisualsFirst) {
       filterComplex = [
-        `[1:v]scale=${width}:${visualsHeight}:force_original_aspect_ratio=increase,crop=${width}:${visualsHeight},setsar=1[visuals]`,
+        `[1:v]scale=${width}:${visualsHeight}:force_original_aspect_ratio=increase,crop=${width}:${visualsHeight}:0:0,setsar=1[visuals]`,
         `[0:v]scale=${width}:${videoHeight}:force_original_aspect_ratio=increase,crop=${width}:${videoHeight},setsar=1[video]`,
         `[visuals][video]vstack=inputs=2[outv]`
       ].join(';');
     } else {
       filterComplex = [
         `[0:v]scale=${width}:${videoHeight}:force_original_aspect_ratio=increase,crop=${width}:${videoHeight},setsar=1[video]`,
-        `[1:v]scale=${width}:${visualsHeight}:force_original_aspect_ratio=increase,crop=${width}:${visualsHeight},setsar=1[visuals]`,
+        `[1:v]scale=${width}:${visualsHeight}:force_original_aspect_ratio=increase,crop=${width}:${visualsHeight}:0:0,setsar=1[visuals]`,
         `[video][visuals]vstack=inputs=2[outv]`
       ].join(';');
     }
@@ -1819,7 +1856,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     // Split vertical (left/right)
     const visualsPercent = split.ratio / 100;
     const videoPercent = 1 - visualsPercent;
-    const gap = split.gap;
+    const gap = Math.round(split.gap);
     const isVisualsFirst = split.position === 'visuals-first';
 
     const visualsWidth = Math.round((width - gap) * visualsPercent);
@@ -1832,16 +1869,18 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     }, 'Rendering with vertical split layout');
 
     // Use scale + crop to fill containers without black bars
+    // IMPORTANT: Visual stream (1:v) must crop from top-left (0:0) because Remotion
+    // renders visual content at position (0,0) with effective dimensions.
     if (isVisualsFirst) {
       filterComplex = [
-        `[1:v]scale=${visualsWidth}:${height}:force_original_aspect_ratio=increase,crop=${visualsWidth}:${height},setsar=1[visuals]`,
+        `[1:v]scale=${visualsWidth}:${height}:force_original_aspect_ratio=increase,crop=${visualsWidth}:${height}:0:0,setsar=1[visuals]`,
         `[0:v]scale=${videoWidth}:${height}:force_original_aspect_ratio=increase,crop=${videoWidth}:${height},setsar=1[video]`,
         `[visuals][video]hstack=inputs=2[outv]`
       ].join(';');
     } else {
       filterComplex = [
         `[0:v]scale=${videoWidth}:${height}:force_original_aspect_ratio=increase,crop=${videoWidth}:${height},setsar=1[video]`,
-        `[1:v]scale=${visualsWidth}:${height}:force_original_aspect_ratio=increase,crop=${visualsWidth}:${height},setsar=1[visuals]`,
+        `[1:v]scale=${visualsWidth}:${height}:force_original_aspect_ratio=increase,crop=${visualsWidth}:${height}:0:0,setsar=1[visuals]`,
         `[video][visuals]hstack=inputs=2[outv]`
       ].join(';');
     }
@@ -1870,9 +1909,32 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
   const hasNonPipSegments = needsFullscreen || needsOverlay || needsGaps;
 
   if (hasNonPipSegments) {
-    // Helper: build FFmpeg enable expression from segments
+    // Helper: build FFmpeg enable expression from segments (hard on/off)
     const buildEnableExpr = (segs: DisplayModeSegment[]): string =>
       segs.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+');
+
+    // Helper: build fade filter chain for smooth enter/exit transitions
+    // Uses FFmpeg's native fade filter with alpha=1 (only affects alpha channel)
+    const buildFadeFilters = (segs: DisplayModeSegment[]): string => {
+      const fades: string[] = [];
+      for (const s of segs) {
+        if ((s.enterDurationMs || 0) > 0) {
+          const st = (s.startMs / 1000).toFixed(3);
+          const d = ((s.enterDurationMs || 0) / 1000).toFixed(3);
+          fades.push(`fade=t=in:st=${st}:d=${d}:alpha=1`);
+        }
+        if ((s.exitDurationMs || 0) > 0) {
+          const st = ((s.endMs - (s.exitDurationMs || 0)) / 1000).toFixed(3);
+          const d = ((s.exitDurationMs || 0) / 1000).toFixed(3);
+          fades.push(`fade=t=out:st=${st}:d=${d}:alpha=1`);
+        }
+      }
+      return fades.join(',');
+    };
+
+    // Check if any segments have transitions (need fade pipeline)
+    const anyTransitions = (segs: DisplayModeSegment[] | undefined): boolean =>
+      !!segs?.some(s => (s.enterDurationMs || 0) > 0 || (s.exitDurationMs || 0) > 0);
 
     // Calculate how many copies of each stream we need
     // Source (0:v): 1 for layout + 1 if gaps or overlay need fullscreen source
@@ -1916,12 +1978,19 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     if (needsFullscreen) {
       const prevOut = currentOut;
       currentOut = 'after_fs';
-      const expr = buildEnableExpr(fullscreenVisualSegments!);
       filterComplex = filterComplex.replace(`[${prevOut}]`, `[${prevOut === 'outv' ? 'base' : prevOut}]`);
-      // Only replace the last occurrence (the output label)
       const baseLabel = prevOut === 'outv' ? 'base' : prevOut;
-      filterComplex += `;[vis_fs]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[vis_fs_scaled]`;
-      filterComplex += `;[${baseLabel}][vis_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
+      const expr = buildEnableExpr(fullscreenVisualSegments!);
+
+      if (anyTransitions(fullscreenVisualSegments)) {
+        // Smooth transitions: convert to yuva420p and use fade filters for alpha
+        const fadeChain = buildFadeFilters(fullscreenVisualSegments!);
+        filterComplex += `;[vis_fs]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,${fadeChain}[vis_fs_faded]`;
+        filterComplex += `;[${baseLabel}][vis_fs_faded]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+      } else {
+        filterComplex += `;[vis_fs]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[vis_fs_scaled]`;
+        filterComplex += `;[${baseLabel}][vis_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
+      }
     }
 
     // Layer 2: Gap + Overlay background — Source video fills canvas
@@ -1929,16 +1998,22 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     if (gapAndOverlaySegs.length > 0) {
       const prevOut = currentOut;
       currentOut = 'after_src';
-      // Rename previous output label if it's still 'outv'
       if (prevOut === 'outv') {
         filterComplex = filterComplex.replace('[outv]', '[base]');
       }
       const expr = buildEnableExpr(gapAndOverlaySegs);
-      filterComplex += `;[src_extra]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[src_fs_scaled]`;
-      filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][src_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
+
+      if (anyTransitions(gapAndOverlaySegs)) {
+        const fadeChain = buildFadeFilters(gapAndOverlaySegs);
+        filterComplex += `;[src_extra]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,${fadeChain}[src_fs_faded]`;
+        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][src_fs_faded]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+      } else {
+        filterComplex += `;[src_extra]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[src_fs_scaled]`;
+        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][src_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
+      }
     }
 
-    // Layer 3: Overlay visuals — Remotion at 0.7 opacity on top of source
+    // Layer 3: Overlay visuals — Remotion at 70% opacity on top of source
     if (needsOverlay) {
       const prevOut = currentOut;
       currentOut = 'after_ovl';
@@ -1946,8 +2021,15 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
         filterComplex = filterComplex.replace('[outv]', '[base]');
       }
       const expr = buildEnableExpr(overlaySegments!);
-      filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=0.7[vis_ovl_alpha]`;
-      filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_alpha]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+
+      if (anyTransitions(overlaySegments)) {
+        const fadeChain = buildFadeFilters(overlaySegments!);
+        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=0.7,${fadeChain}[vis_ovl_faded]`;
+        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_faded]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+      } else {
+        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=0.7[vis_ovl_alpha]`;
+        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_alpha]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+      }
     }
 
     // Final output must be [outv] for downstream subtitle filter and mapping
@@ -2003,11 +2085,11 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     args.push('-map', '0:a?');  // Use source audio if available
   }
 
-  // LOW MEMORY MODE: Use ultrafast preset and limit threads to avoid OOM
+  // Encoding: 'faster' preset balances quality and memory usage to avoid OOM
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '23',
+    '-preset', 'faster',
+    '-crf', '18',
     '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
@@ -2149,7 +2231,7 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
 
   // Encoding settings (only if we have subtitles to burn)
   if (assFilename) {
-    args.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-threads', '4');
+    args.push('-c:v', 'libx264', '-preset', 'faster', '-crf', '18', '-threads', '4');
   }
 
   args.push('-shortest', basename(outputPath));
@@ -2211,18 +2293,14 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     fontsDir = escapePathForFilter(SYSTEM_FONTS_DIR),
   } = options;
 
-  // LOW MEMORY MODE: Scale down output to 50% to reduce FFmpeg memory usage
-  const MEMORY_SCALE = 0.5;
-  const projectWidth = Math.round(fullWidth * MEMORY_SCALE);
-  const projectHeight = Math.round(fullHeight * MEMORY_SCALE);
+  // Render at full resolution for caption/text quality
+  const projectWidth = fullWidth;
+  const projectHeight = fullHeight;
 
   logger.info({
-    fullWidth,
-    fullHeight,
-    scaledWidth: projectWidth,
-    scaledHeight: projectHeight,
-    scale: MEMORY_SCALE,
-  }, 'Using reduced resolution for low memory full composite');
+    projectWidth,
+    projectHeight,
+  }, 'Compositing at full resolution');
 
   const { spawn } = await import('child_process');
   const { basename } = await import('path');
@@ -2299,11 +2377,11 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     args.push('-map', '0:a?');
   }
 
-  // LOW MEMORY MODE: Use ultrafast preset and limit threads
+  // Encoding: 'faster' preset balances quality and memory usage
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '23',
+    '-preset', 'faster',
+    '-crf', '18',
     '-threads', '4',
     '-c:a', 'aac',
     '-shortest',
@@ -2985,11 +3063,11 @@ async function encodeVideoWithSubtitles(
     args.push('-map', '0:v', '-map', '1:a');
   }
 
-  // LOW MEMORY MODE: Use ultrafast preset and limit threads
+  // Encoding: 'faster' preset balances quality and memory usage
   args.push(
     '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '23',
+    '-preset', 'faster',
+    '-crf', '18',
     '-threads', '4',
     '-c:a', 'aac',
     '-shortest',

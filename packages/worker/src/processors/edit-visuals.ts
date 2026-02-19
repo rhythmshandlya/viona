@@ -702,11 +702,25 @@ SCOPE RESTRICTION (MANDATORY):
     logger.debug({ projectId, output: text.slice(0, 200) }, 'Claude editor output');
   });
 
+  // Track whether subprocess has been killed due to a fatal stderr error
+  let fatalStderrDetected = false;
+
   subprocess.stderr?.on('data', (chunk: Buffer) => {
     const text = chunk.toString('utf-8');
     stderr += text;
     if (text.includes('error') || text.includes('Error')) {
       logger.warn({ projectId, stderr: text.slice(0, 500) }, 'Claude editor stderr');
+    }
+    // Detect fatal crashes: unhandled rejections / uncaught exceptions mean the CLI is likely hung
+    if (
+      text.includes('unhandled') ||
+      text.includes('UnhandledPromiseRejection') ||
+      text.includes('rejecting a promise which was not handled') ||
+      text.includes('uncaughtException')
+    ) {
+      logger.error({ projectId, stderr: text.slice(0, 500) }, 'Claude editor fatal error detected, killing subprocess');
+      fatalStderrDetected = true;
+      subprocess.kill('SIGTERM');
     }
   });
 
@@ -725,7 +739,9 @@ SCOPE RESTRICTION (MANDATORY):
       heartbeat.stop();
       runningProcesses.delete(jobId);
       unregisterCancelHandler(jobId);
-      if (code === 0) {
+      if (fatalStderrDetected) {
+        reject(new UnrecoverableError(`Claude editor crashed (unhandled rejection): ${stderr.slice(-500)}`));
+      } else if (code === 0) {
         resolve();
       } else {
         // Non-zero exit = bad input/prompt, don't retry
