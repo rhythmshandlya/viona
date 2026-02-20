@@ -2946,6 +2946,179 @@ registerRoot(RemotionRoot);
     # Two-Phase Generation Pipeline (Director + Animator)
     # =========================================================================
 
+    async def _run_assistant_director(
+        self,
+        formatted_transcript: str,
+        style_preset: str = "modern",
+    ) -> dict[str, Any]:
+        """
+        Phase 0: Run the Assistant Director agent to create a Creative Brief.
+
+        The Assistant Director analyzes the transcript and produces a
+        CREATIVE_BRIEF.md that classifies tone, selects color palette / fonts,
+        recommends visual asset types per beat, and provides scene-structure
+        hints for the downstream Director.
+
+        This phase is non-blocking: if it fails, the pipeline continues
+        without a brief (the Director can still function independently).
+
+        Args:
+            formatted_transcript: Transcript with word-level timestamps.
+            style_preset: Visual style preset (minimal, modern, playful,
+                          bold, classic, studio).
+
+        Returns:
+            dict with success status and brief file path (or error details).
+        """
+        from prompts.assistant_director import (
+            ASSISTANT_DIRECTOR_SYSTEM_PROMPT,
+            build_assistant_director_message,
+        )
+
+        print("[ClaudeGenerator] Phase 0: Assistant Director analyzing transcript...", flush=True)
+
+        # Ensure src_dir exists before running Claude
+        self.src_dir.mkdir(parents=True, exist_ok=True)
+
+        assistant_director_message = build_assistant_director_message(
+            transcript=formatted_transcript,
+            style_preset=style_preset,
+            output_dir=str(self.src_dir),
+        )
+
+        # Write restricted security settings — only allow writes within the
+        # project directory (src_dir).
+        ad_settings_dir = self.src_dir / ".claude"
+        ad_settings_dir.mkdir(parents=True, exist_ok=True)
+        ad_settings = {
+            "permissions": {
+                "defaultMode": "acceptEdits",
+                "allow": [
+                    "Write(./**)",
+                ],
+            },
+        }
+        with open(ad_settings_dir / "settings.local.json", "w", encoding="utf-8") as f:
+            json.dump(ad_settings, f, indent=2)
+
+        # Assistant Director uses Haiku for fast classification.
+        # cwd is set to src_dir so Claude writes CREATIVE_BRIEF.md directly
+        # in the project directory.
+        client = ClaudeSDKClient(
+            options=ClaudeAgentOptions(
+                model="claude-haiku-4-5-20251001",
+                system_prompt={
+                    "type": "preset",
+                    "preset": "claude_code",
+                    "append": ASSISTANT_DIRECTOR_SYSTEM_PROMPT,
+                },
+                cwd=str(self.src_dir),
+                max_turns=5,  # Quick classification — no iterating
+                max_thinking_tokens=2000,
+                allowed_tools=["Write"],
+                cli_path=CLAUDE_CLI_PATH,
+            )
+        )
+
+        response_text = ""
+        tool_calls_made = []
+        try:
+            async with client:
+                await client.query(assistant_director_message)
+                print("[Assistant Director] Query sent, waiting for response...", flush=True)
+
+                async for msg in client.receive_response():
+                    msg_type = type(msg).__name__
+                    print(f"[Assistant Director] Received message type: {msg_type}", flush=True)
+
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                response_text += block.text
+                                try:
+                                    print(block.text, end="", flush=True)
+                                except UnicodeEncodeError:
+                                    safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
+                                    print(safe_text, end="", flush=True)
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                tool_calls_made.append(block.name)
+                                print(f"\n[Assistant Director Tool: {block.name}]", flush=True)
+                            elif block_type == "ToolResultBlock":
+                                print("\n[Assistant Director Tool Result received]", flush=True)
+                            elif block_type == "ThinkingBlock":
+                                pass  # Extended thinking — no output needed
+                            else:
+                                print(f"\n[Assistant Director] Unknown block type: {block_type}", flush=True)
+                    elif msg_type == "ErrorMessage":
+                        print(f"[Assistant Director] ERROR: {msg}", flush=True)
+                    elif msg_type == "StopMessage":
+                        print("[Assistant Director] Stop reason received", flush=True)
+
+        except Exception as e:
+            safe_print(f"[Assistant Director] WARNING: Agent failed with error: {e}")
+            return {
+                "success": False,
+                "error": f"Assistant Director agent error: {e}",
+            }
+
+        print(f"\n[ClaudeGenerator] Assistant Director made {len(tool_calls_made)} tool calls: {tool_calls_made}", flush=True)
+        print("\n[ClaudeGenerator] Assistant Director completed", flush=True)
+
+        # Verify CREATIVE_BRIEF.md was created
+        creative_brief = self.src_dir / "CREATIVE_BRIEF.md"
+
+        # Debug: List what files exist in the source directory
+        print(f"[ClaudeGenerator] Checking for CREATIVE_BRIEF.md in: {self.src_dir}")
+        if self.src_dir.exists():
+            existing_files = list(self.src_dir.iterdir())
+            print(f"[ClaudeGenerator] Files in src_dir: {[f.name for f in existing_files]}")
+
+        # ── Fallback file recovery ──
+        # Claude sometimes writes files to the wrong location (workspace root,
+        # flattened path in filename, etc.). Search common wrong locations and
+        # move them.
+        if not creative_brief.exists():
+            import shutil
+            print("[ClaudeGenerator] CREATIVE_BRIEF.md not in expected location, searching for misplaced files...")
+
+            search_locations = [
+                # Workspace root
+                self.workspace / "CREATIVE_BRIEF.md",
+                # Workspace root with project prefix
+                self.workspace / f"{self.project_id}_CREATIVE_BRIEF.md",
+                # src/ root (one level up from project dir)
+                self.workspace / "src" / "CREATIVE_BRIEF.md",
+            ]
+
+            for alt_brief in search_locations:
+                if alt_brief.exists():
+                    print(f"[ClaudeGenerator] Found misplaced CREATIVE_BRIEF.md at {alt_brief}, moving to {creative_brief}")
+                    shutil.move(str(alt_brief), str(creative_brief))
+                    break
+
+            # Also search for any CREATIVE_BRIEF.md in the workspace root with any prefix
+            if not creative_brief.exists():
+                for f in self.workspace.glob("*CREATIVE_BRIEF.md"):
+                    print(f"[ClaudeGenerator] Found misplaced brief file: {f}, moving to {creative_brief}")
+                    shutil.move(str(f), str(creative_brief))
+                    break
+
+        if not creative_brief.exists():
+            safe_print("[ClaudeGenerator] WARNING: Assistant Director did not create CREATIVE_BRIEF.md — pipeline will continue without it")
+            return {
+                "success": False,
+                "error": f"Assistant Director did not create CREATIVE_BRIEF.md (expected at {creative_brief})",
+            }
+
+        brief_size = creative_brief.stat().st_size
+        safe_print(f"[ClaudeGenerator] Creative Brief created successfully ({brief_size} bytes)")
+
+        return {
+            "success": True,
+            "creativeBriefPath": str(creative_brief),
+        }
+
     async def _run_director(
         self,
         formatted_transcript: str,
@@ -3436,7 +3609,20 @@ registerRoot(RemotionRoot);
                 else:
                     formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
-                emit_progress(18, "Phase 1: Director planning scenes...")
+                # Phase 0: Assistant Director (creative brief)
+                emit_progress(16, "Phase 0: Assistant Director analyzing script...")
+                ad_result = await self._run_assistant_director(
+                    formatted_transcript=formatted_transcript,
+                    style_preset=style_preset,
+                )
+                if ad_result["success"]:
+                    print(f"[ClaudeGenerator] Creative brief ready")
+                    emit_progress(18, "Creative brief complete")
+                else:
+                    print(f"[ClaudeGenerator] Assistant Director skipped: {ad_result.get('error', 'unknown')}")
+                    emit_progress(18, "Proceeding without creative brief")
+
+                emit_progress(19, "Phase 1: Director planning scenes...")
 
                 # Phase 1: Director
                 director_result = await self._run_director(
@@ -3646,8 +3832,8 @@ async def main():
     parser.add_argument("--source-height", type=int, default=None, help="Source video height (for coverage-aware layout)")
     parser.add_argument("--pip-width", type=int, default=None, help="Effective pip width for split layouts")
     parser.add_argument("--pip-height", type=int, default=None, help="Effective pip height for split layouts")
-    parser.add_argument("--phase", choices=["director", "animator"], default=None,
-                        help="Run only a specific phase (director or animator). Default: both.")
+    parser.add_argument("--phase", choices=["assistant-director", "director", "animator"], default=None,
+                        help="Run only a specific phase (assistant-director, director, or animator). Default: all.")
 
     args = parser.parse_args()
 
@@ -3677,7 +3863,38 @@ async def main():
         model=args.model,
     )
 
-    if args.phase == "director":
+    if args.phase == "assistant-director":
+        # Phase 0 only: Run Assistant Director to create creative brief
+        from transcript_formatter import format_transcript_with_key_moments
+
+        print("[ClaudeGenerator] Running Assistant Director phase only")
+
+        try:
+            manager = get_token_manager()
+            await manager.get_valid_token()
+        except Exception as e:
+            print(f"[ClaudeGenerator] WARNING: OAuth token refresh failed: {e}")
+
+        generator.src_dir.mkdir(parents=True, exist_ok=True)
+
+        if words:
+            formatted = format_transcript_with_key_moments(words, args.fps)
+        else:
+            formatted = f"## TRANSCRIPT\n\n{transcript}"
+
+        ad_result = await generator._run_assistant_director(
+            formatted_transcript=formatted,
+            style_preset=args.style_preset if hasattr(args, 'style_preset') else "modern",
+        )
+        result = {
+            "success": ad_result["success"],
+            "pipeline": "assistant-director-only",
+            "briefPath": ad_result.get("creativeBriefPath"),
+        }
+        print(json.dumps(result, indent=2))
+        return
+
+    elif args.phase == "director":
         # Phase 1 only: Run Director to create scene plan
         from transcript_formatter import format_transcript_with_key_moments
 

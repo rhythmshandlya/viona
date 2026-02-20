@@ -212,6 +212,7 @@ For EVERY scene: Write reasoning FIRST → Then write code → Then validate
 - [ ] Used @remotion/three if requires3D was true
 - [ ] Used Freepik MCP for any icons (no emojis/text)
 - [ ] Used Freepik resources for illustrations where appropriate
+- [ ] Used AnimatedIcon/AnimatedImage wrappers for asset animations (unless complex choreography requires hand-rolling)
 - [ ] TypeScript compiles
 
 If you write code without first writing your reasoning, you are doing it wrong.
@@ -504,6 +505,95 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
   </svg>
 </div>
 ```
+
+### PRE-BUILT ANIMATION COMPONENTS
+
+**PREFER THESE WRAPPERS** over hand-rolling spring/interpolate for every asset.
+They give consistent, professional animation with minimal code.
+
+**Imports** (from scene files in `scenes/Scene1.tsx`):
+```tsx
+import {{ AnimatedIcon }} from '../../AnimatedIcon';
+import {{ AnimatedImage }} from '../../AnimatedImage';
+```
+
+From `components/Foo.tsx`:
+```tsx
+import {{ AnimatedIcon }} from '../../AnimatedIcon';
+import {{ AnimatedImage }} from '../../AnimatedImage';
+```
+
+From `index.tsx`:
+```tsx
+import {{ AnimatedIcon }} from '../AnimatedIcon';
+import {{ AnimatedImage }} from '../AnimatedImage';
+```
+
+**AnimatedIcon** — wrap Freepik/Iconify SVGs:
+```tsx
+// Pop entrance (default) — scale 0 → overshoot → 1
+<AnimatedIcon preset="icon-pop" delay={{10}} size={{80}} color={{COLORS.accent}}>
+  <svg viewBox="0 0 24 24" style={{{{ width: '100%', height: '100%' }}}}>
+    {{/* SVG from Freepik download */}}
+  </svg>
+</AnimatedIcon>
+
+// Stagger multiple icons
+{{icons.map((svg, i) => (
+  <AnimatedIcon key={{i}} preset="icon-pop" delay={{i * 8}} size={{64}} color={{COLORS.primary}}>
+    {{svg}}
+  </AnimatedIcon>
+))}}
+
+// Bounce up entrance
+<AnimatedIcon preset="icon-bounce" delay={{15}} activeAnimation="float">
+  {{/* SVG */}}
+</AnimatedIcon>
+
+// Spin-in entrance
+<AnimatedIcon preset="icon-spin-in" delay={{20}} exitAt={{120}}>
+  {{/* SVG */}}
+</AnimatedIcon>
+```
+
+Presets: `"icon-pop"` | `"icon-bounce"` | `"icon-fade-rise"` | `"icon-spin-in"` | `"none"`
+Active loops: `"float"` (gentle Y bob) | `"pulse"` (subtle scale) | `"none"`
+
+**AnimatedImage** — wrap Pexels photos / Freepik illustrations:
+```tsx
+import {{ staticFile }} from 'remotion';
+
+// Ken Burns (default) — slow zoom + pan, great for hero photos
+<AnimatedImage
+  src={{staticFile('assets/images/scene1-hero.jpg')}}
+  preset="photo-ken-burns"
+  delay={{5}}
+  borderRadius={{16}}
+  style={{{{ width: '70%', margin: '0 auto' }}}}
+/>
+
+// Blur reveal — photo sharpens into focus
+<AnimatedImage
+  src={{staticFile('assets/images/bg.jpg')}}
+  preset="photo-blur-reveal"
+  style={{{{ width: '100%', height: '100%' }}}}
+/>
+
+// Zoom entrance with spring
+<AnimatedImage
+  src={{staticFile('assets/images/accent.jpg')}}
+  preset="photo-zoom"
+  delay={{20}}
+  borderRadius={{12}}
+/>
+```
+
+Presets: `"photo-ken-burns"` | `"photo-zoom"` | `"photo-blur-reveal"` | `"photo-fade-scale"` | `"none"`
+
+**When to still hand-roll animations:**
+- Complex choreography where assets interact with each other
+- Custom spring configs per-element beyond what the wrapper exposes
+- Data visualizations (counters, charts) — these are NOT asset animations
 
 ### GUARDRAILS
 
