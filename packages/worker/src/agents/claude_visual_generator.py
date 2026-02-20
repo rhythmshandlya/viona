@@ -31,9 +31,34 @@ if str(_agents_dir) not in sys.path:
 try:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
     from claude_agent_sdk.types import HookMatcher
+    try:
+        from claude_agent_sdk._errors import MessageParseError
+    except ImportError:
+        # Older SDK versions may not expose this — define a fallback
+        class MessageParseError(Exception):
+            pass
 except ImportError:
     print("Error: claude-agent-sdk package not installed. Run: pip install claude-agent-sdk")
     sys.exit(1)
+
+
+async def safe_receive_response(client):
+    """Wrap client.receive_response() to skip unknown SSE event types.
+
+    The Anthropic API may send event types (e.g. rate_limit_event) that
+    older versions of claude-agent-sdk don't know how to parse, causing
+    a fatal MessageParseError.  This wrapper catches those and continues.
+    """
+    response_iter = client.receive_response()
+    while True:
+        try:
+            msg = await response_iter.__anext__()
+            yield msg
+        except StopAsyncIteration:
+            break
+        except MessageParseError as e:
+            print(f"[SDK] Skipping unknown event: {e}", flush=True)
+            continue
 
 
 # =============================================================================
@@ -2758,7 +2783,7 @@ When done, respond: "SELF-HEAL COMPLETE"
             async with client:
                 await client.query(heal_prompt)
 
-                async for msg in client.receive_response():
+                async for msg in safe_receive_response(client):
                     msg_type = type(msg).__name__
                     if msg_type == "AssistantMessage" and hasattr(msg, "content"):
                         for block in msg.content:
@@ -3241,7 +3266,7 @@ registerRoot(RemotionRoot);
             await client.query(director_message)
             print(f"[Director] Query sent, waiting for response...", flush=True)
 
-            async for msg in client.receive_response():
+            async for msg in safe_receive_response(client):
                 msg_type = type(msg).__name__
                 print(f"[Director] Received message type: {msg_type}", flush=True)
 
@@ -3492,7 +3517,7 @@ registerRoot(RemotionRoot);
         async with client:
             await client.query(animator_message)
 
-            async for msg in client.receive_response():
+            async for msg in safe_receive_response(client):
                 msg_type = type(msg).__name__
                 if msg_type == "AssistantMessage" and hasattr(msg, "content"):
                     for block in msg.content:
