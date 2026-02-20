@@ -31,34 +31,46 @@ if str(_agents_dir) not in sys.path:
 try:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
     from claude_agent_sdk.types import HookMatcher
-    try:
-        from claude_agent_sdk._errors import MessageParseError
-    except ImportError:
-        # Older SDK versions may not expose this — define a fallback
-        class MessageParseError(Exception):
-            pass
 except ImportError:
     print("Error: claude-agent-sdk package not installed. Run: pip install claude-agent-sdk")
     sys.exit(1)
 
+# ---------------------------------------------------------------------------
+# Monkey-patch: make the SDK silently skip unknown message types
+# (e.g. rate_limit_event) instead of raising MessageParseError which
+# kills the async generator and truncates multi-turn agent loops.
+# ---------------------------------------------------------------------------
+try:
+    from claude_agent_sdk._internal import message_parser as _mp
+    from claude_agent_sdk._errors import MessageParseError
 
-async def safe_receive_response(client):
-    """Wrap client.receive_response() to skip unknown SSE event types.
+    _original_parse_message = _mp.parse_message
 
-    The Anthropic API may send event types (e.g. rate_limit_event) that
-    older versions of claude-agent-sdk don't know how to parse, causing
-    a fatal MessageParseError.  This wrapper catches those and continues.
-    """
-    response_iter = client.receive_response()
-    while True:
+    def _patched_parse_message(data):
         try:
-            msg = await response_iter.__anext__()
-            yield msg
-        except StopAsyncIteration:
-            break
-        except MessageParseError as e:
-            print(f"[SDK] Skipping unknown event: {e}", flush=True)
-            continue
+            return _original_parse_message(data)
+        except MessageParseError as exc:
+            if "Unknown message type" in str(exc):
+                print(f"[SDK] Skipping unknown event: {exc}", flush=True)
+                return None  # sentinel — filtered out below
+            raise  # re-raise genuine parse errors
+
+    _mp.parse_message = _patched_parse_message
+
+    # Also patch receive_messages to skip None values returned by our patch
+    from claude_agent_sdk.client import ClaudeSDKClient as _Client
+
+    _original_receive_messages = _Client.receive_messages
+
+    async def _patched_receive_messages(self):
+        async for msg in _original_receive_messages(self):
+            if msg is not None:
+                yield msg
+
+    _Client.receive_messages = _patched_receive_messages
+    print("[SDK] Monkey-patch applied: unknown message types will be skipped", flush=True)
+except Exception as patch_err:
+    print(f"[SDK] Warning: could not apply monkey-patch ({patch_err}), unknown events may crash", flush=True)
 
 
 # =============================================================================
@@ -2783,7 +2795,7 @@ When done, respond: "SELF-HEAL COMPLETE"
             async with client:
                 await client.query(heal_prompt)
 
-                async for msg in safe_receive_response(client):
+                async for msg in client.receive_response():
                     msg_type = type(msg).__name__
                     if msg_type == "AssistantMessage" and hasattr(msg, "content"):
                         for block in msg.content:
@@ -3266,7 +3278,7 @@ registerRoot(RemotionRoot);
             await client.query(director_message)
             print(f"[Director] Query sent, waiting for response...", flush=True)
 
-            async for msg in safe_receive_response(client):
+            async for msg in client.receive_response():
                 msg_type = type(msg).__name__
                 print(f"[Director] Received message type: {msg_type}", flush=True)
 
@@ -3517,7 +3529,7 @@ registerRoot(RemotionRoot);
         async with client:
             await client.query(animator_message)
 
-            async for msg in safe_receive_response(client):
+            async for msg in client.receive_response():
                 msg_type = type(msg).__name__
                 if msg_type == "AssistantMessage" and hasattr(msg, "content"):
                     for block in msg.content:
