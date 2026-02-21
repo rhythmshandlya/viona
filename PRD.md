@@ -1,8 +1,8 @@
-# Reelify Product Requirements Document
+# Viona Product Requirements Document
 
-**Version:** 1.0  
-**Last Updated:** January 26, 2026  
-**Status:** Draft  
+**Version:** 1.1
+**Last Updated:** February 21, 2026
+**Status:** Active
 **Author:** Product Team
 
 ---
@@ -30,13 +30,13 @@
 
 ## Executive Summary
 
-### What is Reelify?
+### What is Viona?
 
-Reelify is an AI-powered video creation platform that automatically transforms talking-head explainer videos into visually-rich, engaging content. Unlike traditional editing tools that add generic B-roll or decorative elements, Reelify understands what creators are explaining and generates contextually relevant visuals—processes become flowcharts, frameworks become diagrams, comparisons become side-by-side graphics, and data becomes charts.
+Viona is an AI-powered video creation platform that automatically transforms talking-head explainer videos into visually-rich, engaging content. Unlike traditional editing tools that add generic B-roll or decorative elements, Viona understands what creators are explaining and generates contextually relevant visuals—processes become flowcharts, frameworks become diagrams, comparisons become side-by-side graphics, and data becomes charts.
 
 ### The One-Liner
 
-> **"You explain it. Reelify illustrates it."**
+> **"You explain it. Viona illustrates it."**
 
 ### Why Now?
 
@@ -48,7 +48,7 @@ Reelify is an AI-powered video creation platform that automatically transforms t
 
 ### Key Differentiator
 
-**Other tools make videos look better. Reelify makes ideas clearer.**
+**Other tools make videos look better. Viona makes ideas clearer.**
 
 ---
 
@@ -99,7 +99,7 @@ Educational and explainer content creators face a fundamental tension:
 
 ### Core Concept
 
-Reelify analyzes the transcript of a talking-head video, identifies moments where visual support would aid comprehension, and automatically generates contextually relevant graphics that appear at the right moments.
+Viona analyzes the transcript of a talking-head video, identifies moments where visual support would aid comprehension, and automatically generates contextually relevant graphics that appear at the right moments.
 
 ### The Magic Moment
 
@@ -109,9 +109,9 @@ Creator uploads a 10-minute explainer video. Within 5 minutes, they have:
 - 8-12 custom visuals generated and synced to their explanations
 - A polished, professional video ready to publish
 
-### What Makes Reelify Different
+### What Makes Viona Different
 
-| Traditional Tools | Reelify |
+| Traditional Tools | Viona |
 |-------------------|---------|
 | "Here's stock footage of an office" | "Here's an animated bar chart showing the 47% increase you mentioned" |
 | "Generic B-roll of technology" | "Here's a flowchart of the algorithm you're explaining" |
@@ -184,13 +184,13 @@ Creator uploads a 10-minute explainer video. Within 5 minutes, they have:
 
 ### For Solo Creators (Arjun)
 
-**Before Reelify:**
+**Before Viona:**
 - 3-4 hours per video
 - 3+ tools in workflow
 - Inconsistent visual quality
 - Limited by design skills
 
-**After Reelify:**
+**After Viona:**
 - 30-45 minutes per video
 - Single end-to-end platform
 - Professional, contextual visuals
@@ -201,13 +201,13 @@ Creator uploads a 10-minute explainer video. Within 5 minutes, they have:
 
 ### For Teams (Nisha)
 
-**Before Reelify:**
+**Before Viona:**
 - $500-2,000 per video (editor + designer)
 - 1-2 week turnaround
 - Quality bottleneck on skilled editors
 - Brand inconsistency across creators
 
-**After Reelify:**
+**After Viona:**
 - $2-5 per video (subscription amortized)
 - Same-day turnaround
 - Anyone can create quality content
@@ -259,7 +259,7 @@ Users can select (or AI can infer) style preferences:
 
 ### The Conversational Creation Model
 
-Rather than fully automated generation (which leads to high rejection rates), Reelify uses a **conversational approach** where AI asks targeted questions before generating visuals.
+Rather than fully automated generation (which leads to high rejection rates), Viona uses a **conversational approach** where AI asks targeted questions before generating visuals.
 
 ### Complete User Journey
 
@@ -730,9 +730,9 @@ Margin at low-end cost: ~30% | Margin at high-end cost: ~0%
 | **Pictory** | Script→video | Stock footage, AI voice | Medium (keyword→stock) | "Faceless" stock, not custom |
 | **Captions** | Auto-edit talking heads | B-roll, zooms, transitions | Medium (style-based) | Generic overlays, not concepts |
 
-### Reelify's Differentiation
+### Viona's Differentiation
 
-| Competitor Approach | Reelify Approach |
+| Competitor Approach | Viona Approach |
 |---------------------|------------------|
 | Add decoration | Add comprehension |
 | Stock footage matching | Custom visual generation |
@@ -742,7 +742,7 @@ Margin at low-end cost: ~30% | Margin at high-end cost: ~0%
 
 ### Why Not After Effects + Templates?
 
-| After Effects | Reelify |
+| After Effects | Viona |
 |---------------|---------|
 | Requires motion graphics expertise | No skill required |
 | 30-60 min per visual | Seconds per visual |
@@ -752,7 +752,7 @@ Margin at low-end cost: ~30% | Margin at high-end cost: ~0%
 
 ### Why Switch from Canva + CapCut?
 
-| Canva + CapCut Workflow | Reelify |
+| Canva + CapCut Workflow | Viona |
 |-------------------------|---------|
 | 2-4 hours per video | 15-30 minutes |
 | 3+ tools, manual handoffs | Single platform |
@@ -762,7 +762,7 @@ Margin at low-end cost: ~30% | Margin at high-end cost: ~0%
 
 ### Positioning Statement
 
-> **"Descript makes editing easy. Captions makes videos polished. Reelify makes videos *understandable*."**
+> **"Descript makes editing easy. Captions makes videos polished. Viona makes videos *understandable*."**
 
 ---
 
@@ -806,7 +806,7 @@ Margin at low-end cost: ~30% | Margin at high-end cost: ~0%
 
 ### North Star Metric
 
-**Videos Published with Reelify Visuals**
+**Videos Published with Viona Visuals**
 
 This captures:
 - User activation (uploaded and completed)
@@ -980,7 +980,7 @@ Target conversion rates:
 
 ## Appendix C: Competitive Feature Matrix
 
-| Feature | Reelify | Descript | Captions | Opus Clip | Pictory |
+| Feature | Viona | Descript | Captions | Opus Clip | Pictory |
 |---------|---------|----------|----------|-----------|---------|
 | Text-based editing | ✓ | ✓✓ | ✗ | ✗ | ✓ |
 | Filler word removal | ✓ | ✓ | ✓ | ✓ | ✓ |
@@ -1004,6 +1004,7 @@ Target conversion rates:
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | Jan 26, 2026 | Product Team | Initial PRD |
+| 1.1 | Feb 21, 2026 | Product Team | Renamed to Viona, updated tech stack |
 
 ---
 

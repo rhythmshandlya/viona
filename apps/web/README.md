@@ -1,58 +1,65 @@
-<p align="center">
-  <a href="https://github.com/designcombo/react-video-editor">
-    <img width="150px" height="150px" src="https://cdn.designcombo.dev/combo-logo-black.png"/>
-  </a>
-</p>
-<h1 align="center">React Video Editor</h1>
+# Viona Web App
 
-<div align="center">
-  
-Video Editor application using React and TypeScript.
+Next.js 15 frontend for the Viona video editing platform.
 
-<p align="center">
-    <a href="https://designcombo.dev/">Combo</a>
-    ·  
-    <a href="https://discord.gg/jrZs3wZyM5">Discord</a>
-    ·  
-    <a href="https://github.com/designcombo/react-video-editor">X</a>
-</p>
-</div>
+## Overview
 
-[![](./images/combo.png)](https://github.com/designcombo/react-video-editor)
+The web app provides:
+- Video upload and project management dashboard
+- Timeline-based video editor with multi-track support
+- Real-time preview with Remotion Player
+- AI visual generation controls and preview
+- Creative Director agent sidebar (conversational AI assistant)
+- Professional subtitle styling with 15+ animation presets
+- Export with configurable layout modes (PiP, split, spatial overlay)
 
-## ✨ Features
+## Tech Stack
 
-- 🎬 Timeline Editing: Arrange and trim media on a visual timeline.
-- 🌟 Effects and Transitions: Apply visual effects, filters, and transitions.
-- 🔀 Multi-track Support: Edit multiple video and audio tracks simultaneously.
-- 📤 Export Options: Save videos in various resolutions and formats.
-- 👀 Real-time Preview: See immediate previews of edits.
+| Technology | Purpose |
+|------------|---------|
+| Next.js 15 | React framework (App Router) |
+| React 19 | UI library |
+| TypeScript | Type safety |
+| Tailwind CSS 4 | Styling |
+| Zustand | State management |
+| Remotion | Video composition & preview |
+| Radix UI | Accessible components |
 
-## 🚀 See It in Action
-
-Check out the deployed version here: [React Video Editor Live Demo](https://video.designcombo.dev/)
-
-## ⌨️ Development
-
-### Environment Variables
-
-Create a `.env` file in the project root and add the following:
-
-```env
-PEXELS_API_KEY=""
-```
-
-Clone locally:
+## Development
 
 ```bash
-git clone git@github.com:designcombo/react-video-editor.git
-cd react-video-editor
-pnpm install
+# Start development server
 pnpm dev
+
+# Build for production
+pnpm build
+
+# Type check
+pnpm typecheck
+
+# Lint
+pnpm lint
 ```
 
-Open your browser and visit http://localhost:3000 , see more at [Development](https://github.com/designcombo/react-video-editor).
+## Environment Variables
 
-## 📝 License
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_WS_URL=ws://localhost:4000
+```
 
-Copyright © 2025 [DesignCombo](https://designcombo.dev/).
+## Key Directories
+
+```
+src/
+├── app/                    # Next.js App Router pages
+├── features/
+│   └── editor-v2/          # Main video editor
+│       ├── components/     # Editor UI components
+│       ├── store/          # Zustand editor store
+│       └── hooks/          # Editor-specific hooks
+├── components/             # Shared UI components
+│   └── ui/                 # Radix-based primitives
+├── lib/                    # Utilities & API client
+└── store/                  # Global stores
+```

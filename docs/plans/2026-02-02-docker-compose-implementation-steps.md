@@ -441,7 +441,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/api/package.json ./packages/api/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --filter @reelify/api...
+RUN pnpm install --frozen-lockfile --filter @viona/api...
 
 # =============================================================================
 # Stage 2: Builder
@@ -463,8 +463,8 @@ COPY packages/api ./packages/api
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Build
-RUN pnpm --filter @reelify/shared build
-RUN pnpm --filter @reelify/api build
+RUN pnpm --filter @viona/shared build
+RUN pnpm --filter @viona/api build
 
 # =============================================================================
 # Stage 3: Runner
@@ -535,8 +535,8 @@ COPY apps/web ./apps/web
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Build shared packages first
-RUN pnpm --filter @reelify/shared build
-RUN pnpm --filter @reelify/renderer build
+RUN pnpm --filter @viona/shared build
+RUN pnpm --filter @viona/renderer build
 
 # Build Next.js with standalone output
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -600,7 +600,7 @@ COPY packages/renderer/package.json ./packages/renderer/
 COPY packages/worker/package.json ./packages/worker/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --filter @reelify/worker...
+RUN pnpm install --frozen-lockfile --filter @viona/worker...
 
 # =============================================================================
 # Stage 2: Builder
@@ -622,9 +622,9 @@ COPY packages/worker ./packages/worker
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # Build
-RUN pnpm --filter @reelify/shared build
-RUN pnpm --filter @reelify/renderer build
-RUN pnpm --filter @reelify/worker build
+RUN pnpm --filter @viona/shared build
+RUN pnpm --filter @viona/renderer build
+RUN pnpm --filter @viona/worker build
 
 # =============================================================================
 # Stage 3: Runner with Python
@@ -1292,7 +1292,7 @@ docker compose logs -f visual-gen
 
 ```bash
 # =============================================================================
-# Clipify Docker Compose Configuration
+# Viona Docker Compose Configuration
 # =============================================================================
 # Copy this file to .env and fill in your values
 
@@ -1344,7 +1344,7 @@ services:
     volumes:
       - ./packages/api/src:/app/packages/api/src:ro
       - ./packages/shared/src:/app/packages/shared/src:ro
-    command: ["pnpm", "--filter", "@reelify/api", "dev"]
+    command: ["pnpm", "--filter", "@viona/api", "dev"]
     environment:
       NODE_ENV: development
 
@@ -1362,7 +1362,7 @@ services:
     volumes:
       - ./packages/worker/src:/app/src:ro
       - ./packages/worker/scripts:/app/scripts:ro
-    command: ["pnpm", "--filter", "@reelify/worker", "dev"]
+    command: ["pnpm", "--filter", "@viona/worker", "dev"]
     environment:
       NODE_ENV: development
 ```

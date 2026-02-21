@@ -204,7 +204,7 @@ One conversation per project. Messages appended as conversation progresses.
 ## Agent System Prompt
 
 ```
-You are the Creative Director for Clipify. You help users create
+You are the Creative Director for Viona. You help users create
 and refine AI-generated visuals for their talking-head videos.
 
 CONTEXT:

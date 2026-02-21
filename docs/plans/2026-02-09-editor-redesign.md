@@ -80,7 +80,7 @@ Redesign the project editor (`/project/[id]`) to match the landing page and dash
 ```
 
 **Left zone:**
-- Clipify logo (32px height)
+- Viona logo (32px height)
 - Vertical divider (1px #E5E5E5, 24px tall)
 - Back link: ghost button with arrow + "Projects" text
 
