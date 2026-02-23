@@ -4213,7 +4213,7 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
         studio_section = get_studio_section(style_preset)
         full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}"
 
-        animator_message = build_animator_user_message(self.project_id)
+        animator_message = build_animator_user_message(self.project_id, style_preset=style_preset)
 
         # Inject template catalog for studio preset
         if style_preset == "studio":
