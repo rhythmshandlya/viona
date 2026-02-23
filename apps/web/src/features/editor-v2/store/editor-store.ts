@@ -35,6 +35,7 @@ import {
   LayoutMode,
   PiPSettings,
   SplitSettings,
+  normalizeLayoutMode,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -103,7 +104,7 @@ const initialState: EditorState = {
 
   // Layout settings
   layoutSettings: DEFAULT_LAYOUT_SETTINGS,
-  layoutPresetId: 'pip-tutorial' as LayoutPresetId,
+  layoutPresetId: 'stacked-equal' as LayoutPresetId,
 
   // Scene selection for AI editing
   selectedSceneId: null,
@@ -113,8 +114,14 @@ const initialState: EditorState = {
   // Element picker mode
   elementPickerEnabled: false,
 
+  // Element inspect mode
+  inspectModeEnabled: false,
+
   // AI edit request
   aiEditRequested: false,
+
+  // Pending AI message
+  pendingAIMessage: null,
 
   // Safe zone settings
   safeZonePlatform: 'none',
@@ -393,8 +400,11 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             width: (raw.width as number) || 1920,
             height: (raw.height as number) || 1080,
             fps: (raw.fps as number) || 30,
+            sourceSceneId: (raw.sourceSceneId as number) || undefined,
             displayMode: (raw.displayMode as VisualDisplayMode) || undefined,
             transition: (raw.transition as VisualItemData['transition']) || undefined,
+            overlayOpacity: (raw.overlayOpacity as number) ?? undefined,
+            speakerBbox: (raw.speakerBbox as VisualItemData['speakerBbox']) ?? undefined,
           } as VisualItemData,
         };
 
@@ -463,6 +473,8 @@ export const useEditorStore = create<EditorStore>()(
             state.layoutSettings = {
               ...DEFAULT_LAYOUT_SETTINGS,
               ...savedLayoutSettings,
+              // Normalize legacy layout mode values (split-horizontal → stacked)
+              mode: normalizeLayoutMode(savedLayoutSettings.mode || 'stacked'),
               pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
               split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
             };
@@ -560,6 +572,8 @@ export const useEditorStore = create<EditorStore>()(
             state.layoutSettings = {
               ...DEFAULT_LAYOUT_SETTINGS,
               ...savedLayoutSettings,
+              // Normalize legacy layout mode values (split-horizontal → stacked)
+              mode: normalizeLayoutMode(savedLayoutSettings.mode || 'stacked'),
               pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
               split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
             };
@@ -625,6 +639,10 @@ export const useEditorStore = create<EditorStore>()(
         // The API will delete any DB caption items NOT in this list (from split/merge)
         const captionItemIds = apiItems.map((item) => item.id);
 
+        // Collect IDs of all visual items currently in the editor
+        // The API will delete any DB visual items NOT in this list (from split)
+        const visualItemIds = visualItems.map((item) => item.id);
+
         // Persist layout settings inside videoSettings JSONB
         const videoSettingsPayload = {
           ...project.videoSettings,
@@ -635,6 +653,7 @@ export const useEditorStore = create<EditorStore>()(
         await api.updateProject(project.id, {
           items: allItems,
           captionItemIds,
+          visualItemIds,
           videoSettings: videoSettingsPayload,
         });
 
@@ -1773,6 +1792,12 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
+    setInspectModeEnabled: (enabled: boolean) => {
+      set((state) => {
+        state.inspectModeEnabled = enabled;
+      });
+    },
+
     // ========================================
     // AI Edit Request
     // ========================================
@@ -1785,6 +1810,80 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
+    setPendingAIMessage: (message: string | null) => {
+      set((state) => {
+        state.pendingAIMessage = message;
+      });
+    },
+
+    changeDisplayModeWithAI: (itemId: string, newDisplayMode: VisualDisplayMode) => {
+      const state = get();
+      const item = state.items[itemId];
+      if (!item || item.type !== 'visual') return;
+
+      const data = item.data as VisualItemData;
+      const oldDisplayMode = data.displayMode || 'default';
+      if (oldDisplayMode === newDisplayMode) return;
+
+      const canvasWidth = state.project?.videoSettings.canvasWidth || 1080;
+      const canvasHeight = state.project?.videoSettings.canvasHeight || 1920;
+      const layoutMode = state.layoutSettings.mode;
+      const splitRatio = state.layoutSettings.split.ratio;
+      const splitGap = state.layoutSettings.split.gap;
+
+      // Compute effective dimensions for a given display mode
+      const getEffectiveDims = (dm: VisualDisplayMode) => {
+        if (dm === 'fullscreen' || dm === 'overlay') {
+          return { w: canvasWidth, h: canvasHeight };
+        }
+        // 'default' mode depends on layout
+        if (layoutMode === 'pip') {
+          return { w: canvasWidth, h: canvasHeight };
+        }
+        // stacked mode
+        const visualH = Math.max(1, Math.round(canvasHeight * splitRatio / 100 - splitGap / 2));
+        return { w: canvasWidth, h: visualH };
+      };
+
+      const oldDims = getEffectiveDims(oldDisplayMode);
+      const newDims = getEffectiveDims(newDisplayMode);
+
+      // Capture timing before mutating state
+      const { startMs, endMs } = item;
+
+      // Apply the display mode change immediately
+      get().updateVisualDisplayMode(itemId, newDisplayMode);
+
+      // Build human-readable mode labels
+      const modeLabel = (dm: VisualDisplayMode): string => {
+        if (dm === 'default') {
+          return layoutMode === 'pip' ? 'Standard (PiP)' : 'Standard (stacked)';
+        }
+        return dm === 'fullscreen' ? 'Fullscreen' : 'Overlay';
+      };
+
+      // Build mode-specific guidance suffix
+      let suffix = '';
+      if (newDisplayMode === 'fullscreen') {
+        suffix = 'Since this is now fullscreen mode, the visual takes up the entire canvas with no speaker video visible.';
+      } else if (newDisplayMode === 'overlay') {
+        suffix = "Since this is now overlay mode, the visual will be composited over the speaker video with reduced opacity \u2014 position elements to avoid the center where the speaker's face is.";
+      } else {
+        suffix = `Since this is now standard mode, the visual occupies ${newDims.w}\u00d7${newDims.h} alongside the speaker video in ${layoutMode} layout.`;
+      }
+
+      const prompt = `The display mode for this scene was changed from "${modeLabel(oldDisplayMode)}" to "${modeLabel(newDisplayMode)}". The effective viewport changed from ${oldDims.w}\u00d7${oldDims.h} to ${newDims.w}\u00d7${newDims.h}. Please adapt the scene's layout, sizing, and positioning to properly fill the new ${newDims.w}\u00d7${newDims.h} viewport. ${suffix}`;
+
+      // Scope the AI edit to this item's time range
+      // Note: pendingAIMessage uses last-write-wins — if the user triggers another
+      // adapt while streaming, the latest one supersedes the previous (intentional UX).
+      set((state) => {
+        state.selectedTimeRange = { startMs, endMs };
+        state.selectedSceneId = null;
+        state.pendingAIMessage = prompt;
+      });
+    },
+
     // ========================================
     // Visual Display Mode Actions
     // ========================================
@@ -1794,6 +1893,17 @@ export const useEditorStore = create<EditorStore>()(
         const item = state.items[itemId];
         if (item?.type === 'visual') {
           (item.data as VisualItemData).displayMode = displayMode;
+        }
+      });
+      get().pushHistory();
+      debouncedSave(() => get().saveProject());
+    },
+
+    updateOverlayOpacity: (itemId: string, opacity: number) => {
+      set((state) => {
+        const item = state.items[itemId];
+        if (item?.type === 'visual') {
+          (item.data as VisualItemData).overlayOpacity = opacity;
         }
       });
       get().pushHistory();

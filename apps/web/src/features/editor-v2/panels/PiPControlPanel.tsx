@@ -87,7 +87,7 @@ export function PiPControlPanel() {
   const { mode, pip, split } = layoutSettings;
 
   const layoutModes: { value: LayoutMode; icon: React.ReactNode; label: string }[] = [
-    { value: 'split-horizontal', icon: <Rows className="w-4 h-4" />, label: 'Split' },
+    { value: 'stacked', icon: <Rows className="w-4 h-4" />, label: 'Stacked' },
     { value: 'pip', icon: <PictureInPicture className="w-4 h-4" />, label: 'PiP' },
   ];
 
@@ -158,33 +158,10 @@ export function PiPControlPanel() {
       {/* Divider */}
       <div className="border-t border-[var(--editor-border-subtle)]" />
 
-      {/* Split Mode Controls */}
-      {(mode === 'split-horizontal' || mode === 'split-vertical') && (
+      {/* Stacked Mode Controls */}
+      {mode === 'stacked' && (
         <div className="space-y-4">
-          <SectionLabel>Split Settings</SectionLabel>
-
-          {/* Direction */}
-          <div className="space-y-1.5">
-            <FieldLabel>Direction</FieldLabel>
-            <div className="grid grid-cols-2 gap-1.5">
-              <ToggleButton
-                active={mode === 'split-horizontal'}
-                onClick={() => setLayoutMode('split-horizontal')}
-                className="h-8 px-2"
-              >
-                <Rows className="w-3.5 h-3.5" />
-                <span>Top/Bottom</span>
-              </ToggleButton>
-              <ToggleButton
-                active={mode === 'split-vertical'}
-                onClick={() => setLayoutMode('split-vertical')}
-                className="h-8 px-2"
-              >
-                <Columns className="w-3.5 h-3.5" />
-                <span>Left/Right</span>
-              </ToggleButton>
-            </div>
-          </div>
+          <SectionLabel>Stacked Settings</SectionLabel>
 
           {/* Ratio */}
           <div className="space-y-2">
@@ -215,7 +192,7 @@ export function PiPControlPanel() {
 
           {/* Content Order */}
           <div className="space-y-1.5">
-            <FieldLabel>{mode === 'split-horizontal' ? 'Top' : 'Left'} Content</FieldLabel>
+            <FieldLabel>Top Content</FieldLabel>
             <div className="grid grid-cols-2 gap-1.5">
               <ToggleButton
                 active={split.position === 'visuals-first'}
@@ -373,7 +350,7 @@ export function PiPControlPanel() {
       <div className="pt-3 border-t border-[var(--editor-border-subtle)]">
         <p className="text-[11px] leading-relaxed text-[var(--editor-text-muted)]">
           {mode === 'pip' && 'Talking head overlays the AI visuals. Customize position, size, and style.'}
-          {(mode === 'split-horizontal' || mode === 'split-vertical') && 'Split screen between visuals and video. Adjust the ratio to your preference.'}
+          {mode === 'stacked' && 'Stacked layout with visuals and video. Adjust the ratio to your preference.'}
         </p>
       </div>
     </div>

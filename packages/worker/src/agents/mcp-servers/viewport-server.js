@@ -123,6 +123,17 @@ function validateSceneCode(code, sceneIndex, effectiveWidth, effectiveHeight, di
         "so the speaker video is visible."
       );
     }
+
+    // Warn about centered positioning (likely overlaps speaker)
+    const hasCentered =
+      /left:\s*['"]?(?:50%|EW\s*\*\s*0\.5|EW\s*\/\s*2)/i.test(code) &&
+      /top:\s*['"]?(?:30%|40%|50%|EH\s*\*\s*0\.[3-5])/i.test(code);
+    if (hasCentered) {
+      warnings.push(
+        "Overlay scene positions elements near center — likely overlaps speaker's face. " +
+        "Check speakerGrid.safePlacement and position at edges/corners instead."
+      );
+    }
   }
 
   // Check 5: Hardcoded pixel values for common sizing
@@ -207,12 +218,12 @@ server.registerTool(
         const ed = scene.effectiveDimensions || {};
         const ew = ed.width || "NOT SET";
         const eh = ed.height || "NOT SET";
-        const dm = scene.displayMode || "pip";
+        const dm = scene.displayMode || "default";
         const ar = typeof ew === "number" && typeof eh === "number"
           ? `${(ew / eh).toFixed(3)}:1 (${ew > eh ? "landscape-ish" : ew === eh ? "square" : "portrait"})`
           : "unknown";
 
-        return {
+        const result = {
           sceneNumber: idx + 1,
           title: scene.title || scene.name || `Scene ${idx + 1}`,
           displayMode: dm,
@@ -231,6 +242,18 @@ server.registerTool(
                 ? "Compact area. Dense layout. Horizontal arrangements. Larger relative font sizes."
                 : "Standard pip area. Balanced layout.",
         };
+
+        // For overlay scenes, include speakerGrid so the AI can avoid the speaker's face
+        if (dm === "overlay" && scene.speakerGrid) {
+          result.speakerGrid = scene.speakerGrid;
+          result.designTips =
+            "OVERLAY MODE: Transparent background. Place elements ONLY in safe zones " +
+            `(safePlacement: ${JSON.stringify(scene.speakerGrid.safePlacement || [])}). ` +
+            `Speaker occupancy: ${scene.speakerGrid.occupancy || "unknown"}. ` +
+            "Bright colors. Minimal animations (fade/slide only). Opacity 0.8-0.9.";
+        }
+
+        return result;
       };
 
       if (sceneNumber !== undefined) {
@@ -308,7 +331,7 @@ server.registerTool(
       const sceneIdx = sceneNumber - 1;
       const scene = scenes[sceneIdx];
 
-      const dm = scene?.displayMode || "pip";
+      const dm = scene?.displayMode || "default";
       const ew = scene?.effectiveDimensions?.width || 1080;
       const eh = scene?.effectiveDimensions?.height || 1920;
 

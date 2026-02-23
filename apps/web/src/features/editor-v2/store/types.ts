@@ -325,7 +325,7 @@ export interface ImageItemData {
   opacity: number;
 }
 
-export type VisualDisplayMode = 'pip' | 'fullscreen' | 'overlay';
+export type VisualDisplayMode = 'default' | 'fullscreen' | 'overlay';
 
 export interface VisualItemData {
   visualId: string;
@@ -337,17 +337,23 @@ export interface VisualItemData {
   width: number;
   height: number;
   fps: number;
+  /** Original 1-indexed scene file ID (scenes/SceneN.tsx). Survives timeline splits. */
+  sourceSceneId?: number;
   /** Effective viewport width for this scene (may differ from width for pip-in-split) */
   effectiveWidth?: number;
   /** Effective viewport height for this scene (may differ from height for pip-in-split) */
   effectiveHeight?: number;
-  /** How this visual composites with speaker video. Defaults to 'pip' for backwards compat. */
+  /** How this visual composites with speaker video. Defaults to 'default' for standard layout behavior. */
   displayMode?: VisualDisplayMode;
   /** Enter/exit transitions at segment boundaries */
   transition?: {
     enter: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
     exit: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
   };
+  /** Opacity for overlay mode (0-1). Default 0.85. Only used when displayMode === 'overlay'. */
+  overlayOpacity?: number;
+  /** Speaker face bounding box for overlay masking (0-1 fractions of canvas). */
+  speakerBbox?: { x: number; y: number; w: number; h: number };
 }
 
 export interface BrollItemData {
@@ -538,8 +544,14 @@ export interface EditorState {
   // Element picker mode
   elementPickerEnabled: boolean;
 
+  // Element inspect mode (hover/click on canvas to select elements)
+  inspectModeEnabled: boolean;
+
   // AI edit request (set when user triggers "Edit with AI" from context menu)
   aiEditRequested: boolean;
+
+  // Pending AI message (auto-sent by AI panel, e.g. from "Change & AI Adapt")
+  pendingAIMessage: string | null;
 
   // Safe zone settings
   safeZonePlatform: string;  // 'tiktok' | 'instagram-reels' | etc.
@@ -650,11 +662,19 @@ export interface EditorActions {
   // Element picker mode
   setElementPickerEnabled: (enabled: boolean) => void;
 
+  // Element inspect mode
+  setInspectModeEnabled: (enabled: boolean) => void;
+
   // AI edit request
   requestAIEdit: (item: TimelineItem) => void;
 
+  // Pending AI message
+  setPendingAIMessage: (message: string | null) => void;
+  changeDisplayModeWithAI: (itemId: string, newDisplayMode: VisualDisplayMode) => void;
+
   // Visual display mode
   updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => void;
+  updateOverlayOpacity: (itemId: string, opacity: number) => void;
 
   // Safe zone actions
   setSafeZonePlatform: (platform: string) => void;
@@ -729,7 +749,21 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
 // ============================================
 
 // Layout modes for arranging video and visuals
-export type LayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+export type LayoutMode = 'pip' | 'stacked';
+
+// Normalize legacy layout mode values from saved projects
+export function normalizeLayoutMode(mode: string): LayoutMode {
+  if (mode === 'split-horizontal' || mode === 'split-vertical') return 'stacked';
+  if (mode === 'pip' || mode === 'stacked') return mode;
+  return 'stacked'; // default
+}
+
+// Normalize legacy per-scene display mode values
+export function normalizeDisplayMode(dm: string | undefined): VisualDisplayMode {
+  if (dm === 'pip') return 'default';
+  if (dm === 'default' || dm === 'fullscreen' || dm === 'overlay') return dm;
+  return 'default'; // default
+}
 
 // Split position (which content is on top/left)
 export type SplitPosition = 'visuals-first' | 'video-first';
@@ -781,7 +815,7 @@ export interface LayoutSettings {
 }
 
 // Pre-designed layout presets
-export type LayoutPresetId = 'pip-tutorial' | 'pip-podcast' | 'pip-minimal' | 'pip-gaming' | 'split-equal' | 'split-visuals-large' | 'split-video-large' | 'custom';
+export type LayoutPresetId = 'pip-tutorial' | 'pip-podcast' | 'pip-minimal' | 'pip-gaming' | 'stacked-equal' | 'stacked-visuals-large' | 'stacked-video-large' | 'custom';
 
 export interface LayoutPreset {
   id: LayoutPresetId;
@@ -813,39 +847,39 @@ export const DEFAULT_SPLIT_SETTINGS: SplitSettings = {
 };
 
 export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
-  mode: 'pip',
+  mode: 'stacked',
   pip: DEFAULT_PIP_SETTINGS,
   split: DEFAULT_SPLIT_SETTINGS,
 };
 
 export const LAYOUT_PRESETS: LayoutPreset[] = [
-  // Split presets
+  // Stacked presets
   {
-    id: 'split-equal',
-    name: '50/50 Split',
+    id: 'stacked-equal',
+    name: '50/50 Stacked',
     description: 'Equal split between visuals and video',
     settings: {
-      mode: 'split-horizontal',
+      mode: 'stacked',
       pip: DEFAULT_PIP_SETTINGS,
       split: { position: 'visuals-first', ratio: 50, gap: 0 },
     },
   },
   {
-    id: 'split-visuals-large',
+    id: 'stacked-visuals-large',
     name: '70/30 Visuals',
     description: 'Visuals dominant, small video',
     settings: {
-      mode: 'split-horizontal',
+      mode: 'stacked',
       pip: DEFAULT_PIP_SETTINGS,
       split: { position: 'visuals-first', ratio: 70, gap: 0 },
     },
   },
   {
-    id: 'split-video-large',
+    id: 'stacked-video-large',
     name: '30/70 Video',
     description: 'Video dominant, small visuals',
     settings: {
-      mode: 'split-horizontal',
+      mode: 'stacked',
       pip: DEFAULT_PIP_SETTINGS,
       split: { position: 'video-first', ratio: 30, gap: 0 },
     },

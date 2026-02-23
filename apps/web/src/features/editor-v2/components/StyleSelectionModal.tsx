@@ -153,14 +153,10 @@ function calculateVisualsDimensions(
   if (layoutMode === 'pip') {
     // PiP: visuals take full canvas
     return { width: canvasWidth, height: canvasHeight };
-  } else if (layoutMode === 'split-horizontal') {
-    // Horizontal split: visuals get top portion based on ratio
+  } else {
+    // Stacked: visuals get top portion based on ratio
     const visualsHeight = Math.round(canvasHeight * (splitRatio / 100));
     return { width: canvasWidth, height: visualsHeight };
-  } else {
-    // Vertical split: visuals get left portion based on ratio
-    const visualsWidth = Math.round(canvasWidth * (splitRatio / 100));
-    return { width: visualsWidth, height: canvasHeight };
   }
 }
 
@@ -181,7 +177,7 @@ export function StyleSelectionModal({
   canvasHeight = 1920,
 }: StyleSelectionModalProps) {
   const [selectedStyle, setSelectedStyle] = useState<StylePreset>('modern');
-  const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('pip');
+  const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('stacked');
   const [splitRatio, setSplitRatio] = useState(50); // Percentage for visuals
   const [styleGuide, setStyleGuide] = useState('');
 
@@ -417,11 +413,11 @@ export function StyleSelectionModal({
               </div>
             </button>
             <button
-              onClick={() => setLayoutMode('split-horizontal')}
+              onClick={() => setLayoutMode('stacked')}
               disabled={isLoading}
               className={cn(
                 'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
-                layoutMode === 'split-horizontal'
+                layoutMode === 'stacked'
                   ? 'border-violet-500 bg-violet-50'
                   : 'border-gray-200 bg-gray-50 hover:border-gray-300',
                 isLoading && 'opacity-50 cursor-not-allowed'
@@ -429,14 +425,14 @@ export function StyleSelectionModal({
             >
               <Rows className={cn(
                 'w-6 h-6',
-                layoutMode === 'split-horizontal' ? 'text-violet-500' : 'text-gray-400'
+                layoutMode === 'stacked' ? 'text-violet-500' : 'text-gray-400'
               )} />
               <div className="text-left">
                 <p className={cn(
                   'font-medium text-sm',
-                  layoutMode === 'split-horizontal' ? 'text-violet-700' : 'text-gray-900'
+                  layoutMode === 'stacked' ? 'text-violet-700' : 'text-gray-900'
                 )}>
-                  Split Screen
+                  Stacked
                 </p>
                 <p className="text-xs text-gray-500">
                   Visuals top, video bottom
@@ -446,7 +442,7 @@ export function StyleSelectionModal({
           </div>
 
           {/* Split ratio slider - only show for split mode */}
-          {layoutMode === 'split-horizontal' && (
+          {layoutMode === 'stacked' && (
             <div className="space-y-2 pt-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Split Ratio</span>

@@ -8,8 +8,9 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Player } from '../player/Player';
-import { useProject, useSelectedElement, useElementPickerEnabled } from '../store/use-editor-store';
+import { useProject, useSelectedElement, useElementPickerEnabled, useInspectModeEnabled, useIsPlaying } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
+import { ElementInspectOverlay } from './ElementInspectOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
 
 interface HighlightRect {
@@ -72,6 +73,8 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
   const project = useProject();
   const selectedElement = useSelectedElement();
   const elementPickerEnabled = useElementPickerEnabled();
+  const inspectModeEnabled = useInspectModeEnabled();
+  const isPlaying = useIsPlaying();
   const [scale, setScale] = useState(1);
   const [highlightRect, setHighlightRect] = useState<HighlightRect | null>(null);
 
@@ -161,6 +164,11 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
         >
           <Player />
 
+          {/* Element inspect mode overlay */}
+          {inspectModeEnabled && !isPlaying && (
+            <ElementInspectOverlay playerContainerRef={playerContainerRef} />
+          )}
+
           {/* Element selection overlay */}
           {elementPickerEnabled && selectedElement && (
             <div className="absolute inset-0 pointer-events-none z-20">
@@ -199,19 +207,7 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
                   </div>
                 </div>
               )}
-              {/* Selected element badge (top-left) */}
-              <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-black/70 backdrop-blur-sm border border-white/10">
-                <div
-                  className="w-2 h-2 rounded-full animate-pulse"
-                  style={{ backgroundColor: 'var(--editor-accent, #8b5cf6)' }}
-                />
-                <span className="text-white text-xs font-medium">
-                  {selectedElement.name}
-                </span>
-                <span className="text-white/50 text-[10px]">
-                  Scene {selectedElement.sceneId}
-                </span>
-              </div>
+              {/* Element context is shown in the AI chat panel header via aiContext */}
             </div>
           )}
 

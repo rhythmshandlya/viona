@@ -6,13 +6,14 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Subtitles } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Subtitles, MousePointerClick } from 'lucide-react';
 import {
   useCurrentTimeMs,
   useIsPlaying,
   useDuration,
   useEditorActions,
   useShowCaptions,
+  useInspectModeEnabled,
 } from '../store/use-editor-store';
 import { sharedPlayerRef } from '../player/player-ref';
 
@@ -28,8 +29,9 @@ export function PlaybackBar() {
   const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const duration = useDuration();
-  const { togglePlayback, seek, setShowCaptions } = useEditorActions();
+  const { togglePlayback, seek, setShowCaptions, setInspectModeEnabled, pause } = useEditorActions();
   const showCaptions = useShowCaptions();
+  const inspectModeEnabled = useInspectModeEnabled();
   const scrubberRef = useRef<HTMLDivElement>(null);
 
   const progress = duration > 0 ? (currentTimeMs / duration) * 100 : 0;
@@ -152,6 +154,23 @@ export function PlaybackBar() {
           title={showCaptions ? 'Hide captions' : 'Show captions'}
         >
           <Subtitles className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => {
+            const next = !inspectModeEnabled;
+            setInspectModeEnabled(next);
+            if (next && isPlaying) pause();
+          }}
+          className={`p-2 rounded-md active:scale-[0.97] transition-all ${
+            inspectModeEnabled
+              ? 'text-[var(--editor-accent)] bg-[var(--editor-accent-muted)]'
+              : 'text-[var(--editor-text-muted)] hover:bg-[var(--editor-bg-hover)]'
+          }`}
+          aria-label={inspectModeEnabled ? 'Exit inspect mode' : 'Inspect elements (I)'}
+          title={inspectModeEnabled ? 'Exit inspect mode' : 'Inspect elements (I)'}
+        >
+          <MousePointerClick className="w-4 h-4" />
         </button>
       </div>
     </div>

@@ -103,6 +103,8 @@ export const visuals = pgTable('visuals', {
     endMs: number;
     type: string;
     description: string;
+    /** Original 1-indexed scene file ID (scenes/SceneN.tsx). Survives timeline splits. */
+    sourceSceneId?: number;
     elements?: Array<{
       id: string;
       name: string;
@@ -134,6 +136,7 @@ export const projectAssets = pgTable('project_assets', {
 export const conversations = pgTable('conversations', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  sdkSessionId: varchar('sdk_session_id', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });

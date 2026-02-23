@@ -82,6 +82,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     select,
     requestAIEdit,
     updateVisualDisplayMode,
+    changeDisplayModeWithAI,
   } = useEditorActions();
 
   // Close on outside click
@@ -215,9 +216,9 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
                   label: 'Display Mode',
                   items: [
                     {
-                      label: 'PiP (speaker in corner)',
-                      action: withSelection(() => updateVisualDisplayMode(itemId, 'pip')),
-                      checked: ((item.data as VisualItemData).displayMode || 'pip') === 'pip',
+                      label: 'Standard',
+                      action: withSelection(() => updateVisualDisplayMode(itemId, 'default')),
+                      checked: ((item.data as VisualItemData).displayMode || 'default') === 'default' || ((item.data as VisualItemData).displayMode as string) === 'pip',
                     },
                     {
                       label: 'Fullscreen (animation only)',
@@ -228,6 +229,27 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
                       label: 'Overlay (animation over speaker)',
                       action: withSelection(() => updateVisualDisplayMode(itemId, 'overlay')),
                       checked: (item.data as VisualItemData).displayMode === 'overlay',
+                    },
+                  ],
+                },
+                {
+                  type: 'submenu' as const,
+                  label: 'Change & AI Adapt',
+                  items: [
+                    {
+                      label: 'Standard + Adapt',
+                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'default')),
+                      disabled: ((item.data as VisualItemData).displayMode || 'default') === 'default' || ((item.data as VisualItemData).displayMode as string) === 'pip',
+                    },
+                    {
+                      label: 'Fullscreen + Adapt',
+                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'fullscreen')),
+                      disabled: (item.data as VisualItemData).displayMode === 'fullscreen',
+                    },
+                    {
+                      label: 'Overlay + Adapt',
+                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'overlay')),
+                      disabled: (item.data as VisualItemData).displayMode === 'overlay',
                     },
                   ],
                 },
@@ -292,6 +314,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       updateTrack,
       requestAIEdit,
       updateVisualDisplayMode,
+      changeDisplayModeWithAI,
     ]
   );
 

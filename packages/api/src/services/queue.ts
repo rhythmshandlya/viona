@@ -26,7 +26,7 @@ export interface TranscribeJobData {
 }
 
 export interface ExportOptions {
-  layoutMode: 'pip' | 'split-h' | 'split-v' | 'overlay';
+  layoutMode: 'pip' | 'stacked';
   pipPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
   pipSize: number;
 }
@@ -36,7 +36,7 @@ export interface RenderJobData {
   jobId: string;
   projectType?: string;
   layoutSettings?: {
-    mode: 'pip' | 'split-horizontal' | 'split-vertical';
+    mode: 'pip' | 'stacked';
     pip: {
       position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
       offsetX: number;
@@ -64,21 +64,13 @@ export interface RenderJobData {
 // Queue job creators
 export async function queueTranscribeJob(data: TranscribeJobData) {
   return transcribeQueue.add('transcribe', data, {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000,
-    },
+    attempts: 1,
   });
 }
 
 export async function queueRenderJob(data: RenderJobData) {
   return renderQueue.add('render', data, {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000,
-    },
+    attempts: 1,
   });
 }
 
@@ -95,15 +87,11 @@ export const enhanceAudioQueue = new Queue('enhance-audio', { connection });
 
 export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
   return enhanceAudioQueue.add('enhance-audio', data, {
-    attempts: 3,
-    backoff: {
-      type: 'exponential',
-      delay: 5000,
-    },
+    attempts: 1,
   });
 }
 
-export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+export type VisualsLayoutMode = 'pip' | 'stacked';
 
 export interface VisualsDimensions {
   width: number;
@@ -127,11 +115,7 @@ export const generateVisualsQueue = new Queue('generate-visuals', { connection }
 export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   return generateVisualsQueue.add('generate-visuals', data, {
     jobId: `${data.projectId}:generate:${Date.now()}`,
-    attempts: 2,
-    backoff: {
-      type: 'exponential',
-      delay: 10000,
-    },
+    attempts: 1,
   });
 }
 
@@ -153,11 +137,7 @@ export const planVisualsQueue = new Queue('plan-visuals', { connection });
 export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
   return planVisualsQueue.add('plan-visuals', data, {
     jobId: `${data.projectId}:plan:${Date.now()}`,
-    attempts: 2,
-    backoff: {
-      type: 'exponential',
-      delay: 10000,
-    },
+    attempts: 1,
   });
 }
 
@@ -178,11 +158,7 @@ export const editVisualsQueue = new Queue('edit-visuals', { connection });
 export async function queueEditVisualsJob(data: EditVisualsJobData) {
   return editVisualsQueue.add('edit-visuals', data, {
     jobId: `${data.projectId}:edit:${Date.now()}`,
-    attempts: 2,
-    backoff: {
-      type: 'exponential',
-      delay: 10000,
-    },
+    attempts: 1,
   });
 }
 
@@ -207,11 +183,7 @@ export const svgAnimationQueue = new Queue('svg-animation', { connection });
 
 export async function queueSvgAnimationJob(data: SvgAnimationJobData) {
   return svgAnimationQueue.add('svg-animation', data, {
-    attempts: 2,
-    backoff: {
-      type: 'exponential',
-      delay: 10000,
-    },
+    attempts: 1,
   });
 }
 
@@ -230,6 +202,36 @@ export async function queuePreloadProjectJob(data: PreloadProjectJobData) {
     attempts: 1,
     removeOnComplete: true,
     removeOnFail: true,
+  });
+}
+
+// Head tracking queue — ML speaker detection pipeline
+export interface HeadTrackingJobData {
+  projectId: string;
+  jobId: string;
+  videoKey: string;
+}
+
+export const headTrackingQueue = new Queue('head-tracking', { connection });
+
+export async function queueHeadTrackingJob(data: HeadTrackingJobData) {
+  return headTrackingQueue.add('head-tracking', data, {
+    jobId: `${data.projectId}:headtrack:${Date.now()}`,
+    attempts: 1,
+  });
+}
+
+// Generate reframe queue — auto-queued by head-tracking completion
+export interface GenerateReframeJobData {
+  projectId: string;
+  jobId: string;
+}
+
+export const generateReframeQueue = new Queue('generate-reframe', { connection });
+
+export async function queueGenerateReframeJob(data: GenerateReframeJobData) {
+  return generateReframeQueue.add('generate-reframe', data, {
+    attempts: 1,
   });
 }
 

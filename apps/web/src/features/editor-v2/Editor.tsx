@@ -111,7 +111,7 @@ export function Editor({ projectId }: EditorProps) {
   const captionItems = useCaptionItems();
 
   // Actions
-  const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus } = useEditorActions();
+  const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus, setInspectModeEnabled, pause } = useEditorActions();
 
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
@@ -133,6 +133,12 @@ export function Editor({ projectId }: EditorProps) {
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
     onClosePanel: handleClosePanel,
+    onToggleInspectMode: useCallback(() => {
+      const state = useEditorStore.getState();
+      const next = !state.inspectModeEnabled;
+      setInspectModeEnabled(next);
+      if (next && state.isPlaying) pause();
+    }, [setInspectModeEnabled, pause]),
   });
 
   // Load project on mount
@@ -148,6 +154,21 @@ export function Editor({ projectId }: EditorProps) {
       setLeftSidebarTab('agent');
     }
   }, [aiEditRequested]);
+
+  // Exit inspect mode and clear element selection when playback starts
+  const isPlaying = useEditorStore((s) => s.isPlaying);
+  useEffect(() => {
+    if (isPlaying) {
+      const state = useEditorStore.getState();
+      if (state.inspectModeEnabled || state.selectedElement || state.elementPickerEnabled) {
+        useEditorStore.setState({
+          inspectModeEnabled: false,
+          selectedElement: null,
+          elementPickerEnabled: false,
+        });
+      }
+    }
+  }, [isPlaying]);
 
   // WebSocket: listen for enhancement job progress
   useEffect(() => {

@@ -5,10 +5,10 @@
  * No API key costs - included in subscription.
  */
 
-import { Job, UnrecoverableError } from 'bullmq';
+import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm, writeFile, readFile, readdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { mkdir, rm, writeFile, readFile, readdir, stat } from 'fs/promises';
+import { join, dirname, resolve } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { spawn, ChildProcess } from 'child_process';
@@ -19,13 +19,133 @@ import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
 import { uploadFile } from '../services/minio.js';
 import { buildStudioTemplateCatalog } from '../prompts/studio-templates.js';
-import { listTemplates, getTemplateFiles } from '@viona/templates';
+import { listTemplates } from '@viona/templates';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Track running processes for cancellation
 const runningProcesses = new Map<string, ChildProcess>();
+
+// ---------------------------------------------------------------------------
+// Recursively copy a directory tree (used for template source files)
+// ---------------------------------------------------------------------------
+async function copyDirRecursive(src: string, dest: string): Promise<void> {
+  const entries = await readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+    if (entry.isDirectory()) {
+      await mkdir(destPath, { recursive: true });
+      await copyDirRecursive(srcPath, destPath);
+    } else {
+      const content = await readFile(srcPath, 'utf-8');
+      await writeFile(destPath, content, 'utf-8');
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Speaker grid computation (mirrors asset-server.js get_speaker_grid logic)
+// ---------------------------------------------------------------------------
+
+interface HeadTrackingFrame {
+  timestamp_ms: number;
+  face?: { bbox?: { x: number; y: number; width: number; height: number } };
+}
+
+interface SpeakerGrid {
+  grid: number[][];
+  occupancy: string;
+  safePlacement: string[];
+}
+
+/**
+ * Compute a 6x6 speaker occupancy grid for a time range from head tracking data.
+ * Cells are marked 1 if the speaker's face overlaps them in >30% of frames.
+ *
+ * videoWidth/videoHeight are the source video pixel dimensions, used to normalize
+ * the pixel-coordinate bboxes from detect_head.py into 0-1 fractions.
+ */
+function computeSpeakerGrid(
+  headTrackingData: { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } },
+  startMs: number,
+  endMs: number,
+  rows = 6,
+  cols = 6,
+): SpeakerGrid {
+  const frames = headTrackingData.frames || [];
+  const videoW = headTrackingData.video?.width || 1;
+  const videoH = headTrackingData.video?.height || 1;
+
+  // Filter frames by time range, only those with a face bbox
+  const filtered = frames.filter(
+    (f) => f.timestamp_ms >= startMs && f.timestamp_ms <= endMs && f.face?.bbox,
+  );
+
+  if (filtered.length === 0) {
+    return {
+      grid: Array.from({ length: rows }, () => Array(cols).fill(0)),
+      occupancy: '0%',
+      safePlacement: ['entire frame'],
+    };
+  }
+
+  // Build grid: project each face bbox onto the grid
+  const cellHits = Array.from({ length: rows }, () => Array(cols).fill(0) as number[]);
+
+  for (const frame of filtered) {
+    const b = frame.face!.bbox!;
+    // Normalize pixel-coordinate bbox to 0-1 fractions
+    const bx1 = b.x / videoW;
+    const by1 = b.y / videoH;
+    const bx2 = (b.x + b.width) / videoW;
+    const by2 = (b.y + b.height) / videoH;
+
+    for (let r = 0; r < rows; r++) {
+      const cellY1 = r / rows;
+      const cellY2 = (r + 1) / rows;
+      for (let c = 0; c < cols; c++) {
+        const cellX1 = c / cols;
+        const cellX2 = (c + 1) / cols;
+        if (bx1 < cellX2 && bx2 > cellX1 && by1 < cellY2 && by2 > cellY1) {
+          cellHits[r][c]++;
+        }
+      }
+    }
+  }
+
+  // Mark cells occupied if speaker present in >30% of filtered frames
+  const threshold = filtered.length * 0.3;
+  const grid = cellHits.map((row) => row.map((count) => (count >= threshold ? 1 : 0)));
+
+  // Compute occupancy
+  const totalCells = rows * cols;
+  const occupiedCells = grid.flat().filter((v) => v === 1).length;
+  const occupancy = `${Math.round((occupiedCells / totalCells) * 100)}%`;
+
+  // Compute safe placement regions
+  const safePlacement: string[] = [];
+  const midRow = Math.floor(rows / 2);
+  const midCol = Math.floor(cols / 2);
+
+  const regions: Record<string, () => boolean> = {
+    'top-left':     () => grid.slice(0, midRow).flatMap((r) => r.slice(0, midCol)).every((v) => v === 0),
+    'top-right':    () => grid.slice(0, midRow).flatMap((r) => r.slice(midCol)).every((v) => v === 0),
+    'bottom-left':  () => grid.slice(midRow).flatMap((r) => r.slice(0, midCol)).every((v) => v === 0),
+    'bottom-right': () => grid.slice(midRow).flatMap((r) => r.slice(midCol)).every((v) => v === 0),
+    'top':          () => grid[0].every((v) => v === 0),
+    'bottom':       () => grid[rows - 1].every((v) => v === 0),
+    'left':         () => grid.every((r) => r[0] === 0),
+    'right':        () => grid.every((r) => r[cols - 1] === 0),
+  };
+
+  for (const [name, check] of Object.entries(regions)) {
+    if (check()) safePlacement.push(name);
+  }
+
+  return { grid, occupancy, safePlacement };
+}
 
 /**
  * Asset type for extracted components
@@ -262,7 +382,7 @@ async function uploadSourceToStorage(projectDir: string, compositionId: string):
   return sourceUrl;
 }
 
-export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+export type VisualsLayoutMode = 'pip' | 'stacked';
 
 export interface VisualsDimensions {
   width: number;
@@ -275,7 +395,7 @@ export interface GenerateVisualsJobData {
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
-  /** Effective dimensions for pip scenes in split layouts */
+  /** Effective dimensions for default scenes in stacked layout */
   pipEffective?: VisualsDimensions;
   /** User-provided style/layout guidance for the Director agent */
   styleGuide?: string;
@@ -296,7 +416,7 @@ interface VisualMetadata {
     endMs: number;
     type: string;
     description: string;
-    displayMode?: 'pip' | 'fullscreen' | 'overlay';
+    displayMode?: 'default' | 'fullscreen' | 'overlay';
     transition?: {
       enter: { type: string; durationMs: number };
       exit: { type: string; durationMs: number };
@@ -382,16 +502,28 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       logger.debug({ srcDir, error: e }, 'Could not clean old compositions (may not exist yet)');
     }
 
-    // Clean current project directory so Animator starts fresh (no stale scene files)
+    // Check if previous attempt left valid source files (for retry recovery).
+    // If index.tsx and metadata.json exist, skip cleanup — the Python agent can work incrementally.
     const projectDir = join(workspacePath, 'src', compositionId);
+    const indexPath = join(projectDir, 'index.tsx');
+    const metadataCheckPath = join(projectDir, 'metadata.json');
+    let hasExistingSources = false;
     try {
-      await rm(projectDir, { recursive: true, force: true });
-      logger.info({ projectDir }, 'Cleaned stale project directory');
+      await readFile(indexPath);
+      await readFile(metadataCheckPath);
+      hasExistingSources = true;
+      logger.info({ projectDir }, 'Previous source files found — preserving for retry');
     } catch {
-      // Directory may not exist yet — that's fine
+      // No valid sources — clean and start fresh
+      try {
+        await rm(projectDir, { recursive: true, force: true });
+        logger.info({ projectDir }, 'Cleaned stale project directory');
+      } catch {
+        // Directory may not exist yet — that's fine
+      }
     }
-    createProjectDir(compositionId);
-    logger.info({ projectDir, compositionId }, 'Created fresh project directory');
+    createProjectDir(compositionId); // mkdir -p is idempotent
+    logger.info({ projectDir, compositionId, hasExistingSources }, 'Project directory ready');
 
     // Write head tracking data for spatial overlay awareness
     if (project.headTrackingData) {
@@ -410,6 +542,8 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.data.planJobId) });
       if (planJob?.planData) {
         const pd = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+        // Write plan files to projectDir (workspace/src/{compositionId}) — the Python
+        // generator receives compositionId as --project-id, so it looks there.
         const scenePlanPath = join(projectDir, 'SCENE_PLAN.md');
         const scenesJsonPath = join(projectDir, 'scenes.json');
         await writeFile(scenePlanPath, pd.scenePlan, 'utf-8');
@@ -417,12 +551,27 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
         // Enrich scenes with per-scene effectiveDimensions before writing
         const scenesObj = pd.scenes as Record<string, unknown>;
         const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+        const fps = project.fps || 30;
         for (const scene of scenesArray) {
-          const dm = (scene.displayMode as string) || 'pip';
+          const dm = (scene.displayMode as string) || 'default';
           if (dm === 'fullscreen' || dm === 'overlay') {
             scene.effectiveDimensions = { width: canvasWidth, height: canvasHeight };
           } else {
             scene.effectiveDimensions = { width: pipEffective.width, height: pipEffective.height };
+          }
+
+          // Pre-inject speaker grid for overlay scenes so the animator doesn't need to call a tool
+          if (dm === 'overlay' && project.headTrackingData) {
+            const frames = scene.frames as [number, number] | undefined;
+            if (frames) {
+              const startMs = (frames[0] / fps) * 1000;
+              const endMs = (frames[1] / fps) * 1000;
+              scene.speakerGrid = computeSpeakerGrid(
+                project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } },
+                startMs,
+                endMs,
+              );
+            }
           }
         }
         await writeFile(scenesJsonPath, JSON.stringify({ ...scenesObj, scenes: scenesArray }, null, 2), 'utf-8');
@@ -480,19 +629,17 @@ registerRoot(RemotionRoot);
         const catalog = buildStudioTemplateCatalog();
         await writeFile(join(srcDir, 'STUDIO_TEMPLATES.md'), catalog, 'utf-8');
 
-        // Copy template source files so the Animator agent can read them
+        // Copy template source files so the Animator agent can read them.
+        // Read directly from the monorepo source tree instead of using getTemplateFiles()
+        // which is broken after bundling (import.meta.url resolves to dist/ on Windows).
+        const templatesSrcRoot = resolve(__dirname, '..', '..', '..', 'templates', 'src', 'templates');
         const studioTemplates = listTemplates({ theme: 'studio' });
         for (const t of studioTemplates) {
           const tDir = join(templatesDir, t.meta.slug);
           await mkdir(tDir, { recursive: true });
           try {
-            const files = await getTemplateFiles(t.meta.slug);
-            for (const f of files) {
-              const filePath = join(tDir, f.path);
-              // Ensure subdirectories exist (e.g., components/, lib/)
-              await mkdir(dirname(filePath), { recursive: true });
-              await writeFile(filePath, f.content, 'utf-8');
-            }
+            const tSrcDir = join(templatesSrcRoot, t.meta.slug);
+            await copyDirRecursive(tSrcDir, tDir);
           } catch (err) {
             logger.warn({ slug: t.meta.slug, err }, 'Failed to copy template files');
           }
@@ -553,6 +700,16 @@ registerRoot(RemotionRoot);
       .where(eq(jobs.id, jobId));
 
     logger.info({ projectId, jobMetrics }, 'Job metrics recorded');
+
+    // Always upload sources immediately after agent completes — even if bundling fails later.
+    // This preserves the AI-generated code so retries can pick up where we left off.
+    const earlyBundleCompositionId = compositionId.replace(/_/g, '-');
+    try {
+      await uploadSourceToStorage(projectDir, earlyBundleCompositionId);
+      logger.info({ projectId }, 'Sources uploaded (pre-bundle) for failure recovery');
+    } catch (err) {
+      logger.warn({ projectId, err }, 'Pre-bundle source upload failed (non-fatal)');
+    }
 
     await publishJobProgress(jobId, 70, 'Reading metadata...');
 
@@ -682,9 +839,8 @@ registerRoot(RemotionRoot);
     await publishJobProgress(jobId, 82, 'Uploading bundle to storage...');
     await uploadBundleToStorage(bundleDir, bundleCompositionId);
 
-    // Upload source project files to S3 for AI context restoration
-    await publishJobProgress(jobId, 83, 'Uploading source files to storage...');
-    const sourceUrl = await uploadSourceToStorage(projectDir, bundleCompositionId);
+    // Sources already uploaded pre-bundle (for failure recovery).
+    const sourceUrl = `/api/sources/${bundleCompositionId}`;
 
     // Extract assets from composition for frontend selection
     await publishJobProgress(jobId, 84, 'Extracting assets...');
@@ -693,7 +849,7 @@ registerRoot(RemotionRoot);
     // Upload assets.json to S3 as well
     const assetsPath = join(projectDir, 'assets.json');
     try {
-      await uploadFile(assetsPath, 'sources', `${bundleCompositionId}/assets.json`);
+      await uploadFile('outputs', `sources/${bundleCompositionId}/assets.json`, assetsPath);
       logger.info({ projectId, assetCount: extractedAssets.length }, 'Assets uploaded to storage');
     } catch (err) {
       logger.warn({ projectId, error: err }, 'Failed to upload assets.json');
@@ -733,6 +889,12 @@ registerRoot(RemotionRoot);
         await tx.delete(visuals).where(eq(visuals.projectId, projectId));
       }
 
+      // Enrich timestamps with sourceSceneId (1-indexed scene file mapping)
+      const timestampsWithSourceId = metadata.visuals.map((v, i) => ({
+        ...v,
+        sourceSceneId: i + 1,
+      }));
+
       // Insert into visuals table
       const [insertedVisual] = await tx.insert(visuals).values({
         projectId,
@@ -745,7 +907,7 @@ registerRoot(RemotionRoot);
         height: metadata.height,
         stylePreset,
         llmModel,
-        timestamps: metadata.visuals,
+        timestamps: timestampsWithSourceId,
       }).returning({ id: visuals.id });
       const visualId = insertedVisual.id;
 
@@ -764,13 +926,45 @@ registerRoot(RemotionRoot);
       }
 
       // Create one timeline item per scene so they appear as separate blocks on the track
-      for (const scene of metadata.visuals) {
+      for (let sceneIndex = 0; sceneIndex < metadata.visuals.length; sceneIndex++) {
+        const scene = metadata.visuals[sceneIndex];
         // Compute per-scene effective dimensions
-        const sceneDm = scene.displayMode || 'pip';
+        const sceneDm = scene.displayMode || 'default';
         const sceneEffectiveW = (sceneDm === 'fullscreen' || sceneDm === 'overlay')
           ? canvasWidth : pipEffective.width;
         const sceneEffectiveH = (sceneDm === 'fullscreen' || sceneDm === 'overlay')
           ? canvasHeight : pipEffective.height;
+
+        // Compute speaker bbox for overlay scenes (for player-level face masking)
+        let speakerBbox: { x: number; y: number; w: number; h: number } | undefined;
+        if (sceneDm === 'overlay' && project.headTrackingData) {
+          const htData = project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } };
+          const videoW = htData.video?.width || 1;
+          const videoH = htData.video?.height || 1;
+          const htFrames = (htData.frames || []).filter(
+            (f) => f.timestamp_ms >= scene.startMs && f.timestamp_ms <= scene.endMs && f.face?.bbox,
+          );
+          if (htFrames.length > 0) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const f of htFrames) {
+              const b = f.face!.bbox!;
+              minX = Math.min(minX, b.x / videoW);
+              minY = Math.min(minY, b.y / videoH);
+              maxX = Math.max(maxX, (b.x + b.width) / videoW);
+              maxY = Math.max(maxY, (b.y + b.height) / videoH);
+            }
+            speakerBbox = {
+              x: Math.max(0, minX),
+              y: Math.max(0, minY),
+              w: Math.min(1, maxX) - Math.max(0, minX),
+              h: Math.min(1, maxY) - Math.max(0, minY),
+            };
+          }
+        }
+
+        // sourceSceneId: 1-indexed scene ID mapping to scenes/SceneN.tsx
+        // Survives timeline splits so the agent can target the correct file
+        const sourceSceneId = sceneIndex + 1;
 
         await tx.insert(timelineItems).values({
           trackId: visualsTrack.id,
@@ -790,6 +984,8 @@ registerRoot(RemotionRoot);
             effectiveHeight: sceneEffectiveH,
             displayMode: sceneDm,
             transition: scene.transition || undefined,
+            sourceSceneId,
+            ...(speakerBbox ? { speakerBbox } : {}),
           },
         });
       }
@@ -1037,8 +1233,10 @@ async function runClaudeCodeGenerator(
           continue;
         }
 
-        // Parse [Animator Tool: X] or [SelfHeal Tool: X] for live progress
-        const toolMatch = line.match(/\[(Animator|SelfHeal) Tool: (\w+)\]/);
+        // Parse tool usage tags for live progress: [Animator Tool: X], [SelfHeal Tool: X],
+        // [SceneN Tool: X], [SceneN Retry Tool: X], [Setup Tool: X], [SceneVerify Tool: X],
+        // [CompVerify Tool: X], [Coordinator Tool: X]
+        const toolMatch = line.match(/\[(Animator|SelfHeal|Setup|SceneVerify|CompVerify|Coordinator|Scene\d+(?:\s+\w+)?) Tool: (\w+)\]/);
         if (toolMatch && !gotRealProgress) {
           const toolName = toolMatch[2];
           const progressMsg = toolToProgress(toolName, stdout.slice(-500));
@@ -1114,14 +1312,14 @@ async function runClaudeCodeGenerator(
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
         if (fatalStderrDetected) {
-          reject(new UnrecoverableError(`Claude generator crashed (unhandled rejection): ${stderr.slice(-500)}`));
+          // OOM and other crashes — retryable (sources may be partially written)
+          reject(new Error(`Claude generator crashed: ${stderr.slice(-500)}`));
         } else if (code === 0) {
           resolve();
         } else {
-          // Include both stderr and last part of stdout for debugging
+          // Non-zero exit — may be retryable (transient API errors, etc.)
           const errorOutput = stderr || stdout.slice(-1000);
-          // Non-zero exit = bad input/prompt, don't retry
-          reject(new UnrecoverableError(`Claude Code generator exited with code ${code}: ${errorOutput}`));
+          reject(new Error(`Claude Code generator exited with code ${code}: ${errorOutput}`));
         }
       });
 

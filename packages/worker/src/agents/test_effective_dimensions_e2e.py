@@ -227,20 +227,12 @@ async def main():
 
     test_cases = [
         {
-            "name": "split-horizontal + pip 1080x960",
-            "layout_mode": "split-horizontal",
+            "name": "stacked + pip 1080x960",
+            "layout_mode": "stacked",
             "pip_width": 1080,
             "pip_height": 960,
             "source_width": 1920,
             "source_height": 1080,
-        },
-        {
-            "name": "split-vertical + pip 540x1920",
-            "layout_mode": "split-vertical",
-            "pip_width": 540,
-            "pip_height": 1920,
-            "source_width": 1080,
-            "source_height": 1920,
         },
     ]
 

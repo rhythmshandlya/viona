@@ -25,6 +25,7 @@ export interface ProcessProjectResponse {
   jobId: string;
   transcribeJobId: string;
   enhanceJobId: string | null;
+  headTrackJobId?: string | null;
   totalJobs?: number;
 }
 
@@ -122,7 +123,7 @@ export interface SeparateAudioResponse {
 
 export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
 
-export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+export type VisualsLayoutMode = 'pip' | 'stacked';
 
 export interface VisualsDimensions {
   width: number;
@@ -324,7 +325,7 @@ class ApiClient {
 
   async updateProject(
     projectId: string,
-    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; captionItemIds?: string[]; videoSettings?: Record<string, unknown> }
+    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; captionItemIds?: string[]; visualItemIds?: string[]; videoSettings?: Record<string, unknown> }
   ): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}`, {
       method: 'PATCH',
@@ -545,6 +546,24 @@ class ApiClient {
   async clearConversation(projectId: string): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`, {
       method: 'DELETE',
+    });
+  }
+
+  async updatePlanScenes(
+    projectId: string,
+    planJobId: string,
+    scenes: Array<{ id: number; title?: string; description?: string; displayMode?: 'default' | 'fullscreen' | 'overlay' }>
+  ): Promise<{ success: boolean; scenes: Array<{
+    startMs: number; endMs: number; title: string; description: string;
+    emotion?: string; displayMode?: string;
+    keySync?: { word: string; timestamp: number; visualEvent: string };
+    buildsFrom?: string | null; connectsTo?: string | null;
+    layout?: Record<string, unknown> | null; frames?: [number, number] | null;
+    icons?: string[]; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } };
+  }> }> {
+    return this.request(`/api/projects/${projectId}/plan/${planJobId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ scenes }),
     });
   }
 

@@ -34,32 +34,18 @@ describe('buildGenerateVisualsPrompt', () => {
       expect(prompt).toContain('"height": 1920');
     });
 
-    it('includes correct dimensions for split-horizontal layout', () => {
+    it('includes correct dimensions for stacked layout', () => {
       const prompt = buildGenerateVisualsPrompt({
         ...baseOptions,
         width: 1080,
-        height: 960, // 50% of 1920 for split
-        layoutMode: 'split-horizontal',
+        height: 960, // 50% of 1920 for stacked
+        layoutMode: 'stacked',
       });
 
       expect(prompt).toContain('Resolution: 1080x960');
       expect(prompt).toContain('MUST render at exactly 1080x960 pixels');
       expect(prompt).toContain('"width": 1080');
       expect(prompt).toContain('"height": 960');
-    });
-
-    it('includes correct dimensions for split-vertical layout', () => {
-      const prompt = buildGenerateVisualsPrompt({
-        ...baseOptions,
-        width: 540, // 50% of 1080 for vertical split
-        height: 1920,
-        layoutMode: 'split-vertical',
-      });
-
-      expect(prompt).toContain('Resolution: 540x1920');
-      expect(prompt).toContain('MUST render at exactly 540x1920 pixels');
-      expect(prompt).toContain('"width": 540');
-      expect(prompt).toContain('"height": 1920');
     });
 
     it('handles landscape dimensions correctly', () => {
@@ -106,29 +92,20 @@ describe('buildGenerateVisualsPrompt', () => {
         layoutMode: 'pip',
       });
 
-      expect(prompt).toContain('Full-screen visuals (video will be overlaid as a small picture-in-picture window)');
+      expect(prompt).toContain('Full-screen visuals');
+      expect(prompt).toContain('PiP window');
     });
 
-    it('provides correct context for split-horizontal mode', () => {
+    it('provides correct context for stacked mode', () => {
       const prompt = buildGenerateVisualsPrompt({
         ...baseOptions,
         width: 1080,
         height: 960,
-        layoutMode: 'split-horizontal',
+        layoutMode: 'stacked',
       });
 
-      expect(prompt).toContain('Top portion of split screen (video will appear below)');
-    });
-
-    it('provides correct context for split-vertical mode', () => {
-      const prompt = buildGenerateVisualsPrompt({
-        ...baseOptions,
-        width: 540,
-        height: 1920,
-        layoutMode: 'split-vertical',
-      });
-
-      expect(prompt).toContain('Left portion of split screen (video will appear on the right)');
+      expect(prompt).toContain('Stacked layout');
+      expect(prompt).toContain('REDUCED HEIGHT');
     });
   });
 
@@ -247,13 +224,12 @@ describe('visualization guidance', () => {
 
   it('provides correct layout context based on layout mode', () => {
     const pipPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'pip' });
-    expect(pipPrompt).toContain('Full-screen visuals (video will be overlaid as a small picture-in-picture window)');
+    expect(pipPrompt).toContain('Full-screen visuals');
+    expect(pipPrompt).toContain('PiP window');
 
-    const splitHPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'split-horizontal' });
-    expect(splitHPrompt).toContain('Top portion of split screen (video will appear below)');
-
-    const splitVPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'split-vertical' });
-    expect(splitVPrompt).toContain('Left portion of split screen (video will appear on the right)');
+    const stackedPrompt = buildGenerateVisualsPrompt({ ...baseOptions, layoutMode: 'stacked' });
+    expect(stackedPrompt).toContain('Stacked layout');
+    expect(stackedPrompt).toContain('REDUCED HEIGHT');
   });
 
   it('includes visualization mapping table', () => {

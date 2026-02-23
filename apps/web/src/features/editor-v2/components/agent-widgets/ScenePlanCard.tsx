@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
   Clock, ExternalLink, Layers, Palette, Sparkles, Zap,
-  ArrowRight, FileText, Pencil, Move, Box, Check, Mic,
+  ArrowRight, FileText, Pencil, Move, Box, Check, Mic, Save,
 } from 'lucide-react';
 import {
   Dialog,
@@ -11,6 +11,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface IconOption {
   id: string;
@@ -18,7 +25,7 @@ interface IconOption {
   thumbnailUrl: string;
 }
 
-interface Scene {
+export interface Scene {
   startMs: number;
   endMs: number;
   title: string;
@@ -31,7 +38,7 @@ interface Scene {
   frames?: [number, number] | null;
   icons?: string[];
   svgOptions?: Record<string, IconOption[]>;
-  displayMode?: 'pip' | 'fullscreen' | 'overlay';
+  displayMode?: 'default' | 'fullscreen' | 'overlay';
   transition?: {
     enter: { type: string; durationMs: number };
     exit: { type: string; durationMs: number };
@@ -53,6 +60,8 @@ interface ScenePlanCardProps {
   onApprove: (iconSelections?: Record<number, Record<string, string>>) => void;
   onReject: () => void;
   onEditScene?: (sceneIndex: number, sceneTitle: string) => void;
+  onScenesUpdate?: (planJobId: string, scenes: Scene[]) => void | Promise<void>;
+  planJobId?: string;
   disabled?: boolean;
   approved?: boolean;
 }
@@ -87,13 +96,20 @@ function formatLayout(layout: Record<string, unknown>): string {
 }
 
 const DISPLAY_MODE_BADGE: Record<string, { label: string; color: string }> = {
-  pip: { label: 'PiP', color: '#3b82f6' },
+  default: { label: 'Standard', color: '#3b82f6' },
+  pip: { label: 'Standard', color: '#3b82f6' }, // legacy fallback
   fullscreen: { label: 'Fullscreen', color: '#8b5cf6' },
   overlay: { label: 'Overlay', color: '#f97316' },
 };
 
+const DISPLAY_MODE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: 'default', label: 'Standard' },
+  { value: 'fullscreen', label: 'Fullscreen' },
+  { value: 'overlay', label: 'Overlay' },
+];
+
 function DisplayModeBadge({ mode }: { mode: string }) {
-  const cfg = DISPLAY_MODE_BADGE[mode] || DISPLAY_MODE_BADGE.pip;
+  const cfg = DISPLAY_MODE_BADGE[mode] || DISPLAY_MODE_BADGE.default;
   return (
     <span
       className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none"
@@ -122,6 +138,131 @@ function SpeakerGapIndicator({ startMs, endMs }: { startMs: number; endMs: numbe
   );
 }
 
+// ---------------------------------------------------------------------------
+// Inline editable text components
+// ---------------------------------------------------------------------------
+
+function InlineEditableTitle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  // Sync draft when value changes externally
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) onChange(trimmed);
+    else setDraft(value);
+  };
+
+  if (disabled || !editing) {
+    return (
+      <h3
+        className={`font-semibold text-sm ${disabled ? '' : 'cursor-pointer hover:bg-foreground/5 rounded px-1 -mx-1'}`}
+        onClick={() => !disabled && setEditing(true)}
+        title={disabled ? undefined : 'Click to edit'}
+      >
+        {value}
+      </h3>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') { setDraft(value); setEditing(false); }
+      }}
+      className="font-semibold text-sm bg-transparent border border-foreground/20 rounded px-1 -mx-1 outline-none focus:border-foreground/40 w-full"
+    />
+  );
+}
+
+function InlineEditableDescription({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (editing && textareaRef.current) {
+      textareaRef.current.focus();
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [editing]);
+
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const commit = () => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) onChange(trimmed);
+    else setDraft(value);
+  };
+
+  if (disabled || !editing) {
+    return (
+      <p
+        className={`text-sm text-foreground/80 leading-relaxed ${disabled ? '' : 'cursor-pointer hover:bg-foreground/5 rounded px-1 -mx-1'}`}
+        onClick={() => !disabled && setEditing(true)}
+        title={disabled ? undefined : 'Click to edit'}
+      >
+        {value}
+      </p>
+    );
+  }
+
+  return (
+    <textarea
+      ref={textareaRef}
+      value={draft}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        e.target.style.height = 'auto';
+        e.target.style.height = `${e.target.scrollHeight}px`;
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
+        if (e.key === 'Escape') { setDraft(value); setEditing(false); }
+      }}
+      className="text-sm text-foreground/80 leading-relaxed bg-transparent border border-foreground/20 rounded px-1 -mx-1 outline-none focus:border-foreground/40 w-full resize-none"
+      rows={2}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
+
 export function ScenePlanCard({
   scenes,
   scenePlanMarkdown,
@@ -129,14 +270,42 @@ export function ScenePlanCard({
   onApprove,
   onReject,
   onEditScene,
+  onScenesUpdate,
+  planJobId,
   disabled,
   approved,
 }: ScenePlanCardProps) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<'scenes' | 'markdown'>('scenes');
+  // Local editable copy of scenes (for modal editing)
+  const [localScenes, setLocalScenes] = useState<Scene[]>(scenes);
+
+  // Sync localScenes when props.scenes changes (e.g. after save succeeds)
+  useEffect(() => { setLocalScenes(scenes); }, [scenes]);
+
+  // Check if there are unsaved edits
+  const hasEdits = useMemo(() => {
+    return localScenes.some((ls, i) => {
+      const ps = scenes[i];
+      if (!ps) return true;
+      return ls.title !== ps.title || ls.description !== ps.description || ls.displayMode !== ps.displayMode;
+    });
+  }, [localScenes, scenes]);
+
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!onScenesUpdate || !planJobId || saving) return;
+    setSaving(true);
+    try {
+      await onScenesUpdate(planJobId, localScenes);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Icon selections state: sceneIndex → keyword → iconId
   const [iconSelections, setIconSelections] = useState<Record<number, Record<string, string>>>(() => {
-    // Default: pre-select first option for each keyword
     const defaults: Record<number, Record<string, string>> = {};
     scenes.forEach((scene, i) => {
       if (scene.svgOptions) {
@@ -162,6 +331,19 @@ export function ScenePlanCard({
 
   const sceneCount = metadata?.totalScenes ?? scenes.length;
   const duration = metadata?.durationSeconds;
+
+  // Scene field updaters (for modal inline editing)
+  const updateSceneTitle = (index: number, title: string) => {
+    setLocalScenes(prev => prev.map((s, i) => i === index ? { ...s, title } : s));
+  };
+  const updateSceneDescription = (index: number, description: string) => {
+    setLocalScenes(prev => prev.map((s, i) => i === index ? { ...s, description } : s));
+  };
+  const updateSceneDisplayMode = (index: number, displayMode: 'default' | 'fullscreen' | 'overlay') => {
+    setLocalScenes(prev => prev.map((s, i) => i === index ? { ...s, displayMode } : s));
+  };
+
+  const isEditable = !disabled && !!onScenesUpdate && !!planJobId;
 
   // Resolved state
   if (approved !== undefined) {
@@ -215,40 +397,89 @@ export function ScenePlanCard({
         </div>
       )}
 
-      {/* Compact scene list */}
+      {/* Compact scene list (editable when isEditable, otherwise read-only) */}
       <div className="divide-y divide-[var(--editor-border-subtle)]">
-        {scenes.map((scene, i) => (
+        {localScenes.map((scene, i) => (
           <React.Fragment key={i}>
-            {/* Speaker gap indicator between consecutive scenes */}
-            {i > 0 && scenes[i - 1].endMs < scene.startMs && (
-              <SpeakerGapIndicator startMs={scenes[i - 1].endMs} endMs={scene.startMs} />
+            {i > 0 && localScenes[i - 1].endMs < scene.startMs && (
+              <SpeakerGapIndicator startMs={localScenes[i - 1].endMs} endMs={scene.startMs} />
             )}
             <div className="px-3 py-2 group">
               <div className="flex items-center gap-2 mb-0.5">
                 <span className="text-xs font-mono text-[var(--editor-text-muted)] shrink-0">
                   {formatTime(scene.startMs)}-{formatTime(scene.endMs)}
                 </span>
-                <DisplayModeBadge mode={scene.displayMode || 'pip'} />
-                <span className="text-sm font-medium text-[var(--editor-text-primary)] truncate flex-1">
-                  {scene.title}
-                </span>
+                {isEditable ? (
+                  <Select
+                    value={scene.displayMode || 'default'}
+                    onValueChange={(v) => updateSceneDisplayMode(i, v as 'default' | 'fullscreen' | 'overlay')}
+                  >
+                    <SelectTrigger className="h-5 px-1 text-[10px] gap-0.5 min-w-0 w-auto border-none shadow-none">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DISPLAY_MODE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <DisplayModeBadge mode={scene.displayMode || 'default'} />
+                )}
+                <div className="flex-1 min-w-0">
+                  {isEditable ? (
+                    <InlineEditableTitle
+                      value={scene.title}
+                      onChange={(v) => updateSceneTitle(i, v)}
+                    />
+                  ) : (
+                    <span className="text-sm font-medium text-[var(--editor-text-primary)] truncate block">
+                      {scene.title}
+                    </span>
+                  )}
+                </div>
                 {!disabled && onEditScene && (
                   <button
                     onClick={() => onEditScene(i, scene.title)}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)] transition-all"
-                    title={`Edit ${scene.title}`}
+                    title={`Edit ${scene.title} with AI`}
                   >
                     <Pencil className="w-3 h-3" />
                   </button>
                 )}
               </div>
-              <p className="text-xs text-[var(--editor-text-secondary)] line-clamp-1">
-                {scene.description}
-              </p>
+              {isEditable ? (
+                <InlineEditableDescription
+                  value={scene.description}
+                  onChange={(v) => updateSceneDescription(i, v)}
+                />
+              ) : (
+                <p className="text-xs text-[var(--editor-text-secondary)] line-clamp-1">
+                  {scene.description}
+                </p>
+              )}
             </div>
           </React.Fragment>
         ))}
       </div>
+
+      {/* Save edits button (compact card) */}
+      {isEditable && hasEdits && (
+        <div className="px-3 py-1.5 border-t border-[var(--editor-border-subtle)] bg-[var(--editor-accent)]/5 flex items-center justify-end">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-2.5 py-1 text-xs rounded-md bg-[var(--editor-accent)] text-white
+                       hover:bg-[var(--editor-accent-hover)] active:scale-[0.97] transition-all
+                       flex items-center gap-1 disabled:opacity-50"
+          >
+            <Save className="w-3 h-3" />
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      )}
 
       {/* View full plan → modal */}
       {scenePlanMarkdown && (
@@ -263,7 +494,7 @@ export function ScenePlanCard({
         </button>
       )}
 
-      {/* Full plan modal */}
+      {/* Full plan modal (uses localScenes for editable fields) */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
           {/* Modal header */}
@@ -297,8 +528,8 @@ export function ScenePlanCard({
               )}
             </div>
 
-            {/* Tab switcher */}
-            <div className="flex gap-1 mt-3">
+            {/* Tab switcher + Save button */}
+            <div className="flex items-center gap-1 mt-3">
               <button
                 onClick={() => setModalTab('scenes')}
                 className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
@@ -321,6 +552,20 @@ export function ScenePlanCard({
                 <FileText className="w-3 h-3 inline mr-1" />
                 Raw Plan
               </button>
+
+              {/* Save Changes button — appears when edits differ from props */}
+              {isEditable && hasEdits && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="ml-auto px-3 py-1.5 text-xs rounded-md bg-[var(--editor-accent)] text-white
+                             hover:bg-[var(--editor-accent-hover)] active:scale-[0.97] transition-all
+                             flex items-center gap-1 disabled:opacity-50"
+                >
+                  <Save className="w-3 h-3" />
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              )}
             </div>
           </DialogHeader>
 
@@ -328,28 +573,52 @@ export function ScenePlanCard({
           <div className="overflow-y-auto flex-1 px-6 py-4">
             {modalTab === 'scenes' ? (
               <div className="space-y-3">
-                {scenes.map((scene, i) => (
+                {localScenes.map((scene, i) => (
                   <React.Fragment key={i}>
-                    {/* Speaker gap indicator between consecutive scenes */}
-                    {i > 0 && scenes[i - 1].endMs < scene.startMs && (
-                      <SpeakerGapIndicator startMs={scenes[i - 1].endMs} endMs={scene.startMs} />
+                    {i > 0 && localScenes[i - 1].endMs < scene.startMs && (
+                      <SpeakerGapIndicator startMs={localScenes[i - 1].endMs} endMs={scene.startMs} />
                     )}
                     <div className="rounded-lg border p-4 space-y-3">
                     {/* Scene header */}
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2.5">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-foreground/10 text-xs font-bold">
+                      <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-foreground/10 text-xs font-bold shrink-0">
                           {i + 1}
                         </span>
-                        <h3 className="font-semibold text-sm">{scene.title}</h3>
-                        <DisplayModeBadge mode={scene.displayMode || 'pip'} />
+                        {isEditable ? (
+                          <InlineEditableTitle
+                            value={scene.title}
+                            onChange={(v) => updateSceneTitle(i, v)}
+                          />
+                        ) : (
+                          <h3 className="font-semibold text-sm">{scene.title}</h3>
+                        )}
+                        {isEditable ? (
+                          <Select
+                            value={scene.displayMode || 'default'}
+                            onValueChange={(v) => updateSceneDisplayMode(i, v as 'default' | 'fullscreen' | 'overlay')}
+                          >
+                            <SelectTrigger size="sm" className="h-6 px-1.5 text-[10px] gap-1 min-w-0 w-auto border-none shadow-none">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {DISPLAY_MODE_OPTIONS.map((opt) => (
+                                <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                                  {opt.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <DisplayModeBadge mode={scene.displayMode || 'default'} />
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         {!disabled && onEditScene && (
                           <button
                             onClick={() => { setModalOpen(false); onEditScene(i, scene.title); }}
                             className="p-1.5 rounded-md hover:bg-foreground/5 text-muted-foreground hover:text-foreground transition-colors"
-                            title={`Edit ${scene.title}`}
+                            title={`Edit ${scene.title} with AI`}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -361,9 +630,16 @@ export function ScenePlanCard({
                     </div>
 
                     {/* Visual description */}
-                    <p className="text-sm text-foreground/80 leading-relaxed">
-                      {scene.description}
-                    </p>
+                    {isEditable ? (
+                      <InlineEditableDescription
+                        value={scene.description}
+                        onChange={(v) => updateSceneDescription(i, v)}
+                      />
+                    ) : (
+                      <p className="text-sm text-foreground/80 leading-relaxed">
+                        {scene.description}
+                      </p>
+                    )}
 
                     {/* Key sync point */}
                     {scene.keySync && (

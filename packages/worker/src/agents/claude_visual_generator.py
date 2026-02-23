@@ -12,6 +12,7 @@ import asyncio
 import json
 import os
 import platform
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -104,8 +105,9 @@ if IS_WINDOWS:
             """Patched build_command that handles Windows command line length limits."""
             cmd = _original_build_command(self)
 
-            # Windows limit is 8191 chars total - be aggressive with file offloading
-            MAX_ARG_LENGTH = 2000
+            # Windows limit is 8191 chars total, and multiline/special-char prompts
+            # corrupt cmd.exe parsing even under the limit. Be very aggressive.
+            MAX_ARG_LENGTH = 500
 
             # Arguments that can be long and need file-based passing
             # NOTE: --append-system-prompt is used when system_prompt has type="preset" with append
@@ -756,11 +758,12 @@ def get_condensed_skills() -> str:
     return """
 ## REQUIRED ANIMATION PATTERNS (USE THESE EXACTLY)
 
-### Spring Configuration (ALWAYS use this)
+### Spring Configuration (ALWAYS import from constants.ts)
 ```tsx
-const SPRING_CONFIG = { damping: 22, stiffness: 90, mass: 0.9 };
+import { SPRINGS, STAGGER } from '../constants';
 // Usage:
-const progress = spring({frame: frame - startFrame, fps, config: SPRING_CONFIG});
+const progress = spring({frame: frame - startFrame, fps, config: SPRINGS.SMOOTH}); // { damping: 26, stiffness: 120, mass: 1.0 }
+const heroProgress = spring({frame, fps, config: SPRINGS.SNAPPY}); // { damping: 18, stiffness: 180, mass: 0.8 }
 ```
 
 ### Stagger Pattern (REQUIRED for multiple elements)
@@ -816,7 +819,7 @@ const ParticleEmitter: React.FC<{count: number, startFrame: number}> = ({count, 
     <>
       {Array.from({length: count}).map((_, i) => {
         const delay = i * 6;
-        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 22, stiffness: 90}});
+        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 26, stiffness: 120}});
         const angle = (i / count) * Math.PI * 2;
         const radius = progress * 100;
         return (
@@ -852,7 +855,7 @@ const Counter: React.FC<{target: number, start: number}> = ({target, start}) => 
 const ScaleIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({startFrame, children}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
-  const scale = spring({frame: frame - startFrame, fps, config: {damping: 22, stiffness: 90}});
+  const scale = spring({frame: frame - startFrame, fps, config: {damping: 26, stiffness: 120}});
   return <div style={{transform: `scale(${scale})`}}>{children}</div>;
 };
 ```
@@ -1102,7 +1105,7 @@ const ParticleEmitter: React.FC<{count: number, startFrame: number}> = ({count, 
     <>
       {Array.from({length: count}).map((_, i) => {
         const delay = i * 6;
-        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 22, stiffness: 90}});
+        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 26, stiffness: 120}});
         const angle = (i / count) * Math.PI * 2;
         const radius = progress * 100;
         return (
@@ -1183,7 +1186,7 @@ const scaleEntrance = (frame: number, startFrame: number, fps: number) => {
   const progress = spring({
     frame: frame - startFrame,
     fps,
-    config: { damping: 22, stiffness: 90, mass: 0.9 }
+    config: { damping: 26, stiffness: 120, mass: 1.0 }
   });
   return progress;
 };
@@ -1210,7 +1213,7 @@ const StaggeredList: React.FC<{items: string[], startFrame: number}> = ({items, 
         const progress = spring({
           frame: frame - startFrame - delay,
           fps,
-          config: { damping: 22, stiffness: 90, mass: 0.9 }
+          config: { damping: 26, stiffness: 120, mass: 1.0 }
         });
         return (
           <div key={i} style={{
@@ -1876,7 +1879,7 @@ Don't just place assets on screen statically. Make them come alive:
 
 Example — animated icon entry:
 ```tsx
-const iconScale = spring({{ frame: frame - delay, fps, config: {{ damping: 22, stiffness: 90 }} }});
+const iconScale = spring({{ frame: frame - delay, fps, config: {{ damping: 26, stiffness: 120 }} }});
 const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapolateRight: 'clamp' }});
 
 <div style={{{{ opacity: iconOpacity, transform: `scale(${{iconScale}})`, color: COLORS.accent }}}}>
@@ -2061,7 +2064,7 @@ You have access to WebSearch for researching unfamiliar topics.
 <svg_animation_patterns>
 **1. Scale & Fade Entry:**
 ```tsx
-const scale = spring({{ frame, fps, config: {{ damping: 22, stiffness: 90 }} }});
+const scale = spring({{ frame, fps, config: {{ damping: 26, stiffness: 120 }} }});
 const opacity = interpolate(frame, [0, 15], [0, 1], {{ extrapolateRight: 'clamp' }});
 
 <div style={{{{ opacity, transform: `scale(${{scale}})` }}}}>
@@ -2153,7 +2156,7 @@ const StreamElement = () => {{
 ```
 
 **Spring Configuration:**
-  config: {{ damping: 22, stiffness: 90, mass: 0.9 }}
+  config: {{ damping: 26, stiffness: 120, mass: 1.0 }}
 
 **Stagger Rule:**
   - Stagger by 6+ frames: startFrame + (index * 6)
@@ -2312,7 +2315,7 @@ Use TANGIBLE real-world objects:
 
 ### TECHNICAL REQUIREMENTS
 - Sequence frames are RELATIVE: useCurrentFrame() returns 0 at Sequence start
-- Spring config: {{ damping: 22, stiffness: 90, mass: 0.9 }}
+- Spring config: {{ damping: 26, stiffness: 120, mass: 1.0 }}
 - All interpolate() need extrapolateRight: 'clamp'
 - All array children need unique key props
 - 60px margins, no overlapping elements
@@ -2815,6 +2818,352 @@ When done, respond: "SELF-HEAL COMPLETE"
             print(f"[ClaudeGenerator] Self-heal agent error: {e}")
             return False
 
+    def _setup_entry_point(self) -> str:
+        """Set up src/index.ts to import from the generated project.
+
+        Returns:
+            The original index.ts content (for later restoration).
+        """
+        index_ts_path = self.workspace / "src" / "index.ts"
+        original = index_ts_path.read_text(encoding="utf-8") if index_ts_path.exists() else ""
+
+        new_index_ts = f'''/**
+ * Auto-generated entry point for project: {self.project_id}
+ */
+import {{ registerRoot }} from "remotion";
+import {{ RemotionRoot }} from "./{self.project_id}/index";
+
+registerRoot(RemotionRoot);
+'''
+        index_ts_path.write_text(new_index_ts)
+        print(f"[ClaudeGenerator] Updated src/index.ts to import from {self.project_id}")
+        return original
+
+    def _restore_entry_point(self, original: str) -> None:
+        """Restore the original src/index.ts content."""
+        index_ts_path = self.workspace / "src" / "index.ts"
+        index_ts_path.write_text(original)
+
+    async def _render_scene_still(
+        self,
+        composition_id: str,
+        frame: int,
+        output_path: Path,
+    ) -> tuple[bool, str]:
+        """Render a single still frame using remotion still (async subprocess).
+
+        Args:
+            composition_id: Remotion composition ID (with dashes)
+            frame: Frame number to render
+            output_path: Where to save the PNG
+
+        Returns:
+            (success, error_message)
+        """
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        cmd_parts = [
+            "npx", "remotion", "still",
+            composition_id,
+            str(output_path),
+            f"--frame={frame}",
+        ]
+
+        try:
+            if IS_WINDOWS:
+                # Windows needs shell=True for npx.cmd
+                cmd_str = " ".join(cmd_parts)
+                proc = await asyncio.create_subprocess_shell(
+                    cmd_str,
+                    cwd=str(self.workspace),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+            else:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd_parts,
+                    cwd=str(self.workspace),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+
+            if proc.returncode != 0:
+                err = stderr.decode("utf-8", errors="replace") if stderr else "Unknown error"
+                print(f"[ClaudeGenerator] remotion still failed (frame {frame}): {err[:500]}")
+                return False, err
+
+            print(f"[ClaudeGenerator] Rendered still at frame {frame}: {output_path}")
+            return True, ""
+
+        except asyncio.TimeoutError:
+            print(f"[ClaudeGenerator] remotion still timed out (frame {frame})")
+            return False, "Render timed out after 120s"
+        except Exception as e:
+            print(f"[ClaudeGenerator] remotion still error (frame {frame}): {e}")
+            return False, str(e)
+
+    async def _run_visual_verify(
+        self,
+        scene_num: int,
+        screenshot_path: Path,
+        scene_data: dict,
+        plan_content: str,
+    ) -> tuple[bool, list[str]]:
+        """Spawn a Sonnet subagent to review a screenshot against the plan.
+
+        Args:
+            scene_num: Scene number (1-based)
+            screenshot_path: Path to the rendered PNG screenshot
+            scene_data: The scene's dict from scenes.json
+            plan_content: Full SCENE_PLAN.md content
+
+        Returns:
+            (passed, issues_list)
+        """
+        from prompts.animator import VISUAL_VERIFY_PROMPT
+
+        scene_json_str = json.dumps(scene_data, indent=2)
+        display_mode = scene_data.get("displayMode", "default")
+        description = scene_data.get("description", "No description")
+        screenshot_str = str(screenshot_path).replace("\\", "/")
+
+        user_msg = f"""## Visual Review: Scene {scene_num}
+
+### Screenshot
+Read this screenshot file to see the rendered frame: `{screenshot_str}`
+
+### Scene Data:
+```json
+{scene_json_str}
+```
+
+### Display Mode: `{display_mode}`
+### Scene Description: {description}
+
+### Director's Plan:
+{plan_content}
+
+Review the screenshot against the plan and scene data. Output PASS or FAIL with numbered issues.
+"""
+
+        try:
+            client = ClaudeSDKClient(
+                options=ClaudeAgentOptions(
+                    model="claude-sonnet-4-20250514",
+                    system_prompt={
+                        "type": "preset",
+                        "preset": "claude_code",
+                        "append": VISUAL_VERIFY_PROMPT,
+                    },
+                    cwd=str(self.workspace),
+                    max_turns=5,
+                    allowed_tools=["Read"],
+                    cli_path=CLAUDE_CLI_PATH,
+                )
+            )
+
+            response_text = ""
+            async with client:
+                await client.query(user_msg)
+
+                async for msg in client.receive_response():
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                response_text += block.text
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[VisualVerify{scene_num} Tool: {block.name}]", flush=True)
+
+            # Parse response
+            if "PASS" in response_text and "FAIL" not in response_text:
+                return True, []
+
+            # Extract numbered issues from FAIL response
+            issues: list[str] = []
+            for line in response_text.split("\n"):
+                stripped = line.strip()
+                m = re.match(r'^\d+[.)]\s+(.+)', stripped)
+                if m:
+                    issues.append(m.group(1))
+            # Fallback: capture text after FAIL if no numbered issues parsed
+            if not issues:
+                fail_idx = response_text.find("FAIL")
+                if fail_idx >= 0:
+                    remaining = response_text[fail_idx + 4:].strip()
+                    if remaining:
+                        issues.append(remaining[:500])
+            return False, issues
+
+        except Exception as e:
+            print(f"[ClaudeGenerator] Scene {scene_num} visual verify error: {e}")
+            return True, []  # Non-blocking: don't fail pipeline on verify errors
+
+    async def _verify_and_fix_scene(
+        self,
+        scene_num: int,
+        scene_data: dict,
+        plan_content: str,
+        composition_id: str,
+    ) -> None:
+        """Per-scene verify → fix → re-verify loop.
+
+        Args:
+            scene_num: Scene number (1-based)
+            scene_data: The scene's dict from scenes.json
+            plan_content: Full SCENE_PLAN.md content
+            composition_id: Remotion composition ID (with dashes)
+        """
+        from prompts.animator import VISUAL_FIX_PROMPT_TEMPLATE, ANIMATOR_BASE_PROMPT
+
+        display_mode = scene_data.get("displayMode", "default")
+        description = scene_data.get("description", "No description")
+        verify_dir = self.workspace / "visual-verify"
+
+        # Determine key frame to render
+        key_sync = scene_data.get("keySync", {})
+        if key_sync.get("frame") is not None:
+            frame = key_sync["frame"]
+        else:
+            # Fallback: midpoint of scene (scenes.json uses "frames": [start, end])
+            frames = scene_data.get("frames", [0, 60])
+            start = frames[0] if len(frames) > 0 else 0
+            end = frames[1] if len(frames) > 1 else start + 60
+            frame = (start + end) // 2
+
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            screenshot_path = verify_dir / f"scene{scene_num}_attempt{attempt}.png"
+
+            # Step 1: Render still
+            success, err = await self._render_scene_still(
+                composition_id, frame, screenshot_path
+            )
+            if not success:
+                print(f"[ClaudeGenerator] Scene {scene_num} still render failed: {err[:200]}")
+                return  # Can't verify without a screenshot
+
+            # Step 2: Visual verify
+            passed, issues = await self._run_visual_verify(
+                scene_num, screenshot_path, scene_data, plan_content
+            )
+
+            if passed:
+                print(f"[ClaudeGenerator] Scene {scene_num} passed visual verification")
+                return
+
+            print(f"[ClaudeGenerator] Scene {scene_num} failed visual verify: {issues}")
+
+            # Step 3: Fix (if retries remaining)
+            if attempt >= max_retries:
+                print(f"[ClaudeGenerator] Scene {scene_num} accepting as-is after {max_retries} fix attempts")
+                return
+
+            issues_str = "\n".join(f"{i+1}. {issue}" for i, issue in enumerate(issues))
+            fix_msg = VISUAL_FIX_PROMPT_TEMPLATE.format(
+                scene_num=scene_num,
+                project_id=self.project_id,
+                display_mode=display_mode,
+                scene_description=description,
+                screenshot_path=str(screenshot_path).replace("\\", "/"),
+                issues=issues_str,
+            )
+
+            remotion_libraries = get_remotion_libraries_guide()
+
+            try:
+                fix_client = ClaudeSDKClient(
+                    options=ClaudeAgentOptions(
+                        model="claude-sonnet-4-20250514",
+                        system_prompt={
+                            "type": "preset",
+                            "preset": "claude_code",
+                            "append": f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}",
+                        },
+                        cwd=str(self.workspace),
+                        max_turns=15,
+                        allowed_tools=["Read", "Edit", "Bash", "Glob"],
+                        cli_path=CLAUDE_CLI_PATH,
+                    )
+                )
+
+                async with fix_client:
+                    await fix_client.query(fix_msg)
+                    async for msg in fix_client.receive_response():
+                        msg_type = type(msg).__name__
+                        if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                            for block in msg.content:
+                                block_type = type(block).__name__
+                                if block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                    print(f"\n[VisualFix{scene_num} Tool: {block.name}]", flush=True)
+
+                print(f"[ClaudeGenerator] Scene {scene_num} visual fix attempt {attempt + 1} complete")
+
+            except Exception as e:
+                print(f"[ClaudeGenerator] Scene {scene_num} visual fix error: {e}")
+                return  # Don't retry if fix agent itself fails
+
+    async def _run_visual_verification_phase(
+        self,
+        composition_id: str,
+        scenes_data: dict,
+        plan_content: str,
+    ) -> None:
+        """Top-level orchestrator for Phase 2e visual verification.
+
+        Sets up entry point once, launches all scene verifications in parallel,
+        then cleans up. Fix agents run in parallel per-scene but each targets
+        only its own Scene<N>.tsx file, so concurrent edits are isolated.
+
+        Args:
+            composition_id: Remotion composition ID (with dashes)
+            scenes_data: Full scenes.json content as dict
+            plan_content: Full SCENE_PLAN.md content
+        """
+        scenes = scenes_data.get("scenes", [])
+        if not scenes:
+            print("[ClaudeGenerator] No scenes to verify")
+            return
+
+        original_index_ts = self._setup_entry_point()
+        verify_dir = self.workspace / "visual-verify"
+
+        try:
+            tasks = []
+            for i, scene in enumerate(scenes):
+                scene_num = i + 1
+                scene_file = self.src_dir / "scenes" / f"Scene{scene_num}.tsx"
+                if not scene_file.exists():
+                    print(f"[ClaudeGenerator] Skipping visual verify for Scene{scene_num} (no .tsx file)")
+                    continue
+
+                tasks.append(
+                    self._verify_and_fix_scene(
+                        scene_num=scene_num,
+                        scene_data=scene,
+                        plan_content=plan_content,
+                        composition_id=composition_id,
+                    )
+                )
+
+            if tasks:
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        print(f"[ClaudeGenerator] Visual verify task {i+1} exception: {result}")
+
+        finally:
+            self._restore_entry_point(original_index_ts)
+            # Clean up screenshots
+            if verify_dir.exists():
+                try:
+                    shutil.rmtree(verify_dir)
+                except Exception as e:
+                    print(f"[ClaudeGenerator] Failed to clean up visual-verify dir: {e}")
+
     async def _run_bundle(self) -> Path:
         """Bundle the Remotion project."""
         import subprocess
@@ -2826,22 +3175,7 @@ When done, respond: "SELF-HEAL COMPLETE"
         # Create output directory
         bundle_path.mkdir(parents=True, exist_ok=True)
 
-        # Update src/index.ts to import from the generated project instead of Root.tsx
-        # This is needed because Remotion's --entry-point doesn't work reliably
-        index_ts_path = self.workspace / "src" / "index.ts"
-        original_index_ts = index_ts_path.read_text() if index_ts_path.exists() else ""
-
-        # Create new index.ts that imports from the generated project
-        new_index_ts = f'''/**
- * Auto-generated entry point for project: {self.project_id}
- */
-import {{ registerRoot }} from "remotion";
-import {{ RemotionRoot }} from "./{self.project_id}/index";
-
-registerRoot(RemotionRoot);
-'''
-        index_ts_path.write_text(new_index_ts)
-        print(f"[ClaudeGenerator] Updated src/index.ts to import from {self.project_id}")
+        original_index_ts = self._setup_entry_point()
 
         try:
             result = subprocess.run(
@@ -2864,7 +3198,7 @@ registerRoot(RemotionRoot);
             raise RuntimeError("Bundle timed out after 5 minutes")
         finally:
             # Restore original index.ts for next project
-            index_ts_path.write_text(original_index_ts)
+            self._restore_entry_point(original_index_ts)
 
     async def _compile_cjs(self, bundle_path: Path) -> None:
         """
@@ -3185,7 +3519,7 @@ registerRoot(RemotionRoot);
             duration_frames: Total frames
             fps: Frames per second
             style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
-            layout_mode: Layout mode (pip, split-horizontal, split-vertical)
+            layout_mode: Layout mode (pip, stacked)
             style_guide: Optional user-provided style/layout guidance
             source_width: Source video width (for coverage-tier display mode guidance)
             source_height: Source video height (for coverage-tier display mode guidance)
@@ -3565,6 +3899,962 @@ registerRoot(RemotionRoot);
             "hasImplementationLog": impl_log.exists(),
         }
 
+    # ------------------------------------------------------------------
+    # Sequential Animator helpers
+    # ------------------------------------------------------------------
+
+    async def _verify_typescript_file(self, file_path: str) -> tuple[bool, str]:
+        """Run TypeScript validation on a specific file.
+
+        Runs full project tsc check, then filters errors to those mentioning
+        the target file.  Uses `npx tsc` (not ./node_modules/.bin/tsc) so it
+        works correctly on Windows.
+
+        Args:
+            file_path: Path relative to the workspace (e.g. "src/proj/scenes/Scene1.tsx")
+
+        Returns:
+            Tuple of (success, error_output)
+        """
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["npx", "tsc", "--noEmit"],
+                cwd=str(self.workspace),
+                capture_output=True,
+                timeout=90,
+                shell=IS_WINDOWS,
+                encoding="utf-8",
+                errors="replace",
+            )
+            if result.returncode == 0:
+                return True, ""
+            else:
+                # Filter errors to only those relevant to the target file
+                all_errors = result.stdout + result.stderr
+                # Normalize path separators for matching
+                file_key = file_path.replace("\\", "/")
+                relevant = []
+                for line in all_errors.splitlines():
+                    normalized = line.replace("\\", "/")
+                    if file_key in normalized or (relevant and not line.strip().startswith("src/")):
+                        relevant.append(line)
+                if relevant:
+                    filtered = "\n".join(relevant)
+                    print(f"[ClaudeGenerator] TypeScript errors in {file_path}:\n{filtered[:2000]}")
+                    return False, filtered
+                # Errors exist but not in our target file — treat as success for this file
+                return True, ""
+        except subprocess.TimeoutExpired:
+            return False, "TypeScript check timed out"
+        except Exception as e:
+            return False, str(e)
+
+    async def _run_scene_verify(
+        self,
+        scene_num: int,
+        scene_data: dict,
+        plan_description: str,
+        display_mode: str,
+        constants_content: str,
+    ) -> tuple[bool, list[str]]:
+        """Spawn a Sonnet verification subagent for a single scene.
+
+        Args:
+            scene_num: Scene number (1-based)
+            scene_data: The scene's dict from scenes.json
+            plan_description: Full SCENE_PLAN.md content
+            display_mode: The scene's display mode
+            constants_content: Current constants.ts content
+
+        Returns:
+            (passed, issues_list) — passed is True if PASS, issues_list contains numbered issues
+        """
+        from prompts.animator import SCENE_VERIFY_PROMPT
+
+        scene_file = f"src/{self.project_id}/scenes/Scene{scene_num}.tsx"
+        scene_json_str = json.dumps(scene_data, indent=2)
+
+        user_msg = f"""
+## Verify Scene {scene_num}
+
+Scene file: `{scene_file}`
+Display mode: `{display_mode}`
+
+### Scene Data:
+```json
+{scene_json_str}
+```
+
+### Plan Description:
+{plan_description}
+
+### constants.ts:
+```typescript
+{constants_content}
+```
+
+Read the scene file and verify it against the plan and scene data.
+"""
+
+        try:
+            client = ClaudeSDKClient(
+                options=ClaudeAgentOptions(
+                    model="claude-sonnet-4-20250514",
+                    system_prompt={
+                        "type": "preset",
+                        "preset": "claude_code",
+                        "append": SCENE_VERIFY_PROMPT,
+                    },
+                    cwd=str(self.workspace),
+                    max_turns=10,
+                    allowed_tools=["Read", "Bash"],
+                    cli_path=CLAUDE_CLI_PATH,
+                )
+            )
+
+            response_text = ""
+            async with client:
+                await client.query(user_msg)
+
+                async for msg in client.receive_response():
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                response_text += block.text
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[SceneVerify Tool: {block.name}]", flush=True)
+
+            # Parse response
+            if "PASS" in response_text and "FAIL" not in response_text:
+                return True, []
+
+            # Extract numbered issues from FAIL response
+            issues: list[str] = []
+            for line in response_text.split("\n"):
+                stripped = line.strip()
+                m = re.match(r'^\d+[.)]\s+(.+)', stripped)
+                if m:
+                    issues.append(m.group(1))
+            return False, issues
+
+        except Exception as e:
+            print(f"[ClaudeGenerator] Scene {scene_num} verify error: {e}")
+            return True, []  # Don't block on verify failures
+
+    async def _run_composition_verify(
+        self,
+        project_id: str,
+        scenes_data: dict,
+        plan_content: str,
+    ) -> tuple[bool, list[str]]:
+        """Spawn a Sonnet verification subagent for the full composition.
+
+        Args:
+            project_id: The project identifier
+            scenes_data: Full scenes.json content as dict
+            plan_content: Full SCENE_PLAN.md content
+
+        Returns:
+            (passed, issues_list)
+        """
+        from prompts.animator import COMPOSITION_VERIFY_PROMPT
+
+        scenes = scenes_data.get("scenes", [])
+        scene_count = len(scenes)
+        scenes_summary = json.dumps(
+            {
+                "totalFrames": scenes_data.get("totalFrames"),
+                "fps": scenes_data.get("fps"),
+                "sceneCount": scene_count,
+                "scenes": [
+                    {"name": s.get("name", f"Scene {i+1}"), "displayMode": s.get("displayMode", "default")}
+                    for i, s in enumerate(scenes)
+                ],
+            },
+            indent=2,
+        )
+
+        user_msg = f"""
+## Verify Full Composition
+
+Project directory: `src/{project_id}/`
+Scene count: {scene_count}
+
+### scenes.json summary:
+```json
+{scenes_summary}
+```
+
+### Plan:
+{plan_content}
+
+Verify all scenes exist, constants match, and TypeScript compiles.
+Fix any issues you can.
+"""
+
+        try:
+            client = ClaudeSDKClient(
+                options=ClaudeAgentOptions(
+                    model="claude-sonnet-4-20250514",
+                    system_prompt={
+                        "type": "preset",
+                        "preset": "claude_code",
+                        "append": COMPOSITION_VERIFY_PROMPT,
+                    },
+                    cwd=str(self.workspace),
+                    max_turns=15,
+                    allowed_tools=["Read", "Bash", "Edit", "Glob"],
+                    cli_path=CLAUDE_CLI_PATH,
+                )
+            )
+
+            response_text = ""
+            async with client:
+                await client.query(user_msg)
+
+                async for msg in client.receive_response():
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                response_text += block.text
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[CompVerify Tool: {block.name}]", flush=True)
+
+            # Parse response
+            if "PASS" in response_text and "ISSUES" not in response_text:
+                return True, []
+
+            issues: list[str] = []
+            for line in response_text.split("\n"):
+                stripped = line.strip()
+                m = re.match(r'^\d+[.)]\s+(.+)', stripped)
+                if m:
+                    issues.append(m.group(1))
+            return False, issues
+
+        except Exception as e:
+            print(f"[ClaudeGenerator] Composition verify error: {e}")
+            return True, []  # Don't block on verify failures
+
+    def _generate_index_tsx(self, scenes: list[dict], project_id: str) -> str:
+        """Generate the full index.tsx content from scene data.
+
+        Pure Python codegen — assembles imports, Sequences, overlay logic,
+        RemotionRoot with Composition, and default export.
+
+        Args:
+            scenes: List of scene dicts from scenes.json
+            project_id: Project identifier
+
+        Returns:
+            Full index.tsx file content as a string
+        """
+        composition_id = project_id.replace("_", "-")
+        total_scenes = len(scenes)
+
+        # Build scene imports
+        scene_imports = "\n".join(
+            f"import {{ Scene{i+1} }} from './scenes/Scene{i+1}';"
+            for i in range(total_scenes)
+        )
+
+        # Build Sequence blocks
+        sequence_blocks = "\n".join(
+            f"""
+      <Sequence key="scene{i+1}" from={{TIMING.scene{i+1}Start}} durationInFrames={{TIMING.scene{i+1}End - TIMING.scene{i+1}Start}}>
+        <Scene{i+1} startFrame={{0}} />
+      </Sequence>"""
+            for i in range(total_scenes)
+        )
+
+        index_content = f"""import React from 'react';
+import {{
+  AbsoluteFill,
+  Composition,
+  Sequence,
+  useCurrentFrame,
+  useVideoConfig,
+  spring,
+  interpolate,
+}} from 'remotion';
+import {{ COLORS, TIMING, OVERLAY_RANGES }} from './constants';
+import {{ Background }} from './components/Background';
+{scene_imports}
+
+const MainComposition: React.FC = () => {{
+  const frame = useCurrentFrame();
+  // During overlay frames, skip Background so the composition is transparent.
+  const isOverlay = OVERLAY_RANGES.some(([s, e]) => frame >= s && frame < e);
+
+  return (
+    <AbsoluteFill style={{isOverlay ? undefined : {{ backgroundColor: COLORS.background }}}}>
+      {{!isOverlay && <Background key="bg" />}}
+{sequence_blocks}
+    </AbsoluteFill>
+  );
+}};
+
+export const RemotionRoot: React.FC = () => {{
+  return (
+    <Composition
+      id="{composition_id}"
+      component={{MainComposition}}
+      durationInFrames={{TIMING.totalFrames}}
+      fps={{TIMING.fps}}
+      width={{TIMING.width}}
+      height={{TIMING.height}}
+    />
+  );
+}};
+
+// CRITICAL: Export MainComposition as default (NOT RemotionRoot!)
+export default MainComposition;
+
+// NOTE: Do NOT call registerRoot here - the workspace index.ts handles registration
+"""
+        return index_content
+
+    def _generate_metadata_json(self, scenes_data: dict, project_id: str) -> str:
+        """Generate metadata.json content from scenes data.
+
+        Args:
+            scenes_data: Full scenes.json content as dict
+            project_id: Project identifier
+
+        Returns:
+            JSON string for metadata.json
+        """
+        composition_id = project_id.replace("_", "-")
+        total_frames = scenes_data.get("totalFrames", 1800)
+        fps_val = scenes_data.get("fps", 30)
+        width_val = scenes_data.get("width", 1920)
+        height_val = scenes_data.get("height", 1080)
+
+        scenes = scenes_data.get("scenes", [])
+        visuals = []
+        for scene in scenes:
+            frames = scene.get("frames", [0, total_frames])
+            start_frame = frames[0] if len(frames) > 0 else 0
+            end_frame = frames[1] if len(frames) > 1 else total_frames
+            start_ms = int(start_frame / fps_val * 1000)
+            end_ms = int(end_frame / fps_val * 1000)
+            visuals.append({
+                "startMs": start_ms,
+                "endMs": end_ms,
+                "type": "generated",
+                "description": scene.get("name", "AI-generated visual"),
+                "displayMode": scene.get("displayMode", "default"),
+            })
+
+        if not visuals:
+            visuals = [{
+                "startMs": 0,
+                "endMs": int(total_frames / fps_val * 1000),
+                "type": "generated",
+                "description": "AI-generated visual",
+            }]
+
+        metadata = {
+            "compositionId": composition_id,
+            "durationInFrames": total_frames,
+            "fps": fps_val,
+            "width": width_val,
+            "height": height_val,
+            "visuals": visuals,
+        }
+        return json.dumps(metadata, indent=2)
+
+    async def _run_scene_agent(
+        self,
+        scene_num: int,
+        scene_system: str,
+        scene_user_msg: str,
+        mcp_servers: dict,
+        bash_security_hook,
+        label: str = "",
+    ) -> None:
+        """Spawn a scene agent (Opus) to implement a single scene file.
+
+        Args:
+            scene_num: 1-based scene number
+            scene_system: Full system prompt (base + mode-specific rules)
+            scene_user_msg: User message with scene data and context
+            mcp_servers: MCP server configuration dict
+            bash_security_hook: PreToolUse hook for Bash safety
+            label: Optional label suffix for tool logging (e.g. "Retry")
+        """
+        tag = f"Scene{scene_num}{' ' + label if label else ''}"
+        client = ClaudeSDKClient(
+            options=ClaudeAgentOptions(
+                model=self.model,
+                system_prompt={
+                    "type": "preset",
+                    "preset": "claude_code",
+                    "append": scene_system,
+                },
+                cwd=str(self.workspace),
+                max_turns=40,
+                max_thinking_tokens=self.max_thinking_tokens,
+                allowed_tools=[
+                    "Read", "Write", "Edit", "Glob", "Grep", "Bash", "Skill",
+                    "mcp__freepik__search_icons",
+                    "mcp__freepik__get_icon_detail_by_id",
+                    "mcp__freepik__download_icon_by_id",
+                    "mcp__freepik__search_resources",
+                    "mcp__freepik__get_resource_detail_by_id",
+                    "mcp__freepik__download_resource_by_id",
+                    "mcp__better-icons__search_icons",
+                    "mcp__better-icons__get_icon",
+                    "mcp__better-icons__recommend_icons",
+                    "mcp__better-icons__find_similar_icons",
+                    "mcp__assets__download_file",
+                    "mcp__assets__screenshot",
+                    "mcp__assets__search_unsplash",
+                    "mcp__assets__search_pexels",
+                    "mcp__assets__download_stock_photo",
+                    "mcp__assets__get_speaker_grid",
+                    "mcp__viewport__get_scene_dimensions",
+                    "mcp__viewport__validate_scene_code",
+                ],
+                mcp_servers=mcp_servers,
+                setting_sources=["project"],
+                hooks={
+                    "PreToolUse": [
+                        HookMatcher(matcher="Bash", hooks=[bash_security_hook]),
+                    ],
+                },
+                cli_path=CLAUDE_CLI_PATH,
+            )
+        )
+
+        async with client:
+            await client.query(scene_user_msg)
+
+            async for msg in client.receive_response():
+                msg_type = type(msg).__name__
+                if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                    for block in msg.content:
+                        block_type = type(block).__name__
+                        if block_type == "TextBlock" and hasattr(block, "text"):
+                            try:
+                                print(block.text[:200], end="", flush=True)
+                            except UnicodeEncodeError:
+                                pass
+                        elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                            print(f"\n[{tag} Tool: {block.name}]", flush=True)
+
+    async def _run_animator_sequential(
+        self,
+        width: int,
+        height: int,
+        duration_frames: int,
+        fps: int,
+    ) -> dict[str, Any]:
+        """
+        Phase 2 (Parallel): Implement scenes via SDK subagents.
+
+        Instead of a single monolithic Animator agent, this pipeline:
+        - Runs a SETUP agent to create constants.ts and shared components
+        - Dispatches a coordinator agent that spawns scene-generator subagents
+          in parallel (one per scene) via the Task tool
+        - Validates TypeScript after all scenes complete
+        - Assembles index.tsx and metadata.json via Python codegen
+        - Runs a composition verification pass
+
+        Falls back to monolithic _run_animator on critical failure.
+
+        Args:
+            width: Video width
+            height: Video height
+            duration_frames: Total frames
+            fps: Frames per second
+
+        Returns:
+            dict with success status
+        """
+        from prompts.animator import (
+            ANIMATOR_BASE_PROMPT,
+            ANIMATOR_SETUP_PROMPT,
+            ANIMATOR_SCENE_PROMPT_TEMPLATE,
+            get_display_mode_rules,
+            build_setup_user_message,
+            build_scene_user_message,
+            build_scene_task_prompt,
+        )
+        from claude_agent_sdk import AgentDefinition
+
+        print("[ClaudeGenerator] Phase 2 (Parallel): Implementing scenes via subagents...")
+
+        # Read scenes.json and SCENE_PLAN.md
+        scenes_json_path = self.src_dir / "scenes.json"
+        scene_plan_path = self.src_dir / "SCENE_PLAN.md"
+
+        with open(scenes_json_path, "r", encoding="utf-8") as f:
+            scenes_data = json.load(f)
+        with open(scene_plan_path, "r", encoding="utf-8") as f:
+            scene_plan_content = f.read()
+
+        scenes = scenes_data.get("scenes", [])
+        total_scenes = len(scenes)
+
+        # Get remotion libraries and condensed skills (same as monolithic)
+        remotion_libraries = get_remotion_libraries_guide()
+        condensed_skills = get_condensed_skills()
+
+        # MCP servers config (same as _run_animator)
+        mcp_servers = {
+            "freepik": {
+                "type": "stdio",
+                "command": "npx",
+                "args": [
+                    "-y", "mcp-remote",
+                    "https://api.freepik.com/mcp",
+                    "--header",
+                    f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
+                ]
+            },
+            "better-icons": {
+                "type": "stdio",
+                "command": "npx",
+                "args": ["better-icons"]
+            },
+            "assets": {
+                "type": "stdio",
+                "command": "node",
+                "args": [
+                    str(Path(__file__).parent / "mcp-servers" / "asset-server.js"),
+                    "--workspace", str(self.workspace),
+                ],
+                "env": {
+                    "UNSPLASH_ACCESS_KEY": os.environ.get("UNSPLASH_ACCESS_KEY", ""),
+                    "PEXELS_API_KEY": os.environ.get("PEXELS_API_KEY", ""),
+                }
+            },
+            "viewport": {
+                "type": "stdio",
+                "command": "node",
+                "args": [
+                    str(Path(__file__).parent / "mcp-servers" / "viewport-server.js"),
+                    "--workspace", str(self.workspace),
+                ]
+            }
+        }
+
+        # ── Phase 2a: SETUP ──
+        emit_progress(38, "Phase 2a: Setting up project foundation...")
+        setup_system = f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{ANIMATOR_SETUP_PROMPT}"
+        setup_message = build_setup_user_message(self.project_id)
+
+        # Spawn setup agent (Sonnet for speed)
+        setup_client = ClaudeSDKClient(
+            options=ClaudeAgentOptions(
+                model="claude-sonnet-4-20250514",
+                system_prompt={
+                    "type": "preset",
+                    "preset": "claude_code",
+                    "append": setup_system,
+                },
+                cwd=str(self.workspace),
+                max_turns=30,
+                allowed_tools=[
+                    "Read", "Write", "Edit", "Glob", "Bash", "Skill",
+                    "mcp__viewport__get_scene_dimensions",
+                ],
+                mcp_servers={"viewport": mcp_servers["viewport"]},
+                setting_sources=["project"],
+                hooks={
+                    "PreToolUse": [
+                        HookMatcher(matcher="Bash", hooks=[bash_security_hook]),
+                    ],
+                },
+                cli_path=CLAUDE_CLI_PATH,
+            )
+        )
+
+        async with setup_client:
+            await setup_client.query(setup_message)
+
+            async for msg in setup_client.receive_response():
+                msg_type = type(msg).__name__
+                if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                    for block in msg.content:
+                        block_type = type(block).__name__
+                        if block_type == "TextBlock" and hasattr(block, "text"):
+                            try:
+                                print(block.text[:200], end="", flush=True)
+                            except UnicodeEncodeError:
+                                safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
+                                print(safe_text[:200], end="", flush=True)
+                        elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                            print(f"\n[Setup Tool: {block.name}]", flush=True)
+
+        # Verify constants.ts exists
+        constants_path = self.src_dir / "constants.ts"
+        if not constants_path.exists():
+            print("[ClaudeGenerator] Setup failed: constants.ts not created, falling back to monolithic")
+            return await self._run_animator(
+                width=width, height=height,
+                duration_frames=duration_frames, fps=fps,
+            )
+
+        constants_content = constants_path.read_text(encoding="utf-8")
+
+        # List available components
+        components_dir = self.src_dir / "components"
+        components_list = (
+            [f.name for f in components_dir.iterdir() if f.suffix == ".tsx"]
+            if components_dir.exists()
+            else []
+        )
+
+        emit_progress(40, "Phase 2a complete: Project foundation ready")
+
+        # ── Phase 2b: PARALLEL SCENE GENERATION via coordinator + subagents ──
+        emit_progress(40, f"Phase 2b: Generating {total_scenes} scenes in parallel...")
+        print(f"\n[ClaudeGenerator] Phase 2b: Dispatching {total_scenes} scene-generator subagents...")
+
+        scenes_dir = self.src_dir / "scenes"
+        scenes_dir.mkdir(exist_ok=True)
+
+        # Build the scene-generator subagent definition
+        scene_gen_system = (
+            f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}\n\n{condensed_skills}"
+        )
+
+        scene_gen_tools = [
+            "Read", "Write", "Edit", "Glob", "Grep", "Bash",
+            "mcp__freepik__search_icons",
+            "mcp__freepik__get_icon_detail_by_id",
+            "mcp__freepik__download_icon_by_id",
+            "mcp__freepik__search_resources",
+            "mcp__freepik__get_resource_detail_by_id",
+            "mcp__freepik__download_resource_by_id",
+            "mcp__better-icons__search_icons",
+            "mcp__better-icons__get_icon",
+            "mcp__better-icons__recommend_icons",
+            "mcp__better-icons__find_similar_icons",
+            "mcp__assets__download_file",
+            "mcp__assets__screenshot",
+            "mcp__assets__search_unsplash",
+            "mcp__assets__search_pexels",
+            "mcp__assets__download_stock_photo",
+            "mcp__assets__get_speaker_grid",
+            "mcp__viewport__get_scene_dimensions",
+            "mcp__viewport__validate_scene_code",
+        ]
+
+        agents = {
+            "scene-generator": AgentDefinition(
+                description=(
+                    "Generates a single Remotion scene file (scenes/SceneN.tsx). "
+                    "Receives scene data in the task prompt, reads constants.ts "
+                    "and SCENE_PLAN.md from disk, writes the .tsx file, validates "
+                    "TypeScript, and self-heals any compilation errors."
+                ),
+                prompt=scene_gen_system,
+                tools=scene_gen_tools,
+            ),
+        }
+
+        # Build compact per-scene task prompts (subagents read context from disk)
+        scene_task_entries = ""
+        for i, scene in enumerate(scenes):
+            scene_num = i + 1
+            task_prompt = build_scene_task_prompt(
+                self.project_id, scene_num, scene.get("displayMode", "default"),
+                scene_data=scene,
+            )
+            scene_task_entries += f"### Scene {scene_num}\n<scene_{scene_num}_task>\n{task_prompt}\n</scene_{scene_num}_task>\n\n"
+
+        coordinator_user_msg = f"""You are the Animation Coordinator. Dispatch {total_scenes} scene-generator subagents IN PARALLEL.
+Make exactly {total_scenes} Task tool calls in your FIRST response.
+
+{scene_task_entries}
+
+After all complete, run: ls src/{self.project_id}/scenes/
+Report which scenes were created.
+"""
+
+        # CRITICAL: permission_mode="bypassPermissions" is required so subagents
+        # inherit it and can use Write/Edit tools. Without this, subagents default
+        # to "default" mode which denies tool use without a canUseTool callback.
+        # See: platform.claude.com/docs/en/agent-sdk/permissions
+        coordinator_client = ClaudeSDKClient(
+            options=ClaudeAgentOptions(
+                model="claude-sonnet-4-20250514",
+                system_prompt={
+                    "type": "preset",
+                    "preset": "claude_code",
+                    "append": "You are an animation coordinator. Your ONLY job is to dispatch scene-generator subagents via the Task tool. You must NOT implement scenes yourself. Do NOT use Write, Edit, or any MCP tools. ONLY use the Task tool to delegate work.",
+                },
+                cwd=str(self.workspace),
+                max_turns=total_scenes + 4,
+                permission_mode="bypassPermissions",
+                allowed_tools=["Bash", "Task"],
+                agents=agents,
+                mcp_servers=mcp_servers,
+                hooks={
+                    "PreToolUse": [
+                        HookMatcher(matcher="Bash", hooks=[bash_security_hook]),
+                    ],
+                },
+                cli_path=CLAUDE_CLI_PATH,
+            )
+        )
+
+        async with coordinator_client:
+            await coordinator_client.query(coordinator_user_msg)
+
+            async for msg in coordinator_client.receive_response():
+                msg_type = type(msg).__name__
+                if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                    for block in msg.content:
+                        block_type = type(block).__name__
+                        if block_type == "TextBlock" and hasattr(block, "text"):
+                            try:
+                                print(block.text[:200], end="", flush=True)
+                            except UnicodeEncodeError:
+                                safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
+                                print(safe_text[:200], end="", flush=True)
+                        elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                            print(f"\n[Coordinator Tool: {block.name}]", flush=True)
+
+        # Post-dispatch: verify all scene files exist, retry missing ones sequentially
+        missing_scenes = []
+        for i in range(total_scenes):
+            scene_file = self.src_dir / "scenes" / f"Scene{i + 1}.tsx"
+            if not scene_file.exists():
+                missing_scenes.append(i + 1)
+
+        if missing_scenes:
+            print(f"[ClaudeGenerator] WARNING: Missing scene files after parallel dispatch: {missing_scenes}")
+            for scene_num in missing_scenes:
+                i = scene_num - 1
+                scene = scenes[i]
+                display_mode = scene.get("displayMode", "default")
+                mode_rules = get_display_mode_rules(display_mode)
+                scene_prompt_filled = ANIMATOR_SCENE_PROMPT_TEMPLATE.format(
+                    scene_number=scene_num,
+                    display_mode_rules=mode_rules,
+                    project_id=self.project_id,
+                )
+                scene_system = f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{scene_prompt_filled}"
+                scene_user_msg = build_scene_user_message(
+                    project_id=self.project_id,
+                    scene_index=i,
+                    scene_data=scene,
+                    total_scenes=total_scenes,
+                    constants_content=constants_content,
+                    components_list=components_list,
+                    scene_plan_content=scene_plan_content,
+                    display_mode=display_mode,
+                )
+                print(f"[ClaudeGenerator] Retrying Scene {scene_num} individually...")
+                await self._run_scene_agent(
+                    scene_num=scene_num,
+                    scene_system=scene_system,
+                    scene_user_msg=scene_user_msg,
+                    mcp_servers=mcp_servers,
+                    bash_security_hook=bash_security_hook,
+                    label="Retry",
+                )
+
+        # TypeScript validation on all scenes
+        emit_progress(50, "Phase 2b: Validating TypeScript...")
+        ts_success, ts_errors = await self._verify_typescript()
+        if not ts_success:
+            print("[ClaudeGenerator] TypeScript errors after scene generation, running self-heal...")
+            await self._run_self_heal(ts_errors)
+
+        emit_progress(52, f"Phase 2b complete: {total_scenes} scenes generated")
+
+        # Re-read constants_content in case self-heal modified constants.ts
+        constants_content = constants_path.read_text(encoding="utf-8")
+
+        # ── Phase 2b+: PER-SCENE VERIFICATION ──
+        emit_progress(53, "Phase 2b+: Verifying scenes against plan...")
+        print("\n[ClaudeGenerator] Phase 2b+: Running per-scene verification...")
+
+        for i, scene in enumerate(scenes):
+            scene_num = i + 1
+            scene_file = self.src_dir / "scenes" / f"Scene{scene_num}.tsx"
+            if not scene_file.exists():
+                continue
+
+            passed, issues = await self._run_scene_verify(
+                scene_num=scene_num,
+                scene_data=scene,
+                plan_description=scene_plan_content,
+                display_mode=scene.get("displayMode", "default"),
+                constants_content=constants_content,
+            )
+
+            if not passed and issues:
+                print(f"[ClaudeGenerator] Scene {scene_num} failed verification: {issues}")
+                # Targeted Sonnet fix agent
+                feedback_msg = "\n".join(f"- {iss}" for iss in issues)
+                fix_prompt = f"""Fix these issues in src/{self.project_id}/scenes/Scene{scene_num}.tsx:
+
+{feedback_msg}
+
+Read the scene file, fix the listed issues, then run: npx tsc --noEmit
+Do NOT modify constants.ts or other scene files.
+When done, respond: "FIX COMPLETE"
+"""
+                try:
+                    fix_client = ClaudeSDKClient(
+                        options=ClaudeAgentOptions(
+                            model="claude-sonnet-4-20250514",
+                            system_prompt={
+                                "type": "preset",
+                                "preset": "claude_code",
+                                "append": f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}",
+                            },
+                            cwd=str(self.workspace),
+                            max_turns=15,
+                            allowed_tools=["Read", "Edit", "Bash", "Glob"],
+                            cli_path=CLAUDE_CLI_PATH,
+                        )
+                    )
+
+                    async with fix_client:
+                        await fix_client.query(fix_prompt)
+                        async for msg in fix_client.receive_response():
+                            msg_type = type(msg).__name__
+                            if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                                for block in msg.content:
+                                    block_type = type(block).__name__
+                                    if block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                        print(f"\n[SceneFix{scene_num} Tool: {block.name}]", flush=True)
+
+                    # Re-verify (accept regardless after 1 retry)
+                    passed2, issues2 = await self._run_scene_verify(
+                        scene_num=scene_num,
+                        scene_data=scene,
+                        plan_description=scene_plan_content,
+                        display_mode=scene.get("displayMode", "default"),
+                        constants_content=constants_content,
+                    )
+                    if passed2:
+                        print(f"[ClaudeGenerator] Scene {scene_num} passed verification after fix")
+                    else:
+                        print(f"[ClaudeGenerator] Scene {scene_num} still has issues after fix (accepted): {issues2}")
+                except Exception as fix_err:
+                    print(f"[ClaudeGenerator] Scene {scene_num} fix agent error: {fix_err}")
+            elif passed:
+                print(f"[ClaudeGenerator] Scene {scene_num} passed verification")
+
+        emit_progress(54, "Phase 2b+ complete: Scene verification done")
+
+        # ── Phase 2c: ASSEMBLY ──
+        emit_progress(55, "Phase 2c: Assembling composition...")
+        print("\n[ClaudeGenerator] Assembling index.tsx and metadata.json...")
+
+        # Pre-assembly validation
+        constants_text = constants_path.read_text(encoding="utf-8")
+
+        # Check TIMING keys exist for all scenes
+        missing_timing = []
+        for i in range(total_scenes):
+            n = i + 1
+            for key in [f"scene{n}Start", f"scene{n}End"]:
+                if f"TIMING.{key}" not in constants_text and key not in constants_text:
+                    missing_timing.append(key)
+        if missing_timing:
+            print(f"[ClaudeGenerator] WARNING: constants.ts missing TIMING keys: {missing_timing}")
+
+        # Verify OVERLAY_RANGES matches overlay scenes
+        overlay_scene_nums = [
+            i + 1 for i, s in enumerate(scenes)
+            if s.get("displayMode") == "overlay"
+        ]
+        if overlay_scene_nums and "OVERLAY_RANGES" not in constants_text:
+            print(f"[ClaudeGenerator] WARNING: Overlay scenes {overlay_scene_nums} but no OVERLAY_RANGES in constants.ts")
+
+        # Verify scene exports
+        for i in range(total_scenes):
+            scene_file = self.src_dir / "scenes" / f"Scene{i + 1}.tsx"
+            if scene_file.exists():
+                scene_code = scene_file.read_text(encoding="utf-8")
+                if f"export const Scene{i + 1}" not in scene_code:
+                    print(f"[ClaudeGenerator] WARNING: Scene{i + 1}.tsx missing 'export const Scene{i + 1}'")
+
+        # Generate index.tsx
+        index_content = self._generate_index_tsx(scenes, self.project_id)
+        index_path = self.src_dir / "index.tsx"
+        index_path.write_text(index_content, encoding="utf-8")
+
+        # Generate metadata.json
+        metadata_content = self._generate_metadata_json(scenes_data, self.project_id)
+        metadata_path = self.src_dir / "metadata.json"
+        metadata_path.write_text(metadata_content, encoding="utf-8")
+
+        # Final tsc on index.tsx
+        ts_success, ts_errors = await self._verify_typescript_file(
+            str(index_path.relative_to(self.workspace))
+        )
+        if not ts_success:
+            print("[ClaudeGenerator] index.tsx has TS errors, running self-heal...")
+            await self._run_self_heal(ts_errors)
+            ts_success, ts_errors = await self._verify_typescript_file(
+                str(index_path.relative_to(self.workspace))
+            )
+
+        # ── Phase 2d: COMPOSITION VERIFY ──
+        emit_progress(57, "Phase 2d: Verifying composition...")
+
+        comp_passed, comp_issues = await self._run_composition_verify(
+            project_id=self.project_id,
+            scenes_data=scenes_data,
+            plan_content=scene_plan_content,
+        )
+
+        if not comp_passed:
+            # Separate critical issues (bundle/import failures) from warnings.
+            # Use specific error patterns to avoid false positives from words
+            # like "import" appearing in stylistic suggestions.
+            _critical_patterns = [
+                "bundle fail", "bundle error", "cannot find module",
+                "module not found", "import error", "missing import",
+                "failed to compile", "compilation error", "syntax error",
+            ]
+            critical_issues = [
+                issue for issue in comp_issues
+                if any(pat in issue.lower() for pat in _critical_patterns)
+            ]
+            warning_issues = [
+                issue for issue in comp_issues
+                if issue not in critical_issues
+            ]
+
+            if warning_issues:
+                print(f"[ClaudeGenerator] Composition warnings (non-blocking): {warning_issues}")
+
+            if critical_issues:
+                print(f"[ClaudeGenerator] Composition CRITICAL issues: {critical_issues}")
+                # Run self-heal to try to fix critical issues
+                ts_success, ts_errors = await self._verify_typescript()
+                if not ts_success:
+                    await self._run_self_heal(ts_errors)
+
+        emit_progress(58, "Phase 2 complete: All scenes implemented")
+
+        # Verify final output
+        if not index_path.exists():
+            return {"success": False, "error": "Sequential animator did not create index.tsx"}
+
+        return {
+            "success": True,
+            "indexPath": str(index_path),
+            "pipeline": "sequential",
+        }
+
     async def generate_two_phase(
         self,
         transcript: str,
@@ -3597,7 +4887,7 @@ registerRoot(RemotionRoot);
             timeout_seconds: Total timeout for both phases
             max_retries: Retry attempts per phase
             style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
-            layout_mode: Layout mode (pip, split-horizontal, split-vertical)
+            layout_mode: Layout mode (pip, stacked)
             style_guide: Optional user-provided style/layout guidance
             source_width: Source video width (for coverage-tier display mode guidance)
             source_height: Source video height (for coverage-tier display mode guidance)
@@ -3620,6 +4910,7 @@ registerRoot(RemotionRoot);
             # Continue anyway - the Claude SDK might still work with cached credentials
 
         last_error: Exception | None = None
+        director_result: dict = {}
 
         for attempt in range(max_retries + 1):
             try:
@@ -3631,72 +4922,119 @@ registerRoot(RemotionRoot);
                     print(f"[ClaudeGenerator] Waiting {base_delay}s before retry...")
                     await asyncio.sleep(base_delay)
 
-                # Clean previous attempt
-                if self.src_dir.exists():
-                    shutil.rmtree(self.src_dir)
-                self.src_dir.mkdir(parents=True)
+                # Check if previous attempt left valid source files (BullMQ retry recovery).
+                # If index.tsx, metadata.json, and scenes.json all exist, skip Director + Animator
+                # and jump straight to TS verification + bundling.
+                index_tsx_path = self.src_dir / "index.tsx"
+                metadata_path = self.src_dir / "metadata.json"
+                scenes_path = self.src_dir / "scenes.json"
+                can_resume = (
+                    attempt == 0
+                    and index_tsx_path.exists()
+                    and metadata_path.exists()
+                    and scenes_path.exists()
+                )
 
-                # Create public/assets directory for Freepik asset downloads
-                assets_dir = self.workspace / "public" / "assets"
-                assets_dir.mkdir(parents=True, exist_ok=True)
+                if can_resume:
+                    print(f"[ClaudeGenerator] Found existing sources from previous attempt — skipping to TS verify + bundle")
+                    emit_progress(55, "Resuming from previous attempt — skipping to verification...")
+                    # Read scene count from existing scenes.json for logging
+                    try:
+                        with open(scenes_path, "r", encoding="utf-8") as f:
+                            existing_scenes = json.load(f)
+                        scene_count = len(existing_scenes.get("scenes", []))
+                        print(f"[ClaudeGenerator] Resuming with {scene_count} existing scenes")
+                    except Exception:
+                        scene_count = 0
 
-                # Format transcript with timestamps if available
-                if words:
-                    formatted_transcript = format_transcript_with_key_moments(words, fps)
+                    # Animator result not needed — we already have the code
+                    animator_result = {"success": True}
                 else:
-                    formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
+                    # Clean previous attempt (internal retry within this process)
+                    if self.src_dir.exists():
+                        shutil.rmtree(self.src_dir)
+                    self.src_dir.mkdir(parents=True)
 
-                # Phase 0: Assistant Director (creative brief)
-                emit_progress(16, "Phase 0: Assistant Director analyzing script...")
-                ad_result = await self._run_assistant_director(
-                    formatted_transcript=formatted_transcript,
-                    style_preset=style_preset,
-                )
-                if ad_result["success"]:
-                    print(f"[ClaudeGenerator] Creative brief ready")
-                    emit_progress(18, "Creative brief complete")
-                else:
-                    print(f"[ClaudeGenerator] Assistant Director skipped: {ad_result.get('error', 'unknown')}")
-                    emit_progress(18, "Proceeding without creative brief")
+                    # Create public/assets directory for Freepik asset downloads
+                    assets_dir = self.workspace / "public" / "assets"
+                    assets_dir.mkdir(parents=True, exist_ok=True)
 
-                emit_progress(19, "Phase 1: Director planning scenes...")
+                    # Format transcript with timestamps if available
+                    if words:
+                        formatted_transcript = format_transcript_with_key_moments(words, fps)
+                    else:
+                        formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
-                # Phase 1: Director
-                director_result = await self._run_director(
-                    formatted_transcript=formatted_transcript,
-                    width=width,
-                    height=height,
-                    duration_frames=duration_frames,
-                    fps=fps,
-                    style_preset=style_preset,
-                    layout_mode=layout_mode,
-                    style_guide=style_guide,
-                    source_width=source_width,
-                    source_height=source_height,
-                )
+                    # Phase 0: Assistant Director (creative brief)
+                    emit_progress(16, "Phase 0: Assistant Director analyzing script...")
+                    ad_result = await self._run_assistant_director(
+                        formatted_transcript=formatted_transcript,
+                        style_preset=style_preset,
+                    )
+                    if ad_result["success"]:
+                        print(f"[ClaudeGenerator] Creative brief ready")
+                        emit_progress(18, "Creative brief complete")
+                    else:
+                        print(f"[ClaudeGenerator] Assistant Director skipped: {ad_result.get('error', 'unknown')}")
+                        emit_progress(18, "Proceeding without creative brief")
 
-                if not director_result["success"]:
-                    raise RuntimeError(f"Director failed: {director_result.get('error', 'Unknown error')}")
+                    emit_progress(19, "Phase 1: Director planning scenes...")
 
-                scene_count = director_result['sceneCount']
-                print(f"[ClaudeGenerator] Director created {scene_count} scenes")
-                emit_progress(35, f"Phase 1 complete: {scene_count} scenes planned")
+                    # Phase 1: Director
+                    director_result = await self._run_director(
+                        formatted_transcript=formatted_transcript,
+                        width=width,
+                        height=height,
+                        duration_frames=duration_frames,
+                        fps=fps,
+                        style_preset=style_preset,
+                        layout_mode=layout_mode,
+                        style_guide=style_guide,
+                        source_width=source_width,
+                        source_height=source_height,
+                    )
 
-                # Phase 1.5: Fetch images for scenes
-                emit_progress(36, "Fetching images for scenes...")
-                image_count = await self._fetch_scene_images()
-                if image_count > 0:
-                    emit_progress(37, f"Downloaded {image_count} images")
+                    if not director_result["success"]:
+                        raise RuntimeError(f"Director failed: {director_result.get('error', 'Unknown error')}")
 
-                emit_progress(38, f"Phase 2: Animator implementing {scene_count} scenes...")
+                    scene_count = director_result['sceneCount']
+                    print(f"[ClaudeGenerator] Director created {scene_count} scenes")
+                    emit_progress(35, f"Phase 1 complete: {scene_count} scenes planned")
 
-                # Phase 2: Animator
-                animator_result = await self._run_animator(
-                    width=width,
-                    height=height,
-                    duration_frames=duration_frames,
-                    fps=fps,
-                )
+                    # Phase 1.5: Fetch images for scenes
+                    emit_progress(36, "Fetching images for scenes...")
+                    image_count = await self._fetch_scene_images()
+                    if image_count > 0:
+                        emit_progress(37, f"Downloaded {image_count} images")
+
+                    emit_progress(38, f"Phase 2: Animator implementing {scene_count} scenes...")
+
+                    # Phase 2: Animator — use sequential mode for multi-scene compositions
+                    scenes_path_check = self.src_dir / "scenes.json"
+                    try:
+                        with open(scenes_path_check, "r", encoding="utf-8") as f:
+                            sd = json.load(f)
+                        sc = len(sd.get("scenes", []))
+                    except Exception:
+                        sc = 0
+
+                    if sc >= 2:
+                        try:
+                            animator_result = await self._run_animator_sequential(
+                                width=width, height=height,
+                                duration_frames=duration_frames, fps=fps,
+                            )
+                        except Exception as seq_err:
+                            print(f"[ClaudeGenerator] Sequential animator failed: {seq_err}, falling back to monolithic")
+                            animator_result = await self._run_animator(
+                                width=width, height=height,
+                                duration_frames=duration_frames, fps=fps,
+                            )
+                    else:
+                        animator_result = await self._run_animator(
+                            width=width, height=height,
+                            duration_frames=duration_frames, fps=fps,
+                        )
 
                 if not animator_result["success"]:
                     raise RuntimeError(f"Animator failed: {animator_result.get('error', 'Unknown error')}")
@@ -3755,6 +5093,22 @@ registerRoot(RemotionRoot);
                 index_tsx = self.src_dir / "index.tsx"
                 composition_id_with_dashes = self.project_id.replace("_", "-")
                 await self._fix_composition_id(index_tsx, composition_id_with_dashes)
+
+                # ── Phase 2e: VISUAL VERIFICATION ──
+                emit_progress(63, "Phase 2e: Visual verification...")
+                try:
+                    with open(self.src_dir / "scenes.json", "r", encoding="utf-8") as f:
+                        verify_scenes_data = json.load(f)
+                    verify_plan_content = (self.src_dir / "SCENE_PLAN.md").read_text(encoding="utf-8")
+                    await self._run_visual_verification_phase(
+                        composition_id=composition_id_with_dashes,
+                        scenes_data=verify_scenes_data,
+                        plan_content=verify_plan_content,
+                    )
+                    emit_progress(64, "Visual verification complete")
+                except Exception as e:
+                    print(f"[ClaudeGenerator] Phase 2e failed (non-blocking): {e}")
+                    emit_progress(64, "Visual verification skipped (error)")
 
                 # Bundle
                 emit_progress(65, "Bundling Remotion project...")
@@ -3859,7 +5213,7 @@ async def main():
     parser.add_argument("--words-json", help="Path to words JSON file with timestamps")
     parser.add_argument("--style-guide", help="Path to user style guide text file")
     parser.add_argument("--style-preset", default="modern", help="Visual style preset (minimal, modern, playful, bold, classic, studio)")
-    parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, split-horizontal, split-vertical)")
+    parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, stacked)")
     parser.add_argument("--width", type=int, default=1080, help="Video width")
     parser.add_argument("--height", type=int, default=1920, help="Video height")
     parser.add_argument("--duration", type=int, default=1800, help="Duration in frames")
@@ -3867,8 +5221,8 @@ async def main():
     parser.add_argument("--model", default="claude-opus-4-5-20251101", help="Claude model")
     parser.add_argument("--source-width", type=int, default=None, help="Source video width (for coverage-aware layout)")
     parser.add_argument("--source-height", type=int, default=None, help="Source video height (for coverage-aware layout)")
-    parser.add_argument("--pip-width", type=int, default=None, help="Effective pip width for split layouts")
-    parser.add_argument("--pip-height", type=int, default=None, help="Effective pip height for split layouts")
+    parser.add_argument("--pip-width", type=int, default=None, help="Effective pip width for stacked layout")
+    parser.add_argument("--pip-height", type=int, default=None, help="Effective pip height for stacked layout")
     parser.add_argument("--phase", choices=["assistant-director", "director", "animator"], default=None,
                         help="Run only a specific phase (assistant-director, director, or animator). Default: all.")
 
@@ -4032,12 +5386,31 @@ async def main():
 
         emit_progress(38, "Phase 2: Animator implementing scenes...")
 
-        animator_result = await generator._run_animator(
-            width=args.width,
-            height=args.height,
-            duration_frames=args.duration,
-            fps=args.fps,
-        )
+        # Route based on scene count — sequential for multi-scene compositions
+        try:
+            with open(scenes_json_path, "r", encoding="utf-8") as f:
+                sd = json.load(f)
+            sc = len(sd.get("scenes", []))
+        except Exception:
+            sc = 0
+
+        if sc >= 2:
+            try:
+                animator_result = await generator._run_animator_sequential(
+                    width=args.width, height=args.height,
+                    duration_frames=args.duration, fps=args.fps,
+                )
+            except Exception as seq_err:
+                print(f"[ClaudeGenerator] Sequential animator failed: {seq_err}, falling back to monolithic")
+                animator_result = await generator._run_animator(
+                    width=args.width, height=args.height,
+                    duration_frames=args.duration, fps=args.fps,
+                )
+        else:
+            animator_result = await generator._run_animator(
+                width=args.width, height=args.height,
+                duration_frames=args.duration, fps=args.fps,
+            )
 
         if not animator_result["success"]:
             print(json.dumps(animator_result, indent=2))

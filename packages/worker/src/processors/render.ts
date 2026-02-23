@@ -266,7 +266,7 @@ async function ensureFontsDir(fontFamilyCSS: string): Promise<string> {
 }
 
 export interface LayoutSettings {
-  mode: 'pip' | 'split-horizontal' | 'split-vertical';
+  mode: 'pip' | 'stacked';
   pip: {
     position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
     offsetX: number;
@@ -306,6 +306,7 @@ interface DisplayModeSegment {
   endMs: number;
   enterDurationMs?: number; // transition duration when entering (0 = cut)
   exitDurationMs?: number;  // transition duration when exiting (0 = cut)
+  overlayOpacity?: number;  // per-item overlay opacity (0-1), default 0.85
 }
 
 export interface RenderJobData {
@@ -359,19 +360,19 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
     const fullscreenVisualSegments: DisplayModeSegment[] = [];
     const overlaySegments: DisplayModeSegment[] = [];
-    const isSplitLayout = layoutSettings?.mode === 'split-horizontal' || layoutSettings?.mode === 'split-vertical';
+    const isSplitLayout = layoutSettings?.mode === 'stacked';
 
     for (let i = 0; i < visualItems.length; i++) {
       const item = visualItems[i];
-      const dm = (item.data as any)?.displayMode || 'pip';
+      const dm = (item.data as any)?.displayMode || 'default';
       const transition = (item.data as any)?.transition;
 
       // Determine if layout changes at enter/exit boundaries
-      // For split mode, 'pip' is the base split layout — only non-pip modes need overlay layers
+      // For stacked mode, 'default' is the base stacked layout — only non-default modes need overlay layers
       const prevItem = i > 0 ? visualItems[i - 1] : null;
       const nextItem = i < visualItems.length - 1 ? visualItems[i + 1] : null;
-      const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'pip') : 'gap';
-      const nextDm = nextItem ? ((nextItem.data as any)?.displayMode || 'pip') : 'gap';
+      const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'default') : 'gap';
+      const nextDm = nextItem ? ((nextItem.data as any)?.displayMode || 'default') : 'gap';
 
       // Check if there's a gap between prev and current (gap = different layout)
       const hasPrevGap = !prevItem || prevItem.endMs < item.startMs - 50;
@@ -391,7 +392,10 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       if (dm === 'fullscreen') {
         fullscreenVisualSegments.push({ startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs });
       } else if (dm === 'overlay') {
-        overlaySegments.push({ startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs });
+        overlaySegments.push({
+          startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs,
+          overlayOpacity: (item.data as any)?.overlayOpacity ?? 0.85,
+        });
       }
     }
 
@@ -408,13 +412,13 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           // For gap enter: check transition of the preceding visual item (its exit)
           const prevItem = i > 0 ? visualItems[i - 1] : null;
           const prevTransition = prevItem ? (prevItem.data as any)?.transition : null;
-          const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'pip') : 'pip';
+          const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'default') : 'default';
           const gapEnterDuration = (prevDm !== 'gap' && prevTransition?.exit?.type !== 'cut')
             ? (prevTransition?.exit?.durationMs || 0) : 0;
 
           // For gap exit: check transition of the next visual item (its enter)
           const nextTransition = (item.data as any)?.transition;
-          const nextDm = (item.data as any)?.displayMode || 'pip';
+          const nextDm = (item.data as any)?.displayMode || 'default';
           const gapExitDuration = (nextDm !== 'gap' && nextTransition?.enter?.type !== 'cut')
             ? (nextTransition?.enter?.durationMs || 0) : 0;
 
@@ -428,7 +432,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       if (cursor < durationMs) {
         const lastItem = visualItems[visualItems.length - 1];
         const lastTransition = lastItem ? (lastItem.data as any)?.transition : null;
-        const lastDm = lastItem ? ((lastItem.data as any)?.displayMode || 'pip') : 'pip';
+        const lastDm = lastItem ? ((lastItem.data as any)?.displayMode || 'default') : 'default';
         const enterDuration = (lastDm !== 'gap' && lastTransition?.exit?.type !== 'cut')
           ? (lastTransition?.exit?.durationMs || 0) : 0;
         gapSegments.push({ startMs: cursor, endMs: durationMs, enterDurationMs: enterDuration, exitDurationMs: 0 });
@@ -1818,8 +1822,8 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       `[bg][pip]overlay=${pipX}:${pipY}[outv]`
     ].join(';');
 
-  } else if (mode === 'split-horizontal') {
-    // Split horizontal (top/bottom)
+  } else if (mode === 'stacked') {
+    // Stacked (top/bottom)
     const visualsPercent = split.ratio / 100;
     const videoPercent = 1 - visualsPercent;
     const gap = Math.round(split.gap);
@@ -1832,7 +1836,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       mode,
       splitSettings: split,
       dimensions: { visualsHeight, videoHeight, gap },
-    }, 'Rendering with horizontal split layout');
+    }, 'Rendering with stacked layout');
 
     // Use scale + crop to fill containers without black bars
     // IMPORTANT: Visual stream (1:v) must crop from top-left (0:0) because Remotion
@@ -1849,39 +1853,6 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
         `[0:v]scale=${width}:${videoHeight}:force_original_aspect_ratio=increase,crop=${width}:${videoHeight},setsar=1[video]`,
         `[1:v]scale=${width}:${visualsHeight}:force_original_aspect_ratio=increase,crop=${width}:${visualsHeight}:0:0,setsar=1[visuals]`,
         `[video][visuals]vstack=inputs=2[outv]`
-      ].join(';');
-    }
-
-  } else if (mode === 'split-vertical') {
-    // Split vertical (left/right)
-    const visualsPercent = split.ratio / 100;
-    const videoPercent = 1 - visualsPercent;
-    const gap = Math.round(split.gap);
-    const isVisualsFirst = split.position === 'visuals-first';
-
-    const visualsWidth = Math.round((width - gap) * visualsPercent);
-    const videoWidth = Math.round((width - gap) * videoPercent);
-
-    logger.info({
-      mode,
-      splitSettings: split,
-      dimensions: { visualsWidth, videoWidth, gap },
-    }, 'Rendering with vertical split layout');
-
-    // Use scale + crop to fill containers without black bars
-    // IMPORTANT: Visual stream (1:v) must crop from top-left (0:0) because Remotion
-    // renders visual content at position (0,0) with effective dimensions.
-    if (isVisualsFirst) {
-      filterComplex = [
-        `[1:v]scale=${visualsWidth}:${height}:force_original_aspect_ratio=increase,crop=${visualsWidth}:${height}:0:0,setsar=1[visuals]`,
-        `[0:v]scale=${videoWidth}:${height}:force_original_aspect_ratio=increase,crop=${videoWidth}:${height},setsar=1[video]`,
-        `[visuals][video]hstack=inputs=2[outv]`
-      ].join(';');
-    } else {
-      filterComplex = [
-        `[0:v]scale=${videoWidth}:${height}:force_original_aspect_ratio=increase,crop=${videoWidth}:${height},setsar=1[video]`,
-        `[1:v]scale=${visualsWidth}:${height}:force_original_aspect_ratio=increase,crop=${visualsWidth}:${height}:0:0,setsar=1[visuals]`,
-        `[video][visuals]hstack=inputs=2[outv]`
       ].join(';');
     }
 
@@ -1914,19 +1885,20 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       segs.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+');
 
     // Helper: build fade filter chain for smooth enter/exit transitions
-    // Uses FFmpeg's native fade filter with alpha=1 (only affects alpha channel)
-    const buildFadeFilters = (segs: DisplayModeSegment[]): string => {
+    // alphaOnly=true: uses alpha=1 (only affects alpha channel) — for overlay/fullscreen layers
+    // alphaOnly=false: fades RGB toward black — for screen blend layers (dark = transparent in screen)
+    const buildFadeFilters = (segs: DisplayModeSegment[], alphaOnly = true): string => {
       const fades: string[] = [];
       for (const s of segs) {
         if ((s.enterDurationMs || 0) > 0) {
           const st = (s.startMs / 1000).toFixed(3);
           const d = ((s.enterDurationMs || 0) / 1000).toFixed(3);
-          fades.push(`fade=t=in:st=${st}:d=${d}:alpha=1`);
+          fades.push(`fade=t=in:st=${st}:d=${d}${alphaOnly ? ':alpha=1' : ''}`);
         }
         if ((s.exitDurationMs || 0) > 0) {
           const st = ((s.endMs - (s.exitDurationMs || 0)) / 1000).toFixed(3);
           const d = ((s.exitDurationMs || 0) / 1000).toFixed(3);
-          fades.push(`fade=t=out:st=${st}:d=${d}:alpha=1`);
+          fades.push(`fade=t=out:st=${st}:d=${d}${alphaOnly ? ':alpha=1' : ''}`);
         }
       }
       return fades.join(',');
@@ -2013,7 +1985,9 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       }
     }
 
-    // Layer 3: Overlay visuals — Remotion at 70% opacity on top of source
+    // Layer 3: Overlay visuals — Remotion on top of source using screen blend
+    // Screen blend makes dark pixels transparent (matching editor's mixBlendMode: 'screen').
+    // Without this, the Remotion composition's opaque dark background would darken the video.
     if (needsOverlay) {
       const prevOut = currentOut;
       currentOut = 'after_ovl';
@@ -2022,13 +1996,41 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       }
       const expr = buildEnableExpr(overlaySegments!);
 
-      if (anyTransitions(overlaySegments)) {
-        const fadeChain = buildFadeFilters(overlaySegments!);
-        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=0.7,${fadeChain}[vis_ovl_faded]`;
-        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_faded]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+      // Build per-segment opacity via RGB channel scaling.
+      // Pre-multiplying RGB simulates overlay opacity with screen blend:
+      // screen(A, B*op) ≈ blend with all_opacity=op for screen mode.
+      const opacityGroups = new Map<number, DisplayModeSegment[]>();
+      for (const seg of overlaySegments!) {
+        const op = seg.overlayOpacity ?? 0.85;
+        if (!opacityGroups.has(op)) opacityGroups.set(op, []);
+        opacityGroups.get(op)!.push(seg);
+      }
+
+      let rgbOpacityFilter: string;
+      if (opacityGroups.size === 1) {
+        const [[opacity]] = opacityGroups;
+        rgbOpacityFilter = `colorchannelmixer=rr=${opacity}:gg=${opacity}:bb=${opacity}`;
       } else {
-        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=0.7[vis_ovl_alpha]`;
-        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_alpha]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+        // Multiple distinct opacities: chain filters with time-based enable.
+        const parts: string[] = [];
+        for (const [opacity, segs] of opacityGroups) {
+          const enable = segs.map(s =>
+            `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`
+          ).join('+');
+          parts.push(`colorchannelmixer=rr=${opacity}:gg=${opacity}:bb=${opacity}:enable='${enable}'`);
+        }
+        rgbOpacityFilter = parts.join(',');
+      }
+
+      if (anyTransitions(overlaySegments)) {
+        // RGB fade (not alpha) — fading toward black makes screen blend transition smooth
+        // (black is identity for screen blend, so fading to black = fading out the effect)
+        const fadeChain = buildFadeFilters(overlaySegments!, false);
+        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,${rgbOpacityFilter},${fadeChain}[vis_ovl_faded]`;
+        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_faded]blend=all_mode=screen:enable='${expr}'[${currentOut}]`;
+      } else {
+        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,${rgbOpacityFilter}[vis_ovl_screen]`;
+        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_screen]blend=all_mode=screen:enable='${expr}'[${currentOut}]`;
       }
     }
 
@@ -2471,7 +2473,7 @@ function getASSAlignment(position: string): number {
 /**
  * Generate ASS subtitles using style from subtitle data.
  * Matches frontend caption styling as closely as possible.
- * Adjusts positioning based on layout mode (PiP, split-horizontal, split-vertical).
+ * Adjusts positioning based on layout mode (PiP, stacked).
  * Supports word-by-word, phrase, and karaoke display modes.
  */
 function generateASSForComposite(subtitles: SubtitleItem[], width: number, height: number, layoutSettings?: LayoutSettings, fontFamilyOverride?: string): string {
@@ -2569,8 +2571,8 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   let effectiveHeight = height;
   let verticalOffset = 0;
 
-  if (mode === 'split-horizontal') {
-    // In horizontal split, captions should be in the video section
+  if (mode === 'stacked') {
+    // In stacked layout, captions should be in the video section
     const visualsRatio = (split?.ratio || 50) / 100;
     const isVisualsFirst = split?.position === 'visuals-first';
 
@@ -2583,9 +2585,6 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
       effectiveHeight = Math.round(height * (1 - visualsRatio));
       verticalOffset = 0;
     }
-  } else if (mode === 'split-vertical') {
-    // In vertical split, captions span the full height but may need adjustment
-    // Keep full height, no offset needed
   }
 
   // Calculate margin based on position, offsetY, and layout
@@ -2599,11 +2598,11 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
     marginV = Math.round(effectiveHeight * 0.15 - (offsetY * effectiveHeight / 100));
   }
 
-  // For split-horizontal with visuals-first, add the vertical offset
-  if (mode === 'split-horizontal' && split?.position === 'visuals-first' && captionPosition === 'bottom') {
+  // For stacked with visuals-first, add the vertical offset
+  if (mode === 'stacked' && split?.position === 'visuals-first' && captionPosition === 'bottom') {
     // Captions are at bottom of video section which is at bottom of frame
     // marginV is from bottom, so no adjustment needed
-  } else if (mode === 'split-horizontal' && split?.position !== 'visuals-first' && captionPosition === 'bottom') {
+  } else if (mode === 'stacked' && split?.position !== 'visuals-first' && captionPosition === 'bottom') {
     // Video on top, captions should be at bottom of top section
     // Need to add offset for visuals section below
     marginV += Math.round(height * ((split?.ratio || 50) / 100));

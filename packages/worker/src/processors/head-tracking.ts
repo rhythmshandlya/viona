@@ -1,7 +1,9 @@
 import { Job, Queue } from 'bullmq';
 import { eq } from 'drizzle-orm';
+import { existsSync } from 'fs';
 import { mkdir, rm, readFile } from 'fs/promises';
-import { join, resolve } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
 import { spawn } from 'child_process';
@@ -10,6 +12,12 @@ import { downloadFile } from '../services/minio.js';
 import { logger } from '../logger.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { config } from '../config.js';
+import { redisConnection } from '../utils/redis.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const reframeQueue = new Queue('generate-reframe', { connection: redisConnection });
 
 export interface HeadTrackingJobData {
   projectId: string;
@@ -41,8 +49,13 @@ export async function processHeadTrackingJob(job: Job<HeadTrackingJobData>) {
     await publishJobProgress(jobId, 15, 'Running head detection...', pubExtras);
 
     const trackingOutputPath = join(workDir, 'video_tracking.json');
-    // detect_head.py is in the scripts directory relative to the worker package
-    const resolvedScriptPath = resolve(join(process.cwd(), 'scripts', 'detect_head.py'));
+    // detect_head.py is in packages/worker/scripts/
+    // In prod (tsup bundle): __dirname = .../dist → one level up
+    // In dev (tsx):           __dirname = .../src/processors → two levels up
+    let resolvedScriptPath = join(__dirname, '..', 'scripts', 'detect_head.py');
+    if (!existsSync(resolvedScriptPath)) {
+      resolvedScriptPath = join(__dirname, '..', '..', 'scripts', 'detect_head.py');
+    }
 
     await runHeadDetection(
       videoPath,
@@ -73,19 +86,7 @@ export async function processHeadTrackingJob(job: Job<HeadTrackingJobData>) {
     await publishJobProgress(jobId, 92, 'Generating reframe keyframes...', pubExtras);
 
     try {
-      // Create reframe job directly via BullMQ
-      function parseRedisUrl(url: string) {
-        const parsed = new URL(url);
-        return {
-          host: parsed.hostname,
-          port: parseInt(parsed.port || '6379', 10),
-          password: parsed.password || undefined,
-        };
-      }
-      const connection = parseRedisUrl(config.redis.url);
-      const reframeQueue = new Queue('generate-reframe', { connection });
-
-      // Create job record in DB
+      // Create job record in DB and queue via module-level reframeQueue
       const [reframeJob] = await db.insert(jobs).values({
         projectId,
         type: 'generate-reframe',
@@ -100,7 +101,6 @@ export async function processHeadTrackingJob(job: Job<HeadTrackingJobData>) {
         backoff: { type: 'exponential', delay: 5000 },
       });
 
-      await reframeQueue.close();
       logger.info({ projectId, reframeJobId: reframeJob.id }, 'Auto-queued reframe generation');
     } catch (err) {
       logger.warn({ err, projectId }, 'Failed to auto-queue reframe generation (non-critical)');
@@ -125,7 +125,7 @@ export async function processHeadTrackingJob(job: Job<HeadTrackingJobData>) {
       .set({ status: 'failed', error: errorMessage })
       .where(eq(jobs.id, jobId));
 
-    await publishJobError(jobId, errorMessage);
+    await publishJobError(jobId, errorMessage, { projectId });
 
     throw error;
   } finally {
@@ -162,27 +162,41 @@ async function runHeadDetection(
 
     let stdout = '';
     let stderr = '';
+    let expectedSamples = 0; // estimated from "Processing video: ... N frames"
 
+    // Progress messages go to stdout (Python print() default)
     proc.stdout.on('data', (data: Buffer) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on('data', (data: Buffer) => {
       const text = data.toString();
-      stderr += text;
+      stdout += text;
 
       // Parse progress from output
       for (const line of text.split('\n')) {
+        // Parse total frame count from initial log line to estimate total samples
+        if (!expectedSamples && line.includes('Processing video:')) {
+          const totalMatch = line.match(/(\d+) frames/);
+          if (totalMatch) {
+            const totalFrames = parseInt(totalMatch[1], 10);
+            // Script samples every `interval` frames (default 3)
+            expectedSamples = Math.ceil(totalFrames / 3);
+          }
+        }
+
         if (line.includes('Processed') && line.includes('samples')) {
           const match = line.match(/Processed (\d+) samples/);
           if (match) {
             const samples = parseInt(match[1], 10);
-            // Map to 15-80% range
-            const progress = Math.min(80, 15 + Math.round((samples / 1000) * 65));
+            // Map to 15-80% range using actual expected sample count
+            const total = expectedSamples || samples * 2; // fallback: assume halfway
+            const ratio = Math.min(1, samples / total);
+            const progress = Math.min(80, 15 + Math.round(ratio * 65));
             publishJobProgress(jobId, progress, `Tracking: ${samples} frames processed`, { projectId });
           }
         }
       }
+    });
+
+    proc.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString();
     });
 
     proc.on('close', (code) => {

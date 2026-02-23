@@ -20,6 +20,7 @@ import { z } from "zod";
 import { writeFile, mkdir, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { URL } from "node:url";
+import { Open as unzipOpen } from "unzipper";
 
 // ---------------------------------------------------------------------------
 // Config
@@ -75,6 +76,43 @@ function sanitizeFilename(name) {
     .replace(/\.\./g, "_")
     .replace(/[^a-zA-Z0-9._-]/g, "_")
     .slice(0, 200);
+}
+
+/** Image extensions we'll look for when extracting from ZIP archives. */
+const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg"]);
+
+/**
+ * If `buf` is a ZIP archive, extract the first image file and return it.
+ * Returns the original buffer unchanged if it's not a ZIP.
+ */
+async function extractImageFromZip(buf) {
+  // ZIP magic bytes: PK\x03\x04
+  if (buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b || buf[2] !== 0x03 || buf[3] !== 0x04) {
+    return buf;
+  }
+
+  try {
+    const directory = await unzipOpen.buffer(buf);
+    // Sort to prefer JPG/PNG over vector formats (EPS, AI), largest image first
+    const imageFiles = directory.files
+      .filter((f) => {
+        const ext = path.extname(f.path).toLowerCase();
+        return IMAGE_EXTENSIONS.has(ext) && f.uncompressedSize > 0;
+      })
+      .sort((a, b) => b.uncompressedSize - a.uncompressedSize);
+
+    if (imageFiles.length === 0) {
+      // No image found in ZIP — return original buffer
+      return buf;
+    }
+
+    const extracted = await imageFiles[0].buffer();
+    console.error(`[asset-server] Extracted ${imageFiles[0].path} (${extracted.length} bytes) from ZIP archive`);
+    return extracted;
+  } catch (err) {
+    console.error(`[asset-server] ZIP extraction failed, using raw buffer: ${err.message}`);
+    return buf;
+  }
 }
 
 /** Fetch a URL with size and timeout guards. */
@@ -140,7 +178,10 @@ server.registerTool(
       const safeName = sanitizeFilename(filename);
       await ensureAssetsDir();
 
-      const buf = await safeFetch(validUrl);
+      const rawBuf = await safeFetch(validUrl);
+      // Freepik (and some other APIs) return ZIP archives containing the actual
+      // image plus vector source files. Auto-extract the image if it's a ZIP.
+      const buf = await extractImageFromZip(rawBuf);
       const dest = path.join(ASSETS_DIR, safeName);
       await writeFile(dest, buf);
 
@@ -153,6 +194,7 @@ server.registerTool(
               path: `public/assets/${safeName}`,
               staticFile: `assets/${safeName}`,
               size: buf.length,
+              extractedFromZip: buf !== rawBuf,
             }),
           },
         ],
@@ -524,6 +566,9 @@ server.registerTool(
 
       const raw = JSON.parse(await readFile(trackingPath, "utf-8"));
       const frames = raw.frames || [];
+      // Source video dimensions for normalizing pixel-coordinate bboxes
+      const videoW = raw.video?.width || 1;
+      const videoH = raw.video?.height || 1;
 
       // Filter frames by time range
       const filtered = frames.filter(
@@ -550,11 +595,11 @@ server.registerTool(
       const cellHits = Array.from({ length: rows }, () => Array(cols).fill(0));
 
       for (const frame of filtered) {
-        const b = frame.face.bbox; // {x, y, width, height} as 0-1 fractions
-        const bx1 = b.x;
-        const by1 = b.y;
-        const bx2 = b.x + b.width;
-        const by2 = b.y + b.height;
+        const b = frame.face.bbox; // {x, y, width, height} in pixels — normalize to 0-1
+        const bx1 = b.x / videoW;
+        const by1 = b.y / videoH;
+        const bx2 = (b.x + b.width) / videoW;
+        const by2 = (b.y + b.height) / videoH;
 
         for (let r = 0; r < rows; r++) {
           const cellY1 = r / rows;
@@ -581,14 +626,14 @@ server.registerTool(
       const occupiedCells = grid.flat().filter((v) => v === 1).length;
       const occupancy = `${Math.round((occupiedCells / totalCells) * 100)}%`;
 
-      // Compute aggregate bounding box
+      // Compute aggregate bounding box (normalized to 0-1)
       let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const frame of filtered) {
         const b = frame.face.bbox;
-        minX = Math.min(minX, b.x);
-        minY = Math.min(minY, b.y);
-        maxX = Math.max(maxX, b.x + b.width);
-        maxY = Math.max(maxY, b.y + b.height);
+        minX = Math.min(minX, b.x / videoW);
+        minY = Math.min(minY, b.y / videoH);
+        maxX = Math.max(maxX, (b.x + b.width) / videoW);
+        maxY = Math.max(maxY, (b.y + b.height) / videoH);
       }
 
       const speakerBbox = {

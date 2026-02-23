@@ -8,6 +8,7 @@ import { config } from '../config.js';
 export async function runMigrations() {
   const pool = new pg.Pool({
     connectionString: config.database.url,
+    connectionTimeoutMillis: 10000,
   });
 
   const client = await pool.connect();

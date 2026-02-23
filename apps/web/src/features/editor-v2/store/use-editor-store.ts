@@ -317,12 +317,20 @@ export function useElementPickerEnabled() {
   return useEditorStore((state) => state.elementPickerEnabled);
 }
 
+export function useInspectModeEnabled() {
+  return useEditorStore((state) => state.inspectModeEnabled);
+}
+
 // ============================================
 // AI Edit Request Selectors
 // ============================================
 
 export function useAIEditRequested() {
   return useEditorStore((state) => state.aiEditRequested);
+}
+
+export function usePendingAIMessage() {
+  return useEditorStore((state) => state.pendingAIMessage);
 }
 
 // ============================================
@@ -509,11 +517,19 @@ export function useEditorActions() {
       // Element picker
       setElementPickerEnabled: state.setElementPickerEnabled,
 
+      // Element inspect mode
+      setInspectModeEnabled: state.setInspectModeEnabled,
+
       // AI edit request
       requestAIEdit: state.requestAIEdit,
 
+      // Pending AI message
+      setPendingAIMessage: state.setPendingAIMessage,
+      changeDisplayModeWithAI: state.changeDisplayModeWithAI,
+
       // Visual display mode
       updateVisualDisplayMode: state.updateVisualDisplayMode,
+      updateOverlayOpacity: state.updateOverlayOpacity,
 
       // Captions
       setShowCaptions: state.setShowCaptions,

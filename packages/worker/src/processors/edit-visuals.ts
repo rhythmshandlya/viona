@@ -8,7 +8,7 @@
  * 4. Uploading the new bundle and sources back to MinIO
  */
 
-import { Job, UnrecoverableError } from 'bullmq';
+import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { readFile, readdir, stat, writeFile as writeFileAsync } from 'fs/promises';
 import { join, dirname } from 'path';
@@ -565,16 +565,8 @@ async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEdit
 
   const startTime = Date.now();
 
-  // Read ALL source files to give Claude full context
-  const allFileContents: string[] = [];
-  for (const file of existingFiles) {
-    try {
-      const content = await readFile(join(projectDir, file), 'utf-8');
-      allFileContents.push(`=== ${file} ===\n${content}`);
-    } catch {
-      logger.warn({ projectId, file }, 'Could not read file');
-    }
-  }
+  // List source files for Claude to read on demand (don't embed contents — too large for prompt)
+  const fileList = existingFiles.join('\n- ');
 
   // Build target scene context if a specific scene was selected
   let targetSceneContext = '';
@@ -603,10 +595,14 @@ USER-SELECTED TARGET:
     ? `\nTARGET ELEMENT: "${targetElementName}" — The user wants changes focused on this specific element.`
     : '';
 
-  // Build transcript section
-  const transcriptSection = transcript
+  // Build transcript section (truncate if very long to keep prompt within limits)
+  const MAX_TRANSCRIPT_LENGTH = 6000;
+  const truncatedTranscript = transcript && transcript.length > MAX_TRANSCRIPT_LENGTH
+    ? transcript.slice(0, MAX_TRANSCRIPT_LENGTH) + '\n... [transcript truncated for length]'
+    : transcript;
+  const transcriptSection = truncatedTranscript
     ? `\nVIDEO TRANSCRIPT (what the speaker is saying at each timestamp):
-${transcript}
+${truncatedTranscript}
 
 Use this to understand the CONTENT of the video. Visuals should illustrate what's being said.
 If the user refers to "the part about X" or "when I talk about Y", match it to the transcript above.`
@@ -622,14 +618,14 @@ Each scene has a time range, description, and purpose. Use this to understand th
 
   logger.info({
     projectId,
-    fileCount: allFileContents.length,
+    fileCount: existingFiles.length,
     hasTargetScene: !!targetSceneId,
     hasTargetElement: !!targetElementName,
     transcriptLength: transcript?.length || 0,
   }, 'Edit context prepared');
 
   const editPrompt = `
-You are editing a Remotion composition for a talking-head explainer video. You have the full project source, the video transcript (what the speaker says), and the scene plan (what each scene visualizes). Use ALL of this context to make smart edits.
+You are editing a Remotion composition for a talking-head explainer video. You have the video transcript (what the speaker says) and the scene plan (what each scene visualizes). Use this context to make smart edits.
 
 PROJECT DIRECTORY: ${projectDir}
 ${targetSceneContext}${elementContext}
@@ -639,8 +635,10 @@ ${scenePlanSection}
 USER'S REQUEST:
 "${prompt}"
 
-FULL PROJECT SOURCE:
-${allFileContents.join('\n\n')}
+PROJECT FILES (read them from disk as needed — do NOT ask the user for file contents):
+- ${fileList}
+
+START by reading the files most relevant to the user's request. At minimum read scenes.json and index.tsx to understand the structure, then read specific scene files you need to edit.
 
 YOUR JOB:
 You understand what the speaker is saying, what the visuals currently show, and what the user wants changed. Make edits that result in visuals that accurately illustrate the spoken content.
@@ -740,12 +738,13 @@ SCOPE RESTRICTION (MANDATORY):
       runningProcesses.delete(jobId);
       unregisterCancelHandler(jobId);
       if (fatalStderrDetected) {
-        reject(new UnrecoverableError(`Claude editor crashed (unhandled rejection): ${stderr.slice(-500)}`));
+        // OOM and other crashes — retryable (sources may be partially written)
+        reject(new Error(`Claude editor crashed: ${stderr.slice(-500)}`));
       } else if (code === 0) {
         resolve();
       } else {
-        // Non-zero exit = bad input/prompt, don't retry
-        reject(new UnrecoverableError(`Claude editor exited with code ${code}: ${stderr || stdout.slice(-500)}`));
+        // Non-zero exit — may be retryable (transient API errors, etc.)
+        reject(new Error(`Claude editor exited with code ${code}: ${stderr || stdout.slice(-500)}`));
       }
     });
 

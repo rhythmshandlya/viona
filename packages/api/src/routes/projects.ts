@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { nanoid } from 'nanoid';
 import { eq, inArray, or, and } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
-import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, publishJobCancel } from '../services/queue.js';
+import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix } from '../services/minio.js';
+import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
 
@@ -33,6 +33,8 @@ const updateProjectSchema = z.object({
   })).optional(),
   // IDs of all caption items currently in the editor — DB items not in this list are deleted
   captionItemIds: z.array(z.string()).optional(),
+  // IDs of all visual items currently in the editor — DB items not in this list are deleted
+  visualItemIds: z.array(z.string()).optional(),
   videoSettings: z.record(z.unknown()).optional(),
 });
 
@@ -449,6 +451,104 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Delete visual items that no longer exist in the editor (removed by split)
+    if (body.visualItemIds) {
+      const trackIds = (await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      })).map(t => t.id);
+
+      if (trackIds.length > 0) {
+        // Find all visual items in the project
+        const existingVisualItems = await db.select({ id: timelineItems.id }).from(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, trackIds),
+            eq(timelineItems.type, 'visual')
+          ));
+
+        // Delete items not in the editor's current list
+        const visualIdsToDelete = existingVisualItems
+          .map(i => i.id)
+          .filter(dbId => !body.visualItemIds!.includes(dbId));
+
+        if (visualIdsToDelete.length > 0) {
+          await db.delete(timelineItems).where(inArray(timelineItems.id, visualIdsToDelete));
+          fastify.log.info({ deletedCount: visualIdsToDelete.length }, 'Deleted orphaned visual items from split');
+        }
+      }
+
+      // Sync visuals.timestamps from current timeline state
+      const visual = await db.query.visuals.findFirst({
+        where: eq(visuals.projectId, id),
+      });
+
+      if (visual?.timestamps) {
+        const originalTimestamps = visual.timestamps as Array<{
+          startMs: number;
+          endMs: number;
+          type: string;
+          description: string;
+          sourceSceneId?: number;
+          elements?: Array<{ id: string; name: string; type: string; x: string; y: string; width: string; height: string }>;
+        }>;
+
+        // Get all current visual items sorted by startMs
+        const trackIds2 = (await db.query.tracks.findMany({
+          where: eq(tracks.projectId, id),
+        })).map(t => t.id);
+
+        const currentVisualItems = trackIds2.length > 0
+          ? await db.select().from(timelineItems)
+              .where(and(
+                inArray(timelineItems.trackId, trackIds2),
+                eq(timelineItems.type, 'visual')
+              ))
+          : [];
+
+        currentVisualItems.sort((a, b) => a.startMs - b.startMs);
+
+        // Rebuild timestamps array from current timeline items
+        const newTimestamps = currentVisualItems.map((item) => {
+          const data = item.data as Record<string, unknown>;
+          const itemSourceSceneId = data.sourceSceneId as number | undefined;
+
+          // Match to original timestamp: prefer sourceSceneId, fall back to time overlap
+          let matched: typeof originalTimestamps[0] | undefined;
+          if (itemSourceSceneId) {
+            matched = originalTimestamps.find(t => (t.sourceSceneId || 0) === itemSourceSceneId)
+              || originalTimestamps[itemSourceSceneId - 1];
+          }
+          if (!matched) {
+            // Time-overlap matching: find the original timestamp with most overlap
+            let bestOverlap = 0;
+            for (const t of originalTimestamps) {
+              const overlapStart = Math.max(item.startMs, t.startMs);
+              const overlapEnd = Math.min(item.endMs, t.endMs);
+              const overlap = Math.max(0, overlapEnd - overlapStart);
+              if (overlap > bestOverlap) {
+                bestOverlap = overlap;
+                matched = t;
+              }
+            }
+          }
+
+          return {
+            startMs: item.startMs,
+            endMs: item.endMs,
+            type: matched?.type || (data.type as string) || 'visual',
+            description: matched?.description || (data.description as string) || '',
+            sourceSceneId: itemSourceSceneId || matched?.sourceSceneId,
+            elements: matched?.elements,
+          };
+        });
+
+        // Update visuals.timestamps in DB
+        await db.update(visuals)
+          .set({ timestamps: newTimestamps })
+          .where(eq(visuals.id, visual.id));
+        fastify.log.info({ projectId: id, sceneCount: newTimestamps.length }, 'Synced visuals.timestamps from timeline state');
+      }
+    }
+
     // Update project fields
     const updateData: { updatedAt: Date; title?: string; videoSettings?: unknown } = { updatedAt: new Date() };
     if (body.title !== undefined) {
@@ -523,34 +623,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
       };
     }
 
-    // Video projects: transcribe + enhance-audio in parallel
-    // Create audio track, timeline item, and enhancement job
-    const [audioTrack] = await db.insert(tracks).values({
+    // Video projects: transcribe + head-tracking in parallel
+    const [headTrackJob] = await db.insert(jobs).values({
       projectId: id,
-      type: 'audio',
-      name: 'Audio',
-      position: 2,
-    }).returning();
-
-    const [audioItem] = await db.insert(timelineItems).values({
-      trackId: audioTrack.id,
-      type: 'audio',
-      startMs: 0,
-      endMs: project.durationMs || 0, // Updated by worker after probing
-      data: {
-        src: '',
-        originalSrc: '',
-        isEnhanced: false,
-        sourceVideoItemId: '',
-        volume: 1,
-        enhancementStatus: 'processing',
-        enhancementProgress: 0,
-      },
-    }).returning();
-
-    const [enhanceJob] = await db.insert(jobs).values({
-      projectId: id,
-      type: 'enhance-audio',
+      type: 'head-tracking',
       status: 'pending',
     }).returning();
 
@@ -559,27 +635,24 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'processing' })
       .where(eq(projects.id, id));
 
-    // Queue both jobs in parallel
     await Promise.all([
       queueTranscribeJob({
         projectId: id,
         jobId: transcribeJob.id,
         videoKey: mediaKey,
       }),
-      queueEnhanceAudioJob({
+      queueHeadTrackingJob({
         projectId: id,
-        jobId: enhanceJob.id,
+        jobId: headTrackJob.id,
         videoKey: mediaKey,
-        audioTrackId: audioTrack.id,
-        audioItemId: audioItem.id,
-        videoItemId: '',
       }),
     ]);
 
     return {
       jobId: transcribeJob.id,
       transcribeJobId: transcribeJob.id,
-      enhanceJobId: enhanceJob.id,
+      enhanceJobId: null,
+      headTrackJobId: headTrackJob.id,
       totalJobs: 2,
     };
   });
@@ -662,7 +735,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = z.object({
       stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'apple', 'google', 'studio']),
-      layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
+      layoutMode: z.enum(['pip', 'stacked']),
       dimensions: z.object({
         width: z.number().int().min(100).max(4096),
         height: z.number().int().min(100).max(4096),
@@ -1199,6 +1272,21 @@ export async function projectRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // Delete MinIO storage files (bundles + sources) for each visual
+      const storageCleanup: Promise<unknown>[] = [];
+      for (const visual of projectVisuals) {
+        const compId = visual.compositionId;
+        storageCleanup.push(
+          deleteObjectsByPrefix('outputs', `bundles/${compId}/`).catch(err =>
+            fastify.log.warn({ compositionId: compId, err }, 'Failed to delete bundle files from storage')
+          ),
+          deleteObjectsByPrefix('outputs', `sources/${compId}/`).catch(err =>
+            fastify.log.warn({ compositionId: compId, err }, 'Failed to delete source files from storage')
+          ),
+        );
+      }
+      await Promise.all(storageCleanup);
+
       // Delete visuals from database
       await db.delete(visuals).where(eq(visuals.projectId, id));
 
@@ -1213,7 +1301,6 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return {
         message: 'Visuals deleted successfully',
         deleted: projectVisuals.length,
-        bundleUrls: projectVisuals.map(v => v.bundleUrl),
       };
     } catch (err) {
       fastify.log.error(err, 'Failed to delete visuals');
@@ -1448,6 +1535,103 @@ export async function projectRoutes(fastify: FastifyInstance) {
     reply.header('Content-Length', totalSize);
     reply.header('Accept-Ranges', 'bytes');
     return reply.send(stream);
+  });
+
+  // Update plan scenes (manual edits from the frontend)
+  fastify.patch('/projects/:id/plan/:planJobId', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id, planJobId } = request.params as { id: string; planJobId: string };
+
+    const updatePlanScenesSchema = z.object({
+      scenes: z.array(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        displayMode: z.enum(['default', 'fullscreen', 'overlay']).optional(),
+      })),
+    });
+
+    const body = updatePlanScenesSchema.parse(request.body);
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const planJob = await db.query.jobs.findFirst({
+      where: and(eq(jobs.id, planJobId), eq(jobs.projectId, id)),
+    });
+
+    if (!planJob || !planJob.planData) {
+      return reply.status(404).send({ error: 'Plan job not found or has no plan data' });
+    }
+
+    if (planJob.status !== 'complete') {
+      return reply.status(409).send({ error: 'Plan is still being generated. Wait for it to complete before editing.' });
+    }
+
+    const planData = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+    const scenesObj = planData.scenes as Record<string, unknown>;
+    const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+
+    // Apply partial updates
+    for (const update of body.scenes) {
+      const scene = scenesArray.find((s: any) => s.id === update.id) as Record<string, unknown> | undefined;
+      if (!scene) continue;
+
+      if (update.title !== undefined) {
+        scene.name = update.title;
+      }
+      if (update.description !== undefined) {
+        scene.visual = update.description;
+      }
+      if (update.displayMode !== undefined) {
+        scene.displayMode = update.displayMode;
+      }
+    }
+
+    // Rebuild markdown from scenes (same logic as update_plan tool)
+    const updatedMarkdown = scenesArray.map((s: any) => {
+      const startS = (s.timestampRange?.[0] ?? 0).toFixed(1);
+      const endS = (s.timestampRange?.[1] ?? 0).toFixed(1);
+      return `### Scene ${s.id}: ${s.name} (${startS}s – ${endS}s)\n**Visual**: ${s.visual || ''}\n**Emotion**: ${s.emotion || ''}`;
+    }).join('\n\n');
+
+    // Save back to DB
+    const updatedPlanData = {
+      scenePlan: updatedMarkdown,
+      scenes: { ...scenesObj, scenes: scenesArray, totalScenes: scenesArray.length },
+    };
+    await db.update(jobs).set({ planData: updatedPlanData }).where(eq(jobs.id, planJobId));
+
+    // Return updated scenes in widget format
+    const widgetScenes = scenesArray.map((s: any) => ({
+      startMs: Math.round((s.timestampRange?.[0] || 0) * 1000),
+      endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
+      title: s.name || `Scene ${s.id}`,
+      description: s.visual || s.emotion || '',
+      emotion: s.emotion || '',
+      keySync: s.keySync ? {
+        word: s.keySync.word,
+        timestamp: s.keySync.timestamp,
+        visualEvent: s.keySync.visualEvent,
+      } : undefined,
+      buildsFrom: s.buildsFrom || null,
+      connectsTo: s.connectsTo || null,
+      layout: s.layout || null,
+      frames: s.frames || null,
+      icons: s.icons || [],
+      displayMode: s.displayMode || 'default',
+      transition: s.transition || undefined,
+    }));
+
+    return { success: true, scenes: widgetScenes };
   });
 
   // Get job status

@@ -21,6 +21,8 @@ import {
   CaptionStyle,
   CaptionPosition,
   AudioItemData,
+  VisualItemData,
+  VisualDisplayMode,
 } from '../store/types';
 import { SUBTITLE_PRESETS, PRESET_ORDER } from '@/lib/subtitle-presets';
 
@@ -41,6 +43,7 @@ export function PropertiesContent() {
       {firstSelectedItem.type === 'caption' && <CaptionStylePanel />}
       {firstSelectedItem.type === 'video' && <VideoPanel />}
       {firstSelectedItem.type === 'audio' && <AudioPanel />}
+      {firstSelectedItem.type === 'visual' && <VisualPropertiesPanel />}
     </div>
   );
 }
@@ -472,6 +475,60 @@ function AudioPanel() {
           </span>
         </div>
       </Section>
+    </div>
+  );
+}
+
+// ============================================
+// Visual Properties Panel
+// ============================================
+
+function VisualPropertiesPanel() {
+  const selectedIds = useSelectedIds();
+  const visualItem = useItem(selectedIds[0] || '');
+  const { updateVisualDisplayMode, updateOverlayOpacity } = useEditorActions();
+
+  if (!visualItem || visualItem.type !== 'visual') return null;
+
+  const data = visualItem.data as VisualItemData;
+  const rawDm = data.displayMode;
+  const displayMode = (!rawDm || (rawDm as string) === 'pip') ? 'default' : rawDm;
+  const overlayOpacity = data.overlayOpacity ?? 0.85;
+
+  return (
+    <div className="p-4 space-y-6">
+      <Section label="Display Mode">
+        <SegmentedControl
+          options={[
+            { value: 'default', label: 'Standard' },
+            { value: 'fullscreen', label: 'Full' },
+            { value: 'overlay', label: 'Overlay' },
+          ]}
+          value={displayMode}
+          onChange={(value) => updateVisualDisplayMode(visualItem.id, value as VisualDisplayMode)}
+        />
+      </Section>
+
+      {displayMode === 'overlay' && (
+        <>
+          <Divider />
+          <Section label="Overlay Opacity">
+            <div className="flex items-center gap-3">
+              <Slider
+                value={[Math.round(overlayOpacity * 100)]}
+                min={20}
+                max={100}
+                step={5}
+                onValueChange={([op]) => updateOverlayOpacity(visualItem.id, op / 100)}
+                className="flex-1"
+              />
+              <span className="text-xs text-[var(--editor-text-secondary)] w-10 text-right">
+                {Math.round(overlayOpacity * 100)}%
+              </span>
+            </div>
+          </Section>
+        </>
+      )}
     </div>
   );
 }

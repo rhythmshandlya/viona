@@ -171,9 +171,20 @@ export function DynamicVisualLoader({
           // Provide Remotion with Composition as a no-op
           // <Composition> is a config component for Root.tsx, not meant for rendering
           // When encountered inside a Player, it should just return null
+          //
+          // Override staticFile to resolve assets from the API bundle directory
+          // instead of the browser origin. Generated code calls staticFile('assets/images/foo.jpg')
+          // which Remotion resolves to /assets/images/foo.jpg (localhost:3000), but the actual
+          // files live in the bundle's public/ dir served from the API server.
+          const bundleBasePath = bundleUrl.replace('/index.html', '');
+          const customStaticFile = (relativePath: string) => {
+            const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+            return `${apiUrl}${bundleBasePath}/public/${cleanPath}`;
+          };
           return {
             ...Remotion,
             Composition: () => null,
+            staticFile: customStaticFile,
           };
         }
         // Remotion sub-packages used by generated compositions

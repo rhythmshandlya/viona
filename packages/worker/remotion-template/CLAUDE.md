@@ -7,7 +7,7 @@
 ## Code Style (CRITICAL)
 - TypeScript with React functional components
 - Use `useCurrentFrame()` and `useVideoConfig()` for all animation timing
-- Use `spring()` for entrances/exits with config: `{ damping: 22, stiffness: 90, mass: 0.9 }`
+- Use `spring()` for entrances/exits — import SPRINGS from constants.ts (SMOOTH: `{ damping: 26, stiffness: 120, mass: 1.0 }`, SNAPPY: `{ damping: 18, stiffness: 180, mass: 0.8 }`)
 - Use `interpolate()` with `extrapolateRight: 'clamp'` ALWAYS
 - Stagger elements by 6+ frames minimum (NEVER animate all at once)
 

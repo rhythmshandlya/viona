@@ -9,7 +9,7 @@
  * No API key costs - included in subscription.
  */
 
-import { Job, UnrecoverableError } from 'bullmq';
+import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { writeFile, rm } from 'fs/promises';
 import { join, dirname } from 'path';
@@ -22,7 +22,7 @@ import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
 import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
-import { searchIcons, type IconOption } from '../services/freepik.js';
+import { searchIcons, type IconOption, type IconStyleFilters } from '../services/freepik.js';
 import { fetchImageOptionsForPlan } from '../services/image-fetcher.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -35,12 +35,12 @@ export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
-  layoutMode: 'pip' | 'split-horizontal' | 'split-vertical';
+  layoutMode: 'pip' | 'stacked';
   dimensions: {
     width: number;
     height: number;
   };
-  /** Effective dimensions for pip scenes in split layouts */
+  /** Effective dimensions for default scenes in stacked layout */
   pipEffective?: {
     width: number;
     height: number;
@@ -431,13 +431,14 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
         if (fatalStderrDetected) {
-          reject(new UnrecoverableError(`Director phase crashed (unhandled rejection): ${stderr.slice(-500)}`));
+          // OOM and other crashes — retryable
+          reject(new Error(`Director phase crashed: ${stderr.slice(-500)}`));
         } else if (code === 0) {
           resolve();
         } else {
+          // Non-zero exit — may be retryable (transient API errors, etc.)
           const errorOutput = stderr || stdout.slice(-1000);
-          // Non-zero exit = bad input/prompt, don't retry
-          reject(new UnrecoverableError(`Director phase exited with code ${code}: ${errorOutput}`));
+          reject(new Error(`Director phase exited with code ${code}: ${errorOutput}`));
         }
       });
 
@@ -515,6 +516,23 @@ async function fetchSvgOptionsForPlan(planData: PlanData): Promise<PlanData & { 
   const scenesObj = planData.scenes as Record<string, unknown>;
   const scenesArray = (scenesObj?.scenes as Array<Record<string, unknown>>) || [];
 
+  // Read AI-chosen icon style from plan root (shape + color filters for Freepik)
+  // Validate against known Freepik API values to prevent hallucinated values from silently failing
+  const VALID_SHAPES = new Set(['outline', 'fill', 'lineal-color', 'hand-drawn']);
+  const VALID_COLORS = new Set([
+    'gradient', 'solid-black', 'multicolor', 'azure', 'black', 'blue',
+    'chartreuse', 'cyan', 'gray', 'green', 'orange', 'red', 'rose',
+    'spring-green', 'violet', 'white', 'yellow',
+  ]);
+  const rawStyle = scenesObj?.iconStyle as Record<string, unknown> | undefined;
+  const iconStyle: IconStyleFilters | undefined = rawStyle ? {
+    ...(typeof rawStyle.shape === 'string' && VALID_SHAPES.has(rawStyle.shape) ? { shape: rawStyle.shape as IconStyleFilters['shape'] } : {}),
+    ...(typeof rawStyle.color === 'string' && VALID_COLORS.has(rawStyle.color) ? { color: rawStyle.color } : {}),
+  } : undefined;
+  if (iconStyle) {
+    logger.info({ iconStyle, raw: rawStyle }, 'Using AI-chosen icon style filters');
+  }
+
   // Collect all unique icon keywords across scenes, mapped to scene IDs
   const keywordToScenes = new Map<string, string[]>();
   for (const scene of scenesArray) {
@@ -536,14 +554,41 @@ async function fetchSvgOptionsForPlan(planData: PlanData): Promise<PlanData & { 
 
   logger.info({ keywordCount: keywordToScenes.size, keywords: [...keywordToScenes.keys()] }, 'Fetching SVG options for icon keywords');
 
-  // Fetch 5 options per unique keyword in parallel
+  // Family-ID lock strategy: search first keyword alone to discover the family,
+  // then search remaining keywords in parallel locked to that family.
   const keywords = [...keywordToScenes.keys()];
-  const results = await Promise.all(
-    keywords.map(async (keyword) => {
-      const options = await searchIcons(keyword, 5);
-      return { keyword, options };
+  const styleWithFamily: IconStyleFilters = { ...iconStyle };
+
+  // Step 1: Search the first keyword alone (no familyId yet)
+  const firstResult = await searchIcons(keywords[0], 5, styleWithFamily);
+
+  // Step 2: Extract familyId from the first result
+  if (firstResult.familyId !== undefined) {
+    styleWithFamily.familyId = firstResult.familyId;
+    logger.info({ familyId: firstResult.familyId, keyword: keywords[0] }, 'Locked icon family from first keyword');
+  }
+
+  // Step 3: Search remaining keywords in parallel with familyId locked
+  const remainingKeywords = keywords.slice(1);
+  const remainingResults = await Promise.all(
+    remainingKeywords.map(async (keyword) => {
+      const result = await searchIcons(keyword, 5, styleWithFamily);
+      // Fallback: if family-locked search returns 0 results, retry without familyId
+      if (result.options.length === 0 && styleWithFamily.familyId !== undefined) {
+        const { familyId: _drop, ...styleWithoutFamily } = styleWithFamily;
+        logger.info({ keyword, familyId: styleWithFamily.familyId }, 'No results with family lock — retrying without');
+        const fallback = await searchIcons(keyword, 5, styleWithoutFamily);
+        return { keyword, options: fallback.options };
+      }
+      return { keyword, options: result.options };
     })
   );
+
+  // Combine first result with remaining results
+  const results = [
+    { keyword: keywords[0], options: firstResult.options },
+    ...remainingResults,
+  ];
 
   // Build svgOptions map: { sceneId: { keyword: IconOption[] } }
   const svgOptions: Record<string, Record<string, IconOption[]>> = {};

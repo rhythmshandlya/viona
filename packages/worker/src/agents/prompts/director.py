@@ -75,12 +75,57 @@ When you receive a transcript with word-level timestamps:
 IMPORTANT CONSTRAINTS:
 - Maximum 8 scenes for any video (prevents visual chaos)
 - Minimum 2 scenes (needs structure for storytelling)
-- Each scene must be at least 90 frames (3 seconds at 30fps)
+- Each scene must be at least 150 frames (5 seconds at 30fps)
 - Adjacent transcript lines about the same concept belong in ONE scene
 - One scene per narrative beat, NOT one scene per transcript line
 - Scenes MUST be contiguous — NO gaps between scenes. Each scene's start must equal the previous scene's end.
 - For speaker-focused moments (personal anecdotes, emotional beats, transitions), create an `"overlay"` scene with a minimal visual description. The Animator will keep these lightweight. This is preferred over leaving a gap.
+- Every frame of the video MUST have meaningful visual content on screen. The Director must ensure each scene's visual description includes BOTH:
+  (a) an IMMEDIATE visual that appears from frame 0 of the scene (setup/anticipation), AND
+  (b) the key sync payoff visual. The screen should NEVER be empty waiting for a sync point.
+- For INTRO/HOOK scenes: the topic title should FILL the screen centrally (large, prominent) and then animate to its final smaller position (e.g., top of screen) when subsequent content appears. This ensures the screen is visually full from the very first frame.
 </scene_constraints>
+
+<hook_rule>
+THE 3-SECOND RULE (frames 0-90 at 30fps):
+71% of viewers decide to stay or leave in the first 3 seconds. The first 90 frames are
+the most important in the entire video.
+
+Scene 1 (the Hook) MUST deliver ALL THREE within the first 90 frames:
+1. A visually STRIKING element — not just a title fading in, but bold motion or a metaphor visual
+2. A clear signal of WHAT this video is about — the viewer should know the topic instantly
+3. MOTION from frame 0 — never a static frame. Something must be animating immediately.
+
+BAD hook: "Title fades in slowly over 30 frames, then pauses for 60 frames"
+GOOD hook: "Bold topic title FILLS the screen at large scale from frame 0, particles stream
+behind it. At sync point, title shrinks and slides to top while the primary metaphor visual
+springs into the center."
+</hook_rule>
+
+<pacing_guide>
+SCENE PACING (research-backed):
+Scene rhythm should VARY — never make all scenes the same duration.
+
+| Scene Type | Duration | Frame Range (30fps) | Purpose |
+|------------|----------|---------------------|---------|
+| Short punch | 5-6s | 150-180 frames | Hooks, transitions, payoffs |
+| Medium | 8-12s | 240-360 frames | Core explanation, most scenes |
+| Long deep-dive | 12-15s | 360-450 frames | Complex concepts, demonstrations |
+
+RHYTHM PATTERN (example for 6-scene, 60s video):
+  Scene 1 (Hook):    5s  — fast, punchy, immediate grab
+  Scene 2 (Problem): 10s — build tension, show the challenge
+  Scene 3 (Insight): 12s — deepest explanation, key visual metaphor
+  Scene 4 (How):     12s — mechanism/process, step-by-step
+  Scene 5 (Proof):   10s — evidence, data, results
+  Scene 6 (Payoff):  5s  — fast, satisfying close
+
+SYNC POINT CADENCE:
+- Within each scene, plan 1 visual event every 3-4 seconds (research shows this matches
+  the attention rhythm of short-form viewers)
+- A 10-second scene should have 3-4 sync points
+- This is what turns "slides with narration" into a DYNAMIC video
+</pacing_guide>
 
 <output_format>
 You MUST create two files:
@@ -99,6 +144,70 @@ Be SPECIFIC but RESPONSIVE:
 All measurements should be percentages or relative to canvas dimensions.
 </output_format>
 
+<visual_decomposition>
+LAYERED VISUAL DESCRIPTIONS:
+Each scene's "visual" field must decompose the description into clear layers.
+This prevents vague descriptions that the Animator can't implement.
+
+For each scene, address these layers (skip layers that don't apply):
+1. BACKGROUND: What fills the canvas behind everything? (gradient, solid, pattern, image)
+2. PRIMARY ELEMENT: The main visual focus — 60% of attention (metaphor object, diagram, title)
+3. SECONDARY ELEMENTS: Supporting visuals — 30% of attention (labels, icons, annotations)
+4. ACCENTS: Small details that add polish — 10% of attention (particles, subtle motion, glow)
+5. MOTION: What moves, in what direction, at what relative speed?
+6. TEXT: What text appears, where, and when does it animate in?
+
+ONE MOVEMENT PER SENTENCE. If describing multiple actions, use sequential sentences:
+  GOOD: "The container fills with blue liquid. When the narrator says 'overflow',
+  liquid spills over the edges. Droplets scatter outward and reform into data points."
+
+  BAD: "The container fills and overflows while data points form and scatter
+  and also there's a glow effect and particles and text appears."
+
+DESCRIPTION QUALITY CHECK — verify each scene's visual answers:
+  [ ] WHAT appears? (specific shapes/elements, not "something cool")
+  [ ] WHERE on canvas? (relative: "center", "top-20%", not pixels)
+  [ ] WHEN does it move? (tied to a sync point or frame range)
+  [ ] HOW does it move? (direction + speed: "slides up", "springs in", "fades over 15 frames")
+  [ ] WHY does it matter? (connects to narration — not decorative randomness)
+
+BAD: "Show a chart about data growth"
+GOOD: "Dark gradient background (#0a0a0f to #1a1a2e). A bar chart rises from
+bottom-center, bars filling left-to-right as narrator lists each year. Floating
+percentage labels pop in above each bar at their sync point. Subtle particle
+stream flows upward behind the chart. Title 'Data Growth' at top-center,
+4% of canvas height, fades in over 15 frames."
+</visual_decomposition>
+
+<cross_scene_anchoring>
+CROSS-SCENE VISUAL ANCHORING:
+Research shows that the #1 technique for visual coherence in AI-generated video is
+"frame anchoring" — conditioning each segment on the final state of the previous one.
+
+Each scene's visual description MUST include:
+1. ANCHOR-IN: What visual element from the PREVIOUS scene carries into this one?
+   (First scene: skip this — it's the opening)
+2. ANCHOR-OUT: What element from THIS scene will carry into the NEXT?
+   (Last scene: skip this — it's the conclusion)
+
+This creates one continuous animation rather than disconnected slides.
+
+EXAMPLE (3-scene sequence about hash tables):
+  Scene 1 visual: "...A glowing key floats at center. The key pulses and shoots rightward."
+    → ANCHOR-OUT: the key in motion
+
+  Scene 2 visual: "The key from Scene 1 arrives at a row of 8 buckets. It drops into bucket #3,
+  which lights up. More keys stream in from the left..."
+    → ANCHOR-IN: the moving key
+    → ANCHOR-OUT: the filling buckets
+
+  Scene 3 visual: "The buckets from Scene 2 are now mostly full. Bucket #3 overflows..."
+    → ANCHOR-IN: the full buckets
+
+Use the `buildsFrom` and `connectsTo` fields in scenes.json to describe these anchors.
+Make them SPECIFIC: "the overflowing container" not just "previous visual continues".
+</cross_scene_anchoring>
+
 <quality_criteria>
 Before finishing, verify your plan passes these tests:
 
@@ -109,6 +218,10 @@ Before finishing, verify your plan passes these tests:
 [ ] CONNECTION TEST: Does each scene build from the previous?
 [ ] RESPONSIVE TEST: Are all positions/sizes relative, not absolute pixels?
 [ ] SAFE AREA TEST: Is critical content within 80% of canvas (10% margins)?
+[ ] HOOK TEST: Does Scene 1 have motion from frame 0 and a striking visual in <3 seconds?
+[ ] PACING TEST: Are scene durations varied (not all the same length)?
+[ ] ANCHOR TEST: Does each scene specify what carries in from previous and out to next?
+[ ] LAYER TEST: Does each visual description address background, primary element, and motion?
 </quality_criteria>
 
 <visual_metaphors>
@@ -128,6 +241,90 @@ Use TANGIBLE real-world metaphors:
 | Error | Red warning flash + shake |
 | Success | Green checkmark + confetti |
 </visual_metaphors>
+
+<animation_vocabulary>
+SHARED ANIMATION VOCABULARY — use these exact names in your scene descriptions.
+The Animator knows how to implement each one. Using consistent names ensures your
+creative intent translates into the precise motion you envision.
+
+### Text Animations
+| Name | Effect | Best For |
+|------|--------|----------|
+| `word-cascade` | Words appear one-by-one with slide-up + fade | Quotes, taglines, explanations |
+| `char-stagger` | Characters appear letter-by-letter with spring scale | Titles, emphasis words |
+| `text-slam` | Text scales from 2.5x to 1x with heavy spring + glow | Hook titles, big reveals, key stats |
+| `typewriter` | Characters reveal left-to-right with blinking cursor | Code, terminal output, step-by-step |
+| `text-morph-position` | Text smoothly repositions/rescales (e.g. center→top) | Title settling after hook, layout shifts |
+| `number-roll` | Counter animates from 0 to target value with easing | Stats, metrics, data points |
+
+### Element Animations
+| Name | Effect | Best For |
+|------|--------|----------|
+| `spring-in` | Element scales from 0 to 1 with spring overshoot | Icons, cards, focal elements |
+| `fade-rise` | Opacity 0→1 + translateY up 20px | Subtle entrances, secondary content |
+| `stagger-cascade` | Multiple elements enter sequentially (6-8f apart) | Lists, grid items, process steps |
+| `draw-in` | SVG path draws progressively (stroke-dashoffset) | Diagrams, connections, flow lines |
+| `fill-progress` | Bar/shape fills from 0% to target width/height | Progress bars, chart bars, levels |
+| `count-up` | Number ticks from 0 to value over ~45 frames | Metrics, scores, percentages |
+| `pop-scatter` | Elements burst outward from center point | Confetti, celebration, explosion |
+| `orbit-float` | Elements slowly orbit/float around a center | Ambient accents, satellites, electrons |
+
+### Transition Hints (between scenes)
+| Name | Effect | When to Use |
+|------|--------|-------------|
+| `crossfade` | Scenes blend via opacity over ~15 frames | Mood changes, gentle topic shifts |
+| `slide-left` | New scene slides in from right, pushing old left | Sequential progression, next-step |
+| `wipe-right` | Reveal wipe from left to right | Before/after, transformations |
+| `zoom-punch` | Quick scale punch (1→1.1→1) at transition | Impact moments, exclamation points |
+| `cut` | Instant switch (current default behavior) | Fast pace, dramatic contrast |
+
+### How to Use in Visual Descriptions
+Reference animations by name in your scene "visual" field:
+- "Title 'Hash Tables' enters with `text-slam` at center."
+- "At sync point 'buckets', title uses `text-morph-position` to shrink to top while bucket diagram uses `draw-in` to reveal below."
+- "Stats appear with `number-roll` for each metric, staggered with `stagger-cascade`."
+- "Transition to Scene 3 with `crossfade` as tone shifts to the solution."
+
+The Animator will read these names and implement the exact corresponding animation pattern.
+</animation_vocabulary>
+
+<scene_archetypes>
+SCENE ARCHETYPE CATALOG — proven recipes for common scene types.
+Specify an archetype in each scene to guide the Animator toward polished, purposeful motion.
+
+| Archetype | Best For | Key Animations | Layout |
+|-----------|----------|----------------|--------|
+| `hook-title` | Opening scene, first 3 seconds | `text-slam` title → `text-morph-position` to top | Title fills screen, then settles for content |
+| `stat-reveal` | Data points, metrics, numbers | `count-up` + `text-slam` for the number, `fade-rise` label | Large number center, label below |
+| `process-flow` | How-to, algorithms, step-by-step | `draw-in` connections, `stagger-cascade` steps | Nodes connected by animated lines |
+| `comparison-split` | Before/after, A vs B, pros/cons | `slide-left` split divider, `stagger-cascade` each side | Canvas split vertically, items per side |
+| `feature-list` | Benefits, announcements, bullet points | `stagger-cascade` with `spring-in` icons per item | Icon + text rows, staggered entrance |
+| `timeline-march` | History, progression, chronology | `draw-in` center line, `stagger-cascade` milestones | Vertical/horizontal timeline with nodes |
+| `code-demo` | Programming, technical, CLI output | `typewriter` for code lines, `spring-in` for output | Dark code block with syntax colors |
+| `quote-spotlight` | Testimonials, famous quotes, key phrases | `word-cascade` for quote text, `fade-rise` attribution | Large centered quote with subtle accents |
+| `data-chart` | Charts, rankings, comparisons | `draw-in` axes, `fill-progress` bars, `count-up` labels | Chart area with animated bars/lines |
+| `hero-image` | Real-world context, product shots | Ken Burns image + `text-slam` overlay text | Image fills 60-80%, text overlaid |
+| `payoff-close` | Conclusion, CTA, final takeaway | `spring-in` callback element + `word-cascade` summary | Centered payoff with returning visual anchor |
+| `concept-metaphor` | Abstract ideas made tangible | `spring-in` metaphor visual + `draw-in` transformation | Metaphor object center, transforming over time |
+
+### How to Use Archetypes
+1. Set the `"archetype"` field in each scene of scenes.json
+2. Reference archetype animations in your visual description
+3. The Animator will use the archetype as a starting recipe, then customize
+
+Example:
+```json
+{
+  "id": 1,
+  "name": "The Hook",
+  "archetype": "hook-title",
+  "visual": "Dark gradient background. Title 'Why Hash Tables Are Genius' enters with `text-slam`..."
+}
+```
+
+Archetypes are SUGGESTIONS, not rigid templates. Mix animations from the vocabulary
+freely — the archetype just provides a proven starting structure.
+</scene_archetypes>
 
 <color_palettes>
 Choose a palette that fits the content mood:
@@ -155,6 +352,24 @@ Choose a palette that fits the content mood:
 - Secondary: #0984e3 (Ocean)
 - Accent: #fdcb6e (Gold)
 - Dark: #0c1618
+
+**Midnight Gold (Premium/Luxury):**
+- Primary: #d4af37 (Gold)
+- Secondary: #c0a862 (Light Gold)
+- Accent: #f5e6b8 (Champagne)
+- Dark: #1a1a2e (Deep Navy)
+
+**Arctic Blue (Clean/Corporate):**
+- Primary: #0ea5e9 (Sky Blue)
+- Secondary: #38bdf8 (Light Sky)
+- Accent: #f0f9ff (Ice White)
+- Dark: #334155 (Slate)
+
+**Warm Ember (Storytelling/Narrative):**
+- Primary: #ef4444 (Red)
+- Secondary: #f97316 (Orange)
+- Accent: #fbbf24 (Amber)
+- Dark: #1c1917 (Stone Dark)
 </color_palettes>
 
 <visual_requirements>
@@ -186,6 +401,22 @@ Specify icon needs with search terms the Animator can use:
 - **[ICON: warning triangle]** - Warning/alert icon
 - **[ICON: cloud computing]** - Cloud infrastructure icon
 - **[ICON: neural network]** - AI/ML concept icon
+
+**Icon Style (`iconStyle` in plan root):** Choose a consistent icon style that matches your color palette and visual theme. The system will automatically lock all icons to the same design family after the first search — your style choice determines the family filter.
+
+- **shape**: `outline` (clean line icons), `fill` (solid filled icons), `lineal-color` (line icons with color accents), `hand-drawn` (sketchy style)
+- **color** (MUST be one of these valid API values): `gradient`, `solid-black`, `multicolor`, `azure`, `black`, `blue`, `chartreuse`, `cyan`, `gray`, `green`, `orange`, `red`, `rose`, `spring-green`, `violet`, `white`, `yellow`
+
+**Theme → Style mappings (follow these defaults):**
+| Theme / Mood | shape | color |
+|---|---|---|
+| Corporate / Professional | `fill` | `solid-black` |
+| Minimal / Modern | `outline` | `solid-black` |
+| Colorful / Playful | `lineal-color` | `multicolor` |
+| Dark themes (Cyber Neon, etc.) | `outline` | `white` |
+| Sketch / Casual | `hand-drawn` | `multicolor` |
+
+- All icons in a plan MUST share the same style for visual consistency
 
 Be SPECIFIC with icon descriptions — "server rack" is better than "computer".
 The Animator searches Freepik by concept, so descriptive terms yield better results.
@@ -319,11 +550,41 @@ Research BEFORE planning to create more informed, visually compelling scene desi
 import math
 
 STYLE_PRESET_DESCRIPTIONS = {
-    "minimal": "Clean lines, whitespace, monochrome with single accent color. Focus on simplicity and negative space.",
-    "modern": "Gradients, rounded corners, vibrant colors. Contemporary feel with smooth transitions.",
-    "playful": "Bright colors, bouncy animations, friendly feel. Fun and energetic with playful motion.",
-    "bold": "High contrast, large text, dramatic impact. Strong visual statements with stark contrasts.",
-    "classic": "Traditional charts, serif fonts, professional tones. Timeless and business-appropriate.",
+    "minimal": """Clean lines, whitespace, monochrome with single accent color. Focus on simplicity and negative space.
+
+**COLOR PALETTE:** Arctic Blue or Soft Gradient — muted tones, single accent pop.
+**TYPOGRAPHY:** Plus Jakarta Sans (titles, 5% height) + JetBrains Mono (body/code, 3% height). Lightweight.
+**ANIMATION FEEL:** Gentle and deliberate. spring({ damping: 30, stiffness: 60 }) for slow, smooth entrances.
+Stagger elements 10-12 frames apart. Prefer `fade-rise` and `text-morph-position` over dramatic slams.
+No particles, no glow — let negative space breathe.""",
+    "modern": """Gradients, rounded corners, vibrant colors. Contemporary feel with smooth transitions.
+
+**COLOR PALETTE:** Cyber Neon or Electric Sunset — rich gradients, dual-tone backgrounds.
+**TYPOGRAPHY:** Space Grotesk (titles, 5% height) + Inter (body, 3% height). Clean geometric shapes.
+**ANIMATION FEEL:** Polished and fluid. SPRINGS.SMOOTH ({ damping: 26, stiffness: 120 }) for premium settle, SPRINGS.SNAPPY for hero reveals.
+Stagger 6-8 frames. Use `text-slam` for key reveals, `stagger-cascade` for lists, `crossfade` transitions.
+Glassmorphism cards, subtle gradient shifts in backgrounds.""",
+    "playful": """Bright colors, bouncy animations, friendly feel. Fun and energetic with playful motion.
+
+**COLOR PALETTE:** Electric Sunset or custom bright palette — high saturation, warm accents.
+**TYPOGRAPHY:** Nunito (titles, 6% height — slightly larger) + Source Code Pro (body, 3.5% height). Rounded, friendly.
+**ANIMATION FEEL:** Bouncy and energetic. spring({ damping: 18, stiffness: 120 }) for visible overshoot.
+Stagger 5-6 frames (faster cascade). Use `char-stagger` for fun text reveals, `pop-scatter` for celebrations,
+`spring-in` with extra bounce for icons. Floating accent particles welcome.""",
+    "bold": """High contrast, large text, dramatic impact. Strong visual statements with stark contrasts.
+
+**COLOR PALETTE:** Midnight Gold or Warm Ember — stark dark backgrounds with bright focal elements.
+**TYPOGRAPHY:** Bebas Neue or Oswald (titles, 7% height — oversized) + Open Sans (body, 3% height). Heavy weight.
+**ANIMATION FEEL:** Punchy and dramatic. spring({ damping: 25, stiffness: 150 }) for fast, decisive motion.
+Stagger 4-5 frames (rapid fire). Use `text-slam` aggressively, `zoom-punch` transitions between scenes,
+`number-roll` with exponential easing for stats. High contrast shadows and glow effects.""",
+    "classic": """Traditional charts, serif fonts, professional tones. Timeless and business-appropriate.
+
+**COLOR PALETTE:** Arctic Blue or Forest Tech — subdued, corporate-safe tones.
+**TYPOGRAPHY:** Cormorant Garamond (titles, 5% height) + Lato (body, 3% height). Elegant serifs for headings.
+**ANIMATION FEEL:** Dignified and smooth. spring({ damping: 28, stiffness: 70 }) for measured, unhurried motion.
+Stagger 8-10 frames. Prefer `fade-rise` over spring-in, `word-cascade` for quotes, `fill-progress` for charts.
+Easing.inOut(Easing.cubic) for continuous motion. No bounce, no particles — pure clarity.""",
     "studio": """Polished card animations with dot-grid backgrounds. This style has a PRE-BUILT TEMPLATE LIBRARY.
 
 **DESIGN SYSTEM — Studio (DotGrid Theme):**
@@ -414,12 +675,12 @@ def _coverage_tier(source_width: int | None, source_height: int | None, canvas_w
         return (
             "COVERAGE TIER: **moderate** (some cropping when showing full speaker).\n"
             "- Prefer `overlay` alongside a visual rather than raw speaker fill.\n"
-            "- `pip` and `fullscreen` are your strongest modes."
+            "- `default` and `fullscreen` are your strongest modes."
         )
     return (
         "COVERAGE TIER: **conservative** (heavy crop when fitting source to canvas).\n"
         "- Prefer `overlay` to show the speaker without dedicating the full canvas to them.\n"
-        "- `pip` and `fullscreen` should dominate the plan; use `overlay` as a secondary accent."
+        "- `default` and `fullscreen` should dominate the plan; use `overlay` as a secondary accent."
     )
 
 
@@ -430,16 +691,18 @@ Each scene MUST specify a `displayMode` that controls how the visual composites 
 
 | Mode | What happens | When to use |
 |------|-------------|-------------|
-| `"pip"` | Visual fullscreen, speaker in small bubble | DEFAULT — normal explanation, diagrams, animations |
+| `"default"` | Standard layout behavior (PiP: visual fullscreen + speaker bubble; Stacked: visual in top half) | DEFAULT — normal explanation, diagrams, animations |
 | `"fullscreen"` | Visual fills entire canvas, speaker HIDDEN | Complex diagrams, big data reveals, dramatic moments, title cards |
 | `"overlay"` | Speaker fullscreen, visual layered on top (transparent bg, spatially aware) | Speaker credibility moments, emotional beats, personal anecdotes, transitions between topics — Animator uses speaker grid to avoid covering face. Also use for speaker-focused moments where heavy animation isn't needed (give a minimal visual description and the Animator will keep it lightweight). |
 
 **PLANNING GUIDELINES:**
-- Use `"pip"` for most scenes (60-70%) — the bread and butter
+- Use `"default"` for most scenes (60-70%) — the bread and butter
 - Use `"fullscreen"` for 1-3 key moments — big reveals, complex visuals that need full attention
 - Use `"overlay"` for speaker-focused moments — personal stories, emotional beats, or transitions. These scenes still need a visual description but it can be minimal (e.g., "subtle accent shapes"). The Animator will generate lightweight visuals for these.
 - NEVER use the same displayMode for ALL scenes — variety creates visual rhythm
+- NOTE: Legacy value `"pip"` is treated as `"default"` — always use `"default"` for new plans
 - Transition between modes at natural narrative beats (topic changes, revelations, conclusions)
+- VISUAL DENSITY RULE: Every scene's visual description must specify what the viewer sees IMMEDIATELY (frame 0) — not just the payoff at the key sync point. If a scene has a title/heading, describe it starting large and centered, then moving to its final position when detail content arrives.
 
 Each scene can also specify a `transition` for smooth mode changes:
 - `"cut"` (instant, 0ms) — default, clean and fast
@@ -461,7 +724,7 @@ def get_layout_context(
     """Get layout-specific design guidance based on dimensions.
 
     Args:
-        layout_mode: Layout mode (pip, split-horizontal, split-vertical)
+        layout_mode: Layout mode (pip, stacked)
         width: Full canvas width
         height: Full canvas height
         source_width: Source video width (optional, for coverage-tier guidance)
@@ -480,7 +743,7 @@ def get_layout_context(
     # Per-displayMode pixel dimensions block
     per_dm_dims = f"""
 **Per-scene dimensions (based on displayMode):**
-- `"pip"` → {eff_pip_w}x{eff_pip_h}px (the split visual area)
+- `"default"` → {eff_pip_w}x{eff_pip_h}px (the standard visual area for this layout)
 - `"fullscreen"` → {width}x{height}px (takes over entire canvas)
 - `"overlay"` → {width}x{height}px (full canvas, semi-transparent over speaker)
 """
@@ -494,43 +757,23 @@ def get_layout_context(
 {_DISPLAY_MODE_TABLE}
 {per_dm_dims}{coverage_block}"""
 
-    elif layout_mode == "split-horizontal":
-        return f"""Split Screen (Top/Bottom) with DYNAMIC LAYOUT SWITCHING
+    elif layout_mode == "stacked" or layout_mode == "split-horizontal":
+        return f"""Stacked Layout (Top/Bottom) with DYNAMIC LAYOUT SWITCHING
 - DEFAULT: Your visuals appear in the TOP portion, speaker video BELOW
-- Pip area: {eff_pip_w}x{eff_pip_h}px ({get_aspect_ratio_name(eff_pip_w, eff_pip_h)})
+- Standard area: {eff_pip_w}x{eff_pip_h}px ({get_aspect_ratio_name(eff_pip_w, eff_pip_h)})
 - Full canvas: {width}x{height}px ({aspect})
 - Design for a {'wide horizontal strip' if eff_pip_w > eff_pip_h else 'compact area'} — arrange elements horizontally in the top half
 - Keep critical content centered, avoid edges that feel cramped
 - Bottom 15% of the visual area is reserved for subtitles — design above that line
 
-**However, each scene can BREAK OUT of the split to a different displayMode:**
+**However, each scene can BREAK OUT of the stacked layout to a different displayMode:**
 {_DISPLAY_MODE_TABLE}
-In split layout, the modes map as follows:
-- `"pip"` → **Standard split**: visual in top half ({eff_pip_w}x{eff_pip_h}px), speaker in bottom half (the default)
+In stacked layout, the modes map as follows:
+- `"default"` → **Standard stacked**: visual in top half ({eff_pip_w}x{eff_pip_h}px), speaker in bottom half
 - `"fullscreen"` → **Takeover**: visual expands to fill the ENTIRE canvas ({width}x{height}px), speaker hidden. Great for complex diagrams or big reveals.
 - `"overlay"` → **Speaker focus**: speaker fills the canvas, your visual composites on top at ~70% opacity ({width}x{height}px). Use for credibility moments.
 
-This means most scenes stay in the familiar split, but 1-3 high-impact scenes can "punch out" to fullscreen or overlay for dramatic effect.
-
-{per_dm_dims}{coverage_block}"""
-
-    elif layout_mode == "split-vertical":
-        return f"""Split Screen (Left/Right) with DYNAMIC LAYOUT SWITCHING
-- DEFAULT: Your visuals appear on the LEFT, speaker video on the RIGHT
-- Pip area: {eff_pip_w}x{eff_pip_h}px ({get_aspect_ratio_name(eff_pip_w, eff_pip_h)})
-- Full canvas: {width}x{height}px ({aspect})
-- Design for a {'tall vertical strip' if eff_pip_h > eff_pip_w else 'compact area'} — stack elements vertically in the left half
-- Keep critical content centered, avoid edges near the split boundary
-- Bottom 15% of the visual area is reserved for subtitles — design above that line
-
-**However, each scene can BREAK OUT of the split to a different displayMode:**
-{_DISPLAY_MODE_TABLE}
-In split layout, the modes map as follows:
-- `"pip"` → **Standard split**: visual on left ({eff_pip_w}x{eff_pip_h}px), speaker on right (the default)
-- `"fullscreen"` → **Takeover**: visual expands to fill the ENTIRE canvas ({width}x{height}px), speaker hidden. Great for complex diagrams or big reveals.
-- `"overlay"` → **Speaker focus**: speaker fills the canvas, your visual composites on top at ~70% opacity ({width}x{height}px). Use for credibility moments.
-
-This means most scenes stay in the familiar split, but 1-3 high-impact scenes can "punch out" to fullscreen or overlay for dramatic effect.
+This means most scenes stay in the familiar stacked layout, but 1-3 high-impact scenes can "punch out" to fullscreen or overlay for dramatic effect.
 
 {per_dm_dims}{coverage_block}"""
 
@@ -575,21 +818,21 @@ def build_director_user_message(
 
     # Display mode fields for scenes.json — enabled for ALL layout modes
     display_mode_schema = """
-      "displayMode": "pip",
+      "displayMode": "default",
       "transition": {
         "enter": { "type": "cut", "durationMs": 0 },
         "exit": { "type": "cut", "durationMs": 0 }
       },"""
     display_mode_notes = """
 **DISPLAY MODE (ALL layouts — per-scene):**
-- Every scene MUST have a `displayMode` field: `"pip"`, `"fullscreen"`, or `"overlay"`
+- Every scene MUST have a `displayMode` field: `"default"`, `"fullscreen"`, or `"overlay"`
 - Every scene MUST have a `transition` object with `enter` and `exit` sub-objects
 - Transition types: `"cut"` (instant), `"fade"`, `"zoom-in"`, `"zoom-out"`
 - Transition durations: 0 for cuts, 300-500ms for fades, 200-400ms for zooms
 - Use variety: do NOT make every scene the same displayMode
 - Use `"fullscreen"` for 1-3 key high-impact scenes (complex diagrams, big reveals)
 - Use `"overlay"` for speaker-focused moments (intro, credibility, emotional beats)
-- Use `"pip"` for standard explanation scenes (the majority)
+- Use `"default"` for standard explanation scenes (the majority)
 """
     display_mode_checklist = "5. [ ] Each scene has a displayMode and transition (with variety — not all the same)\n"
 
@@ -648,11 +891,13 @@ Analyze this transcript and create a scene-by-scene animation plan.
 
 ### Step 1: Identify Narrative Beats
 First, identify 3-8 narrative beats in the content:
-- Hook (what grabs attention)
-- Problem/Setup (what challenge exists)
-- Insight/Solution (the clever answer)
-- Understanding (how it works)
-- Payoff (satisfying conclusion)
+- Hook (what grabs attention — must be IMMEDIATELY striking in <3 seconds)
+- Problem/Setup (what challenge exists — build tension)
+- Insight/Solution (the clever answer — the "aha" moment)
+- Understanding (how it works — step-by-step mechanism)
+- Payoff (satisfying conclusion — fast and punchy)
+
+Vary the pacing: short beats (5-6s) for hook and payoff, longer beats (10-15s) for core explanation.
 
 ### Step 2: Design Visual Metaphor System
 Choose ONE primary visual metaphor that persists throughout:
@@ -666,11 +911,18 @@ For each important word in the transcript:
 - Decide what visual event should trigger
 - This creates the "sync magic" - visuals match narration
 
-### Step 4: Plan Visual Continuity
-Ensure scenes connect:
-- What element from Scene 1 appears in Scene 2?
-- How does it transform to show progression?
-- Never cut to completely unrelated visuals
+### Step 4: Plan Visual Continuity (Cross-Scene Anchoring)
+Ensure scenes connect through SPECIFIC visual anchors:
+- Each scene's ANCHOR-OUT element must appear as the next scene's ANCHOR-IN
+- Example: Scene 1 ends with a key flying rightward → Scene 2 opens with that key arriving at buckets
+- The `buildsFrom` and `connectsTo` fields must name the EXACT element, not "previous visual"
+- Never cut to completely unrelated visuals — always carry at least ONE element forward
+
+### Step 5: Write Layered Visual Descriptions
+For each scene's "visual" field, describe in layers:
+- Background → Primary element → Secondary elements → Accents → Motion → Text
+- Use one movement per sentence — don't combine multiple actions
+- Answer: WHAT appears, WHERE on canvas, WHEN it moves, HOW it moves, WHY it matters
 
 ## OUTPUT FILES
 
@@ -696,6 +948,7 @@ Machine-readable with this structure:
   "totalScenes": N,
   "primaryMetaphor": "description",
   "colorPalette": "palette name",
+  "iconStyle": {{ "shape": "outline|fill|lineal-color|hand-drawn", "color": "solid-black|multicolor|white|blue|..." }},
   "visualContinuity": "what persists across scenes",
   "responsive": {{
     "safeMargin": "10%",
@@ -707,6 +960,7 @@ Machine-readable with this structure:
     {{
       "id": 1,
       "name": "Scene Name",
+      "archetype": "hook-title",
       "frames": [startFrame, endFrame],
       "timestampRange": [startSec, endSec],
       "keySync": {{

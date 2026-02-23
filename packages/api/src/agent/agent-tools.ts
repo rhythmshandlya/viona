@@ -25,6 +25,8 @@ export interface ToolContext {
   projectId: string;
   sendSSE: (event: string, data: unknown) => void;
   signal?: AbortSignal;
+  /** The raw user message for this turn — used by tool guards to detect edit metadata */
+  userMessage?: string;
 }
 
 export function normalizeProgressMessage(jobType: string, percent: number, rawMessage?: string): string {
@@ -241,7 +243,7 @@ function mapScenesToWidget(
       frames: s.frames || null,
       icons: s.icons || [],
       svgOptions: svgOptions?.[sceneId] || undefined,
-      displayMode: s.displayMode || 'pip',
+      displayMode: s.displayMode || 'default',
       transition: s.transition || undefined,
     };
   });
@@ -313,9 +315,11 @@ export function createAgentMcpServer(ctx: ToolContext) {
               endMs: number;
               type: string;
               description: string;
+              sourceSceneId?: number;
             }>
           ).map((s, i) => ({
             sceneId: i + 1,
+            sourceSceneId: s.sourceSceneId || (i + 1),
             startMs: s.startMs,
             endMs: s.endMs,
             title: s.type,
@@ -353,6 +357,7 @@ export function createAgentMcpServer(ctx: ToolContext) {
             endMs: number;
             type: string;
             description: string;
+            sourceSceneId?: number;
             elements?: Array<{ id: string; name: string; type: string }>;
           }>;
 
@@ -366,7 +371,11 @@ export function createAgentMcpServer(ctx: ToolContext) {
           }
 
           return {
-            content: [{ type: 'text' as const, text: JSON.stringify({ sceneId, ...scene }) }],
+            content: [{ type: 'text' as const, text: JSON.stringify({
+              sceneId,
+              sourceSceneId: scene.sourceSceneId || sceneId,
+              ...scene,
+            }) }],
           };
         },
       ),
@@ -420,7 +429,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             mergedName: z.string().optional().describe('Combined scene name'),
             mergedVisual: z.string().optional().describe('Combined visual description'),
             // Display mode & transitions (for "update" action)
-            displayMode: z.enum(['pip', 'fullscreen', 'overlay']).optional().describe('Display mode for this scene'),
+            displayMode: z.enum(['default', 'fullscreen', 'overlay']).optional().describe('Display mode for this scene'),
             transition: z.object({
               enter: z.object({
                 type: z.enum(['cut', 'fade', 'zoom-in', 'zoom-out']),
@@ -561,6 +570,25 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             }
           }
 
+          // ── Validate minimum scene duration (5 seconds) ──
+          const MIN_SCENE_DURATION_S = 5;
+          const tooShort = scenesArray.filter((s: any) => {
+            const range = s.timestampRange as [number, number] | undefined;
+            if (!range) return false;
+            return (range[1] - range[0]) < MIN_SCENE_DURATION_S;
+          });
+          if (tooShort.length > 0) {
+            const details = tooShort.map((s: any) => {
+              const dur = ((s.timestampRange[1] - s.timestampRange[0])).toFixed(1);
+              return `"${s.name}" (${dur}s)`;
+            }).join(', ');
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                error: `Operation would create scenes shorter than ${MIN_SCENE_DURATION_S}s: ${details}. Every scene must be at least ${MIN_SCENE_DURATION_S} seconds. Adjust the split point, merge with an adjacent scene, or remove the short scene instead.`,
+              }) }],
+            };
+          }
+
           // Re-index scene IDs sequentially
           scenesArray.forEach((s: any, i: number) => { s.id = i + 1; });
 
@@ -614,10 +642,48 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         'Run the Director phase to create a scene-by-scene visual plan based on the transcript. This queues a planning job that analyzes the transcript and produces a detailed plan. The plan is then shown to the user as an interactive widget for approval before any generation begins. Only call this after the user has selected a theme and layout.',
         {
           stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio']),
-          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
+          layoutMode: z.enum(['pip', 'stacked']),
           styleGuide: z.string().optional(),
         },
         async ({ stylePreset, layoutMode, styleGuide }) => {
+          // ── Hard guard: reject plan_visuals when user is editing an existing plan ──
+          // If the user message contains "[Edit scenes: ...]" metadata, they tagged
+          // specific scenes for editing — the agent MUST use update_plan instead.
+          const msg = ctx.userMessage || '';
+          if (/\[Edit scenes:/.test(msg)) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                error: 'The user is editing specific scenes in an existing plan. Use update_plan with the planJobId from the "[Edit scenes: ...]" metadata instead of re-running plan_visuals. Extract the planJobId and scene indices from the message prefix.',
+              }) }],
+            };
+          }
+
+          // Also reject if a completed plan already exists for this project,
+          // unless the user explicitly asks for a fresh/new plan.
+          const freshPlanKeywords = /\b(start over|redo|new plan|from scratch|re-?plan|scrap|fresh plan)\b/i;
+          if (!freshPlanKeywords.test(msg)) {
+            const existingPlan = await db.query.jobs.findFirst({
+              where: and(
+                eq(jobs.projectId, ctx.projectId),
+                eq(jobs.type, 'plan-visuals'),
+                eq(jobs.status, 'complete'),
+              ),
+              orderBy: desc(jobs.createdAt),
+              columns: { id: true, planData: true },
+            });
+            // Only block if the existing plan has usable scene data.
+            // Ghost plans (complete but empty planData) should not block fresh creation.
+            const planData = existingPlan?.planData as { scenes?: { scenes?: unknown[] } } | null;
+            const hasScenes = Array.isArray(planData?.scenes?.scenes) && planData!.scenes!.scenes!.length > 0;
+            if (existingPlan && hasScenes) {
+              return {
+                content: [{ type: 'text' as const, text: JSON.stringify({
+                  error: `A completed plan already exists (planJobId: ${existingPlan.id}). DO NOT output any text about this error to the user. Instead, silently choose ONE action: (1) call start_generation with this planJobId if the user wants to generate/retry, or (2) call update_plan with this planJobId if the user wants changes. NEVER tell the user about database records or ask them to delete anything.`,
+                }) }],
+              };
+            }
+          }
+
           const project = await db.query.projects.findFirst({
             where: eq(projects.id, ctx.projectId),
           });
@@ -637,14 +703,10 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           // Always generate at full canvas dimensions
           const dimensions = { width: canvasWidth, height: canvasHeight };
 
-          // Compute per-displayMode effective dimensions for pip scenes
+          // Compute per-displayMode effective dimensions for default scenes
           let pipEffective = { width: canvasWidth, height: canvasHeight };
-          if (!isAudioProject) {
-            if (layoutMode === 'split-horizontal') {
-              pipEffective = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
-            } else if (layoutMode === 'split-vertical') {
-              pipEffective = { width: Math.round(canvasWidth / 2), height: canvasHeight };
-            }
+          if (!isAudioProject && layoutMode === 'stacked') {
+            pipEffective = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
           }
 
           const [job] = await db
@@ -660,7 +722,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             projectId: ctx.projectId,
             jobId: job.id,
             stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
-            layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
+            layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'stacked',
             dimensions,
             pipEffective,
             styleGuide,
@@ -747,7 +809,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         {
           planJobId: z.string(),
           stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio']),
-          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
+          layoutMode: z.enum(['pip', 'stacked']),
         },
         async ({ planJobId, stylePreset, layoutMode }) => {
           // Hard gate: refuse if plan was just shown this turn (user hasn't had a chance to approve)
@@ -798,14 +860,10 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           // Always generate at full canvas dimensions
           const dimensions = { width: canvasWidth, height: canvasHeight };
 
-          // Compute per-displayMode effective dimensions for pip scenes
+          // Compute per-displayMode effective dimensions for default scenes
           let pipEffective = { width: canvasWidth, height: canvasHeight };
-          if (!isAudioProject) {
-            if (layoutMode === 'split-horizontal') {
-              pipEffective = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
-            } else if (layoutMode === 'split-vertical') {
-              pipEffective = { width: Math.round(canvasWidth / 2), height: canvasHeight };
-            }
+          if (!isAudioProject && layoutMode === 'stacked') {
+            pipEffective = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
           }
 
           const [job] = await db
@@ -821,7 +879,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             projectId: ctx.projectId,
             jobId: job.id,
             stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
-            layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
+            layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'stacked',
             dimensions,
             pipEffective,
             planJobId,
@@ -830,13 +888,27 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual generation from approved plan...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          await pollJobProgress(job.id, ctx, { jobType: 'generate-visuals', initialPercent: 5 });
+          const pollResult = await pollJobProgress(job.id, ctx, { jobType: 'generate-visuals', initialPercent: 5 });
 
+          if (pollResult.status === 'complete') {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                jobId: job.id,
+                status: 'complete',
+                message: 'Visual generation complete! The visuals are ready.',
+              }) }],
+            };
+          }
+
+          // Failed/timeout/aborted — tell the agent so it can inform the user
+          const failedJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.id) });
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
               jobId: job.id,
-              status: 'queued',
-              message: 'Visual generation started from approved plan. Progress will stream in the chat.',
+              status: 'failed',
+              error: failedJob?.error || 'Generation failed',
+              message: 'Visual generation failed. The plan is still saved — user can ask to retry.',
+              planJobId,
             }) }],
           };
         },
@@ -844,9 +916,9 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
       tool(
         'edit_visuals',
-        'Make a targeted edit to existing visuals. Can target a specific scene or the entire composition. Use this when the user wants to change something about existing visuals. Write a detailed prompt that explains WHAT the user wants changed and WHY — include what the speaker is saying in that section so the editor understands the content context.',
+        'Make a targeted edit to existing visuals. Can target a specific scene or the entire composition. Use this when the user wants to change something about existing visuals. Write a detailed prompt that explains WHAT the user wants changed and WHY — include what the speaker is saying in that section so the editor understands the content context. IMPORTANT: If the user provides raw content (SVG markup, code, CSS, colors, specific text), you MUST include it VERBATIM in the prompt — do NOT summarize or paraphrase user-provided content.',
         {
-          prompt: z.string().describe('Detailed edit instructions including: what to change, what the speaker is saying in the relevant section, and what the visuals should convey'),
+          prompt: z.string().describe('Detailed edit instructions. MUST include any user-provided raw content (SVGs, code, CSS, colors) verbatim — never summarize user-provided content'),
           sceneId: z.number().optional(),
           elementName: z.string().optional(),
         },
@@ -911,12 +983,30 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             })
             .returning();
 
+          // Append the raw user message so the worker has original content
+          // (SVGs, code, etc.) even if the agent summarized in its prompt.
+          // Cap at 8000 chars to avoid prompt-too-long in the worker.
+          const rawMsg = (ctx.userMessage || '').slice(0, 8000);
+          const fullPrompt = rawMsg && !prompt.includes(rawMsg)
+            ? `${prompt}\n\n--- ORIGINAL USER MESSAGE ---\n${rawMsg}`
+            : prompt;
+
+          // Resolve positional sceneId to sourceSceneId so the worker targets
+          // the correct scenes/SceneN.tsx file even after timeline splits
+          let targetSceneId = sceneId;
+          if (sceneId && visual.timestamps) {
+            const ts = (visual.timestamps as Array<{ sourceSceneId?: number }>)[sceneId - 1];
+            if (ts?.sourceSceneId) {
+              targetSceneId = ts.sourceSceneId;
+            }
+          }
+
           await queueEditVisualsJob({
             projectId: ctx.projectId,
             jobId: job.id,
             compositionId: visual.compositionId,
-            prompt,
-            sceneId,
+            prompt: fullPrompt,
+            sceneId: targetSceneId,
             elementName,
             transcript: transcriptText,
             scenePlan,
@@ -925,13 +1015,26 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting edit...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          await pollJobProgress(job.id, ctx, { jobType: 'edit-visuals', initialPercent: 5 });
+          const editPollResult = await pollJobProgress(job.id, ctx, { jobType: 'edit-visuals', initialPercent: 5 });
 
+          if (editPollResult.status === 'complete') {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                jobId: job.id,
+                status: 'complete',
+                message: 'Edit complete! The visuals have been updated.',
+              }) }],
+            };
+          }
+
+          // Failed/timeout/aborted — tell the agent so it can retry
+          const failedEditJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.id) });
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
               jobId: job.id,
-              status: 'queued',
-              message: 'Edit job started. Progress will stream in the chat.',
+              status: 'failed',
+              error: failedEditJob?.error || 'Edit failed',
+              message: 'Visual edit failed. User can ask to retry.',
             }) }],
           };
         },

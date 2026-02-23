@@ -6,7 +6,7 @@
 'use client';
 
 import React from 'react';
-import { AbsoluteFill, Sequence, Video, Audio, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Sequence, Video, Audio, useCurrentFrame, useVideoConfig } from 'remotion';
 import {
   resolveAnimation,
   isAnimationConfig,
@@ -73,6 +73,22 @@ function calculateVideoTransform(
   }
 
   return { scale: baseScale, translateX, translateY };
+}
+
+// Calculate video transform to achieve "cover" behavior for an arbitrary container
+function calculateCoverTransform(
+  sourceWidth: number,
+  sourceHeight: number,
+  containerWidth: number,
+  containerHeight: number,
+) {
+  const scale = Math.max(containerWidth / sourceWidth, containerHeight / sourceHeight);
+  const scaledWidth = sourceWidth * scale;
+  const scaledHeight = sourceHeight * scale;
+  // Center the scaled video within the container
+  const translateX = (containerWidth - scaledWidth) / 2;
+  const translateY = (containerHeight - scaledHeight) / 2;
+  return { scale, translateX, translateY };
 }
 
 // Helper to build PiP container style from settings
@@ -365,9 +381,11 @@ function findNextVisualItem(
 // Get the effective layout mode for an item ('gap' if null, otherwise its displayMode)
 function getEffectiveLayout(item: TimelineItem | null, isSplitMode: boolean): string {
   if (!item) return 'gap';
-  const dm = (item.data as VisualItemData)?.displayMode ?? 'pip';
-  // In split mode, 'pip' becomes 'split' for layout comparison purposes
-  if (isSplitMode && dm === 'pip') return 'split';
+  const rawDm = (item.data as VisualItemData)?.displayMode;
+  // Normalize legacy 'pip' → 'default'
+  const dm = (!rawDm || (rawDm as string) === 'pip') ? 'default' : rawDm;
+  // In stacked mode, 'default' becomes 'split' for layout comparison purposes
+  if (isSplitMode && dm === 'default') return 'split';
   return dm;
 }
 
@@ -448,7 +466,7 @@ export function Composition() {
 
   // For non-audio projects with visuals, delegate to DynamicLayoutComposition
   // which switches compositing mode per-frame based on each item's displayMode.
-  // This supports pip, split-horizontal, and split-vertical layout modes.
+  // This supports pip and stacked layout modes.
   const useDynamicLayout = !isAudioProject && effectiveHasVisuals;
 
   // Calculate styles for the STATIC layout path (audio project or no visuals)
@@ -480,10 +498,9 @@ export function Composition() {
     videoContainerStyle = fullScreenStyle;
     visualContainerStyle = { display: 'none' };
     showVisuals = false;
-  } else if (mode === 'split-horizontal' || mode === 'split-vertical') {
-    // Split mode: both side by side
-    const isHorizontal = mode === 'split-horizontal';
-    const styles = buildSplitStyles(split, isHorizontal);
+  } else if (mode === 'stacked') {
+    // Stacked mode: visuals top, video bottom
+    const styles = buildSplitStyles(split, true /* always horizontal for stacked */);
     videoContainerStyle = styles.videoStyle;
     visualContainerStyle = styles.visualsStyle;
   } else {
@@ -527,7 +544,7 @@ export function Composition() {
             fps={fps}
             hasSeparateAudio={hasSeparateAudio}
             transform={transform}
-            useSimpleRender={usePiPMode || mode === 'split-horizontal' || mode === 'split-vertical'}
+            useSimpleRender={usePiPMode || mode === 'stacked'}
           />
         </div>
       )}
@@ -677,7 +694,7 @@ function VisualSequences({
   );
 }
 
-/** Renders video item Sequences with crop/pan or simple cover mode */
+/** Renders video item Sequences with crop/pan or cover transform */
 function VideoSequences({
   videoItems,
   fps,
@@ -794,8 +811,8 @@ interface DynamicLayoutProps {
  * On each frame it looks up the active visual item and picks the
  * compositing mode from `item.data.displayMode`:
  *   - gap (no item)   → speaker video fullscreen
- *   - 'pip'           → pip mode: visual fullscreen + video as PiP bubble
- *                        split modes: side-by-side layout (top/bottom or left/right)
+ *   - 'default'       → pip mode: visual fullscreen + video as PiP bubble
+ *                        stacked mode: side-by-side layout (top/bottom)
  *   - 'fullscreen'    → visual fullscreen, video hidden (all layouts)
  *   - 'overlay'       → video fullscreen + visual on top at 0.7 opacity (all layouts)
  *
@@ -820,10 +837,12 @@ function DynamicLayoutComposition({
   // Determine the active visual item at the current time
   const activeItem = findActiveVisualItem(visualItems, currentTimeMs);
   const activeData = activeItem ? (activeItem.data as VisualItemData) : null;
-  const displayMode = activeData?.displayMode ?? 'pip';
+  const rawDisplayMode = activeData?.displayMode;
+  // Normalize legacy 'pip' → 'default'
+  const displayMode = (!rawDisplayMode || (rawDisplayMode as string) === 'pip') ? 'default' : rawDisplayMode;
 
   // Determine previous/next items and whether the layout actually changes
-  const isSplitMode = mode === 'split-horizontal' || mode === 'split-vertical';
+  const isSplitMode = mode === 'stacked';
   const currentLayout = getEffectiveLayout(activeItem, isSplitMode);
   const prevItem = activeItem ? findPreviousVisualItem(visualItems, activeItem) : null;
   const prevLayout = activeItem ? getEffectiveLayout(
@@ -912,23 +931,22 @@ function DynamicLayoutComposition({
 
   // Build container styles based on the current display mode
   const isGap = !activeItem;
-  const showVideoLayer = isGap || displayMode === 'pip' || displayMode === 'overlay';
+  const showVideoLayer = isGap || displayMode === 'default' || displayMode === 'overlay';
   const showVisualLayer = !isGap;
   const hideVideoCompletely = !isGap && displayMode === 'fullscreen';
 
-  // For split modes, displayMode 'pip' means "use the split layout" (the default compositing)
-  const useSplitLayout = isSplitMode && displayMode === 'pip' && !isGap;
+  // For stacked mode, displayMode 'default' means "use the stacked layout"
+  const useSplitLayout = isSplitMode && displayMode === 'default' && !isGap;
 
   // Video layer style
   let videoLayerStyle: React.CSSProperties;
   let visualLayerStyle: React.CSSProperties;
 
   if (useSplitLayout) {
-    // Split layout: video and visuals side-by-side
-    // Animate layout from fullscreen → split during enter, split → fullscreen during exit
-    const isHorizontal = mode === 'split-horizontal';
+    // Stacked layout: video and visuals top/bottom
+    // Animate layout from fullscreen → stacked during enter, stacked → fullscreen during exit
     const layoutProgress = Math.min(layoutEnterProgress, 1 - layoutExitProgress);
-    const styles = buildAnimatedSplitStyles(split, isHorizontal, layoutProgress);
+    const styles = buildAnimatedSplitStyles(split, true /* always horizontal for stacked */, layoutProgress);
     videoLayerStyle = styles.videoStyle;
     visualLayerStyle = {
       ...styles.visualsStyle,
@@ -945,8 +963,8 @@ function DynamicLayoutComposition({
       transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
       transformOrigin: 'center center',
     };
-  } else if (displayMode === 'pip') {
-    // Video as PiP bubble on top of visual
+  } else if (displayMode === 'default') {
+    // Video as PiP bubble on top of visual (PiP layout mode)
     videoLayerStyle = buildPiPStyle(pip);
     visualLayerStyle = {
       ...fullScreenStyle,
@@ -965,56 +983,93 @@ function DynamicLayoutComposition({
     };
   }
 
-  // For overlay mode, visuals sit on top of video with screen blend
-  // so dark/black background areas become transparent
+  // For overlay mode, visuals sit on top of video with real alpha compositing.
+  // The generated index.tsx conditionally removes Background during overlay frames,
+  // so the composition is genuinely transparent. FFmpeg export still uses screen blend
+  // for H.264 compositing (render.ts). The face mask below is a safety net against
+  // AI-generated scenes that place elements over the speaker's face.
+  const overlayOpacity = activeData?.overlayOpacity ?? 0.85;
+  const speakerBbox = activeData?.speakerBbox;
+  // Build a CSS mask that fades out the overlay over the speaker's face area.
+  // Uses a radial gradient: transparent at the face center, opaque everywhere else.
+  // This is a safety net — even if the AI places elements on the face, they'll be masked.
+  let faceMask: string | undefined;
+  if (speakerBbox && displayMode === 'overlay') {
+    const cx = (speakerBbox.x + speakerBbox.w / 2) * 100;
+    const cy = (speakerBbox.y + speakerBbox.h / 2) * 100;
+    // Ellipse radii: face bbox size + 10% buffer for breathing room
+    const rx = (speakerBbox.w / 2 + 0.05) * 100;
+    const ry = (speakerBbox.h / 2 + 0.05) * 100;
+    faceMask = `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, transparent 60%, black 100%)`;
+  }
   const overlayVisualStyle: React.CSSProperties = {
     ...fullScreenStyle,
-    opacity: transitionOpacity,
-    mixBlendMode: 'screen',
+    opacity: transitionOpacity * overlayOpacity,
     transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
     transformOrigin: 'center center',
     zIndex: 5,
+    // No blend mode — overlay compositions use real alpha transparency.
+    // index.tsx conditionally removes Background during overlay frames.
+    // FFmpeg export still uses blend=all_mode=screen for H.264 compositing.
+    ...(faceMask ? {
+      WebkitMaskImage: faceMask,
+      maskImage: faceMask,
+    } : {}),
   };
 
   // Determine whether the video should use simple (cover) or crop/pan rendering
-  // PiP bubble and split modes use simple render; fullscreen/overlay/gap use crop/pan
-  const videoUseSimpleRender = !isGap && displayMode === 'pip';
+  // PiP mode uses simple render (objectFit: cover); fullscreen/overlay/gap use crop/pan
+  const { width: compWidth, height: compHeight } = useVideoConfig();
 
-  // No contain-fit scaling needed — visuals are generated at full canvas dimensions
-  // with per-scene effective areas. The container clips via overflow:hidden.
+  // For stacked mode, compute a cover transform for the video container so the
+  // speaker video fills the bottom half without gaps. We use the transform-based
+  // rendering path (same as crop/pan) since objectFit: cover is unreliable inside
+  // Remotion's flex-based AbsoluteFill containers.
+  let videoUseSimpleRender: boolean;
+  let videoTransform = transform;
+
+  if (useSplitLayout && videoItems.length > 0) {
+    // Stacked mode: use transform-based cover for the stacked container
+    videoUseSimpleRender = false;
+    const containerW = compWidth;
+    const containerH = Math.round(compHeight * (100 - split.ratio) / 100);
+    const firstVideoData = videoItems[0].data as VideoItemData;
+    if (firstVideoData.width > 0 && firstVideoData.height > 0) {
+      videoTransform = calculateCoverTransform(
+        firstVideoData.width, firstVideoData.height,
+        containerW, containerH,
+      );
+    }
+  } else {
+    videoUseSimpleRender = !isGap && displayMode === 'default';
+  }
 
   return (
     <>
-      {/* Visual layer (behind video for pip/split, on top for overlay) */}
+      {/* Visual layer (behind video for pip/split) */}
       {displayMode !== 'overlay' && showVisualLayer && (
         <div style={visualLayerStyle}>
-          <VisualSequences
-            visualItems={visualItems}
-            fps={fps}
-          />
+          <VisualSequences visualItems={visualItems} fps={fps} />
         </div>
       )}
 
       {/* Video layer */}
       {showVideoLayer && !hideVideoCompletely && (
-        <div style={videoLayerStyle}>
+        <div style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}>
           <VideoSequences
             videoItems={videoItems}
             fps={fps}
             hasSeparateAudio={hasSeparateAudio}
-            transform={transform}
+            transform={videoTransform}
             useSimpleRender={videoUseSimpleRender}
           />
         </div>
       )}
 
-      {/* Overlay mode: visual on top of video at reduced opacity */}
+      {/* Overlay mode: visual on top of video with real alpha compositing */}
       {displayMode === 'overlay' && showVisualLayer && (
         <div style={overlayVisualStyle}>
-          <VisualSequences
-            visualItems={visualItems}
-            fps={fps}
-          />
+          <VisualSequences visualItems={visualItems} fps={fps} />
         </div>
       )}
     </>

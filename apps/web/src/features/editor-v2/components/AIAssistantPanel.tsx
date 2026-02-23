@@ -13,7 +13,7 @@ import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw, 
 import { api } from '@/lib/api';
 import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
-import { useVideoSettings, useEditorActions, useAIEditingContext, useAIEditRequested, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
+import { useVideoSettings, useEditorActions, useAIEditingContext, useAIEditRequested, usePendingAIMessage, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
 import { ThemePicker, LayoutPicker, ScenePlanCard, ConfirmationWidget, ChoiceWidget } from './agent-widgets';
 
@@ -41,7 +41,7 @@ interface WidgetBlock {
       layout?: Record<string, unknown> | null;
       frames?: [number, number] | null;
       icons?: string[];
-      displayMode?: 'pip' | 'fullscreen' | 'overlay';
+      displayMode?: 'default' | 'fullscreen' | 'overlay';
       transition?: {
         enter: { type: string; durationMs: number };
         exit: { type: string; durationMs: number };
@@ -130,6 +130,40 @@ const PHASE_ORDER: Record<string, string[]> = {
   'generate-visuals': ['preparing', 'generating', 'validating', 'uploading'],
   'edit-visuals': ['preparing', 'editing', 'validating'],
 };
+
+/** Map raw backend error messages to user-friendly text */
+function sanitizeErrorMessage(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (lower.includes('network error') || lower.includes('failed to fetch') || lower.includes('fetch failed') || lower.includes('connection lost') || lower.includes('networkerror')) {
+    return 'Connection lost. Please check your network and try again.';
+  }
+  if (lower.includes('prompt is too long')) {
+    return 'This project has too many files for a single edit. Try targeting a specific scene instead.';
+  }
+  if (lower.includes('timed out') || lower.includes('timeout')) {
+    return 'The operation took too long. Please try again with a simpler request.';
+  }
+  if (lower.includes('cancelled') || lower.includes('canceled')) {
+    return 'Generation was cancelled.';
+  }
+  if (lower.includes('crashed') || lower.includes('oom') || lower.includes('out of memory')) {
+    return 'The AI ran into a resource limit. Try a simpler edit or target a specific scene.';
+  }
+  if (lower.includes('exited with code') || lower.includes('process exited')) {
+    return 'Something went wrong during generation. Please try again.';
+  }
+  if (lower.includes('authentication') || lower.includes('unauthorized') || lower.includes('credentials')) {
+    return 'AI service authentication failed. Please contact support.';
+  }
+  if (lower.includes('rate limit') || lower.includes('429')) {
+    return 'Too many requests. Please wait a moment and try again.';
+  }
+  // Don't expose internal details — cap at a reasonable length
+  if (raw.length > 120) {
+    return 'Something went wrong. Please try again or try a different approach.';
+  }
+  return raw;
+}
 
 function getStepStatus(currentPhase: string | undefined, jobType: string, stepIndex: number): 'done' | 'active' | 'pending' {
   if (currentPhase === 'done') return 'done';
@@ -221,7 +255,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const aiContext = useAIEditingContext();
   const selectedTimeRange = useSelectedTimeRange();
   const aiEditRequested = useAIEditRequested();
-  const { reloadVisuals, setSelectedScene, setSelectedElement, setSelectedTimeRange, clearSelection } = useEditorActions();
+  const pendingAIMessage = usePendingAIMessage();
+  const { reloadVisuals, setSelectedScene, setSelectedElement, setSelectedTimeRange, clearSelection, setPendingAIMessage } = useEditorActions();
 
   // WebSocket for real-time job progress (survives page refresh, unlike SSE)
   const { subscribeToJob } = useJobWebSocket(projectId, {
@@ -241,6 +276,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           if (m.id !== last.id) return m;
           const blocks = [...m.content];
           const progIdx = blocks.findIndex((b) => b.type === 'progress');
+          // Don't overwrite an errored progress block with a stale update
+          if (progIdx >= 0 && (blocks[progIdx] as ProgressBlock).error) return m;
           const progressBlock: ProgressBlock = {
             type: 'progress',
             percent: data.progress,
@@ -261,6 +298,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       progressSourceRef.current = null;
       setMessages((prev) => {
         // Mark progress blocks as completed (100% + green bar) instead of removing them
+        // Skip errored progress blocks — don't overwrite failure with "Done!"
         const updated = prev.map((m) => {
           if (m.role !== 'assistant') return m;
           const hasProgress = m.content.some((b) => b.type === 'progress');
@@ -268,7 +306,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           return {
             ...m,
             content: m.content.map((b) =>
-              b.type === 'progress'
+              b.type === 'progress' && !b.error
                 ? { ...b, percent: 100, message: 'Done!' }
                 : b,
             ),
@@ -298,7 +336,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           // Mark progress as error state instead of removing
           const blocks = m.content.map((b) =>
             b.type === 'progress'
-              ? { ...b, error: true, message: data.error || 'Generation failed' }
+              ? { ...b, error: true, message: sanitizeErrorMessage(data.error || 'Generation failed') }
               : b,
           );
           return { ...m, content: blocks };
@@ -342,7 +380,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               return {
                 ...m,
                 content: m.content.map(b =>
-                  b.type === 'progress' ? { ...b, percent: 100, message: 'Done!' } : b,
+                  b.type === 'progress' && !b.error ? { ...b, percent: 100, message: 'Done!' } : b,
                 ),
               };
             });
@@ -371,7 +409,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 ...m,
                 content: m.content.map(b =>
                   b.type === 'progress'
-                    ? { ...b, error: true, message: job.error || 'Generation failed' }
+                    ? { ...b, error: true, message: sanitizeErrorMessage(job.error || 'Generation failed') }
                     : b,
                 ),
               };
@@ -406,6 +444,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             if (m.id !== last.id) return m;
             const blocks = [...m.content];
             const progIdx = blocks.findIndex(b => b.type === 'progress');
+            // Don't overwrite an errored progress block with a stale update
+            if (progIdx >= 0 && (blocks[progIdx] as ProgressBlock).error) return m;
             const progressBlock: ProgressBlock = {
               type: 'progress',
               percent: effectivePercent,
@@ -617,6 +657,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           const blocks = [...m.content];
 
           switch (eventType) {
+            case 'reset': {
+              // Server is retrying after a failed session resume — clear partial text
+              blocks.length = 0;
+              break;
+            }
+
             case 'text': {
               const textData = data as { text: string };
               const last = blocks[blocks.length - 1];
@@ -668,7 +714,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               const progressBlock: ProgressBlock = {
                 type: 'progress',
                 percent: progressData.percent,
-                message: progressData.message,
+                message: progressData.error ? sanitizeErrorMessage(progressData.message) : progressData.message,
                 error: progressData.error,
                 phase: progressData.phase,
                 jobType: progressData.jobType,
@@ -686,8 +732,15 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
             case 'error': {
               const errorData = data as { message?: string; error?: string };
-              const errorText = errorData.message || errorData.error || 'Something went wrong';
-              blocks.push({ type: 'text', text: `\n\nError: ${errorText}` });
+              const errorText = sanitizeErrorMessage(errorData.message || errorData.error || 'Something went wrong');
+              // Mark existing progress block as errored instead of adding a text block
+              const errProgIdx = blocks.findIndex((b) => b.type === 'progress');
+              if (errProgIdx >= 0) {
+                blocks[errProgIdx] = { ...blocks[errProgIdx], error: true, message: errorText };
+              } else {
+                // No progress block — fall back to text
+                blocks.push({ type: 'text', text: `\n\nError: ${errorText}` });
+              }
               break;
             }
 
@@ -711,6 +764,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         setEtaSeconds(null);
 
         // Mark any remaining progress block as completed instead of removing it
+        // Skip errored progress blocks — don't overwrite failure with "Done!"
         setMessages((prev) =>
           prev.map((m) => {
             if (m.role !== 'assistant') return m;
@@ -719,7 +773,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             return {
               ...m,
               content: m.content.map((b) =>
-                b.type === 'progress'
+                b.type === 'progress' && !b.error
                   ? { ...b, percent: 100, message: 'Done!', phase: 'done' }
                   : b,
               ),
@@ -739,6 +793,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       if (eventType === 'error') {
         setIsStreaming(false);
+        setActiveJobId(null);
         progressSourceRef.current = null;
         etaInfoRef.current = null;
         setEtaSeconds(null);
@@ -894,6 +949,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               if (lastAssistant) {
                 lastAssistant.content = [...lastAssistant.content, progressBlock];
               }
+            } else {
+              // No active job — connection dropped and backend isn't running anything.
+              // Show an error so the user knows the stream was interrupted.
+              const recoveryError = sanitizeErrorMessage(
+                err instanceof Error ? err.message : 'Connection lost',
+              );
+              const lastAssistant = [...loaded].reverse().find((m) => m.role === 'assistant');
+              if (lastAssistant) {
+                lastAssistant.content = [
+                  ...lastAssistant.content,
+                  { type: 'progress', percent: 0, message: recoveryError, error: true } as ProgressBlock,
+                ];
+              }
+              setFailedMessageId(lastAssistant?.id ?? null);
+              lastFailedPayload.current = { message: fullMessage, widgetResponse };
             }
 
             setMessages(loaded);
@@ -908,10 +978,22 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
         const errorText = isTimeout
           ? 'Connection timed out. Your progress has been saved — try sending another message.'
-          : (err instanceof Error ? err.message : 'Connection failed');
+          : sanitizeErrorMessage(err instanceof Error ? err.message : 'Connection failed');
         setMessages((prev) =>
           prev.map((m) => {
             if (m.id !== assistantId) return m;
+            // Mark progress block as errored if one exists, otherwise add error text
+            const hasProgress = m.content.some((b) => b.type === 'progress');
+            if (hasProgress) {
+              return {
+                ...m,
+                content: m.content.map((b) =>
+                  b.type === 'progress'
+                    ? { ...b, error: true, message: errorText }
+                    : b,
+                ),
+              };
+            }
             return {
               ...m,
               content: [...m.content, { type: 'text' as const, text: `\n\nError: ${errorText}` }],
@@ -1068,6 +1150,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       });
     }
   }, [isStreaming, _executeMessage]);
+
+  // Auto-send pending AI message (e.g. from "Change & AI Adapt" context menu)
+  useEffect(() => {
+    if (pendingAIMessage && !isStreaming && historyLoaded) {
+      setPendingAIMessage(null);
+      sendMessage(pendingAIMessage);
+    }
+  }, [pendingAIMessage, isStreaming, historyLoaded, sendMessage, setPendingAIMessage]);
 
   // -----------------------------------------------------------------------
   // Queue management
@@ -1245,6 +1335,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             scenes={widget.scenes || []}
             scenePlanMarkdown={widget.scenePlanMarkdown}
             metadata={widget.metadata}
+            planJobId={planJobId}
             onApprove={(iconSelections) => handleWidgetResponse(widget.id, {
               approved: true,
               planJobId,
@@ -1260,6 +1351,41 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               });
               // Focus the input so the user can type their edit instructions
               textareaRef.current?.focus();
+            }}
+            onScenesUpdate={async (pjId, updatedScenes) => {
+              try {
+                const result = await api.updatePlanScenes(
+                  projectId,
+                  pjId,
+                  updatedScenes.map((s, i) => ({
+                    id: i + 1,
+                    title: s.title,
+                    description: s.description,
+                    displayMode: s.displayMode || 'default',
+                  })),
+                );
+                if (result.success && result.scenes) {
+                  // Cast displayMode from string to the union type expected by the widget
+                  const typedScenes = result.scenes.map((s) => ({
+                    ...s,
+                    displayMode: (s.displayMode || 'default') as 'default' | 'fullscreen' | 'overlay',
+                  }));
+                  // Update the widget's scenes in local message state
+                  setMessages((prev) =>
+                    prev.map((m) => ({
+                      ...m,
+                      content: m.content.map((block) => {
+                        if (block.type === 'widget' && block.widget.id === widget.id) {
+                          return { ...block, widget: { ...block.widget, scenes: typedScenes } };
+                        }
+                        return block;
+                      }),
+                    }))
+                  );
+                }
+              } catch (err) {
+                console.error('Failed to update plan scenes:', err);
+              }
             }}
             disabled={hasResponded || isStreaming}
             approved={
@@ -1330,18 +1456,20 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-red-700">
-                    {block.message || 'Something went wrong'}
+                    {sanitizeErrorMessage(block.message || 'Something went wrong')}
                   </div>
                   <div className="flex gap-2 mt-2">
                     <button
-                      onClick={handleRetry}
-                      className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors"
+                      onClick={() => sendMessage('retry')}
+                      disabled={isStreaming}
+                      className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50"
                     >
                       Retry
                     </button>
                     <button
                       onClick={() => sendMessage('Try a different approach for this')}
-                      className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
+                      disabled={isStreaming}
+                      className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
                     >
                       Try different approach
                     </button>
