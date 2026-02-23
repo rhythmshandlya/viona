@@ -16,15 +16,17 @@ Currently, they are never used because:
 
 ## Design Philosophy
 
-**Templates are a style reference library, not a component library.**
+**Templates are reusable starting points AND style references (shadcn model).**
 
-They serve as concrete examples of the studio theme — showing the agent the color palette, card styles, DotGrid pattern, spring configs, typography, and animation patterns. The agent:
-- Browses templates to **absorb the theme aesthetic**
-- Uses a template as a starting point when it fits naturally
-- Creates fully custom scenes that still feel consistent with the theme
-- Is **never forced** to use templates — they inform, not constrain
+The primary use case is **direct reuse**: when a template matches a scene (e.g., `stat-counter` for a revenue number), the agent copies it, customizes the data/timing/layout, and ships it. This saves time and produces polished results.
 
-This follows the **shadcn model**: templates are source code you own. Copy, customize, combine, or ignore.
+The secondary use case is **style reference**: even when no template directly matches, browsing template source code teaches the agent what the studio theme looks like — card styles, colors, springs, DotGrid, typography. Custom scenes built after reading templates will feel cohesive with the theme.
+
+The agent should:
+- **Actively try to use templates** when they fit the scene
+- Copy, customize, and combine templates freely (shadcn model — you own the source)
+- Use templates as style reference when building fully custom scenes
+- **Never be forced** into a template that doesn't fit — go custom when needed
 
 ## Architecture
 
