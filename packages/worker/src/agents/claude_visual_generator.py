@@ -109,13 +109,13 @@ if IS_WINDOWS:
             # corrupt cmd.exe parsing even under the limit. Be very aggressive.
             MAX_ARG_LENGTH = 500
 
-            # Arguments that can be long and need file-based passing
-            # NOTE: --append-system-prompt is used when system_prompt has type="preset" with append
+            # Arguments that can be long and need file-based passing via @filepath.
+            # NOTE: Only include args that the Claude CLI supports reading via @filepath.
+            # --mcp-config does NOT support @filepath — passing it breaks MCP init silently.
             long_args = [
                 '--system-prompt',
                 '--append-system-prompt',  # Used with preset + append pattern
                 '--agents',
-                '--mcp-config',
                 '--settings',
                 '--json-schema',
             ]
@@ -153,14 +153,17 @@ def safe_print(msg: str) -> None:
         print(safe_msg)
 
 
-def emit_progress(percent: int, message: str) -> None:
+def emit_progress(percent: int, message: str, meta: dict | None = None) -> None:
     """Emit progress update in a format the TypeScript worker can parse.
 
-    Format: PROGRESS:XX:message
+    Format: PROGRESS:XX:message or PROGRESS:XX:message|{json_metadata}
     The worker parses this to update the job progress bar.
     """
     # Flush immediately so progress appears in real-time
-    print(f"PROGRESS:{percent}:{message}", flush=True)
+    if meta:
+        print(f"PROGRESS:{percent}:{message}|{json.dumps(meta)}", flush=True)
+    else:
+        print(f"PROGRESS:{percent}:{message}", flush=True)
 
 
 def get_claude_cli_path() -> str | None:
@@ -211,6 +214,98 @@ def get_claude_cli_path() -> str | None:
 
 # Get CLI path once at module load
 CLAUDE_CLI_PATH = get_claude_cli_path()
+
+# =============================================================================
+# MCP Server Configuration (pre-installed, invoked via `node` directly)
+# =============================================================================
+
+# Resolve worker package root → node_modules for locally installed MCP servers.
+# We invoke the JS entry-points via `node` directly instead of using .CMD shims,
+# because Claude CLI's subprocess spawn doesn't handle .CMD files on Windows
+# (would need shell:true or cmd.exe /c which the SDK doesn't do).
+_WORKER_PKG_ROOT = Path(__file__).resolve().parent.parent.parent  # packages/worker
+_NODE_MODULES = _WORKER_PKG_ROOT / "node_modules"
+
+# JS entry-points (resolved from each package's bin field)
+_MCP_REMOTE_JS = str(_NODE_MODULES / "mcp-remote" / "dist" / "proxy.js")
+_BETTER_ICONS_JS = str(_NODE_MODULES / "better-icons" / "dist" / "index.js")
+
+
+def build_mcp_servers(workspace: str) -> dict[str, Any]:
+    """Build MCP server configuration using pre-installed local packages.
+
+    All MCP servers are invoked as `node <entry.js>` so they work reliably
+    on Windows without .CMD shim issues. No npx download needed at runtime.
+    """
+    agents_dir = Path(__file__).parent
+    return {
+        "freepik": {
+            "type": "stdio",
+            "command": "node",
+            "args": [
+                _MCP_REMOTE_JS,
+                "https://api.freepik.com/mcp",
+                "--header",
+                f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
+            ],
+        },
+        "better-icons": {
+            "type": "stdio",
+            "command": "node",
+            "args": [_BETTER_ICONS_JS],
+        },
+        "assets": {
+            "type": "stdio",
+            "command": "node",
+            "args": [
+                str(agents_dir / "mcp-servers" / "asset-server.js"),
+                "--workspace", workspace,
+            ],
+            "env": {
+                "UNSPLASH_ACCESS_KEY": os.environ.get("UNSPLASH_ACCESS_KEY", ""),
+                "PEXELS_API_KEY": os.environ.get("PEXELS_API_KEY", ""),
+            },
+        },
+        "viewport": {
+            "type": "stdio",
+            "command": "node",
+            "args": [
+                str(agents_dir / "mcp-servers" / "viewport-server.js"),
+                "--workspace", workspace,
+            ],
+        },
+    }
+
+
+def validate_mcp_servers() -> None:
+    """Validate that all MCP server entry-points exist on startup.
+
+    Raises FileNotFoundError if a required file is missing, so the worker
+    fails fast instead of timing out minutes into a generation job.
+    """
+    checks = {
+        "mcp-remote (proxy.js)": _MCP_REMOTE_JS,
+        "better-icons (index.js)": _BETTER_ICONS_JS,
+    }
+    # Also check that node is available
+    node_path = shutil.which("node")
+    if not node_path:
+        checks["node"] = None  # type: ignore
+
+    missing = []
+    for name, fpath in checks.items():
+        if fpath is None or not Path(fpath).exists():
+            missing.append(f"  {name}: {fpath or '(not found in PATH)'}")
+    if missing:
+        raise FileNotFoundError(
+            "MCP server files missing — run `pnpm install` in packages/worker:\n"
+            + "\n".join(missing)
+        )
+    safe_print(f"[MCP] All server entry-points verified: mcp-remote, better-icons, node")
+
+
+# Validate on module load so we fail fast
+validate_mcp_servers()
 
 
 # =============================================================================
@@ -2736,6 +2831,324 @@ class ClaudeVisualGenerator:
         except Exception as e:
             return False, str(e)
 
+    def _validate_scene_plan(self, plan_data: dict, fps: int, total_frames: int) -> dict:
+        """Validate scenes.json constraints and auto-repair violations.
+
+        Checks:
+        1. Scene duration: min 210 frames (7s), max 450 frames (15s)
+        2. Scene contiguity: no gaps between scenes
+        3. Sync point gaps: max 150 frames (5s) between consecutive sync points
+        4. Total coverage: scenes span from 0 to total_frames
+
+        Returns dict with:
+            valid: bool - True if all constraints pass (after repairs)
+            warnings: list[str] - non-fatal issues
+            errors: list[str] - fatal issues that couldn't be auto-repaired
+            repaired: bool - True if scenes were modified
+        """
+        MIN_FRAMES = 210   # 7 seconds
+        MAX_FRAMES = 450   # 15 seconds
+        MAX_SYNC_GAP = 150 # 5 seconds
+
+        scenes = plan_data.get("scenes", [])
+        warnings = []
+        errors = []
+        repaired = False
+
+        if len(scenes) < 2:
+            errors.append("Need at least 2 scenes for storytelling structure")
+            return {"valid": False, "warnings": warnings, "errors": errors, "repaired": False}
+
+        # ── 1. Fix contiguity ──
+        # Sort by start frame, then fix gaps/overlaps
+        for scene in scenes:
+            frames = scene.get("frames", [0, 0])
+            if isinstance(frames, list) and len(frames) == 2:
+                scene["_start"] = frames[0]
+                scene["_end"] = frames[1]
+            else:
+                errors.append(f"Scene {scene.get('id', '?')}: invalid frames format {frames}")
+                return {"valid": False, "warnings": warnings, "errors": errors, "repaired": False}
+
+        scenes.sort(key=lambda s: s["_start"])
+
+        for i in range(1, len(scenes)):
+            prev_end = scenes[i - 1]["_end"]
+            curr_start = scenes[i]["_start"]
+            gap = curr_start - prev_end
+
+            if gap > 0:
+                warnings.append(
+                    f"Scene {scenes[i-1]['id']}→{scenes[i]['id']}: {gap} frame gap "
+                    f"({gap/fps:.1f}s). Auto-fixed by extending scene {scenes[i-1]['id']}."
+                )
+                # Extend previous scene to close the gap
+                scenes[i - 1]["_end"] = curr_start
+                scenes[i - 1]["frames"] = [scenes[i - 1]["_start"], curr_start]
+                repaired = True
+            elif gap < 0:
+                overlap = -gap
+                warnings.append(
+                    f"Scene {scenes[i-1]['id']}→{scenes[i]['id']}: {overlap} frame overlap. "
+                    f"Auto-fixed by trimming scene {scenes[i-1]['id']}."
+                )
+                scenes[i - 1]["_end"] = curr_start
+                scenes[i - 1]["frames"] = [scenes[i - 1]["_start"], curr_start]
+                repaired = True
+
+        # ── 2. Fix total coverage ──
+        if scenes[0]["_start"] != 0:
+            warnings.append(
+                f"Scene 1 starts at frame {scenes[0]['_start']}, not 0. Auto-fixed."
+            )
+            scenes[0]["_start"] = 0
+            scenes[0]["frames"] = [0, scenes[0]["_end"]]
+            repaired = True
+
+        if scenes[-1]["_end"] != total_frames:
+            diff = abs(scenes[-1]["_end"] - total_frames)
+            if diff <= 30:  # Within 1 second — just adjust
+                warnings.append(
+                    f"Last scene ends at {scenes[-1]['_end']}, not {total_frames} "
+                    f"(off by {diff} frames). Auto-fixed."
+                )
+                scenes[-1]["_end"] = total_frames
+                scenes[-1]["frames"] = [scenes[-1]["_start"], total_frames]
+                repaired = True
+            else:
+                warnings.append(
+                    f"Last scene ends at {scenes[-1]['_end']}, total video is {total_frames} "
+                    f"frames (off by {diff} frames). This may need manual review."
+                )
+
+        # ── 3. Check durations and auto-split long scenes ──
+        # Loop until no scene exceeds MAX_FRAMES (splits may produce halves still too long)
+        max_split_passes = 5  # Safety limit
+        for split_pass in range(max_split_passes):
+            split_needed = []
+            for i, scene in enumerate(scenes):
+                duration = scene["_end"] - scene["_start"]
+                if duration > MAX_FRAMES:
+                    split_needed.append(i)
+
+            if not split_needed:
+                break
+
+            new_scenes = []
+            next_id = max(s["id"] for s in scenes) + 1
+
+            for i, scene in enumerate(scenes):
+                if i not in split_needed:
+                    new_scenes.append(scene)
+                    continue
+
+                duration = scene["_end"] - scene["_start"]
+                warnings.append(
+                    f"Scene {scene['id']}: {duration} frames ({duration/fps:.1f}s) — "
+                    f"exceeds {MAX_FRAMES} frames ({MAX_FRAMES/fps:.0f}s). Auto-splitting."
+                )
+
+                # Find the best split point: largest gap between sync points
+                sync_points = sorted(
+                    scene.get("syncPoints", []),
+                    key=lambda sp: sp.get("frame", 0)
+                )
+
+                best_split = scene["_start"] + duration // 2  # Default: midpoint
+
+                if len(sync_points) >= 2:
+                    max_gap = 0
+                    for j in range(1, len(sync_points)):
+                        gap = sync_points[j]["frame"] - sync_points[j - 1]["frame"]
+                        if gap > max_gap:
+                            max_gap = gap
+                            best_split = (sync_points[j - 1]["frame"] + sync_points[j]["frame"]) // 2
+
+                # Ensure both halves meet minimum duration
+                first_half = best_split - scene["_start"]
+                second_half = scene["_end"] - best_split
+
+                if first_half < MIN_FRAMES:
+                    best_split = scene["_start"] + MIN_FRAMES
+                elif second_half < MIN_FRAMES:
+                    best_split = scene["_end"] - MIN_FRAMES
+
+                # Create two scenes from the split
+                first_syncs = [sp for sp in sync_points if sp["frame"] < best_split]
+                second_syncs = [sp for sp in sync_points if sp["frame"] >= best_split]
+
+                scene_a = {**scene}
+                scene_a["frames"] = [scene["_start"], best_split]
+                scene_a["_start"] = scene["_start"]
+                scene_a["_end"] = best_split
+                scene_a["syncPoints"] = first_syncs
+                scene_a["name"] = scene.get("name", f"Scene {scene['id']}") + " (Part 1)"
+                if first_syncs:
+                    scene_a["keySync"] = first_syncs[len(first_syncs) // 2]
+
+                scene_b = {**scene}
+                scene_b["id"] = next_id
+                next_id += 1
+                scene_b["frames"] = [best_split, scene["_end"]]
+                scene_b["_start"] = best_split
+                scene_b["_end"] = scene["_end"]
+                scene_b["syncPoints"] = second_syncs
+                scene_b["name"] = scene.get("name", f"Scene {scene['id']}") + " (Part 2)"
+                if second_syncs:
+                    scene_b["keySync"] = second_syncs[len(second_syncs) // 2]
+
+                new_scenes.append(scene_a)
+                new_scenes.append(scene_b)
+                repaired = True
+
+            scenes = new_scenes
+
+        # Report short scenes (after all splits are done)
+        for scene in scenes:
+            duration = scene["_end"] - scene["_start"]
+            if duration < MIN_FRAMES:
+                warnings.append(
+                    f"Scene {scene['id']}: {duration} frames ({duration/fps:.1f}s) — "
+                    f"below minimum {MIN_FRAMES} frames ({MIN_FRAMES/fps:.0f}s). "
+                    f"Consider merging with adjacent scene."
+                )
+
+        # ── 4. Check sync point gaps within each scene ──
+        for scene in scenes:
+            sync_points = sorted(
+                scene.get("syncPoints", []),
+                key=lambda sp: sp.get("frame", 0)
+            )
+
+            if len(sync_points) < 2:
+                duration = scene["_end"] - scene["_start"]
+                if duration > MAX_SYNC_GAP:
+                    warnings.append(
+                        f"Scene {scene['id']}: only {len(sync_points)} sync point(s) "
+                        f"across {duration} frames ({duration/fps:.1f}s). "
+                        f"Add more sync points for visual variety."
+                    )
+                continue
+
+            # Check gaps between consecutive sync points
+            for j in range(1, len(sync_points)):
+                gap = sync_points[j]["frame"] - sync_points[j - 1]["frame"]
+                if gap > MAX_SYNC_GAP:
+                    warnings.append(
+                        f"Scene {scene['id']}: {gap} frame gap ({gap/fps:.1f}s) "
+                        f"between sync '{sync_points[j-1].get('word', '?')}' "
+                        f"and '{sync_points[j].get('word', '?')}'. "
+                        f"Consider splitting this scene or adding intermediate sync points."
+                    )
+
+            # Also check gap from scene start to first sync, and last sync to scene end
+            first_gap = sync_points[0]["frame"] - scene["_start"]
+            if first_gap > MAX_SYNC_GAP:
+                warnings.append(
+                    f"Scene {scene['id']}: {first_gap} frames ({first_gap/fps:.1f}s) "
+                    f"before first sync point. Scene start may feel empty."
+                )
+
+            last_gap = scene["_end"] - sync_points[-1]["frame"]
+            if last_gap > MAX_SYNC_GAP:
+                warnings.append(
+                    f"Scene {scene['id']}: {last_gap} frames ({last_gap/fps:.1f}s) "
+                    f"after last sync point. Scene end may feel stale."
+                )
+
+        # ── Clean up internal fields and write back ──
+        for scene in scenes:
+            scene.pop("_start", None)
+            scene.pop("_end", None)
+
+        if repaired:
+            plan_data["scenes"] = scenes
+
+        valid = len(errors) == 0
+        return {
+            "valid": valid,
+            "warnings": warnings,
+            "errors": errors,
+            "repaired": repaired,
+        }
+
+    def _copy_studio_templates(self) -> int:
+        """Copy studio-theme templates from packages/templates into the workspace.
+
+        Copies src/templates/{slug}/ dirs into workspace/src/.templates/{slug}/
+        for any template whose meta.json tags include 'studio-theme'.
+
+        Returns number of templates copied.
+        """
+        templates_pkg = Path(__file__).parent.parent.parent / "templates" / "src" / "templates"
+        if not templates_pkg.exists():
+            print(f"[ClaudeGenerator] Templates package not found at {templates_pkg}")
+            return 0
+
+        target_dir = self.workspace / "src" / ".templates"
+        if target_dir.exists():
+            shutil.rmtree(target_dir)
+        target_dir.mkdir(parents=True)
+
+        copied = 0
+        for template_dir in sorted(templates_pkg.iterdir()):
+            if not template_dir.is_dir():
+                continue
+            meta_path = template_dir / "meta.json"
+            if not meta_path.exists():
+                continue
+            try:
+                with open(meta_path, encoding="utf-8") as f:
+                    meta = json.load(f)
+                if "studio-theme" not in meta.get("tags", []):
+                    continue
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+            dest = target_dir / template_dir.name
+            shutil.copytree(template_dir, dest)
+            copied += 1
+
+        print(f"[ClaudeGenerator] Copied {copied} studio templates to {target_dir}")
+        return copied
+
+    def _validate_interpolate_clamping(self) -> list[str]:
+        """Check all scene files for interpolate() calls missing extrapolateLeft/Right: 'clamp'.
+
+        Returns list of warning strings. Empty list = all good.
+        """
+        warnings = []
+        scenes_dir = self.src_dir / "scenes"
+        if not scenes_dir.exists():
+            return warnings
+
+        # Match interpolate( calls and check for missing clamp options
+        # Pattern: find interpolate(...) calls, then check the options object
+        interpolate_call_re = re.compile(
+            r'interpolate\s*\([^)]*\{([^}]*)\}[^)]*\)',
+            re.DOTALL
+        )
+
+        for scene_file in sorted(scenes_dir.glob("Scene*.tsx")):
+            content = scene_file.read_text(encoding="utf-8", errors="replace")
+            for match in interpolate_call_re.finditer(content):
+                opts = match.group(1)
+                has_left = "extrapolateLeft" in opts
+                has_right = "extrapolateRight" in opts
+                if not has_left or not has_right:
+                    # Find line number
+                    line_num = content[:match.start()].count('\n') + 1
+                    missing = []
+                    if not has_left:
+                        missing.append("extrapolateLeft: 'clamp'")
+                    if not has_right:
+                        missing.append("extrapolateRight: 'clamp'")
+                    warnings.append(
+                        f"{scene_file.name}:{line_num} — interpolate() missing {', '.join(missing)}"
+                    )
+
+        return warnings
+
     async def _run_self_heal(self, ts_errors: str) -> bool:
         """Run a mini-agent to fix TypeScript errors.
 
@@ -3008,6 +3421,7 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
         scene_data: dict,
         plan_content: str,
         composition_id: str,
+        style_preset: str = "modern",
     ) -> None:
         """Per-scene verify → fix → re-verify loop.
 
@@ -3017,8 +3431,9 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
             plan_content: Full SCENE_PLAN.md content
             composition_id: Remotion composition ID (with dashes)
         """
-        from prompts.animator import VISUAL_FIX_PROMPT_TEMPLATE, ANIMATOR_BASE_PROMPT
+        from prompts.animator import VISUAL_FIX_PROMPT_TEMPLATE, ANIMATOR_BASE_PROMPT, get_studio_section
 
+        studio_section = get_studio_section(style_preset)
         display_mode = scene_data.get("displayMode", "default")
         description = scene_data.get("description", "No description")
         verify_dir = self.workspace / "visual-verify"
@@ -3081,7 +3496,7 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
                         system_prompt={
                             "type": "preset",
                             "preset": "claude_code",
-                            "append": f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}",
+                            "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}",
                         },
                         cwd=str(self.workspace),
                         max_turns=15,
@@ -3111,6 +3526,7 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
         composition_id: str,
         scenes_data: dict,
         plan_content: str,
+        style_preset: str = "modern",
     ) -> None:
         """Top-level orchestrator for Phase 2e visual verification.
 
@@ -3146,6 +3562,7 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
                         scene_data=scene,
                         plan_content=plan_content,
                         composition_id=composition_id,
+                        style_preset=style_preset,
                     )
                 )
 
@@ -3726,6 +4143,31 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
                 "error": f"scenes.json is invalid JSON: {e}",
             }
 
+        # ── Programmatic scene constraint validation ──
+        validation = self._validate_scene_plan(plan_data, fps, duration_frames)
+
+        if validation["warnings"]:
+            print(f"[ClaudeGenerator] Scene plan warnings ({len(validation['warnings'])}):")
+            for w in validation["warnings"]:
+                print(f"  ⚠ {w}")
+
+        if validation["errors"]:
+            print(f"[ClaudeGenerator] Scene plan ERRORS ({len(validation['errors'])}):")
+            for e in validation["errors"]:
+                print(f"  ✗ {e}")
+            return {
+                "success": False,
+                "error": f"Scene plan validation failed: {'; '.join(validation['errors'])}",
+            }
+
+        if validation["repaired"]:
+            # Write the repaired scenes.json back
+            print(f"[ClaudeGenerator] Auto-repaired scene plan, writing updated scenes.json")
+            with open(scenes_json, "w", encoding="utf-8") as f:
+                json.dump(plan_data, f, indent=2, ensure_ascii=False)
+            scene_count = len(plan_data["scenes"])
+            print(f"[ClaudeGenerator] Updated scene count after repairs: {scene_count}")
+
         return {
             "success": True,
             "scenePlanPath": str(scene_plan),
@@ -3739,6 +4181,7 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
         height: int,
         duration_frames: int,
         fps: int,
+        style_preset: str = "modern",
     ) -> dict[str, Any]:
         """
         Phase 2: Run the Animator agent to implement the scene plan.
@@ -3758,7 +4201,7 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
         Returns:
             dict with success status
         """
-        from prompts.animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message
+        from prompts.animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message, get_studio_section
 
         print(f"[ClaudeGenerator] Phase 2: Animator implementing scenes...")
 
@@ -3766,10 +4209,24 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
         remotion_libraries = get_remotion_libraries_guide()
         condensed_skills = get_condensed_skills()
 
-        # Build full system prompt with skills
-        full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}\n\n{remotion_libraries}\n\n{condensed_skills}"
+        # Build full system prompt with skills (+ studio design system only when studio preset)
+        studio_section = get_studio_section(style_preset)
+        full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}"
 
         animator_message = build_animator_user_message(self.project_id)
+
+        # Inject template catalog for studio preset
+        if style_preset == "studio":
+            catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
+            if catalog_path.exists():
+                catalog_content = catalog_path.read_text(encoding="utf-8")
+                animator_message += f"\n\n## AVAILABLE STUDIO TEMPLATES\n\n{catalog_content}"
+                print(f"[ClaudeGenerator] Injected studio template catalog into Animator prompt")
+
+        # Increase MCP initialization timeout: Freepik's remote MCP server
+        # is network-dependent and can exceed the default 60s on Windows.
+        prev_timeout = os.environ.get("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT")
+        os.environ["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = "120000"
 
         # Animator uses Opus for high-quality implementation
         # Use claude_code preset with append to preserve TodoWrite functionality
@@ -3813,43 +4270,7 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
                     "mcp__viewport__get_scene_dimensions",
                     "mcp__viewport__validate_scene_code",
                 ],
-                mcp_servers={
-                    "freepik": {
-                        "type": "stdio",
-                        "command": "npx",
-                        "args": [
-                            "-y", "mcp-remote",
-                            "https://api.freepik.com/mcp",
-                            "--header",
-                            f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
-                        ]
-                    },
-                    "better-icons": {
-                        "type": "stdio",
-                        "command": "npx",
-                        "args": ["better-icons"]
-                    },
-                    "assets": {
-                        "type": "stdio",
-                        "command": "node",
-                        "args": [
-                            str(Path(__file__).parent / "mcp-servers" / "asset-server.js"),
-                            "--workspace", str(self.workspace),
-                        ],
-                        "env": {
-                            "UNSPLASH_ACCESS_KEY": os.environ.get("UNSPLASH_ACCESS_KEY", ""),
-                            "PEXELS_API_KEY": os.environ.get("PEXELS_API_KEY", ""),
-                        }
-                    },
-                    "viewport": {
-                        "type": "stdio",
-                        "command": "node",
-                        "args": [
-                            str(Path(__file__).parent / "mcp-servers" / "viewport-server.js"),
-                            "--workspace", str(self.workspace),
-                        ]
-                    }
-                },
+                mcp_servers=build_mcp_servers(str(self.workspace)),
                 hooks={
                     "PreToolUse": [
                         HookMatcher(matcher="Bash", hooks=[bash_security_hook]),
@@ -3860,23 +4281,30 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
         )
 
         response_text = ""
-        async with client:
-            await client.query(animator_message)
+        try:
+            async with client:
+                await client.query(animator_message)
 
-            async for msg in client.receive_response():
-                msg_type = type(msg).__name__
-                if msg_type == "AssistantMessage" and hasattr(msg, "content"):
-                    for block in msg.content:
-                        block_type = type(block).__name__
-                        if block_type == "TextBlock" and hasattr(block, "text"):
-                            response_text += block.text
-                            try:
-                                print(block.text, end="", flush=True)
-                            except UnicodeEncodeError:
-                                safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
-                                print(safe_text, end="", flush=True)
-                        elif block_type == "ToolUseBlock" and hasattr(block, "name"):
-                            print(f"\n[Animator Tool: {block.name}]", flush=True)
+                async for msg in client.receive_response():
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                response_text += block.text
+                                try:
+                                    print(block.text, end="", flush=True)
+                                except UnicodeEncodeError:
+                                    safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
+                                    print(safe_text, end="", flush=True)
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[Animator Tool: {block.name}]", flush=True)
+        finally:
+            # Restore original timeout
+            if prev_timeout is not None:
+                os.environ["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = prev_timeout
+            else:
+                os.environ.pop("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT", None)
 
         print(f"\n[ClaudeGenerator] Animator completed")
 
@@ -4355,6 +4783,7 @@ export default MainComposition;
         height: int,
         duration_frames: int,
         fps: int,
+        style_preset: str = "modern",
     ) -> dict[str, Any]:
         """
         Phase 2 (Parallel): Implement scenes via SDK subagents.
@@ -4386,10 +4815,14 @@ export default MainComposition;
             build_setup_user_message,
             build_scene_user_message,
             build_scene_task_prompt,
+            get_studio_section,
         )
         from claude_agent_sdk import AgentDefinition
 
         print("[ClaudeGenerator] Phase 2 (Parallel): Implementing scenes via subagents...")
+
+        # Studio design system section (only injected for studio preset)
+        studio_section = get_studio_section(style_preset)
 
         # Read scenes.json and SCENE_PLAN.md
         scenes_json_path = self.src_dir / "scenes.json"
@@ -4407,49 +4840,21 @@ export default MainComposition;
         remotion_libraries = get_remotion_libraries_guide()
         condensed_skills = get_condensed_skills()
 
-        # MCP servers config (same as _run_animator)
-        mcp_servers = {
-            "freepik": {
-                "type": "stdio",
-                "command": "npx",
-                "args": [
-                    "-y", "mcp-remote",
-                    "https://api.freepik.com/mcp",
-                    "--header",
-                    f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
-                ]
-            },
-            "better-icons": {
-                "type": "stdio",
-                "command": "npx",
-                "args": ["better-icons"]
-            },
-            "assets": {
-                "type": "stdio",
-                "command": "node",
-                "args": [
-                    str(Path(__file__).parent / "mcp-servers" / "asset-server.js"),
-                    "--workspace", str(self.workspace),
-                ],
-                "env": {
-                    "UNSPLASH_ACCESS_KEY": os.environ.get("UNSPLASH_ACCESS_KEY", ""),
-                    "PEXELS_API_KEY": os.environ.get("PEXELS_API_KEY", ""),
-                }
-            },
-            "viewport": {
-                "type": "stdio",
-                "command": "node",
-                "args": [
-                    str(Path(__file__).parent / "mcp-servers" / "viewport-server.js"),
-                    "--workspace", str(self.workspace),
-                ]
-            }
-        }
+        # MCP servers config (uses pre-installed local binaries)
+        mcp_servers = build_mcp_servers(str(self.workspace))
 
         # ── Phase 2a: SETUP ──
-        emit_progress(38, "Phase 2a: Setting up project foundation...")
-        setup_system = f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{ANIMATOR_SETUP_PROMPT}"
+        emit_progress(38, "Setting up project foundation...", {"phase": "workspace", "phaseName": "Setting up workspace"})
+        setup_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{ANIMATOR_SETUP_PROMPT}"
         setup_message = build_setup_user_message(self.project_id)
+
+        # Inject template catalog for studio preset
+        if style_preset == "studio":
+            catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
+            if catalog_path.exists():
+                catalog_content = catalog_path.read_text(encoding="utf-8")
+                setup_message += f"\n\n## AVAILABLE STUDIO TEMPLATES\n\n{catalog_content}"
+                print(f"[ClaudeGenerator] Injected studio template catalog into Setup prompt")
 
         # Spawn setup agent (Sonnet for speed)
         setup_client = ClaudeSDKClient(
@@ -4501,6 +4906,7 @@ export default MainComposition;
             return await self._run_animator(
                 width=width, height=height,
                 duration_frames=duration_frames, fps=fps,
+                style_preset=style_preset,
             )
 
         constants_content = constants_path.read_text(encoding="utf-8")
@@ -4513,18 +4919,18 @@ export default MainComposition;
             else []
         )
 
-        emit_progress(40, "Phase 2a complete: Project foundation ready")
+        emit_progress(40, "Project foundation ready", {"phase": "workspace", "phaseName": "Setting up workspace"})
 
         # ── Phase 2b: PARALLEL SCENE GENERATION via coordinator + subagents ──
-        emit_progress(40, f"Phase 2b: Generating {total_scenes} scenes in parallel...")
+        emit_progress(40, f"Animating {total_scenes} scenes...", {"phase": "animate", "phaseName": "Animating scenes", "totalScenes": total_scenes})
         print(f"\n[ClaudeGenerator] Phase 2b: Dispatching {total_scenes} scene-generator subagents...")
 
         scenes_dir = self.src_dir / "scenes"
         scenes_dir.mkdir(exist_ok=True)
 
-        # Build the scene-generator subagent definition
+        # Build the scene-generator subagent definition (+ studio design system when applicable)
         scene_gen_system = (
-            f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}\n\n{condensed_skills}"
+            f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}"
         )
 
         scene_gen_tools = [
@@ -4581,6 +4987,11 @@ After all complete, run: ls src/{self.project_id}/scenes/
 Report which scenes were created.
 """
 
+        # Increase MCP initialization timeout for the coordinator: Freepik's
+        # remote MCP server is network-dependent and can exceed the default 60s.
+        prev_timeout = os.environ.get("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT")
+        os.environ["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = "120000"
+
         # CRITICAL: permission_mode="bypassPermissions" is required so subagents
         # inherit it and can use Write/Edit tools. Without this, subagents default
         # to "default" mode which denies tool use without a canUseTool callback.
@@ -4608,22 +5019,29 @@ Report which scenes were created.
             )
         )
 
-        async with coordinator_client:
-            await coordinator_client.query(coordinator_user_msg)
+        try:
+            async with coordinator_client:
+                await coordinator_client.query(coordinator_user_msg)
 
-            async for msg in coordinator_client.receive_response():
-                msg_type = type(msg).__name__
-                if msg_type == "AssistantMessage" and hasattr(msg, "content"):
-                    for block in msg.content:
-                        block_type = type(block).__name__
-                        if block_type == "TextBlock" and hasattr(block, "text"):
-                            try:
-                                print(block.text[:200], end="", flush=True)
-                            except UnicodeEncodeError:
-                                safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
-                                print(safe_text[:200], end="", flush=True)
-                        elif block_type == "ToolUseBlock" and hasattr(block, "name"):
-                            print(f"\n[Coordinator Tool: {block.name}]", flush=True)
+                async for msg in coordinator_client.receive_response():
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                try:
+                                    print(block.text[:200], end="", flush=True)
+                                except UnicodeEncodeError:
+                                    safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
+                                    print(safe_text[:200], end="", flush=True)
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[Coordinator Tool: {block.name}]", flush=True)
+        finally:
+            # Restore original timeout
+            if prev_timeout is not None:
+                os.environ["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = prev_timeout
+            else:
+                os.environ.pop("CLAUDE_CODE_STREAM_CLOSE_TIMEOUT", None)
 
         # Post-dispatch: verify all scene files exist, retry missing ones sequentially
         missing_scenes = []
@@ -4644,7 +5062,7 @@ Report which scenes were created.
                     display_mode_rules=mode_rules,
                     project_id=self.project_id,
                 )
-                scene_system = f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{scene_prompt_filled}"
+                scene_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{scene_prompt_filled}"
                 scene_user_msg = build_scene_user_message(
                     project_id=self.project_id,
                     scene_index=i,
@@ -4655,6 +5073,12 @@ Report which scenes were created.
                     scene_plan_content=scene_plan_content,
                     display_mode=display_mode,
                 )
+                # Inject template catalog for studio preset
+                if style_preset == "studio":
+                    catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
+                    if catalog_path.exists():
+                        catalog_content = catalog_path.read_text(encoding="utf-8")
+                        scene_user_msg += f"\n\n## AVAILABLE STUDIO TEMPLATES\n\n{catalog_content}"
                 print(f"[ClaudeGenerator] Retrying Scene {scene_num} individually...")
                 await self._run_scene_agent(
                     scene_num=scene_num,
@@ -4666,19 +5090,19 @@ Report which scenes were created.
                 )
 
         # TypeScript validation on all scenes
-        emit_progress(50, "Phase 2b: Validating TypeScript...")
+        emit_progress(50, "Validating TypeScript...", {"phase": "animate", "phaseName": "Animating scenes", "totalScenes": total_scenes})
         ts_success, ts_errors = await self._verify_typescript()
         if not ts_success:
             print("[ClaudeGenerator] TypeScript errors after scene generation, running self-heal...")
             await self._run_self_heal(ts_errors)
 
-        emit_progress(52, f"Phase 2b complete: {total_scenes} scenes generated")
+        emit_progress(52, f"{total_scenes} scenes generated", {"phase": "animate", "phaseName": "Animating scenes", "scene": total_scenes, "totalScenes": total_scenes})
 
         # Re-read constants_content in case self-heal modified constants.ts
         constants_content = constants_path.read_text(encoding="utf-8")
 
         # ── Phase 2b+: PER-SCENE VERIFICATION ──
-        emit_progress(53, "Phase 2b+: Verifying scenes against plan...")
+        emit_progress(53, "Verifying scenes against plan...", {"phase": "verify", "phaseName": "Verifying scenes"})
         print("\n[ClaudeGenerator] Phase 2b+: Running per-scene verification...")
 
         for i, scene in enumerate(scenes):
@@ -4714,7 +5138,7 @@ When done, respond: "FIX COMPLETE"
                             system_prompt={
                                 "type": "preset",
                                 "preset": "claude_code",
-                                "append": f"{ANIMATOR_BASE_PROMPT}\n\n{remotion_libraries}",
+                                "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}",
                             },
                             cwd=str(self.workspace),
                             max_turns=15,
@@ -4750,10 +5174,10 @@ When done, respond: "FIX COMPLETE"
             elif passed:
                 print(f"[ClaudeGenerator] Scene {scene_num} passed verification")
 
-        emit_progress(54, "Phase 2b+ complete: Scene verification done")
+        emit_progress(54, "Scene verification done", {"phase": "verify", "phaseName": "Verifying scenes"})
 
         # ── Phase 2c: ASSEMBLY ──
-        emit_progress(55, "Phase 2c: Assembling composition...")
+        emit_progress(55, "Assembling composition...", {"phase": "bundle", "phaseName": "Bundling for preview"})
         print("\n[ClaudeGenerator] Assembling index.tsx and metadata.json...")
 
         # Pre-assembly validation
@@ -4807,7 +5231,7 @@ When done, respond: "FIX COMPLETE"
             )
 
         # ── Phase 2d: COMPOSITION VERIFY ──
-        emit_progress(57, "Phase 2d: Verifying composition...")
+        emit_progress(57, "Verifying composition...", {"phase": "verify", "phaseName": "Verifying scenes"})
 
         comp_passed, comp_issues = await self._run_composition_verify(
             project_id=self.project_id,
@@ -4843,7 +5267,7 @@ When done, respond: "FIX COMPLETE"
                 if not ts_success:
                     await self._run_self_heal(ts_errors)
 
-        emit_progress(58, "Phase 2 complete: All scenes implemented")
+        emit_progress(58, "All scenes implemented", {"phase": "animate", "phaseName": "Animating scenes"})
 
         # Verify final output
         if not index_path.exists():
@@ -4915,7 +5339,7 @@ When done, respond: "FIX COMPLETE"
         for attempt in range(max_retries + 1):
             try:
                 print(f"[ClaudeGenerator] Two-phase attempt {attempt + 1}/{max_retries + 1}")
-                emit_progress(15, "Starting visual generation...")
+                emit_progress(15, "Starting visual generation...", {"phase": "plan", "phaseName": "Planning scenes"})
 
                 if attempt > 0:
                     base_delay = 10 * (2 ** (attempt - 1))
@@ -4937,7 +5361,7 @@ When done, respond: "FIX COMPLETE"
 
                 if can_resume:
                     print(f"[ClaudeGenerator] Found existing sources from previous attempt — skipping to TS verify + bundle")
-                    emit_progress(55, "Resuming from previous attempt — skipping to verification...")
+                    emit_progress(55, "Resuming from previous attempt — skipping to verification...", {"phase": "self_heal", "phaseName": "Fixing errors"})
                     # Read scene count from existing scenes.json for logging
                     try:
                         with open(scenes_path, "r", encoding="utf-8") as f:
@@ -4959,6 +5383,10 @@ When done, respond: "FIX COMPLETE"
                     assets_dir = self.workspace / "public" / "assets"
                     assets_dir.mkdir(parents=True, exist_ok=True)
 
+                    # Copy studio templates to workspace if using studio preset
+                    if style_preset == "studio":
+                        self._copy_studio_templates()
+
                     # Format transcript with timestamps if available
                     if words:
                         formatted_transcript = format_transcript_with_key_moments(words, fps)
@@ -4966,19 +5394,19 @@ When done, respond: "FIX COMPLETE"
                         formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
                     # Phase 0: Assistant Director (creative brief)
-                    emit_progress(16, "Phase 0: Assistant Director analyzing script...")
+                    emit_progress(16, "Assistant Director analyzing script...", {"phase": "plan", "phaseName": "Planning scenes"})
                     ad_result = await self._run_assistant_director(
                         formatted_transcript=formatted_transcript,
                         style_preset=style_preset,
                     )
                     if ad_result["success"]:
                         print(f"[ClaudeGenerator] Creative brief ready")
-                        emit_progress(18, "Creative brief complete")
+                        emit_progress(18, "Creative brief complete", {"phase": "plan", "phaseName": "Planning scenes"})
                     else:
                         print(f"[ClaudeGenerator] Assistant Director skipped: {ad_result.get('error', 'unknown')}")
-                        emit_progress(18, "Proceeding without creative brief")
+                        emit_progress(18, "Proceeding without creative brief", {"phase": "plan", "phaseName": "Planning scenes"})
 
-                    emit_progress(19, "Phase 1: Director planning scenes...")
+                    emit_progress(19, "Director planning scenes...", {"phase": "plan", "phaseName": "Planning scenes"})
 
                     # Phase 1: Director
                     director_result = await self._run_director(
@@ -4999,15 +5427,15 @@ When done, respond: "FIX COMPLETE"
 
                     scene_count = director_result['sceneCount']
                     print(f"[ClaudeGenerator] Director created {scene_count} scenes")
-                    emit_progress(35, f"Phase 1 complete: {scene_count} scenes planned")
+                    emit_progress(35, f"Director complete: {scene_count} scenes planned", {"phase": "plan", "phaseName": "Planning scenes", "totalScenes": scene_count})
 
                     # Phase 1.5: Fetch images for scenes
-                    emit_progress(36, "Fetching images for scenes...")
+                    emit_progress(36, "Fetching images for scenes...", {"phase": "workspace", "phaseName": "Setting up workspace"})
                     image_count = await self._fetch_scene_images()
                     if image_count > 0:
-                        emit_progress(37, f"Downloaded {image_count} images")
+                        emit_progress(37, f"Downloaded {image_count} images", {"phase": "workspace", "phaseName": "Setting up workspace"})
 
-                    emit_progress(38, f"Phase 2: Animator implementing {scene_count} scenes...")
+                    emit_progress(38, f"Animator implementing {scene_count} scenes...", {"phase": "animate", "phaseName": "Animating scenes", "totalScenes": scene_count})
 
                     # Phase 2: Animator — use sequential mode for multi-scene compositions
                     scenes_path_check = self.src_dir / "scenes.json"
@@ -5023,25 +5451,28 @@ When done, respond: "FIX COMPLETE"
                             animator_result = await self._run_animator_sequential(
                                 width=width, height=height,
                                 duration_frames=duration_frames, fps=fps,
+                                style_preset=style_preset,
                             )
                         except Exception as seq_err:
                             print(f"[ClaudeGenerator] Sequential animator failed: {seq_err}, falling back to monolithic")
                             animator_result = await self._run_animator(
                                 width=width, height=height,
                                 duration_frames=duration_frames, fps=fps,
+                                style_preset=style_preset,
                             )
                     else:
                         animator_result = await self._run_animator(
                             width=width, height=height,
                             duration_frames=duration_frames, fps=fps,
+                            style_preset=style_preset,
                         )
 
                 if not animator_result["success"]:
                     raise RuntimeError(f"Animator failed: {animator_result.get('error', 'Unknown error')}")
 
-                emit_progress(55, "Phase 2 complete: All scenes implemented")
+                emit_progress(55, "All scenes implemented", {"phase": "animate", "phaseName": "Animating scenes"})
 
-                emit_progress(58, "Verifying TypeScript...")
+                emit_progress(58, "Verifying TypeScript...", {"phase": "self_heal", "phaseName": "Fixing errors"})
 
                 # Verify TypeScript with self-healing
                 print(f"[ClaudeGenerator] Verifying TypeScript...")
@@ -5052,7 +5483,7 @@ When done, respond: "FIX COMPLETE"
                 max_heal_attempts = 3
                 while not ts_success and heal_attempts < max_heal_attempts:
                     heal_attempts += 1
-                    emit_progress(58 + heal_attempts, f"Fixing TypeScript errors (attempt {heal_attempts}/{max_heal_attempts})...")
+                    emit_progress(58 + heal_attempts, f"Fixing TypeScript errors (attempt {heal_attempts}/{max_heal_attempts})...", {"phase": "self_heal", "phaseName": "Fixing errors", "iteration": heal_attempts, "maxIterations": max_heal_attempts})
                     print(f"[ClaudeGenerator] TypeScript failed, self-healing attempt {heal_attempts}/{max_heal_attempts}...")
 
                     # Run a mini-healing agent to fix the errors
@@ -5068,7 +5499,30 @@ When done, respond: "FIX COMPLETE"
                     raise RuntimeError(f"TypeScript validation failed after {heal_attempts} self-heal attempts")
 
                 print(f"[ClaudeGenerator] TypeScript validation passed")
-                emit_progress(62, "TypeScript validation passed")
+
+                # Check for missing interpolate clamp options (catastrophic visual bug prevention)
+                clamp_warnings = self._validate_interpolate_clamping()
+                if clamp_warnings:
+                    print(f"[ClaudeGenerator] Found {len(clamp_warnings)} interpolate() calls missing clamp:")
+                    for w in clamp_warnings:
+                        print(f"  - {w}")
+                    # Auto-fix: run self-heal with the clamp warnings as "errors"
+                    clamp_error_msg = (
+                        "CRITICAL: The following interpolate() calls are missing extrapolateLeft: 'clamp' "
+                        "and/or extrapolateRight: 'clamp'. BOTH are required on EVERY interpolate() call. "
+                        "Without both, values extrapolate linearly beyond the range, causing catastrophic "
+                        "visual bugs (e.g. scale: 13x, opacity: 85).\n\n"
+                        + "\n".join(clamp_warnings)
+                        + "\n\nFix ALL of them by adding the missing clamp option(s)."
+                    )
+                    await self._run_self_heal(clamp_error_msg)
+                    # Re-verify TypeScript after clamp fixes
+                    ts_success, ts_errors = await self._verify_typescript()
+                    if not ts_success:
+                        print(f"[ClaudeGenerator] TypeScript broke after clamp fix, self-healing...")
+                        await self._run_self_heal(ts_errors)
+
+                emit_progress(62, "TypeScript validation passed", {"phase": "bundle", "phaseName": "Bundling for preview"})
 
                 # Create metadata.json if not exists
                 metadata_json = self.src_dir / "metadata.json"
@@ -5095,7 +5549,7 @@ When done, respond: "FIX COMPLETE"
                 await self._fix_composition_id(index_tsx, composition_id_with_dashes)
 
                 # ── Phase 2e: VISUAL VERIFICATION ──
-                emit_progress(63, "Phase 2e: Visual verification...")
+                emit_progress(63, "Visual verification...", {"phase": "verify", "phaseName": "Verifying scenes"})
                 try:
                     with open(self.src_dir / "scenes.json", "r", encoding="utf-8") as f:
                         verify_scenes_data = json.load(f)
@@ -5104,21 +5558,22 @@ When done, respond: "FIX COMPLETE"
                         composition_id=composition_id_with_dashes,
                         scenes_data=verify_scenes_data,
                         plan_content=verify_plan_content,
+                        style_preset=style_preset,
                     )
-                    emit_progress(64, "Visual verification complete")
+                    emit_progress(64, "Visual verification complete", {"phase": "verify", "phaseName": "Verifying scenes"})
                 except Exception as e:
                     print(f"[ClaudeGenerator] Phase 2e failed (non-blocking): {e}")
-                    emit_progress(64, "Visual verification skipped (error)")
+                    emit_progress(64, "Visual verification skipped (error)", {"phase": "verify", "phaseName": "Verifying scenes"})
 
                 # Bundle
-                emit_progress(65, "Bundling Remotion project...")
+                emit_progress(65, "Bundling Remotion project...", {"phase": "bundle", "phaseName": "Bundling for preview"})
                 print(f"[ClaudeGenerator] Bundling project...")
                 bundle_path = await self._run_bundle()
                 print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
-                emit_progress(68, "Bundle complete")
+                emit_progress(68, "Bundle complete", {"phase": "bundle", "phaseName": "Bundling for preview"})
 
                 # Compile CJS
-                emit_progress(69, "Compiling CJS module...")
+                emit_progress(69, "Compiling CJS module...", {"phase": "bundle", "phaseName": "Bundling for preview"})
                 print(f"[ClaudeGenerator] Compiling CJS...")
                 await self._compile_cjs(bundle_path)
 
@@ -5306,13 +5761,17 @@ async def main():
         assets_dir = generator.workspace / "public" / "assets"
         assets_dir.mkdir(parents=True, exist_ok=True)
 
+        # Copy studio templates to workspace if using studio preset
+        if args.style_preset == "studio":
+            generator._copy_studio_templates()
+
         # Format transcript with timestamps if available
         if words:
             formatted_transcript = format_transcript_with_key_moments(words, args.fps)
         else:
             formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
-        emit_progress(18, "Phase 1: Director planning scenes...")
+        emit_progress(18, "Director planning scenes...", {"phase": "plan", "phaseName": "Planning scenes"})
 
         director_result = await generator._run_director(
             formatted_transcript=formatted_transcript,
@@ -5335,10 +5794,10 @@ async def main():
             sys.exit(1)
 
         # Phase 1.5: Fetch images for scenes
-        emit_progress(36, "Fetching images for scenes...")
+        emit_progress(36, "Fetching images for scenes...", {"phase": "workspace", "phaseName": "Setting up workspace"})
         image_count = await generator._fetch_scene_images()
         if image_count > 0:
-            emit_progress(37, f"Downloaded {image_count} images")
+            emit_progress(37, f"Downloaded {image_count} images", {"phase": "workspace", "phaseName": "Setting up workspace"})
 
         # Read plan files and output PLAN_READY signal for the worker to capture
         scenes_json_path = generator.src_dir / "scenes.json"
@@ -5356,7 +5815,7 @@ async def main():
         print(f"PLAN_READY:{json.dumps(plan_payload)}")
         sys.stdout.flush()
 
-        emit_progress(35, f"Phase 1 complete: {director_result.get('sceneCount', 0)} scenes planned")
+        emit_progress(35, f"Director complete: {director_result.get('sceneCount', 0)} scenes planned", {"phase": "plan", "phaseName": "Planning scenes", "totalScenes": director_result.get('sceneCount', 0)})
 
         result = director_result
 
@@ -5384,7 +5843,11 @@ async def main():
             sys.stdout.flush()
             sys.exit(1)
 
-        emit_progress(38, "Phase 2: Animator implementing scenes...")
+        # Copy studio templates to workspace if using studio preset
+        if args.style_preset == "studio":
+            generator._copy_studio_templates()
+
+        emit_progress(38, "Animator implementing scenes...", {"phase": "animate", "phaseName": "Animating scenes"})
 
         # Route based on scene count — sequential for multi-scene compositions
         try:
@@ -5399,17 +5862,20 @@ async def main():
                 animator_result = await generator._run_animator_sequential(
                     width=args.width, height=args.height,
                     duration_frames=args.duration, fps=args.fps,
+                    style_preset=args.style_preset,
                 )
             except Exception as seq_err:
                 print(f"[ClaudeGenerator] Sequential animator failed: {seq_err}, falling back to monolithic")
                 animator_result = await generator._run_animator(
                     width=args.width, height=args.height,
                     duration_frames=args.duration, fps=args.fps,
+                    style_preset=args.style_preset,
                 )
         else:
             animator_result = await generator._run_animator(
                 width=args.width, height=args.height,
                 duration_frames=args.duration, fps=args.fps,
+                style_preset=args.style_preset,
             )
 
         if not animator_result["success"]:
@@ -5417,10 +5883,10 @@ async def main():
             sys.stdout.flush()
             sys.exit(1)
 
-        emit_progress(55, "Phase 2 complete: All scenes implemented")
+        emit_progress(55, "All scenes implemented", {"phase": "animate", "phaseName": "Animating scenes"})
 
         # Verify TypeScript with self-healing
-        emit_progress(58, "Verifying TypeScript...")
+        emit_progress(58, "Verifying TypeScript...", {"phase": "self_heal", "phaseName": "Fixing errors"})
         print("[ClaudeGenerator] Verifying TypeScript...")
         ts_success, ts_errors = await generator._verify_typescript()
 
@@ -5428,7 +5894,7 @@ async def main():
         max_heal_attempts = 3
         while not ts_success and heal_attempts < max_heal_attempts:
             heal_attempts += 1
-            emit_progress(58 + heal_attempts, f"Fixing TypeScript errors (attempt {heal_attempts}/{max_heal_attempts})...")
+            emit_progress(58 + heal_attempts, f"Fixing TypeScript errors (attempt {heal_attempts}/{max_heal_attempts})...", {"phase": "self_heal", "phaseName": "Fixing errors", "iteration": heal_attempts, "maxIterations": max_heal_attempts})
             print(f"[ClaudeGenerator] TypeScript failed, self-healing attempt {heal_attempts}/{max_heal_attempts}...")
             heal_success = await generator._run_self_heal(ts_errors)
             if not heal_success:
@@ -5446,7 +5912,28 @@ async def main():
             sys.exit(1)
 
         print("[ClaudeGenerator] TypeScript validation passed")
-        emit_progress(62, "TypeScript validation passed")
+
+        # Check for missing interpolate clamp options (catastrophic visual bug prevention)
+        clamp_warnings = generator._validate_interpolate_clamping()
+        if clamp_warnings:
+            print(f"[ClaudeGenerator] Found {len(clamp_warnings)} interpolate() calls missing clamp:")
+            for w in clamp_warnings:
+                print(f"  - {w}")
+            clamp_error_msg = (
+                "CRITICAL: The following interpolate() calls are missing extrapolateLeft: 'clamp' "
+                "and/or extrapolateRight: 'clamp'. BOTH are required on EVERY interpolate() call. "
+                "Without both, values extrapolate linearly beyond the range, causing catastrophic "
+                "visual bugs (e.g. scale: 13x, opacity: 85).\n\n"
+                + "\n".join(clamp_warnings)
+                + "\n\nFix ALL of them by adding the missing clamp option(s)."
+            )
+            await generator._run_self_heal(clamp_error_msg)
+            ts_success, ts_errors = await generator._verify_typescript()
+            if not ts_success:
+                print(f"[ClaudeGenerator] TypeScript broke after clamp fix, self-healing...")
+                await generator._run_self_heal(ts_errors)
+
+        emit_progress(62, "TypeScript validation passed", {"phase": "bundle", "phaseName": "Bundling for preview"})
 
         # Create metadata.json if not exists
         metadata_json = generator.src_dir / "metadata.json"
@@ -5472,14 +5959,14 @@ async def main():
         await generator._fix_composition_id(index_tsx, composition_id_with_dashes)
 
         # Bundle
-        emit_progress(65, "Bundling Remotion project...")
+        emit_progress(65, "Bundling Remotion project...", {"phase": "bundle", "phaseName": "Bundling for preview"})
         print("[ClaudeGenerator] Bundling project...")
         bundle_path = await generator._run_bundle()
         print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
-        emit_progress(68, "Bundle complete")
+        emit_progress(68, "Bundle complete", {"phase": "bundle", "phaseName": "Bundling for preview"})
 
         # Compile CJS
-        emit_progress(69, "Compiling CJS module...")
+        emit_progress(69, "Compiling CJS module...", {"phase": "bundle", "phaseName": "Bundling for preview"})
         print("[ClaudeGenerator] Compiling CJS...")
         await generator._compile_cjs(bundle_path)
 
