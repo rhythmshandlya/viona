@@ -7,6 +7,134 @@ maintaining a TODO list and logging reasoning for each scene.
 
 import json
 
+
+# ---------------------------------------------------------------------------
+# Studio Design System — injected ONLY when style_preset == "studio"
+# ---------------------------------------------------------------------------
+
+STUDIO_DESIGN_SYSTEM = """
+<studio_templates>
+## STUDIO THEME — TEMPLATE LIBRARY (shadcn model)
+
+Templates are **source code you own**. Like shadcn/ui, you copy the source into your
+scene file and customize freely — they are NOT imported as black-box packages. You have
+full control: rename variables, merge pieces from multiple templates, delete what you
+don't need, add new elements. The templates are a starting point, not a constraint.
+
+### Primary Use — Direct Reuse (~60 %+ visual match)
+When a template closely matches the Director's scene description, **copy its code into
+your Scene file and adapt it**. This is the fastest path to high-quality output.
+
+### Secondary Use — Style Reference
+Even when no template is a close match, **read 2-3 templates first** to absorb the
+Studio aesthetic (color usage, spring configs, DotGrid pattern, card layout, stagger
+timing). Then build custom visuals that feel like they belong to the same design system.
+
+### Template Location & Structure
+Each template lives in `src/.templates/{{slug}}/` with:
+- `index.tsx` — Main composition component (the most important file)
+- `schema.ts` — Zod props schema (every template self-defaults via `schema.parse({{}})`)
+- `constants.ts` — BACKGROUNDS object + `getConstants()` that resolves colors/fonts from props
+- `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
+- `meta.json` — Tags, description, and suggested use-cases
+
+### Workflow
+1. **Check `suggestedTemplates`** in `scenes.json` for each scene — the Director already
+   picked the best-matching templates for you
+2. **Read template source** — open `src/.templates/{{slug}}/index.tsx` (and `components/` if needed)
+3. **Copy into Scene file** — paste the relevant code into `scenes/SceneN.tsx`
+4. **Adapt** — swap data values, adjust frame timing, update the 5-color palette,
+   copy sub-components you need from the template's `components/` folder
+5. **Compose** — you can combine pieces from multiple templates in one scene
+   (e.g., `stat-counter` hero + `stat-bar-chart` supporting visual)
+
+### Studio Design System (MANDATORY when plan says "Studio"):
+
+**COLOR SYSTEM (5-color contract — every scene uses all 5):**
+Dark mode (default):
+- background: #0B0F1A (deep navy-black)
+- text: #FFFFFF
+- textMuted: rgba(255,255,255,0.45)
+- gridColor: rgba(255,255,255,0.04)
+- cardBg: rgba(255,255,255,0.06)
+- cardBorder: rgba(255,255,255,0.10)
+
+Light mode:
+- background: #F8F9FB
+- text: #111827
+- textMuted: rgba(0,0,0,0.45)
+- gridColor: rgba(0,0,0,0.04)
+- cardBg: rgba(0,0,0,0.04)
+- cardBorder: rgba(0,0,0,0.08)
+
+Accent defaults: primary #6366F1 (indigo), secondary #EC4899 (pink).
+
+**DotGrid Background (MUST include in EVERY scene):**
+The dot grid is SUBTLE — a background texture, not a prominent element. This is the Studio signature.
+```tsx
+<svg style={{{{ position: 'absolute', inset: 0 }}}} width="100%" height="100%">
+  <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+    <circle cx="16" cy="16" r="1" fill="rgba(255,255,255,0.04)" />
+  </pattern>
+  <rect width="100%" height="100%" fill="#0B0F1A" />
+  <rect width="100%" height="100%" fill="url(#dot-grid)" />
+</svg>
+```
+32px grid spacing, r=1 dots, 0.04 opacity. Subtle and consistent.
+
+**Card Containers (glassmorphic by default):**
+- borderRadius: 32px, padding: 56-64px, maxWidth: 900px (or 85% of canvas)
+- Glass: background rgba(255,255,255,0.06), backdropFilter: blur(20px), border 1px solid rgba(255,255,255,0.10)
+- Also supported: solid (opaque bg), gradient (linear-gradient bg), outline (transparent bg + border only)
+- Cards are centered flex containers floating on the dot-grid background
+
+**Font Pairs (import from Google Fonts — pick ONE pair per project):**
+| Key | Headline | Body | Vibe |
+|-----|----------|------|------|
+| boldImpact | Bebas Neue | Roboto | Bold dramatic (most common) |
+| cleanMinimal | Inter | Inter | Clean restrained |
+| modernTech | Montserrat | Inter | Professional |
+| elegantEditorial | Playfair Display | Lato | Sophisticated |
+| friendlyTech | Poppins | Inter | Approachable |
+
+**ANIMATION LIFECYCLE (every scene MUST follow this arc):**
+1. Intro (frames 0→15): opacity interpolates 0→1
+2. Staggered entrance (frames 15→100): elements spring/slide in with 6-8 frame delays between each
+3. Hold (frames 100→dF-30): content visible, subtle continuous motion (counters counting up, progress bars filling, gentle floats/wiggles)
+4. Outro (frames dF-30→dF): opacity interpolates 1→0
+- ALWAYS combine: `const opacity = introOpacity * outroOpacity;` — both active simultaneously
+
+**Spring & Easing Constants:**
+- Card entrances: spring({{ config: {{ damping: 26, stiffness: 120 }} }}) — smooth premium settle
+- Hero text reveals: spring({{ config: {{ damping: 20, stiffness: 170 }} }}) — snappy
+- Element stagger delay: 6-8 frames apart
+- Progress/counter animations: smooth interpolate() over 100+ frames during hold phase
+- Exit easing: Easing.out(Easing.cubic) for smooth decelerations
+
+**RENDERING RULES:**
+- Pure inline styles ONLY: `style={{{{...}}}}` on every element. No CSS files, no CSS-in-JS libraries.
+- All graphics via inline SVG — charts (arcs, bars, lines), icons, decorative shapes. No image imports.
+- Flexbox layout via inline styles for all positioning
+- Every interpolate() MUST have {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}
+
+**If NO template matches:** Create custom visuals but ALWAYS maintain:
+- DotGrid SVG background (32px grid, r=1 dots, 0.04 opacity)
+- Card-based glassmorphic layout
+- Studio color palette (dark: #0B0F1A bg, #6366F1 accent, #FFFFFF text)
+- The 4-phase animation lifecycle (intro → stagger entrance → hold → outro)
+- Font pair from the table above
+- Pure inline styles + inline SVG only
+</studio_templates>
+"""
+
+
+def get_studio_section(style_preset: str) -> str:
+    """Return the Studio design system section if style_preset is 'studio', else empty string."""
+    if style_preset == "studio":
+        return STUDIO_DESIGN_SYSTEM
+    return ""
+
+
 ANIMATOR_SYSTEM_PROMPT = """
 <MANDATORY_PROCESS>
 **STOP. READ THIS FIRST. YOU MUST FOLLOW THIS EXACT PROCESS.**
@@ -579,7 +707,7 @@ These are COPY-PASTE-READY — adapt values (colors, sizes, timing) but keep the
 
 Import: `import {{ Easing }} from 'remotion';`
 
-**MANDATORY: EVERY `interpolate()` call MUST include `extrapolateRight: 'clamp'`.** Without clamp, values extrapolate beyond the defined range, causing visual glitches and overflow. No exceptions.
+**MANDATORY: EVERY `interpolate()` call MUST include BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'`.** Without clamp on BOTH sides, values extrapolate linearly beyond the defined range — this causes catastrophic visual bugs like scale: 13x or opacity: 85. No exceptions.
 
 **Never use only `spring()` for everything.** Different animation intents need different easing:
 
@@ -598,12 +726,12 @@ Import: `import {{ Easing }} from 'remotion';`
 ```tsx
 // GOOD — varied easing per intent:
 const barWidth = interpolate(frame, [start, start + 40], [0, targetWidth], {{
-  extrapolateRight: 'clamp',
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   easing: Easing.inOut(Easing.cubic),  // smooth S-curve for fill
 }});
 
 const titleOpacity = interpolate(frame, [start, start + 15], [0, 1], {{
-  extrapolateRight: 'clamp',
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   easing: Easing.out(Easing.exp),  // fast snap-in for entrance
 }});
 
@@ -908,6 +1036,7 @@ const dots = Array.from({{length: dotCount}}, (_, i) => {{
 ## PROHIBITED PATTERNS (NEVER DO THESE)
 
 - EMPTY FRAMES with just background (WORST OFFENSE - kills retention). Every single frame must have visible content — if a scene's main visual triggers at a keySync frame, there MUST be setup/anticipation visuals filling the screen from frame 0 until the keySync. Never leave the screen blank waiting for a sync point.
+- Content sitting at the top with empty space below — NEVER use `cardTopY = EH * 0.05` or similar small fixed values. Instead, ALWAYS compute: `const contentTopY = (EH * 0.85 - totalContentHeight) / 2` to vertically center the content block. When new elements appear at sync points, existing content spring-animates upward. See layout_rules for the Vertical Centering Formula and Side-by-Side Layout Pattern.
 - Title/heading sitting small at the top with the rest of the screen empty — instead, titles should START large and centered (filling the viewport) then spring-animate to their final top position when supporting content appears. This keeps the screen visually full at all times.
 - Missing key prop on children arrays (causes React warnings)
 - Math.sin() or Math.cos() on text rotation/position (causes jittery text)
@@ -916,7 +1045,7 @@ const dots = Array.from({{length: dotCount}}, (_, i) => {{
 - Plain colored circles instead of proper visuals
 - Instant teleportation (no animation)
 - Static backgrounds with no motion
-- Missing extrapolateRight: 'clamp' in interpolate()
+- Missing extrapolateLeft: 'clamp' or extrapolateRight: 'clamp' in interpolate() — BOTH are required
 - Scenes with no visual metaphor (just text on background)
 - Gaps between scenes (no animation happening)
 - Using spring() for EVERYTHING — vary with Easing (see easing_guide above)
@@ -1510,9 +1639,9 @@ const keySyncProgress = spring({{ frame: frame - TIMING.scene2KeySync, fps, conf
 All sync point values in TIMING are ALREADY local (pre-subtracted in constants.ts).
 
 **Interpolate Rule:**
-ALWAYS use extrapolateRight: 'clamp':
+ALWAYS use BOTH extrapolateLeft AND extrapolateRight clamp:
 ```tsx
-interpolate(frame, [0, 30], [0, 1], {{extrapolateRight: 'clamp'}})
+interpolate(frame, [0, 30], [0, 1], {{extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}})
 ```
 
 **No CSS Animations:**
@@ -1629,7 +1758,84 @@ If any phrase lacks a visual, add one. No narrator sentence should go unillustra
 <layout_rules>
 ## SPATIAL LAYOUT RULES (MANDATORY)
 
-### Zone System — divide the effective area into 3 vertical zones:
+### Center-Then-Shift Pattern (MOST IMPORTANT LAYOUT RULE)
+Content must ALWAYS be vertically centered in the visual area. When new elements appear at sync points, existing content spring-animates upward to make room. The screen must look balanced at EVERY frame — no content sitting at the top with dead space below.
+
+**Implementation pattern:**
+```tsx
+// 1. Track which elements are visible at current frame
+const phase1Visible = frame >= 0;           // title — always on
+const phase2Visible = frame >= SYNC.tools;  // cards appear at sync
+const phase3Visible = frame >= SYNC.data;   // chart appears later
+
+// 2. Animate the content cluster's Y position when phases change
+const shiftToPhase2 = spring({
+  frame: Math.max(0, frame - SYNC.tools),
+  fps, config: SPRING_CONFIG.SMOOTH, durationInFrames: 30,
+});
+const shiftToPhase3 = spring({
+  frame: Math.max(0, frame - SYNC.data),
+  fps, config: SPRING_CONFIG.SMOOTH, durationInFrames: 30,
+});
+
+// 3. Compute vertical offset — starts centered, shifts up as elements are added
+// With 1 element: top at ~35% (centered in visual area)
+// With 2 elements: top shifts to ~15%
+// With 3 elements: top shifts to ~8%
+const contentTopOffset = interpolate(
+  shiftToPhase2 + shiftToPhase3,
+  [0, 1, 2],
+  [EH * 0.35, EH * 0.15, EH * 0.08],
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+);
+
+// 4. Position elements relative to the shifting cluster top
+// <div style={{ position: 'absolute', top: contentTopOffset }}>
+//   {/* title */}
+// </div>
+// <div style={{ position: 'absolute', top: contentTopOffset + titleHeight + gap, opacity: shiftToPhase2 }}>
+//   {/* cards — fade in at sync, positioned below title */}
+// </div>
+```
+
+**The rule:** If only 1-2 elements are on screen, they sit in the vertical center (around EH * 0.3 to EH * 0.5). When a sync point adds new elements below, existing content smoothly shifts upward with `spring()`. NEVER place early content at fixed top positions with empty space below.
+
+### Vertical Centering Formula (MANDATORY for ALL layouts)
+Before positioning ANY content, compute the total content block height and center it:
+```tsx
+// Calculate total height of all content that will be visible
+const cardHeight = EH * 0.48;
+const gapBelowCards = EH * 0.03;
+const traitsHeight = EH * 0.05;
+const totalContentHeight = cardHeight + gapBelowCards + traitsHeight;
+
+// Center the content block vertically (leave bottom 15% for subtitles)
+const availableHeight = EH * 0.85; // usable area (0% to 85%)
+const contentTopY = (availableHeight - totalContentHeight) / 2;
+// contentTopY is where the TOP element starts — everything else positions relative to it
+```
+This formula applies to ALL layout types: single-column, side-by-side cards, grids, etc.
+**NEVER use a fixed small value like `EH * 0.05` for the top position.** Always compute the centered position first.
+
+### Side-by-Side / Comparison Layout Pattern
+For scenes with two comparison cards side by side (VS layouts, before/after, pros/cons):
+```tsx
+const cardWidth = EW * 0.38;
+const cardHeight = EH * 0.45;
+const vsGap = EW * 0.06;
+const totalWidth = cardWidth * 2 + vsGap;
+
+// Horizontal centering
+const cardStartX = (EW - totalWidth) / 2;
+
+// VERTICAL centering — compute total block height, then center
+const belowCardsContent = EH * 0.12; // shared traits, labels, etc.
+const totalBlockHeight = cardHeight + belowCardsContent;
+const cardTopY = (EH * 0.85 - totalBlockHeight) / 2;
+// This gives cardTopY ≈ EH * 0.14, NOT EH * 0.05
+```
+
+### Zone System — FINAL positions after all elements are visible:
 ```
 ┌─────────────────────────────┐
 │  TOP ZONE (0-35% of EH)     │  ← Titles, headings, scene labels
@@ -1640,6 +1846,7 @@ If any phrase lacks a visual, add one. No narrator sentence should go unillustra
 │  RESERVED (85-100% of EH)   │  ← Subtitles — DO NOT place content here
 └─────────────────────────────┘
 ```
+These zones describe where elements END UP when all are visible. Early in the scene when fewer elements exist, content should be centered higher — then settle into these zones as more content appears via the center-then-shift pattern above.
 
 ### Layer-Based Element Counting:
 MAX 4 attention-grabbing elements (Layer 1 + Layer 2) visible at any frame.
@@ -1676,71 +1883,15 @@ If the Director's plan describes 5+ attention-grabbing elements, implement them 
 - Cards: `width: EW * 0.7` to `EW * 0.85`, `padding: EH * 0.03`
 - Icons (accents only): `width: EW * 0.06` to `EW * 0.08`
 </layout_rules>
-
-<studio_templates>
-## STUDIO THEME — TEMPLATE LIBRARY
-
-When the Director's plan uses the **Studio** style preset, you have access to a library of
-pre-built template source code in `src/.templates/`.
-
-### How to Use Templates:
-
-1. **Check STUDIO_TEMPLATES.md** in the `src/` directory for the full catalog with descriptions
-2. **Read template source** from `src/.templates/{slug}/` — each template has:
-   - `index.tsx` — Main composition component (the most important file)
-   - `constants.ts` — Color and timing constants
-   - `schema.ts` — Props schema with types
-   - `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
-3. **Copy and customize** — Take the template code and adapt it:
-   - Change data values (numbers, labels, colors) to match the transcript content
-   - Adjust timing to fit the scene's frame range
-   - Modify colors to use the Director's planned palette
-   - Keep the DotGrid background pattern and card-based layout
-4. **Compose templates** — You can use multiple templates in one scene:
-   - e.g., `stat-counter` for a number reveal + `bar-chart` for a comparison
-
-### Studio Design System (MANDATORY when plan says "Studio"):
-
-**DotGrid Background (MUST include in EVERY scene):**
-```tsx
-<svg style={{{{ position: 'absolute', inset: 0 }}}} width="100%" height="100%">
-  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-    <circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.03)" />
-  </pattern>
-  <rect width="100%" height="100%" fill="#0B0F1A" />
-  <rect width="100%" height="100%" fill="url(#dots)" />
-</svg>
-```
-
-**Card Containers:**
-- borderRadius: 20px, padding: 48px, maxWidth: 85%
-- Background: rgba(255,255,255,0.05) with backdropFilter: blur(20px)
-- Border: 1px solid rgba(255,255,255,0.08)
-
-**Font Pairs (import from Google Fonts):**
-- Default: Oswald (bold titles) + Inter (body text)
-- Tech: Space Grotesk + IBM Plex Mono
-- Friendly: Nunito + Source Code Pro
-
-**Spring Config for Studio:**
-- Card entrances: use SPRINGS.SMOOTH ({{ damping: 26, stiffness: 120 }})
-- Element staggers: STAGGER.NORMAL (6 frames apart)
-
-**If NO template matches:** Create custom visuals but ALWAYS maintain:
-- DotGrid SVG background
-- Card-based layout
-- Studio color palette (#0B0F1A, #6366F1, #F8FAFC)
-- Font pair from the list above
-</studio_templates>
 """
 
 
-def build_animator_user_message(project_id: str) -> str:
+def build_animator_user_message(project_id: str, style_preset: str = "modern") -> str:
     """Build the user message for the Animator agent."""
     # Composition ID must use dashes (Remotion requirement), folder uses underscores
     composition_id = project_id.replace("_", "-")
 
-    return f"""
+    base_message = f"""
 ## CRITICAL: READ THIS FIRST
 
 **⚠️ WARNING: DO NOT EXIT AFTER JUST READING FILES ⚠️**
@@ -2109,6 +2260,39 @@ ONLY when ALL files are written AND TypeScript passes, respond:
 
 **DO NOT respond with "GENERATION COMPLETE" if index.tsx does not exist.**
 """
+
+    # Conditionally append studio template workflow instructions
+    if style_preset == "studio":
+        base_message += """
+
+---
+
+## STUDIO TEMPLATE WORKFLOW
+
+You are working with the **Studio** style preset. A library of 60 pre-built templates
+is available in `src/.templates/`. These are **source code you own** (shadcn model) —
+copy, modify, and combine freely.
+
+### How to use templates:
+1. **Check `suggestedTemplates`** in `scenes.json` — the Director already picked the
+   best-matching templates for each scene
+2. **Read the template source** from `src/.templates/{slug}/` — especially `index.tsx`
+   and any files in `components/`
+3. **Copy into your Scene file** — paste the relevant code into `scenes/SceneN.tsx`
+4. **Customize** — swap data, adjust timing to your frame range, update colors to match
+   the Director's palette, copy sub-components you need
+
+### When to use vs. when to go custom:
+- **Use a template** when the `suggestedTemplates` entry is a 60%+ visual match —
+  adapting existing code is faster and more consistent
+- **Go custom** when nothing in `suggestedTemplates` fits — but even then, **read 2-3
+  templates first** to absorb the Studio theme (DotGrid, cards, springs, color palette)
+
+Templates are a starting point, not a constraint. Rename variables, merge pieces from
+multiple templates, delete what you don't need, add new elements.
+"""
+
+    return base_message
 
 
 # ---------------------------------------------------------------------------
@@ -2500,7 +2684,7 @@ Import: `import { Easing } from 'remotion';`
 
 **Never use only `spring()` for everything.** Different animation intents need different easing:
 
-**MANDATORY: EVERY `interpolate()` call MUST include `extrapolateRight: 'clamp'`.** Without clamp, values extrapolate beyond the defined range, causing visual glitches and overflow. No exceptions.
+**MANDATORY: EVERY `interpolate()` call MUST include BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'`.** Without clamp on BOTH sides, values extrapolate linearly beyond the defined range — this causes catastrophic visual bugs like scale: 13x or opacity: 85. No exceptions.
 
 | Intent | Easing | Code | Why |
 |--------|--------|------|-----|
@@ -2827,6 +3011,7 @@ const dots = Array.from({length: dotCount}, (_, i) => {
 ## PROHIBITED PATTERNS (NEVER DO THESE)
 
 - EMPTY FRAMES with just background (WORST OFFENSE - kills retention). Every single frame must have visible content — if a scene's main visual triggers at a keySync frame, there MUST be setup/anticipation visuals filling the screen from frame 0 until the keySync. Never leave the screen blank waiting for a sync point.
+- Content sitting at the top with empty space below — NEVER use `cardTopY = EH * 0.05` or similar small fixed values. Instead, ALWAYS compute: `const contentTopY = (EH * 0.85 - totalContentHeight) / 2` to vertically center the content block. When new elements appear at sync points, existing content spring-animates upward. See layout_rules for the Vertical Centering Formula and Side-by-Side Layout Pattern.
 - Title/heading sitting small at the top with the rest of the screen empty — instead, titles should START large and centered (filling the viewport) then spring-animate to their final top position when supporting content appears. This keeps the screen visually full at all times.
 - Missing key prop on children arrays (causes React warnings)
 - Math.sin() or Math.cos() on text rotation/position (causes jittery text)
@@ -2835,7 +3020,7 @@ const dots = Array.from({length: dotCount}, (_, i) => {
 - Plain colored circles instead of proper visuals
 - Instant teleportation (no animation)
 - Static backgrounds with no motion
-- Missing extrapolateRight: 'clamp' in interpolate()
+- Missing extrapolateLeft: 'clamp' or extrapolateRight: 'clamp' in interpolate() — BOTH are required
 - Scenes with no visual metaphor (just text on background)
 - Gaps between scenes (no animation happening)
 - Using spring() for EVERYTHING — vary with Easing (see easing_guide above)
@@ -3460,7 +3645,84 @@ If any phrase lacks a visual, add one. No narrator sentence should go unillustra
 <layout_rules>
 ## SPATIAL LAYOUT RULES (MANDATORY)
 
-### Zone System — divide the effective area into 3 vertical zones:
+### Center-Then-Shift Pattern (MOST IMPORTANT LAYOUT RULE)
+Content must ALWAYS be vertically centered in the visual area. When new elements appear at sync points, existing content spring-animates upward to make room. The screen must look balanced at EVERY frame — no content sitting at the top with dead space below.
+
+**Implementation pattern:**
+```tsx
+// 1. Track which elements are visible at current frame
+const phase1Visible = frame >= 0;           // title — always on
+const phase2Visible = frame >= SYNC.tools;  // cards appear at sync
+const phase3Visible = frame >= SYNC.data;   // chart appears later
+
+// 2. Animate the content cluster's Y position when phases change
+const shiftToPhase2 = spring({
+  frame: Math.max(0, frame - SYNC.tools),
+  fps, config: SPRING_CONFIG.SMOOTH, durationInFrames: 30,
+});
+const shiftToPhase3 = spring({
+  frame: Math.max(0, frame - SYNC.data),
+  fps, config: SPRING_CONFIG.SMOOTH, durationInFrames: 30,
+});
+
+// 3. Compute vertical offset — starts centered, shifts up as elements are added
+// With 1 element: top at ~35% (centered in visual area)
+// With 2 elements: top shifts to ~15%
+// With 3 elements: top shifts to ~8%
+const contentTopOffset = interpolate(
+  shiftToPhase2 + shiftToPhase3,
+  [0, 1, 2],
+  [EH * 0.35, EH * 0.15, EH * 0.08],
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+);
+
+// 4. Position elements relative to the shifting cluster top
+// <div style={{ position: 'absolute', top: contentTopOffset }}>
+//   {/* title */}
+// </div>
+// <div style={{ position: 'absolute', top: contentTopOffset + titleHeight + gap, opacity: shiftToPhase2 }}>
+//   {/* cards — fade in at sync, positioned below title */}
+// </div>
+```
+
+**The rule:** If only 1-2 elements are on screen, they sit in the vertical center (around EH * 0.3 to EH * 0.5). When a sync point adds new elements below, existing content smoothly shifts upward with `spring()`. NEVER place early content at fixed top positions with empty space below.
+
+### Vertical Centering Formula (MANDATORY for ALL layouts)
+Before positioning ANY content, compute the total content block height and center it:
+```tsx
+// Calculate total height of all content that will be visible
+const cardHeight = EH * 0.48;
+const gapBelowCards = EH * 0.03;
+const traitsHeight = EH * 0.05;
+const totalContentHeight = cardHeight + gapBelowCards + traitsHeight;
+
+// Center the content block vertically (leave bottom 15% for subtitles)
+const availableHeight = EH * 0.85; // usable area (0% to 85%)
+const contentTopY = (availableHeight - totalContentHeight) / 2;
+// contentTopY is where the TOP element starts — everything else positions relative to it
+```
+This formula applies to ALL layout types: single-column, side-by-side cards, grids, etc.
+**NEVER use a fixed small value like `EH * 0.05` for the top position.** Always compute the centered position first.
+
+### Side-by-Side / Comparison Layout Pattern
+For scenes with two comparison cards side by side (VS layouts, before/after, pros/cons):
+```tsx
+const cardWidth = EW * 0.38;
+const cardHeight = EH * 0.45;
+const vsGap = EW * 0.06;
+const totalWidth = cardWidth * 2 + vsGap;
+
+// Horizontal centering
+const cardStartX = (EW - totalWidth) / 2;
+
+// VERTICAL centering — compute total block height, then center
+const belowCardsContent = EH * 0.12; // shared traits, labels, etc.
+const totalBlockHeight = cardHeight + belowCardsContent;
+const cardTopY = (EH * 0.85 - totalBlockHeight) / 2;
+// This gives cardTopY ≈ EH * 0.14, NOT EH * 0.05
+```
+
+### Zone System — FINAL positions after all elements are visible:
 ```
 ┌─────────────────────────────┐
 │  TOP ZONE (0-35% of EH)     │  ← Titles, headings, scene labels
@@ -3471,6 +3733,7 @@ If any phrase lacks a visual, add one. No narrator sentence should go unillustra
 │  RESERVED (85-100% of EH)   │  ← Subtitles — DO NOT place content here
 └─────────────────────────────┘
 ```
+These zones describe where elements END UP when all are visible. Early in the scene when fewer elements exist, content should be centered higher — then settle into these zones as more content appears via the center-then-shift pattern above.
 
 ### Layer-Based Element Counting:
 MAX 4 attention-grabbing elements (Layer 1 + Layer 2) visible at any frame.
@@ -3507,62 +3770,6 @@ If the Director's plan describes 5+ attention-grabbing elements, implement them 
 - Cards: `width: EW * 0.7` to `EW * 0.85`, `padding: EH * 0.03`
 - Icons (accents only): `width: EW * 0.06` to `EW * 0.08`
 </layout_rules>
-
-<studio_templates>
-## STUDIO THEME — TEMPLATE LIBRARY
-
-When the Director's plan uses the **Studio** style preset, you have access to a library of
-pre-built template source code in `src/.templates/`.
-
-### How to Use Templates:
-
-1. **Check STUDIO_TEMPLATES.md** in the `src/` directory for the full catalog with descriptions
-2. **Read template source** from `src/.templates/{slug}/` — each template has:
-   - `index.tsx` — Main composition component (the most important file)
-   - `constants.ts` — Color and timing constants
-   - `schema.ts` — Props schema with types
-   - `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
-3. **Copy and customize** — Take the template code and adapt it:
-   - Change data values (numbers, labels, colors) to match the transcript content
-   - Adjust timing to fit the scene's frame range
-   - Modify colors to use the Director's planned palette
-   - Keep the DotGrid background pattern and card-based layout
-4. **Compose templates** — You can use multiple templates in one scene:
-   - e.g., `stat-counter` for a number reveal + `bar-chart` for a comparison
-
-### Studio Design System (MANDATORY when plan says "Studio"):
-
-**DotGrid Background (MUST include in EVERY scene):**
-```tsx
-<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
-  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-    <circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.03)" />
-  </pattern>
-  <rect width="100%" height="100%" fill="#0B0F1A" />
-  <rect width="100%" height="100%" fill="url(#dots)" />
-</svg>
-```
-
-**Card Containers:**
-- borderRadius: 20px, padding: 48px, maxWidth: 85%
-- Background: rgba(255,255,255,0.05) with backdropFilter: blur(20px)
-- Border: 1px solid rgba(255,255,255,0.08)
-
-**Font Pairs (import from Google Fonts):**
-- Default: Oswald (bold titles) + Inter (body text)
-- Tech: Space Grotesk + IBM Plex Mono
-- Friendly: Nunito + Source Code Pro
-
-**Spring Config for Studio:**
-- Card entrances: use SPRINGS.SMOOTH ({ damping: 26, stiffness: 120 })
-- Element staggers: STAGGER.NORMAL (6 frames apart)
-
-**If NO template matches:** Create custom visuals but ALWAYS maintain:
-- DotGrid SVG background
-- Card-based layout
-- Studio color palette (#0B0F1A, #6366F1, #F8FAFC)
-- Font pair from the list above
-</studio_templates>
 """
 
 
@@ -3727,7 +3934,7 @@ Before writing ANY code, append your scene plan to IMPLEMENTATION_LOG.md:
 - Export the component as: `export const Scene{scene_number}: React.FC`
 - Import from '../constants': `SPRINGS`, `STAGGER`, `COLORS` (use `SPRINGS.SMOOTH` for default, `SPRINGS.SNAPPY` for hero reveals)
 - Import `Background` from '../components/Background'
-- **EVERY interpolate() call MUST include `extrapolateRight: 'clamp'`** — no exceptions
+- **EVERY interpolate() call MUST include BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'`** — no exceptions
 
 ### Step 4: VERIFY (check against the checklist below)
 
@@ -3741,7 +3948,7 @@ After writing the scene, verify:
 - [ ] Elements staggered by 6+ frames using `STAGGER.NORMAL` (not all at once)
 - [ ] No empty frames — anticipation visuals fill screen before keySync
 - [ ] Uses `SPRINGS.SMOOTH` or `SPRINGS.SNAPPY` (NOT raw damping/stiffness values)
-- [ ] **EVERY** `interpolate()` call has `extrapolateRight: 'clamp'`
+- [ ] **EVERY** `interpolate()` call has BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'`
 - [ ] No CSS `animation:` property — only `interpolate()` and `spring()`
 - [ ] TypeScript compiles cleanly
 
@@ -3901,7 +4108,7 @@ Design for VERTICAL stacking, not horizontal layouts.
 ```
 
 ### Rules:
-- Include an animated background (gradient shift or subtle dot grid — NOT heavy particles)
+- Include an animated background (gradient shift or dot grid with 80px+ spacing and r=3+ dots — NOT heavy particles or tiny invisible dots)
 - Title Fill pattern: titles START large (EH * 0.10) and centered, settle smaller when content appears
 - Primary visual MUST be text/data, not decorative effects
 - MAX 4 attention-grabbing elements + ambient — fullscreen means BIGGER elements, not MORE elements
