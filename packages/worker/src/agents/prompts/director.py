@@ -73,9 +73,10 @@ When you receive a transcript with word-level timestamps:
 
 <scene_constraints>
 IMPORTANT CONSTRAINTS:
-- Maximum 8 scenes for any video (prevents visual chaos)
+- Scene count depends on video length — use as many scenes as the content needs. One scene per narrative beat.
 - Minimum 2 scenes (needs structure for storytelling)
-- Each scene must be at least 150 frames (5 seconds at 30fps)
+- Each scene must be at least 210 frames (7 seconds at 30fps) — shorter scenes flash by too fast for viewers to absorb the visual
+- Each scene must be at most 450 frames (15 seconds at 30fps) — if a scene would exceed this, SPLIT it into two scenes at a natural topic transition point
 - Adjacent transcript lines about the same concept belong in ONE scene
 - One scene per narrative beat, NOT one scene per transcript line
 - Scenes MUST be contiguous — NO gaps between scenes. Each scene's start must equal the previous scene's end.
@@ -84,6 +85,27 @@ IMPORTANT CONSTRAINTS:
   (a) an IMMEDIATE visual that appears from frame 0 of the scene (setup/anticipation), AND
   (b) the key sync payoff visual. The screen should NEVER be empty waiting for a sync point.
 - For INTRO/HOOK scenes: the topic title should FILL the screen centrally (large, prominent) and then animate to its final smaller position (e.g., top of screen) when subsequent content appears. This ensures the screen is visually full from the very first frame.
+
+SCENE SPLIT SIGNALS — split into separate scenes when ANY of these occur:
+- A topic shift within the transcript (e.g., "problem" to "solution", "why" to "how")
+- A rhetorical question or new question is posed ("But what if...?", "So how does...?")
+- A transition phrase signals a pivot ("Now," "However," "On the other hand," "The key insight is")
+- A new proper noun, example, or analogy is introduced as a new focal point
+- The narrator switches from abstract explanation to concrete example (or vice versa)
+- Gap of 5+ seconds between sync points within a scene — the visual is stale for too long
+- The visual description requires two completely different layouts (e.g., chart → comparison cards)
+
+SCENE MERGE SIGNALS — keep in ONE scene when:
+- Adjacent transcript lines discuss the same concept with no topic shift
+- The visual can evolve (not replace) to show the new information
+- The sync gap between the lines is under 4 seconds
+
+NEVER merge two narrative beats into one scene. It's better to have more focused scenes than fewer overloaded ones.
+
+INFORMATION DENSITY BREATHING:
+After a complex explanation scene (high information density), follow with a simpler beat
+(a stat reveal, a metaphor, a pause-and-reflect moment). This gives the viewer's working
+memory time to consolidate. Alternate dense and sparse beats throughout the video.
 </scene_constraints>
 
 <hook_rule>
@@ -108,9 +130,11 @@ Scene rhythm should VARY — never make all scenes the same duration.
 
 | Scene Type | Duration | Frame Range (30fps) | Purpose |
 |------------|----------|---------------------|---------|
-| Short punch | 5-6s | 150-180 frames | Hooks, transitions, payoffs |
+| Short punch | 7-8s | 210-240 frames | Hooks, transitions, payoffs |
 | Medium | 8-12s | 240-360 frames | Core explanation, most scenes |
 | Long deep-dive | 12-15s | 360-450 frames | Complex concepts, demonstrations |
+
+HARD LIMIT: No scene may exceed 15 seconds (450 frames). If content runs longer, SPLIT it.
 
 RHYTHM PATTERN (example for 6-scene, 60s video):
   Scene 1 (Hook):    5s  — fast, punchy, immediate grab
@@ -124,6 +148,7 @@ SYNC POINT CADENCE:
 - Within each scene, plan 1 visual event every 3-4 seconds (research shows this matches
   the attention rhythm of short-form viewers)
 - A 10-second scene should have 3-4 sync points
+- Maximum 5 seconds between any two consecutive sync points within a scene — if there's a longer gap, you need more sync points or the scene should be split
 - This is what turns "slides with narration" into a DYNAMIC video
 </pacing_guide>
 
@@ -220,6 +245,8 @@ Before finishing, verify your plan passes these tests:
 [ ] SAFE AREA TEST: Is critical content within 80% of canvas (10% margins)?
 [ ] HOOK TEST: Does Scene 1 have motion from frame 0 and a striking visual in <3 seconds?
 [ ] PACING TEST: Are scene durations varied (not all the same length)?
+[ ] DURATION TEST: Is every scene under 15 seconds (450 frames)? If not, SPLIT it.
+[ ] SYNC GAP TEST: Is the max gap between any two consecutive sync points within a scene under 5 seconds?
 [ ] ANCHOR TEST: Does each scene specify what carries in from previous and out to next?
 [ ] LAYER TEST: Does each visual description address background, primary element, and motion?
 </quality_criteria>
@@ -585,52 +612,100 @@ Stagger 4-5 frames (rapid fire). Use `text-slam` aggressively, `zoom-punch` tran
 **ANIMATION FEEL:** Dignified and smooth. spring({ damping: 28, stiffness: 70 }) for measured, unhurried motion.
 Stagger 8-10 frames. Prefer `fade-rise` over spring-in, `word-cascade` for quotes, `fill-progress` for charts.
 Easing.inOut(Easing.cubic) for continuous motion. No bounce, no particles — pure clarity.""",
-    "studio": """Polished card animations with dot-grid backgrounds. This style has a PRE-BUILT TEMPLATE LIBRARY.
+    "studio": """Polished card-based animations floating on dot-grid backgrounds. Dark-mode-first with glassmorphic cards.
+This style has a PRE-BUILT TEMPLATE LIBRARY of 57 components the Animator can copy and customize.
 
 **DESIGN SYSTEM — Studio (DotGrid Theme):**
 
-**COLOR PALETTE:**
-- Dark mode: Background #0B0F1A, text #FFFFFF, muted #94A3B8, grid #FFFFFF08
-- Light mode: Background #F8FAFC, text #0F172A, muted #64748B, grid #0F172A08
-- Accent: Indigo #6366F1 (primary), customizable per-scene
+**COLOR PALETTE (5-color theming contract — every scene uses all 5):**
+Dark mode (default):
+- background: #0B0F1A (deep navy-black)
+- text: #FFFFFF
+- textMuted: rgba(255,255,255,0.45)
+- gridColor: rgba(255,255,255,0.04)
+- cardBg: rgba(255,255,255,0.06)
+- cardBorder: rgba(255,255,255,0.10)
 
-**BACKGROUND:**
-Every scene MUST include a DotGrid SVG background layer:
+Light mode:
+- background: #F8F9FB
+- text: #111827
+- textMuted: rgba(0,0,0,0.45)
+- gridColor: rgba(0,0,0,0.04)
+- cardBg: rgba(0,0,0,0.04)
+- cardBorder: rgba(0,0,0,0.08)
+
+Accent colors: primary #6366F1 (indigo), secondary #EC4899 (pink). Customizable per-scene.
+
+**BACKGROUND — DotGrid (MANDATORY in every scene):**
 ```tsx
 <svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
-  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-    <circle cx="2" cy="2" r="1" fill={gridColor} />
+  <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
+    <circle cx="16" cy="16" r="1" fill="rgba(255,255,255,0.04)" />
   </pattern>
-  <rect width="100%" height="100%" fill={bg} />
-  <rect width="100%" height="100%" fill="url(#dots)" />
+  <rect width="100%" height="100%" fill="#0B0F1A" />
+  <rect width="100%" height="100%" fill="url(#dot-grid)" />
 </svg>
 ```
+The dot grid is SUBTLE — 32px spacing, r=1 dots at 0.04 opacity. It's a texture, not a prominent element. This is the Studio signature.
 
-**TYPOGRAPHY (FONT_PAIRS):**
-Use Google Fonts pairs. Default: boldImpact (Oswald + Inter).
-Available: modernTech (Space Grotesk + IBM Plex Mono), friendlyTech (Nunito + Source Code Pro),
-strongReadable (Bebas Neue + Open Sans), elegantEditorial (Cormorant Garamond + Lato),
-cleanMinimal (Plus Jakarta Sans + JetBrains Mono).
+**TYPOGRAPHY (font pair system):**
+Pick ONE pair per project and stick to it across all scenes.
+| Key | Headline | Body | Vibe |
+|-----|----------|------|------|
+| boldImpact | Bebas Neue | Roboto | Bold dramatic |
+| cleanMinimal | Inter | Inter | Clean restrained |
+| modernTech | Montserrat | Inter | Professional |
+| elegantEditorial | Playfair Display | Lato | Sophisticated |
+| friendlyTech | Poppins | Inter | Approachable |
 
 **CARD LAYOUT:**
-Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%.
-Cards float on the dot-grid background.
+- Cards are centered flex containers floating on the dot-grid background
+- borderRadius: 32px, padding: 56-64px, maxWidth: 900px (or 85% of canvas)
+- Glass style: background rgba(255,255,255,0.06), backdropFilter: blur(20px), border 1px solid rgba(255,255,255,0.10)
+- Cards can also be solid, gradient, or outline — but glass is the default
 
-**ANIMATION:**
-- Use spring({ damping: 14, stiffness: 80 }) for card entrances
-- Stagger elements by 8-12 frames
-- Progress bars, counters, charts use smooth interpolate over 100+ frames
+**ANIMATION LIFECYCLE (every scene follows this exact arc):**
+1. Intro (frames 0→15): opacity fades from 0→1
+2. Staggered entrance (frames 15→100): elements spring/slide in with increasing delay (6-8 frames apart)
+3. Hold (frames 100→dF-30): content visible, subtle motion (counters counting, progress bars filling, gentle floats)
+4. Outro (frames dF-30→dF): opacity fades from 1→0
+- Combine: `opacity = introOpacity * outroOpacity` — both always active
+
+**ANIMATION CONSTANTS:**
+- Card entrances: spring({ damping: 26, stiffness: 120 }) — smooth premium settle
+- Snappy reveals: spring({ damping: 20, stiffness: 170 }) — for hero text
+- Element staggers: 6-8 frames apart
+- Progress/counter animations: smooth interpolate() over 100+ frames during hold phase
+- Exit: Easing.out(Easing.cubic) for smooth decelerations
+
+**RENDERING RULES:**
+- Pure inline styles only — `style={{...}}` on every element. No CSS files, no CSS-in-JS.
+- All graphics via inline SVG (charts, icons, decorative shapes) — no image imports
+- Flexbox layout via inline styles for all positioning
+- Every interpolate() call MUST have { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 
 **TEMPLATE LIBRARY:**
 Check src/.templates/ for pre-built template source code. If a template matches the scene purpose,
 plan the scene around that template's structure. The Animator will read the template code and
-customize it. Available template categories: stats, charts, polls, timelines, transitions,
-social, titles, cards, and more.
+customize it. Categories: data-viz (stat-counter, stat-donut, bar-chart-race, etc.), lower-thirds
+(speaker-id, guest-intro-card), social (poll-battle, emoji-slider-poll), comparisons (versus-screen,
+pros-cons), intros/outros (channel-intro, end-screen, logo-stinger), marketing (product-card,
+coupon-badge, qr-code-reveal), education (definition-tooltip, formula-display), and more.
 
 If a STUDIO_TEMPLATES.md file exists in the workspace src/ directory, READ IT FIRST for the full
 template catalog with descriptions. Plan scenes that can leverage existing templates when possible.
 
-MANDATORY: { extrapolateRight: 'clamp' } on ALL interpolate calls.
+**TEMPLATE SUGGESTIONS (Studio only):**
+For each scene, check the STUDIO_TEMPLATES.md catalog. If a template matches the scene's purpose,
+add a "suggestedTemplates" array to the scene in scenes.json with 1-2 template slugs.
+The Animator will read the template source and use it as a starting point.
+If no template fits, omit the field — the Animator will create custom visuals in the studio style.
+
+Examples:
+- Scene showing revenue growth with a big number → ["stat-counter"]
+- Scene comparing two products → ["versus-screen", "pros-cons"]
+- Scene with a timeline of events → ["timeline-cascade"]
+- Scene with a step-by-step process → ["process-flow"]
 """,
 }
 
@@ -890,7 +965,7 @@ Your visuals MUST follow this style preset. Use colors, typography, and animatio
 Analyze this transcript and create a scene-by-scene animation plan.
 
 ### Step 1: Identify Narrative Beats
-First, identify 3-8 narrative beats in the content:
+First, identify the narrative beats in the content (as many as needed — no cap):
 - Hook (what grabs attention — must be IMMEDIATELY striking in <3 seconds)
 - Problem/Setup (what challenge exists — build tension)
 - Insight/Solution (the clever answer — the "aha" moment)
@@ -898,6 +973,8 @@ First, identify 3-8 narrative beats in the content:
 - Payoff (satisfying conclusion — fast and punchy)
 
 Vary the pacing: short beats (5-6s) for hook and payoff, longer beats (10-15s) for core explanation.
+
+**SPLIT RULE:** If a narrative section covers two distinct ideas (e.g., "problem" then "solution", or "chart analysis" then "comparison"), those are TWO separate beats — even if they're related. Each beat = one scene. A scene with a topic shift in the middle will have dead visual space where the first topic's visual sits stale while the narrator moves on. Always split at topic transitions.
 
 ### Step 2: Design Visual Metaphor System
 Choose ONE primary visual metaphor that persists throughout:
@@ -924,6 +1001,16 @@ For each scene's "visual" field, describe in layers:
 - Use one movement per sentence — don't combine multiple actions
 - Answer: WHAT appears, WHERE on canvas, WHEN it moves, HOW it moves, WHY it matters
 
+### Step 6: Self-Verification (MANDATORY before writing scenes.json)
+Compute these values for EVERY planned scene and create the Verification Table:
+- Duration in frames and seconds (must be 210-450 frames / 7-15 seconds)
+- Max gap between consecutive sync points (must be under 150 frames / 5 seconds)
+- Contiguity check (each scene starts where previous ends)
+- Total frame coverage (first scene starts at 0, last ends at total_frames)
+
+If ANY scene fails a check, adjust boundaries or split the scene BEFORE writing scenes.json.
+Write the verification table into SCENE_PLAN.md, then write scenes.json.
+
 ## OUTPUT FILES
 
 **CRITICAL: You MUST use the Write tool to create these files at the EXACT paths below. Do not just describe them - actually write them.**
@@ -935,6 +1022,26 @@ Human-readable plan with:
 - Story arc breakdown
 - Visual metaphor system
 - Scene-by-scene breakdown with sync points
+- **MANDATORY: Verification Table** (see below)
+
+**VERIFICATION TABLE** — You MUST include this table at the END of SCENE_PLAN.md, BEFORE writing scenes.json.
+Compute these values for EVERY scene and verify they pass. If any row FAILS, fix it before writing scenes.json.
+
+```
+## Scene Verification
+
+| Scene | Frames | Duration | Status | Max Sync Gap | Gap Status | Sync Count |
+|-------|--------|----------|--------|--------------|------------|------------|
+| 1     | 0-360  | 12.0s    | OK     | 2.9s         | OK         | 5          |
+| 2     | 360-630| 9.0s     | OK     | 4.1s         | OK         | 3          |
+| ...   | ...    | ...      | ...    | ...          | ...        | ...        |
+
+Duration rules: min 7s, max 15s. Max sync gap: 5s. Min sync points: 2.
+Total frames: X / Y (must match exactly)
+Contiguous: YES/NO (each scene must start where previous ends)
+```
+
+If any Status or Gap Status shows FAIL, you MUST adjust scene boundaries or add sync points BEFORE writing scenes.json.
 
 ### 2. scenes.json
 **EXACT path (use this VERBATIM in your Write tool call):** `{abs_scenes_path}`
@@ -998,13 +1105,20 @@ Machine-readable with this structure:
           "placement": "center, background, left, or right",
           "animation": "ken-burns"
         }}
-      ]
+      ],
+      "suggestedTemplates": ["stat-counter", "bar-chart-race"]
     }}
   ]
 }}
 ```
 
 **CRITICAL: All positions use percentages or "center"/"auto". Never use pixel values.**
+
+**`suggestedTemplates` (studio preset only):**
+- An array of 1-2 template slug strings from the STUDIO_TEMPLATES.md catalog
+- Only include this field when style_preset is "studio" AND a template matches the scene's purpose
+- The Animator will read the template source and use it as a starting point for the scene
+- If no template fits, omit this field entirely — the Animator will create custom visuals
 
 **SYNC POINTS:**
 - `keySync` is the SINGLE most important word-visual pair in the scene (required)
@@ -1023,21 +1137,27 @@ Machine-readable with this structure:
 - DO NOT invent your own duration. Use the EXACT frame count given.
 
 ## REMEMBER
-- Maximum 8 scenes (one per narrative beat, not per line)
+- One scene per narrative beat — use as many as the content needs, no arbitrary cap
+- Each scene: minimum 7 seconds (210 frames), maximum 15 seconds (450 frames)
+- No gap of 6+ seconds between sync points within a scene
 - Every scene needs a keySync point AND 2-5 syncPoints
 - Visual continuity: same element transforms across scenes
 - Be SPECIFIC about visuals, not generic
 - **TOTAL FRAMES MUST EQUAL {duration_frames}**
 - **NO GAPS between scenes** — scenes must be back-to-back, covering every frame
+- For studio preset: suggest matching template slugs in "suggestedTemplates" per scene
 
 ## FINAL CHECKLIST
 Before responding "PLANNING COMPLETE":
-1. [ ] Used Write tool to create `{abs_plan_path}`
+1. [ ] Used Write tool to create `{abs_plan_path}` (includes Verification Table)
 2. [ ] Used Write tool to create `{abs_scenes_path}`
 3. [ ] scenes.json has valid JSON structure
 4. [ ] Both files written to the EXACT paths above (not the workspace root!)
 {display_mode_checklist}6. [ ] Scenes are contiguous — no gaps between any two consecutive scenes
 7. [ ] Scene 1 starts at frame 0, last scene ends at frame {duration_frames}
+8. [ ] Every scene is 210-450 frames (7-15 seconds) — verified in the table
+9. [ ] Max sync gap within any scene is under 150 frames (5 seconds) — verified in the table
+10. [ ] SCENE_PLAN.md written BEFORE scenes.json (verification must happen first)
 
 **You MUST write both files using the Write tool. The Animator cannot proceed without them.**
 
