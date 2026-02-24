@@ -3122,12 +3122,15 @@ class ClaudeVisualGenerator:
             shutil.copytree(template_dir, dest, ignore=shutil.ignore_patterns("register.ts"))
             copied += 1
 
-        # Copy shared utility files that templates depend on
+        # Copy shared utility files that templates depend on.
+        # Templates import from ../../use-scale which resolves to workspace/src/
+        # (two dirs up from src/.templates/{slug}/).
         templates_src = templates_pkg.parent  # packages/templates/src/
+        src_dir = target_dir.parent  # workspace/src/
         for shared_file in ["use-scale.ts", "fonts.ts"]:
             src = templates_src / shared_file
             if src.exists():
-                shutil.copy2(src, target_dir / shared_file)
+                shutil.copy2(src, src_dir / shared_file)
 
         print(f"[ClaudeGenerator] Copied {copied} studio templates to {target_dir}")
         return copied
