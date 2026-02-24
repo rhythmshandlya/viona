@@ -146,7 +146,7 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
 
   // ── Map fade in ─────────────────────────────────────────────────
   const mapOpacity = interpolate(frame, [0, 30], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // ── Global fade out ─────────────────────────────────────────────

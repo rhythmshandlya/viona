@@ -18,7 +18,7 @@ const PollBattle: React.FC<PollBattleProps> = (props) => {
   const maxVotes = Math.max(...options.map((o) => o.votes));
   const winnerIdx = options.findIndex((o) => o.votes === maxVotes);
 
-  const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
+  const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const outroOpacity = interpolate(frame, [durationInFrames - 30, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   const questionOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });

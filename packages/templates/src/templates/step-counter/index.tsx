@@ -273,7 +273,7 @@ const StepCounter: React.FC<StepCounterProps> = (props) => {
   // --- Fade transitions ---
   // Background fade in: 0-15
   const introOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Fade out: 330-360

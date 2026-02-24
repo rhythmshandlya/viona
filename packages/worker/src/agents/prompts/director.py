@@ -137,12 +137,12 @@ Scene rhythm should VARY — never make all scenes the same duration.
 HARD LIMIT: No scene may exceed 15 seconds (450 frames). If content runs longer, SPLIT it.
 
 RHYTHM PATTERN (example for 6-scene, 60s video):
-  Scene 1 (Hook):    5s  — fast, punchy, immediate grab
+  Scene 1 (Hook):    7s  — fast, punchy, immediate grab
   Scene 2 (Problem): 10s — build tension, show the challenge
   Scene 3 (Insight): 12s — deepest explanation, key visual metaphor
   Scene 4 (How):     12s — mechanism/process, step-by-step
   Scene 5 (Proof):   10s — evidence, data, results
-  Scene 6 (Payoff):  5s  — fast, satisfying close
+  Scene 6 (Payoff):  7s  — fast, satisfying close
 
 SYNC POINT CADENCE:
 - Within each scene, plan 1 visual event every 3-4 seconds (research shows this matches
@@ -150,6 +150,12 @@ SYNC POINT CADENCE:
 - A 10-second scene should have 3-4 sync points
 - Maximum 5 seconds between any two consecutive sync points within a scene — if there's a longer gap, you need more sync points or the scene should be split
 - This is what turns "slides with narration" into a DYNAMIC video
+
+SHORT VIDEOS (under 20 seconds total):
+- Minimum scene duration is 4 seconds (120 frames) instead of 7 seconds
+- A single scene is acceptable for videos under 10 seconds
+- Still maintain sync point cadence (1 event every 3-4 seconds)
+- Shorter scenes should be punchier — prioritize impact over setup
 </pacing_guide>
 
 <output_format>
@@ -613,43 +619,13 @@ Stagger 4-5 frames (rapid fire). Use `text-slam` aggressively, `zoom-punch` tran
 Stagger 8-10 frames. Prefer `fade-rise` over spring-in, `word-cascade` for quotes, `fill-progress` for charts.
 Easing.inOut(Easing.cubic) for continuous motion. No bounce, no particles — pure clarity.""",
     "studio": """Polished card-based animations floating on dot-grid backgrounds. Dark-mode-first with glassmorphic cards.
-This style has a PRE-BUILT TEMPLATE LIBRARY of 57 components the Animator can copy and customize.
+This style has a PRE-BUILT TEMPLATE LIBRARY of 60 components the Animator can copy and customize.
 
-**DESIGN SYSTEM — Studio (DotGrid Theme):**
+**COLOR PALETTE:** Dark mode default — background #0B0F1A, text #FFFFFF, accent #6366F1 (indigo),
+secondary #EC4899 (pink). Light mode: background #F8F9FB, text #111827. Cards: glassmorphic
+(rgba(255,255,255,0.06) bg, blur(20px), 1px rgba(255,255,255,0.10) border, 32px radius).
 
-**COLOR PALETTE (5-color theming contract — every scene uses all 5):**
-Dark mode (default):
-- background: #0B0F1A (deep navy-black)
-- text: #FFFFFF
-- textMuted: rgba(255,255,255,0.45)
-- gridColor: rgba(255,255,255,0.04)
-- cardBg: rgba(255,255,255,0.06)
-- cardBorder: rgba(255,255,255,0.10)
-
-Light mode:
-- background: #F8F9FB
-- text: #111827
-- textMuted: rgba(0,0,0,0.45)
-- gridColor: rgba(0,0,0,0.04)
-- cardBg: rgba(0,0,0,0.04)
-- cardBorder: rgba(0,0,0,0.08)
-
-Accent colors: primary #6366F1 (indigo), secondary #EC4899 (pink). Customizable per-scene.
-
-**BACKGROUND — DotGrid (MANDATORY in every scene):**
-```tsx
-<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
-  <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-    <circle cx="16" cy="16" r="1" fill="rgba(255,255,255,0.04)" />
-  </pattern>
-  <rect width="100%" height="100%" fill="#0B0F1A" />
-  <rect width="100%" height="100%" fill="url(#dot-grid)" />
-</svg>
-```
-The dot grid is SUBTLE — 32px spacing, r=1 dots at 0.04 opacity. It's a texture, not a prominent element. This is the Studio signature.
-
-**TYPOGRAPHY (font pair system):**
-Pick ONE pair per project and stick to it across all scenes.
+**FONT PAIRS (pick ONE per project):**
 | Key | Headline | Body | Vibe |
 |-----|----------|------|------|
 | boldImpact | Bebas Neue | Roboto | Bold dramatic |
@@ -658,54 +634,24 @@ Pick ONE pair per project and stick to it across all scenes.
 | elegantEditorial | Playfair Display | Lato | Sophisticated |
 | friendlyTech | Poppins | Inter | Approachable |
 
-**CARD LAYOUT:**
-- Cards are centered flex containers floating on the dot-grid background
-- borderRadius: 32px, padding: 56-64px, maxWidth: 900px (or 85% of canvas)
-- Glass style: background rgba(255,255,255,0.06), backdropFilter: blur(20px), border 1px solid rgba(255,255,255,0.10)
-- Cards can also be solid, gradient, or outline — but glass is the default
-
-**ANIMATION LIFECYCLE (every scene follows this exact arc):**
-1. Intro (frames 0→15): opacity fades from 0→1
-2. Staggered entrance (frames 15→100): elements spring/slide in with increasing delay (6-8 frames apart)
-3. Hold (frames 100→dF-30): content visible, subtle motion (counters counting, progress bars filling, gentle floats)
-4. Outro (frames dF-30→dF): opacity fades from 1→0
-- Combine: `opacity = introOpacity * outroOpacity` — both always active
-
-**ANIMATION CONSTANTS:**
-- Card entrances: spring({ damping: 26, stiffness: 120 }) — smooth premium settle
-- Snappy reveals: spring({ damping: 20, stiffness: 170 }) — for hero text
-- Element staggers: 6-8 frames apart
-- Progress/counter animations: smooth interpolate() over 100+ frames during hold phase
-- Exit: Easing.out(Easing.cubic) for smooth decelerations
-
-**RENDERING RULES:**
-- Pure inline styles only — `style={{...}}` on every element. No CSS files, no CSS-in-JS.
-- All graphics via inline SVG (charts, icons, decorative shapes) — no image imports
-- Flexbox layout via inline styles for all positioning
-- Every interpolate() call MUST have { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+**CARD LAYOUT:** Centered flex containers on dot-grid background (32px grid, r=1 dots, 0.04 opacity).
+Cards: 56-64px padding, maxWidth 900px (or 85% canvas). Glass style default, also solid/gradient/outline.
 
 **TEMPLATE LIBRARY:**
 Check src/.templates/ for pre-built template source code. If a template matches the scene purpose,
-plan the scene around that template's structure. The Animator will read the template code and
-customize it. Categories: data-viz (stat-counter, stat-donut, bar-chart-race, etc.), lower-thirds
-(speaker-id, guest-intro-card), social (poll-battle, emoji-slider-poll), comparisons (versus-screen,
-pros-cons), intros/outros (channel-intro, end-screen, logo-stinger), marketing (product-card,
-coupon-badge, qr-code-reveal), education (definition-tooltip, formula-display), and more.
+plan the scene around that template's structure. Categories: data-viz (stat-counter, stat-donut,
+bar-chart-race), lower-thirds (speaker-id, guest-intro-card), social (poll-battle, emoji-slider-poll),
+comparisons (versus-screen, pros-cons), intros/outros (channel-intro, end-screen, logo-stinger),
+marketing (product-card, coupon-badge, qr-code-reveal), education (definition-tooltip, formula-display).
 
 If a STUDIO_TEMPLATES.md file exists in the workspace src/ directory, READ IT FIRST for the full
-template catalog with descriptions. Plan scenes that can leverage existing templates when possible.
+template catalog. Plan scenes that can leverage existing templates when possible.
 
 **TEMPLATE SUGGESTIONS (Studio only):**
-For each scene, check the STUDIO_TEMPLATES.md catalog. If a template matches the scene's purpose,
-add a "suggestedTemplates" array to the scene in scenes.json with 1-2 template slugs.
-The Animator will read the template source and use it as a starting point.
-If no template fits, omit the field — the Animator will create custom visuals in the studio style.
-
-Examples:
-- Scene showing revenue growth with a big number → ["stat-counter"]
-- Scene comparing two products → ["versus-screen", "pros-cons"]
-- Scene with a timeline of events → ["timeline-cascade"]
-- Scene with a step-by-step process → ["process-flow"]
+For each scene, add a "suggestedTemplates" array to scenes.json with 1-2 template slugs that match
+the scene's purpose. If no template fits, omit the field.
+Examples: revenue growth → ["stat-counter"], comparison → ["versus-screen", "pros-cons"],
+timeline → ["timeline-cascade"], process → ["process-flow"].
 """,
 }
 
@@ -972,7 +918,7 @@ First, identify the narrative beats in the content (as many as needed — no cap
 - Understanding (how it works — step-by-step mechanism)
 - Payoff (satisfying conclusion — fast and punchy)
 
-Vary the pacing: short beats (5-6s) for hook and payoff, longer beats (10-15s) for core explanation.
+Vary the pacing: short beats (7-8s) for hook and payoff, longer beats (10-15s) for core explanation.
 
 **SPLIT RULE:** If a narrative section covers two distinct ideas (e.g., "problem" then "solution", or "chart analysis" then "comparison"), those are TWO separate beats — even if they're related. Each beat = one scene. A scene with a topic shift in the middle will have dead visual space where the first topic's visual sits stale while the narrator moves on. Always split at topic transitions.
 
@@ -1139,7 +1085,7 @@ Machine-readable with this structure:
 ## REMEMBER
 - One scene per narrative beat — use as many as the content needs, no arbitrary cap
 - Each scene: minimum 7 seconds (210 frames), maximum 15 seconds (450 frames)
-- No gap of 6+ seconds between sync points within a scene
+- No gap of 5+ seconds between sync points within a scene
 - Every scene needs a keySync point AND 2-5 syncPoints
 - Visual continuity: same element transforms across scenes
 - Be SPECIFIC about visuals, not generic

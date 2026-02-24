@@ -256,7 +256,7 @@ const QrCodeReveal: React.FC<QrCodeRevealProps> = (props) => {
   // ── Animation timeline ──────────────────────────────────────────
   // 0-15: Background fade in
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 15-25: QR frame appears

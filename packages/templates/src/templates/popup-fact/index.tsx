@@ -108,7 +108,7 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
 
   // ── Global intro / outro ────────────────────────────────────────
   const introOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,

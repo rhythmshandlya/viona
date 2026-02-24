@@ -102,7 +102,7 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
   /* ---- Global fades ---- */
   // 0-15: Background fade in
   const bgFadeIn = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 310-340: Elements fade out
@@ -202,7 +202,7 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
     frame % 90,
     [0, 45, 90],
     [0.8, 1.2, 0.8],
-    { extrapolateRight: 'clamp' }
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
   const glowScale = interpolate(frame, [20, 50], [0, 1], {

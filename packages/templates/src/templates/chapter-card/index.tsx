@@ -108,7 +108,7 @@ const ChapterCard: React.FC<ChapterCardProps> = (props) => {
 
   // ── Phase: Background fade in (0-15) ─────────────────────────
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // ── Phase: Chapter number scales in (10-30, spring) ──────────

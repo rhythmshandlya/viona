@@ -31,9 +31,9 @@ Studio aesthetic (color usage, spring configs, DotGrid pattern, card layout, sta
 timing). Then build custom visuals that feel like they belong to the same design system.
 
 ### Template Location & Structure
-Each template lives in `src/.templates/{{slug}}/` with:
+Each template lives in `src/.templates/{slug}/` with:
 - `index.tsx` — Main composition component (the most important file)
-- `schema.ts` — Zod props schema (every template self-defaults via `schema.parse({{}})`)
+- `schema.ts` — Zod props schema (every template self-defaults via `schema.parse({})`)
 - `constants.ts` — BACKGROUNDS object + `getConstants()` that resolves colors/fonts from props
 - `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
 - `meta.json` — Tags, description, and suggested use-cases
@@ -41,7 +41,7 @@ Each template lives in `src/.templates/{{slug}}/` with:
 ### Workflow
 1. **Check `suggestedTemplates`** in `scenes.json` for each scene — the Director already
    picked the best-matching templates for you
-2. **Read template source** — open `src/.templates/{{slug}}/index.tsx` (and `components/` if needed)
+2. **Read template source** — open `src/.templates/{slug}/index.tsx` (and `components/` if needed)
 3. **Copy into Scene file** — paste the relevant code into `scenes/SceneN.tsx`
 4. **Adapt** — swap data values, adjust frame timing, update the 5-color palette,
    copy sub-components you need from the template's `components/` folder
@@ -72,7 +72,7 @@ Accent defaults: primary #6366F1 (indigo), secondary #EC4899 (pink).
 **DotGrid Background (MUST include in EVERY scene):**
 The dot grid is SUBTLE — a background texture, not a prominent element. This is the Studio signature.
 ```tsx
-<svg style={{{{ position: 'absolute', inset: 0 }}}} width="100%" height="100%">
+<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
   <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
     <circle cx="16" cy="16" r="1" fill="rgba(255,255,255,0.04)" />
   </pattern>
@@ -105,17 +105,17 @@ The dot grid is SUBTLE — a background texture, not a prominent element. This i
 - ALWAYS combine: `const opacity = introOpacity * outroOpacity;` — both active simultaneously
 
 **Spring & Easing Constants:**
-- Card entrances: spring({{ config: {{ damping: 26, stiffness: 120 }} }}) — smooth premium settle
-- Hero text reveals: spring({{ config: {{ damping: 20, stiffness: 170 }} }}) — snappy
+- Card entrances: spring({ config: { damping: 26, stiffness: 120 } }) — smooth premium settle
+- Hero text reveals: spring({ config: { damping: 20, stiffness: 170 } }) — snappy
 - Element stagger delay: 6-8 frames apart
 - Progress/counter animations: smooth interpolate() over 100+ frames during hold phase
 - Exit easing: Easing.out(Easing.cubic) for smooth decelerations
 
 **RENDERING RULES:**
-- Pure inline styles ONLY: `style={{{{...}}}}` on every element. No CSS files, no CSS-in-JS libraries.
+- Pure inline styles ONLY: `style={{...}}` on every element. No CSS files, no CSS-in-JS libraries.
 - All graphics via inline SVG — charts (arcs, bars, lines), icons, decorative shapes. No image imports.
 - Flexbox layout via inline styles for all positioning
-- Every interpolate() MUST have {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}
+- Every interpolate() MUST have { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 
 **If NO template matches:** Create custom visuals but ALWAYS maintain:
 - DotGrid SVG background (32px grid, r=1 dots, 0.04 opacity)
@@ -367,16 +367,16 @@ If you write code without first writing your reasoning, you are doing it wrong.
 
 ### Spring Configuration (ALWAYS use this)
 ```tsx
-const SPRING_CONFIG = {{ damping: 26, stiffness: 120, mass: 1.0 }};
-const progress = spring({{frame: frame - startFrame, fps, config: SPRING_CONFIG}});
+const SPRING_CONFIG = { damping: 26, stiffness: 120, mass: 1.0 };
+const progress = spring({frame: frame - startFrame, fps, config: SPRING_CONFIG});
 ```
 
 ### Stagger Pattern (REQUIRED for multiple elements)
 ```tsx
 // NEVER animate all elements at once. Always stagger by 6+ frames:
-{{items.map((item, i) => (
-  <Element key={{i}} delay={{i * 6}} />
-))}}
+{items.map((item, i) => (
+  <Element key={i} delay={i * 6} />
+))}
 ```
 
 ### Key Sync Pattern (CRITICAL — audio-visual alignment)
@@ -386,40 +386,41 @@ const progress = spring({{frame: frame - startFrame, fps, config: SPRING_CONFIG}
 // Use it with useCurrentFrame() directly — NO additional subtraction!
 
 // In constants.ts (sync points are PRE-COMPUTED as local offsets):
-export const TIMING = {{
+export const TIMING = {
   scene3Start: 225,
   scene3End: 393,
   scene3KeySync: 275 - 225, // = 50 (absolute 275 minus scene start 225)
   scene3Sync_overflow: 280 - 225, // = 55 (local frame for secondary sync)
   // ... etc
-}};
+};
 
 // In Scene3.tsx:
-const frame = useCurrentFrame(); // Already 0-relative inside <Sequence from={{225}}>
-const {{ fps }} = useVideoConfig();
+const frame = useCurrentFrame(); // Already 0-relative inside <Sequence from={225}>
+const { fps } = useVideoConfig();
 
 // ✅ CORRECT — use frame directly (NOT localFrame, NOT frame - sceneStart):
-const keySyncProgress = spring({{
+const keySyncProgress = spring({
   frame: frame - TIMING.scene3KeySync,
   fps,
   config: SPRING_CONFIG,
-}});
+});
 
 // Setup: elements visible BEFORE the key word
-const setupProgress = interpolate(frame, [0, TIMING.scene3KeySync], [0, 1], {{
+const setupProgress = interpolate(frame, [0, TIMING.scene3KeySync], [0, 1], {
+  extrapolateLeft: 'clamp',
   extrapolateRight: 'clamp',
-}});
+});
 
 // Payoff: elements appearing AT/AFTER the key word
-const payoffProgress = spring({{
+const payoffProgress = spring({
   frame: frame - TIMING.scene3KeySync,
   fps,
   config: SPRING_CONFIG,
-}});
+});
 
 // ❌ WRONG — DO NOT DO THIS (causes blank scene):
 // const localFrame = frame - TIMING.scene3Start; // frame is already local!
-// const keySyncProgress = spring({{ frame: localFrame - 50, ... }}); // double subtraction!
+// const keySyncProgress = spring({ frame: localFrame - 50, ... }); // double subtraction!
 ```
 
 **RULE: The keySync visual event MUST trigger at exactly TIMING.sceneNKeySync.
@@ -438,79 +439,79 @@ const titleScale = interpolate(
   frame,
   [0, titleSettleFrame, titleSettleFrame + 15],
   [1.8, 1.8, 1],
-  {{ extrapolateRight: 'clamp' }}
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 const titleY = interpolate(
   frame,
   [0, titleSettleFrame, titleSettleFrame + 15],
   [height * 0.4, height * 0.4, height * 0.06],
-  {{ extrapolateRight: 'clamp' }}
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 // Content fades in AFTER title settles
 const contentOpacity = interpolate(
   frame,
   [titleSettleFrame + 10, titleSettleFrame + 25],
   [0, 1],
-  {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 ```
 **RULE: Never show a small title at the top with blank space below. The title must dominate the screen initially, then make room for content.**
 
 ### Glassmorphism (for cards/containers)
 ```tsx
-const glassStyle = {{
+const glassStyle = {
   background: 'rgba(255, 255, 255, 0.1)',
   backdropFilter: 'blur(20px)',
   WebkitBackdropFilter: 'blur(20px)',
   border: '1px solid rgba(255, 255, 255, 0.2)',
   borderRadius: 16,
   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-}};
+};
 ```
 
 ### Flowing Particles (for streams/rivers)
 ```tsx
-const FlowingParticles: React.FC = () => {{
+const FlowingParticles: React.FC = () => {
   const frame = useCurrentFrame();
-  const {{width, height}} = useVideoConfig();
+  const {width, height} = useVideoConfig();
   return (
     <>
-      {{Array.from({{length: 30}}).map((_, i) => {{
+      {Array.from({length: 30}).map((_, i) => {
         const x = ((frame * 2 + i * 50) % (width + 100)) - 50;
         const y = (height * 0.4) + Math.sin((frame + i * 20) * 0.03) * 50;
         return (
-          <div key={{i}} style={{{{
+          <div key={i} style={{
             position: 'absolute', left: x, top: y,
             width: 16, height: 16, borderRadius: '50%',
             background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
             opacity: 0.7,
-          }}}} />
+          }} />
         );
-      }})}}
+      })}
     </>
   );
-}};
+};
 ```
 
 ### Counter Animation (for numbers)
 ```tsx
-const Counter: React.FC<{{target: number, start: number}}> = ({{target, start}}) => {{
+const Counter: React.FC<{target: number, start: number}> = ({target, start}) => {
   const frame = useCurrentFrame();
   const value = Math.round(interpolate(
-    frame - start, [0, 45], [0, target], {{extrapolateRight: 'clamp'}}
+    frame - start, [0, 45], [0, target], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
   ));
-  return <span style={{{{fontVariantNumeric: 'tabular-nums'}}}}}>{{value}}</span>;
-}};
+  return <span style={{fontVariantNumeric: 'tabular-nums'}}>{value}</span>;
+};
 ```
 
 ### Scale Entrance (for appearing elements)
 ```tsx
-const ScaleIn: React.FC<{{startFrame: number, children: React.ReactNode}}> = ({{startFrame, children}}) => {{
+const ScaleIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({startFrame, children}) => {
   const frame = useCurrentFrame();
-  const {{fps}} = useVideoConfig();
-  const scale = spring({{frame: frame - startFrame, fps, config: {{damping: 26, stiffness: 120}}}});
-  return <div style={{{{transform: `scale(${{scale}})`}}}}}>{{children}}</div>;
-}};
+  const {fps} = useVideoConfig();
+  const scale = spring({frame: frame - startFrame, fps, config: {damping: 26, stiffness: 120}});
+  return <div style={{transform: `scale(${scale})`}}>{children}</div>;
+};
 ```
 </animation_patterns>
 
@@ -549,15 +550,15 @@ const revealEnd = keySync + 25;
 const sceneDuration = TIMING.sceneNEnd - TIMING.sceneNStart;
 
 // Act 1: Title enters
-const titleScale = spring({{frame, fps, config: SPRINGS.SMOOTH}});
+const titleScale = spring({frame, fps, config: SPRINGS.SMOOTH});
 
 // Act 2: Hero reveals at keySync
-const heroScale = spring({{frame: frame - keySync, fps, config: SPRINGS.SNAPPY}});
-const heroOpacity = interpolate(frame, [keySync, keySync + 8], [0, 1], {{extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}});
+const heroScale = spring({frame: frame - keySync, fps, config: SPRINGS.SNAPPY});
+const heroOpacity = interpolate(frame, [keySync, keySync + 8], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 
 // Act 2: Supporting elements stagger after hero
-const support1 = spring({{frame: frame - (keySync + STAGGER.NORMAL), fps, config: SPRINGS.SMOOTH}});
-const support2 = spring({{frame: frame - (keySync + STAGGER.NORMAL * 2), fps, config: SPRINGS.SMOOTH}});
+const support1 = spring({frame: frame - (keySync + STAGGER.NORMAL), fps, config: SPRINGS.SMOOTH});
+const support2 = spring({frame: frame - (keySync + STAGGER.NORMAL * 2), fps, config: SPRINGS.SMOOTH});
 ```
 
 ### Research-Backed Anticipation & Overshoot Values
@@ -569,9 +570,9 @@ const support2 = spring({{frame: frame - (keySync + STAGGER.NORMAL * 2), fps, co
 ```tsx
 // Optional anticipation for dramatic reveals:
 const anticipation = frame < keySync - 5 ? 1.0 :
-  interpolate(frame, [keySync - 5, keySync], [1.0, 0.92], {{
+  interpolate(frame, [keySync - 5, keySync], [1.0, 0.92], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  }});
+  });
 ```
 
 **Overshoot (the premium touch):**
@@ -607,26 +608,26 @@ Overlay scenes do NOT use the full 3-act structure above. Instead:
 ## KINETIC TYPOGRAPHY PATTERNS
 
 When the Director specifies a named text animation, implement it using these exact patterns.
-Import `Easing` from remotion: `import {{ Easing }} from 'remotion';`
+Import `Easing` from remotion: `import { Easing } from 'remotion';`
 
 ### `word-cascade` — Words appear one-by-one with slide-up + fade
 ```tsx
 const words = text.split(' ');
 const framesPerWord = 6;
 
-{{words.map((word, i) => {{
+{words.map((word, i) => {
   const wordDelay = startFrame + i * framesPerWord;
-  const opacity = interpolate(frame, [wordDelay, wordDelay + 10], [0, 1], {{ extrapolateRight: 'clamp', extrapolateLeft: 'clamp' }});
-  const y = interpolate(frame, [wordDelay, wordDelay + 10], [20, 0], {{
+  const opacity = interpolate(frame, [wordDelay, wordDelay + 10], [0, 1], { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' });
+  const y = interpolate(frame, [wordDelay, wordDelay + 10], [20, 0], {
     extrapolateRight: 'clamp', extrapolateLeft: 'clamp',
     easing: Easing.out(Easing.exp),
-  }});
+  });
   return (
-    <span key={{i}} style={{{{ opacity, transform: `translateY(${{y}}px)`, display: 'inline-block', marginRight: 12 }}}}>
-      {{word}}
+    <span key={i} style={{ opacity, transform: `translateY(${y}px)`, display: 'inline-block', marginRight: 12 }}>
+      {word}
     </span>
   );
-}})}}
+})}
 ```
 
 ### `char-stagger` — Characters appear letter-by-letter with spring scale
@@ -634,29 +635,29 @@ const framesPerWord = 6;
 const chars = text.split('');
 const framesPerChar = 3;
 
-{{chars.map((char, i) => {{
+{chars.map((char, i) => {
   const charDelay = startFrame + i * framesPerChar;
-  const scale = spring({{ frame: frame - charDelay, fps, config: {{ damping: 22, stiffness: 120 }} }});
+  const scale = spring({ frame: frame - charDelay, fps, config: { damping: 22, stiffness: 120 } });
   return (
-    <span key={{i}} style={{{{ display: 'inline-block', transform: `scale(${{scale}})`, minWidth: char === ' ' ? 8 : undefined }}}}>
-      {{char}}
+    <span key={i} style={{ display: 'inline-block', transform: `scale(${scale})`, minWidth: char === ' ' ? 8 : undefined }}>
+      {char}
     </span>
   );
-}})}}
+})}
 ```
 
 ### `text-slam` — Text scales from 2.5x to 1x with heavy spring + text shadow glow
 ```tsx
-const slamProgress = spring({{ frame: frame - slamFrame, fps, config: {{ damping: 18, stiffness: 150, mass: 1.2 }} }});
+const slamProgress = spring({ frame: frame - slamFrame, fps, config: { damping: 18, stiffness: 150, mass: 1.2 } });
 const scale = interpolate(slamProgress, [0, 1], [2.5, 1]);
-const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], {{ extrapolateRight: 'clamp' }});
+const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-<div style={{{{
-  transform: `scale(${{scale}})`,
-  textShadow: `0 0 ${{40 * glowOpacity}}px ${{COLORS.primary}}`,
+<div style={{
+  transform: `scale(${scale})`,
+  textShadow: `0 0 ${40 * glowOpacity}px ${COLORS.primary}`,
   fontWeight: 900,
-}}}}>
-  {{text}}
+}}>
+  {text}
 </div>
 ```
 
@@ -664,13 +665,13 @@ const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], {{ extra
 ```tsx
 const charsVisible = Math.floor(interpolate(
   frame, [startFrame, startFrame + text.length * 2], [0, text.length],
-  {{ extrapolateRight: 'clamp', extrapolateLeft: 'clamp' }}
+  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' }
 ));
 const cursorOpacity = Math.sin(frame * 0.15) > 0 ? 1 : 0;
 
-<span style={{{{ fontFamily: 'monospace' }}}}>
-  {{text.slice(0, charsVisible)}}
-  <span style={{{{ opacity: cursorOpacity, marginLeft: 2 }}}}>|</span>
+<span style={{ fontFamily: 'monospace' }}>
+  {text.slice(0, charsVisible)}
+  <span style={{ opacity: cursorOpacity, marginLeft: 2 }}>|</span>
 </span>
 ```
 
@@ -678,12 +679,12 @@ const cursorOpacity = Math.sin(frame * 0.15) > 0 ? 1 : 0;
 ```tsx
 const rollProgress = interpolate(
   frame, [startFrame, startFrame + 45], [0, 1],
-  {{ extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.out(Easing.exp) }}
+  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.out(Easing.exp) }
 );
 const displayValue = Math.round(rollProgress * targetNumber);
 
-<span style={{{{ fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}}}>
-  {{prefix}}{{displayValue.toLocaleString()}}{{suffix}}
+<span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
+  {prefix}{displayValue.toLocaleString()}{suffix}
 </span>
 ```
 
@@ -692,7 +693,7 @@ const displayValue = Math.round(rollProgress * targetNumber);
 // Use for title that starts centered-large and settles to top-small
 const morphProgress = interpolate(
   frame, [morphStartFrame, morphStartFrame + 20], [0, 1],
-  {{ extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.inOut(Easing.cubic) }}
+  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.inOut(Easing.cubic) }
 );
 const posY = interpolate(morphProgress, [0, 1], [EH * 0.4, EH * 0.06]);
 const fontSize = interpolate(morphProgress, [0, 1], [EH * 0.09, EH * 0.05]);
@@ -705,7 +706,7 @@ These are COPY-PASTE-READY — adapt values (colors, sizes, timing) but keep the
 <easing_guide>
 ## EASING GUIDE — VARY YOUR MOTION
 
-Import: `import {{ Easing }} from 'remotion';`
+Import: `import { Easing } from 'remotion';`
 
 **MANDATORY: EVERY `interpolate()` call MUST include BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'`.** Without clamp on BOTH sides, values extrapolate linearly beyond the defined range — this causes catastrophic visual bugs like scale: 13x or opacity: 85. No exceptions.
 
@@ -717,7 +718,7 @@ Import: `import {{ Easing }} from 'remotion';`
 | Element exits | `Easing.in(Easing.exp)` | `easing: Easing.in(Easing.exp)` | Slow start, fast departure — natural exit |
 | Continuous motion (draw-in, fill) | `Easing.inOut(Easing.cubic)` | `easing: Easing.inOut(Easing.cubic)` | Smooth S-curve — feels organic |
 | Dramatic reveal | `Easing.out(Easing.exp)` | `easing: Easing.out(Easing.exp)` | Fast start builds suspense |
-| Overshoot settle | `spring()` | `spring({{ config: {{ damping: 18 }} }})` | Physical bounce — bouncy entrances |
+| Overshoot settle | `spring()` | `spring({ config: { damping: 18 } })` | Physical bounce — bouncy entrances |
 | Counting/numbers | `Easing.out(Easing.exp)` | `easing: Easing.out(Easing.exp)` | Fast early count, slow approach to final value |
 | Looping/ambient | `Easing.inOut(Easing.sin)` | `easing: Easing.inOut(Easing.sin)` | Perfectly smooth cycle, no hard edges |
 | Position morph | `Easing.inOut(Easing.cubic)` | `easing: Easing.inOut(Easing.cubic)` | Elegant start/stop for repositioning |
@@ -725,18 +726,18 @@ Import: `import {{ Easing }} from 'remotion';`
 ### Using Easing with interpolate()
 ```tsx
 // GOOD — varied easing per intent:
-const barWidth = interpolate(frame, [start, start + 40], [0, targetWidth], {{
+const barWidth = interpolate(frame, [start, start + 40], [0, targetWidth], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   easing: Easing.inOut(Easing.cubic),  // smooth S-curve for fill
-}});
+});
 
-const titleOpacity = interpolate(frame, [start, start + 15], [0, 1], {{
+const titleOpacity = interpolate(frame, [start, start + 15], [0, 1], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   easing: Easing.out(Easing.exp),  // fast snap-in for entrance
-}});
+});
 
 // BAD — spring() for everything:
-const barWidth = spring({{ frame, fps, config: SPRING_CONFIG }});  // spring is wrong for a bar fill
+const barWidth = spring({ frame, fps, config: SPRING_CONFIG });  // spring is wrong for a bar fill
 ```
 
 **KEY RULE:** Use `spring()` for bouncy entrances (icons, cards, titles slamming in).
@@ -759,25 +760,103 @@ Use the BEST easing that fits the element's importance:
 ### Example — Layered Entrance
 ```tsx
 // Hero: spring with overshoot
-const heroProgress = spring({{frame: frame - keySync, fps, config: SPRINGS.SNAPPY}});
+const heroProgress = spring({frame: frame - keySync, fps, config: SPRINGS.SNAPPY});
 
 // Supporting: easeOutExpo (fast snap, no bounce)
-const supportOpacity = interpolate(frame, [keySync + 6, keySync + 18], [0, 1], {{
+const supportOpacity = interpolate(frame, [keySync + 6, keySync + 18], [0, 1], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   easing: Easing.out(Easing.exp),
-}});
-const supportY = interpolate(frame, [keySync + 6, keySync + 18], [25, 0], {{
+});
+const supportY = interpolate(frame, [keySync + 6, keySync + 18], [25, 0], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   easing: Easing.out(Easing.exp),
-}});
+});
 
 // Tertiary: easeOutCubic (gentle)
-const tertiaryOpacity = interpolate(frame, [keySync + 12, keySync + 27], [0, 1], {{
+const tertiaryOpacity = interpolate(frame, [keySync + 12, keySync + 27], [0, 1], {
   extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   easing: Easing.out(Easing.cubic),
-}});
+});
 ```
 </easing_guide>
+
+<exit_animations>
+## EXIT ANIMATION RECIPES
+
+Exit animations are critical for polish. Every scene MUST have an outro phase (last ~30 frames).
+Apply exits in REVERSE stagger order (last element exits first).
+
+### Recipe 1: Fade-Shrink-Out
+```tsx
+const exitProgress = interpolate(frame, [exitStart, exitStart + 25], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+const exitOpacity = 1 - exitProgress;
+const exitScale = interpolate(exitProgress, [0, 1], [1, 0.85], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+// Apply: style={{ opacity: exitOpacity, transform: `scale(${exitScale})` }}
+```
+
+### Recipe 2: Slide-Away
+```tsx
+const slideOut = interpolate(frame, [exitStart, exitStart + 20], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+const exitY = interpolate(slideOut, [0, 1], [0, 40], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const exitOpacity = 1 - slideOut;
+// Apply: style={{ opacity: exitOpacity, transform: `translateY(${exitY}px)` }}
+```
+
+### Recipe 3: Dissolve-Scatter (per-element)
+```tsx
+// Each element gets a deterministic offset direction
+const seed = elementIndex * 137.5;
+const angle = (seed % 360) * (Math.PI / 180);
+const scatterDist = interpolate(frame, [exitStart, exitStart + 20], [0, 30], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.quad),
+});
+const exitOpacity = interpolate(frame, [exitStart, exitStart + 15], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const tx = Math.cos(angle) * scatterDist;
+const ty = Math.sin(angle) * scatterDist;
+// Apply: style={{ opacity: exitOpacity, transform: `translate(${tx}px, ${ty}px) scale(${1 - scatterDist/60})` }}
+```
+
+### Recipe 4: Scale-Down-Fade (complement to spring scale-in entrance)
+```tsx
+const exitProgress = interpolate(frame, [exitStart, exitStart + 20], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+const exitScale = interpolate(exitProgress, [0, 1], [1, 0.5], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const exitOpacity = 1 - exitProgress;
+// Apply: style={{ opacity: exitOpacity, transform: `scale(${exitScale})` }}
+```
+
+### Exit Choreography — Reverse Stagger Pattern
+```tsx
+// Exit elements in REVERSE order: last appeared → first to exit
+const elementCount = 4;
+const exitStagger = 5; // frames between each element's exit start
+const sceneExitStart = durationInFrames - 30;
+
+// Element 0 entered first, exits LAST. Element 3 entered last, exits FIRST.
+const elementExitStart = sceneExitStart + (elementCount - 1 - elementIndex) * exitStagger;
+const exitProgress = interpolate(frame, [elementExitStart, elementExitStart + 18], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+```
+</exit_animations>
 
 <scene_transitions>
 ## SCENE TRANSITIONS — @remotion/transitions
@@ -787,19 +866,19 @@ Use it when the Director specifies a non-cut transition between scenes.
 
 ### Setup in index.tsx
 ```tsx
-import {{ TransitionSeries }} from '@remotion/transitions';
-import {{ fade }} from '@remotion/transitions/fade';
-import {{ slide }} from '@remotion/transitions/slide';
-import {{ wipe }} from '@remotion/transitions/wipe';
-import {{ linearTiming, springTiming }} from '@remotion/transitions';
+import { TransitionSeries } from '@remotion/transitions';
+import { fade } from '@remotion/transitions/fade';
+import { slide } from '@remotion/transitions/slide';
+import { wipe } from '@remotion/transitions/wipe';
+import { linearTiming, springTiming } from '@remotion/transitions';
 ```
 
 ### Director → Animator Mapping
 | Director says | Animator implementation |
 |--------------|------------------------|
-| `"crossfade"` | `fade()` with `linearTiming({{ durationInFrames: 15 }})` |
-| `"slide-left"` | `slide({{ direction: 'from-right' }})` with `springTiming({{ config: {{ damping: 26, stiffness: 120 }} }})` |
-| `"wipe-right"` | `wipe({{ direction: 'from-left' }})` with `linearTiming({{ durationInFrames: 20 }})` |
+| `"crossfade"` | `fade()` with `linearTiming({ durationInFrames: 15 })` |
+| `"slide-left"` | `slide({ direction: 'from-right' })` with `springTiming({ config: { damping: 26, stiffness: 120 } })` |
+| `"wipe-right"` | `wipe({ direction: 'from-left' })` with `linearTiming({ durationInFrames: 20 })` |
 | `"zoom-punch"` | No @remotion/transitions — use manual scale interpolate at transition boundary |
 | `"cut"` (default) | Regular `Sequence` (current behavior, no TransitionSeries needed) |
 
@@ -807,25 +886,25 @@ import {{ linearTiming, springTiming }} from '@remotion/transitions';
 When the Director specifies transitions, replace the `Sequence`-based composition with `TransitionSeries`:
 ```tsx
 <TransitionSeries>
-  <TransitionSeries.Sequence durationInFrames={{TIMING.scene1End - TIMING.scene1Start}}>
+  <TransitionSeries.Sequence durationInFrames={TIMING.scene1End - TIMING.scene1Start}>
     <Scene1 />
   </TransitionSeries.Sequence>
 
   <TransitionSeries.Transition
-    presentation={{fade()}}
-    timing={{linearTiming({{ durationInFrames: 15 }})}}
+    presentation={fade()}
+    timing={linearTiming({ durationInFrames: 15 })}
   />
 
-  <TransitionSeries.Sequence durationInFrames={{TIMING.scene2End - TIMING.scene2Start}}>
+  <TransitionSeries.Sequence durationInFrames={TIMING.scene2End - TIMING.scene2Start}>
     <Scene2 />
   </TransitionSeries.Sequence>
 
   <TransitionSeries.Transition
-    presentation={{slide({{ direction: 'from-right' }})}}
-    timing={{springTiming({{ config: {{ damping: 26, stiffness: 120 }} }})}}
+    presentation={slide({ direction: 'from-right' })}
+    timing={springTiming({ config: { damping: 26, stiffness: 120 } })}
   />
 
-  <TransitionSeries.Sequence durationInFrames={{TIMING.scene3End - TIMING.scene3Start}}>
+  <TransitionSeries.Sequence durationInFrames={TIMING.scene3End - TIMING.scene3Start}>
     <Scene3 />
   </TransitionSeries.Sequence>
 </TransitionSeries>
@@ -845,19 +924,19 @@ apply 1-2 per scene maximum. Never on overlay scenes. Never on text directly.
 
 ### Ambient Gradient Shift — Background hue slowly rotates
 ```tsx
-const hueShift = interpolate(frame, [0, durationInFrames], [0, 15], {{ extrapolateRight: 'clamp' }});
-<div style={{{{
-  background: `linear-gradient(135deg, ${{COLORS.background}}, hsl(${{220 + hueShift}}, 30%, 10%))`,
+const hueShift = interpolate(frame, [0, durationInFrames], [0, 15], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+<div style={{
+  background: `linear-gradient(135deg, ${COLORS.background}, hsl(${220 + hueShift}, 30%, 10%))`,
   position: 'absolute', inset: 0,
-}}}} />
+}} />
 ```
 
 ### Floating Accent Particles — Professional ambient depth
 ```tsx
 // 20-25 particles with size variation and golden-angle distribution
 // Container opacity 0.06-0.08 — subtle enough to never compete with content
-<div style={{{{position: 'absolute', inset: 0, opacity: 0.07}}}}>
-  {{Array.from({{length: 22}}).map((_, i) => {{
+<div style={{position: 'absolute', inset: 0, opacity: 0.07}}>
+  {Array.from({length: 22}).map((_, i) => {
     const seed = i * 137.508; // golden angle for natural distribution
     const baseX = (seed * 7.31) % EW;
     const baseY = (seed * 3.17) % EH;
@@ -867,13 +946,13 @@ const hueShift = interpolate(frame, [0, durationInFrames], [0, 15], {{ extrapola
     const y = baseY + Math.sin((frame + seed) * 0.015) * 25;
     const particleOpacity = 0.3 + Math.sin((frame + seed) * 0.02) * 0.25;
     return (
-      <div key={{i}} style={{{{
+      <div key={i} style={{
         position: 'absolute', left: x, top: y,
         width: size, height: size, borderRadius: '50%',
-        background: `rgba(255, 255, 255, ${{particleOpacity}})`,
-      }}}} />
+        background: `rgba(255, 255, 255, ${particleOpacity})`,
+      }} />
     );
-  }})}}
+  })}
 </div>
 ```
 
@@ -882,19 +961,19 @@ const hueShift = interpolate(frame, [0, durationInFrames], [0, 15], {{ extrapola
 // For elements that persist throughout a scene (icons, badges, accent shapes)
 const breathe = interpolate(
   frame % 60, [0, 30, 60], [1.0, 1.015, 1.0],
-  {{ extrapolateRight: 'clamp' }}
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
-<div style={{{{ transform: `scale(${{breathe}})` }}}}>{{persistentElement}}</div>
+<div style={{ transform: `scale(${breathe})` }}>{persistentElement}</div>
 ```
 
 ### Glow Intensity Variation — Glowing elements vary shadow intensity
 ```tsx
 const glowIntensity = interpolate(
   frame % 90, [0, 45, 90], [0.4, 0.8, 0.4],
-  {{ extrapolateRight: 'clamp' }}
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
-const glow = `0 0 ${{20 * glowIntensity}}px ${{COLORS.primary}}`;
-<div style={{{{ boxShadow: glow }}}}>{{element}}</div>
+const glow = `0 0 ${20 * glowIntensity}px ${COLORS.primary}`;
+<div style={{ boxShadow: glow }}>{element}</div>
 ```
 
 ### Rules
@@ -963,18 +1042,18 @@ Map the recipe to your transcript content — every recipe MUST be combined with
 **When to use:** Reveals, celebrations, "launching", "releasing", impact moments
 ```tsx
 // Particles burst outward from center when keySync triggers
-const burstProgress = spring({{frame: frame - keySync, fps, config: SPRINGS.SNAPPY}});
-const particles = Array.from({{length: 12}}, (_, i) => {{
+const burstProgress = spring({frame: frame - keySync, fps, config: SPRINGS.SNAPPY});
+const particles = Array.from({length: 12}, (_, i) => {
   const angle = (i / 12) * Math.PI * 2;
   const distance = burstProgress * EW * 0.35;
   const x = EW / 2 + Math.cos(angle) * distance;
   const y = EH * 0.45 + Math.sin(angle) * distance;
-  const fade = interpolate(burstProgress, [0.7, 1], [0.15, 0], {{extrapolateLeft: 'clamp'}});
-  return <div key={{i}} style={{{{
+  const fade = interpolate(burstProgress, [0.7, 1], [0.15, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return <div key={i} style={{
     position: 'absolute', left: x, top: y, width: 6, height: 6,
     borderRadius: '50%', background: COLORS.accent, opacity: fade,
-  }}}} />;
-}});
+  }} />;
+});
 ```
 
 ### Recipe 2: Network Nodes — Connected nodes with pulsing edges
@@ -982,14 +1061,14 @@ const particles = Array.from({{length: 12}}, (_, i) => {{
 ```tsx
 // Define 4-5 node positions, draw lines between them, pulse the connections
 const nodes = [
-  {{x: EW * 0.2, y: EH * 0.3, label: 'API'}},
-  {{x: EW * 0.8, y: EH * 0.3, label: 'DB'}},
-  {{x: EW * 0.5, y: EH * 0.55, label: 'Core'}},
-  {{x: EW * 0.3, y: EH * 0.7, label: 'Auth'}},
-  {{x: EW * 0.7, y: EH * 0.7, label: 'Cache'}},
+  {x: EW * 0.2, y: EH * 0.3, label: 'API'},
+  {x: EW * 0.8, y: EH * 0.3, label: 'DB'},
+  {x: EW * 0.5, y: EH * 0.55, label: 'Core'},
+  {x: EW * 0.3, y: EH * 0.7, label: 'Auth'},
+  {x: EW * 0.7, y: EH * 0.7, label: 'Cache'},
 ];
 const connections = [[0,2],[1,2],[2,3],[2,4]];
-const nodeScale = spring({{frame: frame - keySync, fps, config: SPRINGS.BOUNCY}});
+const nodeScale = spring({frame: frame - keySync, fps, config: SPRINGS.BOUNCY});
 // Draw SVG lines between connected nodes, then render labeled circles
 ```
 
@@ -997,9 +1076,9 @@ const nodeScale = spring({{frame: frame - keySync, fps, config: SPRINGS.BOUNCY}}
 **When to use:** Statistics, metrics, "X users", "Y percent", any number reveal
 ```tsx
 const countTo = 11; // target number
-const countProgress = interpolate(frame - keySync, [0, DURATION.SLOW], [0, countTo], {{extrapolateRight: 'clamp'}});
+const countProgress = interpolate(frame - keySync, [0, DURATION.SLOW], [0, countTo], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 const displayNum = Math.round(countProgress);
-const ringScale = spring({{frame: frame - keySync, fps, config: SPRINGS.SMOOTH}});
+const ringScale = spring({frame: frame - keySync, fps, config: SPRINGS.SMOOTH});
 // Render: large number center, 2-3 expanding rings at opacity 0.08-0.12
 ```
 
@@ -1007,9 +1086,9 @@ const ringScale = spring({{frame: frame - keySync, fps, config: SPRINGS.SMOOTH}}
 **When to use:** Atmospheric, establishing, "ecosystem", "landscape", depth scenes
 ```tsx
 // 3 parallax layers moving at different rates for depth
-const layer1X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.05]);
-const layer2X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.10]);
-const layer3X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.02]);
+const layer1X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.05], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+const layer2X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.10], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+const layer3X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.02], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 // Layer 3 (back): gradient/particles at opacity 0.10
 // Layer 2 (mid): supporting visuals at opacity 0.3-0.5
 // Layer 1 (front): primary text/data content at full opacity
@@ -1019,18 +1098,98 @@ const layer3X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.02]);
 **When to use:** "Pipeline", "flow", "process", "streaming", data movement
 ```tsx
 const dotCount = 8;
-const dots = Array.from({{length: dotCount}}, (_, i) => {{
+const dots = Array.from({length: dotCount}, (_, i) => {
   const t = ((frame * 0.02 + i / dotCount) % 1);
-  const x = interpolate(t, [0, 0.5, 1], [EW * 0.1, EW * 0.5, EW * 0.9]);
+  const x = interpolate(t, [0, 0.5, 1], [EW * 0.1, EW * 0.5, EW * 0.9], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const y = interpolate(t, [0, 0.25, 0.5, 0.75, 1],
-    [EH * 0.5, EH * 0.35, EH * 0.5, EH * 0.65, EH * 0.5]);
-  return <div key={{i}} style={{{{
+    [EH * 0.5, EH * 0.35, EH * 0.5, EH * 0.65, EH * 0.5], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+  return <div key={i} style={{
     position: 'absolute', left: x, top: y, width: 8, height: 8,
     borderRadius: '50%', background: COLORS.accent, opacity: 0.12,
-  }}}} />;
-}});
+  }} />;
+});
 ```
 </animation_recipes>
+
+<advanced_techniques>
+## ADVANCED VISUAL TECHNIQUES
+
+### Clip-Path Reveal Animation
+Circular or rectangular reveal from center — great for dramatic entrances.
+```tsx
+const progress = interpolate(frame, [start, start + 30], [0, 100], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+// Circular reveal from center
+<div style={{ clipPath: `circle(${progress}% at 50% 50%)` }}>
+  {content}
+</div>
+// Rectangular wipe from left
+<div style={{ clipPath: `inset(0 ${100 - progress}% 0 0)` }}>
+  {content}
+</div>
+```
+
+### SVG Stroke Draw-In (evolvePath)
+Animate SVG paths drawing themselves using `@remotion/paths`.
+```tsx
+import { evolvePath } from '@remotion/paths';
+
+const progress = interpolate(frame, [start, start + 60], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.inOut(Easing.cubic),
+});
+const evolution = evolvePath(progress, pathData);
+<path d={pathData} stroke={COLORS.accent} strokeWidth={2} fill="none"
+  strokeDasharray={evolution.strokeDasharray}
+  strokeDashoffset={evolution.strokeDashoffset} />
+```
+
+### interpolateColors() for Smooth Color Morphing
+Transition between colors over time — great for mood shifts at sync points.
+```tsx
+import { interpolateColors } from 'remotion';
+
+const bgColor = interpolateColors(frame, [0, keySync, keySync + 30],
+  ['#0B0F1A', '#0B0F1A', '#1a0f2e']);
+<div style={{ backgroundColor: bgColor }} />
+```
+
+### Gradient Text (background-clip: text)
+Eye-catching gradient headlines — use sparingly for hero moments.
+```tsx
+<span style={{
+  background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`,
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
+}}>Gradient Heading</span>
+```
+
+### Blur Entrance (filter: blur)
+Elements emerge from blur — elegant for reveals and focus shifts.
+```tsx
+const blurAmount = interpolate(frame, [delay, delay + 20], [12, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const blurOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+<div style={{ filter: `blur(${blurAmount}px)`, opacity: blurOpacity }}>
+  {content}
+</div>
+```
+
+### Text Stroke/Outline
+Hollow outlined text — great for background accents or dramatic reveals.
+```tsx
+<span style={{
+  WebkitTextStroke: `2px ${COLORS.accent}`,
+  color: 'transparent',
+  fontSize: EH * 0.08,
+}}>OUTLINED TEXT</span>
+```
+</advanced_techniques>
 
 <prohibited_patterns>
 ## PROHIBITED PATTERNS (NEVER DO THESE)
@@ -1065,22 +1224,22 @@ For scenes requiring TRUE 3D (not just CSS transforms), use @remotion/three:
 
 ### Basic 3D Setup:
 ```tsx
-import {{ ThreeCanvas }} from '@remotion/three';
-import {{ useCurrentFrame }} from 'remotion';
+import { ThreeCanvas } from '@remotion/three';
+import { useCurrentFrame } from 'remotion';
 
-const My3DScene: React.FC = () => {{
+const My3DScene: React.FC = () => {
   const frame = useCurrentFrame();
   return (
     <ThreeCanvas>
-      <ambientLight intensity={{0.5}} />
-      <pointLight position={{[10, 10, 10]}} />
-      <mesh rotation={{[0, frame * 0.02, 0]}}>
-        <boxGeometry args={{[1, 1, 1]}} />
-        <meshStandardMaterial color={{COLORS.primary}} />
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} />
+      <mesh rotation={[0, frame * 0.02, 0]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshStandardMaterial color={COLORS.primary} />
       </mesh>
     </ThreeCanvas>
   );
-}};
+};
 ```
 
 **CRITICAL: NEVER use `useFrame()` from @react-three/fiber — it breaks Remotion's video rendering.
@@ -1088,23 +1247,23 @@ Always use `useCurrentFrame()` from 'remotion' for frame-based animation.**
 
 ### 3D Dice Example:
 ```tsx
-const Dice3D: React.FC<{{ startFrame: number }}> = ({{ startFrame }}) => {{
+const Dice3D: React.FC<{ startFrame: number }> = ({ startFrame }) => {
   const frame = useCurrentFrame();
   const rotation = (frame - startFrame) * 0.1;
 
   return (
     <ThreeCanvas
-      style={{{{ position: 'absolute', top: 100, left: '50%', transform: 'translateX(-50%)', width: 200, height: 200 }}}}
+      style={{ position: 'absolute', top: 100, left: '50%', transform: 'translateX(-50%)', width: 200, height: 200 }}
     >
-      <ambientLight intensity={{0.6}} />
-      <pointLight position={{[5, 5, 5]}} intensity={{1}} />
-      <mesh rotation={{[rotation, rotation * 0.7, 0]}}>
-        <boxGeometry args={{[2, 2, 2]}} />
-        <meshStandardMaterial color={{COLORS.accent}} metalness={{0.3}} roughness={{0.4}} />
+      <ambientLight intensity={0.6} />
+      <pointLight position={[5, 5, 5]} intensity={1} />
+      <mesh rotation={[rotation, rotation * 0.7, 0]}>
+        <boxGeometry args={[2, 2, 2]} />
+        <meshStandardMaterial color={COLORS.accent} metalness={0.3} roughness={0.4} />
       </mesh>
     </ThreeCanvas>
   );
-}};
+};
 ```
 
 ### CSS 3D vs Real 3D:
@@ -1143,7 +1302,7 @@ professional motion design studio, not a coding tutorial.
 | Visual Need | Tool | Remotion Usage |
 |------------|------|----------------|
 | Icons (arrows, UI, concepts) | Freepik `search_icons` → `download_file` | Inline SVG in JSX, animate with spring |
-| Illustrations (objects, scenes) | Freepik `search_resources` → `download_file` | `<Img src={{staticFile('assets/...')}} />` |
+| Illustrations (objects, scenes) | Freepik `search_resources` → `download_file` | `<Img src={staticFile('assets/...')} />` |
 | Real-world product/app screenshots | `mcp__assets__screenshot` | `<Img>` with zoom/pan/highlight animations |
 | Stock photos (people, places, concepts) | `search_unsplash`/`search_pexels` → `download_stock_photo` | `<Img>` with Ken Burns, overlays, masks |
 | Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
@@ -1164,29 +1323,29 @@ professional motion design studio, not a coding tutorial.
 - Try 2-3 search terms if the first doesn't match: "database" → "storage" → "server rack"
 
 **Resources (illustrations, vectors, photos):**
-- mcp__freepik__search_resources with `term` and content_type filter: {{ content_type: {{ vector: 1 }} }}
+- mcp__freepik__search_resources with `term` and content_type filter: { content_type: { vector: 1 } }
 - mcp__freepik__get_resource_detail_by_id to preview resource details before downloading
 - Prefer vectors over photos — cleaner scaling, transparent backgrounds
-- Use orientation filters for portrait content: {{ orientation: {{ portrait: 1 }} }}
+- Use orientation filters for portrait content: { orientation: { portrait: 1 } }
 
 ### HOW TO USE DOWNLOADED ASSETS
 
 **Icons (SVG) — inline in JSX:**
 1. mcp__freepik__search_icons → pick best result → optionally mcp__freepik__get_icon_detail_by_id to check details
-2. mcp__freepik__download_icon_by_id with id and format="svg" → returns {{ data: {{ url, filename }} }}
+2. mcp__freepik__download_icon_by_id with id and format="svg" → returns { data: { url, filename } }
 3. mcp__assets__download_file with the url and filename="icon-name.svg"
 4. Read the SVG file content with the Read tool
 5. Paste the SVG markup directly into your JSX component
-6. Replace hardcoded width/height with style prop: `style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}`
+6. Replace hardcoded width/height with style prop: `style={{ width: minDim * 0.08, height: minDim * 0.08 }}`
 7. Use `currentColor` for dynamic coloring: wrap in div with `color: COLORS.accent`
 8. Animate the wrapper with spring/interpolate
 
 **Resources (images/illustrations) — use staticFile:**
 1. mcp__freepik__search_resources → pick best result → optionally mcp__freepik__get_resource_detail_by_id to check details
-2. mcp__freepik__download_resource_by_id with resource-id → returns {{ data: {{ url, filename }} }}
+2. mcp__freepik__download_resource_by_id with resource-id → returns { data: { url, filename } }
 3. mcp__assets__download_file with the url and filename="illustration.png"
-4. In component: `<Img src={{staticFile('assets/illustration.png')}} style={{...}} />`
-5. Import Img from remotion: `import {{ Img, staticFile }} from 'remotion';`
+4. In component: `<Img src={staticFile('assets/illustration.png')} style={...} />`
+5. Import Img from remotion: `import { Img, staticFile } from 'remotion';`
 6. Animate with opacity, scale, position transforms
 
 ### ANIMATION WITH ASSETS
@@ -1198,12 +1357,12 @@ Don't just place assets on screen statically. Make them come alive:
 
 Example — animated icon entry:
 ```tsx
-const iconScale = spring({{ frame: frame - delay, fps, config: {{ damping: 26, stiffness: 120 }} }});
-const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapolateRight: 'clamp' }});
+const iconScale = spring({ frame: frame - delay, fps, config: { damping: 26, stiffness: 120 } });
+const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-<div style={{{{ opacity: iconOpacity, transform: `scale(${{iconScale}})`, color: COLORS.accent }}}}>
-  <svg viewBox="0 0 24 24" style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}>
-    {{/* SVG paths from Freepik download */}}
+<div style={{ opacity: iconOpacity, transform: `scale(${iconScale})`, color: COLORS.accent }}>
+  <svg viewBox="0 0 24 24" style={{ width: minDim * 0.08, height: minDim * 0.08 }}>
+    {/* SVG paths from Freepik download */}
   </svg>
 </div>
 ```
@@ -1215,46 +1374,46 @@ They give consistent, professional animation with minimal code.
 
 **Imports** (from scene files in `scenes/Scene1.tsx`):
 ```tsx
-import {{ AnimatedIcon }} from '../../AnimatedIcon';
-import {{ AnimatedImage }} from '../../AnimatedImage';
+import { AnimatedIcon } from '../../AnimatedIcon';
+import { AnimatedImage } from '../../AnimatedImage';
 ```
 
 From `components/Foo.tsx`:
 ```tsx
-import {{ AnimatedIcon }} from '../../AnimatedIcon';
-import {{ AnimatedImage }} from '../../AnimatedImage';
+import { AnimatedIcon } from '../../AnimatedIcon';
+import { AnimatedImage } from '../../AnimatedImage';
 ```
 
 From `index.tsx`:
 ```tsx
-import {{ AnimatedIcon }} from '../AnimatedIcon';
-import {{ AnimatedImage }} from '../AnimatedImage';
+import { AnimatedIcon } from '../AnimatedIcon';
+import { AnimatedImage } from '../AnimatedImage';
 ```
 
 **AnimatedIcon** — wrap Freepik/Iconify SVGs:
 ```tsx
 // Pop entrance (default) — scale 0 → overshoot → 1
-<AnimatedIcon preset="icon-pop" delay={{10}} size={{80}} color={{COLORS.accent}}>
-  <svg viewBox="0 0 24 24" style={{{{ width: '100%', height: '100%' }}}}>
-    {{/* SVG from Freepik download */}}
+<AnimatedIcon preset="icon-pop" delay={10} size={80} color={COLORS.accent}>
+  <svg viewBox="0 0 24 24" style={{ width: '100%', height: '100%' }}>
+    {/* SVG from Freepik download */}
   </svg>
 </AnimatedIcon>
 
 // Stagger multiple icons
-{{icons.map((svg, i) => (
-  <AnimatedIcon key={{i}} preset="icon-pop" delay={{i * 8}} size={{64}} color={{COLORS.primary}}>
-    {{svg}}
+{icons.map((svg, i) => (
+  <AnimatedIcon key={i} preset="icon-pop" delay={i * 8} size={64} color={COLORS.primary}>
+    {svg}
   </AnimatedIcon>
-))}}
+))}
 
 // Bounce up entrance
-<AnimatedIcon preset="icon-bounce" delay={{15}} activeAnimation="float">
-  {{/* SVG */}}
+<AnimatedIcon preset="icon-bounce" delay={15} activeAnimation="float">
+  {/* SVG */}
 </AnimatedIcon>
 
 // Spin-in entrance
-<AnimatedIcon preset="icon-spin-in" delay={{20}} exitAt={{120}}>
-  {{/* SVG */}}
+<AnimatedIcon preset="icon-spin-in" delay={20} exitAt={120}>
+  {/* SVG */}
 </AnimatedIcon>
 ```
 
@@ -1263,30 +1422,30 @@ Active loops: `"float"` (gentle Y bob) | `"pulse"` (subtle scale) | `"none"`
 
 **AnimatedImage** — wrap Pexels photos / Freepik illustrations:
 ```tsx
-import {{ staticFile }} from 'remotion';
+import { staticFile } from 'remotion';
 
 // Ken Burns (default) — slow zoom + pan, great for hero photos
 <AnimatedImage
-  src={{staticFile('assets/images/scene1-hero.jpg')}}
+  src={staticFile('assets/images/scene1-hero.jpg')}
   preset="photo-ken-burns"
-  delay={{5}}
-  borderRadius={{16}}
-  style={{{{ width: '70%', margin: '0 auto' }}}}
+  delay={5}
+  borderRadius={16}
+  style={{ width: '70%', margin: '0 auto' }}
 />
 
 // Blur reveal — photo sharpens into focus
 <AnimatedImage
-  src={{staticFile('assets/images/bg.jpg')}}
+  src={staticFile('assets/images/bg.jpg')}
   preset="photo-blur-reveal"
-  style={{{{ width: '100%', height: '100%' }}}}
+  style={{ width: '100%', height: '100%' }}
 />
 
 // Zoom entrance with spring
 <AnimatedImage
-  src={{staticFile('assets/images/accent.jpg')}}
+  src={staticFile('assets/images/accent.jpg')}
   preset="photo-zoom"
-  delay={{20}}
-  borderRadius={{12}}
+  delay={20}
+  borderRadius={12}
 />
 ```
 
@@ -1316,10 +1475,10 @@ you start. Check each scene's `images` array in scenes.json for entries with a `
 
 **How to use pre-fetched images:**
 ```tsx
-import {{ Img, staticFile }} from 'remotion';
+import { Img, staticFile } from 'remotion';
 
 // Use the remotionPath from scenes.json images array
-<Img src={{staticFile('assets/images/scene1-hero-team.jpg')}} style={{{{ width: '100%' }}}} />
+<Img src={staticFile('assets/images/scene1-hero-team.jpg')} style={{ width: '100%' }} />
 ```
 
 **Purpose-based sizing:**
@@ -1337,28 +1496,28 @@ import {{ Img, staticFile }} from 'remotion';
 **Example — hero image with spring entrance:**
 ```tsx
 const frame = useCurrentFrame();
-const imgScale = spring({{ frame: frame - entryFrame, fps, config: {{ damping: 26, stiffness: 120 }} }});
-const imgOpacity = interpolate(frame, [entryFrame, entryFrame + 15], [0, 1], {{ extrapolateRight: 'clamp' }});
+const imgScale = spring({ frame: frame - entryFrame, fps, config: { damping: 26, stiffness: 120 } });
+const imgOpacity = interpolate(frame, [entryFrame, entryFrame + 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-<div style={{{{
+<div style={{
   opacity: imgOpacity,
-  transform: `scale(${{0.8 + imgScale * 0.2}})`,
+  transform: `scale(${0.8 + imgScale * 0.2})`,
   width: '70%',
   margin: '0 auto',
   borderRadius: 16,
   overflow: 'hidden',
-}}}}>
-  <Img src={{staticFile('assets/images/scene1-hero-team.jpg')}} style={{{{ width: '100%' }}}} />
+}}>
+  <Img src={staticFile('assets/images/scene1-hero-team.jpg')} style={{ width: '100%' }} />
 </div>
 ```
 
 **Example — background image with overlay:**
 ```tsx
 <AbsoluteFill>
-  <Img src={{staticFile('assets/images/scene2-background-city.jpg')}}
-    style={{{{ width: '100%', height: '100%', objectFit: 'cover' }}}} />
-  <div style={{{{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }}}} />
-  {{/* Scene content on top */}}
+  <Img src={staticFile('assets/images/scene2-background-city.jpg')}
+    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} />
+  {/* Scene content on top */}
 </AbsoluteFill>
 ```
 
@@ -1374,7 +1533,7 @@ Use screenshots when the transcript references a specific website, app UI, dashb
 
 **Workflow:**
 1. mcp__assets__screenshot with url, filename, optional width/height
-2. In composition: `<Img src={{staticFile('assets/screenshot.png')}} style={{{{...}}}} />`
+2. In composition: `<Img src={staticFile('assets/screenshot.png')} style={{...}} />`
 
 **Animation patterns for screenshots:**
 - **Browser frame mockup**: Wrap screenshot in a rounded-corner container with a fake
@@ -1387,29 +1546,29 @@ Use screenshots when the transcript references a specific website, app UI, dashb
 
 **Example — screenshot with browser chrome + zoom:**
 ```tsx
-const zoomProgress = interpolate(frame, [30, 90], [1, 2.5], {{{{ extrapolateRight: 'clamp' }}}});
-const panX = interpolate(frame, [30, 90], [0, -200], {{{{ extrapolateRight: 'clamp' }}}});
-const panY = interpolate(frame, [30, 90], [0, -150], {{{{ extrapolateRight: 'clamp' }}}});
+const zoomProgress = interpolate(frame, [30, 90], [1, 2.5], {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }});
+const panX = interpolate(frame, [30, 90], [0, -200], {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }});
+const panY = interpolate(frame, [30, 90], [0, -150], {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }});
 
-<div style={{{{
+<div style={{
   borderRadius: 12, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)',
   boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
-}}}}>
-  {{/* Browser chrome bar */}}
-  <div style={{{{ height: 32, background: '#1e1e2e', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6 }}}}>
-    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }}}} />
-    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }}}} />
-    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }}}} />
+}}>
+  {/* Browser chrome bar */}
+  <div style={{ height: 32, background: '#1e1e2e', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6 }}>
+    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }} />
+    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }} />
+    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }} />
   </div>
-  {{/* Screenshot with zoom */}}
-  <div style={{{{ overflow: 'hidden' }}}}>
+  {/* Screenshot with zoom */}
+  <div style={{ overflow: 'hidden' }}>
     <Img
-      src={{staticFile('assets/website-screenshot.png')}}
-      style={{{{
+      src={staticFile('assets/website-screenshot.png')}
+      style={{
         width: '100%', display: 'block',
-        transform: `scale(${{zoomProgress}}) translate(${{panX}}px, ${{panY}}px)`,
+        transform: `scale(${zoomProgress}) translate(${panX}px, ${panY}px)`,
         transformOrigin: 'top left',
-      }}}}
+      }}
     />
   </div>
 </div>
@@ -1424,7 +1583,7 @@ photographic imagery (people, nature, cities, objects, abstract textures).
 1. mcp__assets__search_unsplash or mcp__assets__search_pexels with a descriptive query
 2. Pick the best result from returned list
 3. mcp__assets__download_stock_photo with the photo's download URL and filename
-4. In composition: `<Img src={{staticFile('assets/photo.jpg')}} style={{{{...}}}} />`
+4. In composition: `<Img src={staticFile('assets/photo.jpg')} style={{...}} />`
 
 **When to use photos vs illustrations:**
 - Photos: Real-world subjects, emotional impact, establishing shots, hero backgrounds
@@ -1439,22 +1598,22 @@ photographic imagery (people, nature, cities, objects, abstract textures).
 
 **Example — Ken Burns effect:**
 ```tsx
-const zoom = interpolate(frame, [0, durationInFrames], [1, 1.15], {{{{ extrapolateRight: 'clamp' }}}});
-const panX = interpolate(frame, [0, durationInFrames], [0, -30], {{{{ extrapolateRight: 'clamp' }}}});
+const zoom = interpolate(frame, [0, durationInFrames], [1, 1.15], {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }});
+const panX = interpolate(frame, [0, durationInFrames], [0, -30], {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }});
 
-<div style={{{{ overflow: 'hidden', borderRadius: 16, width: '80%', margin: '0 auto' }}}}>
+<div style={{ overflow: 'hidden', borderRadius: 16, width: '80%', margin: '0 auto' }}>
   <Img
-    src={{staticFile('assets/hero-photo.jpg')}}
-    style={{{{
+    src={staticFile('assets/hero-photo.jpg')}
+    style={{
       width: '100%', display: 'block',
-      transform: `scale(${{zoom}}) translateX(${{panX}}px)`,
-    }}}}
+      transform: `scale(${zoom}) translateX(${panX}px)`,
+    }}
   />
-  {{/* Color overlay to match palette */}}
-  <div style={{{{
+  {/* Color overlay to match palette */}
+  <div style={{
     position: 'absolute', inset: 0,
     background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.2))',
-  }}}} />
+  }} />
 </div>
 ```
 
@@ -1555,15 +1714,15 @@ Every element in a children array needs a unique key:
 // CORRECT:
 <AbsoluteFill>
   <AnimatedBackground key="bg" />
-  <Sequence key="scene1" from={{0}}>...</Sequence>
-  <Sequence key="scene2" from={{90}}>...</Sequence>
+  <Sequence key="scene1" from={0}>...</Sequence>
+  <Sequence key="scene2" from={90}>...</Sequence>
 </AbsoluteFill>
 
 // WRONG (missing keys):
 <AbsoluteFill>
   <AnimatedBackground />
-  <Sequence from={{0}}>...</Sequence>
-  <Sequence from={{90}}>...</Sequence>
+  <Sequence from={0}>...</Sequence>
+  <Sequence from={90}>...</Sequence>
 </AbsoluteFill>
 ```
 </react_keys>
@@ -1571,7 +1730,7 @@ Every element in a children array needs a unique key:
 <per_scene_viewport>
 ## PER-SCENE VIEWPORT DIMENSIONS (CRITICAL)
 
-Each scene in scenes.json has an `effectiveDimensions` field: {{ width, height }}.
+Each scene in scenes.json has an `effectiveDimensions` field: { width, height }.
 This is the ACTUAL pixel area the scene will be displayed in.
 
 ### Required Workflow — Tools & Skills
@@ -1585,16 +1744,16 @@ scene's CONTENT must fit within its effectiveDimensions, positioned from top-lef
 
 Pattern for EVERY scene:
 ```tsx
-const {{ width: W, height: H }} = useVideoConfig(); // full canvas
+const { width: W, height: H } = useVideoConfig(); // full canvas
 const EW = TIMING.scene1EffectiveWidth;   // from scenes.json effectiveDimensions
 const EH = TIMING.scene1EffectiveHeight;  // from scenes.json effectiveDimensions
 
 // Clip content to effective area
-<div style={{{{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}}}>
-  {{/* Position ALL elements within (0,0) to (EW, EH) */}}
-  {{/* Font sizes: EH * 0.04 (not H * 0.04) */}}
-  {{/* Center X: EW / 2 (not W / 2) */}}
-  {{/* Safe margin: EW * 0.1 from edges */}}
+<div style={{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}>
+  {/* Position ALL elements within (0,0) to (EW, EH) */}
+  {/* Font sizes: EH * 0.04 (not H * 0.04) */}
+  {/* Center X: EW / 2 (not W / 2) */}
+  {/* Safe margin: EW * 0.1 from edges */}
 </div>
 ```
 
@@ -1611,7 +1770,7 @@ const EH = TIMING.scene1EffectiveHeight;  // from scenes.json effectiveDimension
 
 **#1 FATAL BUG — FRAME TIMING IN SEQUENCES (READ THIS TWICE):**
 
-Inside `<Sequence from={{X}}>`, Remotion's `useCurrentFrame()` ALREADY returns
+Inside `<Sequence from={X}>`, Remotion's `useCurrentFrame()` ALREADY returns
 frames relative to the Sequence start (starting at 0). You MUST NOT subtract the
 scene's global start time. Doing so produces NEGATIVE frames and BLANK scenes.
 
@@ -1626,14 +1785,14 @@ const localFrame = frame - TIMING.scenes.scene2.start;
 // ✅ CORRECT — frame IS the local frame inside a Sequence:
 const frame = useCurrentFrame(); // Already 0, 1, 2, ... inside Sequence
 // Use frame directly with LOCAL sync points from TIMING:
-const keySyncProgress = spring({{ frame: frame - TIMING.scene2KeySync, fps, config: SPRING_CONFIG }});
+const keySyncProgress = spring({ frame: frame - TIMING.scene2KeySync, fps, config: SPRING_CONFIG });
 ```
 
 **WHY THIS MATTERS:**
-- Scene starts at global frame 300. Sequence `from={{300}}` makes useCurrentFrame() return 0 at that point.
+- Scene starts at global frame 300. Sequence `from={300}` makes useCurrentFrame() return 0 at that point.
 - If you subtract 300 again, frame becomes -300. Every `interpolate` and `spring` gets negative input.
 - Result: ALL elements invisible. Scene appears completely BLANK.
-- Scene 1 (from={{0}}) "works" by accident because subtracting 0 is harmless. All other scenes BREAK.
+- Scene 1 (from={0}) "works" by accident because subtracting 0 is harmless. All other scenes BREAK.
 
 **THE RULE:** `const frame = useCurrentFrame()` is your local frame. Use it directly. NEVER subtract scene start.
 All sync point values in TIMING are ALREADY local (pre-subtracted in constants.ts).
@@ -1641,7 +1800,7 @@ All sync point values in TIMING are ALREADY local (pre-subtracted in constants.t
 **Interpolate Rule:**
 ALWAYS use BOTH extrapolateLeft AND extrapolateRight clamp:
 ```tsx
-interpolate(frame, [0, 30], [0, 1], {{extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}})
+interpolate(frame, [0, 30], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})
 ```
 
 **No CSS Animations:**
@@ -2382,6 +2541,7 @@ const keySyncProgress = spring({
 
 // Setup: elements visible BEFORE the key word
 const setupProgress = interpolate(frame, [0, TIMING.scene3KeySync], [0, 1], {
+  extrapolateLeft: 'clamp',
   extrapolateRight: 'clamp',
 });
 
@@ -2413,13 +2573,13 @@ const titleScale = interpolate(
   frame,
   [0, titleSettleFrame, titleSettleFrame + 15],
   [1.8, 1.8, 1],
-  { extrapolateRight: 'clamp' }
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 const titleY = interpolate(
   frame,
   [0, titleSettleFrame, titleSettleFrame + 15],
   [height * 0.4, height * 0.4, height * 0.06],
-  { extrapolateRight: 'clamp' }
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 // Content fades in AFTER title settles
 const contentOpacity = interpolate(
@@ -2472,7 +2632,7 @@ const FlowingParticles: React.FC = () => {
 const Counter: React.FC<{target: number, start: number}> = ({target, start}) => {
   const frame = useCurrentFrame();
   const value = Math.round(interpolate(
-    frame - start, [0, 45], [0, target], {extrapolateRight: 'clamp'}
+    frame - start, [0, 45], [0, target], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
   ));
   return <span style={{fontVariantNumeric: 'tabular-nums'}}>{value}</span>;
 };
@@ -2624,7 +2784,7 @@ const framesPerChar = 3;
 ```tsx
 const slamProgress = spring({ frame: frame - slamFrame, fps, config: { damping: 18, stiffness: 150, mass: 1.2 } });
 const scale = interpolate(slamProgress, [0, 1], [2.5, 1]);
-const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], { extrapolateRight: 'clamp' });
+const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
 <div style={{
   transform: `scale(${scale})`,
@@ -2701,11 +2861,13 @@ Import: `import { Easing } from 'remotion';`
 ```tsx
 // GOOD — varied easing per intent:
 const barWidth = interpolate(frame, [start, start + 40], [0, targetWidth], {
+  extrapolateLeft: 'clamp',
   extrapolateRight: 'clamp',
   easing: Easing.inOut(Easing.cubic),  // smooth S-curve for fill
 });
 
 const titleOpacity = interpolate(frame, [start, start + 15], [0, 1], {
+  extrapolateLeft: 'clamp',
   extrapolateRight: 'clamp',
   easing: Easing.out(Easing.exp),  // fast snap-in for entrance
 });
@@ -2753,6 +2915,84 @@ const tertiaryOpacity = interpolate(frame, [keySync + 12, keySync + 27], [0, 1],
 });
 ```
 </easing_guide>
+
+<exit_animations>
+## EXIT ANIMATION RECIPES
+
+Exit animations are critical for polish. Every scene MUST have an outro phase (last ~30 frames).
+Apply exits in REVERSE stagger order (last element exits first).
+
+### Recipe 1: Fade-Shrink-Out
+```tsx
+const exitProgress = interpolate(frame, [exitStart, exitStart + 25], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+const exitOpacity = 1 - exitProgress;
+const exitScale = interpolate(exitProgress, [0, 1], [1, 0.85], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+// Apply: style={{ opacity: exitOpacity, transform: `scale(${exitScale})` }}
+```
+
+### Recipe 2: Slide-Away
+```tsx
+const slideOut = interpolate(frame, [exitStart, exitStart + 20], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+const exitY = interpolate(slideOut, [0, 1], [0, 40], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const exitOpacity = 1 - slideOut;
+// Apply: style={{ opacity: exitOpacity, transform: `translateY(${exitY}px)` }}
+```
+
+### Recipe 3: Dissolve-Scatter (per-element)
+```tsx
+// Each element gets a deterministic offset direction
+const seed = elementIndex * 137.5;
+const angle = (seed % 360) * (Math.PI / 180);
+const scatterDist = interpolate(frame, [exitStart, exitStart + 20], [0, 30], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.quad),
+});
+const exitOpacity = interpolate(frame, [exitStart, exitStart + 15], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const tx = Math.cos(angle) * scatterDist;
+const ty = Math.sin(angle) * scatterDist;
+// Apply: style={{ opacity: exitOpacity, transform: `translate(${tx}px, ${ty}px) scale(${1 - scatterDist/60})` }}
+```
+
+### Recipe 4: Scale-Down-Fade (complement to spring scale-in entrance)
+```tsx
+const exitProgress = interpolate(frame, [exitStart, exitStart + 20], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+const exitScale = interpolate(exitProgress, [0, 1], [1, 0.5], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const exitOpacity = 1 - exitProgress;
+// Apply: style={{ opacity: exitOpacity, transform: `scale(${exitScale})` }}
+```
+
+### Exit Choreography — Reverse Stagger Pattern
+```tsx
+// Exit elements in REVERSE order: last appeared → first to exit
+const elementCount = 4;
+const exitStagger = 5; // frames between each element's exit start
+const sceneExitStart = durationInFrames - 30;
+
+// Element 0 entered first, exits LAST. Element 3 entered last, exits FIRST.
+const elementExitStart = sceneExitStart + (elementCount - 1 - elementIndex) * exitStagger;
+const exitProgress = interpolate(frame, [elementExitStart, elementExitStart + 18], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+```
+</exit_animations>
 
 <scene_transitions>
 ## SCENE TRANSITIONS — @remotion/transitions
@@ -2820,7 +3060,7 @@ apply 1-2 per scene maximum. Never on overlay scenes. Never on text directly.
 
 ### Ambient Gradient Shift — Background hue slowly rotates
 ```tsx
-const hueShift = interpolate(frame, [0, durationInFrames], [0, 15], { extrapolateRight: 'clamp' });
+const hueShift = interpolate(frame, [0, durationInFrames], [0, 15], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 <div style={{
   background: `linear-gradient(135deg, ${COLORS.background}, hsl(${220 + hueShift}, 30%, 10%))`,
   position: 'absolute', inset: 0,
@@ -2857,7 +3097,7 @@ const hueShift = interpolate(frame, [0, durationInFrames], [0, 15], { extrapolat
 // For elements that persist throughout a scene (icons, badges, accent shapes)
 const breathe = interpolate(
   frame % 60, [0, 30, 60], [1.0, 1.015, 1.0],
-  { extrapolateRight: 'clamp' }
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 <div style={{ transform: `scale(${breathe})` }}>{persistentElement}</div>
 ```
@@ -2866,7 +3106,7 @@ const breathe = interpolate(
 ```tsx
 const glowIntensity = interpolate(
   frame % 90, [0, 45, 90], [0.4, 0.8, 0.4],
-  { extrapolateRight: 'clamp' }
+  { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 const glow = `0 0 ${20 * glowIntensity}px ${COLORS.primary}`;
 <div style={{ boxShadow: glow }}>{element}</div>
@@ -2944,7 +3184,7 @@ const particles = Array.from({length: 12}, (_, i) => {
   const distance = burstProgress * EW * 0.35;
   const x = EW / 2 + Math.cos(angle) * distance;
   const y = EH * 0.45 + Math.sin(angle) * distance;
-  const fade = interpolate(burstProgress, [0.7, 1], [0.15, 0], {extrapolateLeft: 'clamp'});
+  const fade = interpolate(burstProgress, [0.7, 1], [0.15, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return <div key={i} style={{
     position: 'absolute', left: x, top: y, width: 6, height: 6,
     borderRadius: '50%', background: COLORS.accent, opacity: fade,
@@ -2972,7 +3212,7 @@ const nodeScale = spring({frame: frame - keySync, fps, config: SPRINGS.BOUNCY});
 **When to use:** Statistics, metrics, "X users", "Y percent", any number reveal
 ```tsx
 const countTo = 11; // target number
-const countProgress = interpolate(frame - keySync, [0, DURATION.SLOW], [0, countTo], {extrapolateRight: 'clamp'});
+const countProgress = interpolate(frame - keySync, [0, DURATION.SLOW], [0, countTo], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 const displayNum = Math.round(countProgress);
 const ringScale = spring({frame: frame - keySync, fps, config: SPRINGS.SMOOTH});
 // Render: large number center, 2-3 expanding rings at opacity 0.08-0.12
@@ -2982,9 +3222,9 @@ const ringScale = spring({frame: frame - keySync, fps, config: SPRINGS.SMOOTH});
 **When to use:** Atmospheric, establishing, "ecosystem", "landscape", depth scenes
 ```tsx
 // 3 parallax layers moving at different rates for depth
-const layer1X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.05]);
-const layer2X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.10]);
-const layer3X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.02]);
+const layer1X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.05], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+const layer2X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.10], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
+const layer3X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.02], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
 // Layer 3 (back): gradient/particles at opacity 0.10
 // Layer 2 (mid): supporting visuals at opacity 0.3-0.5
 // Layer 1 (front): primary text/data content at full opacity
@@ -2996,9 +3236,9 @@ const layer3X = interpolate(frame, [0, sceneDuration], [0, -EW * 0.02]);
 const dotCount = 8;
 const dots = Array.from({length: dotCount}, (_, i) => {
   const t = ((frame * 0.02 + i / dotCount) % 1);
-  const x = interpolate(t, [0, 0.5, 1], [EW * 0.1, EW * 0.5, EW * 0.9]);
+  const x = interpolate(t, [0, 0.5, 1], [EW * 0.1, EW * 0.5, EW * 0.9], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const y = interpolate(t, [0, 0.25, 0.5, 0.75, 1],
-    [EH * 0.5, EH * 0.35, EH * 0.5, EH * 0.65, EH * 0.5]);
+    [EH * 0.5, EH * 0.35, EH * 0.5, EH * 0.65, EH * 0.5], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   return <div key={i} style={{
     position: 'absolute', left: x, top: y, width: 8, height: 8,
     borderRadius: '50%', background: COLORS.accent, opacity: 0.12,
@@ -3006,6 +3246,86 @@ const dots = Array.from({length: dotCount}, (_, i) => {
 });
 ```
 </animation_recipes>
+
+<advanced_techniques>
+## ADVANCED VISUAL TECHNIQUES
+
+### Clip-Path Reveal Animation
+Circular or rectangular reveal from center — great for dramatic entrances.
+```tsx
+const progress = interpolate(frame, [start, start + 30], [0, 100], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+// Circular reveal from center
+<div style={{ clipPath: `circle(${progress}% at 50% 50%)` }}>
+  {content}
+</div>
+// Rectangular wipe from left
+<div style={{ clipPath: `inset(0 ${100 - progress}% 0 0)` }}>
+  {content}
+</div>
+```
+
+### SVG Stroke Draw-In (evolvePath)
+Animate SVG paths drawing themselves using `@remotion/paths`.
+```tsx
+import { evolvePath } from '@remotion/paths';
+
+const progress = interpolate(frame, [start, start + 60], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.inOut(Easing.cubic),
+});
+const evolution = evolvePath(progress, pathData);
+<path d={pathData} stroke={COLORS.accent} strokeWidth={2} fill="none"
+  strokeDasharray={evolution.strokeDasharray}
+  strokeDashoffset={evolution.strokeDashoffset} />
+```
+
+### interpolateColors() for Smooth Color Morphing
+Transition between colors over time — great for mood shifts at sync points.
+```tsx
+import { interpolateColors } from 'remotion';
+
+const bgColor = interpolateColors(frame, [0, keySync, keySync + 30],
+  ['#0B0F1A', '#0B0F1A', '#1a0f2e']);
+<div style={{ backgroundColor: bgColor }} />
+```
+
+### Gradient Text (background-clip: text)
+Eye-catching gradient headlines — use sparingly for hero moments.
+```tsx
+<span style={{
+  background: `linear-gradient(135deg, ${COLORS.primary}, ${COLORS.secondary})`,
+  WebkitBackgroundClip: 'text',
+  WebkitTextFillColor: 'transparent',
+  backgroundClip: 'text',
+}}>Gradient Heading</span>
+```
+
+### Blur Entrance (filter: blur)
+Elements emerge from blur — elegant for reveals and focus shifts.
+```tsx
+const blurAmount = interpolate(frame, [delay, delay + 20], [12, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const blurOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+<div style={{ filter: `blur(${blurAmount}px)`, opacity: blurOpacity }}>
+  {content}
+</div>
+```
+
+### Text Stroke/Outline
+Hollow outlined text — great for background accents or dramatic reveals.
+```tsx
+<span style={{
+  WebkitTextStroke: `2px ${COLORS.accent}`,
+  color: 'transparent',
+  fontSize: EH * 0.08,
+}}>OUTLINED TEXT</span>
+```
+</advanced_techniques>
 
 <prohibited_patterns>
 ## PROHIBITED PATTERNS (NEVER DO THESE)
@@ -3174,7 +3494,7 @@ Don't just place assets on screen statically. Make them come alive:
 Example — animated icon entry:
 ```tsx
 const iconScale = spring({ frame: frame - delay, fps, config: { damping: 26, stiffness: 120 } });
-const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], { extrapolateRight: 'clamp' });
+const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
 <div style={{ opacity: iconOpacity, transform: `scale(${iconScale})`, color: COLORS.accent }}>
   <svg viewBox="0 0 24 24" style={{ width: minDim * 0.08, height: minDim * 0.08 }}>
@@ -3313,7 +3633,7 @@ import { Img, staticFile } from 'remotion';
 ```tsx
 const frame = useCurrentFrame();
 const imgScale = spring({ frame: frame - entryFrame, fps, config: { damping: 26, stiffness: 120 } });
-const imgOpacity = interpolate(frame, [entryFrame, entryFrame + 15], [0, 1], { extrapolateRight: 'clamp' });
+const imgOpacity = interpolate(frame, [entryFrame, entryFrame + 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
 <div style={{
   opacity: imgOpacity,
@@ -3362,9 +3682,9 @@ Use screenshots when the transcript references a specific website, app UI, dashb
 
 **Example — screenshot with browser chrome + zoom:**
 ```tsx
-const zoomProgress = interpolate(frame, [30, 90], [1, 2.5], { extrapolateRight: 'clamp' });
-const panX = interpolate(frame, [30, 90], [0, -200], { extrapolateRight: 'clamp' });
-const panY = interpolate(frame, [30, 90], [0, -150], { extrapolateRight: 'clamp' });
+const zoomProgress = interpolate(frame, [30, 90], [1, 2.5], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+const panX = interpolate(frame, [30, 90], [0, -200], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+const panY = interpolate(frame, [30, 90], [0, -150], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
 <div style={{
   borderRadius: 12, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)',
@@ -3414,8 +3734,8 @@ photographic imagery (people, nature, cities, objects, abstract textures).
 
 **Example — Ken Burns effect:**
 ```tsx
-const zoom = interpolate(frame, [0, durationInFrames], [1, 1.15], { extrapolateRight: 'clamp' });
-const panX = interpolate(frame, [0, durationInFrames], [0, -30], { extrapolateRight: 'clamp' });
+const zoom = interpolate(frame, [0, durationInFrames], [1, 1.15], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
+const panX = interpolate(frame, [0, durationInFrames], [0, -30], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
 <div style={{ overflow: 'hidden', borderRadius: 16, width: '80%', margin: '0 auto' }}>
   <Img
@@ -3526,9 +3846,9 @@ const keySyncProgress = spring({ frame: frame - TIMING.scene2KeySync, fps, confi
 All sync point values in TIMING are ALREADY local (pre-subtracted in constants.ts).
 
 **Interpolate Rule:**
-ALWAYS use extrapolateRight: 'clamp':
+EVERY interpolate() call MUST include BOTH extrapolateLeft AND extrapolateRight clamp:
 ```tsx
-interpolate(frame, [0, 30], [0, 1], {extrapolateRight: 'clamp'})
+interpolate(frame, [0, 30], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})
 ```
 
 **No CSS Animations:**
@@ -4226,31 +4546,41 @@ ISSUES
 VISUAL_VERIFY_PROMPT = """You are a visual QA reviewer for Remotion video compositions.
 
 You will receive:
-1. A screenshot (PNG) rendered from a specific frame of the composition
+1. Three screenshots (PNGs) rendered from different frames of the scene:
+   - **Early frame** (entrance): ~15 frames into the scene
+   - **Key sync frame** (main content): at the scene's key visual moment
+   - **Late frame** (exit): ~15 frames before scene ends
 2. The scene's JSON data (timing, display mode, description)
 3. The director's SCENE_PLAN.md describing intended visuals
 
 ## Your Checklist
 
-Review the screenshot against the plan and report issues:
+Review ALL three screenshots against the plan:
 
-1. **Content presence**: Are the expected visual elements present? (text, shapes, images, backgrounds)
-2. **Layout correctness**: Are elements positioned correctly per the display mode?
+### Early Frame (Entrance)
+1. **Entrance animations visible**: Elements should be appearing/animating in, not a blank frame
+2. **No blank frame**: There MUST be visible content — at least background and some entering elements
+3. **Setup elements**: If the plan mentions setup/anticipation visuals, they should be visible here
+
+### Key Sync Frame (Main Content)
+4. **Content presence**: Are the expected visual elements present? (text, shapes, images, backgrounds)
+5. **Layout correctness**: Are elements positioned correctly per the display mode?
    - `overlay`: Visuals should occupy the designated region (e.g., lower-third, split), NOT fill the entire frame
    - `fullscreen`: Visuals should fill the entire frame
    - `pip`: Visuals should respect picture-in-picture bounds
-3. **No blank frames**: Is the frame actually rendering content? A fully white, black, or transparent frame is a FAIL.
-4. **No rendering errors**: No React error boundaries, red error overlays, or "missing component" text.
-5. **Color and mood alignment**: Do the colors roughly match what the plan describes? (e.g., "dark moody" shouldn't be bright white)
-6. **Text readability**: If text is expected, is it visible and not clipped/overlapping?
-7. **Element visibility**: Are key elements actually visible and not hidden behind other elements?
+6. **Color and mood alignment**: Do the colors roughly match what the plan describes?
+7. **Text readability**: If text is expected, is it visible and not clipped/overlapping?
+
+### Late Frame (Exit)
+8. **Content still present**: The scene should still have visible content (not fully faded yet at -15 frames)
+9. **No rendering errors across all frames**: No React error boundaries, red error overlays, or "missing component" text
 
 ## Important Notes
 
-- You are looking at a SINGLE FRAME, not the full animation. Minor timing issues are acceptable.
+- These are individual frames from an animation. Minor timing variations are acceptable.
 - Focus on obvious, clear problems — not subjective aesthetic preferences.
-- If the screenshot is mostly correct but has minor issues, lean toward PASS.
-- If you see a completely blank/empty frame or major layout breakage, that is a clear FAIL.
+- If most frames look correct with minor issues, lean toward PASS.
+- If ANY frame is completely blank/empty or has major layout breakage, that is a clear FAIL.
 
 ## Output Format
 
@@ -4259,13 +4589,21 @@ If the scene passes review:
 PASS
 ```
 
-If the scene fails review:
+If the scene fails review, provide detailed acceptance criteria:
 ```
 FAIL
-1. [Brief description of issue]
-2. [Brief description of issue]
-...
+
+## Issues Found
+1. [Issue description, noting which frame(s) are affected]
+2. [Issue description]
+
+## Acceptance Criteria (what the fix must achieve)
+- [ ] [Specific, testable criterion — e.g., "Early frame must show at least 2 elements animating in with opacity > 0"]
+- [ ] [Specific criterion — e.g., "Key sync frame must display the stat counter centered with value '47M'"]
+- [ ] [Specific criterion — e.g., "Background color must be dark (#0B0F1A), not white"]
 ```
+
+The acceptance criteria help the fix agent know exactly what to verify after making changes.
 """
 
 
@@ -4412,6 +4750,7 @@ def build_scene_task_prompt(
     scene_number: int,
     display_mode: str,
     scene_data: dict,
+    style_preset: str = "modern",
 ) -> str:
     """Build a Task prompt with scene data embedded inline.
 
@@ -4424,6 +4763,7 @@ def build_scene_task_prompt(
         scene_number: 1-based scene number
         display_mode: The scene's display mode
         scene_data: The scene dict from scenes.json
+        style_preset: Visual style preset (e.g. "studio", "modern")
 
     Returns:
         Task prompt string with scene data inline
@@ -4435,6 +4775,28 @@ def build_scene_task_prompt(
         project_id=project_id,
     )
     scene_json_str = json.dumps(scene_data, indent=2)
+
+    # Add template hint for studio preset when suggestedTemplates is present
+    template_hint = ""
+    if style_preset == "studio":
+        suggested = scene_data.get("suggestedTemplates")
+        if suggested:
+            slugs = ", ".join(suggested)
+            template_hint = f"""
+
+## STUDIO TEMPLATES
+**Suggested templates for this scene:** {slugs}
+Read `src/.templates/{{slug}}/index.tsx` before implementing — copy and customize the template code.
+If no template fits, create custom visuals but follow the Studio design system (DotGrid, cards, color palette).
+"""
+        else:
+            template_hint = """
+
+## STUDIO TEMPLATES
+No specific template was suggested for this scene, but browse `src/.templates/` for inspiration.
+Read 2-3 templates to absorb the Studio aesthetic, then build custom visuals following the design system.
+"""
+
     return f"""{scene_prompt}
 
 ## YOUR SCENE DATA
@@ -4446,6 +4808,6 @@ def build_scene_task_prompt(
 1. Read `src/{project_id}/constants.ts` — shared constants (DO NOT modify)
 2. Read `src/{project_id}/SCENE_PLAN.md` — narrative plan for context
 3. List `src/{project_id}/components/` — available shared components
-
+{template_hint}
 Write your implementation to `src/{project_id}/scenes/Scene{scene_number}.tsx`.
 """

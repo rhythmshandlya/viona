@@ -192,7 +192,7 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
 
   /* ---- 0-15: Background fade in ---- */
   const bgFadeIn = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   /* ---- 15-35: Gauge outline appears (arc draws) ---- */
@@ -258,7 +258,7 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
     frame % 90,
     [0, 45, 90],
     [0.8, 1.2, 0.8],
-    { extrapolateRight: 'clamp' },
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' },
   );
 
   const glowScale = interpolate(frame, [30, 60], [0, 1], {

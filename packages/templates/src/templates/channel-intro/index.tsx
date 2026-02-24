@@ -156,7 +156,7 @@ const ChannelIntro: React.FC<ChannelIntroProps> = (props) => {
           + Math.sin(frame * shape.driftFreqY + i * 1.5) * shape.driftAmpY * enterProgress;
 
         const shapeOpacity = interpolate(enterProgress, [0, 0.4], [0, shape.opacity], {
-          extrapolateRight: 'clamp',
+          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
         }) * outroOpacity;
 
         const rotation = Math.sin(frame * 0.008 + i * 2) * 15;

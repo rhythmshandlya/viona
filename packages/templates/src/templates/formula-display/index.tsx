@@ -32,7 +32,7 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
   // --- Animation timeline ---
   // 0-15: Background fade in
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 15-30: Title fades in

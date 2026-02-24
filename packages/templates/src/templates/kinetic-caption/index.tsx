@@ -44,7 +44,7 @@ const KineticCaption: React.FC<KineticCaptionProps> = (props) => {
   // 330-360: fade out
 
   const bgFadeIn = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   const outroOpacity = interpolate(frame, [330, 360], [1, 0], {

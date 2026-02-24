@@ -223,7 +223,7 @@ const CommentHighlight: React.FC<CommentHighlightProps> = (props) => {
 
   // -- Background fade in (0-15) --
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // -- Fade out (330-360) --

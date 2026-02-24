@@ -11,7 +11,7 @@ const BeforeAfterReveal: React.FC<BeforeAfterRevealProps> = (props) => {
   const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
-  const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
+  const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const outroOpacity = interpolate(frame, [durationInFrames - 30, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   // Title

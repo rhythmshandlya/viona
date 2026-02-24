@@ -71,15 +71,15 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
 
   // Background fade in: 0-15
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Title fade in: 10-25
   const titleOpacity = interpolate(frame, [10, 25], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const titleY = interpolate(frame, [10, 25], [-20, 0], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
     easing: Easing.out(Easing.cubic),
   });
 

@@ -83,7 +83,7 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
 
   // ── 0-15: Background fade in ────────────────────────────────────
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // ── 20-45: Pin drops from above with spring bounce ──────────────
@@ -150,7 +150,7 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
   const pinExitY = interpolate(exitEase, [0, 1], [0, -500]);
   const textExitX = interpolate(exitEase, [0, 1], [0, 600]);
   const exitOpacity = interpolate(exitEase, [0, 0.8], [1, 0], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // ── 330-360: Fade out ───────────────────────────────────────────

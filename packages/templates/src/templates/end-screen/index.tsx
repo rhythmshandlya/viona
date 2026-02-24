@@ -165,7 +165,7 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
   });
   const leftSlideX = interpolate(leftSpring, [0, 1], [-500, 0]);
   const leftOpacity = interpolate(leftSpring, [0, 0.3], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Right video placeholder - spring slide from right (40-60)
@@ -176,7 +176,7 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
   });
   const rightSlideX = interpolate(rightSpring, [0, 1], [500, 0]);
   const rightOpacity = interpolate(rightSpring, [0, 0.3], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Subscribe button - bounce scale in (55-75)

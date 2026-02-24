@@ -94,7 +94,7 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
 
   /* ---- Global fade in/out ---- */
   const introOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,
@@ -106,7 +106,7 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
 
   /* ---- Accent lines draw-in (0-15) ---- */
   const lineProgress = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   /* ---- Accent lines pulse during hold (130-330) ---- */

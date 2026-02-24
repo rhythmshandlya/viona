@@ -50,7 +50,7 @@ const KeywordPop: React.FC<KeywordPopProps> = (props) => {
   // 330-360: Fade out
 
   const bgFadeIn = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   const outroOpacity = interpolate(
@@ -118,7 +118,7 @@ const KeywordPop: React.FC<KeywordPopProps> = (props) => {
 
         // Fade in with slam
         const fadeIn = interpolate(localFrame, [0, 5], [0, 1], {
-          extrapolateRight: 'clamp',
+          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
         });
 
         // Exit: scale down + fade out (only for non-last keywords)

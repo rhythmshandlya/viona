@@ -147,7 +147,7 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
 
   // 0-15: Background fade in
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 20-45: Card slides up from bottom with spring

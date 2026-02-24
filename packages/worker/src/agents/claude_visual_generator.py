@@ -389,23 +389,29 @@ class OAuthTokens:
     """OAuth token data structure."""
     access_token: str
     refresh_token: str | None
-    expires_at: int  # milliseconds timestamp
+    expires_at: int | None  # milliseconds timestamp (None = never expires)
     scopes: list[str] | None = None
     subscription_type: str | None = None
 
     @property
     def is_expired(self) -> bool:
         """Check if access token is expired."""
+        if self.expires_at is None:
+            return False
         return int(time.time() * 1000) >= self.expires_at
 
     @property
     def needs_refresh(self) -> bool:
         """Check if token should be refreshed (within buffer period)."""
+        if self.expires_at is None:
+            return False
         return int(time.time() * 1000) >= (self.expires_at - REFRESH_BUFFER_MS)
 
     @property
     def minutes_remaining(self) -> int:
         """Minutes until token expires."""
+        if self.expires_at is None:
+            return 999
         remaining_ms = self.expires_at - int(time.time() * 1000)
         return max(0, int(remaining_ms / 60000))
 
@@ -939,7 +945,7 @@ const ParticleEmitter: React.FC<{count: number, startFrame: number}> = ({count, 
 const Counter: React.FC<{target: number, start: number}> = ({target, start}) => {
   const frame = useCurrentFrame();
   const value = Math.round(interpolate(
-    frame - start, [0, 45], [0, target], {extrapolateRight: 'clamp'}
+    frame - start, [0, 45], [0, target], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
   ));
   return <span style={{fontVariantNumeric: 'tabular-nums'}}>{value}</span>;
 };
@@ -963,7 +969,7 @@ const FadeIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({star
     frame - startFrame,
     [0, 20],
     [0, 1],
-    {extrapolateRight: 'clamp'}
+    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
   );
   return <div style={{opacity}}>{children}</div>;
 };
@@ -979,7 +985,7 @@ const FadeIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({star
 - Plain colored circles instead of proper visuals
 - Instant teleportation (no animation)
 - Static backgrounds with no motion
-- Missing extrapolateRight: 'clamp' in interpolate()
+- Missing extrapolateLeft/extrapolateRight: 'clamp' in interpolate() — BOTH are required
 - Scenes with no visual metaphor (just text on background)
 - Gaps between scenes (no animation happening)
 
@@ -1041,7 +1047,7 @@ const HookScene: React.FC = () => {
         top: `calc(50% + ${Math.sin(angle) * distance}px)`,
         width: 12, height: 12, borderRadius: '50%',
         background: 'linear-gradient(135deg, #ff6b6b, #feca57)',
-        opacity: interpolate(frame, [0, 30], [1, 0], {extrapolateRight: 'clamp'}),
+        opacity: interpolate(frame, [0, 30], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
       }} />
     );
   });
@@ -1290,7 +1296,7 @@ const scaleEntrance = (frame: number, startFrame: number, fps: number) => {
 // AnimatedCounter - Number counting up
 const AnimatedCounter: React.FC<{target: number, startFrame: number, duration?: number}> = ({target, startFrame, duration = 45}) => {
   const frame = useCurrentFrame();
-  const progress = interpolate(frame - startFrame, [0, duration], [0, 1], {extrapolateRight: 'clamp'});
+  const progress = interpolate(frame - startFrame, [0, duration], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
   const value = Math.round(progress * target);
   return (
     <span style={{fontVariantNumeric: 'tabular-nums'}}>{value.toLocaleString()}</span>
@@ -1975,7 +1981,7 @@ Don't just place assets on screen statically. Make them come alive:
 Example — animated icon entry:
 ```tsx
 const iconScale = spring({{ frame: frame - delay, fps, config: {{ damping: 26, stiffness: 120 }} }});
-const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapolateRight: 'clamp' }});
+const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }});
 
 <div style={{{{ opacity: iconOpacity, transform: `scale(${{iconScale}})`, color: COLORS.accent }}}}>
   <svg viewBox="0 0 24 24" style={{{{ width: minDim * 0.08, height: minDim * 0.08 }}}}>
@@ -2015,9 +2021,9 @@ Use screenshots when the transcript references a specific website, app UI, dashb
 
 **Example — screenshot with browser chrome + zoom:**
 ```tsx
-const zoomProgress = interpolate(frame, [30, 90], [1, 2.5], {{{{ extrapolateRight: 'clamp' }}}});
-const panX = interpolate(frame, [30, 90], [0, -200], {{{{ extrapolateRight: 'clamp' }}}});
-const panY = interpolate(frame, [30, 90], [0, -150], {{{{ extrapolateRight: 'clamp' }}}});
+const zoomProgress = interpolate(frame, [30, 90], [1, 2.5], {{{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}}});
+const panX = interpolate(frame, [30, 90], [0, -200], {{{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}}});
+const panY = interpolate(frame, [30, 90], [0, -150], {{{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}}});
 
 <div style={{{{
   borderRadius: 12, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)',
@@ -2067,8 +2073,8 @@ photographic imagery (people, nature, cities, objects, abstract textures).
 
 **Example — Ken Burns effect:**
 ```tsx
-const zoom = interpolate(frame, [0, durationInFrames], [1, 1.15], {{{{ extrapolateRight: 'clamp' }}}});
-const panX = interpolate(frame, [0, durationInFrames], [0, -30], {{{{ extrapolateRight: 'clamp' }}}});
+const zoom = interpolate(frame, [0, durationInFrames], [1, 1.15], {{{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}}});
+const panX = interpolate(frame, [0, durationInFrames], [0, -30], {{{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}}});
 
 <div style={{{{ overflow: 'hidden', borderRadius: 16, width: '80%', margin: '0 auto' }}}}>
   <Img
@@ -2160,7 +2166,7 @@ You have access to WebSearch for researching unfamiliar topics.
 **1. Scale & Fade Entry:**
 ```tsx
 const scale = spring({{ frame, fps, config: {{ damping: 26, stiffness: 120 }} }});
-const opacity = interpolate(frame, [0, 15], [0, 1], {{ extrapolateRight: 'clamp' }});
+const opacity = interpolate(frame, [0, 15], [0, 1], {{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }});
 
 <div style={{{{ opacity, transform: `scale(${{scale}})` }}}}>
   <svg>...</svg>
@@ -2230,8 +2236,8 @@ NEVER subtract the Sequence's start time - frame is already relative!
 **Transformation Animations (THE KEY TO GOOD STORYTELLING):**
 ```tsx
 // GOOD: Element transforms from problem → solution
-const problemScale = interpolate(frame, [0, 60], [1, 0], {{extrapolateRight: 'clamp'}});
-const solutionScale = interpolate(frame, [60, 120], [0, 1], {{extrapolateRight: 'clamp'}});
+const problemScale = interpolate(frame, [0, 60], [1, 0], {{extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}});
+const solutionScale = interpolate(frame, [60, 120], [0, 1], {{extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}});
 // Problem shrinks as solution grows - VISUAL CAUSALITY
 
 // BAD: Disconnected elements that just appear/disappear
@@ -2257,7 +2263,7 @@ const StreamElement = () => {{
   - Stagger by 6+ frames: startFrame + (index * 6)
 
 **Interpolate Rule:**
-  - ALWAYS use extrapolateRight: 'clamp'
+  - ALWAYS use BOTH extrapolateLeft: 'clamp' AND extrapolateRight: 'clamp'
 
 **React Keys Rule:**
   - EVERY array element needs a unique key prop
@@ -2298,7 +2304,7 @@ Before declaring GENERATION COMPLETE, verify:
 [ ] TypeScript compiles with no errors
 [ ] All array children have unique key props
 [ ] All spring configs use damping >= 20
-[ ] All interpolate() calls have extrapolateRight: 'clamp'
+[ ] All interpolate() calls have BOTH extrapolateLeft: 'clamp' AND extrapolateRight: 'clamp'
 [ ] Inside Sequence, useCurrentFrame() used directly (no subtraction)
 
 **LAYOUT:**
@@ -2411,7 +2417,7 @@ Use TANGIBLE real-world objects:
 ### TECHNICAL REQUIREMENTS
 - Sequence frames are RELATIVE: useCurrentFrame() returns 0 at Sequence start
 - Spring config: {{ damping: 26, stiffness: 120, mass: 1.0 }}
-- All interpolate() need extrapolateRight: 'clamp'
+- All interpolate() need BOTH extrapolateLeft: 'clamp' AND extrapolateRight: 'clamp'
 - All array children need unique key props
 - 60px margins, no overlapping elements
 - MAX 3 animated elements visible at once
@@ -2846,17 +2852,24 @@ class ClaudeVisualGenerator:
             errors: list[str] - fatal issues that couldn't be auto-repaired
             repaired: bool - True if scenes were modified
         """
-        MIN_FRAMES = 210   # 7 seconds
         MAX_FRAMES = 450   # 15 seconds
         MAX_SYNC_GAP = 150 # 5 seconds
+
+        # Short video exception: relax minimum duration for videos ≤ 20s
+        if total_frames <= 600:  # 20 seconds or less at 30fps
+            MIN_FRAMES = 120   # 4 seconds
+        else:
+            MIN_FRAMES = 210   # 7 seconds
 
         scenes = plan_data.get("scenes", [])
         warnings = []
         errors = []
         repaired = False
 
-        if len(scenes) < 2:
-            errors.append("Need at least 2 scenes for storytelling structure")
+        # Allow single scene for very short videos (< 10s)
+        min_scenes = 1 if total_frames < 300 else 2
+        if len(scenes) < min_scenes:
+            errors.append(f"Need at least {min_scenes} scene(s) for storytelling structure")
             return {"valid": False, "warnings": warnings, "errors": errors, "repaired": False}
 
         # ── 1. Fix contiguity ──
@@ -3080,7 +3093,7 @@ class ClaudeVisualGenerator:
 
         Returns number of templates copied.
         """
-        templates_pkg = Path(__file__).parent.parent.parent / "templates" / "src" / "templates"
+        templates_pkg = Path(__file__).parent.parent.parent.parent / "templates" / "src" / "templates"
         if not templates_pkg.exists():
             print(f"[ClaudeGenerator] Templates package not found at {templates_pkg}")
             return 0
@@ -3106,8 +3119,15 @@ class ClaudeVisualGenerator:
                 continue
 
             dest = target_dir / template_dir.name
-            shutil.copytree(template_dir, dest)
+            shutil.copytree(template_dir, dest, ignore=shutil.ignore_patterns("register.ts"))
             copied += 1
+
+        # Copy shared utility files that templates depend on
+        templates_src = templates_pkg.parent  # packages/templates/src/
+        for shared_file in ["use-scale.ts", "fonts.ts"]:
+            src = templates_src / shared_file
+            if src.exists():
+                shutil.copy2(src, target_dir / shared_file)
 
         print(f"[ClaudeGenerator] Copied {copied} studio templates to {target_dir}")
         return copied
@@ -3320,15 +3340,15 @@ registerRoot(RemotionRoot);
     async def _run_visual_verify(
         self,
         scene_num: int,
-        screenshot_path: Path,
+        screenshot_paths: list[Path],
         scene_data: dict,
         plan_content: str,
     ) -> tuple[bool, list[str]]:
-        """Spawn a Sonnet subagent to review a screenshot against the plan.
+        """Spawn a Sonnet subagent to review screenshots against the plan.
 
         Args:
             scene_num: Scene number (1-based)
-            screenshot_path: Path to the rendered PNG screenshot
+            screenshot_paths: Paths to rendered PNG screenshots (early, keySync, late)
             scene_data: The scene's dict from scenes.json
             plan_content: Full SCENE_PLAN.md content
 
@@ -3339,13 +3359,22 @@ registerRoot(RemotionRoot);
 
         scene_json_str = json.dumps(scene_data, indent=2)
         display_mode = scene_data.get("displayMode", "default")
-        description = scene_data.get("description", "No description")
-        screenshot_str = str(screenshot_path).replace("\\", "/")
+        description = scene_data.get("visual", scene_data.get("description", "No description"))
+
+        # Build screenshot section for all available frames
+        screenshot_lines = []
+        labels = ["Early (entrance check)", "Key sync (main content)", "Late (exit/outro check)"]
+        for i, path in enumerate(screenshot_paths):
+            path_str = str(path).replace("\\", "/")
+            label = labels[i] if i < len(labels) else f"Frame {i+1}"
+            screenshot_lines.append(f"- **{label}**: `{path_str}`")
+        screenshots_str = "\n".join(screenshot_lines)
 
         user_msg = f"""## Visual Review: Scene {scene_num}
 
-### Screenshot
-Read this screenshot file to see the rendered frame: `{screenshot_str}`
+### Screenshots
+Read each screenshot file to see the rendered frames:
+{screenshots_str}
 
 ### Scene Data:
 ```json
@@ -3358,7 +3387,12 @@ Read this screenshot file to see the rendered frame: `{screenshot_str}`
 ### Director's Plan:
 {plan_content}
 
-Review the screenshot against the plan and scene data. Output PASS or FAIL with numbered issues.
+Review ALL screenshots against the plan and scene data:
+- **Early frame**: Check entrance animations are visible (elements should be appearing)
+- **Key sync frame**: Check main content is present and correctly laid out
+- **Late frame**: Check exit/outro phase (elements may be fading, content still visible)
+
+Output PASS or FAIL with numbered issues.
 """
 
         try:
@@ -3395,13 +3429,19 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
             if "PASS" in response_text and "FAIL" not in response_text:
                 return True, []
 
-            # Extract numbered issues from FAIL response
+            # Extract numbered issues and acceptance criteria from FAIL response
             issues: list[str] = []
+            acceptance_criteria: list[str] = []
             for line in response_text.split("\n"):
                 stripped = line.strip()
+                # Capture numbered issues (1. ..., 2) ...)
                 m = re.match(r'^\d+[.)]\s+(.+)', stripped)
                 if m:
                     issues.append(m.group(1))
+                # Capture acceptance criteria checklist items (- [ ] ...)
+                m2 = re.match(r'^-\s*\[[ x]\]\s+(.+)', stripped)
+                if m2:
+                    acceptance_criteria.append(m2.group(1))
             # Fallback: capture text after FAIL if no numbered issues parsed
             if not issues:
                 fail_idx = response_text.find("FAIL")
@@ -3409,6 +3449,9 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
                     remaining = response_text[fail_idx + 4:].strip()
                     if remaining:
                         issues.append(remaining[:500])
+            # Append acceptance criteria to issues so the fix agent receives them
+            if acceptance_criteria:
+                issues.append("ACCEPTANCE CRITERIA: " + " | ".join(acceptance_criteria))
             return False, issues
 
         except Exception as e:
@@ -3435,35 +3478,52 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
 
         studio_section = get_studio_section(style_preset)
         display_mode = scene_data.get("displayMode", "default")
-        description = scene_data.get("description", "No description")
+        description = scene_data.get("visual", scene_data.get("description", "No description"))
         verify_dir = self.workspace / "visual-verify"
 
-        # Determine key frame to render
+        # Determine verification frames: early, keySync/mid, late
+        frames_range = scene_data.get("frames", [0, 60])
+        start = frames_range[0] if len(frames_range) > 0 else 0
+        end = frames_range[1] if len(frames_range) > 1 else start + 60
+        scene_duration = end - start
+
         key_sync = scene_data.get("keySync", {})
-        if key_sync.get("frame") is not None:
-            frame = key_sync["frame"]
+        mid_frame = key_sync.get("frame") if key_sync.get("frame") is not None else (start + end) // 2
+
+        if scene_duration < 45:
+            # Very short scene: just check the midpoint
+            verify_frames = [mid_frame]
+        elif scene_duration < 90:
+            # Short scene: check early and mid only
+            verify_frames = [start + 10, mid_frame]
         else:
-            # Fallback: midpoint of scene (scenes.json uses "frames": [start, end])
-            frames = scene_data.get("frames", [0, 60])
-            start = frames[0] if len(frames) > 0 else 0
-            end = frames[1] if len(frames) > 1 else start + 60
-            frame = (start + end) // 2
+            # Normal scene: 3 frames with guaranteed spacing
+            early = min(start + 15, mid_frame - 1)
+            late = max(end - 15, mid_frame + 1)
+            verify_frames = [early, mid_frame, late]
 
         max_retries = 2
         for attempt in range(max_retries + 1):
-            screenshot_path = verify_dir / f"scene{scene_num}_attempt{attempt}.png"
+            # Step 1: Render all 3 stills
+            screenshot_paths: list[Path] = []
+            render_failed = False
+            for i, vf in enumerate(verify_frames):
+                screenshot_path = verify_dir / f"scene{scene_num}_f{i}_attempt{attempt}.png"
+                success, err = await self._render_scene_still(
+                    composition_id, vf, screenshot_path
+                )
+                if not success:
+                    print(f"[ClaudeGenerator] Scene {scene_num} still render failed (frame {vf}): {err[:200]}")
+                    render_failed = True
+                    break
+                screenshot_paths.append(screenshot_path)
 
-            # Step 1: Render still
-            success, err = await self._render_scene_still(
-                composition_id, frame, screenshot_path
-            )
-            if not success:
-                print(f"[ClaudeGenerator] Scene {scene_num} still render failed: {err[:200]}")
-                return  # Can't verify without a screenshot
+            if render_failed:
+                return  # Can't verify without screenshots
 
-            # Step 2: Visual verify
+            # Step 2: Visual verify with all 3 frames
             passed, issues = await self._run_visual_verify(
-                scene_num, screenshot_path, scene_data, plan_content
+                scene_num, screenshot_paths, scene_data, plan_content
             )
 
             if passed:
@@ -3478,12 +3538,14 @@ Review the screenshot against the plan and scene data. Output PASS or FAIL with 
                 return
 
             issues_str = "\n".join(f"{i+1}. {issue}" for i, issue in enumerate(issues))
+            # Use the key sync screenshot (middle frame) for the fix agent
+            fix_screenshot = screenshot_paths[1] if len(screenshot_paths) > 1 else screenshot_paths[0]
             fix_msg = VISUAL_FIX_PROMPT_TEMPLATE.format(
                 scene_num=scene_num,
                 project_id=self.project_id,
                 display_mode=display_mode,
                 scene_description=description,
-                screenshot_path=str(screenshot_path).replace("\\", "/"),
+                screenshot_path=str(fix_screenshot).replace("\\", "/"),
                 issues=issues_str,
             )
 
@@ -4975,6 +5037,7 @@ export default MainComposition;
             task_prompt = build_scene_task_prompt(
                 self.project_id, scene_num, scene.get("displayMode", "default"),
                 scene_data=scene,
+                style_preset=style_preset,
             )
             scene_task_entries += f"### Scene {scene_num}\n<scene_{scene_num}_task>\n{task_prompt}\n</scene_{scene_num}_task>\n\n"
 

@@ -82,7 +82,7 @@ const HeadlineStorm: React.FC<HeadlineStormProps> = (props) => {
 
   // Intro / outro fades
   const introOpacity = interpolate(frame, [0, 12], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,

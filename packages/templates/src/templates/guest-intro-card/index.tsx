@@ -74,7 +74,7 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
 
   /* ── Background fade in (0-15) ─────────────────────────────── */
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   /* ── Card slide in from right (20-45, spring) ──────────────── */

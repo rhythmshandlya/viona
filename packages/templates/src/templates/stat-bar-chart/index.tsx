@@ -30,7 +30,7 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
   const bars = props.bars;
   const maxValue = Math.max(...bars.map((b) => b.value), 1);
 
-  const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
+  const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const outroOpacity = interpolate(frame, [durationInFrames - 30, durationInFrames], [1, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',

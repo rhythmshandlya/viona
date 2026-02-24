@@ -13,7 +13,7 @@ const FactFlash: React.FC<FactFlashProps> = (props) => {
   const facts = props.facts;
   const factCount = facts.length;
 
-  const introOpacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: 'clamp' });
+  const introOpacity = interpolate(frame, [0, 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const outroOpacity = interpolate(frame, [durationInFrames - 25, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   // Tagline

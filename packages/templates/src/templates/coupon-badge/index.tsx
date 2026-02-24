@@ -70,7 +70,7 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
 
   /* ---- 0-15: Background fade in ---- */
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   /* ---- 330-360: Fade out ---- */

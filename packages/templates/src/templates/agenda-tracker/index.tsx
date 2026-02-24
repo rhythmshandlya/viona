@@ -290,7 +290,7 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
   /*  Global intro / outro opacity                                     */
   /* ---------------------------------------------------------------- */
   const introOpacity = interpolate(frame, [0, BG_FADE_END], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,

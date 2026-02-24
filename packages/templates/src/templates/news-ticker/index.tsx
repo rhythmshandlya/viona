@@ -38,7 +38,7 @@ const NewsTicker: React.FC<NewsTickerProps> = (props) => {
 
   // 0-15: Background fade in
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 10-25: Ticker bar slides up from bottom
