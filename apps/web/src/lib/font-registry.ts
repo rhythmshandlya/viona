@@ -23,6 +23,7 @@ export const FONT_REGISTRY: FontEntry[] = [
   { family: 'JetBrains Mono', weights: [400, 500, 600, 700, 800], category: 'mono', googleUrl: 'JetBrains+Mono:wght@400;500;600;700;800' },
   { family: 'Fira Code', weights: [400, 500, 600, 700], category: 'mono', googleUrl: 'Fira+Code:wght@400;500;600;700' },
   // Display
+  { family: 'Anton', weights: [400], category: 'display', googleUrl: 'Anton' },
   { family: 'Bebas Neue', weights: [400], category: 'display', googleUrl: 'Bebas+Neue' },
   { family: 'Rubik', weights: [400, 500, 600, 700, 800, 900], category: 'display', googleUrl: 'Rubik:wght@400;500;600;700;800;900' },
 ];

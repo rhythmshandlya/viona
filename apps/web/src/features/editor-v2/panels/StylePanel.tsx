@@ -27,6 +27,11 @@ import {
   migratePosition,
   migrateTextShadow,
 } from '../store/types';
+import {
+  isAnimationConfig,
+  migrateAnimation,
+} from '@viona/renderer/animations';
+import type { AnimationConfig, AnimationType, EasingType } from '@viona/renderer/animations';
 import { EFFECT_PRESETS, effectsToCss, type EffectPresetId } from '@/lib/effects-utils';
 import {
   SUBTITLE_PRESETS,
@@ -89,6 +94,7 @@ export function StylePanel() {
 
   const [activeTab, setActiveTab] = useState<PresetCategory>('viral');
   const [customizeOpen, setCustomizeOpen] = useState(false);
+  const [transitionOpen, setTransitionOpen] = useState(false);
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoPalettes, setAutoPalettes] = useState<ColorPalette[] | null>(null);
 
@@ -106,10 +112,10 @@ export function StylePanel() {
     [selectedIds, updateAllCaptionStyles, updateSelectedCaptionStyles]
   );
 
-  // Customize style - clears presetId since user is customizing
+  // Customize style - keeps presetId so the template stays selected
   const customizeStyle = useCallback(
     (updates: Partial<CaptionStyle>) => {
-      updateStyle({ ...updates, presetId: undefined });
+      updateStyle(updates);
     },
     [updateStyle]
   );
@@ -169,6 +175,7 @@ export function StylePanel() {
       backgroundRadius: preset.backgroundRadius,
       animation: preset.animation,
       displayMode: preset.displayMode,
+      wordsPerPhrase: preset.wordsPerPhrase ?? 5,
       // Position is NOT applied here — user's position should be preserved
       presetId: preset.id,
     });
@@ -574,7 +581,43 @@ export function StylePanel() {
           value={style.displayMode}
           onChange={(value) => customizeStyle({ displayMode: value as CaptionDisplayMode })}
         />
+        {(style.displayMode === 'phrase' || style.displayMode === 'karaoke') && (
+          <div className="mt-3">
+            <span className="text-[10px] text-[var(--editor-text-secondary)] mb-1 block">Words per phrase</span>
+            <SliderRow
+              value={style.wordsPerPhrase ?? 5}
+              min={2}
+              max={10}
+              step={1}
+              onChange={(v) => customizeStyle({ wordsPerPhrase: v })}
+            />
+          </div>
+        )}
       </Section>
+
+      <Divider />
+
+      {/* Collapsible Transitions Section */}
+      <button
+        onClick={() => setTransitionOpen(!transitionOpen)}
+        className="flex items-center justify-between px-4 py-3 w-full hover:bg-[var(--editor-bg-elevated)] transition-colors"
+      >
+        <span className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+          Transitions
+        </span>
+        <ChevronDown
+          className={`w-4 h-4 text-[var(--editor-text-secondary)] transition-transform ${
+            transitionOpen ? 'rotate-180' : ''
+          }`}
+        />
+      </button>
+
+      {transitionOpen && (
+        <TransitionPanel
+          animation={style.animation}
+          onChange={(animation) => customizeStyle({ animation: animation as unknown as CaptionStyle['animation'] })}
+        />
+      )}
 
       <Divider />
 
@@ -1269,5 +1312,146 @@ function FontFamilyDropdown({
         </option>
       ))}
     </select>
+  );
+}
+
+// ============================================
+// Transition Panel
+// ============================================
+
+const ANIMATION_OPTIONS: { value: AnimationType; label: string; group: string }[] = [
+  { value: 'none', label: 'None', group: 'Basic' },
+  // Viral
+  { value: 'elastic-pop', label: 'Elastic Pop', group: 'Viral' },
+  { value: 'bounce-up', label: 'Bounce Up', group: 'Viral' },
+  { value: 'shake', label: 'Shake', group: 'Viral' },
+  { value: 'color-wipe', label: 'Color Wipe', group: 'Viral' },
+  { value: '3d-flip', label: '3D Flip', group: 'Viral' },
+  { value: 'punch', label: 'Punch', group: 'Viral' },
+  { value: 'scale-bounce', label: 'Scale Bounce', group: 'Viral' },
+  { value: 'slide-up', label: 'Slide Up', group: 'Viral' },
+  { value: 'weight-shift', label: 'Weight Shift', group: 'Viral' },
+  { value: 'float', label: 'Float', group: 'Viral' },
+  { value: 'rotate-bounce', label: 'Rotate Bounce', group: 'Viral' },
+  { value: 'constant-wiggle', label: 'Wiggle', group: 'Viral' },
+  { value: 'slam-down', label: 'Slam Down', group: 'Viral' },
+  { value: 'shake-entry', label: 'Shake Entry', group: 'Viral' },
+  { value: 'bubble-pop', label: 'Bubble Pop', group: 'Viral' },
+  { value: 'wiggle', label: 'Wiggle Alt', group: 'Viral' },
+  // Cinematic
+  { value: 'fade', label: 'Fade', group: 'Cinematic' },
+  { value: 'fade-rise', label: 'Fade Rise', group: 'Cinematic' },
+  { value: 'typewriter', label: 'Typewriter', group: 'Cinematic' },
+  { value: 'smooth-slide', label: 'Smooth Slide', group: 'Cinematic' },
+  { value: 'soft-scale', label: 'Soft Scale', group: 'Cinematic' },
+  { value: 'underline-wipe', label: 'Underline Wipe', group: 'Cinematic' },
+  { value: 'scan-line', label: 'Scan Line', group: 'Cinematic' },
+  { value: 'hand-draw', label: 'Hand Draw', group: 'Cinematic' },
+  { value: 'underline-sweep', label: 'Underline Sweep', group: 'Cinematic' },
+  // Ad / Premium
+  { value: 'apple-fade', label: 'Apple Fade', group: 'Premium' },
+  { value: 'google-slide', label: 'Google Slide', group: 'Premium' },
+  { value: 'clean-scale', label: 'Clean Scale', group: 'Premium' },
+  { value: 'letter-cascade', label: 'Letter Cascade', group: 'Premium' },
+  { value: 'smooth-reveal', label: 'Smooth Reveal', group: 'Premium' },
+  { value: 'slide-left', label: 'Slide Left', group: 'Premium' },
+  // Motion
+  { value: 'spotlight-reveal', label: 'Spotlight', group: 'Motion' },
+  { value: 'film-burn', label: 'Film Burn', group: 'Motion' },
+  { value: 'glitch', label: 'Glitch', group: 'Motion' },
+  { value: 'spin-reveal', label: 'Spin Reveal', group: 'Motion' },
+  { value: 'drop-slam', label: 'Drop Slam', group: 'Motion' },
+  { value: 'wave', label: 'Wave', group: 'Motion' },
+  { value: 'blur-zoom', label: 'Blur Zoom', group: 'Motion' },
+  { value: 'chromatic-split', label: 'Chromatic Split', group: 'Motion' },
+  { value: 'elastic-horizontal', label: 'Elastic Horizontal', group: 'Motion' },
+  { value: 'speed-blur', label: 'Speed Blur', group: 'Motion' },
+  { value: 'particle-explode', label: 'Particle Explode', group: 'Motion' },
+  { value: 'gather', label: 'Gather', group: 'Motion' },
+  { value: 'blob-morph', label: 'Blob Morph', group: 'Motion' },
+  { value: 'newspaper-rotate', label: 'Newspaper Rotate', group: 'Motion' },
+  { value: 'chrome-reflect', label: 'Chrome Reflect', group: 'Motion' },
+  { value: 'brutal-slam', label: 'Brutal Slam', group: 'Motion' },
+  { value: 'neon-buzz', label: 'Neon Buzz', group: 'Motion' },
+  { value: 'flicker', label: 'Flicker', group: 'Motion' },
+];
+
+const EASING_OPTIONS: { value: EasingType; label: string }[] = [
+  { value: 'spring', label: 'Spring' },
+  { value: 'elastic', label: 'Elastic' },
+  { value: 'bounce', label: 'Bounce' },
+  { value: 'ease-out', label: 'Ease Out' },
+  { value: 'ease-in-out', label: 'Ease In-Out' },
+  { value: 'linear', label: 'Linear' },
+];
+
+function TransitionPanel({
+  animation,
+  onChange,
+}: {
+  animation: AnimationConfig | string;
+  onChange: (config: AnimationConfig) => void;
+}) {
+  const config: AnimationConfig = isAnimationConfig(animation)
+    ? animation
+    : migrateAnimation(animation as string);
+
+  const update = (field: keyof AnimationConfig, value: string) => {
+    onChange({ ...config, [field]: value });
+  };
+
+  // Group animations by category for optgroup rendering
+  const groups = ANIMATION_OPTIONS.reduce<Record<string, typeof ANIMATION_OPTIONS>>((acc, opt) => {
+    (acc[opt.group] ??= []).push(opt);
+    return acc;
+  }, {});
+
+  const renderAnimSelect = (label: string, field: 'in' | 'active' | 'out', value: AnimationType) => (
+    <div className="space-y-1">
+      <span className="text-[10px] text-[var(--editor-text-secondary)]">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => update(field, e.target.value)}
+        className="w-full text-xs px-2 py-1.5 rounded-md border border-[var(--editor-border-subtle)]
+                   bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)]
+                   focus:outline-none focus:ring-1 focus:ring-[var(--editor-accent)]"
+      >
+        {Object.entries(groups).map(([group, options]) => (
+          <optgroup key={group} label={group}>
+            {options.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+    </div>
+  );
+
+  return (
+    <div className="px-4 pb-3 space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        {renderAnimSelect('Enter', 'in', config.in)}
+        {renderAnimSelect('Active', 'active', config.active)}
+        {renderAnimSelect('Exit', 'out', config.out)}
+      </div>
+      <div className="space-y-1">
+        <span className="text-[10px] text-[var(--editor-text-secondary)]">Easing</span>
+        <div className="flex flex-wrap gap-1.5">
+          {EASING_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => update('easing', opt.value)}
+              className={`text-[10px] px-2 py-1 rounded-md border transition-colors ${
+                config.easing === opt.value
+                  ? 'bg-[var(--editor-accent)] border-[var(--editor-accent)] text-white'
+                  : 'border-[var(--editor-border-subtle)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] hover:bg-[var(--editor-bg-elevated)]'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }

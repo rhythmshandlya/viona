@@ -234,6 +234,8 @@ export interface SubtitleStyle {
   // Display mode
   displayMode?: 'word-by-word' | 'phrase' | 'karaoke';
   wordsPerPhrase?: number;
+  // Preset reference
+  presetId?: string;
 }
 
 export interface AnimatedSubtitleProps {

@@ -8,6 +8,7 @@ export type { SubtitleWord, SubtitleStyle } from './components/AnimatedSubtitle'
 // Components (for potential use in web app preview)
 export { VideoComposition } from './components/VideoComposition';
 export { AnimatedSubtitle } from './components/AnimatedSubtitle';
+export { DynamicSubtitles } from './components/DynamicSubtitles';
 
 // Animation engine
 export * from './animations';
