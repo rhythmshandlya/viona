@@ -6,22 +6,23 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { ChapterCardProps } from './schema';
 
-const WIDTH = 1080;
-const HEIGHT = 1080;
-
 /* ── DotGrid SVG Background ─────────────────────────────────────── */
 
-const DotGrid: React.FC<{ color: string; opacity: number }> = ({
+const DotGrid: React.FC<{ color: string; opacity: number; gridWidth: number; gridHeight: number }> = ({
   color,
   opacity,
+  gridWidth,
+  gridHeight,
 }) => {
-  const spacing = 30;
-  const radius = 1.5;
-  const cols = Math.ceil(WIDTH / spacing) + 1;
-  const rows = Math.ceil(HEIGHT / spacing) + 1;
+  const s = useScale();
+  const spacing = s(30);
+  const radius = s(1.5);
+  const cols = Math.ceil(gridWidth / spacing) + 1;
+  const rows = Math.ceil(gridHeight / spacing) + 1;
 
   const dots: React.ReactNode[] = [];
   for (let r = 0; r < rows; r++) {
@@ -40,9 +41,9 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({
 
   return (
     <svg
-      width={WIDTH}
-      height={HEIGHT}
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      width={gridWidth}
+      height={gridHeight}
+      viewBox={`0 0 ${gridWidth} ${gridHeight}`}
       style={{
         position: 'absolute',
         top: 0,
@@ -61,9 +62,11 @@ const AccentLine: React.FC<{
   progress: number;
   color: string;
   y: number;
-}> = ({ progress, color, y }) => {
-  const lineWidth = 200;
-  const strokeWidth = 4;
+  canvasWidth: number;
+  s: (px: number) => number;
+}> = ({ progress, color, y, canvasWidth, s }) => {
+  const lineWidth = s(200);
+  const strokeWidth = s(4);
   const dashOffset = lineWidth * (1 - progress);
 
   return (
@@ -74,7 +77,7 @@ const AccentLine: React.FC<{
       style={{
         position: 'absolute',
         top: y,
-        left: (WIDTH - lineWidth) / 2,
+        left: (canvasWidth - lineWidth) / 2,
       }}
     >
       <line
@@ -97,7 +100,8 @@ const AccentLine: React.FC<{
 const ChapterCard: React.FC<ChapterCardProps> = (props) => {
   const { COLORS, FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width, height } = useVideoConfig();
+  const s = useScale();
   const palette = BACKGROUNDS[props.background];
 
   const formattedNumber = String(props.chapterNumber).padStart(2, '0');
@@ -178,11 +182,11 @@ const ChapterCard: React.FC<ChapterCardProps> = (props) => {
   const exitMultiplier = exitOpacity * finalFade;
 
   // ── Vertical positioning ─────────────────────────────────────
-  const centerY = HEIGHT / 2;
-  const numberY = centerY - 60;
-  const titleY = centerY + 20;
-  const subtitleY = titleY + 65;
-  const lineY = titleY - 20;
+  const centerY = height / 2;
+  const numberY = centerY - s(60);
+  const titleY = centerY + s(20);
+  const subtitleY = titleY + s(65);
+  const lineY = titleY - s(20);
 
   return (
     <AbsoluteFill
@@ -193,7 +197,7 @@ const ChapterCard: React.FC<ChapterCardProps> = (props) => {
       }}
     >
       {/* Dot grid background */}
-      <DotGrid color={palette.dotColor} opacity={bgOpacity} />
+      <DotGrid color={palette.dotColor} opacity={bgOpacity} gridWidth={width} gridHeight={height} />
 
       {/* Content wrapper for exit animation */}
       <div
@@ -210,9 +214,9 @@ const ChapterCard: React.FC<ChapterCardProps> = (props) => {
             position: 'absolute',
             width: '100%',
             textAlign: 'center',
-            top: numberY - 110,
+            top: numberY - s(110),
             fontFamily: FONTS.headline,
-            fontSize: 280,
+            fontSize: s(280),
             fontWeight: 900,
             color: palette.numberColor,
             opacity: numberOpacity * 0.08,
@@ -231,6 +235,8 @@ const ChapterCard: React.FC<ChapterCardProps> = (props) => {
           progress={lineProgress}
           color={props.accentColor}
           y={lineY}
+          canvasWidth={width}
+          s={s}
         />
 
         {/* Chapter label (small) */}
@@ -239,9 +245,9 @@ const ChapterCard: React.FC<ChapterCardProps> = (props) => {
             position: 'absolute',
             width: '100%',
             textAlign: 'center',
-            top: titleY - 50,
+            top: titleY - s(50),
             fontFamily: FONTS.body,
-            fontSize: 18,
+            fontSize: s(18),
             fontWeight: 600,
             color: props.accentColor,
             opacity: titleOpacity,
@@ -260,9 +266,9 @@ const ChapterCard: React.FC<ChapterCardProps> = (props) => {
             width: '100%',
             textAlign: 'center',
             top: titleY,
-            padding: '0 80px',
+            padding: `0 ${s(80)}px`,
             fontFamily: FONTS.headline,
-            fontSize: 64,
+            fontSize: s(64),
             fontWeight: 900,
             color: palette.text,
             opacity: titleOpacity,
@@ -282,9 +288,9 @@ const ChapterCard: React.FC<ChapterCardProps> = (props) => {
               width: '100%',
               textAlign: 'center',
               top: subtitleY,
-              padding: '0 140px',
+              padding: `0 ${s(140)}px`,
               fontFamily: FONTS.body,
-              fontSize: 24,
+              fontSize: s(24),
               fontWeight: 400,
               color: palette.subtitleColor,
               opacity: subtitleOpacity,

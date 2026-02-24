@@ -1,37 +1,42 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { EmojiSliderPollProps } from './schema';
 
 /* ── SVG dot-grid background ────────────────────────────────── */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="emoji-poll-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#emoji-poll-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="emoji-poll-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#emoji-poll-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ── Main component ─────────────────────────────────────────── */
 const EmojiSliderPoll: React.FC<EmojiSliderPollProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
-  const TRACK_WIDTH = 600;
-  const TRACK_HEIGHT = 16;
+  const TRACK_WIDTH = s(600);
+  const TRACK_HEIGHT = s(16);
   const TRACK_RADIUS = TRACK_HEIGHT / 2;
-  const EMOJI_SIZE = 56;
-  const TRACK_Y = 540; // vertical center of the composition
-  const TRACK_X = (1080 - TRACK_WIDTH) / 2;
+  const EMOJI_SIZE = s(56);
+  const TRACK_Y = s(540); // vertical center of the composition
+  const TRACK_X = (width - TRACK_WIDTH) / 2;
 
   /* ── Animation timeline ─────────────────────────────────── */
 
@@ -128,7 +133,7 @@ const EmojiSliderPoll: React.FC<EmojiSliderPollProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          top: 300,
+          top: s(300),
           left: 0,
           right: 0,
           textAlign: 'center',
@@ -139,11 +144,11 @@ const EmojiSliderPoll: React.FC<EmojiSliderPollProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 48,
+            fontSize: s(48),
             fontWeight: 700,
             color: theme.text,
             lineHeight: 1.3,
-            padding: '0 80px',
+            padding: `0 ${s(80)}px`,
             display: 'inline-block',
           }}
         >
@@ -209,10 +214,10 @@ const EmojiSliderPoll: React.FC<EmojiSliderPollProps> = (props) => {
             justifyContent: 'center',
             transform: `scale(${emojiAppearScale})`,
             opacity: contentOpacity,
-            fontSize: 44,
+            fontSize: s(44),
             lineHeight: 1,
             userSelect: 'none',
-            filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.3))',
+            filter: `drop-shadow(0 ${s(2)}px ${s(8)}px rgba(0, 0, 0, 0.3))`,
           }}
         >
           {props.emoji}
@@ -224,7 +229,7 @@ const EmojiSliderPoll: React.FC<EmojiSliderPollProps> = (props) => {
         <div
           style={{
             position: 'absolute',
-            top: TRACK_Y + TRACK_HEIGHT / 2 + 32,
+            top: TRACK_Y + TRACK_HEIGHT / 2 + s(32),
             left: 0,
             right: 0,
             textAlign: 'center',
@@ -235,10 +240,10 @@ const EmojiSliderPoll: React.FC<EmojiSliderPollProps> = (props) => {
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 32,
+              fontSize: s(32),
               fontWeight: 600,
               color: props.accentColor,
-              letterSpacing: 1,
+              letterSpacing: s(1),
             }}
           >
             {props.resultLabel}

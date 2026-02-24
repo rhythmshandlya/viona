@@ -162,12 +162,15 @@ async function pollJobProgress(
     // Never send progress lower than previously sent (high-water mark)
     const effectivePercent = Math.max(job.progress, highWaterMark);
     highWaterMark = effectivePercent;
+    const jobMeta = job.progressMeta as Record<string, unknown> | null;
     ctx.sendSSE('progress', {
       percent: effectivePercent,
       message: normalizeProgressMessage(jt, effectivePercent, job.progressMessage || undefined),
       jobId: sendJobId,
-      phase: derivePhase(jt, effectivePercent),
+      phase: jobMeta?.phase || derivePhase(jt, effectivePercent),
+      phaseName: jobMeta?.phaseName || undefined,
       jobType: jt,
+      meta: jobMeta || undefined,
       // Time-based ETA: send avg duration + job start time so frontend can compute remaining
       ...(avgDurationMs ? { avgDurationMs, jobStartedAt: job.createdAt.toISOString() } : {}),
     });

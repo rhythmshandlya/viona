@@ -22,6 +22,19 @@ interface JobProgress {
   jobId: string;
   progress: number;
   message?: string;
+  phase?: string;
+  phaseName?: string;
+  jobType?: string;
+  meta?: {
+    phase?: string;
+    phaseName?: string;
+    scene?: number;
+    totalScenes?: number;
+    iteration?: number;
+    maxIterations?: number;
+    score?: number;
+    detail?: string;
+  };
 }
 
 interface JobComplete {

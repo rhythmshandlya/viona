@@ -6,19 +6,20 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { SpeakerIdProps } from './schema';
-
-const DOT_SPACING = 28;
-const DOT_RADIUS = 1.5;
 
 const DotGrid: React.FC<{ color: string; width: number; height: number }> = ({
   color,
   width,
   height,
 }) => {
-  const cols = Math.ceil(width / DOT_SPACING) + 1;
-  const rows = Math.ceil(height / DOT_SPACING) + 1;
+  const s = useScale();
+  const spacing = s(28);
+  const radius = s(1.5);
+  const cols = Math.ceil(width / spacing) + 1;
+  const rows = Math.ceil(height / spacing) + 1;
   const dots: React.ReactNode[] = [];
 
   for (let r = 0; r < rows; r++) {
@@ -26,9 +27,9 @@ const DotGrid: React.FC<{ color: string; width: number; height: number }> = ({
       dots.push(
         <circle
           key={`${r}-${c}`}
-          cx={c * DOT_SPACING}
-          cy={r * DOT_SPACING}
-          r={DOT_RADIUS}
+          cx={c * spacing}
+          cy={r * spacing}
+          r={radius}
           fill={color}
         />
       );
@@ -50,7 +51,8 @@ const DotGrid: React.FC<{ color: string; width: number; height: number }> = ({
 const SpeakerId: React.FC<SpeakerIdProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  const s = useScale();
 
   const theme = BACKGROUNDS[props.background] ?? BACKGROUNDS.dark;
   const accentColor = props.accentColor;
@@ -136,7 +138,7 @@ const SpeakerId: React.FC<SpeakerIdProps> = (props) => {
     fps,
     config: { damping: 22, stiffness: 90, mass: 0.7 },
   });
-  const dividerWidthPx = interpolate(dividerWidth, [0, 1], [0, 120]);
+  const dividerWidthPx = interpolate(dividerWidth, [0, 1], [0, s(120)]);
 
   // Divider fade out
   const dividerFadeOut = interpolate(frame, [295, 310], [1, 0], {
@@ -153,20 +155,20 @@ const SpeakerId: React.FC<SpeakerIdProps> = (props) => {
     >
       {/* Dot Grid Background */}
       <div style={{ opacity: 0.5 }}>
-        <DotGrid color={theme.gridColor} width={1080} height={1080} />
+        <DotGrid color={theme.gridColor} width={width} height={height} />
       </div>
 
       {/* Lower-third card container */}
       <div
         style={{
           position: 'absolute',
-          bottom: 160,
+          bottom: s(160),
           left: 0,
           right: 0,
           display: 'flex',
           justifyContent: 'flex-start',
-          paddingLeft: 60,
-          paddingRight: 60,
+          paddingLeft: s(60),
+          paddingRight: s(60),
         }}
       >
         {/* Card */}
@@ -181,7 +183,7 @@ const SpeakerId: React.FC<SpeakerIdProps> = (props) => {
           {/* Accent left border */}
           <div
             style={{
-              width: 4,
+              width: s(4),
               backgroundColor: accentColor,
               borderRadius: 2,
               flexShrink: 0,
@@ -193,21 +195,21 @@ const SpeakerId: React.FC<SpeakerIdProps> = (props) => {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              paddingLeft: 28,
-              paddingRight: 48,
-              paddingTop: 24,
-              paddingBottom: 28,
+              paddingLeft: s(28),
+              paddingRight: s(48),
+              paddingTop: s(24),
+              paddingBottom: s(28),
               backgroundColor: `${theme.bg}CC`,
               backdropFilter: 'blur(12px)',
-              borderRadius: '0 8px 8px 0',
-              minWidth: 400,
+              borderRadius: `0 ${s(8)}px ${s(8)}px 0`,
+              minWidth: s(400),
             }}
           >
             {/* Name */}
             <div
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 52,
+                fontSize: s(52),
                 fontWeight: 700,
                 color: theme.text,
                 lineHeight: 1.15,
@@ -223,10 +225,10 @@ const SpeakerId: React.FC<SpeakerIdProps> = (props) => {
             <div
               style={{
                 width: dividerWidthPx,
-                height: 2,
+                height: s(2),
                 backgroundColor: accentColor,
-                marginTop: 14,
-                marginBottom: 14,
+                marginTop: s(14),
+                marginBottom: s(14),
                 borderRadius: 1,
                 opacity: dividerFadeOut,
               }}
@@ -236,7 +238,7 @@ const SpeakerId: React.FC<SpeakerIdProps> = (props) => {
             <div
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 30,
+                fontSize: s(30),
                 fontWeight: 400,
                 color: theme.textMuted,
                 lineHeight: 1.3,
@@ -253,13 +255,13 @@ const SpeakerId: React.FC<SpeakerIdProps> = (props) => {
               <div
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 22,
+                  fontSize: s(22),
                   fontWeight: 400,
                   color: theme.textMuted,
                   lineHeight: 1.3,
                   opacity: companyOpacity * textFadeOut * 0.7,
                   transform: `translateY(${companyTranslateY}px)`,
-                  marginTop: 6,
+                  marginTop: s(6),
                   letterSpacing: '0.02em',
                 }}
               >

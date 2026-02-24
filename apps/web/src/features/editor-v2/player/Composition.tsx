@@ -429,6 +429,18 @@ export function Composition() {
     return !!data.src;
   });
 
+  // Check if any visual scene uses fullscreen display mode — in fullscreen the
+  // video layer is hidden, so we need to extract audio separately.
+  const hasFullscreenVisuals = visualItems.some((v) => {
+    const vd = v.data as VisualItemData;
+    return vd.displayMode === 'fullscreen';
+  });
+
+  // When we extract video audio as a separate <Audio> element (fullscreen + no
+  // separate audio track), tell DynamicLayoutComposition to mute the <Video> so
+  // audio doesn't play twice during non-fullscreen scenes.
+  const videoAudioExtracted = hasFullscreenVisuals && !hasSeparateAudio;
+
   // Calculate video transform for crop/pan
   // Ensure we have valid dimensions to avoid NaN
   const hasValidDimensions =
@@ -524,7 +536,7 @@ export function Composition() {
           canvasWidth={videoSettings?.canvasWidth || 1920}
           canvasHeight={videoSettings?.canvasHeight || 1080}
           transform={transform}
-          hasSeparateAudio={hasSeparateAudio}
+          hasSeparateAudio={hasSeparateAudio || videoAudioExtracted}
           fullScreenStyle={fullScreenStyle}
         />
       )}
@@ -570,6 +582,32 @@ export function Composition() {
               volume={data.volume}
               onError={(e) => {
                 console.warn('Audio playback error (suppressed):', e?.message);
+              }}
+            />
+          </Sequence>
+        );
+      })}
+
+      {/* Video-as-audio: when no separate audio exists and some scenes use fullscreen
+          display mode, the video layer inside DynamicLayoutComposition is hidden — losing
+          the embedded audio. Render a dedicated Audio element from the video source here
+          (always mounted), and tell DynamicLayoutComposition to mute the video to avoid
+          doubling audio during non-fullscreen scenes. */}
+      {hasFullscreenVisuals && !hasSeparateAudio && videoItems.map((item) => {
+        const data = item.data as VideoItemData;
+        if (!data.src) return null;
+        const fromFrame = Math.round((item.startMs / 1000) * fps);
+        const durationInFrames = Math.max(1, Math.floor(((item.endMs - item.startMs) / 1000) * fps) - 2);
+        const trimStartFrame = item.trim ? Math.round((item.trim.startMs / 1000) * fps) : undefined;
+        return (
+          <Sequence key={`vid-audio-${item.id}`} from={fromFrame} durationInFrames={durationInFrames}>
+            <Audio
+              src={data.src}
+              volume={data.volume}
+              playbackRate={data.playbackRate || 1}
+              startFrom={trimStartFrame}
+              onError={(e) => {
+                console.warn('Video-audio playback error (suppressed):', e?.message);
               }}
             />
           </Sequence>
@@ -1065,6 +1103,7 @@ function DynamicLayoutComposition({
           />
         </div>
       )}
+
 
       {/* Overlay mode: visual on top of video with real alpha compositing */}
       {displayMode === 'overlay' && showVisualLayer && (

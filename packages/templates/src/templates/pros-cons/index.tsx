@@ -7,25 +7,29 @@ import {
   spring,
 } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { ProsConsProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  Dot-grid SVG background pattern                                    */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', top: 0, left: 0 }}
-  >
-    <defs>
-      <pattern id="pc-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="2" cy="2" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#pc-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', top: 0, left: 0 }}
+    >
+      <defs>
+        <pattern id="pc-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(2)} cy={s(2)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#pc-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  SVG Checkmark icon                                                 */
@@ -89,6 +93,7 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
   font,
   progress,
 }) => {
+  const s = useScale();
   const opacity = interpolate(progress, [0, 1], [0, 1]);
   const translateY = interpolate(progress, [0, 1], [20, 0]);
 
@@ -97,27 +102,27 @@ const ColumnHeader: React.FC<ColumnHeaderProps> = ({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 12,
+        gap: s(12),
         opacity,
         transform: `translateY(${translateY}px)`,
-        marginBottom: 32,
+        marginBottom: s(32),
       }}
     >
       <div
         style={{
-          width: 6,
-          height: 36,
+          width: s(6),
+          height: s(36),
           backgroundColor: color,
-          borderRadius: 3,
+          borderRadius: s(3),
         }}
       />
       <div
         style={{
           fontFamily: font,
           fontWeight: 800,
-          fontSize: 34,
+          fontSize: s(34),
           color: textColor,
-          letterSpacing: 3,
+          letterSpacing: s(3),
           textTransform: 'uppercase',
         }}
       >
@@ -149,6 +154,7 @@ const ListItem: React.FC<ListItemProps> = ({
   iconScale,
   textProgress,
 }) => {
+  const s = useScale();
   const translateX = interpolate(textProgress, [0, 1], [60, 0]);
   const opacity = interpolate(textProgress, [0, 1], [0, 1]);
 
@@ -157,8 +163,8 @@ const ListItem: React.FC<ListItemProps> = ({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 16,
-        marginBottom: 24,
+        gap: s(16),
+        marginBottom: s(24),
       }}
     >
       {type === 'pro' ? (
@@ -170,7 +176,7 @@ const ListItem: React.FC<ListItemProps> = ({
         style={{
           fontFamily: font,
           fontWeight: 500,
-          fontSize: 26,
+          fontSize: s(26),
           color: textColor,
           lineHeight: 1.35,
           opacity,
@@ -189,6 +195,7 @@ const ListItem: React.FC<ListItemProps> = ({
 const ProsCons: React.FC<ProsConsProps> = (props) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const { FONTS } = getConstants(props);
   const theme = BACKGROUNDS[props.background] ?? BACKGROUNDS.dark;
 
@@ -289,7 +296,7 @@ const ProsCons: React.FC<ProsConsProps> = (props) => {
           bottom: 0,
           display: 'flex',
           flexDirection: 'column',
-          padding: '72px 64px',
+          padding: `${s(72)}px ${s(64)}px`,
         }}
       >
         {/* Title */}
@@ -297,10 +304,10 @@ const ProsCons: React.FC<ProsConsProps> = (props) => {
           style={{
             fontFamily: FONTS.headline,
             fontWeight: 800,
-            fontSize: 52,
+            fontSize: s(52),
             color: theme.text,
             textAlign: 'center',
-            marginBottom: 52,
+            marginBottom: s(52),
             opacity: titleOpacity,
             transform: `translateY(${titleY}px)`,
             lineHeight: 1.15,
@@ -314,7 +321,7 @@ const ProsCons: React.FC<ProsConsProps> = (props) => {
           style={{
             display: 'flex',
             flexDirection: 'row',
-            gap: 48,
+            gap: s(48),
             flex: 1,
           }}
         >

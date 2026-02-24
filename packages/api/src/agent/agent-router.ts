@@ -559,14 +559,17 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // Filter out stale/completed jobs — completed jobs or those older than threshold are ignored
     const activeJob = activeJobRow && isJobFresh(activeJobRow, STALE_JOB_MS) ? activeJobRow : null;
 
+    const activeJobMeta = activeJob?.progressMeta as Record<string, unknown> | null;
     const jobPayload = activeJob
       ? {
           id: activeJob.id,
           type: activeJob.type,
           progress: activeJob.progress,
           message: normalizeProgressMessage(activeJob.type, activeJob.progress, activeJob.progressMessage || undefined),
-          phase: derivePhase(activeJob.type, activeJob.progress),
+          phase: activeJobMeta?.phase || derivePhase(activeJob.type, activeJob.progress),
+          phaseName: activeJobMeta?.phaseName || undefined,
           jobType: activeJob.type,
+          progressMeta: activeJobMeta || undefined,
         }
       : null;
 

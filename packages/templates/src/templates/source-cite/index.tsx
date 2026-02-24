@@ -1,27 +1,32 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { SourceCiteProps } from './schema';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="sc-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#sc-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="sc-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#sc-dot-grid)" />
+    </svg>
+  );
+};
 
 const SourceCite: React.FC<SourceCiteProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   // --- Animation timeline ---
@@ -101,7 +106,7 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 80,
+          padding: s(80),
           opacity: cardOpacity * cardOutOpacity,
           transform: `scale(${cardScale})`,
         }}
@@ -112,11 +117,11 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
             width: '100%',
             backgroundColor: theme.cardBg,
             border: `1px solid ${theme.cardBorder}`,
-            borderRadius: 16,
-            padding: '56px 64px 52px 64px',
+            borderRadius: s(16),
+            padding: `${s(56)}px ${s(64)}px ${s(52)}px ${s(64)}px`,
             display: 'flex',
             flexDirection: 'column',
-            gap: 32,
+            gap: s(32),
           }}
         >
           {/* Left accent border bar */}
@@ -124,12 +129,12 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
             style={{
               position: 'absolute',
               left: 0,
-              top: 40,
-              width: 4,
+              top: s(40),
+              width: s(4),
               height: `${borderHeight}%`,
               backgroundColor: props.accentColor,
-              borderRadius: 2,
-              maxHeight: 'calc(100% - 80px)',
+              borderRadius: s(2),
+              maxHeight: `calc(100% - ${s(80)}px)`,
             }}
           />
 
@@ -143,14 +148,14 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 13,
+                fontSize: s(13),
                 fontWeight: 700,
-                letterSpacing: 2.5,
+                letterSpacing: s(2.5),
                 textTransform: 'uppercase',
                 color: props.accentColor,
                 backgroundColor: theme.badgeBg,
-                padding: '6px 16px',
-                borderRadius: 20,
+                padding: `${s(6)}px ${s(16)}px`,
+                borderRadius: s(20),
                 display: 'inline-block',
               }}
             >
@@ -162,8 +167,8 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
           <div
             style={{
               position: 'absolute',
-              top: 36,
-              right: 52,
+              top: s(36),
+              right: s(52),
               opacity: 0.06,
               pointerEvents: 'none',
             }}
@@ -171,7 +176,7 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 200,
+                fontSize: s(200),
                 lineHeight: 0.8,
                 color: theme.text,
               }}
@@ -181,7 +186,7 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
           </div>
 
           {/* Quote text */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, paddingLeft: 20 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: s(4), paddingLeft: s(20) }}>
             {/* Opening quotation mark inline with text */}
             {quoteLines.map((line, i) => {
               const lineEnterStart = 40 + i * lineEnterDuration;
@@ -204,7 +209,7 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
                   key={i}
                   style={{
                     fontFamily: FONTS.headline,
-                    fontSize: 36,
+                    fontSize: s(36),
                     fontWeight: 500,
                     fontStyle: 'italic',
                     color: theme.text,
@@ -224,10 +229,10 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
           {/* Thin separator */}
           <div
             style={{
-              width: 48,
+              width: s(48),
               height: 1,
               backgroundColor: theme.textMuted,
-              marginLeft: 20,
+              marginLeft: s(20),
               opacity: attrOpacity,
             }}
           />
@@ -237,8 +242,8 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 6,
-              paddingLeft: 20,
+              gap: s(6),
+              paddingLeft: s(20),
               opacity: attrOpacity,
               transform: `translateY(${attrSlideY}px)`,
             }}
@@ -246,7 +251,7 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 22,
+                fontSize: s(22),
                 fontWeight: 600,
                 color: theme.text,
               }}
@@ -256,7 +261,7 @@ const SourceCite: React.FC<SourceCiteProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 18,
+                fontSize: s(18),
                 fontWeight: 400,
                 color: theme.textMuted,
               }}

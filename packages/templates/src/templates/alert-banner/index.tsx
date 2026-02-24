@@ -7,26 +7,29 @@ import {
   spring,
 } from 'remotion';
 import { getConstants, SEVERITY_COLORS, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { AlertBannerProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  DotGrid SVG background                                             */
 /* ------------------------------------------------------------------ */
 
-const DotGrid: React.FC<{ color: string; frame: number }> = ({
+const DotGrid: React.FC<{ color: string; frame: number; size: number }> = ({
   color,
   frame,
+  size,
 }) => {
+  const s = useScale();
   const dots: React.ReactNode[] = [];
-  const spacing = 40;
-  const cols = Math.ceil(1080 / spacing);
-  const rows = Math.ceil(1080 / spacing);
+  const spacing = s(40);
+  const cols = Math.ceil(size / spacing);
+  const rows = Math.ceil(size / spacing);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const delay = (r + c) * 0.3;
       const pulse = Math.sin((frame - delay) * 0.04) * 0.5 + 0.5;
-      const radius = 1.2 + pulse * 0.6;
+      const radius = s(1.2) + pulse * s(0.6);
       dots.push(
         <circle
           key={`${r}-${c}`}
@@ -41,9 +44,9 @@ const DotGrid: React.FC<{ color: string; frame: number }> = ({
 
   return (
     <svg
-      width="1080"
-      height="1080"
-      viewBox="0 0 1080 1080"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
       style={{ position: 'absolute', top: 0, left: 0 }}
     >
       {dots}
@@ -95,7 +98,8 @@ const WarningIcon: React.FC<{ color: string; size: number }> = ({
 const AlertBanner: React.FC<AlertBannerProps> = (props) => {
   const { FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
   const severityColor = SEVERITY_COLORS[props.severity];
 
@@ -157,8 +161,8 @@ const AlertBanner: React.FC<AlertBannerProps> = (props) => {
   const bannerVisible = frame >= 20;
 
   /* ---- Banner height and vertical center position ---- */
-  const bannerHeight = 120;
-  const bannerTop = (1080 - bannerHeight) / 2;
+  const bannerHeight = s(120);
+  const bannerTop = (width - bannerHeight) / 2;
 
   return (
     <AbsoluteFill
@@ -168,7 +172,7 @@ const AlertBanner: React.FC<AlertBannerProps> = (props) => {
       }}
     >
       {/* Dot grid background */}
-      <DotGrid color={theme.gridColor} frame={frame} />
+      <DotGrid color={theme.gridColor} frame={frame} size={width} />
 
       {/* Banner */}
       {bannerVisible && (
@@ -185,9 +189,9 @@ const AlertBanner: React.FC<AlertBannerProps> = (props) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            gap: 24,
-            padding: '0 60px',
-            boxShadow: `0 8px 32px ${severityColor}40, 0 2px 8px rgba(0,0,0,0.3)`,
+            gap: s(24),
+            padding: `0 ${s(60)}px`,
+            boxShadow: `0 ${s(8)}px ${s(32)}px ${severityColor}40, 0 ${s(2)}px ${s(8)}px rgba(0,0,0,0.3)`,
           }}
         >
           {/* Icon */}
@@ -200,7 +204,7 @@ const AlertBanner: React.FC<AlertBannerProps> = (props) => {
                 alignItems: 'center',
               }}
             >
-              <WarningIcon color="#FFFFFF" size={56} />
+              <WarningIcon color="#FFFFFF" size={s(56)} />
             </div>
           )}
 
@@ -209,14 +213,14 @@ const AlertBanner: React.FC<AlertBannerProps> = (props) => {
             style={{
               opacity: textOpacity,
               fontFamily: FONTS.headline,
-              fontSize: 42,
+              fontSize: s(42),
               fontWeight: 900,
               color: '#FFFFFF',
-              letterSpacing: 1.5,
+              letterSpacing: s(1.5),
               textTransform: 'uppercase',
               textAlign: 'center',
               lineHeight: 1.2,
-              textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              textShadow: `0 ${s(2)}px ${s(4)}px rgba(0,0,0,0.2)`,
             }}
           >
             {props.text}

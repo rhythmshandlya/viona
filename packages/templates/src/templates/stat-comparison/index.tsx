@@ -1,19 +1,20 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing, spring } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { StatComparisonProps } from './schema';
 import CardShell from './components/CardShell';
 import { formatCompact } from './lib/format';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
+const DotGrid: React.FC<{ color: string; s: (px: number) => number }> = ({ color, s }) => (
   <svg
     width="100%"
     height="100%"
     style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
   >
     <defs>
-      <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
+      <pattern id="dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+        <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#dot-grid)" />
@@ -24,6 +25,7 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const from = props.compareFrom;
@@ -82,7 +84,7 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
 
   return (
     <AbsoluteFill style={{ ...bgStyle, opacity: introOpacity * outroOpacity, overflow: 'hidden' }}>
-      <DotGrid color={theme.gridColor} />
+      <DotGrid color={theme.gridColor} s={s} />
 
       <CardShell
         frame={frame}
@@ -93,13 +95,13 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
         cardBorder={theme.cardBorder}
         accentColor={props.accentColor}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, alignItems: 'center', gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, alignItems: 'center', gap: s(20) }}>
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 500,
-              letterSpacing: 3,
+              letterSpacing: s(3),
               color: theme.textMuted,
               textTransform: 'uppercase',
               opacity: titleOpacity,
@@ -115,16 +117,16 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: 40,
+              gap: s(40),
               flex: 1,
             }}
           >
             {/* Left (from) */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: s(12) }}>
               <span
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 22,
+                  fontSize: s(22),
                   fontWeight: 500,
                   color: theme.textMuted,
                 }}
@@ -134,10 +136,10 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
               <span
                 style={{
                   fontFamily: FONTS.headline,
-                  fontSize: 80,
+                  fontSize: s(80),
                   fontWeight: 800,
                   color: `${theme.text}AA`,
-                  letterSpacing: -2,
+                  letterSpacing: s(-2),
                 }}
               >
                 {formatCompact(leftValue, prefix)}
@@ -151,7 +153,7 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
                 opacity: arrowScale,
               }}
             >
-              <svg width={64} height={64} viewBox="0 0 64 64">
+              <svg width={s(64)} height={s(64)} viewBox="0 0 64 64">
                 <path
                   d="M8 32 H48 M36 20 L48 32 L36 44"
                   fill="none"
@@ -164,11 +166,11 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
             </div>
 
             {/* Right (to) */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: s(12) }}>
               <span
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 22,
+                  fontSize: s(22),
                   fontWeight: 500,
                   color: theme.textMuted,
                 }}
@@ -178,10 +180,10 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
               <span
                 style={{
                   fontFamily: FONTS.headline,
-                  fontSize: 80,
+                  fontSize: s(80),
                   fontWeight: 800,
                   color: theme.text,
-                  letterSpacing: -2,
+                  letterSpacing: s(-2),
                 }}
               >
                 {formatCompact(rightValue, prefix)}
@@ -195,9 +197,9 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 8,
-                padding: '10px 24px',
-                borderRadius: 100,
+                gap: s(8),
+                padding: `${s(10)}px ${s(24)}px`,
+                borderRadius: s(100),
                 background: `${props.accentColor}18`,
                 border: `1px solid ${props.accentColor}30`,
                 opacity: changeLabelOpacity,
@@ -206,7 +208,7 @@ const StatComparison: React.FC<StatComparisonProps> = (props) => {
               <span
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 24,
+                  fontSize: s(24),
                   fontWeight: 600,
                   color: props.accentColor,
                 }}

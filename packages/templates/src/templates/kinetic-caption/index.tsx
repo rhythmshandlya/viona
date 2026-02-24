@@ -1,27 +1,32 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { KineticCaptionProps } from './schema';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="kc-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#kc-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="kc-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#kc-dot-grid)" />
+    </svg>
+  );
+};
 
 const KineticCaption: React.FC<KineticCaptionProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const words = props.text.split(/\s+/).filter((w) => w.length > 0);
@@ -59,9 +64,9 @@ const KineticCaption: React.FC<KineticCaptionProps> = (props) => {
     wordCount - 1
   );
 
-  const fontSize = 64;
+  const fontSize = s(64);
   const lineHeight = 1.4;
-  const wordGap = 16;
+  const wordGap = s(16);
 
   return (
     <AbsoluteFill
@@ -81,7 +86,7 @@ const KineticCaption: React.FC<KineticCaptionProps> = (props) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '0 80px',
+          padding: `0 ${s(80)}px`,
         }}
       >
         <div
@@ -91,7 +96,7 @@ const KineticCaption: React.FC<KineticCaptionProps> = (props) => {
             justifyContent: 'center',
             alignItems: 'center',
             gap: `${wordGap}px`,
-            maxWidth: 900,
+            maxWidth: s(900),
           }}
         >
           {words.map((word, i) => {
@@ -139,7 +144,7 @@ const KineticCaption: React.FC<KineticCaptionProps> = (props) => {
             // Text shadow glow for highlight words
             const textShadow =
               isHighlight && wordOpacity > 0
-                ? `0 0 30px ${props.accentColor}60, 0 0 60px ${props.accentColor}30`
+                ? `0 0 ${s(30)}px ${props.accentColor}60, 0 0 ${s(60)}px ${props.accentColor}30`
                 : undefined;
 
             return (

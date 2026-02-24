@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import { eq, inArray, or, and } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, publishJobCancel } from '../services/queue.js';
+import { queueTranscribeJob, queueRenderJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
 
@@ -196,6 +196,56 @@ export async function projectRoutes(fastify: FastifyInstance) {
         }
       } catch (err) {
         fastify.log.warn({ err, audioKey: project.audioKey }, 'Failed to generate presigned URL for audio');
+      }
+    }
+
+    // Auto-create audio track + item if a video project has no audio track yet
+    if (project.videoKey && project.projectType !== 'audio') {
+      const hasAudioTrack = projectTracks.some(t => t.type === 'audio');
+      if (!hasAudioTrack) {
+        try {
+          // Find the video track/item to copy timing from
+          const videoTrack = projectTracks.find(t => t.type === 'video');
+          const videoItem = videoTrack
+            ? items.find(i => i.trackId === videoTrack.id && i.type === 'video')
+            : null;
+
+          const startMs = videoItem ? videoItem.startMs : 0;
+          const endMs = videoItem ? videoItem.endMs : (project.durationMs || 0);
+
+          if (endMs > startMs) {
+            // Store a stable API path as src — the frontend resolves it with the API_URL
+            const stableSrc = `/api/projects/${id}/video`;
+
+            const [audioTrack] = await db.insert(tracks).values({
+              projectId: id,
+              type: 'audio',
+              name: 'Audio',
+              position: projectTracks.length,
+              locked: false,
+              visible: true,
+            }).returning();
+
+            const [audioItem] = await db.insert(timelineItems).values({
+              trackId: audioTrack.id,
+              type: 'audio',
+              startMs,
+              endMs,
+              data: {
+                src: stableSrc,
+                originalSrc: stableSrc,
+                isEnhanced: false,
+                sourceVideoItemId: videoItem?.id || '',
+                volume: 1,
+              },
+            }).returning();
+
+            projectTracks.push(audioTrack);
+            items.push(audioItem);
+          }
+        } catch (err) {
+          fastify.log.warn({ err, projectId: id }, 'Failed to auto-create audio track (non-critical)');
+        }
       }
     }
 
@@ -564,7 +614,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     return { success: true };
   });
 
-  // Start processing (transcription + audio enhancement in parallel)
+  // Start processing (transcription + head-tracking in parallel)
   fastify.post('/projects/:id/process', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -1308,12 +1358,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Separate audio from video and enhance
+  // Separate audio from video (returns video source as audio track — no enhancement)
   fastify.post('/projects/:id/separate-audio', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = z.object({
-      videoItemId: z.string(),
-    }).parse(request.body);
+    const { videoItemId } = request.body as { videoItemId?: string };
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -1323,62 +1371,66 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    // Check ownership
     if (!checkProjectOwnership(project.userId, request.user?.id)) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (!project.videoKey) {
-      return reply.status(400).send({ error: 'No video uploaded' });
+      return reply.status(400).send({ error: 'Project has no video' });
     }
 
-    // Create audio track
+    // Check if audio track already exists
+    const existingTracks = await db.query.tracks.findMany({
+      where: eq(tracks.projectId, id),
+    });
+    if (existingTracks.some(t => t.type === 'audio')) {
+      return reply.status(409).send({ error: 'Audio track already exists' });
+    }
+
+    // Get video item timing
+    const videoTrack = existingTracks.find(t => t.type === 'video');
+    let startMs = 0;
+    let endMs = project.durationMs || 0;
+    if (videoTrack) {
+      const videoItems = await db.select().from(timelineItems).where(
+        and(eq(timelineItems.trackId, videoTrack.id), eq(timelineItems.type, 'video'))
+      );
+      if (videoItems[0]) {
+        startMs = videoItems[0].startMs;
+        endMs = videoItems[0].endMs;
+      }
+    }
+
+    const stableSrc = `/api/projects/${id}/video`;
+
+    // Persist to database
     const [audioTrack] = await db.insert(tracks).values({
       projectId: id,
       type: 'audio',
       name: 'Audio',
-      position: 2,
+      position: existingTracks.length,
+      locked: false,
+      visible: true,
     }).returning();
 
-    // Create audio timeline item (spans full video duration)
     const [audioItem] = await db.insert(timelineItems).values({
       trackId: audioTrack.id,
       type: 'audio',
-      startMs: 0,
-      endMs: project.durationMs || 0,
+      startMs,
+      endMs,
       data: {
-        src: '',
-        originalSrc: '',
+        src: stableSrc,
+        originalSrc: stableSrc,
         isEnhanced: false,
-        sourceVideoItemId: body.videoItemId,
+        sourceVideoItemId: videoItemId || '',
         volume: 1,
-        enhancementStatus: 'processing',
-        enhancementProgress: 0,
       },
     }).returning();
 
-    // Create job record
-    const [job] = await db.insert(jobs).values({
-      projectId: id,
-      type: 'enhance-audio',
-      status: 'pending',
-    }).returning();
+    // Return presigned URL for immediate playback
+    const src = await getPresignedDownloadUrl('uploads', project.videoKey);
 
-    // Queue the enhancement job
-    await queueEnhanceAudioJob({
-      projectId: id,
-      jobId: job.id,
-      videoKey: project.videoKey,
-      audioTrackId: audioTrack.id,
-      audioItemId: audioItem.id,
-      videoItemId: body.videoItemId,
-    });
-
-    return {
-      jobId: job.id,
-      trackId: audioTrack.id,
-      itemId: audioItem.id,
-    };
+    return { trackId: audioTrack.id, itemId: audioItem.id, src };
   });
 
   // Get download URL

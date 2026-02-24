@@ -1,35 +1,37 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { StatLineChartProps } from './schema';
 import CardShell from './components/CardShell';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
+const DotGrid: React.FC<{ color: string; s: (px: number) => number }> = ({ color, s }) => (
   <svg
     width="100%"
     height="100%"
     style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
   >
     <defs>
-      <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
+      <pattern id="dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+        <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#dot-grid)" />
   </svg>
 );
 
-const CHART_W = 740;
-const CHART_H = 360;
-const PAD_LEFT = 60;
-const PAD_BOTTOM = 40;
-const PAD_TOP = 20;
-const PAD_RIGHT = 20;
-
 const StatLineChart: React.FC<StatLineChartProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
+
+  const CHART_W = s(740);
+  const CHART_H = s(360);
+  const PAD_LEFT = s(60);
+  const PAD_BOTTOM = s(40);
+  const PAD_TOP = s(20);
+  const PAD_RIGHT = s(20);
   const theme = BACKGROUNDS[props.background];
 
   const points = props.points;
@@ -120,7 +122,7 @@ const StatLineChart: React.FC<StatLineChartProps> = (props) => {
 
   return (
     <AbsoluteFill style={{ ...bgStyle, opacity: introOpacity * outroOpacity, overflow: 'hidden' }}>
-      <DotGrid color={theme.gridColor} />
+      <DotGrid color={theme.gridColor} s={s} />
 
       <CardShell
         frame={frame}
@@ -131,13 +133,13 @@ const StatLineChart: React.FC<StatLineChartProps> = (props) => {
         cardBorder={theme.cardBorder}
         accentColor={props.accentColor}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: s(16) }}>
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 500,
-              letterSpacing: 3,
+              letterSpacing: s(3),
               color: theme.textMuted,
               textTransform: 'uppercase',
               opacity: titleOpacity,
@@ -189,7 +191,7 @@ const StatLineChart: React.FC<StatLineChartProps> = (props) => {
               <circle
                 cx={lastX}
                 cy={lastY}
-                r={6}
+                r={s(6)}
                 fill={props.accentColor}
                 stroke="#0B0F1A"
                 strokeWidth={3}
@@ -202,10 +204,10 @@ const StatLineChart: React.FC<StatLineChartProps> = (props) => {
                   <text
                     key={i}
                     x={x}
-                    y={CHART_H - 8}
+                    y={CHART_H - s(8)}
                     textAnchor="middle"
                     fill={theme.textMuted}
-                    fontSize={16}
+                    fontSize={s(16)}
                     fontFamily={FONTS.body}
                   >
                     {label}
@@ -218,10 +220,10 @@ const StatLineChart: React.FC<StatLineChartProps> = (props) => {
               <span
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 18,
+                  fontSize: s(18),
                   color: theme.textMuted,
                   opacity: labelOpacity,
-                  marginTop: 12,
+                  marginTop: s(12),
                 }}
               >
                 {props.label}

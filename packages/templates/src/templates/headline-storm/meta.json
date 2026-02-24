@@ -10,8 +10,7 @@
     "brand",
     "match-cut",
     "trending",
-    "newspaper",
-    "studio-theme"
+    "newspaper"
   ],
   "stylePreset": "cleanMinimal",
   "aspectRatio": "1:1",

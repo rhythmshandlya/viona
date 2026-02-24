@@ -7,25 +7,29 @@ import {
   spring,
 } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { BulletStackProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  Dot-grid SVG background pattern                                    */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', top: 0, left: 0 }}
-  >
-    <defs>
-      <pattern id="bullet-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="2" cy="2" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#bullet-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', top: 0, left: 0 }}
+    >
+      <defs>
+        <pattern id="bullet-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(2)} cy={s(2)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#bullet-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  SVG marker icons                                                   */
@@ -100,9 +104,10 @@ const BulletItem: React.FC<BulletItemProps> = ({
   markerScale,
   textProgress,
 }) => {
+  const s = useScale();
   const translateX = interpolate(textProgress, [0, 1], [80, 0]);
   const textOpacity = interpolate(textProgress, [0, 1], [0, 1]);
-  const markerSize = 36;
+  const markerSize = s(36);
 
   const markerColor = isActive ? accentColor : mutedColor;
   const itemTextColor = isActive ? textColor : mutedColor;
@@ -131,15 +136,15 @@ const BulletItem: React.FC<BulletItemProps> = ({
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 28,
+        gap: s(28),
         opacity: textOpacity,
       }}
     >
       {/* Marker */}
       <div
         style={{
-          width: markerSize + 16,
-          height: markerSize + 16,
+          width: markerSize + s(16),
+          height: markerSize + s(16),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -148,7 +153,7 @@ const BulletItem: React.FC<BulletItemProps> = ({
           backgroundColor: isActive
             ? `${accentColor}18`
             : 'transparent',
-          borderRadius: 12,
+          borderRadius: s(12),
           border: `2px solid ${isActive ? accentColor : `${mutedColor}40`}`,
         }}
       >
@@ -160,7 +165,7 @@ const BulletItem: React.FC<BulletItemProps> = ({
         style={{
           fontFamily: bodyFont,
           fontWeight: isActive ? 600 : 400,
-          fontSize: 36,
+          fontSize: s(36),
           color: itemTextColor,
           lineHeight: 1.4,
           transform: `translateX(${translateX}px)`,
@@ -178,6 +183,7 @@ const BulletItem: React.FC<BulletItemProps> = ({
 const BulletStack: React.FC<BulletStackProps> = (props) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const { FONTS } = getConstants(props);
   const theme = BACKGROUNDS[props.background] ?? BACKGROUNDS.dark;
 
@@ -237,7 +243,7 @@ const BulletStack: React.FC<BulletStackProps> = (props) => {
           bottom: 0,
           display: 'flex',
           flexDirection: 'column',
-          padding: '80px 72px',
+          padding: `${s(80)}px ${s(72)}px`,
         }}
       >
         {/* Title */}
@@ -245,9 +251,9 @@ const BulletStack: React.FC<BulletStackProps> = (props) => {
           style={{
             fontFamily: FONTS.headline,
             fontWeight: 800,
-            fontSize: 56,
+            fontSize: s(56),
             color: theme.text,
-            marginBottom: 60,
+            marginBottom: s(60),
             opacity: titleOpacity,
             transform: `translateY(${titleY}px)`,
           }}
@@ -260,7 +266,7 @@ const BulletStack: React.FC<BulletStackProps> = (props) => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 36,
+            gap: s(36),
             flex: 1,
             justifyContent: 'center',
           }}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Thumbnail } from "@remotion/player";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { TemplateRegistryEntry } from "@viona/templates";
 import { cn } from "@/lib/cn";
 
@@ -24,7 +24,7 @@ export function TemplateCard({ template }: TemplateCardProps) {
     null
   );
 
-  useMemo(() => {
+  useEffect(() => {
     template.getComponent().then((mod) => {
       setComponent(() => mod.default);
     });

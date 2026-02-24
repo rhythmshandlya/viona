@@ -67,6 +67,7 @@ export const jobs = pgTable('jobs', {
   status: varchar('status', { length: 50 }).notNull().default('pending'),
   progress: integer('progress').default(0).notNull(),
   progressMessage: varchar('progress_message', { length: 500 }),
+  progressMeta: jsonb('progress_meta').$type<Record<string, unknown>>(),
   error: text('error'),
   metrics: jsonb('metrics'),
   logs: text('logs').array(),

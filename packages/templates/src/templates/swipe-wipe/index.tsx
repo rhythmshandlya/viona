@@ -6,22 +6,23 @@ import {
   interpolate,
   Easing,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { SwipeWipeProps } from './schema';
 
-const WIDTH = 1080;
-const HEIGHT = 1080;
-
 /* ── DotGrid SVG Background ─────────────────────────────────────── */
 
-const DotGrid: React.FC<{ color: string; opacity: number }> = ({
+const DotGrid: React.FC<{ color: string; opacity: number; gridWidth: number; gridHeight: number }> = ({
   color,
   opacity,
+  gridWidth,
+  gridHeight,
 }) => {
-  const spacing = 30;
-  const radius = 1.5;
-  const cols = Math.ceil(WIDTH / spacing) + 1;
-  const rows = Math.ceil(HEIGHT / spacing) + 1;
+  const s = useScale();
+  const spacing = s(30);
+  const radius = s(1.5);
+  const cols = Math.ceil(gridWidth / spacing) + 1;
+  const rows = Math.ceil(gridHeight / spacing) + 1;
 
   const dots: React.ReactNode[] = [];
   for (let r = 0; r < rows; r++) {
@@ -40,9 +41,9 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({
 
   return (
     <svg
-      width={WIDTH}
-      height={HEIGHT}
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+      width={gridWidth}
+      height={gridHeight}
+      viewBox={`0 0 ${gridWidth} ${gridHeight}`}
       style={{
         position: 'absolute',
         top: 0,
@@ -60,17 +61,19 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({
 const CircleExpandWipe: React.FC<{
   progress: number;
   color: string;
-}> = ({ progress, color }) => {
-  // Max radius to cover entire 1080x1080 canvas from center
-  const maxRadius = Math.sqrt((WIDTH / 2) ** 2 + (HEIGHT / 2) ** 2);
+  canvasWidth: number;
+  canvasHeight: number;
+}> = ({ progress, color, canvasWidth, canvasHeight }) => {
+  // Max radius to cover entire canvas from center
+  const maxRadius = Math.sqrt((canvasWidth / 2) ** 2 + (canvasHeight / 2) ** 2);
   const currentRadius = progress * maxRadius;
 
   return (
     <div
       style={{
         position: 'absolute',
-        top: HEIGHT / 2 - currentRadius,
-        left: WIDTH / 2 - currentRadius,
+        top: canvasHeight / 2 - currentRadius,
+        left: canvasWidth / 2 - currentRadius,
         width: currentRadius * 2,
         height: currentRadius * 2,
         borderRadius: '50%',
@@ -133,7 +136,8 @@ const HorizontalWipe: React.FC<{
 const SwipeWipe: React.FC<SwipeWipeProps> = (props) => {
   const { COLORS, FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, width, height } = useVideoConfig();
+  const s = useScale();
   const palette = BACKGROUNDS[props.background];
 
   // ── Phase: Background fade in (0-15) ─────────────────────────
@@ -215,7 +219,7 @@ const SwipeWipe: React.FC<SwipeWipeProps> = (props) => {
       }}
     >
       {/* Dot grid background */}
-      <DotGrid color={palette.dotColor} opacity={bgOpacity} />
+      <DotGrid color={palette.dotColor} opacity={bgOpacity} gridWidth={width} gridHeight={height} />
 
       {/* Wipe shape */}
       {wipeVisible && (
@@ -224,6 +228,8 @@ const SwipeWipe: React.FC<SwipeWipeProps> = (props) => {
             <CircleExpandWipe
               progress={wipeProgress}
               color={props.accentColor}
+              canvasWidth={width}
+              canvasHeight={height}
             />
           )}
           {props.style === 'diagonalWipe' && (
@@ -256,11 +262,11 @@ const SwipeWipe: React.FC<SwipeWipeProps> = (props) => {
           <div
             style={{
               fontFamily: FONTS.headline,
-              fontSize: 80,
+              fontSize: s(80),
               fontWeight: 900,
               color: '#FFFFFF',
               textAlign: 'center',
-              padding: '0 80px',
+              padding: `0 ${s(80)}px`,
               lineHeight: 1.15,
               letterSpacing: '-0.01em',
               textTransform: 'uppercase',

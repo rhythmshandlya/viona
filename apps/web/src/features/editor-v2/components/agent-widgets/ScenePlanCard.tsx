@@ -363,138 +363,55 @@ export function ScenePlanCard({
   }
 
   return (
-    <div className="my-2 border border-[var(--editor-border-subtle)] rounded-lg overflow-hidden">
-      {/* Header */}
-      <div className="px-3 py-2 bg-[var(--editor-bg-hover)] border-b border-[var(--editor-border-subtle)] flex items-center gap-3 flex-wrap">
-        <span className="text-sm font-medium text-[var(--editor-text-primary)]">Scene Plan</span>
-        <div className="flex items-center gap-3 ml-auto text-xs text-[var(--editor-text-muted)]">
-          <span className="flex items-center gap-1">
-            <Layers className="w-3 h-3" />
-            {sceneCount} scene{sceneCount !== 1 ? 's' : ''}
-          </span>
-          {duration !== undefined && (
-            <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {formatDuration(duration)}
-            </span>
-          )}
-          {metadata?.colorPalette && (
-            <span className="flex items-center gap-1">
-              <Palette className="w-3 h-3" />
-              {metadata.colorPalette}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Primary metaphor */}
-      {metadata?.primaryMetaphor && (
-        <div className="px-3 py-1.5 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-accent-soft)] flex items-center gap-1.5">
-          <Sparkles className="w-3 h-3 text-[var(--editor-accent)] shrink-0" />
-          <span className="text-xs text-[var(--editor-accent)] italic truncate">
-            {metadata.primaryMetaphor}
-          </span>
-        </div>
-      )}
-
-      {/* Compact scene list (editable when isEditable, otherwise read-only) */}
-      <div className="divide-y divide-[var(--editor-border-subtle)]">
-        {localScenes.map((scene, i) => (
-          <React.Fragment key={i}>
-            {i > 0 && localScenes[i - 1].endMs < scene.startMs && (
-              <SpeakerGapIndicator startMs={localScenes[i - 1].endMs} endMs={scene.startMs} />
-            )}
-            <div className="px-3 py-2 group">
-              <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-xs font-mono text-[var(--editor-text-muted)] shrink-0">
-                  {formatTime(scene.startMs)}-{formatTime(scene.endMs)}
-                </span>
-                {isEditable ? (
-                  <Select
-                    value={scene.displayMode || 'default'}
-                    onValueChange={(v) => updateSceneDisplayMode(i, v as 'default' | 'fullscreen' | 'overlay')}
-                  >
-                    <SelectTrigger className="h-5 px-1 text-[10px] gap-0.5 min-w-0 w-auto border-none shadow-none">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DISPLAY_MODE_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                          {opt.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <DisplayModeBadge mode={scene.displayMode || 'default'} />
-                )}
-                <div className="flex-1 min-w-0">
-                  {isEditable ? (
-                    <InlineEditableTitle
-                      value={scene.title}
-                      onChange={(v) => updateSceneTitle(i, v)}
-                    />
-                  ) : (
-                    <span className="text-sm font-medium text-[var(--editor-text-primary)] truncate block">
-                      {scene.title}
-                    </span>
-                  )}
-                </div>
-                {!disabled && onEditScene && (
-                  <button
-                    onClick={() => onEditScene(i, scene.title)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)] transition-all"
-                    title={`Edit ${scene.title} with AI`}
-                  >
-                    <Pencil className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-              {isEditable ? (
-                <InlineEditableDescription
-                  value={scene.description}
-                  onChange={(v) => updateSceneDescription(i, v)}
-                />
-              ) : (
-                <p className="text-xs text-[var(--editor-text-secondary)] line-clamp-1">
-                  {scene.description}
-                </p>
-              )}
-            </div>
-          </React.Fragment>
-        ))}
-      </div>
-
-      {/* Save edits button (compact card) */}
-      {isEditable && hasEdits && (
-        <div className="px-3 py-1.5 border-t border-[var(--editor-border-subtle)] bg-[var(--editor-accent)]/5 flex items-center justify-end">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-2.5 py-1 text-xs rounded-md bg-[var(--editor-accent)] text-white
-                       hover:bg-[var(--editor-accent-hover)] active:scale-[0.97] transition-all
-                       flex items-center gap-1 disabled:opacity-50"
-          >
-            <Save className="w-3 h-3" />
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
-        </div>
-      )}
-
-      {/* View full plan → modal */}
-      {scenePlanMarkdown && (
+    <>
+      {/* Compact inline card */}
+      <div className="my-2 border border-[var(--editor-border-subtle)] rounded-lg overflow-hidden">
         <button
+          type="button"
           onClick={() => setModalOpen(true)}
-          className="w-full px-3 py-1.5 border-t border-[var(--editor-border-subtle)] bg-[var(--editor-bg-hover)]
-                     flex items-center justify-center gap-1 text-xs text-[var(--editor-text-muted)]
-                     hover:text-[var(--editor-text-secondary)] transition-colors"
+          className="w-full px-3 py-2 flex items-center gap-2.5 hover:bg-[var(--editor-bg-hover)] transition-colors text-left"
         >
-          <ExternalLink className="w-3 h-3" />
-          View full plan
+          <div className="w-7 h-7 rounded-md bg-[var(--editor-accent-soft)] flex items-center justify-center shrink-0">
+            <Layers className="w-3.5 h-3.5 text-[var(--editor-accent)]" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-[var(--editor-text-primary)]">Scene Plan</span>
+              <span className="text-[11px] text-[var(--editor-text-muted)]">
+                {sceneCount} scene{sceneCount !== 1 ? 's' : ''}
+                {duration !== undefined && ` · ${formatDuration(duration)}`}
+              </span>
+            </div>
+            {metadata?.primaryMetaphor && (
+              <p className="text-[11px] text-[var(--editor-text-muted)] truncate mt-0.5">
+                {metadata.primaryMetaphor}
+              </p>
+            )}
+          </div>
+          <ExternalLink className="w-3.5 h-3.5 text-[var(--editor-text-muted)] shrink-0" />
         </button>
-      )}
 
-      {/* Full plan modal (uses localScenes for editable fields) */}
+        {/* Action buttons */}
+        {!disabled && (
+          <div className="px-3 py-1.5 bg-[var(--editor-bg-hover)] border-t border-[var(--editor-border-subtle)] flex gap-2">
+            <button
+              onClick={() => onApprove(hasIconSelections ? iconSelections : undefined)}
+              className="flex-1 px-2.5 py-1 bg-[var(--editor-accent)] hover:bg-[var(--editor-accent-hover)] text-white text-xs rounded-md active:scale-[0.97] transition-all"
+            >
+              Approve & Generate
+            </button>
+            <button
+              onClick={onReject}
+              className="px-2.5 py-1 border border-[var(--editor-border-subtle)] hover:border-[var(--editor-border-default)]
+                         text-[var(--editor-text-secondary)] text-xs rounded-md transition-colors"
+            >
+              Revise
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Full plan popup modal */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-4xl max-h-[90vh] flex flex-col gap-0 p-0 overflow-hidden">
           {/* Modal header */}
@@ -541,17 +458,19 @@ export function ScenePlanCard({
                 <Layers className="w-3 h-3 inline mr-1" />
                 Scenes
               </button>
-              <button
-                onClick={() => setModalTab('markdown')}
-                className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
-                  modalTab === 'markdown'
-                    ? 'bg-foreground/10 text-foreground font-medium'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <FileText className="w-3 h-3 inline mr-1" />
-                Raw Plan
-              </button>
+              {scenePlanMarkdown && (
+                <button
+                  onClick={() => setModalTab('markdown')}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                    modalTab === 'markdown'
+                      ? 'bg-foreground/10 text-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <FileText className="w-3 h-3 inline mr-1" />
+                  Raw Plan
+                </button>
+              )}
 
               {/* Save Changes button — appears when edits differ from props */}
               {isEditable && hasEdits && (
@@ -767,27 +686,40 @@ export function ScenePlanCard({
               </div>
             )}
           </div>
+
+          {/* Modal footer with action buttons */}
+          {!disabled && (
+            <div className="px-6 py-3 border-t shrink-0 flex items-center gap-2">
+              {isEditable && hasEdits && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="px-3 py-1.5 text-xs rounded-md border border-[var(--editor-border-subtle)]
+                             hover:border-[var(--editor-border-default)] text-[var(--editor-text-secondary)]
+                             active:scale-[0.97] transition-all flex items-center gap-1 disabled:opacity-50"
+                >
+                  <Save className="w-3 h-3" />
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              )}
+              <div className="flex-1" />
+              <button
+                onClick={() => { setModalOpen(false); onReject(); }}
+                className="px-3 py-1.5 border border-[var(--editor-border-subtle)] hover:border-[var(--editor-border-default)]
+                           text-[var(--editor-text-secondary)] text-sm rounded-md transition-colors"
+              >
+                Revise
+              </button>
+              <button
+                onClick={() => { setModalOpen(false); onApprove(hasIconSelections ? iconSelections : undefined); }}
+                className="px-4 py-1.5 bg-[var(--editor-accent)] hover:bg-[var(--editor-accent-hover)] text-white text-sm rounded-md active:scale-[0.97] transition-all"
+              >
+                Approve & Generate
+              </button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
-
-      {/* Action buttons */}
-      {!disabled && (
-        <div className="px-3 py-2 bg-[var(--editor-bg-hover)] border-t border-[var(--editor-border-subtle)] flex gap-2">
-          <button
-            onClick={() => onApprove(hasIconSelections ? iconSelections : undefined)}
-            className="flex-1 px-3 py-1.5 bg-[var(--editor-accent)] hover:bg-[var(--editor-accent-hover)] text-white text-sm rounded-md active:scale-[0.97] transition-all"
-          >
-            Approve & Generate
-          </button>
-          <button
-            onClick={onReject}
-            className="px-3 py-1.5 border border-[var(--editor-border-subtle)] hover:border-[var(--editor-border-default)]
-                       text-[var(--editor-text-secondary)] text-sm rounded-md transition-colors"
-          >
-            Revise
-          </button>
-        </div>
-      )}
-    </div>
+    </>
   );
 }

@@ -1178,42 +1178,6 @@ async function runClaudeCodeGenerator(
 
     let stdout = '';
     let stderr = '';
-    let gotRealProgress = false;
-    let lastToolPercent = 18;
-
-    // Initial ticker for the startup phase (before any tool calls appear)
-    const STARTUP_MESSAGES = [
-      [18, 'Starting Claude Code generator...'],
-      [21, 'Connecting to Claude...'],
-      [24, 'Authenticating...'],
-      [27, 'Reading approved plan...'],
-    ] as const;
-    let startupIndex = 0;
-
-    const progressTicker = setInterval(() => {
-      if (gotRealProgress || startupIndex >= STARTUP_MESSAGES.length) return;
-      const [percent, message] = STARTUP_MESSAGES[startupIndex];
-      publishJobProgress(jobId, percent, message);
-      lastToolPercent = percent;
-      startupIndex++;
-    }, 5_000);
-
-    // Map Animator tool calls to user-friendly progress messages
-    function toolToProgress(toolName: string, textContext: string): string | null {
-      // Check for scene mentions in surrounding text
-      const sceneMatch = textContext.match(/Scene\s*(\d+)/i);
-      const sceneInfo = sceneMatch ? ` (Scene ${sceneMatch[1]})` : '';
-
-      switch (toolName) {
-        case 'Write': return `Writing animation code${sceneInfo}...`;
-        case 'Edit': return `Refining code${sceneInfo}...`;
-        case 'Read': return `Reading files${sceneInfo}...`;
-        case 'Glob': return 'Scanning project files...';
-        case 'Bash': return 'Running validation...';
-        case 'TodoWrite': return 'Updating task list...';
-        default: return null;
-      }
-    }
 
     subprocess.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
@@ -1221,49 +1185,19 @@ async function runClaudeCodeGenerator(
 
       const lines = text.split('\n');
       for (const line of lines) {
-        // Parse explicit PROGRESS:XX:message from Python script
-        const progressMatch = line.match(/^PROGRESS:(\d+):(.+)$/);
+        // Parse PROGRESS:XX:message or PROGRESS:XX:message|{json_metadata}
+        const progressMatch = line.match(/^PROGRESS:(\d+):(.+?)(?:\|(.+))?$/);
         if (progressMatch) {
-          gotRealProgress = true;
           const percent = parseInt(progressMatch[1], 10);
           const message = progressMatch[2];
-          publishJobProgress(jobId, percent, message);
-          lastToolPercent = percent;
-          logger.info({ projectId, percent, message }, 'Claude generator progress');
-          continue;
-        }
-
-        // Parse tool usage tags for live progress: [Animator Tool: X], [SelfHeal Tool: X],
-        // [SceneN Tool: X], [SceneN Retry Tool: X], [Setup Tool: X], [SceneVerify Tool: X],
-        // [CompVerify Tool: X], [Coordinator Tool: X]
-        const toolMatch = line.match(/\[(Animator|SelfHeal|Setup|SceneVerify|CompVerify|Coordinator|Scene\d+(?:\s+\w+)?) Tool: (\w+)\]/);
-        if (toolMatch && !gotRealProgress) {
-          const toolName = toolMatch[2];
-          const progressMsg = toolToProgress(toolName, stdout.slice(-500));
-          if (progressMsg) {
-            // Slowly increment from 30% to 55% based on tool calls
-            lastToolPercent = Math.min(55, lastToolPercent + 1);
-            publishJobProgress(jobId, lastToolPercent, progressMsg);
+          const metaJson = progressMatch[3];
+          let meta: Record<string, unknown> | undefined;
+          if (metaJson) {
+            try { meta = JSON.parse(metaJson); } catch { /* ignore malformed meta */ }
           }
+          publishJobProgress(jobId, percent, message, meta ? { meta } : undefined);
+          logger.info({ projectId, percent, message, meta }, 'Claude generator progress');
           continue;
-        }
-
-        // Parse scene completion text for higher-fidelity updates
-        const sceneDone = line.match(/(?:Scene|Scenes?)\s+([\d,-]+)\s+(?:is|are)\s+(?:also\s+)?(?:done|complete|implemented)/i);
-        if (sceneDone && !gotRealProgress) {
-          lastToolPercent = Math.min(55, lastToolPercent + 2);
-          publishJobProgress(jobId, lastToolPercent, `Completed scene${sceneDone[1].includes(',') || sceneDone[1].includes('-') ? 's' : ''} ${sceneDone[1]}...`);
-          continue;
-        }
-
-        // Parse self-heal phase
-        if (line.includes('self-healing attempt') || line.includes('Self-heal')) {
-          publishJobProgress(jobId, Math.max(lastToolPercent, 56), 'Fixing validation errors...');
-        }
-
-        // Parse "GENERATION COMPLETE"
-        if (line.includes('GENERATION COMPLETE')) {
-          publishJobProgress(jobId, 58, 'Animation code complete — validating...');
         }
       }
 
@@ -1308,7 +1242,6 @@ async function runClaudeCodeGenerator(
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
-        clearInterval(progressTicker);
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
         if (fatalStderrDetected) {
@@ -1325,7 +1258,6 @@ async function runClaudeCodeGenerator(
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
-        clearInterval(progressTicker);
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
         reject(err);

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { EmojiBurstProps } from './schema';
 
@@ -54,31 +55,35 @@ function generateParticles(
 
 /* -- Dot-grid background -------------------------------------------------- */
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern
-        id="emoji-burst-dot-grid"
-        width="32"
-        height="32"
-        patternUnits="userSpaceOnUse"
-      >
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#emoji-burst-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern
+          id="emoji-burst-dot-grid"
+          width={s(32)}
+          height={s(32)}
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#emoji-burst-dot-grid)" />
+    </svg>
+  );
+};
 
 /* -- Main component ------------------------------------------------------- */
 
 const EmojiBurst: React.FC<EmojiBurstProps> = (props) => {
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, width, height } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
   const { COLORS } = getConstants(props);
 
@@ -132,8 +137,8 @@ const EmojiBurst: React.FC<EmojiBurstProps> = (props) => {
         // Progress from 0 to 1 over the particle's lifetime
         const progress = localFrame / particle.speed;
 
-        // Y position: bottom (1080) to top (-80) with easeOut
-        const y = interpolate(progress, [0, 1], [1080, -80], {
+        // Y position: bottom to top with easeOut
+        const y = interpolate(progress, [0, 1], [height, s(-80)], {
           extrapolateLeft: 'clamp',
           extrapolateRight: 'clamp',
         });
@@ -168,9 +173,9 @@ const EmojiBurst: React.FC<EmojiBurstProps> = (props) => {
             key={i}
             style={{
               position: 'absolute',
-              left: particle.x + wobbleX,
+              left: s(particle.x) + s(wobbleX),
               top: y,
-              fontSize: 64 * particle.scale * scaleMultiplier,
+              fontSize: s(64) * particle.scale * scaleMultiplier,
               opacity,
               transform: `rotate(${currentRotation}deg)`,
               transformOrigin: 'center center',

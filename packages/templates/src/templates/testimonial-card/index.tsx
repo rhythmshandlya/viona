@@ -6,14 +6,16 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { TestimonialCardProps } from './schema';
 
 /* ── Dot-grid background ──────────────────────────────────────────── */
 
 const DotGrid: React.FC<{ color: string }> = ({ color }) => {
-  const spacing = 32;
-  const radius = 1.5;
+  const s = useScale();
+  const spacing = s(32);
+  const radius = s(1.5);
   return (
     <AbsoluteFill>
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -133,6 +135,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background] || BACKGROUNDS.dark;
   const accent = props.accentColor;
 
@@ -202,15 +205,15 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 80,
+          padding: s(80),
         }}
       >
         {/* Large decorative quotation mark */}
         <div
           style={{
             position: 'absolute',
-            top: 140,
-            left: 100,
+            top: s(140),
+            left: s(100),
           }}
         >
           <QuoteMark
@@ -224,13 +227,13 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 46,
+            fontSize: s(46),
             fontWeight: 500,
             lineHeight: 1.5,
             color: theme.text,
             textAlign: 'center',
-            maxWidth: 860,
-            marginBottom: 50,
+            maxWidth: s(860),
+            marginBottom: s(50),
             letterSpacing: -0.3,
           }}
         >
@@ -269,8 +272,8 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
           <div
             style={{
               display: 'flex',
-              gap: 8,
-              marginBottom: 40,
+              gap: s(8),
+              marginBottom: s(40),
               justifyContent: 'center',
             }}
           >
@@ -295,7 +298,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
                     transform: `scale(${starScale})`,
                   }}
                 >
-                  <Star filled={i < starCount} color={accent} size={38} />
+                  <Star filled={i < starCount} color={accent} size={s(38)} />
                 </div>
               );
             })}
@@ -305,11 +308,11 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
         {/* Divider line */}
         <div
           style={{
-            width: interpolate(authorProgress, [0, 1], [0, 60]),
-            height: 2,
+            width: interpolate(authorProgress, [0, 1], [0, s(60)]),
+            height: s(2),
             backgroundColor: accent,
-            marginBottom: 36,
-            borderRadius: 1,
+            marginBottom: s(36),
+            borderRadius: s(1),
             opacity: authorOpacity,
           }}
         />
@@ -319,7 +322,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 20,
+            gap: s(20),
             opacity: authorOpacity,
             transform: `translateY(${authorTranslateY}px)`,
           }}
@@ -327,15 +330,15 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
           <Avatar
             name={props.authorName}
             accentColor={accent}
-            size={56}
+            size={s(56)}
             opacity={1}
             translateY={0}
           />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: s(4) }}>
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 26,
+                fontSize: s(26),
                 fontWeight: 700,
                 color: theme.text,
                 letterSpacing: 0.3,
@@ -346,7 +349,7 @@ const TestimonialCard: React.FC<TestimonialCardProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 20,
+                fontSize: s(20),
                 fontWeight: 400,
                 color: theme.textMuted,
               }}

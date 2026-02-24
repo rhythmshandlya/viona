@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { QuotePulseProps } from './schema';
 
@@ -7,6 +8,7 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const phrases = props.phrases;
@@ -41,7 +43,7 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
     : { backgroundColor: theme.bg };
 
   // Decorative accent line
-  const lineWidth = interpolate(frame, [5, 25], [0, 60], {
+  const lineWidth = interpolate(frame, [5, 25], [0, s(60)], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -50,13 +52,13 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
     return (
       <AbsoluteFill style={{ ...bgStyle, opacity: introOpacity * outroOpacity }}>
         {/* Decorative line */}
-        <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', width: lineWidth, height: 3, backgroundColor: props.accentColor, borderRadius: 2 }} />
+        <div style={{ position: 'absolute', top: s(80), left: '50%', transform: 'translateX(-50%)', width: lineWidth, height: s(3), backgroundColor: props.accentColor, borderRadius: s(2) }} />
 
         {/* Stacked phrases */}
-        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 80px', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: `0 ${s(80)}px`, gap: s(16) }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: s(8) }}>
             {/* Open quote mark */}
-            <span style={{ fontFamily: FONTS.headline, fontSize: 80, color: props.accentColor, opacity: 0.3, lineHeight: 0.5, marginBottom: 8 }}>&ldquo;</span>
+            <span style={{ fontFamily: FONTS.headline, fontSize: s(80), color: props.accentColor, opacity: 0.3, lineHeight: 0.5, marginBottom: s(8) }}>&ldquo;</span>
 
             {phrases.map((phrase, i) => {
               const enterFrame = phraseStart + i * framesPerPhrase;
@@ -72,7 +74,7 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
 
               const isEmphasis = phrase.emphasis;
               const color = isEmphasis ? props.accentColor : theme.text;
-              const fontSize = isEmphasis ? 56 : 48;
+              const fontSize = isEmphasis ? s(56) : s(48);
               const fontWeight = isEmphasis ? 900 : 700;
 
               return (
@@ -87,7 +89,7 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
                     lineHeight: 1.3,
                     opacity: phraseOpacity,
                     transform: `translateY(${slideY}px)`,
-                    textShadow: isEmphasis ? `0 0 40px ${props.accentColor}40` : undefined,
+                    textShadow: isEmphasis ? `0 0 ${s(40)}px ${props.accentColor}40` : undefined,
                   }}
                 >
                   {phrase.text}
@@ -98,13 +100,13 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
 
           {/* Author */}
           {props.author && (
-            <div style={{ marginTop: 32, opacity: authorOpacity, transform: `translateY(${authorSlideY}px)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 40, height: 2, backgroundColor: theme.textMuted, marginBottom: 12 }} />
-              <span style={{ fontFamily: FONTS.body, fontSize: 22, fontWeight: 500, color: theme.textMuted }}>
+            <div style={{ marginTop: s(32), opacity: authorOpacity, transform: `translateY(${authorSlideY}px)`, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: s(4) }}>
+              <div style={{ width: s(40), height: s(2), backgroundColor: theme.textMuted, marginBottom: s(12) }} />
+              <span style={{ fontFamily: FONTS.body, fontSize: s(22), fontWeight: 500, color: theme.textMuted }}>
                 {props.author}
               </span>
               {props.authorTitle && (
-                <span style={{ fontFamily: FONTS.body, fontSize: 18, fontWeight: 400, color: theme.textMuted }}>
+                <span style={{ fontFamily: FONTS.body, fontSize: s(18), fontWeight: 400, color: theme.textMuted }}>
                   {props.authorTitle}
                 </span>
               )}
@@ -119,10 +121,10 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
   return (
     <AbsoluteFill style={{ ...bgStyle, opacity: introOpacity * outroOpacity }}>
       {/* Decorative line */}
-      <div style={{ position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)', width: lineWidth, height: 3, backgroundColor: props.accentColor, borderRadius: 2 }} />
+      <div style={{ position: 'absolute', top: s(80), left: '50%', transform: 'translateX(-50%)', width: lineWidth, height: s(3), backgroundColor: props.accentColor, borderRadius: s(2) }} />
 
       {/* Phrases — one at a time */}
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 80px' }}>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `0 ${s(80)}px` }}>
         {phrases.map((phrase, i) => {
           const enterFrame = phraseStart + i * framesPerPhrase;
           const exitFrame = enterFrame + framesPerPhrase;
@@ -151,7 +153,7 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
 
           const isEmphasis = phrase.emphasis;
           const color = isEmphasis ? props.accentColor : theme.text;
-          const fontSize = isEmphasis ? 72 : 60;
+          const fontSize = isEmphasis ? s(72) : s(60);
 
           return (
             <span
@@ -165,7 +167,7 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
                 lineHeight: 1.2,
                 opacity: phraseOpacity,
                 transform: `scale(${scale})`,
-                textShadow: isEmphasis ? `0 0 60px ${props.accentColor}50` : undefined,
+                textShadow: isEmphasis ? `0 0 ${s(60)}px ${props.accentColor}50` : undefined,
                 position: 'absolute',
               }}
             >
@@ -176,19 +178,19 @@ const QuotePulse: React.FC<QuotePulseProps> = (props) => {
       </div>
 
       {/* Open quote decorative */}
-      <div style={{ position: 'absolute', top: 200, left: 80, opacity: 0.08 }}>
-        <span style={{ fontFamily: FONTS.headline, fontSize: 300, color: theme.text, lineHeight: 0.5 }}>&ldquo;</span>
+      <div style={{ position: 'absolute', top: s(200), left: s(80), opacity: 0.08 }}>
+        <span style={{ fontFamily: FONTS.headline, fontSize: s(300), color: theme.text, lineHeight: 0.5 }}>&ldquo;</span>
       </div>
 
       {/* Author */}
       {props.author && (
-        <div style={{ position: 'absolute', bottom: 100, left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, opacity: authorOpacity, transform: `translateY(${authorSlideY}px)` }}>
-          <div style={{ width: 40, height: 2, backgroundColor: theme.textMuted, marginBottom: 12 }} />
-          <span style={{ fontFamily: FONTS.body, fontSize: 22, fontWeight: 500, color: theme.textMuted }}>
+        <div style={{ position: 'absolute', bottom: s(100), left: 0, right: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: s(4), opacity: authorOpacity, transform: `translateY(${authorSlideY}px)` }}>
+          <div style={{ width: s(40), height: s(2), backgroundColor: theme.textMuted, marginBottom: s(12) }} />
+          <span style={{ fontFamily: FONTS.body, fontSize: s(22), fontWeight: 500, color: theme.textMuted }}>
             {props.author}
           </span>
           {props.authorTitle && (
-            <span style={{ fontFamily: FONTS.body, fontSize: 18, fontWeight: 400, color: theme.textMuted }}>
+            <span style={{ fontFamily: FONTS.body, fontSize: s(18), fontWeight: 400, color: theme.textMuted }}>
               {props.authorTitle}
             </span>
           )}

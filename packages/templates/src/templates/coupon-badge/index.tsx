@@ -8,26 +8,29 @@ import {
 } from 'remotion';
 import { FONTS } from '../../fonts';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { CouponBadgeProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  Sub-components                                                     */
 /* ------------------------------------------------------------------ */
 
-const DotGrid: React.FC<{ color: string; frame: number }> = ({
+const DotGrid: React.FC<{ color: string; frame: number; size: number }> = ({
   color,
   frame,
+  size,
 }) => {
+  const s = useScale();
   const dots: React.ReactNode[] = [];
-  const spacing = 40;
-  const cols = Math.ceil(1080 / spacing);
-  const rows = Math.ceil(1080 / spacing);
+  const spacing = s(40);
+  const cols = Math.ceil(size / spacing);
+  const rows = Math.ceil(size / spacing);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const delay = (r + c) * 0.3;
       const pulse = Math.sin((frame - delay) * 0.04) * 0.5 + 0.5;
-      const radius = 1.2 + pulse * 0.6;
+      const radius = s(1.2) + pulse * s(0.6);
       dots.push(
         <circle
           key={`${r}-${c}`}
@@ -42,9 +45,9 @@ const DotGrid: React.FC<{ color: string; frame: number }> = ({
 
   return (
     <svg
-      width="1080"
-      height="1080"
-      viewBox="0 0 1080 1080"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
       style={{ position: 'absolute', top: 0, left: 0 }}
     >
       {dots}
@@ -58,7 +61,8 @@ const DotGrid: React.FC<{ color: string; frame: number }> = ({
 
 const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const { FONTS: PAIR_FONTS, COLORS, SPRING_CONFIG } = getConstants(props);
   const theme = BACKGROUNDS[props.background] || BACKGROUNDS.dark;
 
@@ -149,7 +153,7 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
       }}
     >
       {/* Dot grid background */}
-      <DotGrid color={theme.gridColor} frame={frame} />
+      <DotGrid color={theme.gridColor} frame={frame} size={width} />
 
       {/* Centered badge container */}
       <AbsoluteFill
@@ -168,25 +172,25 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
             alignItems: 'center',
             justifyContent: 'center',
             border: dashedBorder,
-            borderRadius: 24,
-            padding: '80px 100px',
+            borderRadius: s(24),
+            padding: `${s(80)}px ${s(100)}px`,
             backgroundColor: props.background === 'dark'
               ? 'rgba(255,255,255,0.04)'
               : 'rgba(0,0,0,0.03)',
             boxShadow: `0 0 80px ${COLORS.primary}22, 0 0 160px ${COLORS.primary}11`,
             position: 'relative',
             overflow: 'hidden',
-            minWidth: 600,
+            minWidth: s(600),
           }}
         >
           {/* Corner decorations */}
           <div
             style={{
               position: 'absolute',
-              top: 16,
-              left: 16,
-              width: 24,
-              height: 24,
+              top: s(16),
+              left: s(16),
+              width: s(24),
+              height: s(24),
               borderTop: `3px solid ${COLORS.primary}`,
               borderLeft: `3px solid ${COLORS.primary}`,
               borderRadius: '4px 0 0 0',
@@ -195,10 +199,10 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
           <div
             style={{
               position: 'absolute',
-              top: 16,
-              right: 16,
-              width: 24,
-              height: 24,
+              top: s(16),
+              right: s(16),
+              width: s(24),
+              height: s(24),
               borderTop: `3px solid ${COLORS.primary}`,
               borderRight: `3px solid ${COLORS.primary}`,
               borderRadius: '0 4px 0 0',
@@ -207,10 +211,10 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
           <div
             style={{
               position: 'absolute',
-              bottom: 16,
-              left: 16,
-              width: 24,
-              height: 24,
+              bottom: s(16),
+              left: s(16),
+              width: s(24),
+              height: s(24),
               borderBottom: `3px solid ${COLORS.primary}`,
               borderLeft: `3px solid ${COLORS.primary}`,
               borderRadius: '0 0 0 4px',
@@ -219,10 +223,10 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
           <div
             style={{
               position: 'absolute',
-              bottom: 16,
-              right: 16,
-              width: 24,
-              height: 24,
+              bottom: s(16),
+              right: s(16),
+              width: s(24),
+              height: s(24),
               borderBottom: `3px solid ${COLORS.primary}`,
               borderRight: `3px solid ${COLORS.primary}`,
               borderRadius: '0 0 4px 0',
@@ -234,12 +238,12 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
             style={{
               opacity: labelOpacity,
               fontFamily: PAIR_FONTS.body,
-              fontSize: 24,
+              fontSize: s(24),
               fontWeight: 600,
               color: theme.textMuted,
               letterSpacing: '0.25em',
               textTransform: 'uppercase',
-              marginBottom: 24,
+              marginBottom: s(24),
             }}
           >
             {props.label}
@@ -250,20 +254,20 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
             style={{
               position: 'relative',
               overflow: 'hidden',
-              padding: '12px 24px',
+              padding: `${s(12)}px ${s(24)}px`,
             }}
           >
             {/* Code characters */}
             <div
               style={{
                 fontFamily: FONTS.jetBrainsMono,
-                fontSize: 96,
+                fontSize: s(96),
                 fontWeight: 700,
                 color: COLORS.primary,
                 letterSpacing: '0.12em',
                 textTransform: 'uppercase',
                 display: 'flex',
-                gap: 4,
+                gap: s(4),
               }}
             >
               {codeChars.map((char, i) => (
@@ -286,7 +290,7 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
                 position: 'absolute',
                 top: 0,
                 left: 0,
-                width: 120,
+                width: s(120),
                 height: '100%',
                 background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.25) 50%, transparent 100%)`,
                 transform: `translateX(${shimmerTranslateX}px)`,
@@ -298,12 +302,12 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
           {/* Divider line */}
           <div
             style={{
-              width: 120,
+              width: s(120),
               height: 2,
               backgroundColor: COLORS.secondary,
               opacity: descOpacity * 0.5,
-              marginTop: 28,
-              marginBottom: 28,
+              marginTop: s(28),
+              marginBottom: s(28),
               borderRadius: 1,
             }}
           />
@@ -314,12 +318,12 @@ const CouponBadge: React.FC<CouponBadgeProps> = (props) => {
               opacity: descOpacity,
               transform: `translateY(${descTranslateY}px)`,
               fontFamily: PAIR_FONTS.body,
-              fontSize: 32,
+              fontSize: s(32),
               fontWeight: 500,
               color: theme.textMuted,
               textAlign: 'center',
               lineHeight: 1.4,
-              maxWidth: 500,
+              maxWidth: s(500),
               letterSpacing: '0.01em',
             }}
           >

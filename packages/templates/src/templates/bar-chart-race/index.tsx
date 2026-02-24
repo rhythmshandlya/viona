@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { BarChartRaceProps } from './schema';
 import { formatCompact } from './lib/format';
@@ -7,7 +8,8 @@ import { formatCompact } from './lib/format';
 const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const { items, timeLabels, maxVisible, valuePrefix, valueSuffix } = props;
@@ -59,13 +61,13 @@ const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
   const currentTimeLabel = timeLabels[currentLabelIdx] ?? '';
 
   // Layout constants
-  const LEFT_PAD = 220;
-  const RIGHT_PAD = 100;
-  const TOP_PAD = 100;
-  const BOTTOM_PAD = 80;
-  const chartWidth = 1080 - LEFT_PAD - RIGHT_PAD;
-  const chartHeight = 1080 - TOP_PAD - BOTTOM_PAD;
-  const BAR_HEIGHT = Math.min(48, (chartHeight / maxVisible) - 14);
+  const LEFT_PAD = s(220);
+  const RIGHT_PAD = s(100);
+  const TOP_PAD = s(100);
+  const BOTTOM_PAD = s(80);
+  const chartWidth = width - LEFT_PAD - RIGHT_PAD;
+  const chartHeight = width - TOP_PAD - BOTTOM_PAD;
+  const BAR_HEIGHT = Math.min(s(48), (chartHeight / maxVisible) - s(14));
   const BAR_GAP = (chartHeight - BAR_HEIGHT * maxVisible) / (maxVisible + 1);
 
   return (
@@ -74,7 +76,7 @@ const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          top: 28,
+          top: s(28),
           left: 0,
           right: 0,
           textAlign: 'center',
@@ -84,9 +86,9 @@ const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.body,
-            fontSize: 24,
+            fontSize: s(24),
             fontWeight: 600,
-            letterSpacing: 3,
+            letterSpacing: s(3),
             color: theme.textMuted,
             textTransform: 'uppercase',
           }}
@@ -99,15 +101,15 @@ const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          bottom: 40,
-          right: 50,
+          bottom: s(40),
+          right: s(50),
           opacity: 0.12,
         }}
       >
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 180,
+            fontSize: s(180),
             fontWeight: 900,
             color: theme.text,
             lineHeight: 1,
@@ -133,26 +135,26 @@ const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
             <div
               style={{
                 position: 'absolute',
-                right: 1080 - LEFT_PAD + 12,
+                right: width - LEFT_PAD + s(12),
                 top: 0,
                 height: BAR_HEIGHT,
                 display: 'flex',
                 alignItems: 'center',
-                width: LEFT_PAD - 20,
+                width: LEFT_PAD - s(20),
                 justifyContent: 'flex-end',
               }}
             >
               <span
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 18,
+                  fontSize: s(18),
                   fontWeight: 500,
                   color: theme.text,
                   textAlign: 'right',
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  maxWidth: LEFT_PAD - 24,
+                  maxWidth: LEFT_PAD - s(24),
                 }}
               >
                 {item.name}
@@ -165,11 +167,11 @@ const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
                 position: 'absolute',
                 left: LEFT_PAD,
                 top: 0,
-                width: Math.max(barWidth, 4),
+                width: Math.max(barWidth, s(4)),
                 height: BAR_HEIGHT,
                 borderRadius: BAR_HEIGHT / 2,
                 background: `linear-gradient(90deg, ${item.color} 0%, ${item.color}BB 100%)`,
-                boxShadow: `0 0 12px ${item.color}40`,
+                boxShadow: `0 0 ${s(12)}px ${item.color}40`,
               }}
             />
 
@@ -177,7 +179,7 @@ const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
             <div
               style={{
                 position: 'absolute',
-                left: LEFT_PAD + Math.max(barWidth, 4) + 10,
+                left: LEFT_PAD + Math.max(barWidth, s(4)) + s(10),
                 top: 0,
                 height: BAR_HEIGHT,
                 display: 'flex',
@@ -187,7 +189,7 @@ const BarChartRace: React.FC<BarChartRaceProps> = (props) => {
               <span
                 style={{
                   fontFamily: FONTS.headline,
-                  fontSize: 18,
+                  fontSize: s(18),
                   fontWeight: 700,
                   color: theme.text,
                   whiteSpace: 'nowrap',

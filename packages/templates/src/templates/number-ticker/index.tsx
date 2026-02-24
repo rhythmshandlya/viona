@@ -1,22 +1,26 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { NumberTickerProps } from './schema';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="nt-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#nt-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="nt-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#nt-dot-grid)" />
+    </svg>
+  );
+};
 
 function formatNumberWithCommas(value: number, decimals: number): string {
   const fixed = value.toFixed(decimals);
@@ -29,6 +33,7 @@ const NumberTicker: React.FC<NumberTickerProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   // --- Background fade in (0-15) ---
@@ -125,14 +130,14 @@ const NumberTicker: React.FC<NumberTickerProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.body,
-            fontSize: 28,
+            fontSize: s(28),
             fontWeight: 500,
-            letterSpacing: 4,
+            letterSpacing: s(4),
             color: theme.textMuted,
             textTransform: 'uppercase',
             opacity: labelOpacity * elementsFadeOut,
             transform: `translateY(${labelSlideY}px)`,
-            marginBottom: 32,
+            marginBottom: s(32),
           }}
         >
           {props.label}
@@ -142,8 +147,8 @@ const NumberTicker: React.FC<NumberTickerProps> = (props) => {
         <div
           style={{
             position: 'absolute',
-            width: 400,
-            height: 200,
+            width: s(400),
+            height: s(200),
             borderRadius: '50%',
             background: props.accentColor,
             filter: `blur(${glowBlur}px)`,
@@ -156,7 +161,7 @@ const NumberTicker: React.FC<NumberTickerProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 140,
+            fontSize: s(140),
             fontWeight: 800,
             color: theme.text,
             lineHeight: 1.1,

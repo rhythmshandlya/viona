@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, Easing } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants } from './constants';
 import type { CountryHighlightProps } from './schema';
 import { computeBboxViewport, MAP_STYLES, lngToPixelX, latToPixelY } from './lib/tile-math';
@@ -10,12 +11,11 @@ import CountryOverlay from './components/CountryOverlay';
 import CountryLabel from './components/CountryLabel';
 import CityMarker from './components/CityMarker';
 
-const WIDTH = 1080;
-const HEIGHT = 1080;
-
 const CountryHighlight: React.FC<CountryHighlightProps> = (props) => {
   const { COLORS, FONTS } = getConstants(props);
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const s = useScale();
   const styleConfig = MAP_STYLES[props.mapStyle];
 
   // ── Find country data ──────────────────────────────────────────
@@ -30,7 +30,7 @@ const CountryHighlight: React.FC<CountryHighlightProps> = (props) => {
           alignItems: 'center',
           justifyContent: 'center',
           color: 'white',
-          fontSize: 40,
+          fontSize: s(40),
           fontFamily: 'sans-serif',
         }}
       >
@@ -40,18 +40,18 @@ const CountryHighlight: React.FC<CountryHighlightProps> = (props) => {
   }
 
   // ── Viewport from country bounding box ─────────────────────────
-  const viewport = computeBboxViewport(country.bbox, WIDTH, HEIGHT, props.mapPadding);
+  const viewport = computeBboxViewport(country.bbox, width, height, props.mapPadding);
 
   // ── Camera ─────────────────────────────────────────────────────
   const camera = (() => {
     switch (props.animationStyle) {
       case 'dramaticZoom':
-        return getDramaticZoomCamera(frame);
+        return getDramaticZoomCamera(frame, width, height);
       case 'kenBurns':
-        return getKenBurnsCamera(frame);
+        return getKenBurnsCamera(frame, width, height);
       case 'smoothZoom':
       default:
-        return getSmoothZoomCamera(frame);
+        return getSmoothZoomCamera(frame, width, height);
     }
   })();
 
@@ -77,7 +77,7 @@ const CountryHighlight: React.FC<CountryHighlightProps> = (props) => {
       : undefined;
 
   // ── Tile margin for camera panning ─────────────────────────────
-  const tileMargin = props.animationStyle === 'kenBurns' ? 100 : WIDTH / 2;
+  const tileMargin = props.animationStyle === 'kenBurns' ? s(100) : width / 2;
 
   return (
     <AbsoluteFill
@@ -92,8 +92,8 @@ const CountryHighlight: React.FC<CountryHighlightProps> = (props) => {
         style={{
           transform: `translate(${camera.translateX}px, ${camera.translateY}px) scale(${camera.scale})`,
           transformOrigin: '0 0',
-          width: WIDTH,
-          height: HEIGHT,
+          width,
+          height,
           position: 'absolute',
         }}
       >
@@ -101,8 +101,8 @@ const CountryHighlight: React.FC<CountryHighlightProps> = (props) => {
         <div style={{ opacity: mapOpacity, position: 'absolute', inset: 0 }}>
           <MapTileGrid
             viewport={viewport}
-            width={WIDTH}
-            height={HEIGHT}
+            width={width}
+            height={height}
             mapStyle={props.mapStyle}
             margin={tileMargin}
           />
@@ -120,8 +120,8 @@ const CountryHighlight: React.FC<CountryHighlightProps> = (props) => {
           borderColor={props.borderColor}
           borderWidth={props.borderWidth}
           enterFrame={90}
-          width={WIDTH}
-          height={HEIGHT}
+          width={width}
+          height={height}
         />
 
         {/* City marker */}

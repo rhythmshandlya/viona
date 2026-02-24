@@ -7,13 +7,15 @@ import {
   spring,
 } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { CommentHighlightProps, Comment } from './schema';
 
 /* -- Dot-grid background ------------------------------------------------- */
 
 const DotGrid: React.FC<{ color: string }> = ({ color }) => {
-  const spacing = 32;
-  const radius = 1.5;
+  const s = useScale();
+  const spacing = s(32);
+  const radius = s(1.5);
   return (
     <AbsoluteFill>
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -106,6 +108,7 @@ const CommentBubble: React.FC<{
   translateY: number;
   scale: number;
 }> = ({ comment, accentColor, theme, headlineFont, bodyFont, opacity, translateY, scale }) => {
+  const s = useScale();
   // Generate a pseudo-random timestamp based on username length
   const timestamps = ['2m ago', '5m ago', '12m ago', '23m ago', '1h ago', '3h ago'];
   const tsIndex = comment.username.length % timestamps.length;
@@ -116,15 +119,15 @@ const CommentBubble: React.FC<{
       style={{
         opacity,
         transform: `translateY(${translateY}px) scale(${scale})`,
-        width: 820,
+        width: s(820),
         backgroundColor: theme.cardBg,
-        borderRadius: 28,
-        padding: 44,
+        borderRadius: s(28),
+        padding: s(44),
         border: `1px solid ${theme.cardBorder}`,
-        boxShadow: `0 20px 60px rgba(0,0,0,0.25), 0 0 0 1px ${theme.cardBorder}`,
+        boxShadow: `0 ${s(20)}px ${s(60)}px rgba(0,0,0,0.25), 0 0 0 1px ${theme.cardBorder}`,
         display: 'flex',
         flexDirection: 'column',
-        gap: 24,
+        gap: s(24),
       }}
     >
       {/* Header row: avatar + username + timestamp */}
@@ -132,19 +135,19 @@ const CommentBubble: React.FC<{
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 20,
+          gap: s(20),
         }}
       >
         <AvatarCircle
           username={comment.username}
           accentColor={accentColor}
-          size={64}
+          size={s(64)}
         />
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: s(4), flex: 1 }}>
           <span
             style={{
               fontFamily: headlineFont,
-              fontSize: 28,
+              fontSize: s(28),
               fontWeight: 700,
               color: theme.text,
               letterSpacing: 0.2,
@@ -155,7 +158,7 @@ const CommentBubble: React.FC<{
           <span
             style={{
               fontFamily: bodyFont,
-              fontSize: 20,
+              fontSize: s(20),
               fontWeight: 400,
               color: theme.textMuted,
             }}
@@ -169,11 +172,11 @@ const CommentBubble: React.FC<{
       <div
         style={{
           fontFamily: bodyFont,
-          fontSize: 34,
+          fontSize: s(34),
           fontWeight: 400,
           lineHeight: 1.55,
           color: theme.text,
-          paddingLeft: 4,
+          paddingLeft: s(4),
         }}
       >
         {comment.text}
@@ -185,16 +188,16 @@ const CommentBubble: React.FC<{
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 10,
-            paddingLeft: 4,
-            paddingTop: 8,
+            gap: s(10),
+            paddingLeft: s(4),
+            paddingTop: s(8),
           }}
         >
-          <HeartIcon color={accentColor} size={24} />
+          <HeartIcon color={accentColor} size={s(24)} />
           <span
             style={{
               fontFamily: bodyFont,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 600,
               color: theme.textMuted,
             }}

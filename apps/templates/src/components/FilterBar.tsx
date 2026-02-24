@@ -26,6 +26,9 @@ interface FilterBarProps {
   onCategoryChange: (value: string) => void;
   aspectRatio: string;
   onAspectRatioChange: (value: string) => void;
+  tags: string[];
+  selectedTag: string;
+  onTagChange: (value: string) => void;
 }
 
 export function FilterBar({
@@ -35,6 +38,9 @@ export function FilterBar({
   onCategoryChange,
   aspectRatio,
   onAspectRatioChange,
+  tags = [],
+  selectedTag,
+  onTagChange,
 }: FilterBarProps) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
@@ -85,6 +91,21 @@ export function FilterBar({
           </option>
         ))}
       </select>
+
+      {tags.length > 0 && (
+        <select
+          value={selectedTag}
+          onChange={(e) => onTagChange(e.target.value)}
+          className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="">All tags</option>
+          {tags.map((tag) => (
+            <option key={tag} value={tag}>
+              {tag}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }

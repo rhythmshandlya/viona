@@ -6,24 +6,21 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants } from './constants';
 import type { ProductCardProps } from './schema';
 
-const WIDTH = 1080;
-const HEIGHT = 1080;
-const CARD_WIDTH = 680;
-const CARD_PADDING = 60;
-const CARD_RADIUS = 32;
-
 /* ── SVG DotGrid Background ─────────────────────────────────────────── */
 
-const DotGrid: React.FC<{ color: string; spacing?: number; radius?: number }> = ({
+const DotGrid: React.FC<{ color: string; spacing?: number; radius?: number; gridWidth: number; gridHeight: number }> = ({
   color,
   spacing = 32,
   radius = 2,
+  gridWidth,
+  gridHeight,
 }) => {
-  const cols = Math.ceil(WIDTH / spacing) + 1;
-  const rows = Math.ceil(HEIGHT / spacing) + 1;
+  const cols = Math.ceil(gridWidth / spacing) + 1;
+  const rows = Math.ceil(gridHeight / spacing) + 1;
   const dots: React.ReactElement[] = [];
 
   for (let r = 0; r < rows; r++) {
@@ -42,8 +39,8 @@ const DotGrid: React.FC<{ color: string; spacing?: number; radius?: number }> = 
 
   return (
     <svg
-      width={WIDTH}
-      height={HEIGHT}
+      width={gridWidth}
+      height={gridHeight}
       style={{ position: 'absolute', top: 0, left: 0 }}
     >
       {dots}
@@ -87,9 +84,10 @@ const StarRating: React.FC<{
   fps: number;
   filledColor: string;
   emptyColor: string;
-}> = ({ rating, frame, enterFrame, fps, filledColor, emptyColor }) => {
+  s: (px: number) => number;
+}> = ({ rating, frame, enterFrame, fps, filledColor, emptyColor, s }) => {
   const stars: React.ReactElement[] = [];
-  const starSize = 36;
+  const starSize = s(36);
 
   for (let i = 0; i < 5; i++) {
     // Each star lights up sequentially starting from enterFrame
@@ -115,7 +113,7 @@ const StarRating: React.FC<{
         style={{
           transform: `scale(${starScale})`,
           display: 'inline-flex',
-          marginRight: i < 4 ? 6 : 0,
+          marginRight: i < 4 ? s(6) : 0,
         }}
       >
         <Star
@@ -138,7 +136,12 @@ const StarRating: React.FC<{
 const ProductCard: React.FC<ProductCardProps> = (props) => {
   const { COLORS, FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width, height } = useVideoConfig();
+  const s = useScale();
+
+  const CARD_WIDTH = s(680);
+  const CARD_PADDING = s(60);
+  const CARD_RADIUS = s(32);
 
   // ── Timeline ──────────────────────────────────────────────────────
 
@@ -222,7 +225,7 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
     >
       {/* DotGrid background */}
       <div style={{ opacity: bgOpacity, position: 'absolute', inset: 0 }}>
-        <DotGrid color={COLORS.dotColor} spacing={32} radius={2} />
+        <DotGrid color={COLORS.dotColor} spacing={32} radius={2} gridWidth={width} gridHeight={height} />
       </div>
 
       {/* Card container */}
@@ -231,8 +234,8 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
           position: 'absolute',
           top: 0,
           left: 0,
-          width: WIDTH,
-          height: HEIGHT,
+          width,
+          height,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -253,7 +256,7 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
               borderRadius: CARD_RADIUS + 4,
               background: `linear-gradient(135deg, ${glowColor1}, ${glowColor2})`,
               opacity: 0.6,
-              filter: 'blur(20px)',
+              filter: `blur(${s(20)}px)`,
             }}
           />
 
@@ -275,10 +278,10 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
               backgroundColor: COLORS.cardBg,
               borderRadius: CARD_RADIUS,
               padding: CARD_PADDING,
-              backdropFilter: 'blur(40px)',
+              backdropFilter: `blur(${s(40)}px)`,
               display: 'flex',
               flexDirection: 'column',
-              gap: 28,
+              gap: s(28),
             }}
           >
             {/* Product name */}
@@ -291,7 +294,7 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
               <h1
                 style={{
                   fontFamily: FONTS.headline,
-                  fontSize: 56,
+                  fontSize: s(56),
                   fontWeight: 700,
                   color: COLORS.text,
                   margin: 0,
@@ -310,13 +313,13 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
                 transform: `translateY(${priceTranslateY}px)`,
                 display: 'flex',
                 alignItems: 'baseline',
-                gap: 16,
+                gap: s(16),
               }}
             >
               <span
                 style={{
                   fontFamily: FONTS.headline,
-                  fontSize: 48,
+                  fontSize: s(48),
                   fontWeight: 700,
                   color: COLORS.accent,
                   letterSpacing: '-0.01em',
@@ -329,7 +332,7 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
                 <span
                   style={{
                     fontFamily: FONTS.body,
-                    fontSize: 30,
+                    fontSize: s(30),
                     fontWeight: 400,
                     color: COLORS.strikethrough,
                     textDecoration: 'line-through',
@@ -351,7 +354,7 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
               <p
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 26,
+                  fontSize: s(26),
                   fontWeight: 400,
                   color: COLORS.subtextColor,
                   margin: 0,
@@ -369,7 +372,7 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
                   opacity: ratingOpacity,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 16,
+                  gap: s(16),
                 }}
               >
                 <StarRating
@@ -379,11 +382,12 @@ const ProductCard: React.FC<ProductCardProps> = (props) => {
                   fps={fps}
                   filledColor={COLORS.starFilled}
                   emptyColor={COLORS.starEmpty}
+                  s={s}
                 />
                 <span
                   style={{
                     fontFamily: FONTS.body,
-                    fontSize: 24,
+                    fontSize: s(24),
                     fontWeight: 600,
                     color: COLORS.text,
                     opacity: interpolate(frame, [86, 92], [0, 1], {

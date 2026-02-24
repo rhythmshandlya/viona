@@ -6,21 +6,22 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { LocationTagProps } from './schema';
 
 /* ── DotGrid SVG background ─────────────────────────────────────────── */
-
-const DOT_SPACING = 28;
-const DOT_RADIUS = 1.5;
 
 const DotGrid: React.FC<{ color: string; width: number; height: number }> = ({
   color,
   width,
   height,
 }) => {
-  const cols = Math.ceil(width / DOT_SPACING) + 1;
-  const rows = Math.ceil(height / DOT_SPACING) + 1;
+  const s = useScale();
+  const spacing = s(28);
+  const radius = s(1.5);
+  const cols = Math.ceil(width / spacing) + 1;
+  const rows = Math.ceil(height / spacing) + 1;
   const dots: React.ReactNode[] = [];
 
   for (let r = 0; r < rows; r++) {
@@ -28,9 +29,9 @@ const DotGrid: React.FC<{ color: string; width: number; height: number }> = ({
       dots.push(
         <circle
           key={`${r}-${c}`}
-          cx={c * DOT_SPACING}
-          cy={r * DOT_SPACING}
-          r={DOT_RADIUS}
+          cx={c * spacing}
+          cy={r * spacing}
+          r={radius}
           fill={color}
         />
       );
@@ -74,7 +75,8 @@ const MapPin: React.FC<{ color: string; size: number }> = ({ color, size }) => (
 const LocationTag: React.FC<LocationTagProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  const s = useScale();
 
   const theme = BACKGROUNDS[props.background] ?? BACKGROUNDS.dark;
   const accentColor = props.accentColor;
@@ -169,7 +171,7 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
     >
       {/* Dot Grid Background */}
       <div style={{ opacity: 0.5 }}>
-        <DotGrid color={theme.gridColor} width={1080} height={1080} />
+        <DotGrid color={theme.gridColor} width={width} height={height} />
       </div>
 
       {/* Center container for pin + text card */}
@@ -190,7 +192,7 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
             display: 'flex',
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 40,
+            gap: s(40),
           }}
         >
           {/* Map Pin */}
@@ -202,7 +204,7 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
               flexShrink: 0,
             }}
           >
-            <MapPin color={accentColor} size={120} />
+            <MapPin color={accentColor} size={s(120)} />
           </div>
 
           {/* Text content to the right of pin */}
@@ -210,7 +212,7 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: 8,
+              gap: s(8),
               transform: `translateX(${textExitX}px)`,
               opacity: exitOpacity,
             }}
@@ -219,7 +221,7 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
             <div
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 56,
+                fontSize: s(56),
                 fontWeight: 700,
                 color: theme.text,
                 lineHeight: 1.15,
@@ -242,9 +244,9 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
                     config: { damping: 22, stiffness: 90, mass: 0.7 },
                   }),
                   [0, 1],
-                  [0, 160]
+                  [0, s(160)]
                 ),
-                height: 3,
+                height: s(3),
                 backgroundColor: accentColor,
                 borderRadius: 2,
                 opacity: nameOpacity,
@@ -256,14 +258,14 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
               <div
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 32,
+                  fontSize: s(32),
                   fontWeight: 400,
                   color: theme.textMuted,
                   lineHeight: 1.3,
                   letterSpacing: '0.01em',
                   opacity: subtitleOpacity,
                   transform: `translateY(${subtitleTranslateY}px)`,
-                  marginTop: 4,
+                  marginTop: s(4),
                 }}
               >
                 {props.venue}
@@ -275,14 +277,14 @@ const LocationTag: React.FC<LocationTagProps> = (props) => {
               <div
                 style={{
                   fontFamily: 'monospace',
-                  fontSize: 20,
+                  fontSize: s(20),
                   fontWeight: 400,
                   color: theme.textMuted,
                   lineHeight: 1.4,
                   letterSpacing: '0.05em',
                   opacity: coordsOpacity * 0.6,
                   transform: `translateY(${coordsTranslateY}px)`,
-                  marginTop: 6,
+                  marginTop: s(6),
                 }}
               >
                 {props.coordinates}

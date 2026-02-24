@@ -1,25 +1,29 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { ScoreMeterProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  DotGrid SVG background                                            */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="score-meter-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#score-meter-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="score-meter-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#score-meter-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  SVG arc path helper                                                */
@@ -181,6 +185,7 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const scorePercent = Math.min(props.score / props.maxScore, 1);
@@ -262,7 +267,7 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
     easing: Easing.out(Easing.cubic),
   });
 
-  const gaugeSize = 600;
+  const gaugeSize = s(600);
 
   return (
     <AbsoluteFill
@@ -281,10 +286,10 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
           position: 'absolute',
           top: '35%',
           left: '50%',
-          width: 500,
-          height: 500,
-          marginTop: -250,
-          marginLeft: -250,
+          width: s(500),
+          height: s(500),
+          marginTop: s(-250),
+          marginLeft: s(-250),
           borderRadius: '50%',
           background: `radial-gradient(circle, ${props.accentColor}${props.background === 'dark' ? '44' : '25'} 0%, transparent 70%)`,
           opacity: theme.glowOpacity * glowPulse * glowScale * elementsFadeOut,
@@ -304,7 +309,7 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
         }}
       >
         {/* Gauge SVG */}
-        <div style={{ marginTop: -60 }}>
+        <div style={{ marginTop: s(-60) }}>
           <GaugeSVG
             progress={currentProgress}
             arcDrawProgress={arcDrawProgress}
@@ -319,14 +324,14 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 140,
+            fontSize: s(140),
             fontWeight: 800,
             color: theme.text,
             lineHeight: 1,
             letterSpacing: -4,
             opacity: scoreOpacity,
             transform: `scale(${scoreScale})`,
-            marginTop: -40,
+            marginTop: s(-40),
             textAlign: 'center',
           }}
         >
@@ -337,11 +342,11 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.body,
-            fontSize: 26,
+            fontSize: s(26),
             fontWeight: 400,
             color: theme.textMuted,
             opacity: scoreOpacity,
-            marginTop: 8,
+            marginTop: s(8),
             textAlign: 'center',
           }}
         >
@@ -352,14 +357,14 @@ const ScoreMeter: React.FC<ScoreMeterProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.body,
-            fontSize: 32,
+            fontSize: s(32),
             fontWeight: 600,
-            letterSpacing: 3,
+            letterSpacing: s(3),
             textTransform: 'uppercase' as const,
             color: props.accentColor,
             opacity: labelOpacity,
             transform: `translateY(${labelSlideY}px)`,
-            marginTop: 32,
+            marginTop: s(32),
             textAlign: 'center',
           }}
         >

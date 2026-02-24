@@ -1,103 +1,110 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { AudienceQuestionProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  DotGrid SVG background                                             */
 /* ------------------------------------------------------------------ */
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="aq-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#aq-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="aq-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#aq-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Decorative thought-bubble circles                                  */
 /* ------------------------------------------------------------------ */
 
-const ThoughtBubbles: React.FC<{ color: string; opacity: number }> = ({ color, opacity }) => (
-  <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity }}>
-    {/* Bottom-left trailing bubbles */}
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 180,
-        left: 120,
-        width: 18,
-        height: 18,
-        borderRadius: '50%',
-        border: `2px solid ${color}`,
-      }}
-    />
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 220,
-        left: 170,
-        width: 30,
-        height: 30,
-        borderRadius: '50%',
-        border: `2px solid ${color}`,
-      }}
-    />
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 270,
-        left: 140,
-        width: 46,
-        height: 46,
-        borderRadius: '50%',
-        border: `2px solid ${color}`,
-      }}
-    />
-    {/* Top-right trailing bubbles */}
-    <div
-      style={{
-        position: 'absolute',
-        top: 180,
-        right: 120,
-        width: 18,
-        height: 18,
-        borderRadius: '50%',
-        border: `2px solid ${color}`,
-      }}
-    />
-    <div
-      style={{
-        position: 'absolute',
-        top: 220,
-        right: 170,
-        width: 30,
-        height: 30,
-        borderRadius: '50%',
-        border: `2px solid ${color}`,
-      }}
-    />
-    <div
-      style={{
-        position: 'absolute',
-        top: 270,
-        right: 140,
-        width: 46,
-        height: 46,
-        borderRadius: '50%',
-        border: `2px solid ${color}`,
-      }}
-    />
-  </div>
-);
+const ThoughtBubbles: React.FC<{ color: string; opacity: number }> = ({ color, opacity }) => {
+  const s = useScale();
+  return (
+    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', opacity }}>
+      {/* Bottom-left trailing bubbles */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: s(180),
+          left: s(120),
+          width: s(18),
+          height: s(18),
+          borderRadius: '50%',
+          border: `2px solid ${color}`,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: s(220),
+          left: s(170),
+          width: s(30),
+          height: s(30),
+          borderRadius: '50%',
+          border: `2px solid ${color}`,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          bottom: s(270),
+          left: s(140),
+          width: s(46),
+          height: s(46),
+          borderRadius: '50%',
+          border: `2px solid ${color}`,
+        }}
+      />
+      {/* Top-right trailing bubbles */}
+      <div
+        style={{
+          position: 'absolute',
+          top: s(180),
+          right: s(120),
+          width: s(18),
+          height: s(18),
+          borderRadius: '50%',
+          border: `2px solid ${color}`,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: s(220),
+          right: s(170),
+          width: s(30),
+          height: s(30),
+          borderRadius: '50%',
+          border: `2px solid ${color}`,
+        }}
+      />
+      <div
+        style={{
+          position: 'absolute',
+          top: s(270),
+          right: s(140),
+          width: s(46),
+          height: s(46),
+          borderRadius: '50%',
+          border: `2px solid ${color}`,
+        }}
+      />
+    </div>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
@@ -107,6 +114,7 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   /* ---- Background fade in (0-15) ---- */
@@ -198,7 +206,7 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 700,
+            fontSize: s(700),
             fontWeight: 900,
             color: theme.questionMark,
             lineHeight: 1,
@@ -225,7 +233,7 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 80,
+          padding: s(80),
           transform: `translateY(${floatY}px)`,
         }}
       >
@@ -235,13 +243,13 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
             transform: `scale(${questionScale * elementsOut})`,
             transformOrigin: 'center',
             textAlign: 'center',
-            maxWidth: 900,
+            maxWidth: s(900),
           }}
         >
           <h1
             style={{
               fontFamily: FONTS.headline,
-              fontSize: 72,
+              fontSize: s(72),
               fontWeight: 900,
               color: theme.text,
               lineHeight: 1.15,
@@ -258,12 +266,12 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
           {/* Accent underline */}
           <div
             style={{
-              width: 120,
-              height: 4,
+              width: s(120),
+              height: s(4),
               backgroundColor: props.accentColor,
-              borderRadius: 2,
-              margin: '28px auto 0',
-              boxShadow: `0 0 20px ${props.accentColor}66`,
+              borderRadius: s(2),
+              margin: `${s(28)}px auto 0`,
+              boxShadow: `0 0 ${s(20)}px ${props.accentColor}66`,
             }}
           />
         </div>
@@ -273,14 +281,14 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
           style={{
             opacity: ctaFadeIn * elementsOut,
             transform: `translateY(${ctaSlideUp}px)`,
-            marginTop: 48,
+            marginTop: s(48),
             textAlign: 'center',
           }}
         >
           <p
             style={{
               fontFamily: FONTS.body,
-              fontSize: 28,
+              fontSize: s(28),
               fontWeight: 500,
               color: theme.textMuted,
               margin: 0,
@@ -296,13 +304,13 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          top: 40,
-          left: 40,
-          width: 60,
-          height: 60,
+          top: s(40),
+          left: s(40),
+          width: s(60),
+          height: s(60),
           borderTop: `3px solid ${props.accentColor}44`,
           borderLeft: `3px solid ${props.accentColor}44`,
-          borderTopLeftRadius: 8,
+          borderTopLeftRadius: s(8),
           opacity: bubblesOpacity * elementsOut,
           pointerEvents: 'none',
         }}
@@ -310,13 +318,13 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          top: 40,
-          right: 40,
-          width: 60,
-          height: 60,
+          top: s(40),
+          right: s(40),
+          width: s(60),
+          height: s(60),
           borderTop: `3px solid ${props.accentColor}44`,
           borderRight: `3px solid ${props.accentColor}44`,
-          borderTopRightRadius: 8,
+          borderTopRightRadius: s(8),
           opacity: bubblesOpacity * elementsOut,
           pointerEvents: 'none',
         }}
@@ -324,13 +332,13 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          bottom: 40,
-          left: 40,
-          width: 60,
-          height: 60,
+          bottom: s(40),
+          left: s(40),
+          width: s(60),
+          height: s(60),
           borderBottom: `3px solid ${props.accentColor}44`,
           borderLeft: `3px solid ${props.accentColor}44`,
-          borderBottomLeftRadius: 8,
+          borderBottomLeftRadius: s(8),
           opacity: bubblesOpacity * elementsOut,
           pointerEvents: 'none',
         }}
@@ -338,13 +346,13 @@ const AudienceQuestion: React.FC<AudienceQuestionProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          bottom: 40,
-          right: 40,
-          width: 60,
-          height: 60,
+          bottom: s(40),
+          right: s(40),
+          width: s(60),
+          height: s(60),
           borderBottom: `3px solid ${props.accentColor}44`,
           borderRight: `3px solid ${props.accentColor}44`,
-          borderBottomRightRadius: 8,
+          borderBottomRightRadius: s(8),
           opacity: bubblesOpacity * elementsOut,
           pointerEvents: 'none',
         }}

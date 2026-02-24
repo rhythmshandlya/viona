@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { CountdownRevealProps } from './schema';
 
@@ -7,6 +8,7 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const items = props.items;
@@ -50,7 +52,7 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          top: 40,
+          top: s(40),
           left: 0,
           right: 0,
           textAlign: 'center',
@@ -61,9 +63,9 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.body,
-            fontSize: 24,
+            fontSize: s(24),
             fontWeight: 600,
-            letterSpacing: 3,
+            letterSpacing: s(3),
             color: theme.textMuted,
             textTransform: 'uppercase',
           }}
@@ -164,8 +166,8 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
               <div
                 style={{
                   position: 'absolute',
-                  width: 400,
-                  height: 400,
+                  width: s(400),
+                  height: s(400),
                   borderRadius: '50%',
                   background: `radial-gradient(circle, ${numberColor}30 0%, transparent 70%)`,
                   opacity: glowOpacity,
@@ -178,8 +180,8 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: interpolate(layoutProgress, [0, 1], [0, 40]),
-                transform: `translateX(${interpolate(layoutProgress, [0, 1], [0, -40])}px)`,
+                gap: interpolate(layoutProgress, [0, 1], [0, s(40)]),
+                transform: `translateX(${interpolate(layoutProgress, [0, 1], [0, s(-40)])}px)`,
               }}
             >
               {/* Rank number */}
@@ -192,11 +194,11 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
                 <span
                   style={{
                     fontFamily: FONTS.headline,
-                    fontSize: isNumberOne ? 180 : 140,
+                    fontSize: isNumberOne ? s(180) : s(140),
                     fontWeight: 900,
                     color: numberColor,
                     lineHeight: 1,
-                    textShadow: isNumberOne ? `0 0 40px ${numberColor}50` : undefined,
+                    textShadow: isNumberOne ? `0 0 ${s(40)}px ${numberColor}50` : undefined,
                   }}
                 >
                   {rank}
@@ -210,18 +212,18 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
                   transform: `translateX(${cardSlideX}px)`,
                   background: theme.cardBg,
                   border: `1px solid ${theme.cardBorder}`,
-                  borderRadius: 20,
-                  padding: '28px 36px',
-                  minWidth: 400,
+                  borderRadius: s(20),
+                  padding: `${s(28)}px ${s(36)}px`,
+                  minWidth: s(400),
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 8,
+                  gap: s(8),
                 }}
               >
                 <span
                   style={{
                     fontFamily: FONTS.headline,
-                    fontSize: isNumberOne ? 44 : 36,
+                    fontSize: isNumberOne ? s(44) : s(36),
                     fontWeight: 800,
                     color: theme.text,
                     opacity: titleInCardOpacity,
@@ -237,14 +239,14 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       opacity: detailsOpacity,
-                      gap: 16,
+                      gap: s(16),
                     }}
                   >
                     {item.subtitle && (
                       <span
                         style={{
                           fontFamily: FONTS.body,
-                          fontSize: 20,
+                          fontSize: s(20),
                           fontWeight: 400,
                           color: theme.textMuted,
                         }}
@@ -256,7 +258,7 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
                       <span
                         style={{
                           fontFamily: FONTS.headline,
-                          fontSize: 24,
+                          fontSize: s(24),
                           fontWeight: 700,
                           color: numberColor,
                         }}
@@ -277,11 +279,11 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
         <div
           style={{
             position: 'absolute',
-            bottom: 50,
+            bottom: s(50),
             left: '50%',
             transform: 'translateX(-50%)',
             display: 'flex',
-            gap: 10,
+            gap: s(10),
           }}
         >
           {items.map((_, i) => {
@@ -291,9 +293,9 @@ const CountdownReveal: React.FC<CountdownRevealProps> = (props) => {
               <div
                 key={i}
                 style={{
-                  width: isActive ? 24 : 8,
-                  height: 8,
-                  borderRadius: 4,
+                  width: isActive ? s(24) : s(8),
+                  height: s(8),
+                  borderRadius: s(4),
                   backgroundColor: isActive ? props.accentColor : `${theme.text}20`,
                 }}
               />

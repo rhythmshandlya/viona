@@ -1,20 +1,21 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { StatCounterProps } from './schema';
 import CardShell from './components/CardShell';
 import TrendBadge from './components/TrendBadge';
 import { formatCompact } from './lib/format';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
+const DotGrid: React.FC<{ color: string; s: (px: number) => number }> = ({ color, s }) => (
   <svg
     width="100%"
     height="100%"
     style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
   >
     <defs>
-      <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
+      <pattern id="dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+        <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#dot-grid)" />
@@ -25,6 +26,7 @@ const StatCounter: React.FC<StatCounterProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   // Intro / outro fades
@@ -69,7 +71,7 @@ const StatCounter: React.FC<StatCounterProps> = (props) => {
 
   return (
     <AbsoluteFill style={{ ...bgStyle, opacity: introOpacity * outroOpacity, overflow: 'hidden' }}>
-      <DotGrid color={theme.gridColor} />
+      <DotGrid color={theme.gridColor} s={s} />
 
       <CardShell
         frame={frame}
@@ -80,14 +82,14 @@ const StatCounter: React.FC<StatCounterProps> = (props) => {
         cardBorder={theme.cardBorder}
         accentColor={props.accentColor}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: s(16) }}>
           {/* Title */}
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 500,
-              letterSpacing: 3,
+              letterSpacing: s(3),
               color: theme.textMuted,
               textTransform: 'uppercase',
               opacity: titleOpacity,
@@ -101,11 +103,11 @@ const StatCounter: React.FC<StatCounterProps> = (props) => {
           <span
             style={{
               fontFamily: FONTS.headline,
-              fontSize: 108,
+              fontSize: s(108),
               fontWeight: 800,
               color: theme.text,
               lineHeight: 1.1,
-              letterSpacing: -2,
+              letterSpacing: s(-2),
             }}
           >
             {finalDisplay}
@@ -127,11 +129,11 @@ const StatCounter: React.FC<StatCounterProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 20,
+                fontSize: s(20),
                 fontWeight: 400,
                 color: theme.textMuted,
                 opacity: labelOpacity,
-                marginTop: 8,
+                marginTop: s(8),
               }}
             >
               {props.label}

@@ -13,6 +13,15 @@ export function TemplateGallery({ templates }: TemplateGalleryProps) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [aspectRatio, setAspectRatio] = useState("");
+  const [selectedTag, setSelectedTag] = useState("");
+
+  const allTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    for (const t of templates) {
+      for (const tag of t.meta.tags) tagSet.add(tag);
+    }
+    return Array.from(tagSet).sort();
+  }, [templates]);
 
   const filtered = useMemo(() => {
     let items = templates;
@@ -23,6 +32,10 @@ export function TemplateGallery({ templates }: TemplateGalleryProps) {
 
     if (aspectRatio) {
       items = items.filter((t) => t.meta.aspectRatio === aspectRatio);
+    }
+
+    if (selectedTag) {
+      items = items.filter((t) => t.meta.tags.includes(selectedTag));
     }
 
     if (search) {
@@ -36,7 +49,7 @@ export function TemplateGallery({ templates }: TemplateGalleryProps) {
     }
 
     return items;
-  }, [templates, search, category, aspectRatio]);
+  }, [templates, search, category, aspectRatio, selectedTag]);
 
   return (
     <div className="space-y-8">
@@ -47,6 +60,9 @@ export function TemplateGallery({ templates }: TemplateGalleryProps) {
         onCategoryChange={setCategory}
         aspectRatio={aspectRatio}
         onAspectRatioChange={setAspectRatio}
+        tags={allTags}
+        selectedTag={selectedTag}
+        onTagChange={setSelectedTag}
       />
 
       {filtered.length === 0 ? (
@@ -59,6 +75,7 @@ export function TemplateGallery({ templates }: TemplateGalleryProps) {
               setSearch("");
               setCategory("");
               setAspectRatio("");
+              setSelectedTag("");
             }}
             className="mt-4 text-primary hover:underline text-sm"
           >

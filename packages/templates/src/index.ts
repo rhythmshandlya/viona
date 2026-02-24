@@ -17,6 +17,9 @@ export {
   getTemplateFiles,
 } from './registry';
 
+// Scaling
+export { useScale } from './use-scale';
+
 // Fonts
 export {
   FONTS,

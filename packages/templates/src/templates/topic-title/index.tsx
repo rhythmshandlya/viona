@@ -1,27 +1,32 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { TopicTitleProps } from './schema';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="topic-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#topic-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="topic-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#topic-dot-grid)" />
+    </svg>
+  );
+};
 
 const TopicTitle: React.FC<TopicTitleProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   // ── Background fade in (0-15) & fade out (330-360) ──
@@ -62,7 +67,7 @@ const TopicTitle: React.FC<TopicTitleProps> = (props) => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
-  const underlineWidth = 320;
+  const underlineWidth = s(320);
 
   // ── Subtitle (45-65 in) ──
   const subtitleOpacity = interpolate(frame, [45, 65], [0, 1], {
@@ -111,20 +116,20 @@ const TopicTitle: React.FC<TopicTitleProps> = (props) => {
             style={{
               opacity: tagIn,
               transform: `translateY(${tagSlideY}px)`,
-              marginBottom: 32,
+              marginBottom: s(32),
             }}
           >
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 16,
+                fontSize: s(16),
                 fontWeight: 600,
-                letterSpacing: 2.5,
+                letterSpacing: s(2.5),
                 color: '#FFFFFF',
                 textTransform: 'uppercase',
                 backgroundColor: props.accentColor,
-                padding: '10px 24px',
-                borderRadius: 50,
+                padding: `${s(10)}px ${s(24)}px`,
+                borderRadius: s(50),
                 display: 'inline-block',
               }}
             >
@@ -143,14 +148,14 @@ const TopicTitle: React.FC<TopicTitleProps> = (props) => {
           <h1
             style={{
               fontFamily: FONTS.headline,
-              fontSize: 82,
+              fontSize: s(82),
               fontWeight: 800,
               color: theme.text,
               lineHeight: 1.1,
               letterSpacing: -1,
               textAlign: 'center',
               margin: 0,
-              padding: '0 80px',
+              padding: `0 ${s(80)}px`,
               maxWidth: width,
             }}
           >
@@ -161,9 +166,9 @@ const TopicTitle: React.FC<TopicTitleProps> = (props) => {
         {/* Accent underline — SVG line drawing from center outward */}
         <div
           style={{
-            marginTop: 24,
-            marginBottom: 24,
-            height: 6,
+            marginTop: s(24),
+            marginBottom: s(24),
+            height: s(6),
             width: underlineWidth,
             position: 'relative',
           }}
@@ -197,12 +202,12 @@ const TopicTitle: React.FC<TopicTitleProps> = (props) => {
             <p
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 30,
+                fontSize: s(30),
                 fontWeight: 400,
                 color: theme.textMuted,
                 textAlign: 'center',
                 margin: 0,
-                padding: '0 120px',
+                padding: `0 ${s(120)}px`,
                 lineHeight: 1.5,
               }}
             >

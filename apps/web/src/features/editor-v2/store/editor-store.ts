@@ -347,12 +347,13 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         const resolveUrl = (key: string | undefined) =>
           key ? `${API_URL}/api/media/outputs/${key}` : '';
 
-        // For audio projects, the src is already a direct API path (e.g. /api/projects/:id/audio)
+        // For audio/video projects, the src is already a direct API path (e.g. /api/projects/:id/audio)
         // Use presigned URL when available (avoids cross-origin auth issues with <Audio> element)
         const rawSrc = raw.src as string | undefined;
         const isDirectUrl = rawSrc?.startsWith('/api/');
+        const isVideoAudio = rawSrc?.includes('/video');
         const directSrc = isDirectUrl
-          ? (project.audioUrl || `${API_URL}${rawSrc}`)
+          ? (isVideoAudio ? project.videoUrl : project.audioUrl) || `${API_URL}${rawSrc}`
           : '';
 
         const audioItem: TimelineItem = {
@@ -1262,7 +1263,7 @@ export const useEditorStore = create<EditorStore>()(
           state.tracks.push(newTrack);
           state.tracks.sort((a, b) => a.position - b.position);
 
-          // Add audio item (processing state)
+          // Add audio item with video source as audio
           const audioItem: TimelineItem = {
             id: audioItemId,
             type: 'audio',
@@ -1270,13 +1271,11 @@ export const useEditorStore = create<EditorStore>()(
             startMs: videoItem.startMs,
             endMs: videoItem.endMs,
             data: {
-              src: '',
-              originalSrc: '',
+              src: response.src,
+              originalSrc: response.src,
               isEnhanced: false,
               sourceVideoItemId: videoItemId,
               volume: 1,
-              enhancementStatus: 'processing',
-              enhancementProgress: 0,
             } as AudioItemData,
           };
           state.items[audioItemId] = audioItem;

@@ -1,19 +1,20 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { StatDonutProps } from './schema';
 import CardShell from './components/CardShell';
 import { describeArc } from './lib/format';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
+const DotGrid: React.FC<{ color: string; s: (px: number) => number }> = ({ color, s }) => (
   <svg
     width="100%"
     height="100%"
     style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
   >
     <defs>
-      <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
+      <pattern id="dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+        <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#dot-grid)" />
@@ -24,10 +25,11 @@ const StatDonut: React.FC<StatDonutProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const segments = props.segments;
-  const total = segments.reduce((sum, s) => sum + s.value, 0) || 1;
+  const total = segments.reduce((sum, seg) => sum + seg.value, 0) || 1;
 
   const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
   const outroOpacity = interpolate(frame, [durationInFrames - 30, durationInFrames], [1, 0], {
@@ -64,10 +66,10 @@ const StatDonut: React.FC<StatDonutProps> = (props) => {
     extrapolateRight: 'clamp',
   });
 
-  const cx = 200;
-  const cy = 200;
-  const r = 150;
-  const strokeWidth = 36;
+  const cx = s(200);
+  const cy = s(200);
+  const r = s(150);
+  const strokeWidth = s(36);
 
   // Build arcs
   let currentAngle = 0;
@@ -87,7 +89,7 @@ const StatDonut: React.FC<StatDonutProps> = (props) => {
 
   return (
     <AbsoluteFill style={{ ...bgStyle, opacity: introOpacity * outroOpacity, overflow: 'hidden' }}>
-      <DotGrid color={theme.gridColor} />
+      <DotGrid color={theme.gridColor} s={s} />
 
       <CardShell
         frame={frame}
@@ -98,14 +100,14 @@ const StatDonut: React.FC<StatDonutProps> = (props) => {
         cardBorder={theme.cardBorder}
         accentColor={props.accentColor}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: s(16) }}>
           {/* Title */}
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 500,
-              letterSpacing: 3,
+              letterSpacing: s(3),
               color: theme.textMuted,
               textTransform: 'uppercase',
               opacity: titleOpacity,
@@ -117,10 +119,10 @@ const StatDonut: React.FC<StatDonutProps> = (props) => {
           </span>
 
           {/* Donut + Legend row */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 48, flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: s(48), flex: 1 }}>
             {/* SVG Donut */}
-            <div style={{ position: 'relative', width: 400, height: 400, flexShrink: 0 }}>
-              <svg width={400} height={400} viewBox="0 0 400 400">
+            <div style={{ position: 'relative', width: s(400), height: s(400), flexShrink: 0 }}>
+              <svg width={s(400)} height={s(400)} viewBox={`0 0 ${s(400)} ${s(400)}`}>
                 {/* Background ring */}
                 <circle
                   cx={cx}
@@ -161,7 +163,7 @@ const StatDonut: React.FC<StatDonutProps> = (props) => {
                   <span
                     style={{
                       fontFamily: FONTS.headline,
-                      fontSize: 48,
+                      fontSize: s(48),
                       fontWeight: 800,
                       color: theme.text,
                     }}
@@ -177,27 +179,27 @@ const StatDonut: React.FC<StatDonutProps> = (props) => {
               style={{
                 display: 'flex',
                 flexDirection: 'column',
-                gap: 16,
+                gap: s(16),
                 opacity: legendOpacity,
               }}
             >
               {segments.map((seg, i) => {
                 const color = seg.color ?? props.chartColors[i % props.chartColors.length];
                 return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: s(12) }}>
                     <div
                       style={{
-                        width: 14,
-                        height: 14,
-                        borderRadius: 4,
+                        width: s(14),
+                        height: s(14),
+                        borderRadius: s(4),
                         backgroundColor: color,
                         flexShrink: 0,
                       }}
                     />
-                    <span style={{ fontFamily: FONTS.body, fontSize: 20, color: theme.textMuted, whiteSpace: 'nowrap' }}>
+                    <span style={{ fontFamily: FONTS.body, fontSize: s(20), color: theme.textMuted, whiteSpace: 'nowrap' }}>
                       {seg.label}
                     </span>
-                    <span style={{ fontFamily: FONTS.headline, fontSize: 22, fontWeight: 700, color: theme.text }}>
+                    <span style={{ fontFamily: FONTS.headline, fontSize: s(22), fontWeight: 700, color: theme.text }}>
                       {seg.value}%
                     </span>
                   </div>

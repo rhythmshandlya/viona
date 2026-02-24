@@ -103,6 +103,16 @@ export interface Job {
   status: string;
   progress: number;
   progressMessage: string | null;
+  progressMeta?: {
+    phase?: string;
+    phaseName?: string;
+    scene?: number;
+    totalScenes?: number;
+    iteration?: number;
+    maxIterations?: number;
+    score?: number;
+    detail?: string;
+  } | null;
   error: string | null;
   metrics?: JobMetrics | null;
   logs?: string[] | null;
@@ -116,9 +126,9 @@ export interface DownloadResponse {
 }
 
 export interface SeparateAudioResponse {
-  jobId: string;
   trackId: string;
   itemId: string;
+  src: string;
 }
 
 export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
@@ -537,7 +547,18 @@ class ApiClient {
       progress: number;
       message: string | null;
       phase?: string;
+      phaseName?: string;
       jobType?: string;
+      progressMeta?: {
+        phase?: string;
+        phaseName?: string;
+        scene?: number;
+        totalScenes?: number;
+        iteration?: number;
+        maxIterations?: number;
+        score?: number;
+        detail?: string;
+      } | null;
     } | null;
   }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`);

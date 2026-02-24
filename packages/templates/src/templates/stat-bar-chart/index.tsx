@@ -1,18 +1,19 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { StatBarChartProps } from './schema';
 import CardShell from './components/CardShell';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
+const DotGrid: React.FC<{ color: string; s: (px: number) => number }> = ({ color, s }) => (
   <svg
     width="100%"
     height="100%"
     style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
   >
     <defs>
-      <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
+      <pattern id="dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+        <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#dot-grid)" />
@@ -23,6 +24,7 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const bars = props.bars;
@@ -50,7 +52,7 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
 
   return (
     <AbsoluteFill style={{ ...bgStyle, opacity: introOpacity * outroOpacity, overflow: 'hidden' }}>
-      <DotGrid color={theme.gridColor} />
+      <DotGrid color={theme.gridColor} s={s} />
 
       <CardShell
         frame={frame}
@@ -61,14 +63,14 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
         cardBorder={theme.cardBorder}
         accentColor={props.accentColor}
       >
-        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, gap: s(20) }}>
           {/* Title */}
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 500,
-              letterSpacing: 3,
+              letterSpacing: s(3),
               color: theme.textMuted,
               textTransform: 'uppercase',
               opacity: titleOpacity,
@@ -80,7 +82,7 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
           </span>
 
           {/* Bars */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, flex: 1, justifyContent: 'center', padding: '12px 0' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: s(24), flex: 1, justifyContent: 'center', padding: `${s(12)}px 0` }}>
             {bars.map((bar, i) => {
               const staggerDelay = 30 + i * 15;
               const barProgress = spring({
@@ -98,7 +100,7 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
               });
 
               return (
-                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: s(8) }}>
                   <div
                     style={{
                       display: 'flex',
@@ -110,7 +112,7 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
                     <span
                       style={{
                         fontFamily: FONTS.body,
-                        fontSize: 20,
+                        fontSize: s(20),
                         fontWeight: 500,
                         color: theme.text,
                       }}
@@ -120,7 +122,7 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
                     <span
                       style={{
                         fontFamily: FONTS.headline,
-                        fontSize: 24,
+                        fontSize: s(24),
                         fontWeight: 700,
                         color: theme.text,
                       }}
@@ -132,8 +134,8 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
                   <div
                     style={{
                       width: '100%',
-                      height: 28,
-                      borderRadius: 14,
+                      height: s(28),
+                      borderRadius: s(14),
                       background: `${color}15`,
                       overflow: 'hidden',
                     }}
@@ -142,9 +144,9 @@ const StatBarChart: React.FC<StatBarChartProps> = (props) => {
                       style={{
                         width: `${widthPercent}%`,
                         height: '100%',
-                        borderRadius: 14,
+                        borderRadius: s(14),
                         background: `linear-gradient(90deg, ${color} 0%, ${color}CC 100%)`,
-                        boxShadow: `0 0 16px ${color}40`,
+                        boxShadow: `0 0 ${s(16)}px ${color}40`,
                       }}
                     />
                   </div>

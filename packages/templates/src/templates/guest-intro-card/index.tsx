@@ -7,6 +7,7 @@ import {
   useVideoConfig,
 } from 'remotion';
 import { getConstants } from './constants';
+import { useScale } from '../../use-scale';
 import type { GuestIntroCardProps } from './schema';
 
 /* ── Helper: extract initials from a name ──────────────────────── */
@@ -21,14 +22,16 @@ function getInitials(name: string): string {
 }
 
 /* ── DotGrid SVG background ────────────────────────────────────── */
-const DotGrid: React.FC<{ color: string; opacity: number }> = ({
+const DotGrid: React.FC<{ color: string; opacity: number; size: number }> = ({
   color,
   opacity,
+  size,
 }) => {
+  const s = useScale();
   const dots: React.ReactNode[] = [];
-  const spacing = 30;
-  const cols = Math.ceil(1080 / spacing);
-  const rows = Math.ceil(1080 / spacing);
+  const spacing = s(30);
+  const cols = Math.ceil(size / spacing);
+  const rows = Math.ceil(size / spacing);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -37,7 +40,7 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({
           key={`${r}-${c}`}
           cx={c * spacing + spacing / 2}
           cy={r * spacing + spacing / 2}
-          r={1.5}
+          r={s(1.5)}
           fill={color}
         />
       );
@@ -46,8 +49,8 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({
 
   return (
     <svg
-      width={1080}
-      height={1080}
+      width={size}
+      height={size}
       style={{
         position: 'absolute',
         top: 0,
@@ -64,7 +67,8 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({
 const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
   const { COLORS, FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width } = useVideoConfig();
+  const s = useScale();
 
   const initials = getInitials(props.guestName);
 
@@ -164,7 +168,7 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
       }}
     >
       {/* Dot grid background */}
-      <DotGrid color={dotColor} opacity={bgOpacity} />
+      <DotGrid color={dotColor} opacity={bgOpacity} size={width} />
 
       {/* Card container — positioned center-right */}
       <div
@@ -173,13 +177,13 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
           top: '50%',
           left: '50%',
           transform: `translate(calc(-50% + 40px), -50%) translateX(${cardX}px)`,
-          width: 680,
+          width: s(680),
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          padding: '64px 48px',
+          padding: `${s(64)}px ${s(48)}px`,
           backgroundColor: COLORS.cardBg,
-          borderRadius: 32,
+          borderRadius: s(32),
           border: `1px solid ${COLORS.cardBorder}`,
           boxShadow:
             props.background === 'dark'
@@ -191,9 +195,9 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
         <div
           style={{
             position: 'relative',
-            width: 140,
-            height: 140,
-            marginBottom: 36,
+            width: s(140),
+            height: s(140),
+            marginBottom: s(36),
             transform: `scale(${avatarScale})`,
           }}
         >
@@ -201,10 +205,10 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
           <div
             style={{
               position: 'absolute',
-              top: -10,
-              left: -10,
-              width: 160,
-              height: 160,
+              top: s(-10),
+              left: s(-10),
+              width: s(160),
+              height: s(160),
               borderRadius: '50%',
               backgroundColor: COLORS.accent,
               opacity: 0.2,
@@ -214,8 +218,8 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
           <div
             style={{
               position: 'relative',
-              width: 140,
-              height: 140,
+              width: s(140),
+              height: s(140),
               borderRadius: '50%',
               backgroundColor: COLORS.accent,
               display: 'flex',
@@ -226,10 +230,10 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 52,
+                fontSize: s(52),
                 fontWeight: 700,
                 color: '#FFFFFF',
-                letterSpacing: 2,
+                letterSpacing: s(2),
               }}
             >
               {initials}
@@ -242,13 +246,13 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
           style={{
             opacity: nameOpacity,
             transform: `translateY(${nameTranslateY}px)`,
-            marginBottom: 12,
+            marginBottom: s(12),
           }}
         >
           <span
             style={{
               fontFamily: FONTS.headline,
-              fontSize: 48,
+              fontSize: s(48),
               fontWeight: 700,
               color: COLORS.text,
               textAlign: 'center',
@@ -265,13 +269,13 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
           style={{
             opacity: titleOpacity,
             transform: `translateY(${titleTranslateY}px)`,
-            marginBottom: 24,
+            marginBottom: s(24),
           }}
         >
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 24,
+              fontSize: s(24),
               fontWeight: 500,
               color: COLORS.accent,
               textAlign: 'center',
@@ -286,11 +290,11 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
         {/* Divider */}
         <div
           style={{
-            width: 60,
+            width: s(60),
             height: 3,
             backgroundColor: COLORS.accent,
             borderRadius: 2,
-            marginBottom: 24,
+            marginBottom: s(24),
             opacity: bioOpacity,
           }}
         />
@@ -300,14 +304,14 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
           style={{
             opacity: bioOpacity,
             transform: `translateY(${bioTranslateY}px)`,
-            marginBottom: 28,
-            maxWidth: 560,
+            marginBottom: s(28),
+            maxWidth: s(560),
           }}
         >
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 400,
               color: COLORS.subtleText,
               textAlign: 'center',
@@ -331,20 +335,20 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '10px 24px',
+                gap: s(10),
+                padding: `${s(10)}px ${s(24)}px`,
                 backgroundColor:
                   props.background === 'dark'
                     ? 'rgba(255,255,255,0.06)'
                     : 'rgba(0,0,0,0.04)',
-                borderRadius: 100,
+                borderRadius: s(100),
               }}
             >
               {/* Simple @ icon indicator */}
               <div
                 style={{
-                  width: 8,
-                  height: 8,
+                  width: s(8),
+                  height: s(8),
                   borderRadius: '50%',
                   backgroundColor: COLORS.accent,
                 }}
@@ -352,7 +356,7 @@ const GuestIntroCard: React.FC<GuestIntroCardProps> = (props) => {
               <span
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 20,
+                  fontSize: s(20),
                   fontWeight: 500,
                   color: COLORS.subtleText,
                 }}

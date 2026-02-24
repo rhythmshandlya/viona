@@ -1,6 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
 import { getConstants, BACKGROUNDS, QR_GRID_SIZE, QR_CELL_SIZE, QR_GAP } from './constants';
+import { useScale } from '../../use-scale';
 import type { QrCodeRevealProps } from './schema';
 
 // ── Seeded pseudo-random number generator ──────────────────────────
@@ -179,20 +180,23 @@ function generateRevealOrder(
 }
 
 // ── DotGrid SVG background ─────────────────────────────────────────
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="qr-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#qr-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="qr-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#qr-dot-grid)" />
+    </svg>
+  );
+};
 
 // ── QR Frame border component ──────────────────────────────────────
 const QrFrame: React.FC<{
@@ -202,34 +206,38 @@ const QrFrame: React.FC<{
   opacity: number;
   scale: number;
   accentColor: string;
-}> = ({ size, borderColor, bgColor, opacity, scale, accentColor }) => (
-  <div
-    style={{
-      width: size,
-      height: size,
-      border: `3px solid ${borderColor}`,
-      borderRadius: 16,
-      backgroundColor: bgColor,
-      opacity,
-      transform: `scale(${scale})`,
-      position: 'absolute',
-      boxShadow: `0 0 60px ${accentColor}22, 0 4px 30px rgba(0,0,0,0.3)`,
-    }}
-  />
-);
+}> = ({ size, borderColor, bgColor, opacity, scale, accentColor }) => {
+  const s = useScale();
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        border: `3px solid ${borderColor}`,
+        borderRadius: s(16),
+        backgroundColor: bgColor,
+        opacity,
+        transform: `scale(${scale})`,
+        position: 'absolute',
+        boxShadow: `0 0 ${s(60)}px ${accentColor}22, 0 ${s(4)}px ${s(30)}px rgba(0,0,0,0.3)`,
+      }}
+    />
+  );
+};
 
 // ── Main component ─────────────────────────────────────────────────
 const QrCodeReveal: React.FC<QrCodeRevealProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const gridSize = QR_GRID_SIZE;
-  const cellSize = QR_CELL_SIZE;
-  const gap = QR_GAP;
+  const cellSize = s(QR_CELL_SIZE);
+  const gap = s(QR_GAP);
   const totalGridPx = gridSize * (cellSize + gap) - gap;
-  const framePadding = 40;
+  const framePadding = s(40);
   const frameSize = totalGridPx + framePadding * 2;
 
   // Pre-compute grid and reveal order
@@ -336,7 +344,7 @@ const QrCodeReveal: React.FC<QrCodeRevealProps> = (props) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 32,
+          gap: s(32),
         }}
       >
         {/* QR code area */}
@@ -418,7 +426,7 @@ const QrCodeReveal: React.FC<QrCodeRevealProps> = (props) => {
                     width: cellSize,
                     height: cellSize,
                     backgroundColor: fillColor,
-                    borderRadius: 2,
+                    borderRadius: s(2),
                     opacity: cellOpacity,
                     transform: `scale(${cellScale})`,
                   }}
@@ -432,10 +440,10 @@ const QrCodeReveal: React.FC<QrCodeRevealProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 36,
+            fontSize: s(36),
             fontWeight: 700,
             color: theme.text,
-            letterSpacing: 4,
+            letterSpacing: s(4),
             textTransform: 'uppercase',
             opacity: labelOpacity * qrFadeOut,
             transform: `translateY(${labelSlideY}px)`,
@@ -448,7 +456,7 @@ const QrCodeReveal: React.FC<QrCodeRevealProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.body,
-            fontSize: 26,
+            fontSize: s(26),
             fontWeight: 400,
             color: props.accentColor,
             letterSpacing: 1,

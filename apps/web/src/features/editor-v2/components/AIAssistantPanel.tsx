@@ -60,13 +60,26 @@ interface WidgetBlock {
   response?: unknown;
 }
 
+interface ProgressMeta {
+  phase?: string;
+  phaseName?: string;
+  scene?: number;
+  totalScenes?: number;
+  iteration?: number;
+  maxIterations?: number;
+  score?: number;
+  detail?: string;
+}
+
 interface ProgressBlock {
   type: 'progress';
   percent: number;
   message: string;
   error?: boolean;
   phase?: string;
+  phaseName?: string;
   jobType?: string;
+  meta?: ProgressMeta;
 }
 
 type MessageBlock = TextBlock | WidgetBlock | ProgressBlock;
@@ -119,6 +132,22 @@ function formatEta(seconds: number): string {
 // Vertical Step Indicator constants
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Generation phases: ordered list of phases for generate-visuals jobs.
+// When structured metadata is available (meta.phase), we use this to render
+// a dynamic step indicator. Falls back to legacy phases for other job types.
+// ---------------------------------------------------------------------------
+
+const GENERATION_PHASES: Array<{ id: string; label: string }> = [
+  { id: 'plan', label: 'Planning scenes' },
+  { id: 'workspace', label: 'Setting up workspace' },
+  { id: 'animate', label: 'Animating scenes' },
+  { id: 'self_heal', label: 'Fixing errors' },
+  { id: 'bundle', label: 'Bundling for preview' },
+  { id: 'verify', label: 'Verifying scenes' },
+];
+
+// Legacy fallback phase steps (used for plan-visuals, edit-visuals, or old jobs without metadata)
 const PHASE_STEPS: Record<string, string[]> = {
   'plan-visuals': ['Loading project', 'Planning scenes', 'Finalizing plan'],
   'generate-visuals': ['Preparing pipeline', 'Generating visuals', 'Validating code', 'Uploading assets'],
@@ -282,6 +311,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             type: 'progress',
             percent: data.progress,
             message: data.message || `Processing... (${data.progress}%)`,
+            phase: data.meta?.phase || data.phase,
+            phaseName: data.meta?.phaseName || data.phaseName,
+            jobType: data.jobType,
+            meta: data.meta,
           };
           if (progIdx >= 0) {
             blocks[progIdx] = progressBlock;
@@ -422,17 +455,22 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         const effectivePercent = Math.max(job.progress, httpHighWaterRef.current);
         httpHighWaterRef.current = effectivePercent;
 
-        // Derive phase from job type + percent (matches backend derivePhase logic)
+        // Use progressMeta from DB if available, otherwise derive phase from percent
         const jt = job.type;
-        const phases = PHASE_ORDER[jt];
+        const jobMeta = job.progressMeta as ProgressMeta | null;
         let phase: string | undefined;
-        if (phases) {
-          if (jt === 'plan-visuals') {
-            phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 88 ? 'planning' : 'finalizing';
-          } else if (jt === 'generate-visuals') {
-            phase = effectivePercent < 15 ? 'preparing' : effectivePercent < 85 ? 'generating' : effectivePercent < 95 ? 'validating' : 'uploading';
-          } else if (jt === 'edit-visuals') {
-            phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 85 ? 'editing' : 'validating';
+        if (jobMeta?.phase) {
+          phase = jobMeta.phase;
+        } else {
+          const phases = PHASE_ORDER[jt];
+          if (phases) {
+            if (jt === 'plan-visuals') {
+              phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 88 ? 'planning' : 'finalizing';
+            } else if (jt === 'generate-visuals') {
+              phase = effectivePercent < 15 ? 'preparing' : effectivePercent < 85 ? 'generating' : effectivePercent < 95 ? 'validating' : 'uploading';
+            } else if (jt === 'edit-visuals') {
+              phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 85 ? 'editing' : 'validating';
+            }
           }
         }
 
@@ -451,7 +489,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               percent: effectivePercent,
               message: job.progressMessage || `Processing... (${effectivePercent}%)`,
               phase,
+              phaseName: jobMeta?.phaseName || undefined,
               jobType: jt,
+              meta: jobMeta || undefined,
             };
             if (progIdx >= 0) {
               blocks[progIdx] = progressBlock;
@@ -581,7 +621,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               percent: data.activeJob.progress ?? 0,
               message: data.activeJob.message || 'Processing...',
               phase: data.activeJob.phase,
+              phaseName: data.activeJob.phaseName,
               jobType: data.activeJob.jobType,
+              meta: data.activeJob.progressMeta || undefined,
             };
             const lastAssistant = [...loaded].reverse().find((m) => m.role === 'assistant');
             if (lastAssistant) {
@@ -685,7 +727,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               onProgressReceived();
               const progressData = data as {
                 percent: number; message: string; error?: boolean;
-                jobId?: string; phase?: string; jobType?: string;
+                jobId?: string; phase?: string; phaseName?: string; jobType?: string;
+                meta?: ProgressMeta;
                 avgDurationMs?: number; jobStartedAt?: string;
               };
               // On failure, stop tracking the job so the spinner stops
@@ -717,7 +760,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 message: progressData.error ? sanitizeErrorMessage(progressData.message) : progressData.message,
                 error: progressData.error,
                 phase: progressData.phase,
+                phaseName: progressData.phaseName,
                 jobType: progressData.jobType,
+                meta: progressData.meta,
               };
               if (progressIdx >= 0) {
                 blocks[progressIdx] = progressBlock;
@@ -736,7 +781,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               // Mark existing progress block as errored instead of adding a text block
               const errProgIdx = blocks.findIndex((b) => b.type === 'progress');
               if (errProgIdx >= 0) {
-                blocks[errProgIdx] = { ...blocks[errProgIdx], error: true, message: errorText };
+                const existing = blocks[errProgIdx] as ProgressBlock;
+                blocks[errProgIdx] = { ...existing, error: true, message: errorText };
               } else {
                 // No progress block — fall back to text
                 blocks.push({ type: 'text', text: `\n\nError: ${errorText}` });
@@ -1448,32 +1494,48 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         return <div key={index}>{renderWidget(block)}</div>;
 
       case 'progress':
-        // Inline error recovery card (Change 5)
         if (block.error) {
+          const errMsg = sanitizeErrorMessage(block.message || 'Something went wrong');
+          const isNetwork = errMsg.includes('network') || errMsg.includes('Connection lost');
+          const isTimeout = errMsg.includes('too long') || errMsg.includes('timed out');
+          const isRateLimit = errMsg.includes('Too many requests');
+          const isCancelled = errMsg.includes('cancelled');
+
           return (
-            <div key={index} className="rounded-lg border border-red-200 bg-red-50 p-3 my-2">
-              <div className="flex items-start gap-2">
-                <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+            <div key={index} className="rounded-lg border border-[var(--editor-border-default)] bg-[var(--editor-bg-surface)] p-3 my-2">
+              <div className="flex items-start gap-2.5">
+                <div className="mt-0.5 shrink-0 w-6 h-6 rounded-full bg-red-500/10 flex items-center justify-center">
+                  {isNetwork ? (
+                    <AlertCircle className="w-3.5 h-3.5 text-red-400" />
+                  ) : isTimeout ? (
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                  ) : (
+                    <XCircle className="w-3.5 h-3.5 text-red-400" />
+                  )}
+                </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm text-red-700">
-                    {sanitizeErrorMessage(block.message || 'Something went wrong')}
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={() => sendMessage('retry')}
-                      disabled={isStreaming}
-                      className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200 transition-colors disabled:opacity-50"
-                    >
-                      Retry
-                    </button>
-                    <button
-                      onClick={() => sendMessage('Try a different approach for this')}
-                      disabled={isStreaming}
-                      className="px-3 py-1 text-xs bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
-                    >
-                      Try different approach
-                    </button>
-                  </div>
+                  <p className="text-sm text-[var(--editor-text-primary)]">{errMsg}</p>
+                  {!isCancelled && (
+                    <div className="flex gap-2 mt-2.5">
+                      {lastFailedPayload.current && (
+                        <button
+                          onClick={handleRetry}
+                          disabled={isStreaming}
+                          className="px-3 py-1 text-xs font-medium rounded-md
+                                     bg-[var(--editor-accent)] text-white
+                                     hover:opacity-90 transition-opacity disabled:opacity-40"
+                        >
+                          <RefreshCw className="w-3 h-3 inline-block mr-1 -mt-px" />
+                          Retry
+                        </button>
+                      )}
+                      {isRateLimit && (
+                        <span className="px-3 py-1 text-[11px] text-[var(--editor-text-muted)] self-center">
+                          Wait a moment, then retry
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1503,7 +1565,50 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 style={{ width: `${Math.min(block.percent, 100)}%` }}
               />
             </div>
-            {block.jobType && PHASE_STEPS[block.jobType] && (
+            {/* Dynamic phase steps for generate-visuals with structured metadata */}
+            {block.jobType === 'generate-visuals' && block.meta?.phase ? (
+              <div className="flex flex-col gap-1.5 my-2">
+                {GENERATION_PHASES.map((phase) => {
+                  const currentIdx = GENERATION_PHASES.findIndex((p) => p.id === block.meta?.phase);
+                  const phaseIdx = GENERATION_PHASES.findIndex((p) => p.id === phase.id);
+                  let status: 'done' | 'active' | 'pending' = 'pending';
+                  if (block.percent >= 100) {
+                    status = 'done';
+                  } else if (phaseIdx < currentIdx) {
+                    status = 'done';
+                  } else if (phaseIdx === currentIdx) {
+                    status = 'active';
+                  }
+                  // Build dynamic label with scene/iteration info
+                  let label = phase.label;
+                  if (phase.id === 'animate' && block.meta?.totalScenes) {
+                    const sceneNum = block.meta.scene || 0;
+                    label = sceneNum > 0
+                      ? `Animating scenes (${sceneNum}/${block.meta.totalScenes})`
+                      : `Animating ${block.meta.totalScenes} scenes`;
+                  }
+                  if (phase.id === 'self_heal' && block.meta?.iteration) {
+                    label = `Fixing errors (attempt ${block.meta.iteration}/${block.meta.maxIterations || 3})`;
+                  }
+                  if (phase.id === 'verify' && block.meta?.score != null && block.meta.phase === 'verify') {
+                    label = `Verifying scenes (score: ${block.meta.score})`;
+                  }
+                  // Skip self_heal if we haven't entered it (no iteration data) and it's pending
+                  if (phase.id === 'self_heal' && status === 'pending' && !block.meta?.iteration && block.meta?.phase !== 'self_heal') return null;
+                  return (
+                    <div key={phase.id} className="flex items-center gap-2 text-xs">
+                      {status === 'done' && <Check className="w-3 h-3 text-green-500" />}
+                      {status === 'active' && <Loader2 className="w-3 h-3 text-primary animate-spin" />}
+                      {status === 'pending' && <Circle className="w-3 h-3 text-muted-foreground/30" />}
+                      <span className={status === 'active' ? 'text-foreground font-medium' : 'text-muted-foreground'}>
+                        {label}
+                      </span>
+                    </div>
+                  );
+                }).filter(Boolean)}
+              </div>
+            ) : block.jobType && PHASE_STEPS[block.jobType] ? (
+              /* Legacy fallback for plan-visuals, edit-visuals, and old jobs without metadata */
               <div className="flex flex-col gap-1.5 my-2">
                 {PHASE_STEPS[block.jobType]!.map((label, i) => {
                   const status = getStepStatus(block.phase, block.jobType!, i);
@@ -1519,7 +1624,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                   );
                 })}
               </div>
-            )}
+            ) : null}
           </div>
         );
     }
@@ -1664,7 +1769,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                   </div>
                 )}
                 {message.content.map((block, i) => renderBlock(block, i))}
-                {failedMessageId === message.id && (
+                {failedMessageId === message.id && !message.content.some((b) => b.type === 'progress' && b.error) && (
                   <button
                     onClick={handleRetry}
                     disabled={isStreaming}

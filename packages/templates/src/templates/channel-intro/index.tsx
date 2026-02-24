@@ -1,25 +1,29 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { ChannelIntroProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  DotGrid SVG background                                            */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="channel-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#channel-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="channel-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#channel-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Floating geometric shapes configuration                           */
@@ -63,6 +67,7 @@ const ChannelIntro: React.FC<ChannelIntroProps> = (props) => {
   const { FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   /* ------ global fade in / out ------ */
@@ -100,7 +105,7 @@ const ChannelIntro: React.FC<ChannelIntroProps> = (props) => {
   });
 
   /* ------ accent ring (SVG circle with dashOffset, frames 40-60) ------ */
-  const ringRadius = 180;
+  const ringRadius = s(180);
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringProgress = interpolate(frame, [40, 60], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -218,8 +223,8 @@ const ChannelIntro: React.FC<ChannelIntroProps> = (props) => {
         <div
           style={{
             position: 'absolute',
-            width: 420,
-            height: 420,
+            width: s(420),
+            height: s(420),
             borderRadius: '50%',
             background: `radial-gradient(circle, ${props.accentColor} 0%, transparent 70%)`,
             opacity: glowOpacity,
@@ -230,13 +235,13 @@ const ChannelIntro: React.FC<ChannelIntroProps> = (props) => {
 
         {/* Accent ring (SVG circle with dashOffset animation) */}
         <svg
-          width={ringRadius * 2 + 20}
-          height={ringRadius * 2 + 20}
+          width={ringRadius * 2 + s(20)}
+          height={ringRadius * 2 + s(20)}
           style={{ position: 'absolute', pointerEvents: 'none', opacity: ringOpacity }}
         >
           <circle
-            cx={ringRadius + 10}
-            cy={ringRadius + 10}
+            cx={ringRadius + s(10)}
+            cy={ringRadius + s(10)}
             r={ringRadius}
             fill="none"
             stroke={props.accentColor}
@@ -244,7 +249,7 @@ const ChannelIntro: React.FC<ChannelIntroProps> = (props) => {
             strokeDasharray={ringCircumference}
             strokeDashoffset={ringDashOffset}
             strokeLinecap="round"
-            transform={`rotate(-90 ${ringRadius + 10} ${ringRadius + 10})`}
+            transform={`rotate(-90 ${ringRadius + s(10)} ${ringRadius + s(10)})`}
           />
         </svg>
 
@@ -252,15 +257,15 @@ const ChannelIntro: React.FC<ChannelIntroProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 72,
+            fontSize: s(72),
             fontWeight: 800,
             color: theme.text,
-            letterSpacing: 8,
+            letterSpacing: s(8),
             textAlign: 'center',
             opacity: nameOpacity,
             transform: `scale(${nameScale})`,
             lineHeight: 1.1,
-            maxWidth: 900,
+            maxWidth: s(900),
             zIndex: 1,
           }}
         >
@@ -271,14 +276,14 @@ const ChannelIntro: React.FC<ChannelIntroProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.body,
-            fontSize: 24,
+            fontSize: s(24),
             fontWeight: 400,
             color: theme.textMuted,
-            letterSpacing: 4,
+            letterSpacing: s(4),
             textAlign: 'center',
             opacity: taglineOpacity,
             transform: `translateY(${taglineSlideY}px)`,
-            marginTop: 24,
+            marginTop: s(24),
             zIndex: 1,
           }}
         >
