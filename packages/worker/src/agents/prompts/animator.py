@@ -2126,6 +2126,180 @@ If the Director's plan describes 5+ attention-grabbing elements, implement them 
 - For body text, keep under ~60 characters per line or use `maxWidth` to force wrapping
 - **Container overflow:** Any element with fixed width/height MUST include `overflow: 'hidden'`
 </layout_rules>
+
+<kinetic_typography>
+## KINETIC TYPOGRAPHY — COMPONENT GENERATION
+
+When scenes.json has `"style": "kinetic-typography"`, you are generating a text-card animation,
+NOT data visualizations. The Director's output contains `segments` (not `scenes`).
+
+### Required Components
+
+Generate these components in `index.tsx` (the main Remotion composition):
+
+**1. Scene Component (per segment)**
+- Full-screen `<AbsoluteFill>` with solid background color from segment's `background`
+- Centers text content horizontally and vertically
+- Contains either PhraseReveal or WordByWord based on `displayMode`
+- Contains doodle annotation overlay for the emphasis word
+
+**2. PhraseReveal (displayMode: "phrase")**
+```tsx
+// Entire phrase scales from 0.7 → 1 with spring animation
+const scale = spring({{ fps, frame: frame - startFrame, config: {{ damping: 12, stiffness: 100 }} }});
+const opacity = interpolate(frame - startFrame, [0, 8], [0, 1], {{ extrapolateRight: 'clamp' }});
+<div style={{{{
+  transform: `scale(${{0.7 + scale * 0.3}})`,
+  opacity,
+  fontSize: /* 80-120px based on word count, fewer words = larger */,
+  fontWeight: 900,
+  fontFamily: "'Inter', sans-serif",
+  color: segment.textColor,
+  textAlign: 'center',
+  padding: '0 10%',
+}}}}>
+  {{segment.text}}
+</div>
+```
+
+**3. WordByWord (displayMode: "word-by-word")**
+```tsx
+// Words appear one at a time, synced to their timestamps
+{{segment.words.map((w, i) => {{
+  const wordFrame = Math.round(w.start * fps);
+  const isVisible = frame >= wordFrame;
+  const localFrame = frame - wordFrame;
+  const wordScale = isVisible
+    ? spring({{ fps, frame: localFrame, config: {{ damping: 10, stiffness: 120 }} }})
+    : 0;
+  return (
+    <span key={{i}} style={{{{
+      display: 'inline-block',
+      transform: `scale(${{0.5 + wordScale * 0.5}})`,
+      opacity: isVisible ? 1 : 0,
+      marginRight: '0.3em',
+      fontSize: /* 60-100px */,
+      fontWeight: 900,
+      fontFamily: "'Inter', sans-serif",
+      color: segment.textColor,
+    }}}}>
+      {{w.word}}
+    </span>
+  );
+}})}}
+```
+
+**4. Doodle Annotations (SVG overlays)**
+Each doodle is an SVG that appears ~6 frames AFTER the emphasis word appears.
+Use `stroke-dasharray` + `stroke-dashoffset` animated with spring for a draw-on effect.
+
+**DoodleUnderline:**
+```tsx
+// Wavy SVG line under the emphasis word
+<svg width={{wordWidth + 20}} height="20" style={{{{ position: 'absolute', bottom: -5, left: -10 }}}}>
+  <path
+    d={{`M 0 10 Q ${{wordWidth * 0.25}} 0, ${{wordWidth * 0.5}} 10 Q ${{wordWidth * 0.75}} 20, ${{wordWidth}} 10`}}
+    stroke={{doodleColor}}
+    strokeWidth="3"
+    fill="none"
+    strokeLinecap="round"
+    strokeDasharray={{pathLength}}
+    strokeDashoffset={{interpolate(drawProgress, [0, 1], [pathLength, 0])}}
+  />
+</svg>
+```
+
+**DoodleCircle:**
+```tsx
+// Loose ellipse around the word
+<svg width={{wordWidth + 30}} height={{wordHeight + 20}}>
+  <ellipse cx="50%" cy="50%" rx={{wordWidth * 0.6}} ry={{wordHeight * 0.7}}
+    stroke={{doodleColor}} strokeWidth="3" fill="none"
+    strokeDasharray={{pathLength}}
+    strokeDashoffset={{interpolate(drawProgress, [0, 1], [pathLength, 0])}}
+    transform={{`rotate(-5 ${{cx}} ${{cy}})`}}
+  />
+</svg>
+```
+
+**DoodleArrow:**
+```tsx
+// Curved arrow pointing to word from above-right
+<svg width="60" height="60">
+  <path d="M 50 10 Q 30 5, 15 25 L 20 20 M 15 25 L 22 28"
+    stroke={{doodleColor}} strokeWidth="3" fill="none" strokeLinecap="round"
+    strokeDasharray={{pathLength}}
+    strokeDashoffset={{interpolate(drawProgress, [0, 1], [pathLength, 0])}}
+  />
+</svg>
+```
+
+**DoodleCheckmark:**
+```tsx
+// Hand-drawn check next to word
+<svg width="40" height="40">
+  <path d="M 8 20 L 16 28 L 32 12"
+    stroke={{doodleColor}} strokeWidth="3" fill="none" strokeLinecap="round"
+    strokeDasharray={{pathLength}}
+    strokeDashoffset={{interpolate(drawProgress, [0, 1], [pathLength, 0])}}
+  />
+</svg>
+```
+
+### Doodle Color Rule
+- On dark backgrounds: doodle color = white (#FFFFFF)
+- On light backgrounds: doodle color = black or dark accent
+
+### Draw Animation
+```tsx
+const drawProgress = spring({{
+  fps,
+  frame: frame - (emphasisFrame + 6), // 6 frames after text appears
+  config: {{ damping: 15, stiffness: 80 }},
+}});
+```
+
+### Font Loading
+Import Inter Black from Google Fonts:
+```tsx
+import {{ loadFont }} from "@remotion/google-fonts/Inter";
+const {{ fontFamily }} = loadFont();
+```
+
+### Composition Structure
+```tsx
+const KineticTypography: React.FC = () => {{
+  const frame = useCurrentFrame();
+  const {{ fps }} = useVideoConfig();
+  const segments = [...]; // From scenes.json
+
+  return (
+    <AbsoluteFill>
+      {{segments.map((seg) => (
+        <Sequence key={{seg.id}} from={{seg.startFrame}} durationInFrames={{seg.endFrame - seg.startFrame}}>
+          <AbsoluteFill style={{{{ backgroundColor: seg.background }}}}>
+            {{/* Text content */}}
+            {{seg.displayMode === 'phrase'
+              ? <PhraseReveal segment={{seg}} />
+              : <WordByWord segment={{seg}} />}}
+            {{/* Doodle overlay */}}
+            {{seg.emphasis.doodle && <DoodleOverlay segment={{seg}} />}}
+          </AbsoluteFill>
+        </Sequence>
+      ))}}
+    </AbsoluteFill>
+  );
+}};
+```
+
+### CRITICAL RULES
+- Hard cuts between segments — NO dissolves or fade transitions
+- Font size: 60-120px, scale inversely with word count (fewer words = bigger)
+- All text centered on screen
+- MANDATORY: `{{ extrapolateRight: 'clamp' }}` on ALL interpolate calls
+- Segment data comes from scenes.json — read it and embed as constants
+- This is a SINGLE index.tsx file, no separate scene files needed
+</kinetic_typography>
 """
 
 
