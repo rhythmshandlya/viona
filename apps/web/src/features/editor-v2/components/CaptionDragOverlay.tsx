@@ -40,16 +40,33 @@ const ROTATION_HANDLE_SIZE = 10;
 const MIN_FONT_SIZE = 16;
 const MAX_OFFSET = 50;
 
-const HANDLE_CURSORS: Record<HandlePosition, string> = {
-  nw: 'nwse-resize',
-  n: 'ns-resize',
-  ne: 'nesw-resize',
-  e: 'ew-resize',
-  se: 'nwse-resize',
-  s: 'ns-resize',
-  sw: 'nesw-resize',
-  w: 'ew-resize',
-};
+const SNAP_THRESHOLD = 1; // % offset snap-to-center threshold
+const ROTATION_SNAP_THRESHOLD = 3; // degrees snap-to-zero threshold
+
+function getRotatedCursor(handle: HandlePosition, rotationDeg: number): string {
+  const baseAngles: Record<HandlePosition, number> = {
+    n: 0, ne: 45, e: 90, se: 135, s: 180, sw: 225, w: 270, nw: 315,
+  };
+  const angle = (baseAngles[handle] + rotationDeg + 360) % 360;
+  const cursorMap = [
+    { range: [337.5, 22.5], cursor: 'ns-resize' },
+    { range: [22.5, 67.5], cursor: 'nesw-resize' },
+    { range: [67.5, 112.5], cursor: 'ew-resize' },
+    { range: [112.5, 157.5], cursor: 'nwse-resize' },
+    { range: [157.5, 202.5], cursor: 'ns-resize' },
+    { range: [202.5, 247.5], cursor: 'nesw-resize' },
+    { range: [247.5, 292.5], cursor: 'ew-resize' },
+    { range: [292.5, 337.5], cursor: 'nwse-resize' },
+  ];
+  for (const { range, cursor } of cursorMap) {
+    if (range[0] > range[1]) {
+      if (angle >= range[0] || angle < range[1]) return cursor;
+    } else {
+      if (angle >= range[0] && angle < range[1]) return cursor;
+    }
+  }
+  return 'move';
+}
 
 const HANDLE_POSITIONS: HandlePosition[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
@@ -233,11 +250,14 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         const newOffsetX = clamp(startPosition.offsetX + deltaOffsetX, -MAX_OFFSET, MAX_OFFSET);
         const newOffsetY = clamp(startPosition.offsetY + deltaOffsetY * yMultiplier, -MAX_OFFSET, MAX_OFFSET);
 
+        const finalOffsetX = Math.abs(newOffsetX) <= SNAP_THRESHOLD ? 0 : Math.round(newOffsetX * 10) / 10;
+        const finalOffsetY = Math.abs(newOffsetY) <= SNAP_THRESHOLD ? 0 : Math.round(newOffsetY * 10) / 10;
+
         updateStyle({
           position: {
             ...startPosition,
-            offsetX: Math.round(newOffsetX * 10) / 10,
-            offsetY: Math.round(newOffsetY * 10) / 10,
+            offsetX: finalOffsetX,
+            offsetY: finalOffsetY,
           },
         });
       } else if (mode === 'resize' && handle) {
@@ -269,11 +289,12 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         const angle = Math.atan2(currentX - centerX, -(currentY - centerY)) * (180 / Math.PI);
         const snappedAngle = Math.round(angle);
         const clampedAngle = clamp(snappedAngle, -180, 180);
+        const finalAngle = Math.abs(clampedAngle) <= ROTATION_SNAP_THRESHOLD ? 0 : clampedAngle;
 
         updateStyle({
           position: {
             ...startPosition,
-            rotation: clampedAngle,
+            rotation: finalAngle,
           },
         });
       }
@@ -335,7 +356,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
                 backgroundColor: '#ffffff',
                 border: '1.5px solid #8b5cf6',
                 borderRadius: 1,
-                cursor: HANDLE_CURSORS[handle],
+                cursor: getRotatedCursor(handle, resolvePosition(getCaptionStyle()?.position ?? 'bottom').rotation),
                 pointerEvents: 'auto',
                 zIndex: 1,
               }}
