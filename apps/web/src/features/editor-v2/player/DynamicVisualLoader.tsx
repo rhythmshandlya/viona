@@ -192,6 +192,18 @@ export function DynamicVisualLoader({
         if (moduleName === '@remotion/shapes') return RemotionShapes;
         if (moduleName === '@remotion/paths') return RemotionPaths;
         if (moduleName === '@remotion/three') return RemotionThree;
+        // @remotion/google-fonts/* — shim loadFont to return CSS font-family name
+        if (moduleName.startsWith('@remotion/google-fonts/')) {
+          const fontName = moduleName.replace('@remotion/google-fonts/', '').replace(/-/g, ' ');
+          return {
+            loadFont: () => ({ fontFamily: `'${fontName}', sans-serif` }),
+            getInfo: () => ({ fontFamily: fontName }),
+          };
+        }
+        // remotion/no-react — used by some Remotion internals, shim as regular remotion
+        if (moduleName === 'remotion/no-react') {
+          return Remotion;
+        }
         throw new Error(`Unknown module: ${moduleName}`);
       };
 
