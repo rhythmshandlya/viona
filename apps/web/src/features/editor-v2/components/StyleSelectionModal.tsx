@@ -114,6 +114,17 @@ const STYLE_OPTIONS: StyleOption[] = [
       </div>
     ),
   },
+  {
+    id: 'kinetic-typography',
+    name: 'Kinetic Text',
+    description: 'Bold text cards with hand-drawn doodle annotations',
+    colors: ['#00E556', '#000000', '#EBEBEB'],
+    preview: (
+      <div className="w-full h-full bg-[#00E556] flex items-center justify-center">
+        <span className="text-black font-black text-base leading-none">Aa</span>
+      </div>
+    ),
+  },
 ];
 
 interface JobMetrics {
@@ -180,15 +191,32 @@ export function StyleSelectionModal({
   const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('stacked');
   const [splitRatio, setSplitRatio] = useState(50); // Percentage for visuals
   const [styleGuide, setStyleGuide] = useState('');
+  const [brandColors, setBrandColors] = useState({
+    accent: '#00E556',
+    dark: '#000000',
+    light: '#EBEBEB',
+  });
 
   const dimensions = calculateVisualsDimensions(canvasWidth, canvasHeight, layoutMode, splitRatio);
 
   const handleGenerate = () => {
+    let finalStyleGuide = styleGuide.trim() || undefined;
+
+    if (selectedStyle === 'kinetic-typography') {
+      const colorData = JSON.stringify({
+        kineticTypography: true,
+        brandColors: brandColors,
+      });
+      finalStyleGuide = finalStyleGuide
+        ? `${colorData}\n\n${finalStyleGuide}`
+        : colorData;
+    }
+
     onSelect({
       stylePreset: selectedStyle,
       layoutMode,
       dimensions,
-      styleGuide: styleGuide.trim() || undefined,
+      styleGuide: finalStyleGuide,
     });
   };
 
@@ -508,6 +536,31 @@ export function StyleSelectionModal({
             ))}
           </div>
         </div>
+
+        {/* Brand Colors — only for kinetic-typography */}
+        {selectedStyle === 'kinetic-typography' && (
+          <div className="space-y-3 py-2 border-t border-gray-200">
+            <label className="text-sm font-medium text-gray-700">Brand Colors</label>
+            <div className="grid grid-cols-3 gap-3">
+              {(['accent', 'dark', 'light'] as const).map((key) => (
+                <div key={key} className="flex flex-col items-center gap-1.5">
+                  <label
+                    className="relative w-10 h-10 rounded-lg border border-gray-300 cursor-pointer overflow-hidden"
+                    style={{ backgroundColor: brandColors[key] }}
+                  >
+                    <input
+                      type="color"
+                      value={brandColors[key]}
+                      onChange={(e) => setBrandColors((prev) => ({ ...prev, [key]: e.target.value }))}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                  </label>
+                  <span className="text-xs text-gray-500 capitalize">{key}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Style Guide Input */}
         <div className="space-y-2 py-2 border-t border-gray-200">
