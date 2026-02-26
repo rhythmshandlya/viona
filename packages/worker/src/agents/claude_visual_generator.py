@@ -4209,14 +4209,18 @@ Output PASS or FAIL with numbered issues.
             with open(scenes_json, encoding="utf-8") as f:
                 plan_data = json.load(f)
 
-            if "scenes" not in plan_data or len(plan_data["scenes"]) == 0:
+            # Kinetic-typography uses "segments" instead of "scenes"
+            has_scenes = "scenes" in plan_data and len(plan_data.get("scenes", [])) > 0
+            has_segments = "segments" in plan_data and len(plan_data.get("segments", [])) > 0
+
+            if not has_scenes and not has_segments:
                 return {
                     "success": False,
-                    "error": "scenes.json has no scenes defined",
+                    "error": "scenes.json has no scenes or segments defined",
                 }
 
-            scene_count = len(plan_data["scenes"])
-            print(f"[ClaudeGenerator] Director created plan with {scene_count} scenes")
+            scene_count = len(plan_data.get("scenes", plan_data.get("segments", [])))
+            print(f"[ClaudeGenerator] Director created plan with {scene_count} {'segments' if has_segments else 'scenes'}")
 
         except json.JSONDecodeError as e:
             return {
