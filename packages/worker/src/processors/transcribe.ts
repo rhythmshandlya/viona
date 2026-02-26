@@ -443,6 +443,32 @@ function isAudioFile(key: string): boolean {
   return ['.mp3', '.m4a', '.wav', '.ogg', '.flac'].includes(ext);
 }
 
+// Check if a downloaded file actually has a video stream (handles .mp4 with audio-only)
+async function hasVideoStream(filePath: string): Promise<boolean> {
+  const { dirname, basename } = await import('path');
+  return new Promise((resolve) => {
+    const proc = spawn('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=codec_type',
+      '-of', 'json',
+      basename(filePath),
+    ], { cwd: dirname(filePath), stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.on('close', () => {
+      try {
+        const data = JSON.parse(stdout);
+        resolve((data.streams?.length ?? 0) > 0);
+      } catch {
+        resolve(false);
+      }
+    });
+    proc.on('error', () => resolve(false));
+  });
+}
+
 // Convert audio to 16kHz mono WAV for Whisper
 async function convertToWhisperWav(inputPath: string, outputPath: string): Promise<void> {
   const { dirname, basename } = await import('path');
@@ -492,7 +518,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     // Create working directory
     await mkdir(workDir, { recursive: true });
 
-    const isAudio = isAudioFile(videoKey);
+    let isAudio = isAudioFile(videoKey);
     const inputExt = videoKey.match(/\.[^.]+$/)?.[0] || (isAudio ? '.mp3' : '.mp4');
     const inputPath = join(workDir, `input${inputExt}`);
     const audioPath = join(workDir, 'audio.wav');
@@ -508,6 +534,11 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     await publishJobProgress(jobId, 5, `Downloading ${isAudio ? 'audio' : 'video'}...`, pubExtras);
     await downloadFile('uploads', videoKey, inputPath);
     await publishJobProgress(jobId, 10, `${isAudio ? 'Audio' : 'Video'} downloaded`, pubExtras);
+
+    // Handle .mp4 files that are actually audio-only (no video stream)
+    if (!isAudio && !(await hasVideoStream(inputPath))) {
+      isAudio = true;
+    }
 
     // Step 2: Get metadata
     let durationMs: number;
