@@ -6,6 +6,7 @@ const themes = [
   { id: 'bold', label: 'Bold', description: 'High contrast, impactful', colors: ['#0f172a', '#ef4444', '#f8fafc'] },
   { id: 'classic', label: 'Classic', description: 'Muted, elegant, professional', colors: ['#1e293b', '#d4c5a9', '#8b9dc3'] },
   { id: 'studio', label: 'Studio', description: 'Polished cards, dot-grid, dark/light', colors: ['#0B0F1A', '#6366F1', '#F8FAFC'] },
+  { id: 'kinetic-typography', label: 'Kinetic Text', description: 'Bold text cards, doodle annotations', colors: ['#00E556', '#000000', '#EBEBEB'] },
 ];
 
 interface ThemePickerProps {
