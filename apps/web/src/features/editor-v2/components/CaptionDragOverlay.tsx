@@ -37,7 +37,7 @@ const HANDLE_SIZE = 8;
 const ROTATION_HANDLE_DISTANCE = 30;
 const ROTATION_HANDLE_SIZE = 10;
 const MIN_FONT_SIZE = 16;
-const MAX_OFFSET = 50;
+const MAX_OFFSET = 80;
 
 const SNAP_THRESHOLD = 1; // % offset snap-to-center threshold
 const ROTATION_SNAP_THRESHOLD = 3; // degrees snap-to-zero threshold
