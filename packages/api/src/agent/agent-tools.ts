@@ -646,8 +646,8 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         'plan_visuals',
         'Run the Director phase to create a scene-by-scene visual plan based on the transcript. This queues a planning job that analyzes the transcript and produces a detailed plan. The plan is then shown to the user as an interactive widget for approval before any generation begins. Only call this after the user has selected a theme and layout.',
         {
-          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio']),
-          layoutMode: z.enum(['pip', 'stacked']),
+          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio', 'apple', 'google', 'kinetic-typography']),
+          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
           styleGuide: z.string().optional(),
         },
         async ({ stylePreset, layoutMode, styleGuide }) => {
@@ -813,8 +813,8 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         'Start generating visuals from an approved plan. This takes the planJobId from a completed plan_visuals run and triggers the full generation pipeline. Only call this after the user has approved the plan. Pass the same stylePreset and layoutMode that were used in plan_visuals.',
         {
           planJobId: z.string(),
-          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio']),
-          layoutMode: z.enum(['pip', 'stacked']),
+          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio', 'apple', 'google', 'kinetic-typography']),
+          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
         },
         async ({ planJobId, stylePreset, layoutMode }) => {
           // Hard gate: refuse if plan was just shown this turn (user hasn't had a chance to approve)

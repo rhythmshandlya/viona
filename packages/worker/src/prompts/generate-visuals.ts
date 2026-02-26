@@ -217,6 +217,34 @@ Style: Google (Material Design 3)
 - Slide-up motion: translateY(16→0) with fade
 - Cards rise into view with subtle shadow growth
 - Emphasize spatial relationships — elements come from where they "live"`,
+
+  'kinetic-typography': `
+Style: Kinetic Typography (Bold Text Cards — Apple Ad Style)
+
+**CONCEPT:** Full-screen text cards synced to narration. Every word the narrator says
+appears as large bold text on solid colored backgrounds. Words grouped into short
+phrases (2-8 words per card). One emphasis word per card gets a hand-drawn doodle
+annotation (underline, circle, arrow, or checkmark).
+
+**COLOR PALETTE:**
+- Accent: #00E556 (neon green)
+- Dark: #000000 (black)
+- Light: #EBEBEB (light gray)
+- Rotate through these 3 as backgrounds, never 3x same in a row
+- Text: white on dark backgrounds, black on light backgrounds
+
+**TYPOGRAPHY:**
+- Font: Inter Black (900 weight), 60-120px
+- Fewer words = larger font size
+- All text centered on screen
+- No data visualizations, no charts — ONLY text cards
+
+**ANIMATION:**
+- Phrase mode: scale 0.7→1 with spring({ damping: 12, stiffness: 100 })
+- Word-by-word mode: each word scale 0.5→1 synced to timestamps
+- Doodles: SVG stroke-draw animation, appear 6 frames after text
+- Hard cuts between cards — NO dissolves or fades
+- Pacing: 0.6-4 seconds per card`,
 };
 
 /**

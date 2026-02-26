@@ -101,7 +101,7 @@ export interface VisualsDimensions {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** Effective dimensions for pip scenes in split layouts */
@@ -122,7 +122,7 @@ export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** Effective dimensions for pip scenes in split layouts */

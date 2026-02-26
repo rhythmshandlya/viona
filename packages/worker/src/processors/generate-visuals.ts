@@ -409,7 +409,7 @@ export interface VisualsDimensions {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** Effective dimensions for default scenes in stacked layout */

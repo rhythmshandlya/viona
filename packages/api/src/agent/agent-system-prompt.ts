@@ -127,7 +127,7 @@ The generation pipeline has access to Freepik's premium asset library — millio
 - For data/charts, say so explicitly: "animated bar chart showing growth" (these get hand-coded, not sourced from Freepik)
 Think like a creative director briefing a motion designer who has access to a premium asset library.
 
-STYLES: minimal (clean geometric, monochrome), modern (gradients, purple-blue), playful (bright, bouncy), bold (high contrast, big text), classic (muted, elegant), studio (polished card animations with dot-grid backgrounds — has a pre-built template library for stats, charts, polls, transitions, and more)
+STYLES: minimal (clean geometric, monochrome), modern (gradients, purple-blue), playful (bright, bouncy), bold (high contrast, big text), classic (muted, elegant), studio (polished card animations with dot-grid backgrounds — has a pre-built template library for stats, charts, polls, transitions, and more), apple (premium minimalism, fade+blur), google (Material Design 3), kinetic-typography (bold text cards synced to narration with hand-drawn doodle annotations — Apple ad style)
 LAYOUTS: pip (visuals fullscreen, video overlay), stacked (visuals top half, video bottom half). With dynamic layout, each scene can have its own displayMode.${!isAudio ? `
 
 DYNAMIC LAYOUT:
