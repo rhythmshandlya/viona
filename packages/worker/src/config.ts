@@ -107,6 +107,12 @@ export const config = {
     apiKey: process.env.FREEPIK_API_KEY || '',
   },
 
+  // Stock photo API keys (optional — passed to asset MCP server)
+  unsplash: {
+    accessKey: process.env.UNSPLASH_ACCESS_KEY || '',
+  },
+
+
   pexels: {
     apiKey: process.env.PEXELS_API_KEY || '',
   },

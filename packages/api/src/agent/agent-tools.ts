@@ -241,6 +241,8 @@ function mapScenesToWidget(
       frames: s.frames || null,
       icons: s.icons || [],
       svgOptions: svgOptions?.[sceneId] || undefined,
+      displayMode: s.displayMode || 'pip',
+      transition: s.transition || undefined,
     };
   });
 }
@@ -417,6 +419,18 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             mergeWithSceneId: z.number().optional().describe('Adjacent scene ID to merge with'),
             mergedName: z.string().optional().describe('Combined scene name'),
             mergedVisual: z.string().optional().describe('Combined visual description'),
+            // Display mode & transitions (for "update" action)
+            displayMode: z.enum(['pip', 'fullscreen', 'overlay']).optional().describe('Display mode for this scene'),
+            transition: z.object({
+              enter: z.object({
+                type: z.enum(['cut', 'fade', 'zoom-in', 'zoom-out']),
+                durationMs: z.number(),
+              }),
+              exit: z.object({
+                type: z.enum(['cut', 'fade', 'zoom-in', 'zoom-out']),
+                durationMs: z.number(),
+              }),
+            }).optional().describe('Enter/exit transition config'),
           })).min(1, 'At least one scene update required').describe('Array of scene operations'),
         },
         async ({ planJobId, sceneUpdates }) => {
@@ -468,6 +482,8 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                 if (op.visual !== undefined) scene.visual = op.visual;
                 if (op.emotion !== undefined) scene.emotion = op.emotion;
                 if (op.name !== undefined) scene.name = op.name;
+                if (op.displayMode !== undefined) scene.displayMode = op.displayMode;
+                if (op.transition !== undefined) scene.transition = op.transition;
                 changeLog.push(`Updated "${scene.name}"`);
                 break;
               }
@@ -618,13 +634,16 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           const canvasHeight =
             (project.videoSettings as Record<string, unknown>)?.canvasHeight as number | undefined ?? 1920;
 
-          // Audio projects always use full canvas (no split/PiP with video)
-          let dimensions = { width: canvasWidth, height: canvasHeight };
+          // Always generate at full canvas dimensions
+          const dimensions = { width: canvasWidth, height: canvasHeight };
+
+          // Compute per-displayMode effective dimensions for pip scenes
+          let pipEffective = { width: canvasWidth, height: canvasHeight };
           if (!isAudioProject) {
             if (layoutMode === 'split-horizontal') {
-              dimensions = { width: Math.round(canvasWidth / 2), height: canvasHeight };
+              pipEffective = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
             } else if (layoutMode === 'split-vertical') {
-              dimensions = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
+              pipEffective = { width: Math.round(canvasWidth / 2), height: canvasHeight };
             }
           }
 
@@ -643,7 +662,10 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
+            pipEffective,
             styleGuide,
+            sourceWidth: project.sourceWidth ?? undefined,
+            sourceHeight: project.sourceHeight ?? undefined,
           });
 
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual planning...' });
@@ -773,13 +795,16 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           const canvasWidth = (videoSettings.canvasWidth as number | undefined) ?? 1080;
           const canvasHeight = (videoSettings.canvasHeight as number | undefined) ?? 1920;
 
-          // Audio projects always use full canvas (no split/PiP with video)
-          let dimensions = { width: canvasWidth, height: canvasHeight };
+          // Always generate at full canvas dimensions
+          const dimensions = { width: canvasWidth, height: canvasHeight };
+
+          // Compute per-displayMode effective dimensions for pip scenes
+          let pipEffective = { width: canvasWidth, height: canvasHeight };
           if (!isAudioProject) {
             if (layoutMode === 'split-horizontal') {
-              dimensions = { width: Math.round(canvasWidth / 2), height: canvasHeight };
+              pipEffective = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
             } else if (layoutMode === 'split-vertical') {
-              dimensions = { width: canvasWidth, height: Math.round(canvasHeight / 2) };
+              pipEffective = { width: Math.round(canvasWidth / 2), height: canvasHeight };
             }
           }
 
@@ -798,6 +823,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'split-horizontal' | 'split-vertical',
             dimensions,
+            pipEffective,
             planJobId,
           });
 

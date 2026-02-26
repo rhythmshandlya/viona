@@ -7,7 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, MoreHorizontal, Terminal } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Terminal, Undo2, Redo2, Download } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -92,25 +92,25 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
   };
 
   return (
-    <header className="h-14 flex items-center justify-between px-4 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-base)]">
+    <header className="h-12 grid grid-cols-[auto_1fr_auto] items-center px-4 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
       {/* Left section: Back */}
       <div className="flex items-center gap-3">
         <button
           onClick={handleBack}
-          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
+          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
           aria-label="Go back"
         >
           <ArrowLeft className="w-4 h-4" />
           <span className="text-sm font-medium">Projects</span>
         </button>
 
-        <div className="w-px h-6 bg-[var(--editor-border-subtle)]" />
+        <div className="w-px h-5 bg-[var(--editor-border-subtle)]" />
 
         <CanvasFormatSelector />
       </div>
 
       {/* Center section: Title */}
-      <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+      <div className="flex items-center justify-center gap-2 min-w-0">
         {isEditingTitle ? (
           <input
             ref={inputRef}
@@ -119,15 +119,15 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleTitleBlur}
             onKeyDown={handleTitleKeyDown}
-            className="bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] text-sm font-medium
-                       border border-[var(--editor-border-default)] rounded-md px-3 py-1.5
+            className="bg-[var(--editor-bg-elevated)] text-[var(--editor-text-primary)] text-sm font-medium
+                       border border-[var(--editor-border-default)] rounded-md px-3 py-1
                        focus:outline-none focus:border-[var(--editor-border-focus)] focus:ring-2 focus:ring-[var(--editor-accent-soft)]"
           />
         ) : (
           <button
             onClick={handleTitleClick}
-            className="text-[var(--editor-text-primary)] text-sm font-medium px-3 py-1.5
-                       rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+            className="text-[var(--editor-text-primary)] text-sm font-medium px-3 py-1
+                       rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors truncate max-w-[300px]"
           >
             {title}
           </button>
@@ -143,20 +143,16 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
         {/* Undo/Redo buttons */}
         <div className="flex items-center gap-1">
           <button
-            className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] disabled:opacity-40"
+            className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] disabled:opacity-40"
             title="Undo (Ctrl+Z)"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M3 10h10a5 5 0 0 1 5 5v2M3 10l5-5M3 10l5 5" />
-            </svg>
+            <Undo2 className="w-4 h-4" />
           </button>
           <button
-            className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] disabled:opacity-40"
+            className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] disabled:opacity-40"
             title="Redo (Ctrl+Shift+Z)"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M21 10H11a5 5 0 0 0-5 5v2M21 10l-5-5M21 10l-5 5" />
-            </svg>
+            <Redo2 className="w-4 h-4" />
           </button>
         </div>
 
@@ -183,11 +179,9 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
           onClick={onExport}
           className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium
                      bg-[var(--editor-accent)] text-white shadow-sm
-                     hover:bg-[var(--editor-accent-hover)] transition-colors"
+                     hover:bg-[var(--editor-accent-hover)] active:scale-[0.97] transition-all"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-          </svg>
+          <Download className="w-4 h-4" />
           <span>Export</span>
         </button>
 

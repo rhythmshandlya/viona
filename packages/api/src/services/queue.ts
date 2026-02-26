@@ -116,6 +116,8 @@ export interface GenerateVisualsJobData {
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
+  /** Effective dimensions for pip scenes in split layouts */
+  pipEffective?: VisualsDimensions;
   styleGuide?: string;
   planJobId?: string;  // ID of the plan-visuals job that created the plan
 }
@@ -139,7 +141,11 @@ export interface PlanVisualsJobData {
   stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
+  /** Effective dimensions for pip scenes in split layouts */
+  pipEffective?: VisualsDimensions;
   styleGuide?: string;
+  sourceWidth?: number;
+  sourceHeight?: number;
 }
 
 export const planVisualsQueue = new Queue('plan-visuals', { connection });

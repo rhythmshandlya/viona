@@ -6,8 +6,17 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MessageSquareText, Captions, Paintbrush, PanelsTopLeft, FolderOpen, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
@@ -16,6 +25,7 @@ import { StylePanel } from './panels/StylePanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { JobLogsPanel } from './components/JobLogsPanel';
 import { ExportModal } from './components/ExportModal';
+import { TransitionPickerModal } from './components/TransitionPickerModal';
 import { AIAssistantPanel } from './components/AIAssistantPanel';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
@@ -202,6 +212,7 @@ export function Editor({ projectId }: EditorProps) {
 
     const handleMouseUp = () => {
       isDraggingRef.current = false;
+      document.body.style.cursor = '';
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
     };
@@ -363,7 +374,7 @@ export function Editor({ projectId }: EditorProps) {
   }
 
   return (
-    <div className="editor-theme flex h-screen w-screen flex-col bg-[var(--editor-bg-base)] overflow-hidden">
+    <div className="editor-theme flex h-screen w-screen flex-col bg-[var(--editor-bg-base)] overflow-hidden select-none antialiased">
       {/* Header */}
       <Header
         onOpenCommandPalette={commandPalette.open}
@@ -387,14 +398,10 @@ export function Editor({ projectId }: EditorProps) {
               }
             }}
             className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'agent' ? 'active' : ''}`}
-            title="AI Agent"
+            title="Chat"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 3l1.5 3.7 3.8.6-2.7 2.7.6 3.8L12 12l-3.2 1.8.6-3.8L6.7 7.3l3.8-.6L12 3z" />
-              <path d="M5 19l1 2.4 2.4.4-1.7 1.7.4 2.4L5 24.5l-2.1 1.4.4-2.4L1.6 21.8l2.4-.4L5 19z" opacity="0.6" />
-              <path d="M19 17l.7 1.8 1.8.3-1.3 1.3.3 1.8-1.5-1-1.5 1 .3-1.8-1.3-1.3 1.8-.3L19 17z" opacity="0.6" />
-            </svg>
-            <span className="text-[10px] mt-1">Agent</span>
+            <MessageSquareText className="w-5 h-5" />
+            <span className="text-[11px]">Chat</span>
           </button>
           <button
             onClick={() => {
@@ -408,10 +415,8 @@ export function Editor({ projectId }: EditorProps) {
             className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'captions' ? 'active' : ''}`}
             title="Captions"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 6h16M4 12h10M4 18h14" />
-            </svg>
-            <span className="text-[10px] mt-1">Captions</span>
+            <Captions className="w-5 h-5" />
+            <span className="text-[11px]">Captions</span>
           </button>
           <button
             onClick={() => {
@@ -425,10 +430,8 @@ export function Editor({ projectId }: EditorProps) {
             className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'style' ? 'active' : ''}`}
             title="Style"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
-            <span className="text-[10px] mt-1">Style</span>
+            <Paintbrush className="w-5 h-5" />
+            <span className="text-[11px]">Style</span>
           </button>
           <button
             onClick={() => {
@@ -442,13 +445,8 @@ export function Editor({ projectId }: EditorProps) {
             className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'layout' ? 'active' : ''}`}
             title="Layout"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="7" height="7" />
-              <rect x="14" y="3" width="7" height="7" />
-              <rect x="3" y="14" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" />
-            </svg>
-            <span className="text-[10px] mt-1">Layout</span>
+            <PanelsTopLeft className="w-5 h-5" />
+            <span className="text-[11px]">Layout</span>
           </button>
           <button
             onClick={() => {
@@ -462,81 +460,95 @@ export function Editor({ projectId }: EditorProps) {
             className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'assets' ? 'active' : ''}`}
             title="Assets"
           >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <path d="M21 15l-5-5L5 21" />
-            </svg>
-            <span className="text-[10px] mt-1">Assets</span>
+            <FolderOpen className="w-5 h-5" />
+            <span className="text-[11px]">Assets</span>
           </button>
         </div>
 
         {/* Left Sidebar Panel */}
-        {leftSidebarOpen && leftSidebarTab === 'agent' && (
-          <AIAssistantPanel
-            projectId={project.id}
-            onEditComplete={() => reloadVisuals(project.id)}
-            className="w-[488px] flex-shrink-0"
-          />
-        )}
-        {leftSidebarOpen && leftSidebarTab !== 'agent' && (
-          <div className="w-[488px] flex-shrink-0 flex flex-col bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] overflow-hidden">
-            <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
-              <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
-                {leftSidebarTab === 'captions' && 'Caption Settings'}
-                {leftSidebarTab === 'style' && 'Style Settings'}
-                {leftSidebarTab === 'layout' && 'Layout Settings'}
-                {leftSidebarTab === 'assets' && 'Visual Assets'}
-              </h3>
-              <button
-                onClick={() => setLeftSidebarOpen(false)}
-                className="p-1 rounded hover:bg-[var(--editor-bg-elevated)] text-[var(--editor-text-muted)]"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
+        <AnimatePresence mode="wait">
+          {leftSidebarOpen && leftSidebarTab === 'agent' && (
+            <motion.div
+              key="agent-panel"
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 488, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="flex-shrink-0 overflow-hidden"
+            >
+              <AIAssistantPanel
+                projectId={project.id}
+                onEditComplete={() => reloadVisuals(project.id)}
+                className="w-[488px]"
+              />
+            </motion.div>
+          )}
+          {leftSidebarOpen && leftSidebarTab !== 'agent' && (
+            <motion.div
+              key={`sidebar-${leftSidebarTab}`}
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 488, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="flex-shrink-0 overflow-hidden"
+            >
+              <div className="w-[488px] flex flex-col h-full bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] overflow-hidden">
+                <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
+                  <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
+                    {leftSidebarTab === 'captions' && 'Caption Settings'}
+                    {leftSidebarTab === 'style' && 'Style Settings'}
+                    {leftSidebarTab === 'layout' && 'Layout Settings'}
+                    {leftSidebarTab === 'assets' && 'Visual Assets'}
+                  </h3>
+                  <button
+                    onClick={() => setLeftSidebarOpen(false)}
+                    className="p-1 rounded-md hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)] active:scale-[0.97] transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-            <div className="flex-1 overflow-y-auto">
-              {leftSidebarTab === 'captions' && (
-                <div className="px-4 pb-4">
-                  <RightPanel
-                    isOpen={true}
-                    activeTab="transcript"
-                    onTabChange={handleTabChange}
-                    onClose={handleClosePanel}
-                    layout="stacked"
-                    embedded={true}
-                  />
+                <div className="flex-1 overflow-y-auto">
+                  {leftSidebarTab === 'captions' && (
+                    <div className="px-4 pb-4">
+                      <RightPanel
+                        isOpen={true}
+                        activeTab="transcript"
+                        onTabChange={handleTabChange}
+                        onClose={handleClosePanel}
+                        layout="stacked"
+                        embedded={true}
+                      />
+                    </div>
+                  )}
+                  {leftSidebarTab === 'style' && (
+                    <StylePanel />
+                  )}
+                  {leftSidebarTab === 'layout' && (
+                    <div className="px-4 pb-4">
+                      <RightPanel
+                        isOpen={true}
+                        activeTab="layout"
+                        onTabChange={handleTabChange}
+                        onClose={handleClosePanel}
+                        layout="stacked"
+                        embedded={true}
+                      />
+                    </div>
+                  )}
+                  {leftSidebarTab === 'assets' && (
+                    <AssetsPanel
+                      onEditWithAI={() => {
+                        setLeftSidebarTab('agent');
+                        useEditorStore.setState({ aiEditRequested: true });
+                      }}
+                    />
+                  )}
                 </div>
-              )}
-              {leftSidebarTab === 'style' && (
-                <StylePanel />
-              )}
-              {leftSidebarTab === 'layout' && (
-                <div className="px-4 pb-4">
-                  <RightPanel
-                    isOpen={true}
-                    activeTab="layout"
-                    onTabChange={handleTabChange}
-                    onClose={handleClosePanel}
-                    layout="stacked"
-                    embedded={true}
-                  />
-                </div>
-              )}
-              {leftSidebarTab === 'assets' && (
-                <AssetsPanel
-                  onEditWithAI={() => {
-                    setLeftSidebarTab('agent');
-                    useEditorStore.setState({ aiEditRequested: true });
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -544,12 +556,17 @@ export function Editor({ projectId }: EditorProps) {
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
             {/* Zoom control */}
             <div className="absolute top-4 left-4 z-10">
-              <select className="text-xs bg-[var(--editor-bg-surface)] border border-[var(--editor-border-subtle)] rounded-md px-2 py-1 text-[var(--editor-text-secondary)]">
-                <option>Fit</option>
-                <option>50%</option>
-                <option>75%</option>
-                <option>100%</option>
-              </select>
+              <Select defaultValue="fit">
+                <SelectTrigger className="h-7 w-[72px] text-xs bg-[var(--editor-bg-surface)]/90 backdrop-blur-sm border-[var(--editor-border-subtle)] text-[var(--editor-text-secondary)]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-[var(--editor-bg-surface)] border-[var(--editor-border-default)]">
+                  <SelectItem value="fit" className="text-xs">Fit</SelectItem>
+                  <SelectItem value="50" className="text-xs">50%</SelectItem>
+                  <SelectItem value="75" className="text-xs">75%</SelectItem>
+                  <SelectItem value="100" className="text-xs">100%</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Scene */}
@@ -562,10 +579,15 @@ export function Editor({ projectId }: EditorProps) {
           {/* Timeline resize handle */}
           <div
             ref={resizeRef}
-            onMouseDown={handleResizeStart}
-            className="h-1 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
-                       cursor-ns-resize transition-colors"
-          />
+            onMouseDown={(e) => {
+              document.body.style.cursor = 'ns-resize';
+              handleResizeStart(e);
+            }}
+            className="h-1.5 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
+                       cursor-ns-resize transition-colors flex items-center justify-center group"
+          >
+            <div className="w-8 h-0.5 rounded-full bg-[var(--editor-text-muted)]/30 group-hover:bg-white/60 transition-colors" />
+          </div>
 
           {/* Agent Logs Panel */}
           <JobLogsPanel
@@ -603,6 +625,9 @@ export function Editor({ projectId }: EditorProps) {
         projectStatus={project.status}
         hasOutputKey={!!project.outputKey}
       />
+
+      {/* Transition Picker Modal */}
+      <TransitionPickerModal />
     </div>
   );
 }

@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw, Square, Clock, AlertCircle, Check, Circle, XCircle } from 'lucide-react';
+import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw, Square, Clock, AlertCircle, Check, Circle, XCircle, ListOrdered, Plus } from 'lucide-react';
 import { api } from '@/lib/api';
 import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
@@ -41,6 +41,11 @@ interface WidgetBlock {
       layout?: Record<string, unknown> | null;
       frames?: [number, number] | null;
       icons?: string[];
+      displayMode?: 'pip' | 'fullscreen' | 'overlay';
+      transition?: {
+        enter: { type: string; durationMs: number };
+        exit: { type: string; durationMs: number };
+      };
     }>;
     scenePlanMarkdown?: string;
     metadata?: {
@@ -71,6 +76,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: MessageBlock[];
   createdAt: string;
+  queued?: boolean;
 }
 
 interface AIAssistantPanelProps {
@@ -146,6 +152,16 @@ interface SceneTag {
   planJobId: string;
 }
 
+interface QueuedMessage {
+  id: string;
+  text: string;
+  fullMessage: string;
+  context: {
+    sceneTags: SceneTag[];
+    selectedTimeRange: { startMs: number; endMs: number } | null;
+  };
+}
+
 export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: AIAssistantPanelProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -154,10 +170,16 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [sceneTags, setSceneTags] = useState<SceneTag[]>([]);
 
+  // Message queue — lets users queue messages while streaming
+  const messageQueueRef = useRef<QueuedMessage[]>([]);
+  const [queueSize, setQueueSize] = useState(0);
+
   const [failedMessageId, setFailedMessageId] = useState<string | null>(null);
   const lastFailedPayload = useRef<{ message: string; widgetResponse?: { widgetId: string; value: unknown } } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isNearBottomRef = useRef(true);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const progressSourceRef = useRef<'sse' | 'ws' | 'http' | null>(null);
@@ -443,9 +465,23 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     };
   }, []);
 
-  // Auto-scroll to bottom
+  // Track scroll position — only auto-scroll if user is near the bottom
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const threshold = 80;
+      isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll to bottom (only when near bottom)
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // Auto-resize textarea
@@ -712,44 +748,27 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   );
 
   // -----------------------------------------------------------------------
-  // Send message
+  // Execute message (internal — runs the SSE stream)
   // -----------------------------------------------------------------------
 
-  const sendMessage = useCallback(
-    async (messageText: string, widgetResponse?: { widgetId: string; value: unknown }, options?: { hidden?: boolean }) => {
-      if (isStreaming) return;
+  const _executeMessage = useCallback(
+    async (params: {
+      messageText: string;
+      fullMessage: string;
+      widgetResponse?: { widgetId: string; value: unknown };
+      existingUserMsgId?: string;
+      snapshotContext?: {
+        sceneTags: SceneTag[];
+        selectedTimeRange: { startMs: number; endMs: number } | null;
+      };
+    }) => {
+      const { messageText, fullMessage, widgetResponse, existingUserMsgId, snapshotContext } = params;
 
-      // Clear any previous failure state
-      setFailedMessageId(null);
-      lastFailedPayload.current = null;
-
-      // Build the full message, prepending scene tags if any
-      const currentTags = sceneTags;
-      const currentTimeRange = selectedTimeRange;
-      let fullMessage = messageText;
-      if (currentTags.length > 0 && !widgetResponse && !options?.hidden) {
-        const tagMeta = currentTags.map((t) => `Scene ${t.sceneIndex}: "${t.sceneTitle}"`).join(', ');
-        const planJobId = currentTags[0].planJobId;
-        fullMessage = `[Edit scenes: ${tagMeta} | planJobId: ${planJobId}]\n${messageText}`;
-      }
-
-      // Add user message to UI (skip for widget responses and hidden/auto-init messages)
-      if (messageText.trim() && !widgetResponse && !options?.hidden) {
-        const userMsg: Message = {
-          id: generateId(),
-          role: 'user',
-          content: [{ type: 'text', text: messageText }],
-          createdAt: new Date().toISOString(),
-        };
-        // If there are scene tags, show them as a prefix in the displayed message
-        if (currentTags.length > 0) {
-          const tagLabels = currentTags.map((t) => `Scene ${t.sceneIndex}`).join(', ');
-          userMsg.content = [{ type: 'text', text: `**Editing ${tagLabels}:** ${messageText}` }];
-        } else if (currentTimeRange) {
-          const rangeLabel = `${formatTimeChip(currentTimeRange.startMs)} – ${formatTimeChip(currentTimeRange.endMs)}`;
-          userMsg.content = [{ type: 'text', text: `**Editing ${rangeLabel}:** ${messageText}` }];
-        }
-        setMessages((prev) => [...prev, userMsg]);
+      // If this was a queued message, unmark it
+      if (existingUserMsgId) {
+        setMessages((prev) => prev.map((m) =>
+          m.id === existingUserMsgId ? { ...m, queued: false } : m
+        ));
       }
 
       // Add empty assistant placeholder
@@ -763,9 +782,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       setMessages((prev) => [...prev, assistantMsg]);
 
       setIsStreaming(true);
-      setInput('');
-      setSceneTags([]); // Clear tags after sending
-      if (currentTimeRange) setSelectedTimeRange(null); // Clear time range after sending
+
+      // Use snapshot context if provided (from queued message), otherwise use live state
+      const effectiveTimeRange = snapshotContext?.selectedTimeRange ?? selectedTimeRange;
 
       try {
         // Build context from editor state
@@ -776,8 +795,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           selectedVisualItem?: { id: string; description: string };
         } = {};
 
-        if (currentTimeRange) {
-          context.selectedTimeRange = currentTimeRange;
+        if (effectiveTimeRange) {
+          context.selectedTimeRange = effectiveTimeRange;
         }
 
         if (aiContext) {
@@ -904,7 +923,95 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         setIsStreaming(false);
       }
     },
-    [isStreaming, projectId, aiContext, handleSSEEvent, reloadVisuals, sceneTags, selectedTimeRange, setSelectedTimeRange]
+    [projectId, aiContext, handleSSEEvent, reloadVisuals, selectedTimeRange, setSelectedTimeRange]
+  );
+
+  // -----------------------------------------------------------------------
+  // Send message (entry point — queues if streaming)
+  // -----------------------------------------------------------------------
+
+  const sendMessage = useCallback(
+    async (messageText: string, widgetResponse?: { widgetId: string; value: unknown }, options?: { hidden?: boolean }) => {
+      // Clear any previous failure state
+      setFailedMessageId(null);
+      lastFailedPayload.current = null;
+
+      // Build the full message, prepending scene tags if any
+      const currentTags = sceneTags;
+      const currentTimeRange = selectedTimeRange;
+      let fullMessage = messageText;
+      if (currentTags.length > 0 && !widgetResponse && !options?.hidden) {
+        const tagMeta = currentTags.map((t) => `Scene ${t.sceneIndex}: "${t.sceneTitle}"`).join(', ');
+        const planJobId = currentTags[0].planJobId;
+        fullMessage = `[Edit scenes: ${tagMeta} | planJobId: ${planJobId}]\n${messageText}`;
+      }
+
+      // If streaming and it's a regular user message, queue it
+      if (isStreaming && messageText.trim() && !widgetResponse && !options?.hidden) {
+        const userMsgId = generateId();
+        const userMsg: Message = {
+          id: userMsgId,
+          role: 'user',
+          content: [{ type: 'text', text: messageText }],
+          createdAt: new Date().toISOString(),
+          queued: true,
+        };
+        // Show scene tags / time range in display
+        if (currentTags.length > 0) {
+          const tagLabels = currentTags.map((t) => `Scene ${t.sceneIndex}`).join(', ');
+          userMsg.content = [{ type: 'text', text: `**Editing ${tagLabels}:** ${messageText}` }];
+        } else if (currentTimeRange) {
+          const rangeLabel = `${formatTimeChip(currentTimeRange.startMs)} – ${formatTimeChip(currentTimeRange.endMs)}`;
+          userMsg.content = [{ type: 'text', text: `**Editing ${rangeLabel}:** ${messageText}` }];
+        }
+        setMessages((prev) => [...prev, userMsg]);
+
+        // Snapshot context at queue time
+        messageQueueRef.current.push({
+          id: userMsgId,
+          text: messageText,
+          fullMessage,
+          context: {
+            sceneTags: [...currentTags],
+            selectedTimeRange: currentTimeRange ? { ...currentTimeRange } : null,
+          },
+        });
+        setQueueSize(messageQueueRef.current.length);
+
+        setInput('');
+        setSceneTags([]);
+        if (currentTimeRange) setSelectedTimeRange(null);
+        return;
+      }
+
+      // Widget responses and hidden messages: existing behavior
+      if (isStreaming) return;
+
+      // Add user message to UI (skip for widget responses and hidden/auto-init messages)
+      if (messageText.trim() && !widgetResponse && !options?.hidden) {
+        const userMsg: Message = {
+          id: generateId(),
+          role: 'user',
+          content: [{ type: 'text', text: messageText }],
+          createdAt: new Date().toISOString(),
+        };
+        if (currentTags.length > 0) {
+          const tagLabels = currentTags.map((t) => `Scene ${t.sceneIndex}`).join(', ');
+          userMsg.content = [{ type: 'text', text: `**Editing ${tagLabels}:** ${messageText}` }];
+        } else if (currentTimeRange) {
+          const rangeLabel = `${formatTimeChip(currentTimeRange.startMs)} – ${formatTimeChip(currentTimeRange.endMs)}`;
+          userMsg.content = [{ type: 'text', text: `**Editing ${rangeLabel}:** ${messageText}` }];
+        }
+        setMessages((prev) => [...prev, userMsg]);
+      }
+
+      setInput('');
+      setSceneTags([]);
+      if (currentTimeRange) setSelectedTimeRange(null);
+
+      _executeMessage({ messageText, fullMessage, widgetResponse });
+    },
+    [isStreaming, projectId, aiContext, _executeMessage, sceneTags, selectedTimeRange, setSelectedTimeRange]
   );
 
   // -----------------------------------------------------------------------
@@ -947,6 +1054,37 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       handleWidgetResponse(next.widgetId, next.value);
     }
   }, [isStreaming, handleWidgetResponse]);
+
+  // Flush queued user messages after streaming stops (widget responses take priority).
+  useEffect(() => {
+    if (!isStreaming && pendingWidgetResponseRef.current.length === 0 && messageQueueRef.current.length > 0) {
+      const next = messageQueueRef.current.shift()!;
+      setQueueSize(messageQueueRef.current.length);
+      _executeMessage({
+        messageText: next.text,
+        fullMessage: next.fullMessage,
+        existingUserMsgId: next.id,
+        snapshotContext: next.context,
+      });
+    }
+  }, [isStreaming, _executeMessage]);
+
+  // -----------------------------------------------------------------------
+  // Queue management
+  // -----------------------------------------------------------------------
+
+  const handleRemoveQueued = useCallback((messageId: string) => {
+    messageQueueRef.current = messageQueueRef.current.filter((m) => m.id !== messageId);
+    setQueueSize(messageQueueRef.current.length);
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+  }, []);
+
+  const handleClearQueue = useCallback(() => {
+    const queuedIds = new Set(messageQueueRef.current.map((m) => m.id));
+    messageQueueRef.current = [];
+    setQueueSize(0);
+    setMessages((prev) => prev.filter((m) => !queuedIds.has(m.id)));
+  }, []);
 
   // -----------------------------------------------------------------------
   // Retry failed message
@@ -1039,6 +1177,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setMessages([]);
     setConversationId(null);
     setSceneTags([]);
+    messageQueueRef.current = [];
+    setQueueSize(0);
     // Re-trigger auto-greet
     autoGreetSent.current = false;
     clearVisualCache();
@@ -1060,7 +1200,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // Key handler
   // -----------------------------------------------------------------------
 
-  const canSend = !isStreaming && input.trim().length > 0;
+  const canSend = input.trim().length > 0;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1218,7 +1358,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               {block.percent >= 100 ? (
                 <Check className="w-3.5 h-3.5 text-green-500" />
               ) : (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-purple-500" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--editor-accent)]" />
               )}
               <span className="text-xs text-[var(--editor-text-secondary)]">
                 {block.message}
@@ -1231,7 +1371,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             </div>
             <div className="w-full bg-[var(--editor-bg-hover)] rounded-full h-1.5">
               <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${block.percent >= 100 ? 'bg-green-500' : 'bg-purple-500'}`}
+                className={`h-1.5 rounded-full transition-all duration-300 ${block.percent >= 100 ? 'bg-green-500' : 'bg-[var(--editor-accent)]'}`}
                 style={{ width: `${Math.min(block.percent, 100)}%` }}
               />
             </div>
@@ -1264,22 +1404,19 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   return (
     <div className={`flex flex-col h-full bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] ${className}`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 h-14 border-b border-[var(--editor-border-subtle)]">
+      <div className="flex items-center justify-between px-4 h-12 border-b border-[var(--editor-border-subtle)]">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-purple-500" />
-          </div>
-          <span className="text-sm font-semibold text-[var(--editor-text-primary)]">Creative Director</span>
+          <span className="text-sm font-semibold text-[var(--editor-text-primary)]">Chat</span>
         </div>
         <div className="flex items-center gap-1">
           {aiContext && (
             <span
               className={`flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full ${
                 aiContext.type === 'element'
-                  ? 'bg-purple-500/10 text-purple-600'
+                  ? 'bg-[var(--editor-accent-soft)] text-[var(--editor-accent)]'
                   : aiContext.type === 'item'
-                    ? 'bg-blue-500/10 text-blue-600'
-                    : 'bg-purple-500/10 text-purple-600'
+                    ? 'bg-[var(--editor-info-soft)] text-[var(--editor-info)]'
+                    : 'bg-[var(--editor-accent-soft)] text-[var(--editor-accent)]'
               }`}
             >
               {aiContext.type === 'element' && <Target className="w-3 h-3" />}
@@ -1313,17 +1450,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {!historyLoaded ? (
           <div className="flex flex-col items-center justify-center h-full">
-            <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+            <Loader2 className="w-6 h-6 text-[var(--editor-accent)] animate-spin" />
             <p className="text-xs text-[var(--editor-text-muted)] mt-2">Loading conversation...</p>
           </div>
         ) : messages.length === 0 && !isStreaming ? (
           /* Empty state — only show if not already auto-greeting */
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="w-12 h-12 rounded-full bg-purple-500/10 flex items-center justify-center mb-4">
-              <Sparkles className="w-6 h-6 text-purple-500 opacity-60" />
+            <div className="w-12 h-12 rounded-full bg-[var(--editor-accent-soft)] flex items-center justify-center mb-4">
+              <Sparkles className="w-6 h-6 text-[var(--editor-accent)] opacity-60" />
             </div>
             {aiContext ? (
               <>
@@ -1360,27 +1497,40 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             .map((message) => (
             <div
               key={message.id}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${message.queued ? 'opacity-60' : ''}`}
             >
               <div
                 className={`max-w-[90%] text-sm ${
                   message.role === 'user'
-                    ? 'bg-purple-500/10 border border-purple-500/20 text-[var(--editor-text-primary)] rounded-2xl rounded-br-md px-4 py-2.5'
+                    ? 'bg-[var(--editor-accent-soft)] border border-[var(--editor-accent)]/20 text-[var(--editor-text-primary)] rounded-2xl rounded-br-md px-4 py-2.5'
                     : 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] rounded-2xl rounded-bl-md px-4 py-2.5'
-                }`}
+                } ${message.queued ? 'border-dashed' : ''}`}
               >
+                {message.queued && (
+                  <div className="flex items-center justify-between gap-2 mb-1 text-[10px] text-[var(--editor-text-muted)]">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-2.5 h-2.5" /> Queued
+                    </span>
+                    <button
+                      onClick={() => handleRemoveQueued(message.id)}
+                      className="hover:text-red-400 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
                 {message.content.length === 0 && isStreaming && (
                   <div className="flex gap-1 py-1">
                     <span
-                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-[var(--editor-accent)] rounded-full animate-bounce"
                       style={{ animationDelay: '0ms' }}
                     />
                     <span
-                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-[var(--editor-accent)] rounded-full animate-bounce"
                       style={{ animationDelay: '150ms' }}
                     />
                     <span
-                      className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"
+                      className="w-2 h-2 bg-[var(--editor-accent)] rounded-full animate-bounce"
                       style={{ animationDelay: '300ms' }}
                     />
                   </div>
@@ -1390,7 +1540,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                   <button
                     onClick={handleRetry}
                     disabled={isStreaming}
-                    className="mt-2 flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors disabled:opacity-50"
+                    className="mt-2 flex items-center gap-1.5 text-xs text-[var(--editor-accent)] hover:text-[var(--editor-accent-hover)] transition-colors disabled:opacity-50"
                   >
                     <RefreshCw className="w-3 h-3" />
                     Retry
@@ -1423,19 +1573,19 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
       {/* Input Area */}
       <div className="px-3 pb-3 pt-2">
-        {/* Scene tag chips */}
+        {/* Context chips */}
         {sceneTags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             {sceneTags.map((tag) => (
               <span
                 key={`${tag.planJobId}-${tag.sceneIndex}`}
                 className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
-                           bg-purple-500/15 text-purple-400 border border-purple-500/25"
+                           bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25"
               >
                 Scene {tag.sceneIndex}: {tag.sceneTitle}
                 <button
                   onClick={() => setSceneTags((prev) => prev.filter((t) => t.sceneIndex !== tag.sceneIndex || t.planJobId !== tag.planJobId))}
-                  className="ml-0.5 hover:text-purple-300 transition-colors"
+                  className="ml-0.5 hover:text-[var(--editor-accent-hover)] transition-colors"
                   aria-label={`Remove Scene ${tag.sceneIndex}`}
                 >
                   <X className="w-3 h-3" />
@@ -1445,15 +1595,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
-        {/* Time range chip */}
         {selectedTimeRange && sceneTags.length === 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
-                             bg-blue-500/15 text-blue-400 border border-blue-500/25">
+                             bg-[var(--editor-info-soft)] text-[var(--editor-info)] border border-[var(--editor-info)]/25">
               {formatTimeChip(selectedTimeRange.startMs)} – {formatTimeChip(selectedTimeRange.endMs)}
               <button
                 onClick={() => setSelectedTimeRange(null)}
-                className="ml-0.5 hover:text-blue-300 transition-colors"
+                className="ml-0.5 hover:text-[var(--editor-info)] transition-colors"
                 aria-label="Remove time range"
               >
                 <X className="w-3 h-3" />
@@ -1462,9 +1611,24 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
-        <div className="relative flex items-end gap-2 rounded-2xl border border-[var(--editor-border-subtle)]
-                        bg-[var(--editor-bg-hover)] focus-within:border-purple-500/40 focus-within:ring-1 focus-within:ring-purple-500/20
-                        transition-all">
+        {/* Queue count indicator */}
+        {queueSize > 0 && (
+          <div className="flex items-center justify-between px-1 mb-1.5">
+            <span className="text-[11px] text-[var(--editor-text-muted)] flex items-center gap-1">
+              <ListOrdered className="w-3 h-3" />
+              {queueSize} message{queueSize > 1 ? 's' : ''} queued
+            </span>
+            <button
+              onClick={handleClearQueue}
+              className="text-[11px] text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)] transition-colors"
+            >
+              Clear queue
+            </button>
+          </div>
+        )}
+
+        <div className="relative flex items-end rounded-xl border border-[var(--editor-border-subtle)]
+                        bg-[var(--editor-bg-elevated)]">
           <textarea
             ref={textareaRef}
             value={input}
@@ -1472,48 +1636,50 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             onKeyDown={handleKeyDown}
             placeholder={
               isStreaming
-                ? 'Waiting for response...'
+                ? 'Type to queue another message...'
                 : sceneTags.length > 0
                   ? `Describe changes to ${sceneTags.map((t) => `Scene ${t.sceneIndex}`).join(', ')}...`
                   : selectedTimeRange
                     ? `Describe changes for ${formatTimeChip(selectedTimeRange.startMs)} – ${formatTimeChip(selectedTimeRange.endMs)}...`
                     : aiContext
                       ? `Describe changes to ${aiContext.displayName}...`
-                      : 'Describe what you want to create...'
+                      : 'Ask anything...'
             }
-            disabled={isStreaming}
-            rows={1}
-            className="flex-1 bg-transparent text-[var(--editor-text-primary)] text-sm
+            rows={3}
+            className={`flex-1 bg-transparent text-[var(--editor-text-primary)] text-sm
                        placeholder:text-[var(--editor-text-muted)]
-                       pl-4 pr-12 py-3
-                       focus:outline-none
-                       disabled:opacity-50 disabled:cursor-not-allowed
-                       resize-none"
+                       pl-3.5 py-3
+                       outline-none! focus:outline-none! focus-visible:outline-none!
+                       resize-none ${isStreaming ? 'pr-[4.5rem]' : 'pr-11'}`}
           />
-          {isStreaming ? (
+          {/* Stop button — shown during streaming, always left of send */}
+          {isStreaming && (
             <button
               onClick={handleCancel}
-              className="absolute right-2 bottom-1.5 w-8 h-8 flex items-center justify-center
-                         rounded-full border border-[var(--editor-border-subtle)]
-                         bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)]
-                         hover:bg-[var(--editor-bg-hover)] hover:text-[var(--editor-text-primary)]
-                         transition-colors"
+              className="absolute right-10 bottom-2.5 w-6 h-6 flex items-center justify-center
+                         rounded-md border border-[var(--editor-border-default)]
+                         bg-[var(--editor-bg-surface)] text-[var(--editor-text-muted)]
+                         hover:text-[var(--editor-text-secondary)] hover:bg-[var(--editor-bg-hover)]
+                         active:scale-95 transition-all"
               title="Stop generating"
             >
-              <Square className="w-3 h-3 fill-current" />
-            </button>
-          ) : (
-            <button
-              onClick={() => canSend && sendMessage(input.trim())}
-              disabled={!canSend}
-              className="absolute right-2 bottom-1.5 w-8 h-8 flex items-center justify-center
-                         rounded-full bg-purple-600 text-white
-                         hover:bg-purple-500 transition-colors
-                         disabled:bg-transparent disabled:text-[var(--editor-text-muted)]"
-            >
-              <Send className="w-4 h-4" />
+              <Square className="w-2.5 h-2.5 fill-current" />
             </button>
           )}
+          {/* Send/Queue button — always visible on the right */}
+          <button
+            onClick={() => canSend && sendMessage(input.trim())}
+            disabled={!canSend}
+            className={`absolute right-2 bottom-2 w-7 h-7 flex items-center justify-center
+                       rounded-lg active:scale-95 transition-all
+                       ${isStreaming
+                         ? 'bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] hover:bg-[var(--editor-accent-soft)]/80 disabled:bg-[var(--editor-bg-hover)] disabled:text-[var(--editor-text-muted)]'
+                         : 'bg-white text-[var(--editor-text-primary)] hover:bg-[var(--editor-bg-hover)] disabled:bg-[var(--editor-bg-hover)] disabled:text-[var(--editor-text-muted)]'
+                       }`}
+            title={isStreaming ? 'Queue message' : 'Send message'}
+          >
+            {isStreaming ? <Plus className="w-3.5 h-3.5" /> : <Send className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </div>
     </div>

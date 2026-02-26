@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { nanoid } from 'nanoid';
 import { api, Project as ApiProject } from '@/lib/api';
+import { loadFont, findFont } from '@/lib/font-registry';
 import {
   EditorStore,
   EditorState,
@@ -25,6 +26,7 @@ import {
   VideoItemData,
   AudioItemData,
   VisualItemData,
+  VisualDisplayMode,
   VideoSettings,
   CaptionStyle,
   AnimationConfig,
@@ -114,6 +116,9 @@ const initialState: EditorState = {
 
   // AI edit request
   aiEditRequested: false,
+
+  // Transition picker
+  transitionPickerItemId: null,
 
   // Safe zone settings
   safeZonePlatform: 'none',
@@ -290,6 +295,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         text?: string;
         words?: Array<{ text: string; startMs: number; endMs: number; styleOverrides?: WordStyleOverrides }>;
         style?: Record<string, unknown>;
+        styleOverrides?: Partial<CaptionStyle>;
+        aiWordOverrides?: Record<number, WordStyleOverrides>;
       };
 
       // Merge caption style with defaults to ensure all properties exist
@@ -319,6 +326,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
           })),
           style: captionStyle,
+          ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
+          ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
         } as CaptionItemData,
       };
 
@@ -392,6 +401,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             width: (raw.width as number) || 1920,
             height: (raw.height as number) || 1080,
             fps: (raw.fps as number) || 30,
+            displayMode: (raw.displayMode as VisualDisplayMode) || undefined,
+            transition: (raw.transition as VisualItemData['transition']) || undefined,
           } as VisualItemData,
         };
 
@@ -480,6 +491,20 @@ export const useEditorStore = create<EditorStore>()(
 
         // Push initial state to history
         get().pushHistory();
+
+        // Auto-load caption fonts used in the project
+        const captionFonts = new Set<string>();
+        for (const id of itemIds) {
+          const item = items[id];
+          if (item?.type === 'caption') {
+            const fontFamily = (item.data as CaptionItemData).style?.fontFamily;
+            if (fontFamily) captionFonts.add(fontFamily.split(',')[0].trim());
+          }
+        }
+        for (const family of captionFonts) {
+          const entry = findFont(family);
+          if (entry) loadFont(entry);
+        }
       } catch (err) {
         set((state) => {
           state.error = err instanceof Error ? err.message : 'Failed to load project';
@@ -550,6 +575,18 @@ export const useEditorStore = create<EditorStore>()(
             state.project.outputKey = (apiProject as any).outputKey || null;
           }
 
+          // Reload layout settings in case generation persisted a new layoutMode
+          const savedVideoSettings = (apiProject as any).videoSettings;
+          const savedLayoutSettings = savedVideoSettings?.layoutSettings;
+          if (savedLayoutSettings) {
+            state.layoutSettings = {
+              ...DEFAULT_LAYOUT_SETTINGS,
+              ...savedLayoutSettings,
+              pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
+              split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
+            };
+          }
+
           // Don't reset playback position, selection, viewport, or history
         });
       } catch (err) {
@@ -587,9 +624,26 @@ export const useEditorStore = create<EditorStore>()(
                   ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
                 })),
                 style: data.style,
+                ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
+                ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
               },
             };
           });
+
+        // Also save visual items (displayMode, transition, timing changes)
+        const visualItems = itemIds
+          .map((id) => items[id])
+          .filter((item) => item.type === 'visual')
+          .map((item) => ({
+            id: item.id,
+            trackId: item.trackId,
+            type: 'visual' as const,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: item.data as unknown as Record<string, unknown>,
+          }));
+
+        const allItems = [...apiItems, ...visualItems];
 
         // Collect IDs of all caption items currently in the editor
         // The API will delete any DB caption items NOT in this list (from split/merge)
@@ -603,7 +657,7 @@ export const useEditorStore = create<EditorStore>()(
         };
 
         await api.updateProject(project.id, {
-          items: apiItems,
+          items: allItems,
           captionItemIds,
           videoSettings: videoSettingsPayload,
         });
@@ -1753,6 +1807,40 @@ export const useEditorStore = create<EditorStore>()(
         state.selectedSceneId = null;
         state.aiEditRequested = true;
       });
+    },
+
+    // ========================================
+    // Visual Display Mode Actions
+    // ========================================
+
+    updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => {
+      set((state) => {
+        const item = state.items[itemId];
+        if (item?.type === 'visual') {
+          (item.data as VisualItemData).displayMode = displayMode;
+        }
+      });
+      get().pushHistory();
+      debouncedSave(() => get().saveProject());
+    },
+
+    updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => {
+      set((state) => {
+        const item = state.items[itemId];
+        if (item?.type === 'visual') {
+          (item.data as VisualItemData).transition = transition;
+        }
+      });
+      get().pushHistory();
+      debouncedSave(() => get().saveProject());
+    },
+
+    openTransitionPicker: (itemId: string) => {
+      set((state) => { state.transitionPickerItemId = itemId; });
+    },
+
+    closeTransitionPicker: () => {
+      set((state) => { state.transitionPickerItemId = null; });
     },
 
     // ========================================

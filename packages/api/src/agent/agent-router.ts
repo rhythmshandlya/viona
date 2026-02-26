@@ -186,6 +186,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
       hasTranscript: !!transcript,
       hasVisuals: !!visual,
       sceneCount: visual?.timestamps ? (visual.timestamps as unknown[]).length : 0,
+      sourceWidth: project.sourceWidth ?? undefined,
+      sourceHeight: project.sourceHeight ?? undefined,
     });
 
     // 3. Get or create conversation

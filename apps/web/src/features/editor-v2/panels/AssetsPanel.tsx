@@ -28,7 +28,7 @@ const AssetIcon: Record<ExtractedAsset['type'], LucideIcon> = {
 // Color mapping for asset types
 const AssetColor: Record<ExtractedAsset['type'], string> = {
   component: 'text-blue-400',
-  element: 'text-purple-400',
+  element: 'text-[var(--editor-accent)]',
   text: 'text-green-400',
   shape: 'text-violet-400',
   icon: 'text-yellow-400',
@@ -287,8 +287,8 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
                 if (asset) onEditWithAI(asset);
               }}
               className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
-                         bg-purple-500/15 text-purple-400 border border-purple-500/25
-                         hover:bg-purple-500/25 transition-colors"
+                         bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25
+                         hover:bg-[var(--editor-accent-muted)] transition-colors"
             >
               <Sparkles className="w-3.5 h-3.5" />
               Edit with AI

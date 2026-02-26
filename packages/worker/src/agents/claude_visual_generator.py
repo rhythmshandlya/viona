@@ -35,6 +35,43 @@ except ImportError:
     print("Error: claude-agent-sdk package not installed. Run: pip install claude-agent-sdk")
     sys.exit(1)
 
+# ---------------------------------------------------------------------------
+# Monkey-patch: make the SDK silently skip unknown message types
+# (e.g. rate_limit_event) instead of raising MessageParseError which
+# kills the async generator and truncates multi-turn agent loops.
+# ---------------------------------------------------------------------------
+try:
+    from claude_agent_sdk._internal import message_parser as _mp
+    from claude_agent_sdk._errors import MessageParseError
+
+    _original_parse_message = _mp.parse_message
+
+    def _patched_parse_message(data):
+        try:
+            return _original_parse_message(data)
+        except MessageParseError as exc:
+            if "Unknown message type" in str(exc):
+                print(f"[SDK] Skipping unknown event: {exc}", flush=True)
+                return None  # sentinel — filtered out below
+            raise  # re-raise genuine parse errors
+
+    _mp.parse_message = _patched_parse_message
+
+    # Also patch receive_messages to skip None values returned by our patch
+    from claude_agent_sdk.client import ClaudeSDKClient as _Client
+
+    _original_receive_messages = _Client.receive_messages
+
+    async def _patched_receive_messages(self):
+        async for msg in _original_receive_messages(self):
+            if msg is not None:
+                yield msg
+
+    _Client.receive_messages = _patched_receive_messages
+    print("[SDK] Monkey-patch applied: unknown message types will be skipped", flush=True)
+except Exception as patch_err:
+    print(f"[SDK] Warning: could not apply monkey-patch ({patch_err}), unknown events may crash", flush=True)
+
 
 # =============================================================================
 # Windows Command Line Length Fix (GitHub Issue #238)
@@ -1769,18 +1806,21 @@ professional motion design studio, not a coding tutorial.
 
 ### DECISION FRAMEWORK — What to use when
 
-| Visual Need | Use | Why |
-|------------|-----|-----|
-| Hero/featured icons (main visual focus) | Freepik `search_icons` → `download_icon_by_id` (SVG) | Premium polish, gradients, detail |
-| Polished concept visuals (AI, cloud, growth) | Freepik `search_icons` → `download_icon_by_id` (SVG) | Professional quality, unique designs |
-| Premium illustrations (isometric, 3D) | Freepik `search_resources` → `download_resource_by_id` | Hand-drawn quality impossible with code |
-| Photos, textures, backgrounds | Freepik `search_resources` → `download_resource_by_id` | Only source for photos |
-| UI/supporting icons (arrows, chevrons, checkmarks) | Iconify `search_icons` → `get_icon` | Consistent sets, clean stroke/fill |
-| Multiple matching icons from one set | Iconify (pick a prefix like `lucide:`) | Collections ensure consistency |
-| Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values |
-| Flowcharts / process diagrams | Hand-coded SVG with Freepik/Iconify icons as nodes | Best of both |
+| Visual Need | Tool | Remotion Usage |
+|------------|------|----------------|
+| Hero/featured icons (main visual focus) | Freepik `search_icons` → `download_icon_by_id` (SVG) | Inline SVG in JSX, animate with spring — premium polish |
+| Polished concept visuals (AI, cloud, growth) | Freepik `search_icons` → `download_icon_by_id` (SVG) | Inline SVG — professional quality, unique designs |
+| Premium illustrations (isometric, 3D) | Freepik `search_resources` → `download_resource_by_id` | `<Img src={{{{staticFile('assets/...')}}}} />` |
+| UI/supporting icons (arrows, chevrons, checkmarks) | Iconify `search_icons` → `get_icon` | Inline SVG in JSX — consistent sets, clean stroke/fill |
+| Multiple matching icons from one set | Iconify (pick a prefix like `lucide:`) | Inline SVG — collections ensure consistency |
+| Real-world product/app screenshots | `mcp__assets__screenshot` | `<Img>` with zoom/pan/highlight animations |
+| Stock photos (people, places, concepts) | `search_unsplash`/`search_pexels` → `download_stock_photo` | `<Img>` with Ken Burns, overlays, masks |
+| Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
+| Flowcharts / process diagrams | Hand-coded SVG with Iconify/Freepik icons as nodes | Best of both — structure + polish |
+| Company logos / branding | Freepik `search_icons` ("youtube", "google") → `download_file` | Inline SVG — NEVER hand-draw a logo |
+| Code snippets / terminal | Hand-coded with syntax highlighting | Typed-in animation |
 
-**RULE: Use BOTH sources in every generation. Freepik for hero visuals, featured icons, and illustrations. Iconify for supporting UI icons and consistent icon sets. Only hand-code SVGs for dynamic data.**
+**RULE: Use BOTH icon sources in every generation. Freepik for hero visuals, featured icons, and illustrations. Iconify for supporting UI icons and consistent icon sets. Use screenshots for websites/apps. Use stock photos for real-world subjects. Only hand-code SVGs for dynamic data.**
 
 **MINIMUM USAGE: Every generation MUST use at least one Freepik asset (icon or illustration). Iconify supplements with clean UI icons. Do NOT use only one source — the whole point is leveraging both libraries.**
 
@@ -1813,7 +1853,7 @@ professional motion design studio, not a coding tutorial.
 
 **Freepik icons (SVG) — download then inline:**
 1. `download_icon_by_id` with id and format="svg" → returns {{ data: {{ url, filename }} }}
-2. Download with Bash: `curl -sL -o public/assets/icon-name.svg "URL"`
+2. `mcp__assets__download_file` with the url and filename="icon-name.svg"
 3. Read the SVG file content with the Read tool
 4. Paste the SVG markup directly into your JSX component
 5. Replace hardcoded width/height with style prop
@@ -1822,7 +1862,7 @@ professional motion design studio, not a coding tutorial.
 
 **Resources (images/illustrations) — use staticFile:**
 1. `download_resource_by_id` with resource-id → returns {{ data: {{ url, filename }} }}
-2. Download: `curl -sL -o public/assets/illustration.png "URL"`
+2. `mcp__assets__download_file` with the url and filename="illustration.png"
 3. In component: `<Img src={{staticFile('assets/illustration.png')}} style={{...}} />`
 4. Import Img from remotion: `import {{ Img, staticFile }} from 'remotion';`
 5. Animate with opacity, scale, position transforms
@@ -1852,9 +1892,143 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 - **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing.
 - **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. If using Iconify, stick to ONE prefix (e.g., all `lucide:` or all `tabler:`). Match icon colors to the style preset's color scheme.
 - **FALLBACK**: ONLY if the download/get tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG.
+- **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Spotify, etc.) must ALWAYS be downloaded from Freepik — search the company name. Hand-drawn logos look amateur and are often inaccurate.
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients.
+- **NO EXTERNAL IMAGE URLS**: NEVER use `<Img src="https://icons8.com/...">` or any remote URL for icons/images. External URLs fail during rendering (CORS, rate limits, downtime) and crash the entire export. Always download assets first, then use `staticFile()` or inline SVG.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match.
-- **ALWAYS CREATE public/assets/ DIRECTORY**: Before downloading any Freepik assets, run `mkdir -p public/assets` in Bash.
+- **ASSET DIRECTORY**: The `mcp__assets__download_file` tool automatically creates `public/assets/` — no need to mkdir manually.
+
+### WEBSITE SCREENSHOTS
+
+Use screenshots when the transcript references a specific website, app UI, dashboard, or tool.
+
+**Workflow:**
+1. mcp__assets__screenshot with url, filename, optional width/height
+2. In composition: `<Img src={{{{staticFile('assets/screenshot.png')}}}} style={{{{...}}}} />`
+
+**Animation patterns for screenshots:**
+- **Browser frame mockup**: Wrap screenshot in a rounded-corner container with a fake
+  address bar to make it look like a browser window
+- **Zoom-to-region**: Start with the full page, then use scale + translate to zoom
+  into a specific area the narrator is discussing
+- **Scroll reveal**: Use translateY animation to simulate scrolling down a page
+- **Highlight overlay**: Overlay a semi-transparent colored box that pulses to draw
+  attention to a specific UI element
+
+**Example — screenshot with browser chrome + zoom:**
+```tsx
+const zoomProgress = interpolate(frame, [30, 90], [1, 2.5], {{{{ extrapolateRight: 'clamp' }}}});
+const panX = interpolate(frame, [30, 90], [0, -200], {{{{ extrapolateRight: 'clamp' }}}});
+const panY = interpolate(frame, [30, 90], [0, -150], {{{{ extrapolateRight: 'clamp' }}}});
+
+<div style={{{{
+  borderRadius: 12, overflow: 'hidden', border: '2px solid rgba(255,255,255,0.1)',
+  boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+}}}}>
+  {{{{/* Browser chrome bar */}}}}
+  <div style={{{{ height: 32, background: '#1e1e2e', display: 'flex', alignItems: 'center', padding: '0 12px', gap: 6 }}}}>
+    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#ff5f57' }}}} />
+    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#febc2e' }}}} />
+    <div style={{{{ width: 10, height: 10, borderRadius: '50%', background: '#28c840' }}}} />
+  </div>
+  {{{{/* Screenshot with zoom */}}}}
+  <div style={{{{ overflow: 'hidden' }}}}>
+    <Img
+      src={{{{staticFile('assets/website-screenshot.png')}}}}
+      style={{{{
+        width: '100%', display: 'block',
+        transform: `scale(${{{{zoomProgress}}}}) translate(${{{{panX}}}}px, ${{{{panY}}}}px)`,
+        transformOrigin: 'top left',
+      }}}}
+    />
+  </div>
+</div>
+```
+
+### STOCK PHOTOS (Unsplash + Pexels)
+
+Use stock photos when the transcript discusses real-world concepts that benefit from
+photographic imagery (people, nature, cities, objects, abstract textures).
+
+**Workflow:**
+1. mcp__assets__search_unsplash or mcp__assets__search_pexels with a descriptive query
+2. Pick the best result from returned list
+3. mcp__assets__download_stock_photo with the photo's download URL and filename
+4. In composition: `<Img src={{{{staticFile('assets/photo.jpg')}}}} style={{{{...}}}} />`
+
+**When to use photos vs illustrations:**
+- Photos: Real-world subjects, emotional impact, establishing shots, hero backgrounds
+- Illustrations/vectors: Abstract concepts, diagrams, icons, technical content
+
+**Animation patterns for photos:**
+- **Ken Burns**: Slow zoom + pan creates cinematic motion from a still image
+- **Parallax layers**: Photo as background, animated elements in foreground
+- **Color overlay**: Semi-transparent gradient over photo to match color palette
+- **Mask reveal**: Clip-path or opacity mask that reveals the photo progressively
+- **Split comparison**: Two photos side by side with a sliding divider
+
+**Example — Ken Burns effect:**
+```tsx
+const zoom = interpolate(frame, [0, durationInFrames], [1, 1.15], {{{{ extrapolateRight: 'clamp' }}}});
+const panX = interpolate(frame, [0, durationInFrames], [0, -30], {{{{ extrapolateRight: 'clamp' }}}});
+
+<div style={{{{ overflow: 'hidden', borderRadius: 16, width: '80%', margin: '0 auto' }}}}>
+  <Img
+    src={{{{staticFile('assets/hero-photo.jpg')}}}}
+    style={{{{
+      width: '100%', display: 'block',
+      transform: `scale(${{{{zoom}}}}) translateX(${{{{panX}}}}px)`,
+    }}}}
+  />
+  {{{{/* Color overlay to match palette */}}}}
+  <div style={{{{
+    position: 'absolute', inset: 0,
+    background: 'linear-gradient(135deg, rgba(99,102,241,0.3), rgba(139,92,246,0.2))',
+  }}}} />
+</div>
+```
+
+**STOCK PHOTO GUARDRAILS:**
+- Max 1 photo per scene — photos dominate visual attention
+- Always add a color overlay or vignette to match the scene's palette
+- Never use raw unprocessed photos as full backgrounds — too visually noisy
+- Prefer landscape-oriented photos for horizontal video, portrait for vertical
+
+### OVERLAY MODE — SPATIAL AWARENESS
+
+When implementing a scene with `displayMode: "overlay"`, you MUST:
+
+1. Call `mcp__assets__get_speaker_grid` with the scene's startMs and endMs
+2. The tool returns a 6x6 grid where 1 = speaker present, 0 = safe zone
+3. Design your composition to place elements ONLY in safe (0) cells
+4. Use TRANSPARENT backgrounds — no opaque fills, no solid color backgrounds
+5. Think of overlay as floating annotations on top of the speaker
+
+**Reading the grid:**
+```
+Grid:  0 0 0 0 1 1      <- speaker is on the right side
+       0 0 0 1 1 1
+       0 0 0 1 1 1      1-cell buffer around speaker = avoid column 3 too
+       0 0 0 1 1 1
+       0 0 0 0 1 1
+       0 0 0 0 0 0
+
+-> Safe: left half, bottom row
+-> Place title text top-left, stats stacked on left, annotation arrows pointing toward speaker
+```
+
+**Rules:**
+- Background MUST be `transparent` or `rgba(0,0,0,0)` — NEVER a solid color
+- Place text, icons, charts in safe zones (0 cells) only
+- Leave a 1-cell buffer around occupied cells for breathing room
+- Use opacity 0.8-0.9 on overlay elements — slightly see-through
+- Prefer edges/corners away from the speaker
+- If occupancy > 50%, use minimal floating annotations only (small labels, corner icons)
+- If `get_speaker_grid` returns an error, design centered with generous margins on all sides
+
+**Overlay uses full canvas dimensions** — the scene's `effectiveDimensions` will be the full
+canvas size (same as fullscreen). Use these dimensions for positioning, but remember elements
+must avoid the speaker's grid cells.
 </assets_and_visuals>
 
 <web_search>
@@ -2809,6 +2983,179 @@ registerRoot(RemotionRoot);
     # Two-Phase Generation Pipeline (Director + Animator)
     # =========================================================================
 
+    async def _run_assistant_director(
+        self,
+        formatted_transcript: str,
+        style_preset: str = "modern",
+    ) -> dict[str, Any]:
+        """
+        Phase 0: Run the Assistant Director agent to create a Creative Brief.
+
+        The Assistant Director analyzes the transcript and produces a
+        CREATIVE_BRIEF.md that classifies tone, selects color palette / fonts,
+        recommends visual asset types per beat, and provides scene-structure
+        hints for the downstream Director.
+
+        This phase is non-blocking: if it fails, the pipeline continues
+        without a brief (the Director can still function independently).
+
+        Args:
+            formatted_transcript: Transcript with word-level timestamps.
+            style_preset: Visual style preset (minimal, modern, playful,
+                          bold, classic, studio).
+
+        Returns:
+            dict with success status and brief file path (or error details).
+        """
+        from prompts.assistant_director import (
+            ASSISTANT_DIRECTOR_SYSTEM_PROMPT,
+            build_assistant_director_message,
+        )
+
+        print("[ClaudeGenerator] Phase 0: Assistant Director analyzing transcript...", flush=True)
+
+        # Ensure src_dir exists before running Claude
+        self.src_dir.mkdir(parents=True, exist_ok=True)
+
+        assistant_director_message = build_assistant_director_message(
+            transcript=formatted_transcript,
+            style_preset=style_preset,
+            output_dir=str(self.src_dir),
+        )
+
+        # Write restricted security settings — only allow writes within the
+        # project directory (src_dir).
+        ad_settings_dir = self.src_dir / ".claude"
+        ad_settings_dir.mkdir(parents=True, exist_ok=True)
+        ad_settings = {
+            "permissions": {
+                "defaultMode": "acceptEdits",
+                "allow": [
+                    "Write(./**)",
+                ],
+            },
+        }
+        with open(ad_settings_dir / "settings.local.json", "w", encoding="utf-8") as f:
+            json.dump(ad_settings, f, indent=2)
+
+        # Assistant Director uses Haiku for fast classification.
+        # cwd is set to src_dir so Claude writes CREATIVE_BRIEF.md directly
+        # in the project directory.
+        client = ClaudeSDKClient(
+            options=ClaudeAgentOptions(
+                model="claude-haiku-4-5-20251001",
+                system_prompt={
+                    "type": "preset",
+                    "preset": "claude_code",
+                    "append": ASSISTANT_DIRECTOR_SYSTEM_PROMPT,
+                },
+                cwd=str(self.src_dir),
+                max_turns=5,  # Quick classification — no iterating
+                max_thinking_tokens=2000,
+                allowed_tools=["Write"],
+                cli_path=CLAUDE_CLI_PATH,
+            )
+        )
+
+        response_text = ""
+        tool_calls_made = []
+        try:
+            async with client:
+                await client.query(assistant_director_message)
+                print("[Assistant Director] Query sent, waiting for response...", flush=True)
+
+                async for msg in client.receive_response():
+                    msg_type = type(msg).__name__
+                    print(f"[Assistant Director] Received message type: {msg_type}", flush=True)
+
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "TextBlock" and hasattr(block, "text"):
+                                response_text += block.text
+                                try:
+                                    print(block.text, end="", flush=True)
+                                except UnicodeEncodeError:
+                                    safe_text = block.text.encode("ascii", errors="replace").decode("ascii")
+                                    print(safe_text, end="", flush=True)
+                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                tool_calls_made.append(block.name)
+                                print(f"\n[Assistant Director Tool: {block.name}]", flush=True)
+                            elif block_type == "ToolResultBlock":
+                                print("\n[Assistant Director Tool Result received]", flush=True)
+                            elif block_type == "ThinkingBlock":
+                                pass  # Extended thinking — no output needed
+                            else:
+                                print(f"\n[Assistant Director] Unknown block type: {block_type}", flush=True)
+                    elif msg_type == "ErrorMessage":
+                        print(f"[Assistant Director] ERROR: {msg}", flush=True)
+                    elif msg_type == "StopMessage":
+                        print("[Assistant Director] Stop reason received", flush=True)
+
+        except Exception as e:
+            safe_print(f"[Assistant Director] WARNING: Agent failed with error: {e}")
+            return {
+                "success": False,
+                "error": f"Assistant Director agent error: {e}",
+            }
+
+        print(f"\n[ClaudeGenerator] Assistant Director made {len(tool_calls_made)} tool calls: {tool_calls_made}", flush=True)
+        print("\n[ClaudeGenerator] Assistant Director completed", flush=True)
+
+        # Verify CREATIVE_BRIEF.md was created
+        creative_brief = self.src_dir / "CREATIVE_BRIEF.md"
+
+        # Debug: List what files exist in the source directory
+        print(f"[ClaudeGenerator] Checking for CREATIVE_BRIEF.md in: {self.src_dir}")
+        if self.src_dir.exists():
+            existing_files = list(self.src_dir.iterdir())
+            print(f"[ClaudeGenerator] Files in src_dir: {[f.name for f in existing_files]}")
+
+        # ── Fallback file recovery ──
+        # Claude sometimes writes files to the wrong location (workspace root,
+        # flattened path in filename, etc.). Search common wrong locations and
+        # move them.
+        if not creative_brief.exists():
+            import shutil
+            print("[ClaudeGenerator] CREATIVE_BRIEF.md not in expected location, searching for misplaced files...")
+
+            search_locations = [
+                # Workspace root
+                self.workspace / "CREATIVE_BRIEF.md",
+                # Workspace root with project prefix
+                self.workspace / f"{self.project_id}_CREATIVE_BRIEF.md",
+                # src/ root (one level up from project dir)
+                self.workspace / "src" / "CREATIVE_BRIEF.md",
+            ]
+
+            for alt_brief in search_locations:
+                if alt_brief.exists():
+                    print(f"[ClaudeGenerator] Found misplaced CREATIVE_BRIEF.md at {alt_brief}, moving to {creative_brief}")
+                    shutil.move(str(alt_brief), str(creative_brief))
+                    break
+
+            # Also search for any CREATIVE_BRIEF.md in the workspace root with any prefix
+            if not creative_brief.exists():
+                for f in self.workspace.glob("*CREATIVE_BRIEF.md"):
+                    print(f"[ClaudeGenerator] Found misplaced brief file: {f}, moving to {creative_brief}")
+                    shutil.move(str(f), str(creative_brief))
+                    break
+
+        if not creative_brief.exists():
+            safe_print("[ClaudeGenerator] WARNING: Assistant Director did not create CREATIVE_BRIEF.md — pipeline will continue without it")
+            return {
+                "success": False,
+                "error": f"Assistant Director did not create CREATIVE_BRIEF.md (expected at {creative_brief})",
+            }
+
+        brief_size = creative_brief.stat().st_size
+        safe_print(f"[ClaudeGenerator] Creative Brief created successfully ({brief_size} bytes)")
+
+        return {
+            "success": True,
+            "creativeBriefPath": str(creative_brief),
+        }
+
     async def _run_director(
         self,
         formatted_transcript: str,
@@ -2819,6 +3166,10 @@ registerRoot(RemotionRoot);
         style_preset: str = "modern",
         layout_mode: str = "pip",
         style_guide: str | None = None,
+        source_width: int | None = None,
+        source_height: int | None = None,
+        pip_width: int | None = None,
+        pip_height: int | None = None,
     ) -> dict[str, Any]:
         """
         Phase 1: Run the Director agent to create the scene plan.
@@ -2829,13 +3180,15 @@ registerRoot(RemotionRoot);
 
         Args:
             formatted_transcript: Transcript with word-level timestamps
-            width: Video width
-            height: Video height
+            width: Full canvas width
+            height: Full canvas height
             duration_frames: Total frames
             fps: Frames per second
             style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
             layout_mode: Layout mode (pip, split-horizontal, split-vertical)
             style_guide: Optional user-provided style/layout guidance
+            source_width: Source video width (for coverage-tier display mode guidance)
+            source_height: Source video height (for coverage-tier display mode guidance)
 
         Returns:
             dict with success status and plan file paths
@@ -2858,6 +3211,10 @@ registerRoot(RemotionRoot);
             layout_mode=layout_mode,
             style_guide=style_guide,
             output_dir=str(self.src_dir),
+            source_width=source_width,
+            source_height=source_height,
+            pip_width=pip_width,
+            pip_height=pip_height,
         )
 
         # For studio style: inject template catalog directly into the Director prompt
@@ -3110,6 +3467,17 @@ registerRoot(RemotionRoot);
                     "mcp__better-icons__get_icon",
                     "mcp__better-icons__recommend_icons",
                     "mcp__better-icons__find_similar_icons",
+                    # Asset download tools (download files, screenshots, stock photos)
+                    "mcp__assets__download_file",
+                    "mcp__assets__screenshot",
+                    "mcp__assets__search_unsplash",
+                    "mcp__assets__search_pexels",
+                    "mcp__assets__download_stock_photo",
+                    # Speaker grid tool (spatial awareness for overlay scenes)
+                    "mcp__assets__get_speaker_grid",
+                    # Viewport dimension tools (per-scene effective dimensions)
+                    "mcp__viewport__get_scene_dimensions",
+                    "mcp__viewport__validate_scene_code",
                 ],
                 mcp_servers={
                     "freepik": {
@@ -3126,6 +3494,26 @@ registerRoot(RemotionRoot);
                         "type": "stdio",
                         "command": "npx",
                         "args": ["better-icons"]
+                    },
+                    "assets": {
+                        "type": "stdio",
+                        "command": "node",
+                        "args": [
+                            str(Path(__file__).parent / "mcp-servers" / "asset-server.js"),
+                            "--workspace", str(self.workspace),
+                        ],
+                        "env": {
+                            "UNSPLASH_ACCESS_KEY": os.environ.get("UNSPLASH_ACCESS_KEY", ""),
+                            "PEXELS_API_KEY": os.environ.get("PEXELS_API_KEY", ""),
+                        }
+                    },
+                    "viewport": {
+                        "type": "stdio",
+                        "command": "node",
+                        "args": [
+                            str(Path(__file__).parent / "mcp-servers" / "viewport-server.js"),
+                            "--workspace", str(self.workspace),
+                        ]
                     }
                 },
                 hooks={
@@ -3190,6 +3578,8 @@ registerRoot(RemotionRoot);
         style_preset: str = "modern",
         layout_mode: str = "pip",
         style_guide: str | None = None,
+        source_width: int | None = None,
+        source_height: int | None = None,
     ) -> dict[str, Any]:
         """
         Generate video using two-phase pipeline: Director + Animator.
@@ -3209,6 +3599,8 @@ registerRoot(RemotionRoot);
             style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
             layout_mode: Layout mode (pip, split-horizontal, split-vertical)
             style_guide: Optional user-provided style/layout guidance
+            source_width: Source video width (for coverage-tier display mode guidance)
+            source_height: Source video height (for coverage-tier display mode guidance)
 
         Returns:
             dict with success status and bundle URL
@@ -3254,7 +3646,20 @@ registerRoot(RemotionRoot);
                 else:
                     formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
-                emit_progress(18, "Phase 1: Director planning scenes...")
+                # Phase 0: Assistant Director (creative brief)
+                emit_progress(16, "Phase 0: Assistant Director analyzing script...")
+                ad_result = await self._run_assistant_director(
+                    formatted_transcript=formatted_transcript,
+                    style_preset=style_preset,
+                )
+                if ad_result["success"]:
+                    print(f"[ClaudeGenerator] Creative brief ready")
+                    emit_progress(18, "Creative brief complete")
+                else:
+                    print(f"[ClaudeGenerator] Assistant Director skipped: {ad_result.get('error', 'unknown')}")
+                    emit_progress(18, "Proceeding without creative brief")
+
+                emit_progress(19, "Phase 1: Director planning scenes...")
 
                 # Phase 1: Director
                 director_result = await self._run_director(
@@ -3266,6 +3671,8 @@ registerRoot(RemotionRoot);
                     style_preset=style_preset,
                     layout_mode=layout_mode,
                     style_guide=style_guide,
+                    source_width=source_width,
+                    source_height=source_height,
                 )
 
                 if not director_result["success"]:
@@ -3453,13 +3860,17 @@ async def main():
     parser.add_argument("--style-guide", help="Path to user style guide text file")
     parser.add_argument("--style-preset", default="modern", help="Visual style preset (minimal, modern, playful, bold, classic, studio)")
     parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, split-horizontal, split-vertical)")
-    parser.add_argument("--width", type=int, default=1920, help="Video width")
-    parser.add_argument("--height", type=int, default=1080, help="Video height")
+    parser.add_argument("--width", type=int, default=1080, help="Video width")
+    parser.add_argument("--height", type=int, default=1920, help="Video height")
     parser.add_argument("--duration", type=int, default=1800, help="Duration in frames")
     parser.add_argument("--fps", type=int, default=30, help="Frames per second")
     parser.add_argument("--model", default="claude-opus-4-5-20251101", help="Claude model")
-    parser.add_argument("--phase", choices=["director", "animator"], default=None,
-                        help="Run only a specific phase (director or animator). Default: both.")
+    parser.add_argument("--source-width", type=int, default=None, help="Source video width (for coverage-aware layout)")
+    parser.add_argument("--source-height", type=int, default=None, help="Source video height (for coverage-aware layout)")
+    parser.add_argument("--pip-width", type=int, default=None, help="Effective pip width for split layouts")
+    parser.add_argument("--pip-height", type=int, default=None, help="Effective pip height for split layouts")
+    parser.add_argument("--phase", choices=["assistant-director", "director", "animator"], default=None,
+                        help="Run only a specific phase (assistant-director, director, or animator). Default: all.")
 
     args = parser.parse_args()
 
@@ -3489,7 +3900,38 @@ async def main():
         model=args.model,
     )
 
-    if args.phase == "director":
+    if args.phase == "assistant-director":
+        # Phase 0 only: Run Assistant Director to create creative brief
+        from transcript_formatter import format_transcript_with_key_moments
+
+        print("[ClaudeGenerator] Running Assistant Director phase only")
+
+        try:
+            manager = get_token_manager()
+            await manager.get_valid_token()
+        except Exception as e:
+            print(f"[ClaudeGenerator] WARNING: OAuth token refresh failed: {e}")
+
+        generator.src_dir.mkdir(parents=True, exist_ok=True)
+
+        if words:
+            formatted = format_transcript_with_key_moments(words, args.fps)
+        else:
+            formatted = f"## TRANSCRIPT\n\n{transcript}"
+
+        ad_result = await generator._run_assistant_director(
+            formatted_transcript=formatted,
+            style_preset=args.style_preset if hasattr(args, 'style_preset') else "modern",
+        )
+        result = {
+            "success": ad_result["success"],
+            "pipeline": "assistant-director-only",
+            "briefPath": ad_result.get("creativeBriefPath"),
+        }
+        print(json.dumps(result, indent=2))
+        return
+
+    elif args.phase == "director":
         # Phase 1 only: Run Director to create scene plan
         from transcript_formatter import format_transcript_with_key_moments
 
@@ -3527,6 +3969,10 @@ async def main():
             style_preset=args.style_preset,
             layout_mode=args.layout_mode,
             style_guide=style_guide,
+            source_width=args.source_width,
+            source_height=args.source_height,
+            pip_width=args.pip_width,
+            pip_height=args.pip_height,
         )
 
         if not director_result["success"]:
@@ -3685,6 +4131,8 @@ async def main():
             style_preset=args.style_preset,
             layout_mode=args.layout_mode,
             style_guide=style_guide,
+            source_width=args.source_width,
+            source_height=args.source_height,
         )
 
     print(json.dumps(result, indent=2))

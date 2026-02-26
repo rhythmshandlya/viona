@@ -51,13 +51,13 @@ import { Img, staticFile } from "remotion";
 
 ## Remote images
 
-Remote URLs can be used directly without `staticFile()`:
+**NEVER use remote URLs for icons or images.** External URLs (icons8, flaticon, etc.) will
+fail during rendering due to CORS, rate limits, or unavailability. This crashes the entire render.
 
-```tsx
-<Img src="https://example.com/image.png" />
-```
-
-Ensure remote images have CORS enabled.
+Instead:
+- **Icons**: Download via Freepik MCP → inline the SVG directly in JSX
+- **Photos/illustrations**: Download via asset tools → use `staticFile('assets/...')`
+- **Pre-fetched images**: Use the `remotionPath` from scenes.json with `staticFile()`
 
 For animated GIFs, use the `<Gif>` component from `@remotion/gif` instead.
 

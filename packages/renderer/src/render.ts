@@ -3,7 +3,7 @@ import { renderMedia, selectComposition } from '@remotion/renderer';
 import { join, dirname, basename } from 'path';
 import { fileURLToPath } from 'url';
 import { copyFileSync, existsSync } from 'fs';
-import { VideoCompositionProps, SubtitleItem } from './components/VideoComposition';
+import { VideoCompositionProps, SubtitleItem, VideoCropSettings } from './components/VideoComposition';
 import { SubtitleStyle } from './components/AnimatedSubtitle';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -17,6 +17,7 @@ export interface RenderOptions {
   fps?: number;
   durationMs: number;
   defaultSubtitleStyle?: SubtitleStyle;
+  videoCrop?: VideoCropSettings;
   onProgress?: (progress: number) => void;
 }
 
@@ -52,6 +53,7 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     fps = 30,
     durationMs,
     defaultSubtitleStyle,
+    videoCrop,
     onProgress,
   } = options;
 
@@ -78,6 +80,7 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     videoUrl: resolvedVideoUrl,
     subtitles,
     defaultSubtitleStyle,
+    videoCrop,
   } as Record<string, unknown>;
 
   console.log('Selecting composition...');
@@ -112,12 +115,11 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
     codec: 'h264',
     outputLocation: outputPath,
     inputProps,
-    // Memory-saving settings for constrained environments
+    // Balance quality vs memory — 'faster' is much better than 'ultrafast' for text
     concurrency: 1,
-    imageFormat: 'jpeg',
-    jpegQuality: 85,
-    x264Preset: 'ultrafast',
-    crf: 23,
+    imageFormat: 'png',
+    x264Preset: 'faster',
+    crf: 18,
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
     },

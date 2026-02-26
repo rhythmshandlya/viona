@@ -59,7 +59,7 @@ export async function renderWithLambda(options: LambdaRenderOptions): Promise<La
     composition: compositionId,
     inputProps,
     codec: 'h264',
-    imageFormat: 'jpeg',
+    imageFormat: 'png',
     maxRetries: 1,
     framesPerLambda: 20, // Each Lambda renders 20 frames
     privacy: 'private',

@@ -18,6 +18,19 @@ No matter what issues you find with the transcript (missing data, poor quality, 
 Your job is to produce a plan that the Animator can use. Work with whatever input you receive.
 </critical_instruction>
 
+<creative_brief>
+BEFORE you start planning, check if a file called CREATIVE_BRIEF.md exists in your working directory.
+If it does, READ IT FIRST using the Read tool. It contains guidance from the Assistant Director:
+- Tone classification (playful, professional, dramatic, etc.)
+- Visual asset strategy (when to use photos vs illustrations vs icons per beat)
+- Color palette and font pairing suggestions
+- Scene structure hints (beat count, hero moments, pacing)
+
+You MUST incorporate the Creative Brief's recommendations into your scene plan.
+The brief is advisory — use your judgment if something doesn't fit, but default to following it.
+If CREATIVE_BRIEF.md does not exist, proceed normally with your own analysis.
+</creative_brief>
+
 <role>
 You are a VISUAL STORY DIRECTOR for short-form explainer videos.
 Your job is to PLAN, not implement. You analyze transcripts and design scene-by-scene visual stories.
@@ -65,6 +78,8 @@ IMPORTANT CONSTRAINTS:
 - Each scene must be at least 90 frames (3 seconds at 30fps)
 - Adjacent transcript lines about the same concept belong in ONE scene
 - One scene per narrative beat, NOT one scene per transcript line
+- Scenes MUST be contiguous — NO gaps between scenes. Each scene's start must equal the previous scene's end.
+- For speaker-focused moments (personal anecdotes, emotional beats, transitions), create an `"overlay"` scene with a minimal visual description. The Animator will keep these lightweight. This is preferred over leaving a gap.
 </scene_constraints>
 
 <output_format>
@@ -240,6 +255,43 @@ as the hero image, with [ICON: lightbulb] accents appearing around it."
 
 **Budget constraints:** Max 2 images per scene, max 10 images total across all scenes.
 Images are downloaded before the Animator runs, so they're available as static files.
+
+### Website Screenshots
+When the transcript references a specific website, product, or app UI,
+mark the scene with **[SCREENSHOT: url]**:
+```
+"visual": "[SCREENSHOT: https://github.com] zooms into the repository view
+with a highlight on the stars count, then pulls back to show the full page."
+```
+
+### Stock Photos (Unsplash/Pexels)
+When a scene benefits from photographic imagery (real-world subjects, emotional
+impact, establishing shots), mark with **[PHOTO: search terms]**:
+```
+"visual": "[PHOTO: team collaboration office] fades in as the background with
+a dark overlay, while animated stats float in the foreground."
+```
+
+This way the Animator knows exactly which scenes need screenshots vs photos vs illustrations.
+
+### Animation Hints
+The Animator has pre-built animation wrappers. Use these hints so the Animator picks the right preset:
+
+**`iconAnimation`** (scene-level default for all icons in the scene):
+| Value | Effect | Best for |
+|-------|--------|----------|
+| `"pop"` | Scale overshoot → settle (default) | Single icon reveals, emphasis |
+| `"bounce"` | Slide up with bounce | Lists, staggered entries |
+| `"fade-rise"` | Opacity + gentle rise | Subtle, professional feel |
+| `"spin-in"` | 360° rotation entrance | Playful, attention-grabbing |
+
+**`animation`** (per-image in the `images` array):
+| Value | Effect | Best for |
+|-------|--------|----------|
+| `"ken-burns"` | Slow zoom + pan (default for photos) | Hero photos, backgrounds |
+| `"zoom"` | Spring scale-in | Accent photos, reveals |
+| `"blur-reveal"` | Sharp focus from blur | Dramatic reveals |
+| `"fade-scale"` | Opacity + scale entrance | Subtle, versatile |
 </visual_requirements>
 
 <web_research>
@@ -343,30 +395,144 @@ def get_aspect_ratio_name(width: int, height: int) -> str:
         return f"horizontal ({width}:{height})"
 
 
-def get_layout_context(layout_mode: str, width: int, height: int) -> str:
-    """Get layout-specific design guidance based on dimensions."""
+def _coverage_tier(source_width: int | None, source_height: int | None, canvas_w: int, canvas_h: int) -> str | None:
+    """Return coverage-tier guidance when source dimensions are known."""
+    if not source_width or not source_height or not canvas_w or not canvas_h:
+        return None
+
+    source_ar = source_width / source_height
+    canvas_ar = canvas_w / canvas_h
+    ratio = canvas_ar / source_ar if source_ar > canvas_ar else source_ar / canvas_ar
+
+    if ratio > 0.8:
+        return (
+            "COVERAGE TIER: **flexible** (source and canvas share a similar aspect ratio).\n"
+            "- `overlay` mode works well — the speaker crops cleanly.\n"
+            "- All three display modes are equally viable."
+        )
+    if ratio >= 0.5:
+        return (
+            "COVERAGE TIER: **moderate** (some cropping when showing full speaker).\n"
+            "- Prefer `overlay` alongside a visual rather than raw speaker fill.\n"
+            "- `pip` and `fullscreen` are your strongest modes."
+        )
+    return (
+        "COVERAGE TIER: **conservative** (heavy crop when fitting source to canvas).\n"
+        "- Prefer `overlay` to show the speaker without dedicating the full canvas to them.\n"
+        "- `pip` and `fullscreen` should dominate the plan; use `overlay` as a secondary accent."
+    )
+
+
+# Shared display-mode reference table used by all layout contexts
+_DISPLAY_MODE_TABLE = """
+### DYNAMIC DISPLAY MODES (per-scene)
+Each scene MUST specify a `displayMode` that controls how the visual composites with the speaker:
+
+| Mode | What happens | When to use |
+|------|-------------|-------------|
+| `"pip"` | Visual fullscreen, speaker in small bubble | DEFAULT — normal explanation, diagrams, animations |
+| `"fullscreen"` | Visual fills entire canvas, speaker HIDDEN | Complex diagrams, big data reveals, dramatic moments, title cards |
+| `"overlay"` | Speaker fullscreen, visual layered on top (transparent bg, spatially aware) | Speaker credibility moments, emotional beats, personal anecdotes, transitions between topics — Animator uses speaker grid to avoid covering face. Also use for speaker-focused moments where heavy animation isn't needed (give a minimal visual description and the Animator will keep it lightweight). |
+
+**PLANNING GUIDELINES:**
+- Use `"pip"` for most scenes (60-70%) — the bread and butter
+- Use `"fullscreen"` for 1-3 key moments — big reveals, complex visuals that need full attention
+- Use `"overlay"` for speaker-focused moments — personal stories, emotional beats, or transitions. These scenes still need a visual description but it can be minimal (e.g., "subtle accent shapes"). The Animator will generate lightweight visuals for these.
+- NEVER use the same displayMode for ALL scenes — variety creates visual rhythm
+- Transition between modes at natural narrative beats (topic changes, revelations, conclusions)
+
+Each scene can also specify a `transition` for smooth mode changes:
+- `"cut"` (instant, 0ms) — default, clean and fast
+- `"fade"` (300-500ms) — smooth opacity transition, good for mood changes
+- `"zoom-in"` (200-400ms) — draws attention inward, good for reveals
+- `"zoom-out"` (200-400ms) — pulls back, good for context shifts
+"""
+
+
+def get_layout_context(
+    layout_mode: str,
+    width: int,
+    height: int,
+    source_width: int | None = None,
+    source_height: int | None = None,
+    pip_width: int | None = None,
+    pip_height: int | None = None,
+) -> str:
+    """Get layout-specific design guidance based on dimensions.
+
+    Args:
+        layout_mode: Layout mode (pip, split-horizontal, split-vertical)
+        width: Full canvas width
+        height: Full canvas height
+        source_width: Source video width (optional, for coverage-tier guidance)
+        source_height: Source video height (optional, for coverage-tier guidance)
+        pip_width: Effective pip area width (for split layouts)
+        pip_height: Effective pip area height (for split layouts)
+    """
     aspect = get_aspect_ratio_name(width, height)
+    coverage = _coverage_tier(source_width, source_height, width, height)
+    coverage_block = f"\n{coverage}\n" if coverage else ""
+
+    # Compute effective pip dimensions if not provided
+    eff_pip_w = pip_width or width
+    eff_pip_h = pip_height or height
+
+    # Per-displayMode pixel dimensions block
+    per_dm_dims = f"""
+**Per-scene dimensions (based on displayMode):**
+- `"pip"` → {eff_pip_w}x{eff_pip_h}px (the split visual area)
+- `"fullscreen"` → {width}x{height}px (takes over entire canvas)
+- `"overlay"` → {width}x{height}px (full canvas, semi-transparent over speaker)
+"""
 
     if layout_mode == "pip":
-        return f"""Picture-in-Picture (Full Canvas)
+        return f"""Picture-in-Picture (Full Canvas) with DYNAMIC LAYOUT SWITCHING
 - Your visuals fill the ENTIRE screen at {width}x{height}px ({aspect})
 - The speaker video will be overlaid as a small picture-in-picture window
 - Design for FULL-SCREEN IMPACT - use the entire canvas
-- This is a {'tall vertical format - stack elements vertically, large text for mobile viewing' if height > width else 'wide horizontal format - use horizontal layouts'}"""
+- This is a {'tall vertical format - stack elements vertically, large text for mobile viewing' if height > width else 'wide horizontal format - use horizontal layouts'}
+{_DISPLAY_MODE_TABLE}
+{per_dm_dims}{coverage_block}"""
 
     elif layout_mode == "split-horizontal":
-        return f"""Split Screen (Top/Bottom)
-- Your visuals appear in the TOP portion: {width}x{height}px ({aspect})
-- The speaker video appears BELOW your visuals
-- Design for a {'wide horizontal strip' if width > height else 'compact area'} - elements should be horizontally arranged
-- Keep important content centered, avoid edges that might feel cramped"""
+        return f"""Split Screen (Top/Bottom) with DYNAMIC LAYOUT SWITCHING
+- DEFAULT: Your visuals appear in the TOP portion, speaker video BELOW
+- Pip area: {eff_pip_w}x{eff_pip_h}px ({get_aspect_ratio_name(eff_pip_w, eff_pip_h)})
+- Full canvas: {width}x{height}px ({aspect})
+- Design for a {'wide horizontal strip' if eff_pip_w > eff_pip_h else 'compact area'} — arrange elements horizontally in the top half
+- Keep critical content centered, avoid edges that feel cramped
+- Bottom 15% of the visual area is reserved for subtitles — design above that line
+
+**However, each scene can BREAK OUT of the split to a different displayMode:**
+{_DISPLAY_MODE_TABLE}
+In split layout, the modes map as follows:
+- `"pip"` → **Standard split**: visual in top half ({eff_pip_w}x{eff_pip_h}px), speaker in bottom half (the default)
+- `"fullscreen"` → **Takeover**: visual expands to fill the ENTIRE canvas ({width}x{height}px), speaker hidden. Great for complex diagrams or big reveals.
+- `"overlay"` → **Speaker focus**: speaker fills the canvas, your visual composites on top at ~70% opacity ({width}x{height}px). Use for credibility moments.
+
+This means most scenes stay in the familiar split, but 1-3 high-impact scenes can "punch out" to fullscreen or overlay for dramatic effect.
+
+{per_dm_dims}{coverage_block}"""
 
     elif layout_mode == "split-vertical":
-        return f"""Split Screen (Left/Right)
-- Your visuals appear in the LEFT portion: {width}x{height}px ({aspect})
-- The speaker video appears to the RIGHT of your visuals
-- Design for a {'tall vertical strip' if height > width else 'compact area'} - stack elements vertically
-- Keep important content centered, avoid edges near the split"""
+        return f"""Split Screen (Left/Right) with DYNAMIC LAYOUT SWITCHING
+- DEFAULT: Your visuals appear on the LEFT, speaker video on the RIGHT
+- Pip area: {eff_pip_w}x{eff_pip_h}px ({get_aspect_ratio_name(eff_pip_w, eff_pip_h)})
+- Full canvas: {width}x{height}px ({aspect})
+- Design for a {'tall vertical strip' if eff_pip_h > eff_pip_w else 'compact area'} — stack elements vertically in the left half
+- Keep critical content centered, avoid edges near the split boundary
+- Bottom 15% of the visual area is reserved for subtitles — design above that line
+
+**However, each scene can BREAK OUT of the split to a different displayMode:**
+{_DISPLAY_MODE_TABLE}
+In split layout, the modes map as follows:
+- `"pip"` → **Standard split**: visual on left ({eff_pip_w}x{eff_pip_h}px), speaker on right (the default)
+- `"fullscreen"` → **Takeover**: visual expands to fill the ENTIRE canvas ({width}x{height}px), speaker hidden. Great for complex diagrams or big reveals.
+- `"overlay"` → **Speaker focus**: speaker fills the canvas, your visual composites on top at ~70% opacity ({width}x{height}px). Use for credibility moments.
+
+This means most scenes stay in the familiar split, but 1-3 high-impact scenes can "punch out" to fullscreen or overlay for dramatic effect.
+
+{per_dm_dims}{coverage_block}"""
 
     else:
         return f"Custom layout: {width}x{height}px ({aspect})"
@@ -383,6 +549,10 @@ def build_director_user_message(
     layout_mode: str = "pip",
     style_guide: str | None = None,
     output_dir: str | None = None,
+    source_width: int | None = None,
+    source_height: int | None = None,
+    pip_width: int | None = None,
+    pip_height: int | None = None,
 ) -> str:
     """Build the user message for the Director agent.
 
@@ -390,14 +560,38 @@ def build_director_user_message(
         output_dir: Absolute path to the directory where SCENE_PLAN.md and scenes.json
                      should be written. If provided, the prompt uses absolute paths to
                      prevent Claude from writing files to the wrong location.
+        source_width: Source video width (optional, for coverage-tier guidance)
+        source_height: Source video height (optional, for coverage-tier guidance)
+        pip_width: Effective pip area width (for split layouts)
+        pip_height: Effective pip area height (for split layouts)
     """
 
     duration_seconds = duration_frames / fps
 
     # Get descriptions for selected options
     style_desc = STYLE_PRESET_DESCRIPTIONS.get(style_preset, STYLE_PRESET_DESCRIPTIONS["modern"])
-    layout_context = get_layout_context(layout_mode, width, height)
+    layout_context = get_layout_context(layout_mode, width, height, source_width, source_height, pip_width, pip_height)
     aspect_ratio = get_aspect_ratio_name(width, height)
+
+    # Display mode fields for scenes.json — enabled for ALL layout modes
+    display_mode_schema = """
+      "displayMode": "pip",
+      "transition": {
+        "enter": { "type": "cut", "durationMs": 0 },
+        "exit": { "type": "cut", "durationMs": 0 }
+      },"""
+    display_mode_notes = """
+**DISPLAY MODE (ALL layouts — per-scene):**
+- Every scene MUST have a `displayMode` field: `"pip"`, `"fullscreen"`, or `"overlay"`
+- Every scene MUST have a `transition` object with `enter` and `exit` sub-objects
+- Transition types: `"cut"` (instant), `"fade"`, `"zoom-in"`, `"zoom-out"`
+- Transition durations: 0 for cuts, 300-500ms for fades, 200-400ms for zooms
+- Use variety: do NOT make every scene the same displayMode
+- Use `"fullscreen"` for 1-3 key high-impact scenes (complex diagrams, big reveals)
+- Use `"overlay"` for speaker-focused moments (intro, credibility, emotional beats)
+- Use `"pip"` for standard explanation scenes (the majority)
+"""
+    display_mode_checklist = "5. [ ] Each scene has a displayMode and transition (with variety — not all the same)\n"
 
     # Build optional user style guide section
     user_guide_section = ""
@@ -529,7 +723,7 @@ Machine-readable with this structure:
           "visualEvent": "what visual change happens at this word"
         }}
       ],
-      "visual": "detailed description with RELATIVE positioning (percentages)",
+      "visual": "detailed description with RELATIVE positioning (percentages)",{display_mode_schema}
       "layout": {{
         "primary": {{ "x": "center", "y": "20%", "width": "60%", "height": "auto" }},
         "secondary": {{ "x": "center", "y": "60%", "width": "80%", "height": "auto" }}
@@ -540,13 +734,15 @@ Machine-readable with this structure:
       "requires3D": false,
       "icons": ["checkmark", "warning"],
       "illustrations": ["concept search term if needed"],
+      "iconAnimation": "pop",
       "images": [
         {{
           "keyword": "search term for photo/illustration",
           "type": "photo or illustration",
           "purpose": "hero, accent, or background",
           "description": "what the image should depict",
-          "placement": "center, background, left, or right"
+          "placement": "center, background, left, or right",
+          "animation": "ken-burns"
         }}
       ]
     }}
@@ -564,10 +760,11 @@ Machine-readable with this structure:
 - Frame values MUST be calculated as: `round(timestamp_seconds * {fps})`
 - Example: if narrator says "overflow" at 4.5s in a 30fps video, frame = round(4.5 * 30) = 135
 
-**CRITICAL DURATION CONSTRAINT:**
+{display_mode_notes}**CRITICAL DURATION CONSTRAINT:**
 - The video is EXACTLY {duration_frames} frames ({duration_seconds:.1f} seconds) at {fps} FPS
 - Scene 1 MUST start at frame 0
 - The LAST scene MUST end at frame {duration_frames}
+- Scenes MUST be contiguous with NO gaps — each scene starts exactly where the previous one ends
 - Scene frames MUST match transcript timestamps: frame = timestamp_seconds * {fps}
 - DO NOT invent your own duration. Use the EXACT frame count given.
 
@@ -577,6 +774,7 @@ Machine-readable with this structure:
 - Visual continuity: same element transforms across scenes
 - Be SPECIFIC about visuals, not generic
 - **TOTAL FRAMES MUST EQUAL {duration_frames}**
+- **NO GAPS between scenes** — scenes must be back-to-back, covering every frame
 
 ## FINAL CHECKLIST
 Before responding "PLANNING COMPLETE":
@@ -584,6 +782,8 @@ Before responding "PLANNING COMPLETE":
 2. [ ] Used Write tool to create `{abs_scenes_path}`
 3. [ ] scenes.json has valid JSON structure
 4. [ ] Both files written to the EXACT paths above (not the workspace root!)
+{display_mode_checklist}6. [ ] Scenes are contiguous — no gaps between any two consecutive scenes
+7. [ ] Scene 1 starts at frame 0, last scene ends at frame {duration_frames}
 
 **You MUST write both files using the Write tool. The Animator cannot proceed without them.**
 
