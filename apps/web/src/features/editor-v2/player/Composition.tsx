@@ -1295,7 +1295,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
 
     const activeBg = overrides?.emphasisBg || style.activeBackgroundColor || 'transparent';
     return (
-      <div style={positionStyles}>
+      <div style={positionStyles} data-caption-overlay>
         <span
           style={{
             fontFamily: overrides?.fontFamily || style.fontFamily,
@@ -1333,7 +1333,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     const karaokeVisible = words.slice(karaokeStart, karaokeEnd);
 
     return (
-      <div style={positionStyles}>
+      <div style={positionStyles} data-caption-overlay>
         {karaokeVisible.map((word, i) => {
           const index = karaokeStart + i;
           const isActive = index === activeWordIndex;
@@ -1488,7 +1488,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
           : 'center',
         gap: '2px',
         overflow: 'hidden',
-      }}>
+      }} data-caption-overlay>
         {activeSeg.lines.map((lineIndices, lineIdx) => (
           <div
             key={lineIdx}
@@ -1515,7 +1515,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
   const visibleWords = hasWordTimings ? words.slice(phraseStart, phraseEnd) : [];
 
   return (
-    <div style={positionStyles}>
+    <div style={positionStyles} data-caption-overlay>
       {hasWordTimings ? (
         visibleWords.map((word, i) => renderWord(word, phraseStart + i))
       ) : (
