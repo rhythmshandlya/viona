@@ -200,9 +200,13 @@ export function DynamicVisualLoader({
             getInfo: () => ({ fontFamily: fontName }),
           };
         }
-        // remotion/no-react — used by some Remotion internals, shim as regular remotion
+        // remotion/no-react — exports NoReactInternals used by @remotion/google-fonts
         if (moduleName === 'remotion/no-react') {
-          return Remotion;
+          return {
+            NoReactInternals: {
+              ENABLE_V5_BREAKING_CHANGES: false,
+            },
+          };
         }
         throw new Error(`Unknown module: ${moduleName}`);
       };
