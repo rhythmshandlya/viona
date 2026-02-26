@@ -5,7 +5,6 @@ import {
   useShowCaptions,
   useCaptionItems,
   useSelectedIds,
-  useApplyStyleToAll,
   useEditorActions,
 } from '../store/use-editor-store';
 import type { CaptionItemData, CaptionStyle, CaptionPosition } from '../store/types';
@@ -115,7 +114,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const showCaptions = useShowCaptions();
   const captionItems = useCaptionItems();
   const selectedIds = useSelectedIds();
-  const applyToAll = useApplyStyleToAll();
   const { updateAllCaptionStyles, updateSelectedCaptionStyles } = useEditorActions();
 
   const [box, setBox] = useState<BoundingBox | null>(null);
@@ -134,16 +132,16 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
     return (captionItems[0].data as CaptionItemData).style;
   }, [captionItems, selectedIds]);
 
-  // Update style respecting "apply to all" toggle
+  // Update style — matches StylePanel behavior: all when no selection, selected otherwise
   const updateStyle = useCallback(
     (updates: Partial<CaptionStyle>) => {
-      if (applyToAll || selectedIds.length === 0) {
+      if (selectedIds.length === 0) {
         updateAllCaptionStyles(updates);
       } else {
         updateSelectedCaptionStyles(selectedIds, updates);
       }
     },
-    [applyToAll, selectedIds, updateAllCaptionStyles, updateSelectedCaptionStyles]
+    [selectedIds, updateAllCaptionStyles, updateSelectedCaptionStyles]
   );
 
   // Measure the caption element's bounding box
@@ -314,6 +312,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   if (!box || !showCaptions || captionItems.length === 0) return null;
 
   const isDragging = dragRef.current !== null;
+  const currentRotation = resolvePosition(getCaptionStyle()?.position ?? 'bottom').rotation;
 
   return (
     <div
@@ -356,7 +355,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
                 backgroundColor: '#ffffff',
                 border: '1.5px solid #8b5cf6',
                 borderRadius: 1,
-                cursor: getRotatedCursor(handle, resolvePosition(getCaptionStyle()?.position ?? 'bottom').rotation),
+                cursor: getRotatedCursor(handle, currentRotation),
                 pointerEvents: 'auto',
                 zIndex: 1,
               }}
