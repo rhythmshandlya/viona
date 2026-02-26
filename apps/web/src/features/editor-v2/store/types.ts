@@ -52,6 +52,7 @@ export interface CaptionItemData {
   words: CaptionWord[];
   style: CaptionStyle;
   styleOverrides?: Partial<CaptionStyle>;
+  aiWordOverrides?: Record<number, WordStyleOverrides>;
 }
 
 export interface WordStyleOverrides {

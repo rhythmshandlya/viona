@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { nanoid } from 'nanoid';
 import { api, Project as ApiProject } from '@/lib/api';
+import { loadFont, findFont } from '@/lib/font-registry';
 import {
   EditorStore,
   EditorState,
@@ -291,6 +292,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         text?: string;
         words?: Array<{ text: string; startMs: number; endMs: number; styleOverrides?: WordStyleOverrides }>;
         style?: Record<string, unknown>;
+        styleOverrides?: Partial<CaptionStyle>;
+        aiWordOverrides?: Record<number, WordStyleOverrides>;
       };
 
       // Merge caption style with defaults to ensure all properties exist
@@ -320,6 +323,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
           })),
           style: captionStyle,
+          ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
+          ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
         } as CaptionItemData,
       };
 
@@ -483,6 +488,20 @@ export const useEditorStore = create<EditorStore>()(
 
         // Push initial state to history
         get().pushHistory();
+
+        // Auto-load caption fonts used in the project
+        const captionFonts = new Set<string>();
+        for (const id of itemIds) {
+          const item = items[id];
+          if (item?.type === 'caption') {
+            const fontFamily = (item.data as CaptionItemData).style?.fontFamily;
+            if (fontFamily) captionFonts.add(fontFamily.split(',')[0].trim());
+          }
+        }
+        for (const family of captionFonts) {
+          const entry = findFont(family);
+          if (entry) loadFont(entry);
+        }
       } catch (err) {
         set((state) => {
           state.error = err instanceof Error ? err.message : 'Failed to load project';
@@ -602,6 +621,8 @@ export const useEditorStore = create<EditorStore>()(
                   ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
                 })),
                 style: data.style,
+                ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
+                ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
               },
             };
           });

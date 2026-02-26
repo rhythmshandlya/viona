@@ -51,27 +51,115 @@ function escapePathForFilter(p: string): string {
 // NOTE: The old fonts.google.com/download?family=X URLs are BROKEN — they return HTML
 // instead of ZIP files. This CSS API approach is the reliable alternative.
 const GOOGLE_FONT_URLS: Record<string, string> = {
-  'Inter': 'Inter:wght@400;500;600;700;800;900',
-  'Montserrat': 'Montserrat:wght@300;400;500;600;700;800;900',
+  // Sans-serif
+  'Roboto': 'Roboto:wght@400;500;700;900',
+  'Open Sans': 'Open+Sans:wght@400;500;600;700;800',
+  'Lato': 'Lato:wght@400;700;900',
+  'Montserrat': 'Montserrat:wght@400;500;600;700;800;900',
   'Poppins': 'Poppins:wght@400;500;600;700;800;900',
-  'Anton': 'Anton',
+  'Inter': 'Inter:wght@400;500;600;700;800;900',
+  'Raleway': 'Raleway:wght@400;500;600;700;800;900',
   'Nunito': 'Nunito:wght@400;600;700;800;900',
-  'Playfair Display': 'Playfair+Display:wght@400;500;600;700;800;900',
-  'JetBrains Mono': 'JetBrains+Mono:wght@400;500;600;700;800',
+  'Nunito Sans': 'Nunito+Sans:wght@400;600;700;800;900',
+  'Ubuntu': 'Ubuntu:wght@400;500;700',
   'Rubik': 'Rubik:wght@400;500;600;700;800;900',
+  'Noto Sans': 'Noto+Sans:wght@400;500;600;700;800;900',
+  'Oswald': 'Oswald:wght@400;500;600;700',
+  'Roboto Condensed': 'Roboto+Condensed:wght@400;500;700;900',
+  'DM Sans': 'DM+Sans:wght@400;500;600;700',
+  'Kanit': 'Kanit:wght@400;500;600;700;800;900',
+  'Work Sans': 'Work+Sans:wght@400;500;600;700;800;900',
+  'Quicksand': 'Quicksand:wght@400;500;600;700',
+  'Barlow': 'Barlow:wght@400;500;600;700;800;900',
+  'Mulish': 'Mulish:wght@400;500;600;700;800;900',
+  'Manrope': 'Manrope:wght@400;500;600;700;800',
+  'Karla': 'Karla:wght@400;500;600;700;800',
+  'Cabin': 'Cabin:wght@400;500;600;700',
+  'Libre Franklin': 'Libre+Franklin:wght@400;500;600;700;800;900',
+  'Outfit': 'Outfit:wght@400;500;600;700;800',
+  'Source Sans 3': 'Source+Sans+3:wght@400;600;700',
+  'Space Grotesk': 'Space+Grotesk:wght@400;500;600;700',
+  'PT Sans': 'PT+Sans:wght@400;700',
+  'Josefin Sans': 'Josefin+Sans:wght@400;500;600;700',
+  'Titillium Web': 'Titillium+Web:wght@400;600;700;900',
+  'Archivo': 'Archivo:wght@400;500;600;700;800;900',
+  'Overpass': 'Overpass:wght@400;500;600;700;800;900',
+  'Arimo': 'Arimo:wght@400;500;600;700',
+  'Exo 2': 'Exo+2:wght@400;500;600;700;800;900',
+  'Comfortaa': 'Comfortaa:wght@400;500;600;700',
+  'Merriweather Sans': 'Merriweather+Sans:wght@400;500;600;700;800',
+  'Signika': 'Signika:wght@400;500;600;700',
+  'Red Rose': 'Red+Rose:wght@400;500;600;700',
+  'Oxanium': 'Oxanium:wght@400;500;600;700;800',
+  'Sofia Sans Extra Condensed': 'Sofia+Sans+Extra+Condensed:wght@400;500;600;700;800;900',
+  // Serif
+  'Playfair Display': 'Playfair+Display:wght@400;500;600;700;800;900',
   'Lora': 'Lora:wght@400;500;600;700',
   'Merriweather': 'Merriweather:wght@400;700;900',
-  'Bebas Neue': 'Bebas+Neue',
-  'Space Grotesk': 'Space+Grotesk:wght@400;500;600;700',
-  'DM Sans': 'DM+Sans:wght@400;500;600;700',
-  'Outfit': 'Outfit:wght@400;500;600;700;800',
-  'Fira Code': 'Fira+Code:wght@400;500;600;700',
-  'Source Sans 3': 'Source+Sans+3:wght@400;600;700',
-  'Roboto': 'Roboto:wght@400;500;700',
-  'Oswald': 'Oswald:wght@400;500;600;700',
-  'Lato': 'Lato:wght@400;700;900',
-  'Open Sans': 'Open+Sans:wght@400;500;600;700;800',
+  'Roboto Slab': 'Roboto+Slab:wght@400;500;600;700;800;900',
+  'PT Serif': 'PT+Serif:wght@400;700',
+  'Noto Serif': 'Noto+Serif:wght@400;500;600;700;800;900',
   'EB Garamond': 'EB+Garamond:wght@400;500;600;700;800',
+  'Libre Baskerville': 'Libre+Baskerville:wght@400;700',
+  'Source Serif 4': 'Source+Serif+4:wght@400;500;600;700;800;900',
+  'Crimson Text': 'Crimson+Text:wght@400;600;700',
+  'Cormorant Garamond': 'Cormorant+Garamond:wght@400;500;600;700',
+  'Bitter': 'Bitter:wght@400;500;600;700;800;900',
+  'DM Serif Display': 'DM+Serif+Display',
+  'Abril Fatface': 'Abril+Fatface',
+  'Vidaloka': 'Vidaloka',
+  'STIX Two Text': 'STIX+Two+Text:wght@400;500;600;700',
+  'Gravitas One': 'Gravitas+One',
+  'Rakkas': 'Rakkas',
+  // Display
+  'Anton': 'Anton',
+  'Bebas Neue': 'Bebas+Neue',
+  'Lobster': 'Lobster',
+  'Pacifico': 'Pacifico',
+  'Permanent Marker': 'Permanent+Marker',
+  'Righteous': 'Righteous',
+  'Fredoka': 'Fredoka:wght@400;500;600;700',
+  'Lilita One': 'Lilita+One',
+  'Bangers': 'Bangers',
+  'Bungee': 'Bungee',
+  'Black Ops One': 'Black+Ops+One',
+  'Audiowide': 'Audiowide',
+  'Creepster': 'Creepster',
+  'Boogaloo': 'Boogaloo',
+  'Honk': 'Honk',
+  'Pixelify Sans': 'Pixelify+Sans:wght@400;500;600;700',
+  'Rye': 'Rye',
+  'New Rocker': 'New+Rocker',
+  'Vast Shadow': 'Vast+Shadow',
+  'Sancreek': 'Sancreek',
+  'Amarante': 'Amarante',
+  'Metamorphous': 'Metamorphous',
+  'Ribeye': 'Ribeye',
+  'Chicle': 'Chicle',
+  'Press Start 2P': 'Press+Start+2P',
+  'Agbalumo': 'Agbalumo',
+  // Handwriting
+  'Dancing Script': 'Dancing+Script:wght@400;500;600;700',
+  'Caveat': 'Caveat:wght@400;500;600;700',
+  'Satisfy': 'Satisfy',
+  'Great Vibes': 'Great+Vibes',
+  'Sacramento': 'Sacramento',
+  'Shadows Into Light': 'Shadows+Into+Light',
+  'Indie Flower': 'Indie+Flower',
+  'Kalam': 'Kalam:wght@400;700',
+  'Courgette': 'Courgette',
+  'Pangolin': 'Pangolin',
+  'Mansalva': 'Mansalva',
+  'Berkshire Swash': 'Berkshire+Swash',
+  'Eagle Lake': 'Eagle+Lake',
+  // Monospace
+  'Roboto Mono': 'Roboto+Mono:wght@400;500;600;700',
+  'JetBrains Mono': 'JetBrains+Mono:wght@400;500;600;700;800',
+  'Fira Code': 'Fira+Code:wght@400;500;600;700',
+  'Source Code Pro': 'Source+Code+Pro:wght@400;500;600;700;800;900',
+  'IBM Plex Mono': 'IBM+Plex+Mono:wght@400;500;600;700',
+  'Space Mono': 'Space+Mono:wght@400;700',
+  'Inconsolata': 'Inconsolata:wght@400;500;600;700;800;900',
 };
 
 // Fallback font mapping for fonts not available in Google Fonts.
@@ -92,6 +180,7 @@ const FONT_FALLBACKS: Record<string, string> = {
   'sans-serif': 'Inter',
   'serif': 'Merriweather',
   'monospace': 'JetBrains Mono',
+  'cursive': 'Dancing Script',
 };
 
 // Track which fonts have been downloaded in this process
@@ -188,6 +277,134 @@ async function downloadFont(fontFamily: string): Promise<boolean> {
   } catch (err) {
     logger.warn({ fontFamily, err }, 'Failed to download font');
     return false;
+  }
+}
+
+/**
+ * Read font metrics from a TTF file's 'head' and 'OS/2' tables.
+ * Returns unitsPerEm, usWinAscent, and usWinDescent which are needed
+ * to compute the ASS↔CSS font size correction ratio.
+ *
+ * ASS/libass sizes the font so that usWinAscent+usWinDescent maps to the
+ * FontSize value, whereas CSS maps font-size to the em-square (unitsPerEm).
+ * The correction ratio = (usWinAscent + usWinDescent) / unitsPerEm.
+ */
+async function readTTFMetrics(ttfPath: string): Promise<{ unitsPerEm: number; usWinAscent: number; usWinDescent: number } | null> {
+  try {
+    const buf = await readFile(ttfPath);
+    const view = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+
+    const numTables = view.getUint16(4);
+    let headOffset = -1;
+    let os2Offset = -1;
+
+    for (let i = 0; i < numTables; i++) {
+      const entry = 12 + i * 16;
+      const tag = String.fromCharCode(
+        view.getUint8(entry),
+        view.getUint8(entry + 1),
+        view.getUint8(entry + 2),
+        view.getUint8(entry + 3),
+      );
+      const tableOff = view.getUint32(entry + 8);
+      if (tag === 'head') headOffset = tableOff;
+      if (tag === 'OS/2') os2Offset = tableOff;
+    }
+
+    if (headOffset < 0 || os2Offset < 0) return null;
+
+    const unitsPerEm = view.getUint16(headOffset + 18);
+    // OS/2 table layout: usWinAscent is at offset 74, usWinDescent at 76.
+    // (offsets 68/70 are sTypoAscender/sTypoDescender — signed, different purpose)
+    const usWinAscent = view.getUint16(os2Offset + 74);
+    const usWinDescent = view.getUint16(os2Offset + 76);
+
+    return { unitsPerEm, usWinAscent, usWinDescent };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Compute the multiplier needed to make ASS FontSize visually match CSS font-size.
+ * Reads the first TTF file in the fonts directory for the given font family.
+ * Falls back to a default multiplier of 1.35 if the TTF can't be read.
+ */
+async function getASSFontSizeMultiplier(fontFamily: string, fontsDir: string): Promise<number> {
+  const DEFAULT_MULTIPLIER = 1.35; // Conservative default for common fonts
+
+  // Helper: recursively find TTF files in a directory (max 2 levels deep)
+  const findTTFs = async (dir: string, depth = 0): Promise<string[]> => {
+    const results: string[] = [];
+    try {
+      const entries = await readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isFile() && entry.name.endsWith('.ttf')) {
+          results.push(fullPath);
+        } else if (entry.isDirectory() && depth < 2) {
+          results.push(...await findTTFs(fullPath, depth + 1));
+        }
+      }
+    } catch { /* skip unreadable dirs */ }
+    return results;
+  };
+
+  // Resolve the actual font cache path (fontsDir may be escaped for FFmpeg)
+  const fontsDirClean = fontsDir.replace(/\\\\/g, '\\').replace(/\\'/g, "'").replace(/\\:/g, ':');
+
+  try {
+    // Try local cache first (flat directory), then system fonts (nested)
+    const dirsToTry = [LOCAL_FONTS_CACHE, fontsDirClean];
+    // Deduplicate
+    const uniqueDirs = [...new Set(dirsToTry)];
+
+    let matchedPath: string | null = null;
+    const fontSlug = fontFamily.replace(/\s+/g, '-').toLowerCase();
+
+    for (const dir of uniqueDirs) {
+      const ttfPaths = await findTTFs(dir);
+      if (ttfPaths.length === 0) continue;
+
+      // Try to find a TTF matching the font family name
+      matchedPath = ttfPaths.find(p => {
+        const name = p.split('/').pop()!.toLowerCase();
+        return name.startsWith(fontSlug) || name.includes(fontSlug);
+      }) || ttfPaths[0]; // fallback to first TTF found
+      break;
+    }
+
+    if (!matchedPath) {
+      logger.warn({ fontFamily, fontsDir: fontsDirClean }, 'No TTF file found for ASS font size correction');
+      return DEFAULT_MULTIPLIER;
+    }
+
+    const metrics = await readTTFMetrics(matchedPath);
+    if (!metrics || metrics.unitsPerEm === 0) {
+      logger.warn({ fontFamily, matchedPath }, 'Could not read TTF metrics');
+      return DEFAULT_MULTIPLIER;
+    }
+
+    const ratio = (metrics.usWinAscent + metrics.usWinDescent) / metrics.unitsPerEm;
+    logger.info({
+      fontFamily,
+      ttfFile: matchedPath,
+      unitsPerEm: metrics.unitsPerEm,
+      usWinAscent: metrics.usWinAscent,
+      usWinDescent: metrics.usWinDescent,
+      ratio,
+    }, 'Computed ASS font size multiplier from TTF metrics');
+
+    // Sanity check: ratio should be between 1.0 and 2.5
+    if (ratio < 1.0 || ratio > 2.5) {
+      logger.warn({ fontFamily, ratio }, 'TTF metrics ratio out of expected range, using default');
+      return DEFAULT_MULTIPLIER;
+    }
+
+    return ratio;
+  } catch (err) {
+    logger.warn({ fontFamily, fontsDir: fontsDirClean, err }, 'Failed to read font metrics for ASS correction');
+    return DEFAULT_MULTIPLIER;
   }
 }
 
@@ -299,6 +516,59 @@ const PIP_SIZE_MAP: Record<string, number> = {
 export interface FullscreenSegment {
   startMs: number;
   endMs: number;
+}
+
+/** Video crop/pan/scale settings from the editor's videoSettings */
+interface VideoCropSettings {
+  sourceWidth: number;
+  sourceHeight: number;
+  cropX: number;    // 0-100, 50=center
+  cropY: number;    // 0-100, 50=center
+  scale: number;    // 1.0=fill, >1 zoom
+}
+
+/**
+ * Build FFmpeg scale+crop filter that mirrors the preview's calculateVideoTransform.
+ * Scales the source video to fill the target area (with optional zoom via scale),
+ * then crops at an offset determined by cropX/cropY (0=left/top, 50=center, 100=right/bottom).
+ */
+function buildVideoCropFilter(
+  crop: VideoCropSettings,
+  targetWidth: number,
+  targetHeight: number,
+): string {
+  const { sourceWidth, sourceHeight, cropX, cropY, scale } = crop;
+  const sourceAspect = sourceWidth / sourceHeight;
+  const targetAspect = targetWidth / targetHeight;
+
+  let scaleW: number;
+  let scaleH: number;
+
+  if (sourceAspect > targetAspect) {
+    // Source is wider: match height first, then apply user zoom
+    scaleH = Math.round(targetHeight * scale);
+    scaleW = Math.round(sourceWidth * (scaleH / sourceHeight));
+  } else {
+    // Source is taller: match width first, then apply user zoom
+    scaleW = Math.round(targetWidth * scale);
+    scaleH = Math.round(sourceHeight * (scaleW / sourceWidth));
+  }
+
+  // Ensure at least target dimensions (handles scale < 1 edge case)
+  scaleW = Math.max(scaleW, targetWidth);
+  scaleH = Math.max(scaleH, targetHeight);
+
+  // Make even (required by many video codecs)
+  scaleW = scaleW % 2 === 0 ? scaleW : scaleW + 1;
+  scaleH = scaleH % 2 === 0 ? scaleH : scaleH + 1;
+
+  // Calculate crop position from user's pan settings
+  const overflowX = scaleW - targetWidth;
+  const overflowY = scaleH - targetHeight;
+  const cropXPos = Math.round(overflowX * (cropX / 100));
+  const cropYPos = Math.round(overflowY * (cropY / 100));
+
+  return `scale=${scaleW}:${scaleH},crop=${targetWidth}:${targetHeight}:${cropXPos}:${cropYPos},setsar=1`;
 }
 
 interface DisplayModeSegment {
@@ -470,42 +740,78 @@ export async function processRenderJob(job: Job<RenderJobData>) {
     const subtitles = convertToSubtitles(allItems);
     const outputPath = join(workDir, 'output.mp4');
 
+    // Find the first subtitle with a non-empty style object.
+    // All captions should share the same style, but handle edge cases where
+    // early subtitles might lack a style (legacy data, initial creation).
+    const firstStyle = ((): any => {
+      for (const sub of subtitles) {
+        const s = sub.style as any;
+        if (s && typeof s === 'object' && Object.keys(s).length > 0) return s;
+      }
+      return {};
+    })();
+
     // Debug: Log subtitle data to verify styles are being passed
     logger.info({
       subtitleCount: subtitles.length,
-      firstSubtitleStyle: subtitles[0]?.style,
+      firstSubtitleStyle: firstStyle,
+      styleKeys: Object.keys(firstStyle),
+      fontSize: firstStyle.fontSize,
+      fontWeight: firstStyle.fontWeight,
+      fontFamily: firstStyle.fontFamily,
+      wordsPerPhrase: firstStyle.wordsPerPhrase,
+      displayMode: firstStyle.displayMode,
       firstSubtitleText: subtitles[0]?.text,
       allItemTypes: allItems.map((i: any) => i.type),
     }, 'Converted subtitles with styles');
 
     // Ensure fonts are available for FFmpeg subtitle rendering
-    const firstStyle = (subtitles[0]?.style as any) || {};
     const rawFontFamily = firstStyle.fontFamily || 'Inter';
     const fontsDir = await ensureFontsDir(rawFontFamily);
     // Resolve the font to one that's actually available (with fallback for commercial fonts)
     const resolvedFontFamily = resolveAvailableFontFamily(rawFontFamily);
     logger.info({ rawFontFamily, resolvedFontFamily, fontsDir }, 'Resolved font for export');
 
+    // Compute ASS↔CSS font size correction multiplier from TTF metrics.
+    // libass sizes glyphs differently than CSS, so without this multiplier
+    // exported text appears ~60% smaller than the preview.
+    const fontSizeMultiplier = await getASSFontSizeMultiplier(resolvedFontFamily, fontsDir);
+
     // Resolve fontFamily in all subtitle styles so both Remotion (headless Chrome)
     // and FFmpeg/ASS paths use an actual available Google Font name.
     // Without this, CSS strings like "Komika Axis, Impact, system-ui, sans-serif"
     // fall through to generic system fonts in headless Chrome since neither
     // "Komika Axis" nor "Impact" are loaded via @remotion/google-fonts.
+    const uniqueFontsToDownload = new Set<string>();
+    uniqueFontsToDownload.add(resolvedFontFamily);
     for (const subtitle of subtitles) {
       const style = subtitle.style as any;
       if (style?.fontFamily) {
         style.fontFamily = resolveAvailableFontFamily(style.fontFamily);
+        uniqueFontsToDownload.add(style.fontFamily);
       }
       // Also resolve per-word font overrides
       if (subtitle.words) {
         for (const word of subtitle.words as any[]) {
           if (word.styleOverrides?.fontFamily) {
             word.styleOverrides.fontFamily = resolveAvailableFontFamily(word.styleOverrides.fontFamily);
+            uniqueFontsToDownload.add(word.styleOverrides.fontFamily);
           }
         }
       }
     }
-    logger.info({ resolvedFontFamily, firstStyleAfter: (subtitles[0]?.style as any)?.fontFamily }, 'Resolved font families in all subtitles');
+
+    // Download all unique fonts (not just the first subtitle's font)
+    // Skip if using system fonts dir (Docker/production — fonts are pre-installed)
+    const isSystemFonts = fontsDir === escapePathForFilter(SYSTEM_FONTS_DIR);
+    if (!isSystemFonts) {
+      for (const font of uniqueFontsToDownload) {
+        if (font !== resolvedFontFamily) { // Primary font already downloaded by ensureFontsDir
+          await downloadFont(font);
+        }
+      }
+    }
+    logger.info({ resolvedFontFamily, uniqueFonts: [...uniqueFontsToDownload], firstStyleAfter: (subtitles[0]?.style as any)?.fontFamily }, 'Resolved font families in all subtitles');
 
     // Check for enhanced audio (or source audio for audio projects)
     const audioItems = allItems.filter((item: any) => item.type === 'audio');
@@ -563,6 +869,15 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       const outputWidth = (videoSettings.canvasWidth as number) || 1080;
       const outputHeight = (videoSettings.canvasHeight as number) || 1920;
 
+      // Build video crop/pan/scale settings from project to match preview
+      const videoCrop: VideoCropSettings = {
+        sourceWidth: project.sourceWidth || 1920,
+        sourceHeight: project.sourceHeight || 1080,
+        cropX: (videoSettings.cropX as number) ?? 50,
+        cropY: (videoSettings.cropY as number) ?? 50,
+        scale: (videoSettings.scale as number) ?? 1.0,
+      };
+
       logger.info({
         projectId,
         compositionId: projectVisual.compositionId,
@@ -571,6 +886,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         subtitleCount: subtitles.length,
         outputWidth,
         outputHeight,
+        videoCrop,
         sceneCount: sceneTimestamps.length,
       }, 'Starting Remotion SSR render');
 
@@ -631,46 +947,149 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       await publishJobProgress(jobId, 75, 'Compositing video with audio and subtitles...');
 
       if (isAudioProject) {
-        // Audio project with visuals: use finalizeRemotionVideo (Remotion visuals + audio + subtitles, no source video)
+        // Audio project with visuals: two-pass approach for exact caption matching
+        // Pass 1: Composite Remotion visuals + audio WITHOUT subtitles
+        const hasSubtitles = subtitles.length > 0;
+        const compositedAudioPath = hasSubtitles ? join(workDir, 'composited_audio.mp4') : outputPath;
+
         await finalizeRemotionVideo({
           remotionVideoPath: remotionTempPath,
           audioPath: enhancedAudioPath,
-          subtitles,
-          outputPath,
+          subtitles: [],  // No ASS subtitles — Remotion handles them in pass 2
+          outputPath: compositedAudioPath,
           workDir,
           width: outputWidth,
           height: outputHeight,
           fontsDir,
+          resolvedFontFamily,
+          fontSizeMultiplier,
         });
+
+        // Pass 2: Overlay subtitles with Remotion (same React engine as preview)
+        if (hasSubtitles) {
+          await publishJobProgress(jobId, 80, 'Rendering captions...');
+
+          const firstSubStyle = firstStyle;
+          const captionDurationMs = project.durationMs || Math.max(...subtitles.map(s => s.endMs)) + 1000;
+
+          await renderVideo({
+            videoUrl: compositedAudioPath,
+            subtitles,
+            outputPath,
+            width: outputWidth,
+            height: outputHeight,
+            fps: 30,
+            durationMs: captionDurationMs,
+            defaultSubtitleStyle: {
+              fontFamily: firstSubStyle.fontFamily || resolvedFontFamily || 'Inter',
+              fontSize: firstSubStyle.fontSize || 56,
+              fontWeight: firstSubStyle.fontWeight || 800,
+              color: firstSubStyle.color || '#ffffff',
+              activeColor: firstSubStyle.activeColor || '#ffff00',
+              backgroundColor: firstSubStyle.backgroundColor || 'transparent',
+              activeBackgroundColor: firstSubStyle.activeBackgroundColor || 'transparent',
+              opacity: firstSubStyle.opacity ?? 1,
+              lineHeight: firstSubStyle.lineHeight ?? 1.4,
+              letterSpacing: firstSubStyle.letterSpacing ?? 0,
+              textTransform: (firstSubStyle.textTransform || 'none') as 'none' | 'uppercase' | 'lowercase',
+              stroke: firstSubStyle.stroke ?? null,
+              displayMode: firstSubStyle.displayMode || 'phrase',
+              wordsPerPhrase: firstSubStyle.wordsPerPhrase || 5,
+              presetId: firstSubStyle.presetId,
+              position: firstSubStyle.position || 'bottom',
+              effects: firstSubStyle.effects,
+              animation: firstSubStyle.animation,
+              backgroundPadding: firstSubStyle.backgroundPadding,
+              backgroundRadius: firstSubStyle.backgroundRadius,
+            },
+            onProgress: (progress) => {
+              const jobProgress = 80 + Math.round((progress / 100) * 15);
+              publishJobProgress(jobId, jobProgress, `Rendering captions: ${progress}%`);
+            },
+          });
+        }
       } else {
-        // Video project with visuals: composite source video + Remotion visuals + audio + subtitles
-        // Use layoutSettings from export request for exact preview match
+        // Video project with visuals: two-pass approach for exact caption matching
+        // Pass 1: Composite source video + Remotion visuals + audio WITHOUT subtitles
+        const hasSubtitles = subtitles.length > 0;
+        const compositedPath = hasSubtitles ? join(workDir, 'composited.mp4') : outputPath;
+
         await renderWithPiPLayout({
           sourceVideoPath: videoPath!,
           remotionVideoPath: remotionTempPath,
           audioPath: enhancedAudioPath,
-          subtitles,
-          outputPath,
+          subtitles: [],  // No ASS subtitles — Remotion handles them in pass 2
+          outputPath: compositedPath,
           workDir,
           width: outputWidth,
           height: outputHeight,
           layoutSettings,
+          videoCrop,
           fullscreenVisualSegments,
           overlaySegments,
           gapSegments,
           fontsDir,
           resolvedFontFamily,
+          fontSizeMultiplier,
           onProgress: (progress) => {
-            // Map compositing progress from 75% to 85%
-            const jobProgress = 75 + Math.round(progress * 10);
+            // Map compositing progress from 75% to 82%
+            const jobProgress = 75 + Math.round(progress * 7);
             publishJobProgress(jobId, jobProgress, `Compositing: ${Math.round(progress * 100)}%`);
           },
         });
+
+        // Pass 2: Overlay subtitles with Remotion (same React engine as preview)
+        if (hasSubtitles) {
+          await publishJobProgress(jobId, 83, 'Rendering captions...');
+
+          const firstSubStyle = firstStyle;
+          let captionDurationMs = project.durationMs || 0;
+          if (!captionDurationMs) {
+            captionDurationMs = Math.max(...subtitles.map(s => s.endMs)) + 1000;
+          }
+
+          await renderVideo({
+            videoUrl: compositedPath,
+            subtitles,
+            outputPath,
+            width: outputWidth,
+            height: outputHeight,
+            fps: 30,
+            durationMs: captionDurationMs,
+            defaultSubtitleStyle: {
+              fontFamily: firstSubStyle.fontFamily || resolvedFontFamily || 'Inter',
+              fontSize: firstSubStyle.fontSize || 56,
+              fontWeight: firstSubStyle.fontWeight || 800,
+              color: firstSubStyle.color || '#ffffff',
+              activeColor: firstSubStyle.activeColor || '#ffff00',
+              backgroundColor: firstSubStyle.backgroundColor || 'transparent',
+              activeBackgroundColor: firstSubStyle.activeBackgroundColor || 'transparent',
+              opacity: firstSubStyle.opacity ?? 1,
+              lineHeight: firstSubStyle.lineHeight ?? 1.4,
+              letterSpacing: firstSubStyle.letterSpacing ?? 0,
+              textTransform: (firstSubStyle.textTransform || 'none') as 'none' | 'uppercase' | 'lowercase',
+              stroke: firstSubStyle.stroke ?? null,
+              displayMode: firstSubStyle.displayMode || 'phrase',
+              wordsPerPhrase: firstSubStyle.wordsPerPhrase || 5,
+              presetId: firstSubStyle.presetId,
+              position: firstSubStyle.position || 'bottom',
+              effects: firstSubStyle.effects,
+              animation: firstSubStyle.animation,
+              backgroundPadding: firstSubStyle.backgroundPadding,
+              backgroundRadius: firstSubStyle.backgroundRadius,
+            },
+            onProgress: (progress) => {
+              const jobProgress = 83 + Math.round((progress / 100) * 12);
+              publishJobProgress(jobId, jobProgress, `Rendering captions: ${progress}%`);
+            },
+          });
+        }
       }
 
       logger.info({ projectId, outputPath }, 'Export complete with full composite');
     } else if (isAudioProject) {
       // Audio project without visuals: black canvas + subtitles + audio
+      // Use Remotion for subtitles to match preview exactly
       await publishJobProgress(jobId, 30, 'Rendering audio project...');
 
       const videoSettings = (project.videoSettings as any) || {};
@@ -679,17 +1098,14 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       const durationMs = project.durationMs || (subtitles.length > 0 ? Math.max(...subtitles.map(s => s.endMs)) + 1000 : 10000);
 
       if (subtitles.length > 0) {
-        // Generate ASS subtitles and render over black canvas with audio
-        const { writeFile: writeFileFs } = await import('fs/promises');
+        // Step 1: Create black canvas video (no subtitles yet)
         const { spawn: spawnProcess } = await import('child_process');
 
-        const assContent = generateASSForComposite(subtitles, canvasWidth, canvasHeight);
-        const assPath = join(workDir, 'subtitles.ass');
-        await writeFileFs(assPath, assContent, 'utf-8');
-
-        // Use FFmpeg to create black canvas + subtitles + audio
         const durationSec = (durationMs / 1000).toFixed(3);
-        const args = [
+        const blackCanvasPath = enhancedAudioPath ? join(workDir, 'black_canvas.mp4') : join(workDir, 'black_canvas_temp.mp4');
+
+        // Generate black canvas with optional audio
+        const canvasArgs = [
           '-f', 'lavfi',
           '-i', `color=c=black:s=${canvasWidth}x${canvasHeight}:d=${durationSec}:r=30`,
         ];
@@ -697,28 +1113,67 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         if (enhancedAudioPath) {
           const { basename: baseFn } = await import('path');
           const audioFilename = baseFn(enhancedAudioPath);
-          args.push('-i', audioFilename);
+          canvasArgs.push('-i', audioFilename);
         }
 
-        args.push('-y');
-        args.push('-vf', `subtitles=${escapePathForFilter(assPath)}:fontsdir=${fontsDir}`);
-        args.push('-c:v', 'libx264', '-preset', 'faster', '-crf', '18', '-threads', '4');
+        canvasArgs.push('-y');
+        canvasArgs.push('-c:v', 'libx264', '-preset', 'faster', '-crf', '18', '-threads', '4');
 
         if (enhancedAudioPath) {
-          args.push('-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-shortest');
+          canvasArgs.push('-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-shortest');
         }
 
-        args.push(outputPath);
+        canvasArgs.push(blackCanvasPath);
 
         await new Promise<void>((resolve, reject) => {
-          const proc = spawnProcess('ffmpeg', args, { cwd: workDir, stdio: ['ignore', 'pipe', 'pipe'] });
+          const proc = spawnProcess('ffmpeg', canvasArgs, { cwd: workDir, stdio: ['ignore', 'pipe', 'pipe'] });
           let stderr = '';
           proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
           proc.on('close', (code) => {
             if (code === 0) resolve();
-            else reject(new Error(`FFmpeg (audio render) exited with code ${code}: ${stderr.slice(-500)}`));
+            else reject(new Error(`FFmpeg (black canvas) exited with code ${code}: ${stderr.slice(-500)}`));
           });
           proc.on('error', (err) => reject(new Error(`Failed to spawn ffmpeg: ${err.message}`)));
+        });
+
+        // Step 2: Overlay subtitles with Remotion (same React engine as preview)
+        await publishJobProgress(jobId, 50, 'Rendering captions...');
+
+        const firstSubStyle = firstStyle;
+        await renderVideo({
+          videoUrl: blackCanvasPath,
+          subtitles,
+          outputPath,
+          width: canvasWidth,
+          height: canvasHeight,
+          fps: 30,
+          durationMs,
+          defaultSubtitleStyle: {
+            fontFamily: firstSubStyle.fontFamily || resolvedFontFamily || 'Inter',
+            fontSize: firstSubStyle.fontSize || 56,
+            fontWeight: firstSubStyle.fontWeight || 800,
+            color: firstSubStyle.color || '#ffffff',
+            activeColor: firstSubStyle.activeColor || '#ffff00',
+            backgroundColor: firstSubStyle.backgroundColor || 'transparent',
+            activeBackgroundColor: firstSubStyle.activeBackgroundColor || 'transparent',
+            opacity: firstSubStyle.opacity ?? 1,
+            lineHeight: firstSubStyle.lineHeight ?? 1.4,
+            letterSpacing: firstSubStyle.letterSpacing ?? 0,
+            textTransform: (firstSubStyle.textTransform || 'none') as 'none' | 'uppercase' | 'lowercase',
+            stroke: firstSubStyle.stroke ?? null,
+            displayMode: firstSubStyle.displayMode || 'phrase',
+            wordsPerPhrase: firstSubStyle.wordsPerPhrase || 5,
+            presetId: firstSubStyle.presetId,
+            position: firstSubStyle.position || 'bottom',
+            effects: firstSubStyle.effects,
+            animation: firstSubStyle.animation,
+            backgroundPadding: firstSubStyle.backgroundPadding,
+            backgroundRadius: firstSubStyle.backgroundRadius,
+          },
+          onProgress: (progress) => {
+            const jobProgress = 50 + Math.round((progress / 100) * 40);
+            publishJobProgress(jobId, jobProgress, `Rendering captions: ${progress}%`);
+          },
         });
       } else if (enhancedAudioPath) {
         // No subtitles, just audio: create black canvas + audio
@@ -729,7 +1184,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         const audioFilename = baseFn(enhancedAudioPath);
         const args = [
           '-f', 'lavfi',
-          '-i', `color=c=black:s=1080x1920:d=${durationSec}:r=30`,
+          '-i', `color=c=black:s=${canvasWidth}x${canvasHeight}:d=${durationSec}:r=30`,
           '-i', audioFilename,
           '-y',
           '-c:v', 'libx264', '-preset', 'faster', '-crf', '18',
@@ -762,6 +1217,15 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         const canvasWidth = videoSettings.canvasWidth || 1080;
         const canvasHeight = videoSettings.canvasHeight || 1920;
 
+        // Build video crop/pan/scale settings to match preview
+        const noVisCrop: VideoCropSettings = {
+          sourceWidth: project.sourceWidth || 1920,
+          sourceHeight: project.sourceHeight || 1080,
+          cropX: videoSettings.cropX ?? 50,
+          cropY: videoSettings.cropY ?? 50,
+          scale: videoSettings.scale ?? 1.0,
+        };
+
         // Get video duration for Remotion rendering
         let durationMs = 0;
         try {
@@ -786,8 +1250,15 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           canvasHeight,
           durationMs,
           subtitleCount: subtitles.length,
-        }, 'Rendering subtitles with Remotion (browser-based fonts)');
+          presetId: firstStyle.presetId,
+          displayMode: firstStyle.displayMode,
+          renderPath: 'no-visuals-remotion-v2',
+        }, 'Rendering subtitles with Remotion (browser-based fonts, emotional line-breaking)');
 
+        // Build default style from the first subtitle's actual style (user's chosen font/colors)
+        // so that even subtitles without explicit style get the user's settings.
+        // Use the robust firstStyle from earlier (finds first subtitle WITH a style).
+        const firstSubStyle = firstStyle;
         await renderVideo({
           videoUrl: videoPath!,
           subtitles,
@@ -796,20 +1267,31 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           height: canvasHeight,
           fps: 30,
           durationMs,
-          // Pass default style matching preview defaults so fallback renders correctly
+          videoCrop: noVisCrop,
+          // Use the user's actual style as default, falling back to safe defaults.
+          // This ensures even subtitles without an explicit style get the user's
+          // chosen font, colors, display mode, and position.
           defaultSubtitleStyle: {
-            fontFamily: 'Inter',
-            fontSize: 56,
-            fontWeight: 800,
-            color: '#ffffff',
-            activeColor: '#ffff00',
-            backgroundColor: 'transparent',
-            activeBackgroundColor: 'transparent',
-            opacity: 1,
-            lineHeight: 1.4,
-            letterSpacing: 0,
-            textTransform: 'none' as const,
-            stroke: null,
+            fontFamily: firstSubStyle.fontFamily || resolvedFontFamily || 'Inter',
+            fontSize: firstSubStyle.fontSize || 56,
+            fontWeight: firstSubStyle.fontWeight || 800,
+            color: firstSubStyle.color || '#ffffff',
+            activeColor: firstSubStyle.activeColor || '#ffff00',
+            backgroundColor: firstSubStyle.backgroundColor || 'transparent',
+            activeBackgroundColor: firstSubStyle.activeBackgroundColor || 'transparent',
+            opacity: firstSubStyle.opacity ?? 1,
+            lineHeight: firstSubStyle.lineHeight ?? 1.4,
+            letterSpacing: firstSubStyle.letterSpacing ?? 0,
+            textTransform: (firstSubStyle.textTransform || 'none') as 'none' | 'uppercase' | 'lowercase',
+            stroke: firstSubStyle.stroke ?? null,
+            displayMode: firstSubStyle.displayMode || 'phrase',
+            wordsPerPhrase: firstSubStyle.wordsPerPhrase || 5,
+            presetId: firstSubStyle.presetId,
+            position: firstSubStyle.position || 'bottom',
+            effects: firstSubStyle.effects,
+            animation: firstSubStyle.animation,
+            backgroundPadding: firstSubStyle.backgroundPadding,
+            backgroundRadius: firstSubStyle.backgroundRadius,
           },
           onProgress: (progress) => {
             const jobProgress = 30 + Math.round((progress / 100) * 55);
@@ -822,7 +1304,62 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           await encodeVideoWithAudio(remotionOutputPath, enhancedAudioPath, outputPath);
         }
       } else {
-        await encodeVideoWithAudio(videoPath!, enhancedAudioPath, outputPath);
+        // No subtitles — check if crop/pan/scale needs to be applied
+        const videoSettings = (project.videoSettings as any) || {};
+        const needsCrop = (videoSettings.cropX != null && videoSettings.cropX !== 50) ||
+                          (videoSettings.cropY != null && videoSettings.cropY !== 50) ||
+                          (videoSettings.scale != null && videoSettings.scale !== 1.0);
+
+        if (needsCrop) {
+          // Re-encode with crop/pan/scale to match preview
+          const cw = videoSettings.canvasWidth || 1080;
+          const ch = videoSettings.canvasHeight || 1920;
+          const cropFilter = buildVideoCropFilter({
+            sourceWidth: project.sourceWidth || 1920,
+            sourceHeight: project.sourceHeight || 1080,
+            cropX: videoSettings.cropX ?? 50,
+            cropY: videoSettings.cropY ?? 50,
+            scale: videoSettings.scale ?? 1.0,
+          }, cw, ch);
+
+          const { spawn: sp } = await import('child_process');
+          const { basename: bn, dirname: dn } = await import('path');
+          const { copyFile: cpf } = await import('fs/promises');
+
+          const cropWorkDir = join(workDir, 'crop');
+          await mkdir(cropWorkDir, { recursive: true });
+          const localInput = join(cropWorkDir, bn(videoPath!));
+          await cpf(videoPath!, localInput);
+          const localOutput = bn(outputPath);
+
+          const cropArgs = [
+            '-i', bn(localInput),
+            ...(enhancedAudioPath ? ['-i', bn(enhancedAudioPath)] : []),
+            '-y',
+            '-vf', cropFilter,
+            '-c:v', 'libx264', '-preset', 'faster', '-crf', '18', '-threads', '4',
+            ...(enhancedAudioPath
+              ? ['-map', '0:v', '-map', '1:a', '-c:a', 'aac', '-shortest']
+              : ['-map', '0:v', '-map', '0:a?', '-c:a', 'aac']),
+            localOutput,
+          ];
+
+          await new Promise<void>((resolve, reject) => {
+            const proc = sp('ffmpeg', cropArgs, { cwd: cropWorkDir, stdio: ['ignore', 'pipe', 'pipe'] });
+            let stderr = '';
+            proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+            proc.on('close', (code) => {
+              if (code === 0) resolve();
+              else reject(new Error(`FFmpeg (crop) exited with code ${code}: ${stderr.slice(-500)}`));
+            });
+            proc.on('error', (err) => reject(new Error(`Failed to spawn ffmpeg: ${err.message}`)));
+          });
+
+          // Move output to final path
+          await cpf(join(cropWorkDir, localOutput), outputPath);
+        } else {
+          await encodeVideoWithAudio(videoPath!, enhancedAudioPath, outputPath);
+        }
       }
     }
 
@@ -1566,6 +2103,7 @@ interface AddAudioAndSubtitlesOptions {
   width: number;
   height: number;
   fontsDir?: string;
+  fontSizeMultiplier?: number;
 }
 
 /**
@@ -1582,6 +2120,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
     width,
     height,
     fontsDir = escapePathForFilter(SYSTEM_FONTS_DIR),
+    fontSizeMultiplier = 1,
   } = options;
 
   const { spawn } = await import('child_process');
@@ -1603,7 +2142,7 @@ async function addAudioAndSubtitles(options: AddAudioAndSubtitlesOptions): Promi
   let assFilename: string | null = null;
   if (subtitles.length > 0) {
     assFilename = 'subtitles.ass';
-    const assContent = generateASSForComposite(subtitles, width, height);
+    const assContent = generateASSForComposite(subtitles, width, height, undefined, undefined, fontSizeMultiplier);
     await writeFile(join(workDir, assFilename), assContent, 'utf-8');
     logger.info({ subtitleCount: subtitles.length }, 'Generated subtitles');
   }
@@ -1679,12 +2218,14 @@ interface RenderWithPiPLayoutOptions {
   width: number;
   height: number;
   layoutSettings?: LayoutSettings;
+  videoCrop?: VideoCropSettings;
   fullscreenVisualSegments?: DisplayModeSegment[];
   overlaySegments?: DisplayModeSegment[];
   gapSegments?: DisplayModeSegment[];
   onProgress?: (progress: number) => void;
   fontsDir: string;
   resolvedFontFamily?: string;
+  fontSizeMultiplier?: number;
 }
 
 /**
@@ -1704,12 +2245,14 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     width: fullWidth,
     height: fullHeight,
     layoutSettings,
+    videoCrop,
     fullscreenVisualSegments,
     overlaySegments,
     gapSegments,
     onProgress,
     fontsDir,
     resolvedFontFamily,
+    fontSizeMultiplier = 1,
   } = options;
 
   // Render at full resolution for caption/text quality
@@ -1773,6 +2316,13 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     gap: 0,
   };
 
+  // Build video crop filter strings for all video scaling operations.
+  // When videoCrop is available, the source video is scaled+cropped to match the
+  // user's exact pan/zoom from the preview. Without it, center crop is used.
+  const srcCropFull = videoCrop
+    ? buildVideoCropFilter(videoCrop, width, height)
+    : `scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1`;
+
   let filterComplex: string;
 
   if (mode === 'pip') {
@@ -1805,17 +2355,60 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
         break;
     }
 
+    // Build PiP-specific crop filter: use user's crop/pan/scale for the PiP bubble
+    const pipCropFilter = videoCrop
+      ? buildVideoCropFilter(videoCrop, pipWidth, pipHeight)
+      : `scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1`;
+
+    // Apply PiP styling: rounded corners, border, shadow, opacity
+    // Uses FFmpeg geq+alphaextract for rounded mask, drawbox for border
+    const pipStyleFilters: string[] = [];
+
+    // Rounded corners / circle via alpha mask
+    const pipBorderRadius = pip.shape === 'circle' ? Math.round(pipWidth / 2) : Math.round(pip.borderRadius);
+    if (pipBorderRadius > 0) {
+      // Use geq filter to create rounded rectangle alpha mask
+      // The formula calculates distance from corners and applies smooth rounding
+      const r = Math.min(pipBorderRadius, Math.round(pipWidth / 2), Math.round(pipHeight / 2));
+      const pw = pipWidth;
+      const ph = pipHeight;
+      // geq expression: evaluate distance from each corner; if within radius, check against circle
+      pipStyleFilters.push(`format=yuva420p`);
+      pipStyleFilters.push(
+        `geq=lum='lum(X,Y)':cb='cb(X,Y)':cr='cr(X,Y)':` +
+        `a='if(lte(X,${r})*lte(Y,${r}),if(lte(hypot(${r}-X,${r}-Y),${r}),255,0),` +
+        `if(gte(X,${pw}-${r})*lte(Y,${r}),if(lte(hypot(X-${pw}+${r},${r}-Y),${r}),255,0),` +
+        `if(lte(X,${r})*gte(Y,${ph}-${r}),if(lte(hypot(${r}-X,Y-${ph}+${r}),${r}),255,0),` +
+        `if(gte(X,${pw}-${r})*gte(Y,${ph}-${r}),if(lte(hypot(X-${pw}+${r},Y-${ph}+${r}),${r}),255,0),` +
+        `255))))'`
+      );
+    }
+
+    // Opacity
+    if (pip.opacity < 1) {
+      if (!pipStyleFilters.some(f => f.includes('format=yuva420p'))) {
+        pipStyleFilters.push('format=yuva420p');
+      }
+      pipStyleFilters.push(`colorchannelmixer=aa=${pip.opacity.toFixed(2)}`);
+    }
+
+    const pipFilterChain = pipStyleFilters.length > 0
+      ? `,${pipStyleFilters.join(',')}`
+      : '';
+
     logger.info({
       mode,
       pipDimensions: { pipWidth, pipHeight, pipX, pipY },
+      pipBorderRadius,
+      pipOpacity: pip.opacity,
     }, 'Rendering with PiP layout');
     filterComplex = [
       // Scale Remotion visuals to full screen
       `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
-      // Scale source video to PiP size
-      `[0:v]scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1[pip]`,
-      // Simple overlay - no fancy effects
-      `[bg][pip]overlay=${pipX}:${pipY}[outv]`
+      // Scale source video to PiP size with crop/pan + styling
+      `[0:v]${pipCropFilter}${pipFilterChain}[pip]`,
+      // Overlay PiP on background
+      `[bg][pip]overlay=${pipX}:${pipY}:format=auto[outv]`
     ].join(';');
 
   } else if (mode === 'split-horizontal') {
@@ -1837,16 +2430,20 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     // Use scale + crop to fill containers without black bars
     // IMPORTANT: Visual stream (1:v) must crop from top-left (0:0) because Remotion
     // renders visual content at position (0,0) with effective dimensions.
-    // Center crop (default) would clip the visual content and show background instead.
+    // Source video uses user's crop/pan/scale settings for preview-accurate positioning.
+    const splitHCropFilter = videoCrop
+      ? buildVideoCropFilter(videoCrop, width, videoHeight)
+      : `scale=${width}:${videoHeight}:force_original_aspect_ratio=increase,crop=${width}:${videoHeight},setsar=1`;
+
     if (isVisualsFirst) {
       filterComplex = [
         `[1:v]scale=${width}:${visualsHeight}:force_original_aspect_ratio=increase,crop=${width}:${visualsHeight}:0:0,setsar=1[visuals]`,
-        `[0:v]scale=${width}:${videoHeight}:force_original_aspect_ratio=increase,crop=${width}:${videoHeight},setsar=1[video]`,
+        `[0:v]${splitHCropFilter}[video]`,
         `[visuals][video]vstack=inputs=2[outv]`
       ].join(';');
     } else {
       filterComplex = [
-        `[0:v]scale=${width}:${videoHeight}:force_original_aspect_ratio=increase,crop=${width}:${videoHeight},setsar=1[video]`,
+        `[0:v]${splitHCropFilter}[video]`,
         `[1:v]scale=${width}:${visualsHeight}:force_original_aspect_ratio=increase,crop=${width}:${visualsHeight}:0:0,setsar=1[visuals]`,
         `[video][visuals]vstack=inputs=2[outv]`
       ].join(';');
@@ -1871,15 +2468,20 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     // Use scale + crop to fill containers without black bars
     // IMPORTANT: Visual stream (1:v) must crop from top-left (0:0) because Remotion
     // renders visual content at position (0,0) with effective dimensions.
+    // Source video uses user's crop/pan/scale settings for preview-accurate positioning.
+    const splitVCropFilter = videoCrop
+      ? buildVideoCropFilter(videoCrop, videoWidth, height)
+      : `scale=${videoWidth}:${height}:force_original_aspect_ratio=increase,crop=${videoWidth}:${height},setsar=1`;
+
     if (isVisualsFirst) {
       filterComplex = [
         `[1:v]scale=${visualsWidth}:${height}:force_original_aspect_ratio=increase,crop=${visualsWidth}:${height}:0:0,setsar=1[visuals]`,
-        `[0:v]scale=${videoWidth}:${height}:force_original_aspect_ratio=increase,crop=${videoWidth}:${height},setsar=1[video]`,
+        `[0:v]${splitVCropFilter}[video]`,
         `[visuals][video]hstack=inputs=2[outv]`
       ].join(';');
     } else {
       filterComplex = [
-        `[0:v]scale=${videoWidth}:${height}:force_original_aspect_ratio=increase,crop=${videoWidth}:${height},setsar=1[video]`,
+        `[0:v]${splitVCropFilter}[video]`,
         `[1:v]scale=${visualsWidth}:${height}:force_original_aspect_ratio=increase,crop=${visualsWidth}:${height}:0:0,setsar=1[visuals]`,
         `[video][visuals]hstack=inputs=2[outv]`
       ].join(';');
@@ -1892,9 +2494,13 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     const pipX = width - pipWidth - 16;
     const pipY = height - pipHeight - 16;
 
+    const fallbackCropFilter = videoCrop
+      ? buildVideoCropFilter(videoCrop, pipWidth, pipHeight)
+      : `scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1`;
+
     filterComplex = [
       `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
-      `[0:v]scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1[pip]`,
+      `[0:v]${fallbackCropFilter}[pip]`,
       `[bg][pip]overlay=${pipX}:${pipY}[outv]`
     ].join(';');
   }
@@ -2005,10 +2611,10 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
 
       if (anyTransitions(gapAndOverlaySegs)) {
         const fadeChain = buildFadeFilters(gapAndOverlaySegs);
-        filterComplex += `;[src_extra]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,${fadeChain}[src_fs_faded]`;
+        filterComplex += `;[src_extra]${srcCropFull},format=yuva420p,${fadeChain}[src_fs_faded]`;
         filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][src_fs_faded]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
       } else {
-        filterComplex += `;[src_extra]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[src_fs_scaled]`;
+        filterComplex += `;[src_extra]${srcCropFull}[src_fs_scaled]`;
         filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][src_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
       }
     }
@@ -2051,9 +2657,9 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
   let assFilename: string | null = null;
   if (subtitles.length > 0) {
     assFilename = 'subtitles.ass';
-    const assContent = generateASSForComposite(subtitles, width, height, layoutSettings, resolvedFontFamily);
+    const assContent = generateASSForComposite(subtitles, width, height, layoutSettings, resolvedFontFamily, fontSizeMultiplier);
     await writeFile(join(workDir, assFilename), assContent, 'utf-8');
-    logger.info({ subtitleCount: subtitles.length, assFilename, mode, resolvedFontFamily }, 'Generated ASS subtitles with layout');
+    logger.info({ subtitleCount: subtitles.length, assFilename, mode, resolvedFontFamily, fontSizeMultiplier }, 'Generated ASS subtitles with layout');
   }
 
   // Add subtitles filter if we have them
@@ -2154,6 +2760,8 @@ interface FinalizeRemotionVideoOptions {
   width: number;
   height: number;
   fontsDir?: string;
+  resolvedFontFamily?: string;
+  fontSizeMultiplier?: number;
 }
 
 /**
@@ -2170,6 +2778,8 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
     width,
     height,
     fontsDir = escapePathForFilter(SYSTEM_FONTS_DIR),
+    resolvedFontFamily,
+    fontSizeMultiplier = 1,
   } = options;
 
   const { spawn } = await import('child_process');
@@ -2191,9 +2801,9 @@ async function finalizeRemotionVideo(options: FinalizeRemotionVideoOptions): Pro
   let assFilename: string | null = null;
   if (subtitles.length > 0) {
     assFilename = 'subtitles.ass';
-    const assContent = generateASSForComposite(subtitles, width, height);
+    const assContent = generateASSForComposite(subtitles, width, height, undefined, resolvedFontFamily, fontSizeMultiplier);
     await writeFile(join(workDir, assFilename), assContent, 'utf-8');
-    logger.info({ subtitleCount: subtitles.length, assFilename }, 'Generated ASS subtitles');
+    logger.info({ subtitleCount: subtitles.length, assFilename, resolvedFontFamily, fontSizeMultiplier }, 'Generated ASS subtitles');
   }
 
   logger.info({
@@ -2274,6 +2884,7 @@ interface CompositeFullVideoOptions {
   projectWidth: number;
   projectHeight: number;
   fontsDir?: string;
+  fontSizeMultiplier?: number;
 }
 
 /**
@@ -2291,6 +2902,7 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
     projectWidth: fullWidth,
     projectHeight: fullHeight,
     fontsDir = escapePathForFilter(SYSTEM_FONTS_DIR),
+    fontSizeMultiplier = 1,
   } = options;
 
   // Render at full resolution for caption/text quality
@@ -2323,7 +2935,7 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
   let assFilename: string | null = null;
   if (subtitles.length > 0) {
     assFilename = 'subtitles.ass';
-    const assContent = generateASSForComposite(subtitles, projectWidth, projectHeight);
+    const assContent = generateASSForComposite(subtitles, projectWidth, projectHeight, undefined, undefined, fontSizeMultiplier);
     await writeFile(join(workDir, assFilename), assContent, 'utf-8');
     logger.info({ subtitleCount: subtitles.length, assFilename }, 'Generated ASS subtitles');
   }
@@ -2474,21 +3086,41 @@ function getASSAlignment(position: string): number {
  * Adjusts positioning based on layout mode (PiP, split-horizontal, split-vertical).
  * Supports word-by-word, phrase, and karaoke display modes.
  */
-function generateASSForComposite(subtitles: SubtitleItem[], width: number, height: number, layoutSettings?: LayoutSettings, fontFamilyOverride?: string): string {
-  // Get style from first subtitle (they should all have same style)
-  const firstStyle = subtitles[0]?.style as any || {};
+function generateASSForComposite(subtitles: SubtitleItem[], width: number, height: number, layoutSettings?: LayoutSettings, fontFamilyOverride?: string, fontSizeMultiplier: number = 1): string {
+  // Get style from the first subtitle that has a non-empty style object.
+  // All captions should share the same style (set via updateAllCaptionStyles),
+  // but if the first subtitle is missing its style (e.g. legacy data), search
+  // through the list to find one that does.
+  const firstStyle = ((): any => {
+    for (const sub of subtitles) {
+      const s = sub.style as any;
+      if (s && typeof s === 'object' && Object.keys(s).length > 0) return s;
+    }
+    return {};
+  })();
 
-  logger.info({ captionStyle: firstStyle, layoutSettings }, 'Generating ASS subtitles with style and layout');
+  logger.info({
+    captionStyle: firstStyle,
+    layoutSettings,
+    styleKeys: Object.keys(firstStyle),
+    fontFamily: firstStyle.fontFamily,
+    fontSize: firstStyle.fontSize,
+    fontWeight: firstStyle.fontWeight,
+    wordsPerPhrase: firstStyle.wordsPerPhrase,
+    displayMode: firstStyle.displayMode,
+  }, 'Generating ASS subtitles with style and layout');
 
   // Use the resolved/override font family if provided, otherwise resolve from CSS font-family string
   // resolveAvailableFontFamily walks the comma-separated list and picks the first font
   // available in Google Fonts or the fallback map (e.g. 'Komika Axis' → 'Anton')
   const fontFamily = fontFamilyOverride || resolveAvailableFontFamily(firstStyle.fontFamily || 'Inter');
   logger.info({ fontFamily, fontFamilyOverride, styleFontFamily: firstStyle.fontFamily }, 'ASS using font family');
-  // Use fontSize directly — PlayResY is set to canvas height so ASS handles coordinate mapping.
-  // No height/1920 scaling needed; it's redundant at 1920p and creates mismatches at other resolutions.
+  // Apply ASS↔CSS font size correction. libass maps FontSize to the font's
+  // usWinAscent+usWinDescent metrics, while CSS maps font-size to the em-square.
+  // Without this multiplier, ASS text renders at ~60% of the intended size for Inter.
   const baseFontSize = firstStyle.fontSize || 56;
-  const fontSize = baseFontSize;
+  const fontSize = Math.round(baseFontSize * fontSizeMultiplier);
+  logger.info({ baseFontSize, fontSizeMultiplier, fontSize }, 'ASS font size with correction');
 
   // Apply opacity to colors if specified
   const opacity = firstStyle.opacity ?? 1;
@@ -2514,8 +3146,8 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   const fontWeight = firstStyle.fontWeight || 800;
   const bold = fontWeight >= 700 ? -1 : 0;  // -1 = bold in ASS
 
-  // Letter spacing — use directly (no height/1920 scaling, PlayRes handles it)
-  const letterSpacing = firstStyle.letterSpacing || 0;
+  // Letter spacing — scale proportionally with font size multiplier
+  const letterSpacing = Math.round((firstStyle.letterSpacing || 0) * fontSizeMultiplier);
 
   // Line height — CSS lineHeight (unitless multiplier, default 1.4) controls vertical
   // line spacing. ASS doesn't have a direct lineHeight field, so we approximate via ScaleY.
@@ -2639,11 +3271,11 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   let outline = 0;
   let outlineColorParsed = '&H00000000'; // Default black
 
-  // Stroke → ASS Outline (direct mapping, no height/1920 scaling — PlayRes handles it)
+  // Stroke → ASS Outline — scale proportionally with font size multiplier
   if (firstStyle.stroke && firstStyle.stroke.width > 0) {
-    outline = Math.round(firstStyle.stroke.width);
+    outline = Math.round(firstStyle.stroke.width * fontSizeMultiplier);
     outlineColorParsed = hexToASSColor(firstStyle.stroke.color || '#000000');
-    logger.info({ stroke: firstStyle.stroke, outline }, 'Stroke → ASS Outline');
+    logger.info({ stroke: firstStyle.stroke, outline, fontSizeMultiplier }, 'Stroke → ASS Outline (scaled)');
   }
 
   // Shadow → inline tags (built later, prepended to each dialogue line)
@@ -2655,24 +3287,24 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
 
   if (firstStyle.effects?.shadow) {
     const se = firstStyle.effects.shadow;
-    shadowXShad = se.offsetX;
-    shadowYShad = se.offsetY;
-    shadowBlur = Math.round(se.blur * 0.5); // ASS blur is more intense, scale down
+    shadowXShad = Math.round(se.offsetX * fontSizeMultiplier);
+    shadowYShad = Math.round(se.offsetY * fontSizeMultiplier);
+    shadowBlur = Math.round(se.blur * 0.5 * fontSizeMultiplier); // ASS blur is more intense, scale down
     shadowColor = applyOpacity(hexToASSColor(se.color || '#000000'), se.opacity);
-    logger.info({ shadowEffect: se, shadowXShad, shadowYShad, shadowBlur }, 'Shadow → ASS inline xshad/yshad/blur');
+    logger.info({ shadowEffect: se, shadowXShad, shadowYShad, shadowBlur }, 'Shadow → ASS inline xshad/yshad/blur (scaled)');
 
     // If no stroke, use shadow blur as a subtle outline for readability
     if (outline === 0 && se.blur > 0) {
-      outline = Math.max(1, Math.round(se.blur / 4));
+      outline = Math.max(1, Math.round(se.blur / 4 * fontSizeMultiplier));
       outlineColorParsed = hexToASSColor(se.color || '#000000');
     }
   } else if (firstStyle.textShadow) {
     // Legacy fallback — parse "2px 2px 4px rgba(0,0,0,0.8)"
     const shadowMatch = firstStyle.textShadow.match(/(-?\d+)px\s+(-?\d+)px\s+(\d+)px/);
     if (shadowMatch) {
-      shadowXShad = parseInt(shadowMatch[1], 10);
-      shadowYShad = parseInt(shadowMatch[2], 10);
-      shadowBlur = Math.round(parseInt(shadowMatch[3], 10) * 0.5);
+      shadowXShad = Math.round(parseInt(shadowMatch[1], 10) * fontSizeMultiplier);
+      shadowYShad = Math.round(parseInt(shadowMatch[2], 10) * fontSizeMultiplier);
+      shadowBlur = Math.round(parseInt(shadowMatch[3], 10) * 0.5 * fontSizeMultiplier);
     }
     if (outline === 0) {
       outline = Math.max(1, shadowBlur);
@@ -2702,7 +3334,7 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   let glowColor = '';
   if (firstStyle.effects?.glow?.enabled) {
     const glow = firstStyle.effects.glow;
-    glowBlur = Math.round(glow.size * 0.5);
+    glowBlur = Math.round(glow.size * 0.5 * fontSizeMultiplier);
     glowColor = hexToASSColor(glow.color);
     // Combine glow blur with shadow blur (take the larger)
     shadowBlur = Math.max(shadowBlur, glowBlur);
@@ -2788,9 +3420,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       const family = resolveAvailableFontFamily(ov.fontFamily);
       tags.push(`\\fn${family}`);
     }
-    // Font size (absolute override or scale) — no height/1920 scaling, PlayRes handles it
+    // Font size (absolute override or scale) — apply fontSizeMultiplier for ASS↔CSS correction
     if (ov.fontSize) {
-      const scaledSize = Math.round((ov.scale || 1) * ov.fontSize);
+      const scaledSize = Math.round((ov.scale || 1) * ov.fontSize * fontSizeMultiplier);
       tags.push(`\\fs${scaledSize}`);
     } else if (ov.scale && ov.scale !== 1) {
       tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
@@ -2833,6 +3465,89 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return applyTextTransform(text);
   };
 
+  // ── Dynamic hierarchy word classification (matches Composition.tsx preview) ──
+  const isDynamicHierarchy = firstStyle.presetId === 'dynamic-hierarchy';
+
+  const POWER_WORDS = new Set([
+    'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
+    'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
+    'shocking', 'terrifying', 'brilliant', 'genius', 'perfect', 'worst',
+    'best', 'greatest', 'legendary', 'epic', 'massive', 'huge', 'evil',
+    'now', 'stop', 'wait', 'listen', 'watch', 'look', 'never', 'always',
+    'forever', 'immediately', 'urgent', 'warning', 'danger', 'critical',
+    'important', 'breaking', 'exclusive', 'secret', 'finally', 'today',
+    'million', 'billion', 'thousand', 'money', 'rich', 'free', 'paid',
+    'expensive', 'cheap', 'profit', 'cash', 'dollar', 'dollars', 'price',
+    'worth', 'cost', 'zero', 'double', 'triple', '100%', '1000',
+    'but', 'however', 'actually', 'wrong', 'right', 'truth', 'lie', 'real',
+    'fake', 'only', 'everything', 'nothing', 'impossible', 'possible',
+    'everyone', 'nobody', 'first', 'last', 'biggest', 'smallest',
+    'win', 'won', 'lose', 'lost', 'fight', 'broke', 'crushed', 'dominated',
+    'exploded', 'changed', 'saved', 'failed', 'success', 'discovered',
+  ]);
+
+  const FILLER_WORDS = new Set([
+    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+    'to', 'of', 'in', 'for', 'on', 'at', 'by', 'with', 'from', 'as',
+    'and', 'or', 'if', 'it', 'its', 'that', 'this', 'than', 'then',
+    'so', 'up', 'do', 'did', 'has', 'had', 'have', 'will', 'would',
+    'could', 'should', 'can', 'may', 'might', 'shall', 'just', 'very',
+    'also', 'about', 'into', 'not', 'no', 'yes', 'some', 'my', 'your',
+    'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
+  ]);
+
+  const classifyWordTier = (text: string): 'power' | 'medium' | 'filler' => {
+    const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+    if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
+    if (POWER_WORDS.has(clean)) return 'power';
+    if (FILLER_WORDS.has(clean)) return 'filler';
+    return 'medium';
+  };
+
+  // Build dynamic hierarchy ASS override tags for a word
+  const buildDynamicHierarchyTags = (word: any, isActive: boolean): string => {
+    if (!isDynamicHierarchy) return '';
+    const tier = classifyWordTier(word.text || '');
+    const tags: string[] = [];
+    if (tier === 'power') {
+      tags.push(`\\fs${Math.round(fontSize * 1.8)}`);
+      tags.push('\\b1');
+      tags.push(`\\c${isActive ? hexToASSColor('#FFD400') : hexToASSColor('#FFFFFF')}`);
+    } else if (tier === 'filler') {
+      tags.push(`\\fs${Math.round(fontSize * 0.65)}`);
+      // Use 60% opacity white for filler words
+      tags.push(`\\c${isActive ? '&H33FFFFFF' : '&H66FFFFFF'}`);
+    } else {
+      // medium — default size, bold
+      tags.push('\\b1');
+    }
+    return tags.length > 0 ? `{${tags.join('')}}` : '';
+  };
+
+  // Build reset tags after a dynamic hierarchy word
+  const buildDynamicHierarchyReset = (word: any): string => {
+    if (!isDynamicHierarchy) return '';
+    const tier = classifyWordTier(word.text || '');
+    if (tier === 'power' || tier === 'filler') {
+      return `{\\fs${fontSize}\\b${bold}\\c${color}}`;
+    }
+    return '';
+  };
+
+  // ── Phrase windowing helper ──
+  // Groups words into chunks of wordsPerPhrase. Each chunk covers the time
+  // from the first word's start to the last word's end.
+  const windowWords = (words: any[], subtitle: any): { groupWords: any[]; startMs: number; endMs: number }[] => {
+    const groups: { groupWords: any[]; startMs: number; endMs: number }[] = [];
+    for (let i = 0; i < words.length; i += wordsPerPhrase) {
+      const chunk = words.slice(i, i + wordsPerPhrase);
+      const groupStart = getAbsoluteWordTime(subtitle, chunk[0], false);
+      const groupEnd = getAbsoluteWordTime(subtitle, chunk[chunk.length - 1], true);
+      groups.push({ groupWords: chunk, startMs: groupStart, endMs: groupEnd });
+    }
+    return groups;
+  };
+
   // Process subtitles based on display mode
   for (const subtitle of subtitles) {
     const rawWords = subtitle.words || [];
@@ -2848,124 +3563,303 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         const endTime = formatASSTime(wordEnd);
         const text = transformWordText(word).replace(/\n/g, '\\N');
         const overrideTags = buildWordOverrideTags(word, true);
+        const dhTags = buildDynamicHierarchyTags(word, true);
         // Prepend effect tags (shadow xshad/yshad/blur) to each dialogue line
-        ass += `Dialogue: 0,${startTime},${endTime},Active,,0,0,0,,${effectOverrideTags}${overrideTags}${text}\n`;
+        ass += `Dialogue: 0,${startTime},${endTime},Active,,0,0,0,,${effectOverrideTags}${dhTags}${overrideTags}${text}\n`;
       }
     } else if (displayMode === 'karaoke') {
-      // Show all words with karaoke fill effect - words highlight as they're spoken
-      const startTime = formatASSTime(subtitle.startMs);
-      const endTime = formatASSTime(subtitle.endMs);
+      // Show words with karaoke fill effect, windowed by wordsPerPhrase
+      const groups = windowWords(words, subtitle);
+      for (const group of groups) {
+        const startTime = formatASSTime(group.startMs);
+        const endTime = formatASSTime(group.endMs);
 
-      // Build karaoke text with \kf tags for fill effect
-      let karaokeText = '';
-      for (let i = 0; i < words.length; i++) {
-        const word = words[i];
-        // Duration in centiseconds for ASS karaoke tags
-        const wordStart = getAbsoluteWordTime(subtitle, word, false);
-        const wordEnd = getAbsoluteWordTime(subtitle, word, true);
-        const duration = Math.round((wordEnd - wordStart) / 10);
-        const wordText = transformWordText(word);
-        const overrideTags = buildWordOverrideTags(word, false);
-        // \kf = karaoke fill effect (smooth fill from left to right)
-        // Merge override tags with \kf tag
-        if (overrideTags) {
-          // Insert \kf inside the override tag block
-          karaokeText += `{\\kf${duration}${overrideTags.slice(1, -1)}}${wordText}`;
-        } else {
-          karaokeText += `{\\kf${duration}}${wordText}`;
-        }
-        // Reset after overridden word so next word uses defaults
-        if ((word as any).styleOverrides && i < words.length - 1) karaokeText += buildResetTags(word);
-        // Use space + \h to approximate the preview's flex gap + padding between words
-        if (i < words.length - 1) karaokeText += ' \\h';
-      }
-      // Prepend effect tags to karaoke dialogue line
-      ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${effectOverrideTags}${karaokeText}\n`;
-    } else {
-      // Phrase mode (default) — only the CURRENT word is highlighted, others stay in base color.
-      // Instead of \kf karaoke (which permanently fills words), we generate one Dialogue line
-      // per word's active period. Each line shows the full phrase with only that word in activeColor.
-      // Gaps between words show all words in default color.
-
-      // Helper: build the full phrase text with one word optionally highlighted
-      const buildPhraseLine = (activeIdx: number): string => {
-        let text = '';
-        for (let j = 0; j < words.length; j++) {
-          const w = words[j];
-          const isWordActive = j === activeIdx;
-          const ov = w.styleOverrides;
-          const wordText = transformWordText(w);
-
-          // Build inline override tags for this word
-          const tags: string[] = [];
-
-          // Color: active word uses activeColor, inactive uses base color
-          // Per-word color overrides take priority
-          if (isWordActive) {
-            const wordColor = ov?.activeColor
-              ? hexToASSColor(ov.activeColor)
-              : (ov?.color ? hexToASSColor(ov.color) : activeColor);
-            tags.push(`\\c${wordColor}`);
+        // Build karaoke text with \kf tags for fill effect
+        let karaokeText = '';
+        for (let i = 0; i < group.groupWords.length; i++) {
+          const word = group.groupWords[i];
+          const wordStart = getAbsoluteWordTime(subtitle, word, false);
+          const wordEnd = getAbsoluteWordTime(subtitle, word, true);
+          const duration = Math.round((wordEnd - wordStart) / 10);
+          const wordText = transformWordText(word);
+          const overrideTags = buildWordOverrideTags(word, false);
+          const dhTags = buildDynamicHierarchyTags(word, false);
+          // Merge all override tags with \kf tag
+          const allOverrides = [
+            dhTags ? dhTags.slice(1, -1) : '',
+            overrideTags ? overrideTags.slice(1, -1) : '',
+          ].filter(Boolean).join('');
+          if (allOverrides) {
+            karaokeText += `{\\kf${duration}${allOverrides}}${wordText}`;
           } else {
-            const wordColor = ov?.color ? hexToASSColor(ov.color) : color;
-            tags.push(`\\c${wordColor}`);
+            karaokeText += `{\\kf${duration}}${wordText}`;
           }
-
-          // Background: active word may have activeBackgroundColor or emphasisBg
-          if (ov?.emphasisBg) {
-            tags.push(`\\3c${hexToASSColor(ov.emphasisBg)}`);
+          // Reset after overridden word so next word uses defaults
+          const needsReset = (word as any).styleOverrides || isDynamicHierarchy;
+          if (needsReset && i < group.groupWords.length - 1) {
+            karaokeText += buildResetTags(word);
+            karaokeText += buildDynamicHierarchyReset(word);
           }
-
-          // Font overrides
-          if (ov?.fontFamily) {
-            tags.push(`\\fn${resolveAvailableFontFamily(ov.fontFamily)}`);
-          }
-          if (ov?.fontSize) {
-            tags.push(`\\fs${Math.round((ov.scale || 1) * ov.fontSize)}`);
-          } else if (ov?.scale && ov.scale !== 1) {
-            tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
-          }
-          if (ov?.fontWeight && ov.fontWeight >= 700) {
-            tags.push('\\b1');
-          }
-          if (ov?.letterSpacing != null) {
-            tags.push(`\\fsp${ov.letterSpacing}`);
-          }
-
-          text += `{${tags.join('')}}${wordText}`;
-          if (j < words.length - 1) text += ' \\h';
+          if (i < group.groupWords.length - 1) karaokeText += ' \\h';
         }
-        return text;
+        ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${effectOverrideTags}${karaokeText}\n`;
+      }
+    } else if (isDynamicHierarchy) {
+      // ── Dynamic hierarchy: emotional segmentation (matches Composition.tsx preview) ──
+      // Instead of fixed wordsPerPhrase chunks, use emotional line breaking:
+      // - Power words get their own line for dramatic emphasis
+      // - Pauses > 400ms force line breaks
+      // - Filler words don't start lines (pull to previous)
+      // - Max 5 words per line, max 2 lines per segment
+      const DH_MAX_LINE = 5;
+      const DH_PAUSE_MS = 400;
+      const emotionalLines: number[][] = [];
+      let curLine: number[] = [];
+
+      for (let i = 0; i < words.length; i++) {
+        const tier = classifyWordTier(words[i].text || '');
+        const hasPause = i > 0 &&
+          (getAbsoluteWordTime(subtitle, words[i], false) - getAbsoluteWordTime(subtitle, words[i - 1], true)) > DH_PAUSE_MS;
+
+        if (hasPause && curLine.length > 0) {
+          emotionalLines.push(curLine);
+          curLine = [];
+        }
+        if (tier === 'power' && curLine.length > 0) {
+          emotionalLines.push(curLine);
+          curLine = [];
+        }
+        if (tier === 'filler' && curLine.length === 0 && emotionalLines.length > 0) {
+          const prevLine = emotionalLines[emotionalLines.length - 1];
+          if (prevLine.length < DH_MAX_LINE) {
+            prevLine.push(i);
+            continue;
+          }
+        }
+        curLine.push(i);
+        if (tier === 'power' && curLine.length === 1) {
+          emotionalLines.push(curLine);
+          curLine = [];
+          continue;
+        }
+        if (curLine.length >= DH_MAX_LINE) {
+          emotionalLines.push(curLine);
+          curLine = [];
+        }
+      }
+      if (curLine.length > 0) emotionalLines.push(curLine);
+
+      // Group lines into 2-line display segments (same as preview)
+      const dhSegments: { lines: number[][]; startIdx: number; endIdx: number }[] = [];
+      for (let l = 0; l < emotionalLines.length; l += 2) {
+        const segLines = [emotionalLines[l]];
+        if (l + 1 < emotionalLines.length) segLines.push(emotionalLines[l + 1]);
+        const allIdx = segLines.flat();
+        dhSegments.push({
+          lines: segLines,
+          startIdx: allIdx[0],
+          endIdx: allIdx[allIdx.length - 1] + 1,
+        });
+      }
+
+      // Wider margins to constrain text to ~60% width (matching preview's width: 60%)
+      const dhMarginL = Math.round(width * 0.2);
+      const dhMarginR = dhMarginL;
+
+      // Build text for an emotional segment with one word optionally highlighted
+      const buildSegText = (seg: { lines: number[][] }, activeWordRef: any | null): string => {
+        const parts: string[] = [];
+        for (let li = 0; li < seg.lines.length; li++) {
+          const line = seg.lines[li];
+          for (let j = 0; j < line.length; j++) {
+            const idx = line[j];
+            const w = words[idx];
+            const isWordActive = w === activeWordRef;
+            const wordText = transformWordText(w);
+            const tier = classifyWordTier(w.text || '');
+            const tags: string[] = [];
+
+            if (tier === 'power') {
+              tags.push(`\\fs${Math.round(fontSize * 1.8)}`);
+              tags.push('\\b1');
+              tags.push(`\\c${isWordActive ? hexToASSColor('#FFD400') : hexToASSColor('#FFFFFF')}`);
+            } else if (tier === 'filler') {
+              tags.push(`\\fs${Math.round(fontSize * 0.65)}`);
+              tags.push(`\\c${isWordActive ? '&H33FFFFFF' : '&H66FFFFFF'}`);
+            } else {
+              tags.push('\\b1');
+              tags.push(`\\c${isWordActive ? activeColor : color}`);
+            }
+
+            // Per-word style overrides
+            const ov = (w as any).styleOverrides;
+            if (ov?.fontFamily) tags.push(`\\fn${resolveAvailableFontFamily(ov.fontFamily)}`);
+            if (ov?.fontSize) tags.push(`\\fs${Math.round((ov.scale || 1) * ov.fontSize * fontSizeMultiplier)}`);
+            else if (ov?.scale && ov.scale !== 1) tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
+            if (ov?.fontWeight && ov.fontWeight >= 700) tags.push('\\b1');
+
+            parts.push(`{${tags.join('')}}${wordText}`);
+            if (j < line.length - 1) parts.push(' \\h');
+          }
+          if (li < seg.lines.length - 1) parts.push('\\N');
+        }
+        return parts.join('');
       };
 
-      // Generate time-sliced Dialogue lines (no overlap, no karaoke tags)
-      const firstWordStart = getAbsoluteWordTime(subtitle, words[0], false);
+      // Generate dialogue lines for each emotional segment
+      for (let si = 0; si < dhSegments.length; si++) {
+        const seg = dhSegments[si];
+        const segWordIndices = seg.lines.flat();
+        const segWords = segWordIndices.map(idx => words[idx]);
+        const segStart = getAbsoluteWordTime(subtitle, segWords[0], false);
+        const segEnd = getAbsoluteWordTime(subtitle, segWords[segWords.length - 1], true);
 
-      // Before first word: all words in default color
-      if (firstWordStart > subtitle.startMs) {
-        ass += `Dialogue: 0,${formatASSTime(subtitle.startMs)},${formatASSTime(firstWordStart)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
-      }
+        // Before first word in first segment: show in default color
+        if (si === 0 && subtitle.startMs < segStart) {
+          ass += `Dialogue: 0,${formatASSTime(subtitle.startMs)},${formatASSTime(segStart)},Default,,${dhMarginL},${dhMarginR},0,,${effectOverrideTags}${buildSegText(seg, null)}\n`;
+        }
 
-      for (let i = 0; i < words.length; i++) {
-        const wordStart = getAbsoluteWordTime(subtitle, words[i], false);
-        const wordEnd = getAbsoluteWordTime(subtitle, words[i], true);
+        // For each word in segment: highlight during its active period
+        for (let wi = 0; wi < segWords.length; wi++) {
+          const w = segWords[wi];
+          const wStart = getAbsoluteWordTime(subtitle, w, false);
+          const wEnd = getAbsoluteWordTime(subtitle, w, true);
+          ass += `Dialogue: 0,${formatASSTime(wStart)},${formatASSTime(wEnd)},Default,,${dhMarginL},${dhMarginR},0,,${effectOverrideTags}${buildSegText(seg, w)}\n`;
 
-        // This word's active period — highlight it
-        ass += `Dialogue: 0,${formatASSTime(wordStart)},${formatASSTime(wordEnd)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(i)}\n`;
+          // Gap between this word and next
+          if (wi < segWords.length - 1) {
+            const nextStart = getAbsoluteWordTime(subtitle, segWords[wi + 1], false);
+            if (wEnd < nextStart) {
+              ass += `Dialogue: 0,${formatASSTime(wEnd)},${formatASSTime(nextStart)},Default,,${dhMarginL},${dhMarginR},0,,${effectOverrideTags}${buildSegText(seg, null)}\n`;
+            }
+          }
+        }
 
-        // Gap between this word and next — all words in default color
-        if (i < words.length - 1) {
-          const nextWordStart = getAbsoluteWordTime(subtitle, words[i + 1], false);
-          if (wordEnd < nextWordStart) {
-            ass += `Dialogue: 0,${formatASSTime(wordEnd)},${formatASSTime(nextWordStart)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
+        // Gap between segments
+        if (si < dhSegments.length - 1) {
+          const nextSegWords = dhSegments[si + 1].lines.flat().map(idx => words[idx]);
+          const nextSegStart = getAbsoluteWordTime(subtitle, nextSegWords[0], false);
+          if (segEnd < nextSegStart) {
+            ass += `Dialogue: 0,${formatASSTime(segEnd)},${formatASSTime(nextSegStart)},Default,,${dhMarginL},${dhMarginR},0,,${effectOverrideTags}${buildSegText(seg, null)}\n`;
           }
         }
       }
 
-      // After last word: all words in default color
-      const lastWordEnd = getAbsoluteWordTime(subtitle, words[words.length - 1], true);
-      if (lastWordEnd < subtitle.endMs) {
-        ass += `Dialogue: 0,${formatASSTime(lastWordEnd)},${formatASSTime(subtitle.endMs)},Default,,0,0,0,,${effectOverrideTags}${buildPhraseLine(-1)}\n`;
+      // After all segments: fill remaining subtitle duration
+      if (dhSegments.length > 0) {
+        const lastSeg = dhSegments[dhSegments.length - 1];
+        const lastWords = lastSeg.lines.flat().map(idx => words[idx]);
+        const lastEnd = getAbsoluteWordTime(subtitle, lastWords[lastWords.length - 1], true);
+        if (lastEnd < subtitle.endMs) {
+          ass += `Dialogue: 0,${formatASSTime(lastEnd)},${formatASSTime(subtitle.endMs)},Default,,${dhMarginL},${dhMarginR},0,,${effectOverrideTags}${buildSegText(lastSeg, null)}\n`;
+        }
+      }
+
+    } else {
+      // Phrase mode (default) — show wordsPerPhrase words at a time,
+      // with the current word highlighted and others in base color.
+      // Each windowed group is a separate dialogue block.
+
+      const groups = windowWords(words, subtitle);
+
+      for (const group of groups) {
+        const gw = group.groupWords;
+
+        // Helper: build phrase text for this group with one word optionally highlighted
+        const buildGroupLine = (activeWordRef: any | null): string => {
+          let text = '';
+          for (let j = 0; j < gw.length; j++) {
+            const w = gw[j];
+            const isWordActive = w === activeWordRef;
+            const ov = w.styleOverrides;
+            const wordText = transformWordText(w);
+
+            const tags: string[] = [];
+
+            // Standard color: active word uses activeColor, inactive uses base color
+            if (isWordActive) {
+              const wordColor = ov?.activeColor
+                ? hexToASSColor(ov.activeColor)
+                : (ov?.color ? hexToASSColor(ov.color) : activeColor);
+              tags.push(`\\c${wordColor}`);
+            } else {
+              const wordColor = ov?.color ? hexToASSColor(ov.color) : color;
+              tags.push(`\\c${wordColor}`);
+            }
+
+            // Background: active word may have activeBackgroundColor or emphasisBg
+            if (ov?.emphasisBg) {
+              tags.push(`\\3c${hexToASSColor(ov.emphasisBg)}`);
+            }
+
+            // Font overrides (from per-word styleOverrides)
+            if (ov?.fontFamily) {
+              tags.push(`\\fn${resolveAvailableFontFamily(ov.fontFamily)}`);
+            }
+            if (ov?.fontSize) {
+              tags.push(`\\fs${Math.round((ov.scale || 1) * ov.fontSize * fontSizeMultiplier)}`);
+            } else if (ov?.scale && ov.scale !== 1) {
+              tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
+            }
+            if (ov?.fontWeight && ov.fontWeight >= 700) {
+              tags.push('\\b1');
+            }
+            if (ov?.letterSpacing != null) {
+              tags.push(`\\fsp${ov.letterSpacing}`);
+            }
+
+            text += `{${tags.join('')}}${wordText}`;
+            if (j < gw.length - 1) text += ' \\h';
+          }
+          return text;
+        };
+
+        // Generate time-sliced Dialogue lines for this group
+        const groupFirstStart = group.startMs;
+        const groupLastEnd = group.endMs;
+
+        // Before first word in group: all words in default color
+        const groupDisplayStart = (group === groups[0]) ? subtitle.startMs : groupFirstStart;
+        if (groupFirstStart > groupDisplayStart) {
+          ass += `Dialogue: 0,${formatASSTime(groupDisplayStart)},${formatASSTime(groupFirstStart)},Default,,0,0,0,,${effectOverrideTags}${buildGroupLine(null)}\n`;
+        }
+
+        for (let i = 0; i < gw.length; i++) {
+          const wordStart = getAbsoluteWordTime(subtitle, gw[i], false);
+          const wordEnd = getAbsoluteWordTime(subtitle, gw[i], true);
+
+          ass += `Dialogue: 0,${formatASSTime(wordStart)},${formatASSTime(wordEnd)},Default,,0,0,0,,${effectOverrideTags}${buildGroupLine(gw[i])}\n`;
+
+          if (i < gw.length - 1) {
+            const nextWordStart = getAbsoluteWordTime(subtitle, gw[i + 1], false);
+            if (wordEnd < nextWordStart) {
+              ass += `Dialogue: 0,${formatASSTime(wordEnd)},${formatASSTime(nextWordStart)},Default,,0,0,0,,${effectOverrideTags}${buildGroupLine(null)}\n`;
+            }
+          }
+        }
+
+        if (getAbsoluteWordTime(subtitle, gw[gw.length - 1], true) < groupLastEnd) {
+          ass += `Dialogue: 0,${formatASSTime(getAbsoluteWordTime(subtitle, gw[gw.length - 1], true))},${formatASSTime(groupLastEnd)},Default,,0,0,0,,${effectOverrideTags}${buildGroupLine(null)}\n`;
+        }
+      }
+
+      // After all groups: fill remaining subtitle duration
+      if (groups.length > 0) {
+        const lastGroupEnd = groups[groups.length - 1].endMs;
+        if (lastGroupEnd < subtitle.endMs) {
+          const lastGroup = groups[groups.length - 1];
+          const buildLastGroupLine = (): string => {
+            let text = '';
+            for (let j = 0; j < lastGroup.groupWords.length; j++) {
+              const w = lastGroup.groupWords[j];
+              const wordText = transformWordText(w);
+              text += `{\\c${color}}${wordText}`;
+              if (j < lastGroup.groupWords.length - 1) text += ' \\h';
+            }
+            return text;
+          };
+          ass += `Dialogue: 0,${formatASSTime(lastGroupEnd)},${formatASSTime(subtitle.endMs)},Default,,0,0,0,,${effectOverrideTags}${buildLastGroupLine()}\n`;
+        }
       }
     }
   }
@@ -3022,7 +3916,8 @@ async function encodeVideoWithSubtitles(
   canvasWidth: number = 1080,
   canvasHeight: number = 1920,
   fontsDir: string = escapePathForFilter(SYSTEM_FONTS_DIR),
-  resolvedFontFamily?: string
+  resolvedFontFamily?: string,
+  fontSizeMultiplier: number = 1,
 ): Promise<void> {
   const { spawn } = await import('child_process');
   const { basename } = await import('path');
@@ -3041,10 +3936,10 @@ async function encodeVideoWithSubtitles(
 
   // Generate ASS subtitles using actual canvas dimensions
   const assFilename = 'subtitles.ass';
-  const assContent = generateASSForComposite(subtitles, canvasWidth, canvasHeight, undefined, resolvedFontFamily);
+  const assContent = generateASSForComposite(subtitles, canvasWidth, canvasHeight, undefined, resolvedFontFamily, fontSizeMultiplier);
   await writeFile(join(workDir, assFilename), assContent, 'utf-8');
 
-  logger.info({ subtitleCount: subtitles.length, audioPath }, 'Encoding video with subtitles');
+  logger.info({ subtitleCount: subtitles.length, audioPath, fontSizeMultiplier }, 'Encoding video with subtitles');
 
   const args = [
     '-i', 'input.mp4',
