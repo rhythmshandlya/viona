@@ -4047,6 +4047,11 @@ Output PASS or FAIL with numbered issues.
             else:
                 safe_print("[ClaudeGenerator] WARNING: STUDIO_TEMPLATES.md not found, Director will plan without template catalog")
 
+        # For kinetic-typography: log that style is active.
+        # No special injection needed — Director and Animator prompts handle it.
+        if style_preset == "kinetic-typography":
+            safe_print("[ClaudeGenerator] Kinetic typography style active — Director will output text-card segments")
+
         # Write restricted security settings for the Director — only allow writes
         # within the project directory (src_dir). This prevents Claude from writing
         # plan files to the workspace root.
