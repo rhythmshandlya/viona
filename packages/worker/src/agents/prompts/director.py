@@ -672,6 +672,36 @@ the scene's purpose. If no template fits, omit the field.
 Examples: revenue growth → ["stat-counter"], comparison → ["versus-screen", "pros-cons"],
 timeline → ["timeline-cascade"], process → ["process-flow"].
 """,
+    "kinetic-typography": """Full-screen text cards synced to narration — Apple ad style.
+
+**CONCEPT:** Every word the narrator says appears as large bold text on solid colored backgrounds.
+Words are grouped into short phrases (2-8 words per card). Background colors rotate through 3 brand
+colors. One emphasis word per card gets a hand-drawn doodle annotation (underline, circle, arrow,
+or checkmark).
+
+**THIS IS NOT A DATA VISUALIZATION STYLE.** Do not plan charts, diagrams, or illustrations.
+Instead, plan TEXT CARDS that display the narrator's actual words.
+
+**COLOR RULES:**
+- Rotate through the 3 brand colors provided in the user guidance
+- Never use the same background color 3 times in a row
+- Text color: white (#FFFFFF) on dark backgrounds, black (#000000) on light backgrounds
+- Use contrast ratio check: if background luminance > 0.5, use black text; otherwise white
+
+**DOODLE ANNOTATIONS:**
+Each segment gets ONE emphasis word with a doodle type:
+- "underline" (50% frequency) — wavy hand-drawn underline
+- "circle" (20%) — loose ellipse around the word
+- "arrow" (15%) — curved arrow pointing to the word
+- "checkmark" (10%) — hand-drawn check mark next to the word
+- null (5%) — no doodle
+
+**DISPLAY MODES:**
+- "phrase" — entire phrase appears at once with scale animation (use for short punchy text, 2-4 words)
+- "word-by-word" — words pop in one at a time synced to timestamps (use for dramatic reveals, 4-8 words)
+
+**PACING:** Fast — each text card lasts 0.6-4 seconds matching voiceover speed.
+""",
 }
 
 
@@ -821,6 +851,168 @@ This means most scenes stay in the familiar stacked layout, but 1-3 high-impact 
         return f"Custom layout: {width}x{height}px ({aspect})"
 
 
+def _build_kinetic_typography_director_message(
+    project_id: str,
+    formatted_transcript: str,
+    width: int,
+    height: int,
+    duration_frames: int,
+    fps: int,
+    style_desc: str,
+    style_guide: str | None = None,
+    output_dir: str | None = None,
+) -> str:
+    """Build Director message for kinetic-typography style.
+
+    Outputs a different schema: text-card segments with word timings,
+    background colors, emphasis words, and doodle types.
+    """
+    duration_seconds = duration_frames / fps
+    aspect_ratio = get_aspect_ratio_name(width, height)
+
+    # Parse brand colors from style_guide JSON (injected by frontend)
+    brand_colors_section = ""
+    if style_guide and style_guide.strip():
+        try:
+            import json as _json
+            parsed = _json.loads(style_guide.split("\n")[0])
+            if parsed.get("kineticTypography") and parsed.get("brandColors"):
+                bc = parsed["brandColors"]
+                brand_colors_section = f"""
+**BRAND COLORS (from user):**
+- Accent: {bc.get('accent', '#00E556')}
+- Dark: {bc.get('dark', '#000000')}
+- Light: {bc.get('light', '#EBEBEB')}
+
+Rotate through these 3 colors for backgrounds. Never use the same color 3x in a row.
+"""
+                # Remove the JSON line from style_guide so remaining text is user prose
+                remaining = "\n".join(style_guide.split("\n")[1:]).strip()
+                if remaining:
+                    brand_colors_section += f"\n**Additional user guidance:** {remaining}\n"
+        except Exception:
+            pass
+
+    if not brand_colors_section:
+        brand_colors_section = """
+**BRAND COLORS (defaults):**
+- Accent: #00E556
+- Dark: #000000
+- Light: #EBEBEB
+
+Rotate through these 3 colors for backgrounds. Never use the same color 3x in a row.
+"""
+
+    # Use absolute paths when output_dir is provided
+    if output_dir:
+        abs_plan_path = output_dir.replace("\\", "/") + "/SCENE_PLAN.md"
+        abs_scenes_path = output_dir.replace("\\", "/") + "/scenes.json"
+    else:
+        abs_plan_path = "SCENE_PLAN.md"
+        abs_scenes_path = "scenes.json"
+
+    return f"""
+## PROJECT: {project_id}
+
+## CANVAS SPECIFICATIONS
+- Dimensions: {width}x{height}px
+- Aspect Ratio: {aspect_ratio}
+- Duration: {duration_frames} frames ({duration_seconds:.1f}s)
+- FPS: {fps}
+
+## VISUAL STYLE: KINETIC TYPOGRAPHY
+{style_desc}
+{brand_colors_section}
+{formatted_transcript}
+
+## YOUR TASK
+
+Group the transcript words into text-card segments (2-8 words each) and assign visual properties.
+
+### Step 1: Group Words into Segments
+- Read every word and its timestamp from the transcript
+- Group consecutive words into short phrases (2-8 words)
+- Break at natural pauses, sentence boundaries, or emphasis points
+- Each segment becomes one full-screen text card
+
+### Step 2: Assign Visual Properties
+For each segment:
+1. Pick a background color (rotate through brand colors, never 3x in a row)
+2. Pick text color (white on dark backgrounds, black on light backgrounds)
+3. Choose displayMode: "phrase" for short punchy text (2-4 words), "word-by-word" for dramatic reveals (4-8 words)
+4. Pick ONE emphasis word and a doodle type (underline 50%, circle 20%, arrow 15%, checkmark 10%, null 5%)
+
+### Step 3: Write Output Files
+
+**CRITICAL: You MUST use the Write tool to create these files at the EXACT paths below.**
+
+#### 1. SCENE_PLAN.md
+**EXACT path:** `{abs_plan_path}`
+Human-readable plan listing each segment with its text, timing, colors, and emphasis.
+
+#### 2. scenes.json
+**EXACT path:** `{abs_scenes_path}`
+Machine-readable with this EXACT structure:
+
+```json
+{{
+  "projectId": "{project_id}",
+  "style": "kinetic-typography",
+  "fps": {fps},
+  "totalFrames": {duration_frames},
+  "durationSeconds": {duration_seconds:.1f},
+  "canvas": {{"width": {width}, "height": {height}}},
+  "segments": [
+    {{
+      "id": 1,
+      "text": "Every product",
+      "words": [
+        {{"word": "Every", "start": 0.48, "end": 0.72}},
+        {{"word": "product", "start": 0.72, "end": 1.12}}
+      ],
+      "startTime": 0.48,
+      "endTime": 1.12,
+      "startFrame": 14,
+      "endFrame": 34,
+      "background": "#00E556",
+      "textColor": "#000000",
+      "displayMode": "phrase",
+      "emphasis": {{"word": "product", "doodle": "underline"}}
+    }}
+  ]
+}}
+```
+
+**SCHEMA RULES:**
+- `segments` is an array of text cards, NOT scenes with visuals
+- `words` array must include EVERY word with `start` and `end` timestamps from the transcript
+- `startTime`/`endTime` = first word's start / last word's end
+- `startFrame` = round(startTime * {fps}), `endFrame` = round(endTime * {fps})
+- `background` = one of the 3 brand colors (hex string)
+- `textColor` = "#FFFFFF" or "#000000" based on background luminance
+- `displayMode` = "phrase" or "word-by-word"
+- `emphasis.word` = one word from `text`, `emphasis.doodle` = "underline"|"circle"|"arrow"|"checkmark"|null
+
+**CRITICAL CONSTRAINTS:**
+- First segment must start at the first word's timestamp
+- Last segment must end at the last word's timestamp
+- Segments MUST be contiguous — no gaps in transcript coverage
+- Every word from the transcript must appear in exactly one segment
+- Total segment count: typically 15-60 depending on transcript length
+
+## FINAL CHECKLIST
+1. [ ] Used Write tool to create `{abs_plan_path}`
+2. [ ] Used Write tool to create `{abs_scenes_path}`
+3. [ ] scenes.json has valid JSON with "style": "kinetic-typography"
+4. [ ] Every transcript word appears in exactly one segment
+5. [ ] Segments are contiguous (no gaps)
+6. [ ] Background colors rotate (never 3x same in a row)
+7. [ ] Each segment has exactly one emphasis word with doodle type
+
+When your plan files are written, respond: "PLANNING COMPLETE"
+"""
+
+
 def build_director_user_message(
     project_id: str,
     formatted_transcript: str,
@@ -853,6 +1045,21 @@ def build_director_user_message(
 
     # Get descriptions for selected options
     style_desc = STYLE_PRESET_DESCRIPTIONS.get(style_preset, STYLE_PRESET_DESCRIPTIONS["modern"])
+
+    # Kinetic typography uses a fundamentally different output schema
+    if style_preset == "kinetic-typography":
+        return _build_kinetic_typography_director_message(
+            project_id=project_id,
+            formatted_transcript=formatted_transcript,
+            width=width,
+            height=height,
+            duration_frames=duration_frames,
+            fps=fps,
+            style_desc=style_desc,
+            style_guide=style_guide,
+            output_dir=output_dir,
+        )
+
     layout_context = get_layout_context(layout_mode, width, height, source_width, source_height, pip_width, pip_height)
     aspect_ratio = get_aspect_ratio_name(width, height)
 
