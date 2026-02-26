@@ -10,6 +10,7 @@ import { useRef, useEffect, useState, useCallback } from 'react';
 import { Player } from '../player/Player';
 import { useProject, useSelectedElement, useElementPickerEnabled } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
+import { CaptionDragOverlay } from '../components/CaptionDragOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
 
 interface HighlightRect {
@@ -160,6 +161,13 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
           }}
         >
           <Player />
+
+          {/* Caption drag/resize/rotate overlay */}
+          <CaptionDragOverlay
+            containerRef={playerContainerRef}
+            canvasWidth={videoWidth}
+            canvasHeight={videoHeight}
+          />
 
           {/* Element selection overlay */}
           {elementPickerEnabled && selectedElement && (
