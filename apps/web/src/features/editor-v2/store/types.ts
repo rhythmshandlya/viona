@@ -242,16 +242,21 @@ export type AnimationType =
   | 'none'
   // Viral
   | 'elastic-pop' | 'bounce-up' | 'shake' | 'color-wipe'
-  | '3d-flip' | 'punch' | 'scale-bounce' | 'slide-up'
-  | 'weight-shift' | 'float'
+  | '3d-flip' | 'punch' | 'scale-bounce' | 'slide-up' | 'weight-shift' | 'float'
+  | 'rotate-bounce' | 'constant-wiggle' | 'slam-down' | 'shake-entry'
+  | 'bubble-pop' | 'wiggle'
   // Cinematic
   | 'fade' | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
-  | 'underline-wipe'
+  | 'underline-wipe' | 'scan-line' | 'hand-draw' | 'underline-sweep'
   // Ad / Premium
   | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal'
+  | 'slide-left'
   // Motion (AutoAE-inspired)
   | 'spotlight-reveal' | 'film-burn' | 'glitch' | 'spin-reveal'
-  | 'drop-slam' | 'wave' | 'blur-zoom' | 'chromatic-split';
+  | 'drop-slam' | 'wave' | 'blur-zoom' | 'chromatic-split'
+  | 'elastic-horizontal' | 'speed-blur' | 'particle-explode' | 'gather'
+  | 'blob-morph' | 'newspaper-rotate' | 'chrome-reflect' | 'brutal-slam'
+  | 'neon-buzz' | 'flicker';
 
 export type EasingType = 'linear' | 'ease-out' | 'ease-in-out' | 'spring' | 'elastic' | 'bounce';
 
@@ -542,6 +547,9 @@ export interface EditorState {
   // AI edit request (set when user triggers "Edit with AI" from context menu)
   aiEditRequested: boolean;
 
+  // Transition picker (set when user triggers "Change Transition" from context menu)
+  transitionPickerItemId: string | null;
+
   // Safe zone settings
   safeZonePlatform: string;  // 'tiktok' | 'instagram-reels' | etc.
   showSafeZone: boolean;
@@ -656,6 +664,11 @@ export interface EditorActions {
 
   // Visual display mode
   updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => void;
+  updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => void;
+
+  // Transition picker
+  openTransitionPicker: (itemId: string) => void;
+  closeTransitionPicker: () => void;
 
   // Safe zone actions
   setSafeZonePlatform: (platform: string) => void;

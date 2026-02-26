@@ -852,9 +852,16 @@ function DynamicLayoutComposition({
   let layoutEnterProgress = 1;
   let layoutExitProgress = 0;
 
-  if (activeItem && activeData?.transition) {
+  // Use explicit transition if set, otherwise default to a 300ms fade in/out
+  const DEFAULT_FADE_TRANSITION = {
+    enter: { type: 'fade' as const, durationMs: 300 },
+    exit: { type: 'fade' as const, durationMs: 300 },
+  };
+  const effectiveTransition = activeData?.transition ?? DEFAULT_FADE_TRANSITION;
+
+  if (activeItem) {
     const itemDurationMs = activeItem.endMs - activeItem.startMs;
-    const { enter, exit } = activeData.transition;
+    const { enter, exit } = effectiveTransition;
 
     // Clamp transition durations to at most half the item duration
     const maxDuration = itemDurationMs / 2;

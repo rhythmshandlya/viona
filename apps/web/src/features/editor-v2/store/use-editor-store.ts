@@ -325,6 +325,10 @@ export function useAIEditRequested() {
   return useEditorStore((state) => state.aiEditRequested);
 }
 
+export function useTransitionPickerItemId() {
+  return useEditorStore((state) => state.transitionPickerItemId);
+}
+
 // ============================================
 // AI Editing Context Selector
 // ============================================
@@ -514,6 +518,9 @@ export function useEditorActions() {
 
       // Visual display mode
       updateVisualDisplayMode: state.updateVisualDisplayMode,
+      updateVisualTransition: state.updateVisualTransition,
+      openTransitionPicker: state.openTransitionPicker,
+      closeTransitionPicker: state.closeTransitionPicker,
 
       // Captions
       setShowCaptions: state.setShowCaptions,

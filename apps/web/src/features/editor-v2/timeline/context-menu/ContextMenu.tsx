@@ -82,6 +82,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     select,
     requestAIEdit,
     updateVisualDisplayMode,
+    openTransitionPicker,
   } = useEditorActions();
 
   // Close on outside click
@@ -230,6 +231,10 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
                       checked: (item.data as VisualItemData).displayMode === 'overlay',
                     },
                   ],
+                },
+                {
+                  label: 'Change Transition…',
+                  action: withSelection(() => openTransitionPicker(itemId)),
                 },
                 {
                   label: 'Edit with AI',

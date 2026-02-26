@@ -117,6 +117,9 @@ const initialState: EditorState = {
   // AI edit request
   aiEditRequested: false,
 
+  // Transition picker
+  transitionPickerItemId: null,
+
   // Safe zone settings
   safeZonePlatform: 'none',
   showSafeZone: false,
@@ -1819,6 +1822,25 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       debouncedSave(() => get().saveProject());
+    },
+
+    updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => {
+      set((state) => {
+        const item = state.items[itemId];
+        if (item?.type === 'visual') {
+          (item.data as VisualItemData).transition = transition;
+        }
+      });
+      get().pushHistory();
+      debouncedSave(() => get().saveProject());
+    },
+
+    openTransitionPicker: (itemId: string) => {
+      set((state) => { state.transitionPickerItemId = itemId; });
+    },
+
+    closeTransitionPicker: () => {
+      set((state) => { state.transitionPickerItemId = null; });
     },
 
     // ========================================
