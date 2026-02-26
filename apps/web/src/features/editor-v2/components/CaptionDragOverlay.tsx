@@ -118,6 +118,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
 
   const [box, setBox] = useState<BoundingBox | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<DragState | null>(null);
   const rafRef = useRef<number>(0);
   const lastBoxRef = useRef<BoundingBox | null>(null);
@@ -219,6 +220,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         startFontSize: style.fontSize,
         startPosition: resolvePosition(style.position),
       };
+      setIsDragging(true);
     },
     [getCaptionStyle, box]
   );
@@ -299,8 +301,13 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     if (dragRef.current) {
-      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      try {
+        (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {
+        // Pointer already released
+      }
       dragRef.current = null;
+      setIsDragging(false);
     }
   }, []);
 
@@ -308,7 +315,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
 
   if (!box || !showCaptions || captionItems.length === 0) return null;
 
-  const isDragging = dragRef.current !== null;
   const currentRotation = resolvePosition(getCaptionStyle()?.position ?? 'bottom').rotation;
 
   return (
