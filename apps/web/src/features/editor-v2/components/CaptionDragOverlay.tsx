@@ -242,11 +242,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         const deltaOffsetX = (dx / canvasWidth) * 100;
         const deltaOffsetY = (dy / canvasHeight) * 100;
 
-        // For bottom anchor, Y is inverted (bottom offset decreases when moving down)
-        const yMultiplier = startPosition.anchor === 'bottom' ? -1 : 1;
-
         const newOffsetX = clamp(startPosition.offsetX + deltaOffsetX, -MAX_OFFSET, MAX_OFFSET);
-        const newOffsetY = clamp(startPosition.offsetY + deltaOffsetY * yMultiplier, -MAX_OFFSET, MAX_OFFSET);
+        const newOffsetY = clamp(startPosition.offsetY + deltaOffsetY, -MAX_OFFSET, MAX_OFFSET);
 
         const finalOffsetX = Math.abs(newOffsetX) <= SNAP_THRESHOLD ? 0 : Math.round(newOffsetX * 10) / 10;
         const finalOffsetY = Math.abs(newOffsetY) <= SNAP_THRESHOLD ? 0 : Math.round(newOffsetY * 10) / 10;
