@@ -444,7 +444,7 @@ const titleScale = interpolate(
 const titleY = interpolate(
   frame,
   [0, titleSettleFrame, titleSettleFrame + 15],
-  [height * 0.4, height * 0.4, height * 0.06],
+  [EH * 0.4, EH * 0.4, EH * 0.08],
   { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 // Content fades in AFTER title settles
@@ -466,25 +466,26 @@ const glassStyle = {
   border: '1px solid rgba(255, 255, 255, 0.2)',
   borderRadius: 16,
   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+  overflow: 'hidden' as const,
 };
 ```
 
 ### Flowing Particles (for streams/rivers)
 ```tsx
-const FlowingParticles: React.FC = () => {
+// NOTE: Use EW/EH (effective viewport) — NOT width/height from useVideoConfig
+const FlowingParticles: React.FC<{EW: number, EH: number}> = ({EW, EH}) => {
   const frame = useCurrentFrame();
-  const {width, height} = useVideoConfig();
   return (
     <>
       {Array.from({length: 30}).map((_, i) => {
-        const x = ((frame * 2 + i * 50) % (width + 100)) - 50;
-        const y = (height * 0.4) + Math.sin((frame + i * 20) * 0.03) * 50;
+        const x = ((frame * 2 + i * 50) % (EW + 100)) - 50;
+        const y = (EH * 0.4) + Math.sin((frame + i * 20) * 0.03) * 50;
         return (
           <div key={i} style={{
             position: 'absolute', left: x, top: y,
             width: 16, height: 16, borderRadius: '50%',
             background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-            opacity: 0.7,
+            opacity: 0.12,
           }} />
         );
       })}
@@ -652,12 +653,17 @@ const slamProgress = spring({ frame: frame - slamFrame, fps, config: { damping: 
 const scale = interpolate(slamProgress, [0, 1], [2.5, 1]);
 const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-<div style={{
-  transform: `scale(${scale})`,
-  textShadow: `0 0 ${40 * glowOpacity}px ${COLORS.primary}`,
-  fontWeight: 900,
-}}>
-  {text}
+// Parent container MUST clip overflow during the scale-up phase
+<div style={{ overflow: 'hidden', width: '100%', display: 'flex', justifyContent: 'center' }}>
+  <div style={{
+    transform: `scale(${scale})`,
+    textShadow: `0 0 ${40 * glowOpacity}px ${COLORS.primary}`,
+    fontWeight: 900,
+    textAlign: 'center',
+    maxWidth: EW * 0.85,
+  }}>
+    {text}
+  </div>
 </div>
 ```
 
@@ -695,7 +701,7 @@ const morphProgress = interpolate(
   frame, [morphStartFrame, morphStartFrame + 20], [0, 1],
   { extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.inOut(Easing.cubic) }
 );
-const posY = interpolate(morphProgress, [0, 1], [EH * 0.4, EH * 0.06]);
+const posY = interpolate(morphProgress, [0, 1], [EH * 0.4, EH * 0.08]);
 const fontSize = interpolate(morphProgress, [0, 1], [EH * 0.09, EH * 0.05]);
 ```
 
@@ -1253,7 +1259,7 @@ const Dice3D: React.FC<{ startFrame: number }> = ({ startFrame }) => {
 
   return (
     <ThreeCanvas
-      style={{ position: 'absolute', top: 100, left: '50%', transform: 'translateX(-50%)', width: 200, height: 200 }}
+      style={{ position: 'absolute', top: EH * 0.1, left: '50%', transform: 'translateX(-50%)', width: EW * 0.2, height: EW * 0.2 }}
     >
       <ambientLight intensity={0.6} />
       <pointLight position={[5, 5, 5]} intensity={1} />
@@ -1994,7 +2000,7 @@ const cardTopY = (EH * 0.85 - totalBlockHeight) / 2;
 // This gives cardTopY ≈ EH * 0.14, NOT EH * 0.05
 ```
 
-### Zone System — FINAL positions after all elements are visible:
+### Final Layout Zones (NOT initial placement — use Center-Then-Shift above for initial):
 ```
 ┌─────────────────────────────┐
 │  TOP ZONE (0-35% of EH)     │  ← Titles, headings, scene labels
@@ -2035,12 +2041,66 @@ If the Director's plan describes 5+ attention-grabbing elements, implement them 
 - 60px minimum margins on all sides
 - Bottom 15% reserved for subtitles — NEVER place content there
 
+### Centering Patterns (USE THESE — not `left: EW/2`):
+
+**Horizontal centering with flexbox (PREFERRED):**
+```tsx
+// Wrap content in a flex container that spans the full width
+<div style={{
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  top: contentTopY,
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+}}>
+  <div style={{ maxWidth: EW * 0.85, textAlign: 'center' }}>
+    {/* Content is naturally centered */}
+  </div>
+</div>
+```
+
+**Column layout (multiple stacked elements):**
+```tsx
+<div style={{
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  top: contentTopY,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: EH * 0.03,
+}}>
+  <div>{/* Title */}</div>
+  <div>{/* Card or content */}</div>
+  <div>{/* Supporting info */}</div>
+</div>
+```
+
+**NEVER do this:**
+```tsx
+// ❌ WRONG — positions left EDGE at center, content is offset right
+<div style={{ position: 'absolute', left: EW / 2, top: EH * 0.3 }}>
+```
+
 ### Responsive Sizing:
 - ALL sizes relative to EW/EH — never use fixed pixels (no `width: 80`, `fontSize: '14px'`)
 - Title text: `fontSize: EH * 0.06` to `EH * 0.10`
 - Body text: `fontSize: EH * 0.03` to `EH * 0.04`
 - Cards: `width: EW * 0.7` to `EW * 0.85`, `padding: EH * 0.03`
 - Icons (accents only): `width: EW * 0.06` to `EW * 0.08`
+- Tiny decorative elements (particles, dots): fixed small px (4-16px) is acceptable
+
+### Text Safety (MANDATORY):
+- **Always set `maxWidth`** on text containers: `maxWidth: EW * 0.85` for titles, `maxWidth: EW * 0.75` for body
+- **Always set `textAlign: 'center'`** on centered layouts (most scenes)
+- **Always set `overflowWrap: 'break-word'`** on all text containers to prevent horizontal overflow
+- **Always set `lineHeight: 1.2`** for multi-line text (prevents line overlap)
+- For titles at large font sizes (`EH * 0.08+`), keep text under ~30 characters
+- For body text, keep under ~60 characters per line or use `maxWidth` to force wrapping
+- **Container overflow:** Any element with fixed width/height MUST include `overflow: 'hidden'`
 </layout_rules>
 """
 
@@ -2281,8 +2341,8 @@ export const Scene1: React.FC = () => {{
 
   // Setup elements: animate BEFORE the key word is spoken (anticipation)
   const setupProgress = interpolate(frame, [0, TIMING.scene1KeySync], [0, 1], {{
-    extrapolateRight: 'clamp',
     extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
   }});
 
   // KEY SYNC: Main visual event triggers when the narrator says the key word
@@ -2306,8 +2366,12 @@ export const Scene1: React.FC = () => {{
           opacity: keySyncProgress,
           transform: `scale(${{keySyncProgress}})`,
           position: 'absolute',
-          left: EW / 2,
+          left: 0,
+          right: 0,
           top: EH * 0.3,
+          display: 'flex',
+          justifyContent: 'center',
+          textAlign: 'center',
           // Font sizes relative to EH, positions relative to EW/EH
         }}}}>
           {{/* Main visual event described in keySync.visualEvent */}}
@@ -2578,7 +2642,7 @@ const titleScale = interpolate(
 const titleY = interpolate(
   frame,
   [0, titleSettleFrame, titleSettleFrame + 15],
-  [height * 0.4, height * 0.4, height * 0.06],
+  [EH * 0.4, EH * 0.4, EH * 0.08],
   { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 );
 // Content fades in AFTER title settles
@@ -2600,25 +2664,26 @@ const glassStyle = {
   border: '1px solid rgba(255, 255, 255, 0.2)',
   borderRadius: 16,
   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+  overflow: 'hidden' as const,
 };
 ```
 
 ### Flowing Particles (for streams/rivers)
 ```tsx
-const FlowingParticles: React.FC = () => {
+// NOTE: Use EW/EH (effective viewport) — NOT width/height from useVideoConfig
+const FlowingParticles: React.FC<{EW: number, EH: number}> = ({EW, EH}) => {
   const frame = useCurrentFrame();
-  const {width, height} = useVideoConfig();
   return (
     <>
       {Array.from({length: 30}).map((_, i) => {
-        const x = ((frame * 2 + i * 50) % (width + 100)) - 50;
-        const y = (height * 0.4) + Math.sin((frame + i * 20) * 0.03) * 50;
+        const x = ((frame * 2 + i * 50) % (EW + 100)) - 50;
+        const y = (EH * 0.4) + Math.sin((frame + i * 20) * 0.03) * 50;
         return (
           <div key={i} style={{
             position: 'absolute', left: x, top: y,
             width: 16, height: 16, borderRadius: '50%',
             background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-            opacity: 0.7,
+            opacity: 0.12,
           }} />
         );
       })}
@@ -2786,12 +2851,17 @@ const slamProgress = spring({ frame: frame - slamFrame, fps, config: { damping: 
 const scale = interpolate(slamProgress, [0, 1], [2.5, 1]);
 const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
-<div style={{
-  transform: `scale(${scale})`,
-  textShadow: `0 0 ${40 * glowOpacity}px ${COLORS.primary}`,
-  fontWeight: 900,
-}}>
-  {text}
+// Parent container MUST clip overflow during the scale-up phase
+<div style={{ overflow: 'hidden', width: '100%', display: 'flex', justifyContent: 'center' }}>
+  <div style={{
+    transform: `scale(${scale})`,
+    textShadow: `0 0 ${40 * glowOpacity}px ${COLORS.primary}`,
+    fontWeight: 900,
+    textAlign: 'center',
+    maxWidth: EW * 0.85,
+  }}>
+    {text}
+  </div>
 </div>
 ```
 
@@ -2829,7 +2899,7 @@ const morphProgress = interpolate(
   frame, [morphStartFrame, morphStartFrame + 20], [0, 1],
   { extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.inOut(Easing.cubic) }
 );
-const posY = interpolate(morphProgress, [0, 1], [EH * 0.4, EH * 0.06]);
+const posY = interpolate(morphProgress, [0, 1], [EH * 0.4, EH * 0.08]);
 const fontSize = interpolate(morphProgress, [0, 1], [EH * 0.09, EH * 0.05]);
 ```
 
@@ -3389,7 +3459,7 @@ const Dice3D: React.FC<{ startFrame: number }> = ({ startFrame }) => {
 
   return (
     <ThreeCanvas
-      style={{ position: 'absolute', top: 100, left: '50%', transform: 'translateX(-50%)', width: 200, height: 200 }}
+      style={{ position: 'absolute', top: EH * 0.1, left: '50%', transform: 'translateX(-50%)', width: EW * 0.2, height: EW * 0.2 }}
     >
       <ambientLight intensity={0.6} />
       <pointLight position={[5, 5, 5]} intensity={1} />
@@ -4042,7 +4112,7 @@ const cardTopY = (EH * 0.85 - totalBlockHeight) / 2;
 // This gives cardTopY ≈ EH * 0.14, NOT EH * 0.05
 ```
 
-### Zone System — FINAL positions after all elements are visible:
+### Final Layout Zones (NOT initial placement — use Center-Then-Shift above for initial):
 ```
 ┌─────────────────────────────┐
 │  TOP ZONE (0-35% of EH)     │  ← Titles, headings, scene labels
@@ -4083,12 +4153,66 @@ If the Director's plan describes 5+ attention-grabbing elements, implement them 
 - 60px minimum margins on all sides
 - Bottom 15% reserved for subtitles — NEVER place content there
 
+### Centering Patterns (USE THESE — not `left: EW/2`):
+
+**Horizontal centering with flexbox (PREFERRED):**
+```tsx
+// Wrap content in a flex container that spans the full width
+<div style={{
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  top: contentTopY,
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+}}>
+  <div style={{ maxWidth: EW * 0.85, textAlign: 'center' }}>
+    {/* Content is naturally centered */}
+  </div>
+</div>
+```
+
+**Column layout (multiple stacked elements):**
+```tsx
+<div style={{
+  position: 'absolute',
+  left: 0,
+  right: 0,
+  top: contentTopY,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: EH * 0.03,
+}}>
+  <div>{/* Title */}</div>
+  <div>{/* Card or content */}</div>
+  <div>{/* Supporting info */}</div>
+</div>
+```
+
+**NEVER do this:**
+```tsx
+// ❌ WRONG — positions left EDGE at center, content is offset right
+<div style={{ position: 'absolute', left: EW / 2, top: EH * 0.3 }}>
+```
+
 ### Responsive Sizing:
 - ALL sizes relative to EW/EH — never use fixed pixels (no `width: 80`, `fontSize: '14px'`)
 - Title text: `fontSize: EH * 0.06` to `EH * 0.10`
 - Body text: `fontSize: EH * 0.03` to `EH * 0.04`
 - Cards: `width: EW * 0.7` to `EW * 0.85`, `padding: EH * 0.03`
 - Icons (accents only): `width: EW * 0.06` to `EW * 0.08`
+- Tiny decorative elements (particles, dots): fixed small px (4-16px) is acceptable
+
+### Text Safety (MANDATORY):
+- **Always set `maxWidth`** on text containers: `maxWidth: EW * 0.85` for titles, `maxWidth: EW * 0.75` for body
+- **Always set `textAlign: 'center'`** on centered layouts (most scenes)
+- **Always set `overflowWrap: 'break-word'`** on all text containers to prevent horizontal overflow
+- **Always set `lineHeight: 1.2`** for multi-line text (prevents line overlap)
+- For titles at large font sizes (`EH * 0.08+`), keep text under ~30 characters
+- For body text, keep under ~60 characters per line or use `maxWidth` to force wrapping
+- **Container overflow:** Any element with fixed width/height MUST include `overflow: 'hidden'`
 </layout_rules>
 """
 
@@ -4571,9 +4695,16 @@ Review ALL three screenshots against the plan:
 6. **Color and mood alignment**: Do the colors roughly match what the plan describes?
 7. **Text readability**: If text is expected, is it visible and not clipped/overlapping?
 
+### Layout Quality (check on ALL frames)
+8. **Centering**: Is the main content visually centered in the available area? Content should NOT be pushed to one side with large empty space on the other.
+9. **Off-screen content**: Are any elements visibly cut off at the edges? Text, cards, or shapes should not extend beyond the visible frame.
+10. **Element overlap**: Are text or data elements overlapping each other (not counting intentional design overlaps like text over images)?
+11. **Edge margins**: Is there adequate spacing from all edges? No content should touch the frame borders — look for at least ~5% margin.
+12. **Subtitle zone**: Is the bottom ~15% of the frame free of primary content? (This area is reserved for subtitles.)
+
 ### Late Frame (Exit)
-8. **Content still present**: The scene should still have visible content (not fully faded yet at -15 frames)
-9. **No rendering errors across all frames**: No React error boundaries, red error overlays, or "missing component" text
+13. **Content still present**: The scene should still have visible content (not fully faded yet at -15 frames)
+14. **No rendering errors across all frames**: No React error boundaries, red error overlays, or "missing component" text
 
 ## Important Notes
 

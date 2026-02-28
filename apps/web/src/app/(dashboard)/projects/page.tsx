@@ -220,8 +220,7 @@ function ProjectCard({
   return (
     <Link
       href={`/project/${project.id}`}
-      className={`group block bg-white rounded-2xl shadow-card hover:shadow-card-hover
-                  transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden ${className || ""}`}
+      className={`group block bg-white rounded-2xl shadow-card cursor-pointer overflow-hidden ${className || ""}`}
     >
       {/* Thumbnail Area */}
       <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-50 relative overflow-hidden">

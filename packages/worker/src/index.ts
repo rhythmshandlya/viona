@@ -137,18 +137,10 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1,
-      lockDuration: 5 * 60 * 1000,
-      stalledInterval: 30_000,
-      maxStalledCount: 2,
-      settings: {
-        // Jittered exponential backoff: base * 2^attempt + random jitter (0-2s)
-        backoffStrategy: (attemptsMade: number) => {
-          const base = Math.min(5000 * Math.pow(2, attemptsMade), 30000);
-          const jitter = Math.random() * 2000;
-          return base + jitter;
-        },
-      },
+      concurrency: 3,
+      lockDuration: 90 * 60 * 1000,   // 90 min — matches subprocess timeout
+      stalledInterval: 10 * 60 * 1000, // Check every 10 min (generous buffer for lock extender)
+      maxStalledCount: 0,              // Never re-queue stalled jobs
     }
   );
 
@@ -179,16 +171,9 @@ async function main() {
     {
       connection,
       concurrency: 1,
-      lockDuration: 5 * 60 * 1000,
-      stalledInterval: 30_000,
-      maxStalledCount: 2,
-      settings: {
-        backoffStrategy: (attemptsMade: number) => {
-          const base = Math.min(5000 * Math.pow(2, attemptsMade), 30000);
-          const jitter = Math.random() * 2000;
-          return base + jitter;
-        },
-      },
+      lockDuration: 15 * 60 * 1000,  // 15 min — Director runs 5-12 min
+      stalledInterval: 10 * 60 * 1000,
+      maxStalledCount: 0,
     }
   );
 
@@ -218,16 +203,9 @@ async function main() {
     {
       connection,
       concurrency: 1,
-      lockDuration: 5 * 60 * 1000,
-      stalledInterval: 30_000,
-      maxStalledCount: 2,
-      settings: {
-        backoffStrategy: (attemptsMade: number) => {
-          const base = Math.min(5000 * Math.pow(2, attemptsMade), 30000);
-          const jitter = Math.random() * 2000;
-          return base + jitter;
-        },
-      },
+      lockDuration: 20 * 60 * 1000,  // 20 min — edit jobs run 5-15 min
+      stalledInterval: 10 * 60 * 1000,
+      maxStalledCount: 0,
     }
   );
 

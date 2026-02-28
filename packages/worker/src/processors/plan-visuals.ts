@@ -111,8 +111,19 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
 
       await publishJobProgress(jobId, 10, 'Preparing workspace...');
 
-      // Create project directory in workspace
-      const projectDir = createProjectDir(compositionId);
+      // Clean old generation artifacts — a new plan means old scene code is stale.
+      // This covers the "start over" flow where the user deletes visuals then re-plans.
+      const projectDir = join(getWorkspacePath(), 'src', compositionId);
+      try {
+        const scenesDir = join(projectDir, 'scenes');
+        await rm(scenesDir, { recursive: true, force: true });
+        for (const f of ['constants.ts', 'index.tsx', 'metadata.json', '.plan_job_id']) {
+          await rm(join(projectDir, f), { force: true }).catch(() => {});
+        }
+      } catch {
+        // Directory may not exist yet — that's fine
+      }
+      createProjectDir(compositionId); // mkdir -p, idempotent
       logger.info({ projectDir, compositionId }, 'Created project directory for plan');
 
       // Write head tracking data to project folder for spatial overlay awareness
@@ -533,13 +544,27 @@ async function fetchSvgOptionsForPlan(planData: PlanData): Promise<PlanData & { 
     logger.info({ iconStyle, raw: rawStyle }, 'Using AI-chosen icon style filters');
   }
 
+  // Normalize Lucide/Feather-style icon names to plain English search terms
+  // e.g. "edit-3" → "edit", "message-square" → "message square", "check-circle" → "check circle"
+  function normalizeIconKeyword(keyword: string): string {
+    return keyword
+      .replace(/-\d+$/, '')    // strip trailing numbers: "edit-3" → "edit"
+      .replace(/-/g, ' ')      // hyphens to spaces: "message-square" → "message square"
+      .trim();
+  }
+
   // Collect all unique icon keywords across scenes, mapped to scene IDs
+  // Keys are the normalized search terms; we also track original→normalized for logging
   const keywordToScenes = new Map<string, string[]>();
   for (const scene of scenesArray) {
     const icons = scene.icons as string[] | undefined;
     const sceneId = String(scene.id ?? scene.name ?? '');
     if (icons && Array.isArray(icons)) {
-      for (const keyword of icons) {
+      for (const rawKeyword of icons) {
+        const keyword = normalizeIconKeyword(rawKeyword);
+        if (keyword !== rawKeyword) {
+          logger.info({ original: rawKeyword, normalized: keyword }, 'Normalized icon keyword');
+        }
         const existing = keywordToScenes.get(keyword) || [];
         existing.push(sceneId);
         keywordToScenes.set(keyword, existing);

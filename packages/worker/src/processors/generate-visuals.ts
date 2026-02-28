@@ -7,6 +7,7 @@
 
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
+import { existsSync } from 'fs';
 import { mkdir, rm, writeFile, readFile, readdir, stat } from 'fs/promises';
 import { join, dirname, resolve } from 'path';
 import { tmpdir } from 'os';
@@ -26,6 +27,21 @@ const __dirname = dirname(__filename);
 
 // Track running processes for cancellation
 const runningProcesses = new Map<string, ChildProcess>();
+
+// Find the packages/ root by walking up from __dirname to find the worker's
+// package.json, then taking its parent. Works in both local dev and Docker:
+//   Local:  src/processors/ → 2 parents to packages/worker
+//   Docker: dist/           → 1 parent to packages/worker
+function findPackagesRoot(): string {
+  let dir = __dirname;
+  for (let i = 0; i < 5; i++) {
+    if (existsSync(join(dir, 'package.json'))) {
+      return dirname(dir); // parent of packages/worker = packages/
+    }
+    dir = dirname(dir);
+  }
+  return resolve(__dirname, '..', '..', '..');
+}
 
 // ---------------------------------------------------------------------------
 // Recursively copy a directory tree (used for template source files)
@@ -502,19 +518,18 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       logger.debug({ srcDir, error: e }, 'Could not clean old compositions (may not exist yet)');
     }
 
-    // Check if previous attempt left valid source files (for retry recovery).
-    // If index.tsx and metadata.json exist, skip cleanup — the Python agent can work incrementally.
+    // Check if previous attempt left any artifacts worth preserving for checkpoint resume.
+    // If scenes.json exists, preserve the directory — the Python agent's checkpoint logic
+    // will detect what phase to resume from (scenes only, setup+scenes, full pipeline, etc.).
     const projectDir = join(workspacePath, 'src', compositionId);
-    const indexPath = join(projectDir, 'index.tsx');
-    const metadataCheckPath = join(projectDir, 'metadata.json');
+    const scenesJsonPath = join(projectDir, 'scenes.json');
     let hasExistingSources = false;
     try {
-      await readFile(indexPath);
-      await readFile(metadataCheckPath);
+      await readFile(scenesJsonPath);
       hasExistingSources = true;
-      logger.info({ projectDir }, 'Previous source files found — preserving for retry');
+      logger.info({ projectDir }, 'Previous scenes.json found — preserving for checkpoint resume');
     } catch {
-      // No valid sources — clean and start fresh
+      // No artifacts worth preserving — clean and start fresh
       try {
         await rm(projectDir, { recursive: true, force: true });
         logger.info({ projectDir }, 'Cleaned stale project directory');
@@ -539,13 +554,37 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     const pipEffective = job.data.pipEffective || { width: canvasWidth, height: canvasHeight };
 
     if (job.data.planJobId) {
+      // Detect if the plan changed (e.g. after "start over") by comparing the planJobId
+      // to a marker file. If it changed, old generation artifacts (constants.ts, Scene*.tsx,
+      // index.tsx) are stale and must be cleaned to prevent the checkpoint system from
+      // resuming with scene files that don't match the new plan.
+      const planMarkerPath = join(projectDir, '.plan_job_id');
+      if (hasExistingSources) {
+        let planChanged = false;
+        try {
+          const existingPlanJobId = (await readFile(planMarkerPath, 'utf-8')).trim();
+          planChanged = existingPlanJobId !== job.data.planJobId;
+        } catch {
+          // No marker file → assume plan changed (safe default)
+          planChanged = true;
+        }
+        if (planChanged) {
+          logger.info({ projectDir, planJobId: job.data.planJobId }, 'Plan changed — cleaning stale generation artifacts');
+          const scenesDir = join(projectDir, 'scenes');
+          await rm(scenesDir, { recursive: true, force: true }).catch(() => {});
+          for (const f of ['constants.ts', 'index.tsx', 'metadata.json']) {
+            await rm(join(projectDir, f), { force: true }).catch(() => {});
+          }
+        }
+      }
+      await writeFile(planMarkerPath, job.data.planJobId, 'utf-8');
+
       const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.data.planJobId) });
       if (planJob?.planData) {
         const pd = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
         // Write plan files to projectDir (workspace/src/{compositionId}) — the Python
         // generator receives compositionId as --project-id, so it looks there.
         const scenePlanPath = join(projectDir, 'SCENE_PLAN.md');
-        const scenesJsonPath = join(projectDir, 'scenes.json');
         await writeFile(scenePlanPath, pd.scenePlan, 'utf-8');
 
         // Enrich scenes with per-scene effectiveDimensions before writing
@@ -632,7 +671,7 @@ registerRoot(RemotionRoot);
         // Copy template source files so the Animator agent can read them.
         // Read directly from the monorepo source tree instead of using getTemplateFiles()
         // which is broken after bundling (import.meta.url resolves to dist/ on Windows).
-        const templatesSrcRoot = resolve(__dirname, '..', '..', '..', 'templates', 'src', 'templates');
+        const templatesSrcRoot = join(findPackagesRoot(), 'templates', 'src', 'templates');
         const studioTemplates = listTemplates({ theme: 'studio' });
         for (const t of studioTemplates) {
           const tDir = join(templatesDir, t.meta.slug);

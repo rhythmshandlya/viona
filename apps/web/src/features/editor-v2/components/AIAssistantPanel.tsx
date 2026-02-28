@@ -1300,8 +1300,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const [isResetting, setIsResetting] = useState(false);
 
   const handleReset = async () => {
-    if (isResetting || isStreaming) return;
+    if (isResetting) return;
     setIsResetting(true);
+
+    // Cancel any in-flight jobs first (abort SSE + worker)
+    abortRef.current?.abort();
+    try {
+      await api.cancelAgent(projectId);
+    } catch {
+      // Best-effort
+    }
+    setIsStreaming(false);
+    setActiveJobId(null);
+    // Clear persisted job ID so page refresh doesn't resume stale tracking
+    sessionStorage.removeItem(`viona:activeJobId:${projectId}`);
+
     try {
       await Promise.all([
         api.clearConversation(projectId),
@@ -1318,7 +1331,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     // Re-trigger auto-greet
     autoGreetSent.current = false;
     clearVisualCache();
-    if (reloadVisuals) reloadVisuals(projectId);
+    // Await reloadVisuals so store syncs status/tracks before we unblock UI
+    if (reloadVisuals) await reloadVisuals(projectId);
     setIsResetting(false);
   };
 
@@ -1668,7 +1682,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           )}
           <button
             onClick={handleReset}
-            disabled={isStreaming || isResetting}
+            disabled={isResetting}
             className="p-1.5 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors disabled:opacity-50"
             aria-label="Start over"
             title="Start over"

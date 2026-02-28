@@ -10,6 +10,7 @@ Reference: Auto-Claude apps/backend/core/auth.py, client.py
 
 import asyncio
 import json
+import math
 import os
 import platform
 import re
@@ -4049,6 +4050,8 @@ Output PASS or FAIL with numbered issues.
         # plan files to the workspace root.
         director_settings_dir = self.src_dir / ".claude"
         director_settings_dir.mkdir(parents=True, exist_ok=True)
+        src_dir_posix = str(self.src_dir).replace(chr(92), '/')
+        workspace_posix = str(self.workspace).replace(chr(92), '/')
         director_settings = {
             "permissions": {
                 "defaultMode": "acceptEdits",
@@ -4058,10 +4061,16 @@ Output PASS or FAIL with numbered issues.
                     "Edit(./**)",
                     "Glob(./**)",
                     "Grep(./**)",
+                    # Absolute paths for project dir (prompt tells Claude to use absolute paths)
+                    f"Read({src_dir_posix}/**)",
+                    f"Write({src_dir_posix}/**)",
+                    f"Edit({src_dir_posix}/**)",
+                    f"Glob({src_dir_posix}/**)",
+                    f"Grep({src_dir_posix}/**)",
                     # Also allow reading from workspace root (for CLAUDE.md, config files)
-                    f"Read({str(self.workspace).replace(chr(92), '/')}/**)",
-                    f"Glob({str(self.workspace).replace(chr(92), '/')}/**)",
-                    f"Grep({str(self.workspace).replace(chr(92), '/')}/**)",
+                    f"Read({workspace_posix}/**)",
+                    f"Glob({workspace_posix}/**)",
+                    f"Grep({workspace_posix}/**)",
                     "Bash(*)",
                 ],
             },
@@ -5044,12 +5053,23 @@ export default MainComposition;
             )
             scene_task_entries += f"### Scene {scene_num}\n<scene_{scene_num}_task>\n{task_prompt}\n</scene_{scene_num}_task>\n\n"
 
-        coordinator_user_msg = f"""You are the Animation Coordinator. Dispatch {total_scenes} scene-generator subagents IN PARALLEL.
-Make exactly {total_scenes} Task tool calls in your FIRST response.
+        # Batch scenes into groups of 6 to avoid overwhelming the system
+        MAX_PARALLEL = 6
+        num_batches = math.ceil(total_scenes / MAX_PARALLEL)
+        batch_instructions = ""
+        for batch_idx in range(num_batches):
+            start = batch_idx * MAX_PARALLEL + 1
+            end = min((batch_idx + 1) * MAX_PARALLEL, total_scenes)
+            batch_scenes = list(range(start, end + 1))
+            batch_instructions += f"**Batch {batch_idx + 1}:** Dispatch scenes {', '.join(str(s) for s in batch_scenes)} — make {len(batch_scenes)} Task tool calls in ONE response. Wait for ALL to complete before starting the next batch.\n"
 
+        coordinator_user_msg = f"""You are the Animation Coordinator. Dispatch {total_scenes} scene-generator subagents in batches of {MAX_PARALLEL}.
+
+IMPORTANT: Do NOT dispatch all {total_scenes} scenes at once. Follow this batching plan:
+{batch_instructions}
 {scene_task_entries}
 
-After all complete, run: ls src/{self.project_id}/scenes/
+After ALL batches complete, run: ls src/{self.project_id}/scenes/
 Report which scenes were created.
 """
 
@@ -5068,10 +5088,10 @@ Report which scenes were created.
                 system_prompt={
                     "type": "preset",
                     "preset": "claude_code",
-                    "append": "You are an animation coordinator. Your ONLY job is to dispatch scene-generator subagents via the Task tool. You must NOT implement scenes yourself. Do NOT use Write, Edit, or any MCP tools. ONLY use the Task tool to delegate work.",
+                    "append": "You are an animation coordinator. Your ONLY job is to dispatch scene-generator subagents via the Task tool in batches. You must NOT implement scenes yourself. Do NOT use Write, Edit, or any MCP tools. ONLY use the Task tool to delegate work. Dispatch each batch in a single response, then wait for all tasks in that batch to complete before starting the next batch.",
                 },
                 cwd=str(self.workspace),
-                max_turns=total_scenes + 4,
+                max_turns=total_scenes + num_batches * 2 + 4,
                 permission_mode="bypassPermissions",
                 allowed_tools=["Bash", "Task"],
                 agents=agents,

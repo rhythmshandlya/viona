@@ -546,24 +546,28 @@ export const useEditorStore = create<EditorStore>()(
             mergedItems[id] = newItems[id];
           }
 
-          // Check if we need to add a visual track
+          // Sync visual track: add if visuals appeared, remove if visuals gone
           const hasVisualTrack = state.tracks.some(t => t.type === 'visual');
-          const needsVisualTrack = newVisualItemIds.length > 0 && !hasVisualTrack;
 
-          if (needsVisualTrack) {
+          if (newVisualItemIds.length > 0 && !hasVisualTrack) {
+            // Visuals appeared — add the visual track
             const visualTrack = newTracks.find(t => t.type === 'visual');
             if (visualTrack) {
               state.tracks.push(visualTrack);
               state.tracks.sort((a, b) => a.position - b.position);
             }
+          } else if (newVisualItemIds.length === 0 && hasVisualTrack) {
+            // Visuals gone (e.g. after "start over") — remove visual track
+            state.tracks = state.tracks.filter(t => t.type !== 'visual');
           }
 
           state.items = mergedItems;
           state.itemIds = mergedItemIds;
 
-          // Update outputKey so stale exports aren't served after edits
+          // Sync project status and outputKey from API
           if (state.project) {
             state.project.outputKey = (apiProject as any).outputKey || null;
+            state.project.status = apiProject.status;
           }
 
           // Reload layout settings in case generation persisted a new layoutMode

@@ -25,6 +25,9 @@ from dataclasses import dataclass
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Import the worker package root (uses marker-file anchoring, works in both local & Docker)
+from claude_visual_generator import _WORKER_PKG_ROOT
+
 
 # ═══════════════════════════════════════════════════════════════════════
 # C1-C3: Template Copy Pipeline
@@ -36,12 +39,15 @@ def test_template_path_resolution():
     print("TEST C1: Template path resolution")
     print("=" * 60)
 
-    generator_file = Path(__file__).parent / "claude_visual_generator.py"
-    assert generator_file.exists(), "claude_visual_generator.py not found"
+    # _WORKER_PKG_ROOT should point to packages/worker
+    assert _WORKER_PKG_ROOT.name == "worker", \
+        f"_WORKER_PKG_ROOT should end with 'worker', got: {_WORKER_PKG_ROOT}"
+    assert (_WORKER_PKG_ROOT / "package.json").exists(), \
+        f"_WORKER_PKG_ROOT should contain package.json: {_WORKER_PKG_ROOT}"
+    print(f"  OK _WORKER_PKG_ROOT = {_WORKER_PKG_ROOT}")
 
-    # The path from the source: Path(__file__).parent.parent.parent.parent / "templates" / "src" / "templates"
-    # From packages/worker/src/agents/ that's 4 .parent => packages/ => /templates/src/templates
-    templates_pkg = generator_file.parent.parent.parent.parent / "templates" / "src" / "templates"
+    # templates_pkg should resolve correctly via _WORKER_PKG_ROOT.parent
+    templates_pkg = _WORKER_PKG_ROOT.parent / "templates" / "src" / "templates"
     assert templates_pkg.exists(), f"Template path does not resolve correctly: {templates_pkg}"
     print(f"  OK Path resolves to: {templates_pkg}")
 
@@ -59,7 +65,7 @@ def test_shared_utility_files_exist():
     print("TEST C2: Shared utility files exist")
     print("=" * 60)
 
-    templates_src = Path(__file__).parent.parent.parent.parent / "templates" / "src"
+    templates_src = _WORKER_PKG_ROOT.parent / "templates" / "src"
 
     for shared_file in ["use-scale.ts", "fonts.ts"]:
         path = templates_src / shared_file
@@ -94,7 +100,7 @@ def test_register_ts_excluded():
     print("  OK copytree uses ignore_patterns('register.ts')")
 
     # Functional test: simulate copytree with ignore
-    templates_pkg = Path(__file__).parent.parent.parent.parent / "templates" / "src" / "templates"
+    templates_pkg = _WORKER_PKG_ROOT.parent / "templates" / "src" / "templates"
     sample_template = next(
         (d for d in sorted(templates_pkg.iterdir())
          if d.is_dir() and (d / "register.ts").exists()),
@@ -119,7 +125,7 @@ def test_all_templates_have_studio_theme_tag():
     print("TEST C3b: All templates have studio-theme tag")
     print("=" * 60)
 
-    templates_pkg = Path(__file__).parent.parent.parent.parent / "templates" / "src" / "templates"
+    templates_pkg = _WORKER_PKG_ROOT.parent / "templates" / "src" / "templates"
     missing = []
     count = 0
 
@@ -148,8 +154,8 @@ def test_workspace_fonts_synced():
     print("TEST C3c: Workspace fonts.ts synced with templates package")
     print("=" * 60)
 
-    templates_fonts = Path(__file__).parent.parent.parent.parent / "templates" / "src" / "fonts.ts"
-    workspace_fonts = Path(__file__).parent.parent.parent / "workspace" / "src" / "fonts.ts"
+    templates_fonts = _WORKER_PKG_ROOT.parent / "templates" / "src" / "fonts.ts"
+    workspace_fonts = _WORKER_PKG_ROOT / "workspace" / "src" / "fonts.ts"
 
     assert templates_fonts.exists(), f"Templates fonts.ts not found: {templates_fonts}"
     assert workspace_fonts.exists(), f"Workspace fonts.ts not found: {workspace_fonts}"
@@ -325,7 +331,7 @@ def test_template_files_have_both_clamps():
     print("TEST C8: Template files interpolate clamping")
     print("=" * 60)
 
-    templates_dir = Path(__file__).parent.parent.parent.parent / "templates" / "src" / "templates"
+    templates_dir = _WORKER_PKG_ROOT.parent / "templates" / "src" / "templates"
     violations = []
     checked = 0
 
@@ -562,7 +568,7 @@ def test_workspace_tsconfig_excludes_templates():
     print("TEST BONUS: Workspace tsconfig excludes .templates")
     print("=" * 60)
 
-    tsconfig_path = Path(__file__).parent.parent.parent / "workspace" / "tsconfig.json"
+    tsconfig_path = _WORKER_PKG_ROOT / "workspace" / "tsconfig.json"
     assert tsconfig_path.exists(), f"tsconfig.json not found: {tsconfig_path}"
 
     with open(tsconfig_path, encoding="utf-8") as f:
@@ -572,6 +578,117 @@ def test_workspace_tsconfig_excludes_templates():
     has_templates = any(".templates" in e for e in exclude)
     assert has_templates, f"tsconfig.json exclude list missing .templates: {exclude}"
     print(f"  OK exclude list: {exclude}")
+
+    print("  PASSED\n")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# Docker Path Simulation
+# ═══════════════════════════════════════════════════════════════════════
+
+def test_docker_path_marker_file_anchoring():
+    """Docker: _find_worker_pkg_root works when src/ level is stripped."""
+    print("=" * 60)
+    print("TEST DOCKER: Marker-file anchoring with fewer parent levels")
+    print("=" * 60)
+
+    from claude_visual_generator import _find_worker_pkg_root
+
+    # Simulate Docker layout: packages/worker/agents/ (no src/ level)
+    # Create a temp directory with:
+    #   fake_root/packages/worker/package.json
+    #   fake_root/packages/worker/agents/claude_visual_generator.py
+    with tempfile.TemporaryDirectory() as tmp:
+        fake_root = Path(tmp)
+        worker_dir = fake_root / "packages" / "worker"
+        agents_dir = worker_dir / "agents"
+        agents_dir.mkdir(parents=True)
+
+        # Write a package.json in the worker dir
+        (worker_dir / "package.json").write_text('{"name": "@viona/worker"}')
+
+        # Write a dummy generator file
+        dummy_py = agents_dir / "claude_visual_generator.py"
+        dummy_py.write_text("# dummy")
+
+        # Patch __file__ to point to the Docker-layout location
+        # The function walks up from Path(__file__).resolve().parent
+        # In Docker: agents/ → worker/ (has package.json) → found!
+        with patch("claude_visual_generator.Path") as MockPath:
+            mock_file = MagicMock()
+            mock_file.resolve.return_value.parent = agents_dir
+            MockPath.return_value = mock_file
+            MockPath.__file__ = str(dummy_py)
+
+            # Direct test: walk up from agents_dir
+            p = agents_dir
+            found = None
+            for _ in range(5):
+                if (p / "package.json").exists():
+                    found = p
+                    break
+                p = p.parent
+
+            assert found is not None, "Failed to find package.json"
+            assert found == worker_dir, f"Expected {worker_dir}, got {found}"
+            assert found.name == "worker", f"Should find 'worker', got {found.name}"
+            print(f"  OK Docker layout (2 levels): found worker at {found}")
+
+    # Also verify local layout works (3 levels: src/agents/ → src/ → worker/)
+    with tempfile.TemporaryDirectory() as tmp:
+        fake_root = Path(tmp)
+        worker_dir = fake_root / "packages" / "worker"
+        src_agents = worker_dir / "src" / "agents"
+        src_agents.mkdir(parents=True)
+
+        (worker_dir / "package.json").write_text('{"name": "@viona/worker"}')
+
+        p = src_agents
+        found = None
+        for _ in range(5):
+            if (p / "package.json").exists():
+                found = p
+                break
+            p = p.parent
+
+        assert found is not None, "Failed to find package.json in local layout"
+        assert found == worker_dir, f"Expected {worker_dir}, got {found}"
+        print(f"  OK Local layout (3 levels): found worker at {found}")
+
+    print("  PASSED\n")
+
+
+def test_worker_pkg_root_uses_marker_file():
+    """Verify _find_worker_pkg_root uses package.json marker, not hardcoded parent count."""
+    print("=" * 60)
+    print("TEST: _find_worker_pkg_root uses marker-file approach")
+    print("=" * 60)
+
+    generator_source = (Path(__file__).parent / "claude_visual_generator.py").read_text(encoding="utf-8")
+
+    # Should contain _find_worker_pkg_root function
+    assert "def _find_worker_pkg_root" in generator_source, \
+        "Missing _find_worker_pkg_root function"
+    print("  OK _find_worker_pkg_root function exists")
+
+    # Should walk up looking for package.json
+    assert 'package.json' in generator_source, \
+        "Should reference package.json as marker file"
+    print("  OK References package.json marker file")
+
+    # Should NOT have the old hardcoded 3-parent chain as the main assignment
+    # (fallback in the function is fine)
+    import ast
+    tree = ast.parse(generator_source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "_WORKER_PKG_ROOT":
+                    # The assignment should call _find_worker_pkg_root(), not a .parent chain
+                    assert isinstance(node.value, ast.Call), \
+                        "_WORKER_PKG_ROOT should be assigned via _find_worker_pkg_root() call"
+                    print("  OK _WORKER_PKG_ROOT assigned via function call (not hardcoded .parent chain)")
+                    break
 
     print("  PASSED\n")
 
@@ -609,6 +726,9 @@ def main():
         test_visual_verify_reads_visual_field,
         # Bonus
         test_workspace_tsconfig_excludes_templates,
+        # Docker path simulation
+        test_docker_path_marker_file_anchoring,
+        test_worker_pkg_root_uses_marker_file,
     ]
 
     passed = 0

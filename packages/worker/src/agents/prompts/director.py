@@ -451,6 +451,13 @@ Specify icon needs with search terms the Animator can use:
 
 - All icons in a plan MUST share the same style for visual consistency
 
+**IMPORTANT keyword rules:**
+- Use plain English search terms, NOT icon library names (Lucide, Feather, Material, etc.)
+- Use spaces, not hyphens: "bar chart" not "bar-chart", "message circle" not "message-circle"
+- Use descriptive nouns: "checkmark" not "check-circle", "pencil" not "edit-3"
+- No brand names: "chat app" not "slack", "messaging" not "telegram"
+- No technical suffixes: "arrow" not "arrow-right", "edit" not "edit-3"
+
 Be SPECIFIC with icon descriptions — "server rack" is better than "computer".
 The Animator searches Freepik by concept, so descriptive terms yield better results.
 
@@ -1039,7 +1046,7 @@ Machine-readable with this structure:
       "buildsFrom": "previous scene connection or null",
       "connectsTo": "next scene connection",
       "requires3D": false,
-      "icons": ["checkmark", "warning"],
+      "icons": ["checkmark", "warning"],  // plain English nouns only — no hyphens, no library names
       "illustrations": ["concept search term if needed"],
       "iconAnimation": "pop",
       "images": [

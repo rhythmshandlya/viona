@@ -1299,13 +1299,21 @@ export async function projectRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Access denied' });
       }
 
+      // Delete related jobs (plan + generation) so stale planJobIds aren't referenced
+      await db.delete(jobs).where(eq(jobs.projectId, id));
+
+      // Reset project status and clear stale outputKey
+      await db.update(projects)
+        .set({ status: 'ready' as ProjectStatus, outputKey: null })
+        .where(eq(projects.id, id));
+
       // Get all visuals for this project
       const projectVisuals = await db.query.visuals.findMany({
         where: eq(visuals.projectId, id),
       });
 
       if (projectVisuals.length === 0) {
-        return { message: 'No visuals to delete', deleted: 0 };
+        return { message: 'No visuals to delete (plan and jobs cleared)', deleted: 0 };
       }
 
       // Delete visual timeline items from all tracks
@@ -1339,14 +1347,6 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
       // Delete visuals from database
       await db.delete(visuals).where(eq(visuals.projectId, id));
-
-      // Delete related jobs (plan + generation) so stale planJobIds aren't referenced
-      await db.delete(jobs).where(eq(jobs.projectId, id));
-
-      // Reset project status to allow re-generation
-      await db.update(projects)
-        .set({ status: 'ready' as ProjectStatus })
-        .where(eq(projects.id, id));
 
       return {
         message: 'Visuals deleted successfully',
