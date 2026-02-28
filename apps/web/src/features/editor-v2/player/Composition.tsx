@@ -1179,17 +1179,18 @@ function getDynamicHierarchyOverrides(
   const computed: WordStyleOverrides = {};
 
   if (tier === 'power') {
-    computed.scale = 1.8;
+    computed.scale = 1.6;
     computed.fontWeight = 900;
+    computed.color = '#ffffff';
     computed.activeColor = '#FFD400';
-    computed.color = '#FFFFFF';
+    computed.textTransform = 'uppercase';
   } else if (tier === 'filler') {
-    computed.scale = 0.65;
+    computed.scale = 1.0;
     computed.fontWeight = 500;
-    computed.color = 'rgba(255,255,255,0.6)';
-    computed.activeColor = 'rgba(255,255,255,0.8)';
+    computed.color = 'rgba(255,255,255,0.7)';
+    computed.activeColor = 'rgba(255,255,255,0.85)';
   } else {
-    // medium — default size, slight bump
+    // medium — normal size, standard weight
     computed.scale = 1.0;
     computed.fontWeight = 700;
   }
