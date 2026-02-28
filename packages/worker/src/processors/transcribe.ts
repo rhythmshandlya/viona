@@ -38,6 +38,41 @@ interface WhisperXOutput {
   language: string;
 }
 
+// Per-word style overrides stored in subtitle item JSONB data.
+// Uses the full editor-side field set (activeColor, textTransform) even though
+// @viona/shared's WordStyleOverrides is narrower — JSONB accepts any shape.
+interface PerWordStyleOverrides {
+  scale?: number;
+  fontWeight?: number;
+  color?: string;
+  activeColor?: string;
+  textTransform?: 'uppercase' | 'lowercase' | 'none';
+}
+
+type WordTier = 'power' | 'medium' | 'filler';
+
+export function mapWordTypeToOverrides(type: WordTier): PerWordStyleOverrides | null {
+  if (type === 'power') {
+    return {
+      scale: 1.6,
+      fontWeight: 900,
+      color: '#ffffff',
+      activeColor: '#FFD400',
+      textTransform: 'uppercase',
+    };
+  }
+  if (type === 'filler') {
+    return {
+      scale: 1.0,
+      fontWeight: 500,
+      color: 'rgba(255,255,255,0.7)',
+      activeColor: 'rgba(255,255,255,0.85)',
+    };
+  }
+  // medium — let the preset's base style apply
+  return null;
+}
+
 async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
   // Use spawn with cwd and relative filenames to avoid Windows path issues
   // (FFmpeg interprets colons in paths like C:/... as stream specifiers)
