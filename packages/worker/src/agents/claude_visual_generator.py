@@ -4598,6 +4598,8 @@ Read the scene file and verify it against the plan and scene data.
 
         print(f"[ClaudeGenerator] Scene {scene_num} failed verification: {issues}")
 
+        from prompts.animator import ANIMATOR_BASE_PROMPT
+
         # Targeted Sonnet fix agent
         feedback_msg = "\n".join(f"- {iss}" for iss in issues)
         fix_prompt = f"""Fix these issues in src/{self.project_id}/scenes/Scene{scene_num}.tsx:
