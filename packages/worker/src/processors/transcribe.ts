@@ -73,6 +73,75 @@ export function mapWordTypeToOverrides(type: WordTier): PerWordStyleOverrides | 
   return null;
 }
 
+const WORD_ANALYSIS_BATCH_SIZE = 200;
+
+const WORD_ANALYSIS_SYSTEM_PROMPT = `You are a subtitle typography designer.
+Classify each spoken word for visual emphasis in short-form video subtitles.
+
+Types:
+- "power": emotionally strong, surprising, impactful, or key-information words (nouns, strong verbs, numbers, dollar amounts, superlatives, emotional adjectives)
+- "filler": articles (a, an, the), prepositions (in, on, at, to, of, for, with, by, from), conjunctions (and, but, or), auxiliary verbs (is, are, was, were, be, been, do, did, has, had, have, will, would, could, should), pronouns (i, you, we, they, he, she, it, me, us, them)
+- "medium": everything else (default — do not include in output)
+
+Return ONLY a JSON object. Keys = word index (string), values = {"type":"power"|"filler"}.
+Include ONLY power and filler words. Omit medium words entirely.
+Example: {"3":{"type":"power"},"7":{"type":"filler"},"12":{"type":"power"}}`;
+
+async function analyzeWordStyles(
+  words: WhisperXWord[],
+  apiKey: string,
+  model: string,
+): Promise<Record<number, PerWordStyleOverrides>> {
+  const OpenAI = (await import('openai')).default;
+  const openai = new OpenAI({ apiKey });
+
+  const allOverrides: Record<number, PerWordStyleOverrides> = {};
+
+  // Process in batches to stay within token limits
+  for (let batchStart = 0; batchStart < words.length; batchStart += WORD_ANALYSIS_BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + WORD_ANALYSIS_BATCH_SIZE, words.length);
+    const batchWords = words.slice(batchStart, batchEnd);
+
+    // Build word list with global indices
+    const wordList = batchWords
+      .map((w, localIdx) => `${batchStart + localIdx}: "${w.text}"`)
+      .join('\n');
+
+    const response = await openai.chat.completions.create({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: WORD_ANALYSIS_SYSTEM_PROMPT },
+        { role: 'user', content: `Classify these words:\n${wordList}` },
+      ],
+      temperature: 0,
+      max_tokens: 800,
+    });
+
+    const raw = response.choices[0]?.message?.content ?? '{}';
+    let parsed: Record<string, { type: WordTier }>;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      logger.warn({ batchStart }, 'Word style analysis: failed to parse LLM JSON, skipping batch');
+      continue;
+    }
+
+    for (const [idxStr, entry] of Object.entries(parsed)) {
+      const globalIdx = parseInt(idxStr, 10);
+      if (isNaN(globalIdx) || globalIdx < 0 || globalIdx >= words.length) continue;
+      const tier = entry?.type as WordTier;
+      if (tier !== 'power' && tier !== 'filler' && tier !== 'medium') continue;
+      const overrides = mapWordTypeToOverrides(tier);
+      if (overrides) {
+        allOverrides[globalIdx] = overrides;
+      }
+    }
+  }
+
+  return allOverrides;
+}
+
 async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
   // Use spawn with cwd and relative filenames to avoid Windows path issues
   // (FFmpeg interprets colons in paths like C:/... as stream specifiers)
