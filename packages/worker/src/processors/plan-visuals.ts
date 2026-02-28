@@ -23,6 +23,7 @@ import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
 import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
 import { searchIcons, type IconOption, type IconStyleFilters } from '../services/freepik.js';
+import { searchIconify } from '../services/iconify.js';
 import { fetchImageOptionsForPlan } from '../services/image-fetcher.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -521,7 +522,9 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
 
 /**
  * Extract icon keywords from plan scenes and fetch 5 SVG options per keyword
- * from Freepik. Returns planData with svgOptions merged in.
+ * from Freepik, with Iconify as a fallback for keywords with no Freepik results
+ * (e.g. brand icons like slack, notion, whatsapp).
+ * Returns planData with svgOptions merged in.
  */
 async function fetchSvgOptionsForPlan(planData: PlanData): Promise<PlanData & { svgOptions?: Record<string, Record<string, IconOption[]>> }> {
   const scenesObj = planData.scenes as Record<string, unknown>;
@@ -614,6 +617,32 @@ async function fetchSvgOptionsForPlan(planData: PlanData): Promise<PlanData & { 
     { keyword: keywords[0], options: firstResult.options },
     ...remainingResults,
   ];
+
+  // Iconify fallback: for keywords with 0 Freepik results, try Iconify (brands, logos)
+  const failedKeywords = results.filter(r => r.options.length === 0).map(r => r.keyword);
+  if (failedKeywords.length > 0) {
+    logger.info({ keywords: failedKeywords }, 'Falling back to Iconify for keywords with no Freepik results');
+    const iconifyResults = await Promise.all(
+      failedKeywords.map(async (keyword) => ({
+        keyword,
+        options: await searchIconify(keyword, 5),
+      }))
+    );
+    // Merge Iconify results back into the results array
+    for (const iconifyResult of iconifyResults) {
+      const idx = results.findIndex(r => r.keyword === iconifyResult.keyword);
+      if (idx !== -1 && iconifyResult.options.length > 0) {
+        results[idx].options = iconifyResult.options;
+        logger.info({ keyword: iconifyResult.keyword, count: iconifyResult.options.length }, 'Iconify fallback found results');
+      }
+    }
+  }
+
+  // Log keywords that failed both Freepik and Iconify
+  const stillFailed = results.filter(r => r.options.length === 0).map(r => r.keyword);
+  if (stillFailed.length > 0) {
+    logger.warn({ keywords: stillFailed }, 'No icon results from Freepik or Iconify for these keywords');
+  }
 
   // Build svgOptions map: { sceneId: { keyword: IconOption[] } }
   const svgOptions: Record<string, Record<string, IconOption[]>> = {};

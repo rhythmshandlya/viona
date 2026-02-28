@@ -454,7 +454,7 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
     const extractedAssets = await extractAssets(projectDir);
     try {
       const assetsPath = join(projectDir, 'assets.json');
-      await uploadFile(assetsPath, 'sources', `${compositionId}/assets.json`);
+      await uploadFile('outputs', `sources/${compositionId}/assets.json`, assetsPath);
       logger.info({ projectId, assetCount: extractedAssets.length }, 'Assets uploaded');
     } catch (err) {
       logger.warn({ projectId, error: err }, 'Failed to upload assets.json');

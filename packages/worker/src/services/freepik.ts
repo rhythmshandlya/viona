@@ -17,6 +17,7 @@ export interface IconOption {
   id: string;
   name: string;
   thumbnailUrl: string;
+  source: 'freepik' | 'iconify';
 }
 
 const FREEPIK_API_BASE = 'https://api.freepik.com/v1';
@@ -86,6 +87,7 @@ export async function searchIcons(term: string, count: number = 5, style?: IconS
       id: String(icon.id),
       name: icon.description || term,
       thumbnailUrl: icon.thumbnails?.[0]?.url || '',
+      source: 'freepik' as const,
     }));
 
     // Extract family.id from the top result for family-ID locking

@@ -20,6 +20,9 @@ export function startHeartbeatProgress(
   // 80% of the range — switch to linear crawl above this
   const linearThreshold = startPercent + range * 0.8;
   let lastPercent = startPercent;
+  // High-water mark: never write a value below what external progress has reported.
+  // This prevents the heartbeat from regressing the DB below Python PROGRESS checkpoints.
+  let highWater = startPercent;
 
   // Track unrounded crawl position to avoid Math.round killing 0.5 increments
   let linearPosition = 0;
@@ -41,6 +44,9 @@ export function startHeartbeatProgress(
       percent = expPercent;
     }
 
+    // Skip if behind real progress from the subprocess
+    if (percent <= highWater) return;
+    highWater = percent;
     lastPercent = percent;
 
     await publishJobProgress(jobId, percent, 'Processing...').catch(() => {});
@@ -48,5 +54,7 @@ export function startHeartbeatProgress(
 
   return {
     stop: () => clearInterval(interval),
+    /** Call when external progress arrives to prevent heartbeat from regressing */
+    raiseWaterMark: (p: number) => { highWater = Math.max(highWater, p); },
   };
 }

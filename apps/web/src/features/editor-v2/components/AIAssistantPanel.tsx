@@ -533,8 +533,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
     const check = setInterval(() => {
       const elapsed = Date.now() - lastProgressTimeRef.current;
-      const slowThreshold = activeJobId ? 120_000 : 60_000;
-      const stuckThreshold = activeJobId ? 300_000 : 120_000;
+      const slowThreshold = activeJobId ? 180_000 : 60_000;   // 3 min with active job (was 2 min)
+      const stuckThreshold = activeJobId ? 600_000 : 120_000; // 10 min with active job (was 5 min)
 
       if (elapsed > stuckThreshold) setStallState('stuck');
       else if (elapsed > slowThreshold) setStallState('slow');
@@ -1345,6 +1345,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setSceneTags([]);
     messageQueueRef.current = [];
     setQueueSize(0);
+    // Clear any pending attachment
+    setAttachmentFile(null);
+    setAttachmentLabel('');
     // Re-trigger auto-greet
     autoGreetSent.current = false;
     clearVisualCache();

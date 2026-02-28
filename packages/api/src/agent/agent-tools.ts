@@ -112,6 +112,7 @@ async function pollJobProgress(
   const STALL_TIMEOUT_MS = 10 * 60 * 1000;
   const startTime = Date.now();
   let lastProgress = -1;
+  let lastProgressMessage = '';
   let lastProgressChangeTime = Date.now();
   // High-water mark: never send progress lower than previously sent.
   // Prevents the 5% → 0% regression when initial SSE fires at 5% but
@@ -153,9 +154,10 @@ async function pollJobProgress(
       return { status: 'not_found' };
     }
 
-    // Track progress changes for stall detection
-    if (job.progress !== lastProgress) {
+    // Track progress changes for stall detection (percent OR message change resets timer)
+    if (job.progress !== lastProgress || (job.progressMessage || '') !== lastProgressMessage) {
       lastProgress = job.progress;
+      lastProgressMessage = job.progressMessage || '';
       lastProgressChangeTime = Date.now();
     }
 

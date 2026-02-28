@@ -15,6 +15,7 @@ import { fileURLToPath } from 'url';
 import { spawn, ChildProcess } from 'child_process';
 import { db, projects, tracks, timelineItems, transcripts, jobs, visuals, projectAssets } from '../db/index.js';
 import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler, setJobProjectId } from '../services/redis.js';
+import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
@@ -519,6 +520,9 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     }
   }, 55_000);
 
+  // Declared outside try so catch block can stop it on failure
+  let heartbeat: { stop: () => void; raiseWaterMark: (p: number) => void } | null = null;
+
   try {
     // Update job status
     await db.update(jobs)
@@ -742,6 +746,12 @@ registerRoot(RemotionRoot);
 
     await publishJobProgress(jobId, 15, 'Starting Claude Code generator...');
 
+    // Start heartbeat progress to prevent stall detection during long SDK calls.
+    // The exponential decay curve fills gaps between Python PROGRESS: lines (15→68 over ~20 min).
+    // Python's specific checkpoints (19, 35, 55, etc.) override the heartbeat when they fire,
+    // and pollJobProgress's highWaterMark ensures the frontend only sees monotonic increases.
+    heartbeat = startHeartbeatProgress(jobId, 15, 68, 20 * 60 * 1000);
+
     // Calculate duration in frames
     const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
 
@@ -768,6 +778,7 @@ registerRoot(RemotionRoot);
       planJobId: job.data.planJobId,
       pipWidth: pipEffective.width,
       pipHeight: pipEffective.height,
+      onProgress: (percent) => heartbeat?.raiseWaterMark(percent),
     });
 
     // Store metrics in job (no token cost for OAuth)
@@ -789,6 +800,8 @@ registerRoot(RemotionRoot);
       .where(eq(jobs.id, jobId));
 
     logger.info({ projectId, jobMetrics }, 'Job metrics recorded');
+
+    heartbeat?.stop();
 
     // Always upload sources immediately after agent completes — even if bundling fails later.
     // This preserves the AI-generated code so retries can pick up where we left off.
@@ -1115,6 +1128,7 @@ registerRoot(RemotionRoot);
     logger.info({ projectId, compositionId, model: llmModel }, 'Visual generation complete');
 
   } catch (error) {
+    heartbeat?.stop();
     logger.error({ projectId, err: error }, 'Visual generation failed');
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -1159,6 +1173,8 @@ interface ClaudeCodeOptions {
   /** Effective pip dimensions for per-scene dimension-aware generation */
   pipWidth?: number;
   pipHeight?: number;
+  /** Callback to raise heartbeat water mark when Python emits PROGRESS checkpoints */
+  onProgress?: (percent: number) => void;
 }
 
 /**
@@ -1170,7 +1186,7 @@ interface ClaudeCodeOptions {
 async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId, pipWidth, pipHeight } = options;
+  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId, pipWidth, pipHeight, onProgress } = options;
 
   const pythonPath = config.pythonPath;
   const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
@@ -1284,6 +1300,8 @@ async function runClaudeCodeGenerator(
           if (metaJson) {
             try { meta = JSON.parse(metaJson); } catch { /* ignore malformed meta */ }
           }
+          // Raise heartbeat water mark so it doesn't regress below this checkpoint
+          onProgress?.(percent);
           publishJobProgress(jobId, percent, message, meta ? { meta } : undefined);
           logger.info({ projectId, percent, message, meta }, 'Claude generator progress');
           continue;

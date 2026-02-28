@@ -23,6 +23,7 @@ interface IconOption {
   id: string;
   name: string;
   thumbnailUrl: string;
+  source?: 'freepik' | 'iconify';
 }
 
 export interface Scene {
