@@ -690,12 +690,34 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     const whisperxOutput = await runTranscription(audioPath, jobId, projectId);
     await publishJobProgress(jobId, 70, 'Transcription complete', pubExtras);
 
-    // Step 5: Process captions (75%)
-    await publishJobProgress(jobId, 72, 'Processing captions...', pubExtras);
+    // Step 4.5: LLM word style analysis (70% → 80%)
+    let wordStyleOverrides: Record<number, PerWordStyleOverrides> = {};
+    const analysisEnabled = config.wordStyleAnalysis.enabled;
+    const analysisApiKey = config.transcription.openaiApiKey;
+
+    if (analysisEnabled && analysisApiKey) {
+      try {
+        await publishJobProgress(jobId, 71, 'Analysing word styles...', pubExtras);
+        wordStyleOverrides = await analyzeWordStyles(
+          whisperxOutput.words,
+          analysisApiKey,
+          config.wordStyleAnalysis.model,
+        );
+        await publishJobProgress(jobId, 80, 'Word styles analysed', pubExtras);
+        logger.info({ projectId, wordCount: whisperxOutput.words.length, overrideCount: Object.keys(wordStyleOverrides).length }, 'Word style analysis complete');
+      } catch (err) {
+        logger.warn({ projectId, err }, 'Word style analysis failed — continuing without overrides');
+      }
+    } else if (analysisEnabled && !analysisApiKey) {
+      logger.info({ projectId }, 'Word style analysis skipped — no OPENAI_API_KEY');
+    }
+
+    // Step 5: Process captions (82%)
+    await publishJobProgress(jobId, 81, 'Processing captions...', pubExtras);
 
     const pages = groupWordsIntoPages(whisperxOutput.words);
 
-    await publishJobProgress(jobId, 75, 'Captions processed', pubExtras);
+    await publishJobProgress(jobId, 82, 'Captions processed', pubExtras);
 
     // Step 6: Save transcript to database (80%)
     await publishJobProgress(jobId, 78, 'Saving transcript...', pubExtras);
@@ -720,6 +742,8 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     }).returning();
 
     // Create timeline items from caption pages
+    // Track global word index across pages so overrides align correctly
+    let globalWordIdx = 0;
     const subtitleItems = pages.map((page) => ({
       trackId: subtitleTrack.id,
       type: 'subtitle' as const,
@@ -727,11 +751,16 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       endMs: page.endMs,
       data: {
         text: page.text,
-        words: page.words.map(w => ({
-          text: w.text,
-          startMs: w.startMs,
-          endMs: w.endMs,
-        })),
+        words: page.words.map((w) => {
+          const idx = globalWordIdx++;
+          const styleOverrides = wordStyleOverrides[idx] ?? undefined;
+          return {
+            text: w.text,
+            startMs: w.startMs,
+            endMs: w.endMs,
+            ...(styleOverrides ? { styleOverrides } : {}),
+          };
+        }),
         style: DEFAULT_SUBTITLE_STYLE,
       },
     }));
