@@ -103,6 +103,13 @@ export const config = {
     },
   },
 
+
+  wordStyleAnalysis: {
+    // Set WORD_STYLE_ANALYSIS_ENABLED=false to skip LLM word analysis
+    enabled: process.env.WORD_STYLE_ANALYSIS_ENABLED !== 'false',
+    model: process.env.WORD_STYLE_ANALYSIS_MODEL || 'gpt-4o-mini',
+  },
+
   freepik: {
     apiKey: process.env.FREEPIK_API_KEY || '',
   },
