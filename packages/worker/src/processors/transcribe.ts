@@ -720,7 +720,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     await publishJobProgress(jobId, 82, 'Captions processed', pubExtras);
 
     // Step 6: Save transcript to database (80%)
-    await publishJobProgress(jobId, 78, 'Saving transcript...', pubExtras);
+    await publishJobProgress(jobId, 83, 'Saving transcript...', pubExtras);
 
     await db.insert(transcripts).values({
       projectId,
@@ -728,7 +728,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       words: whisperxOutput.words as any,
     });
 
-    await publishJobProgress(jobId, 80, 'Transcript saved', pubExtras);
+    await publishJobProgress(jobId, 85, 'Transcript saved', pubExtras);
 
     // Step 7: Create subtitle track and items (90%)
     await publishJobProgress(jobId, 82, 'Creating subtitle track...', pubExtras);
@@ -753,7 +753,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
         text: page.text,
         words: page.words.map((w) => {
           const idx = globalWordIdx++;
-          const styleOverrides = wordStyleOverrides[idx] ?? undefined;
+          const styleOverrides = wordStyleOverrides[idx];
           return {
             text: w.text,
             startMs: w.startMs,
