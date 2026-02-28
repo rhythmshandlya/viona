@@ -129,7 +129,7 @@ async function analyzeWordStyles(
 
     for (const [idxStr, entry] of Object.entries(parsed)) {
       const globalIdx = parseInt(idxStr, 10);
-      if (isNaN(globalIdx) || globalIdx < 0 || globalIdx >= words.length) continue;
+      if (isNaN(globalIdx) || globalIdx < batchStart || globalIdx >= batchEnd) continue;
       const tier = entry?.type as WordTier;
       if (tier !== 'power' && tier !== 'filler' && tier !== 'medium') continue;
       const overrides = mapWordTypeToOverrides(tier);
