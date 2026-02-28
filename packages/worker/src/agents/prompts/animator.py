@@ -1313,20 +1313,27 @@ professional motion design studio, not a coding tutorial.
 | Stock photos (people, places, concepts) | `search_unsplash`/`search_pexels` → `download_stock_photo` | `<Img>` with Ken Burns, overlays, masks |
 | Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
 | Flowcharts / process diagrams | Hand-coded SVG with Freepik icons as nodes | Best of both — structure + polish |
-| Company logos / branding | Freepik `search_icons` ("youtube", "google") → `download_file` | Inline SVG — NEVER hand-draw a logo |
+| Company logos / branding | **Iconify FIRST**: `mcp__better-icons__search_icons` ("claude", "google") → `mcp__better-icons__get_icon` (has `simple-icons:*`, `logos:*` with accurate brand marks). Freepik fallback only if Iconify has 0 results. | Inline SVG — NEVER hand-draw a logo |
 | Code snippets / terminal | Hand-coded with syntax highlighting | Typed-in animation |
 
-**RULE: Default to Freepik for icons/illustrations/logos. Use screenshots for websites/apps. Use stock photos for real-world subjects. Only hand-code SVGs for dynamic data.**
+**RULE: Default to Freepik for icons/illustrations/logos EXCEPT company logos — use Iconify `simple-icons:*` first (3000+ accurate brand marks). Use screenshots for websites/apps. Use stock photos for real-world subjects. Only hand-code SVGs for dynamic data.**
 
 ### HOW TO SEARCH EFFECTIVELY
 
-**Icons:**
+**Freepik (concept icons, illustrations):**
 - mcp__freepik__search_icons with `term` parameter: "cloud computing", "server rack", "neural network"
 - mcp__freepik__get_icon_detail_by_id to preview icon details before downloading
 - Filter by shape: "fill" for solid icons, "outline" for line icons
 - Filter by icon_type: ["standard"] for static, ["animated"] for motion
 - Search CONCEPTS, not literal descriptions. "growth" not "line going up".
 - Try 2-3 search terms if the first doesn't match: "database" → "storage" → "server rack"
+
+**Iconify / better-icons (UI icons AND company logos):**
+- mcp__better-icons__search_icons with query: "arrow right", "chart bar", "cloud server"
+- Get SVG: mcp__better-icons__get_icon with icon ID like "lucide:arrow-right" returns SVG markup directly
+- Popular prefixes: lucide, mdi, heroicons, tabler, ph (phosphor)
+- **Brand/company logos**: Search the company name directly (e.g., "claude", "google", "spotify"). Uses `simple-icons:*` (3000+ brands, monochrome) and `logos:*` (full-color variants). This is MORE RELIABLE than Freepik for company logos.
+- Use mcp__better-icons__find_similar_icons to explore variations across collections
 
 **Resources (illustrations, vectors, photos):**
 - mcp__freepik__search_resources with `term` and content_type filter: { content_type: { vector: 1 } }
@@ -1468,7 +1475,7 @@ Presets: `"photo-ken-burns"` | `"photo-zoom"` | `"photo-blur-reveal"` | `"photo-
 - **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing Freepik.
 - **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. Match icon colors to the style preset's color scheme.
 - **FALLBACK**: ONLY if the download tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG. "I want more control" or "for speed" are NOT valid reasons to skip downloads.
-- **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Spotify, etc.) must ALWAYS be downloaded from Freepik — search the company name. Hand-drawn logos look amateur and are often inaccurate.
+- **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Claude, Spotify, etc.) must ALWAYS come from Iconify's `simple-icons:*` or `logos:*` collections first (`mcp__better-icons__search_icons` → `mcp__better-icons__get_icon`). These are the official brand SVGs — pixel-perfect and accurate. Only fall back to Freepik if Iconify returns 0 results for that brand. Hand-drawn logos look amateur and are often inaccurate.
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
 - **NO EXTERNAL IMAGE URLS**: NEVER use `<Img src="https://icons8.com/...">` or any remote URL for icons/images. External URLs fail during rendering (CORS, rate limits, downtime) and crash the entire export. Always download assets first, then use `staticFile()` or inline SVG.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
@@ -1532,6 +1539,23 @@ const imgOpacity = interpolate(frame, [entryFrame, entryFrame + 15], [0, 1], { e
 - If an image entry is missing `remotionPath`, skip it — the download may have failed
 - Do NOT try to fetch images yourself — they are already in `public/assets/images/`
 - Always wrap images in containers with `overflow: 'hidden'` and `borderRadius` for polish
+
+### USER-PROVIDED ASSETS (Brand Logos, Custom Icons, Images)
+
+Check for `user_assets.json` in the project directory. It lists custom assets
+uploaded by the user with descriptive labels.
+
+**Usage:**
+```tsx
+<Img src={staticFile('assets/user/filename.svg')} style={{ width: 200 }} />
+```
+
+**RULES:**
+- ALWAYS prefer user-provided assets over Freepik/Iconify when they match the need
+- Read user_assets.json BEFORE starting scene implementation
+- Each asset has a `label` (e.g. "Claude Code logo") and `remotionPath`
+- For SVGs needing color changes, read and inline the SVG in JSX
+- Treat as official brand identity — use consistently across scenes
 
 ### WEBSITE SCREENSHOTS
 
@@ -3513,20 +3537,27 @@ professional motion design studio, not a coding tutorial.
 | Stock photos (people, places, concepts) | `search_unsplash`/`search_pexels` -> `download_stock_photo` | `<Img>` with Ken Burns, overlays, masks |
 | Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
 | Flowcharts / process diagrams | Hand-coded SVG with Freepik icons as nodes | Best of both — structure + polish |
-| Company logos / branding | Freepik `search_icons` ("youtube", "google") -> `download_file` | Inline SVG — NEVER hand-draw a logo |
+| Company logos / branding | **Iconify FIRST**: `mcp__better-icons__search_icons` ("claude", "google") -> `mcp__better-icons__get_icon` (has `simple-icons:*`, `logos:*` with accurate brand marks). Freepik fallback only if Iconify has 0 results. | Inline SVG — NEVER hand-draw a logo |
 | Code snippets / terminal | Hand-coded with syntax highlighting | Typed-in animation |
 
-**RULE: Default to Freepik for icons/illustrations/logos. Use screenshots for websites/apps. Use stock photos for real-world subjects. Only hand-code SVGs for dynamic data.**
+**RULE: Default to Freepik for icons/illustrations/logos EXCEPT company logos — use Iconify `simple-icons:*` first (3000+ accurate brand marks). Use screenshots for websites/apps. Use stock photos for real-world subjects. Only hand-code SVGs for dynamic data.**
 
 ### HOW TO SEARCH EFFECTIVELY
 
-**Icons:**
+**Freepik (concept icons, illustrations):**
 - mcp__freepik__search_icons with `term` parameter: "cloud computing", "server rack", "neural network"
 - mcp__freepik__get_icon_detail_by_id to preview icon details before downloading
 - Filter by shape: "fill" for solid icons, "outline" for line icons
 - Filter by icon_type: ["standard"] for static, ["animated"] for motion
 - Search CONCEPTS, not literal descriptions. "growth" not "line going up".
 - Try 2-3 search terms if the first doesn't match: "database" -> "storage" -> "server rack"
+
+**Iconify / better-icons (UI icons AND company logos):**
+- mcp__better-icons__search_icons with query: "arrow right", "chart bar", "cloud server"
+- Get SVG: mcp__better-icons__get_icon with icon ID like "lucide:arrow-right" returns SVG markup directly
+- Popular prefixes: lucide, mdi, heroicons, tabler, ph (phosphor)
+- **Brand/company logos**: Search the company name directly (e.g., "claude", "google", "spotify"). Uses `simple-icons:*` (3000+ brands, monochrome) and `logos:*` (full-color variants). This is MORE RELIABLE than Freepik for company logos.
+- Use mcp__better-icons__find_similar_icons to explore variations across collections
 
 **Resources (illustrations, vectors, photos):**
 - mcp__freepik__search_resources with `term` and content_type filter: { content_type: { vector: 1 } }
@@ -3668,7 +3699,7 @@ Presets: `"photo-ken-burns"` | `"photo-zoom"` | `"photo-blur-reveal"` | `"photo-
 - **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing Freepik.
 - **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. Match icon colors to the style preset's color scheme.
 - **FALLBACK**: ONLY if the download tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG. "I want more control" or "for speed" are NOT valid reasons to skip downloads.
-- **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Spotify, etc.) must ALWAYS be downloaded from Freepik — search the company name. Hand-drawn logos look amateur and are often inaccurate.
+- **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Claude, Spotify, etc.) must ALWAYS come from Iconify's `simple-icons:*` or `logos:*` collections first (`mcp__better-icons__search_icons` → `mcp__better-icons__get_icon`). These are the official brand SVGs — pixel-perfect and accurate. Only fall back to Freepik if Iconify returns 0 results for that brand. Hand-drawn logos look amateur and are often inaccurate.
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients for backgrounds. Photos work as hero images, not backdrops.
 - **NO EXTERNAL IMAGE URLS**: NEVER use `<Img src="https://icons8.com/...">` or any remote URL for icons/images. External URLs fail during rendering (CORS, rate limits, downtime) and crash the entire export. Always download assets first, then use `staticFile()` or inline SVG.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match. Consistency > variety.
@@ -3732,6 +3763,23 @@ const imgOpacity = interpolate(frame, [entryFrame, entryFrame + 15], [0, 1], { e
 - If an image entry is missing `remotionPath`, skip it — the download may have failed
 - Do NOT try to fetch images yourself — they are already in `public/assets/images/`
 - Always wrap images in containers with `overflow: 'hidden'` and `borderRadius` for polish
+
+### USER-PROVIDED ASSETS (Brand Logos, Custom Icons, Images)
+
+Check for `user_assets.json` in the project directory. It lists custom assets
+uploaded by the user with descriptive labels.
+
+**Usage:**
+```tsx
+<Img src={staticFile('assets/user/filename.svg')} style={{ width: 200 }} />
+```
+
+**RULES:**
+- ALWAYS prefer user-provided assets over Freepik/Iconify when they match the need
+- Read user_assets.json BEFORE starting scene implementation
+- Each asset has a `label` (e.g. "Claude Code logo") and `remotionPath`
+- For SVGs needing color changes, read and inline the SVG in JSX
+- Treat as official brand identity — use consistently across scenes
 
 ### WEBSITE SCREENSHOTS
 

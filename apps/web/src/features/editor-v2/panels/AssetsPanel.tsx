@@ -1,13 +1,14 @@
 /**
  * Assets Panel
  * Displays extracted composition assets that users can select for AI editing
+ * + allows uploading custom assets (logos, icons, brand images)
  */
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight, type LucideIcon } from 'lucide-react';
-import { api, ExtractedAsset, SceneInfo } from '@/lib/api';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight, Upload, Trash2, X, type LucideIcon } from 'lucide-react';
+import { api, ExtractedAsset, ProjectMediaAsset, SceneInfo } from '@/lib/api';
 import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItems } from '../store/use-editor-store';
 
 interface AssetsPanelProps {
@@ -35,12 +36,31 @@ const AssetColor: Record<ExtractedAsset['type'], string> = {
   background: 'text-gray-400',
 };
 
+// File type badge colors
+const mimeTypeBadge = (mime: string) => {
+  if (mime.includes('svg')) return { label: 'SVG', color: 'text-orange-400 bg-orange-400/10' };
+  if (mime.includes('png')) return { label: 'PNG', color: 'text-blue-400 bg-blue-400/10' };
+  if (mime.includes('jpeg') || mime.includes('jpg')) return { label: 'JPG', color: 'text-green-400 bg-green-400/10' };
+  if (mime.includes('webp')) return { label: 'WEBP', color: 'text-violet-400 bg-violet-400/10' };
+  if (mime.includes('gif')) return { label: 'GIF', color: 'text-pink-400 bg-pink-400/10' };
+  return { label: 'IMG', color: 'text-gray-400 bg-gray-400/10' };
+};
+
 export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) {
   const [assets, setAssets] = useState<ExtractedAsset[]>([]);
   const [sceneTimings, setSceneTimings] = useState<Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedScenes, setExpandedScenes] = useState<Set<number>>(new Set([1, 2, 3])); // Expand first 3 scenes by default
+
+  // Uploaded assets state
+  const [uploadedAssets, setUploadedAssets] = useState<ProjectMediaAsset[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingLabel, setPendingLabel] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const projectId = useProjectId();
   const selectedElement = useSelectedElement();
@@ -52,7 +72,7 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
   const visualItemIds = itemIds.filter(id => items[id]?.type === 'visual');
   const visualKeyRef = useRef(visualItemIds.join(','));
 
-  // Fetch assets
+  // Fetch scene assets
   const fetchAssets = useCallback(async () => {
     if (!projectId) return;
 
@@ -78,9 +98,21 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
     }
   }, [projectId]);
 
+  // Fetch uploaded assets
+  const fetchUploadedAssets = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const { assets } = await api.getProjectMedia(projectId);
+      setUploadedAssets(assets);
+    } catch (err) {
+      console.error('Failed to fetch uploaded assets:', err);
+    }
+  }, [projectId]);
+
   useEffect(() => {
     fetchAssets();
-  }, [fetchAssets]);
+    fetchUploadedAssets();
+  }, [fetchAssets, fetchUploadedAssets]);
 
   // Refetch when visual items change (added, removed, or replaced after edits)
   useEffect(() => {
@@ -91,7 +123,62 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
     }
   }, [visualItemIds, fetchAssets]);
 
-  // Group assets by scene
+  // Preview URL for pending file — memoized to avoid leak
+  const pendingPreviewUrl = useMemo(() => {
+    if (pendingFile && pendingFile.type.startsWith('image/') && !pendingFile.type.includes('svg')) {
+      return URL.createObjectURL(pendingFile);
+    }
+    return null;
+  }, [pendingFile]);
+
+  useEffect(() => {
+    return () => { if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl); };
+  }, [pendingPreviewUrl]);
+
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingFile(file);
+    setPendingLabel(file.name.replace(/\.[^.]+$/, ''));
+    // Reset input so same file can be selected again
+    e.target.value = '';
+  };
+
+  // Handle upload confirmation
+  const handleUpload = async () => {
+    if (!projectId || !pendingFile) return;
+
+    setUploading(true);
+    setUploadProgress(0);
+    try {
+      const asset = await api.uploadProjectMedia(projectId, pendingFile, pendingLabel || undefined, (p) => setUploadProgress(p));
+      setUploadedAssets(prev => [asset, ...prev]);
+      setPendingFile(null);
+      setPendingLabel('');
+    } catch (err) {
+      console.error('Upload failed:', err);
+    } finally {
+      setUploading(false);
+      setUploadProgress(0);
+    }
+  };
+
+  // Handle delete
+  const handleDelete = async (assetId: string) => {
+    if (!projectId) return;
+    setDeletingId(assetId);
+    try {
+      await api.deleteProjectMedia(projectId, assetId);
+      setUploadedAssets(prev => prev.filter(a => a.id !== assetId));
+    } catch (err) {
+      console.error('Delete failed:', err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Group scene assets by scene
   const assetsByScene = assets.reduce((acc, asset) => {
     const sceneId = asset.sceneId;
     if (!acc[sceneId]) {
@@ -103,7 +190,6 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
 
   // Handle asset selection — toggle, seek, and highlight
   const handleAssetClick = (asset: ExtractedAsset) => {
-    // Toggle: clicking same asset again deselects and hides overlay
     if (selectedElement?.name === asset.name && selectedElement?.sceneId === asset.sceneId) {
       setSelectedElement(null);
       setElementPickerEnabled(false);
@@ -119,7 +205,6 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
       size: asset.size,
     });
 
-    // Pause playback and seek to the last second of the scene
     pause();
     const timing = sceneTimings.get(asset.sceneId);
     if (timing) {
@@ -142,12 +227,26 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
     });
   };
 
-  // Check if asset is selected
   const isAssetSelected = (asset: ExtractedAsset) => {
     return selectedElement?.name === asset.name && selectedElement?.sceneId === asset.sceneId;
   };
 
-  if (loading && assets.length === 0) {
+  // Drag & drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      setPendingFile(file);
+      setPendingLabel(file.name.replace(/\.[^.]+$/, ''));
+    }
+  };
+
+  if (loading && assets.length === 0 && uploadedAssets.length === 0) {
     return (
       <div className={`p-4 ${className}`}>
         <div className="flex items-center gap-2 text-[var(--editor-text-muted)] text-sm">
@@ -158,7 +257,7 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
     );
   }
 
-  if (error) {
+  if (error && uploadedAssets.length === 0) {
     return (
       <div className={`p-4 ${className}`}>
         <div className="text-red-400 text-sm mb-2">{error}</div>
@@ -172,101 +271,243 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
     );
   }
 
-  if (assets.length === 0) {
-    return (
-      <div className={`p-4 ${className}`}>
-        <div className="text-center py-8">
-          <Layers className="w-8 h-8 mx-auto mb-2 text-[var(--editor-text-muted)] opacity-50" />
-          <p className="text-sm text-[var(--editor-text-muted)] mb-1">No assets found</p>
-          <p className="text-xs text-[var(--editor-text-muted)] opacity-70">
-            Generate or edit visuals to extract assets
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className={`flex flex-col h-full ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--editor-border-subtle)]">
-        <span className="text-xs font-medium text-[var(--editor-text-secondary)]">
-          {assets.length} assets
-        </span>
-        <button
-          onClick={fetchAssets}
-          disabled={loading}
-          className="p-1 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)] disabled:opacity-50"
-          title="Refresh assets"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,.svg"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
 
-      {/* Assets list grouped by scene */}
-      <div className="overflow-y-auto flex-1">
-        {Object.entries(assetsByScene).map(([sceneIdStr, { sceneName, assets: sceneAssets }]) => {
-          const sceneId = parseInt(sceneIdStr);
-          const isExpanded = expandedScenes.has(sceneId);
+      {/* Your Assets section */}
+      <div className="border-b border-[var(--editor-border-subtle)]">
+        <div className="flex items-center justify-between px-4 py-2">
+          <span className="text-xs font-medium text-[var(--editor-text-secondary)]">
+            Your Assets {uploadedAssets.length > 0 && `(${uploadedAssets.length})`}
+          </span>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium
+                       text-[var(--editor-accent)] hover:bg-[var(--editor-accent-soft)] transition-colors
+                       disabled:opacity-50"
+          >
+            <Upload className="w-3 h-3" />
+            Upload
+          </button>
+        </div>
 
-          return (
-            <div key={sceneId} className="border-b border-[var(--editor-border-subtle)] last:border-b-0">
-              {/* Scene header */}
-              <button
-                onClick={() => toggleScene(sceneId)}
-                className="w-full flex items-center gap-2 px-4 py-2 hover:bg-[var(--editor-bg-hover)] transition-colors"
-              >
-                <ChevronRight
-                  className={`w-3.5 h-3.5 text-[var(--editor-text-muted)] transition-transform ${
-                    isExpanded ? 'rotate-90' : ''
-                  }`}
+        {/* Pending file — inline label input */}
+        {pendingFile && (
+          <div className="px-4 pb-2">
+            <div className="flex items-center gap-2 p-2 rounded-lg border border-[var(--editor-border-subtle)]
+                            bg-[var(--editor-bg-surface)]">
+              <div className="w-8 h-8 rounded bg-[var(--editor-bg-hover)] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                {pendingPreviewUrl ? (
+                  <img
+                    src={pendingPreviewUrl}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <Image className="w-4 h-4 text-[var(--editor-text-muted)]" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <input
+                  type="text"
+                  value={pendingLabel}
+                  onChange={(e) => setPendingLabel(e.target.value)}
+                  placeholder="Label (e.g. Company logo)"
+                  className="w-full bg-transparent text-xs text-[var(--editor-text-primary)]
+                             placeholder:text-[var(--editor-text-muted)] outline-none"
+                  onKeyDown={(e) => e.key === 'Enter' && handleUpload()}
+                  autoFocus
                 />
-                <span className="text-xs font-medium text-[var(--editor-text-primary)]">
-                  {sceneName}
-                </span>
-                <span className="text-[10px] text-[var(--editor-text-muted)] ml-auto">
-                  {sceneAssets.length}
-                </span>
-              </button>
-
-              {/* Scene assets */}
-              {isExpanded && (
-                <div className="pb-1">
-                  {sceneAssets.map((asset) => {
-                    const Icon = AssetIcon[asset.type] || Box;
-                    const colorClass = AssetColor[asset.type] || 'text-gray-400';
-                    const isSelected = isAssetSelected(asset);
-
-                    return (
-                      <button
-                        key={asset.id}
-                        onClick={() => handleAssetClick(asset)}
-                        className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
-                          isSelected
-                            ? 'bg-[var(--editor-accent)]/10 border-l-2 border-[var(--editor-accent)]'
-                            : 'hover:bg-[var(--editor-bg-hover)] border-l-2 border-transparent'
-                        }`}
-                      >
-                        <Icon className={`w-4 h-4 flex-shrink-0 ${colorClass}`} />
-                        <div className="flex-1 min-w-0">
-                          <div className={`text-sm truncate ${
-                            isSelected ? 'text-[var(--editor-accent)]' : 'text-[var(--editor-text-primary)]'
-                          }`}>
-                            {asset.name}
-                          </div>
-                          <div className="text-[10px] text-[var(--editor-text-muted)] capitalize">
-                            {asset.type}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="text-[10px] text-[var(--editor-text-muted)] truncate">
+                  {pendingFile.name}
                 </div>
-              )}
+              </div>
+              <button
+                onClick={() => { setPendingFile(null); setPendingLabel(''); }}
+                className="p-0.5 text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleUpload}
+                disabled={uploading}
+                className="px-2 py-1 rounded text-[10px] font-medium bg-[var(--editor-accent)]
+                           text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {uploading ? `${uploadProgress}%` : 'Add'}
+              </button>
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {/* Uploaded assets grid */}
+        {uploadedAssets.length > 0 ? (
+          <div className="px-4 pb-3 grid grid-cols-3 gap-2">
+            {uploadedAssets.map((asset) => {
+              const badge = mimeTypeBadge(asset.mimeType);
+              return (
+                <div
+                  key={asset.id}
+                  className="group relative rounded-lg border border-[var(--editor-border-subtle)]
+                             bg-[var(--editor-bg-surface)] overflow-hidden"
+                >
+                  <div className="aspect-square flex items-center justify-center bg-[var(--editor-bg-hover)] p-1">
+                    <img
+                      src={asset.url}
+                      alt={asset.label || asset.filename}
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="px-1.5 py-1">
+                    <div className="text-[10px] text-[var(--editor-text-primary)] truncate">
+                      {asset.label || asset.filename}
+                    </div>
+                    <span className={`inline-block text-[9px] font-medium px-1 rounded ${badge.color}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  {/* Delete button — visible on hover */}
+                  <button
+                    onClick={() => handleDelete(asset.id)}
+                    disabled={deletingId === asset.id}
+                    className="absolute top-1 right-1 w-5 h-5 rounded flex items-center justify-center
+                               bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity
+                               hover:bg-red-500 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        ) : !pendingFile && (
+          <div
+            className="mx-4 mb-3 p-3 rounded-lg border border-dashed border-[var(--editor-border-subtle)]
+                        text-center cursor-pointer hover:border-[var(--editor-accent)]/50 hover:bg-[var(--editor-accent)]/5
+                        transition-colors"
+            onClick={() => fileInputRef.current?.click()}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+          >
+            <Upload className="w-5 h-5 mx-auto mb-1 text-[var(--editor-text-muted)]" />
+            <p className="text-[11px] text-[var(--editor-text-muted)]">
+              Drop logos, icons, or images here
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Scene Assets section */}
+      {assets.length > 0 && (
+        <>
+          <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--editor-border-subtle)]">
+            <span className="text-xs font-medium text-[var(--editor-text-secondary)]">
+              Scene Assets ({assets.length})
+            </span>
+            <button
+              onClick={fetchAssets}
+              disabled={loading}
+              className="p-1 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)] disabled:opacity-50"
+              title="Refresh assets"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+
+          <div className="overflow-y-auto flex-1">
+            {Object.entries(assetsByScene).map(([sceneIdStr, { sceneName, assets: sceneAssets }]) => {
+              const sceneId = parseInt(sceneIdStr);
+              const isExpanded = expandedScenes.has(sceneId);
+
+              return (
+                <div key={sceneId} className="border-b border-[var(--editor-border-subtle)] last:border-b-0">
+                  <button
+                    onClick={() => toggleScene(sceneId)}
+                    className="w-full flex items-center gap-2 px-4 py-2 hover:bg-[var(--editor-bg-hover)] transition-colors"
+                  >
+                    <ChevronRight
+                      className={`w-3.5 h-3.5 text-[var(--editor-text-muted)] transition-transform ${
+                        isExpanded ? 'rotate-90' : ''
+                      }`}
+                    />
+                    <span className="text-xs font-medium text-[var(--editor-text-primary)]">
+                      {sceneName}
+                    </span>
+                    <span className="text-[10px] text-[var(--editor-text-muted)] ml-auto">
+                      {sceneAssets.length}
+                    </span>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="pb-1">
+                      {sceneAssets.map((asset) => {
+                        const Icon = AssetIcon[asset.type] || Box;
+                        const colorClass = AssetColor[asset.type] || 'text-gray-400';
+                        const isSelected = isAssetSelected(asset);
+
+                        return (
+                          <button
+                            key={asset.id}
+                            onClick={() => handleAssetClick(asset)}
+                            className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-colors ${
+                              isSelected
+                                ? 'bg-[var(--editor-accent)]/10 border-l-2 border-[var(--editor-accent)]'
+                                : 'hover:bg-[var(--editor-bg-hover)] border-l-2 border-transparent'
+                            }`}
+                          >
+                            <Icon className={`w-4 h-4 flex-shrink-0 ${colorClass}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className={`text-sm truncate ${
+                                isSelected ? 'text-[var(--editor-accent)]' : 'text-[var(--editor-text-primary)]'
+                              }`}>
+                                {asset.name}
+                              </div>
+                              <div className="text-[10px] text-[var(--editor-text-muted)] capitalize">
+                                {asset.type}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* Empty state — no visuals, no uploaded assets */}
+      {assets.length === 0 && uploadedAssets.length === 0 && !pendingFile && (
+        <div className="flex-1 flex items-center justify-center p-4">
+          <div className="text-center">
+            <Layers className="w-8 h-8 mx-auto mb-2 text-[var(--editor-text-muted)] opacity-50" />
+            <p className="text-sm text-[var(--editor-text-muted)] mb-1">No assets yet</p>
+            <p className="text-xs text-[var(--editor-text-muted)] opacity-70">
+              Upload brand assets or generate visuals to see scene assets
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* No visuals but has uploaded assets */}
+      {assets.length === 0 && uploadedAssets.length > 0 && (
+        <div className="flex-1 flex items-center justify-center p-4">
+          <p className="text-xs text-[var(--editor-text-muted)] text-center">
+            Generate visuals to see scene assets
+          </p>
+        </div>
+      )}
 
       {/* Selected asset indicator */}
       {selectedElement && (

@@ -133,6 +133,7 @@ export const projectAssets = pgTable('project_assets', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
   filename: varchar('filename', { length: 255 }).notNull(),
+  label: varchar('label', { length: 255 }),
   storageKey: varchar('storage_key', { length: 500 }).notNull(),
   contentType: varchar('content_type', { length: 100 }).notNull(),
   fileSize: integer('file_size'),

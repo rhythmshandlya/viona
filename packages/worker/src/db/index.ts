@@ -79,6 +79,20 @@ export const jobs = pgTable('jobs', {
   completedAt: timestamp('completed_at'),
 });
 
+export const projectAssets = pgTable('project_assets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  filename: varchar('filename', { length: 255 }).notNull(),
+  label: varchar('label', { length: 255 }),
+  storageKey: varchar('storage_key', { length: 500 }).notNull(),
+  contentType: varchar('content_type', { length: 100 }).notNull(),
+  fileSize: integer('file_size'),
+  durationMs: integer('duration_ms'),
+  width: integer('width'),
+  height: integer('height'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
 export const visuals = pgTable('visuals', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
@@ -100,5 +114,5 @@ const pool = new pg.Pool({
 });
 
 export const db = drizzle(pool, {
-  schema: { projects, tracks, timelineItems, transcripts, jobs, visuals },
+  schema: { projects, tracks, timelineItems, transcripts, jobs, projectAssets, visuals },
 });

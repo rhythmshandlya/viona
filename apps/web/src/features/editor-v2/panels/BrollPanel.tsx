@@ -76,7 +76,7 @@ export function BrollPanel({ className = '' }: BrollPanelProps) {
 
     try {
       for (const file of Array.from(files)) {
-        const asset = await api.uploadProjectMedia(projectId, file, (progress) => {
+        const asset = await api.uploadProjectMedia(projectId, file, undefined, (progress) => {
           setUploadProgress(progress);
         });
         setMediaAssets((prev) => [...prev, asset]);

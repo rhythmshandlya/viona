@@ -1906,8 +1906,9 @@ professional motion design studio, not a coding tutorial.
 
 2. **Iconify / better-icons** (200k+ open-source icons from 150+ collections)
    - Best for: clean UI-style icons, consistent icon sets (Lucide, Material, Heroicons, Tabler, Phosphor)
+   - **BEST for company/brand logos**: `simple-icons:*` has 3000+ brand logos (claude, google, apple, spotify, etc.), `logos:*` has full-color variants
    - Tools: `search_icons`, `get_icon`, `recommend_icons`, `find_similar_icons`
-   - Icon ID format: `prefix:name` (e.g., `lucide:home`, `mdi:chart-bar`)
+   - Icon ID format: `prefix:name` (e.g., `lucide:home`, `mdi:chart-bar`, `simple-icons:claude`)
 
 ### DECISION FRAMEWORK — What to use when
 
@@ -1922,7 +1923,7 @@ professional motion design studio, not a coding tutorial.
 | Stock photos (people, places, concepts) | `search_unsplash`/`search_pexels` → `download_stock_photo` | `<Img>` with Ken Burns, overlays, masks |
 | Data visualizations (charts, graphs) | Hand-coded SVG + Remotion animation | Needs dynamic values, animation |
 | Flowcharts / process diagrams | Hand-coded SVG with Iconify/Freepik icons as nodes | Best of both — structure + polish |
-| Company logos / branding | Freepik `search_icons` ("youtube", "google") → `download_file` | Inline SVG — NEVER hand-draw a logo |
+| Company logos / branding | **Iconify FIRST**: `search_icons` ("claude", "google") → `get_icon` (has `simple-icons:*`, `logos:*` with accurate brand marks). Freepik fallback only if Iconify has 0 results. | Inline SVG — NEVER hand-draw a logo |
 | Code snippets / terminal | Hand-coded with syntax highlighting | Typed-in animation |
 
 **RULE: Use BOTH icon sources in every generation. Freepik for hero visuals, featured icons, and illustrations. Iconify for supporting UI icons and consistent icon sets. Use screenshots for websites/apps. Use stock photos for real-world subjects. Only hand-code SVGs for dynamic data.**
@@ -1939,11 +1940,12 @@ professional motion design studio, not a coding tutorial.
 - Prefer vectors over photos — cleaner scaling, transparent backgrounds
 - Try 2-3 search terms if the first doesn't match
 
-**Iconify (better-icons — for supporting/UI icons):**
+**Iconify (better-icons — for UI icons AND company logos):**
 - `search_icons` with query: "arrow right", "chart bar", "cloud server"
 - Search CONCEPTS, not literal descriptions
 - Get SVG: `get_icon` with icon ID like "lucide:arrow-right" returns SVG markup directly
 - Popular prefixes: lucide, mdi, heroicons, tabler, ph (phosphor)
+- **Brand/company logos**: Search the company name directly (e.g., "claude", "google", "spotify"). Uses `simple-icons:*` (3000+ brands) and `logos:*` collections. This is MORE RELIABLE than Freepik for company logos.
 - Use `find_similar_icons` to explore variations across collections
 - Use `recommend_icons` when unsure which icon fits a concept
 
@@ -1997,7 +1999,7 @@ const iconOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {{ extrapola
 - **SEARCH BUDGET**: 1-2 searches per concept max. Don't spend 10 turns browsing.
 - **STYLE CONSISTENCY**: Pick ONE icon style (fill OR outline) in the FIRST scene and use it for ALL scenes. If using Iconify, stick to ONE prefix (e.g., all `lucide:` or all `tabler:`). Match icon colors to the style preset's color scheme.
 - **FALLBACK**: ONLY if the download/get tool returns an error or search returns zero results after 2-3 different search terms, hand-code a clean SVG.
-- **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Spotify, etc.) must ALWAYS be downloaded from Freepik — search the company name. Hand-drawn logos look amateur and are often inaccurate.
+- **NEVER HAND-DRAW LOGOS**: Company logos (YouTube, Google, Apple, Claude, Spotify, etc.) must ALWAYS come from Iconify's `simple-icons:*` or `logos:*` collections first (`mcp__better-icons__search_icons` → `mcp__better-icons__get_icon`). These are the official brand SVGs — pixel-perfect and accurate. Only fall back to Freepik if Iconify returns 0 results for that brand. Hand-drawn logos look amateur and are often inaccurate.
 - **NO PHOTO BACKGROUNDS**: Photos behind animated elements create visual noise. Use solid colors or subtle gradients.
 - **NO EXTERNAL IMAGE URLS**: NEVER use `<Img src="https://icons8.com/...">` or any remote URL for icons/images. External URLs fail during rendering (CORS, rate limits, downtime) and crash the entire export. Always download assets first, then use `staticFile()` or inline SVG.
 - **FIRST SCENE SETS THE STYLE**: Whatever asset family/style you pick in scene 1, ALL subsequent scenes must match.
@@ -4287,6 +4289,20 @@ Output PASS or FAIL with numbered issues.
         studio_section = get_studio_section(style_preset)
         full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}"
 
+        # Inject user-provided assets summary so the AI knows about them immediately
+        user_assets_path = self.src_dir / "user_assets.json"
+        if user_assets_path.exists():
+            try:
+                user_assets_data = json.loads(user_assets_path.read_text(encoding="utf-8"))
+                if user_assets_data.get("assets"):
+                    asset_lines = []
+                    for a in user_assets_data["assets"]:
+                        asset_lines.append(f"- **{a['label']}**: `staticFile('{a['remotionPath']}')` ({a['contentType']})")
+                    full_system_prompt += f"\n\n## USER-PROVIDED ASSETS\n\nThe user uploaded these custom assets. ALWAYS prefer them over Freepik/Iconify when they match.\n\n" + "\n".join(asset_lines)
+                    print(f"[ClaudeGenerator] Injected {len(asset_lines)} user asset(s) into Animator system prompt")
+            except Exception as e:
+                print(f"[ClaudeGenerator] Warning: Failed to read user_assets.json: {e}")
+
         animator_message = build_animator_user_message(self.project_id, style_preset=style_preset)
 
         # Inject template catalog for studio preset
@@ -4546,6 +4562,96 @@ Read the scene file and verify it against the plan and scene data.
         except Exception as e:
             print(f"[ClaudeGenerator] Scene {scene_num} verify error: {e}")
             return True, []  # Don't block on verify failures
+
+    async def _verify_and_fix_scene_code(
+        self,
+        scene_num: int,
+        scene_data: dict,
+        scene_plan_content: str,
+        constants_content: str,
+        studio_section: str,
+        remotion_libraries: str,
+    ) -> tuple[bool, list[str]]:
+        """Verify a single scene's code against the plan and fix if needed.
+
+        This is the per-scene verify+fix logic extracted for parallel execution.
+        Returns (passed, issues) tuple.
+        """
+        scene_file = self.src_dir / "scenes" / f"Scene{scene_num}.tsx"
+        if not scene_file.exists():
+            return True, []
+
+        passed, issues = await self._run_scene_verify(
+            scene_num=scene_num,
+            scene_data=scene_data,
+            plan_description=scene_plan_content,
+            display_mode=scene_data.get("displayMode", "default"),
+            constants_content=constants_content,
+        )
+
+        if passed:
+            print(f"[ClaudeGenerator] Scene {scene_num} passed verification")
+            return True, []
+
+        if not issues:
+            return passed, []
+
+        print(f"[ClaudeGenerator] Scene {scene_num} failed verification: {issues}")
+
+        # Targeted Sonnet fix agent
+        feedback_msg = "\n".join(f"- {iss}" for iss in issues)
+        fix_prompt = f"""Fix these issues in src/{self.project_id}/scenes/Scene{scene_num}.tsx:
+
+{feedback_msg}
+
+Read the scene file and fix the listed issues.
+Do NOT modify constants.ts or other scene files.
+Do NOT run tsc — TypeScript will be validated after all scenes are verified.
+When done, respond: "FIX COMPLETE"
+"""
+        try:
+            fix_client = ClaudeSDKClient(
+                options=ClaudeAgentOptions(
+                    model="claude-sonnet-4-20250514",
+                    system_prompt={
+                        "type": "preset",
+                        "preset": "claude_code",
+                        "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}",
+                    },
+                    cwd=str(self.workspace),
+                    max_turns=15,
+                    allowed_tools=["Read", "Edit", "Bash", "Glob"],
+                    cli_path=CLAUDE_CLI_PATH,
+                )
+            )
+
+            async with fix_client:
+                await fix_client.query(fix_prompt)
+                async for msg in fix_client.receive_response():
+                    msg_type = type(msg).__name__
+                    if msg_type == "AssistantMessage" and hasattr(msg, "content"):
+                        for block in msg.content:
+                            block_type = type(block).__name__
+                            if block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[SceneFix{scene_num} Tool: {block.name}]", flush=True)
+
+            # Re-verify (accept regardless after 1 retry)
+            passed2, issues2 = await self._run_scene_verify(
+                scene_num=scene_num,
+                scene_data=scene_data,
+                plan_description=scene_plan_content,
+                display_mode=scene_data.get("displayMode", "default"),
+                constants_content=constants_content,
+            )
+            if passed2:
+                print(f"[ClaudeGenerator] Scene {scene_num} passed verification after fix")
+                return True, []
+            else:
+                print(f"[ClaudeGenerator] Scene {scene_num} still has issues after fix (accepted): {issues2}")
+                return False, issues2
+        except Exception as fix_err:
+            print(f"[ClaudeGenerator] Scene {scene_num} fix agent error: {fix_err}")
+            return False, issues
 
     async def _run_composition_verify(
         self,
@@ -4917,9 +5023,24 @@ export default MainComposition;
         # MCP servers config (uses pre-installed local binaries)
         mcp_servers = build_mcp_servers(str(self.workspace))
 
+        # Inject user-provided assets summary for sequential pipeline
+        user_assets_section = ""
+        user_assets_path = self.src_dir / "user_assets.json"
+        if user_assets_path.exists():
+            try:
+                user_assets_data = json.loads(user_assets_path.read_text(encoding="utf-8"))
+                if user_assets_data.get("assets"):
+                    asset_lines = []
+                    for a in user_assets_data["assets"]:
+                        asset_lines.append(f"- **{a['label']}**: `staticFile('{a['remotionPath']}')` ({a['contentType']})")
+                    user_assets_section = f"\n\n## USER-PROVIDED ASSETS\n\nThe user uploaded these custom assets. ALWAYS prefer them over Freepik/Iconify when they match.\n\n" + "\n".join(asset_lines)
+                    print(f"[ClaudeGenerator] Injected {len(asset_lines)} user asset(s) into sequential pipeline prompts")
+            except Exception as e:
+                print(f"[ClaudeGenerator] Warning: Failed to read user_assets.json: {e}")
+
         # ── Phase 2a: SETUP ──
         emit_progress(38, "Setting up project foundation...", {"phase": "workspace", "phaseName": "Setting up workspace"})
-        setup_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{ANIMATOR_SETUP_PROMPT}"
+        setup_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{ANIMATOR_SETUP_PROMPT}{user_assets_section}"
         setup_message = build_setup_user_message(self.project_id)
 
         # Inject template catalog for studio preset
@@ -5148,7 +5269,7 @@ Report which scenes were created.
                     display_mode_rules=mode_rules,
                     project_id=self.project_id,
                 )
-                scene_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{scene_prompt_filled}"
+                scene_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{scene_prompt_filled}{user_assets_section}"
                 scene_user_msg = build_scene_user_message(
                     project_id=self.project_id,
                     scene_index=i,
@@ -5191,74 +5312,25 @@ Report which scenes were created.
         emit_progress(53, "Verifying scenes against plan...", {"phase": "verify", "phaseName": "Verifying scenes"})
         print("\n[ClaudeGenerator] Phase 2b+: Running per-scene verification...")
 
-        for i, scene in enumerate(scenes):
-            scene_num = i + 1
-            scene_file = self.src_dir / "scenes" / f"Scene{scene_num}.tsx"
-            if not scene_file.exists():
-                continue
-
-            passed, issues = await self._run_scene_verify(
-                scene_num=scene_num,
+        verify_tasks = [
+            self._verify_and_fix_scene_code(
+                scene_num=i + 1,
                 scene_data=scene,
-                plan_description=scene_plan_content,
-                display_mode=scene.get("displayMode", "default"),
+                scene_plan_content=scene_plan_content,
                 constants_content=constants_content,
+                studio_section=studio_section,
+                remotion_libraries=remotion_libraries,
             )
-
-            if not passed and issues:
-                print(f"[ClaudeGenerator] Scene {scene_num} failed verification: {issues}")
-                # Targeted Sonnet fix agent
-                feedback_msg = "\n".join(f"- {iss}" for iss in issues)
-                fix_prompt = f"""Fix these issues in src/{self.project_id}/scenes/Scene{scene_num}.tsx:
-
-{feedback_msg}
-
-Read the scene file, fix the listed issues, then run: npx tsc --noEmit
-Do NOT modify constants.ts or other scene files.
-When done, respond: "FIX COMPLETE"
-"""
-                try:
-                    fix_client = ClaudeSDKClient(
-                        options=ClaudeAgentOptions(
-                            model="claude-sonnet-4-20250514",
-                            system_prompt={
-                                "type": "preset",
-                                "preset": "claude_code",
-                                "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}",
-                            },
-                            cwd=str(self.workspace),
-                            max_turns=15,
-                            allowed_tools=["Read", "Edit", "Bash", "Glob"],
-                            cli_path=CLAUDE_CLI_PATH,
-                        )
-                    )
-
-                    async with fix_client:
-                        await fix_client.query(fix_prompt)
-                        async for msg in fix_client.receive_response():
-                            msg_type = type(msg).__name__
-                            if msg_type == "AssistantMessage" and hasattr(msg, "content"):
-                                for block in msg.content:
-                                    block_type = type(block).__name__
-                                    if block_type == "ToolUseBlock" and hasattr(block, "name"):
-                                        print(f"\n[SceneFix{scene_num} Tool: {block.name}]", flush=True)
-
-                    # Re-verify (accept regardless after 1 retry)
-                    passed2, issues2 = await self._run_scene_verify(
-                        scene_num=scene_num,
-                        scene_data=scene,
-                        plan_description=scene_plan_content,
-                        display_mode=scene.get("displayMode", "default"),
-                        constants_content=constants_content,
-                    )
-                    if passed2:
-                        print(f"[ClaudeGenerator] Scene {scene_num} passed verification after fix")
-                    else:
-                        print(f"[ClaudeGenerator] Scene {scene_num} still has issues after fix (accepted): {issues2}")
-                except Exception as fix_err:
-                    print(f"[ClaudeGenerator] Scene {scene_num} fix agent error: {fix_err}")
-            elif passed:
-                print(f"[ClaudeGenerator] Scene {scene_num} passed verification")
+            for i, scene in enumerate(scenes)
+        ]
+        verify_results = await asyncio.gather(*verify_tasks, return_exceptions=True)
+        success_count = 0
+        for i, result in enumerate(verify_results):
+            if isinstance(result, Exception):
+                print(f"[ClaudeGenerator] Scene {i+1} verify/fix exception: {result}")
+            elif result[0]:
+                success_count += 1
+        print(f"[ClaudeGenerator] Phase 2b+: {success_count}/{len(scenes)} scenes passed verification")
 
         emit_progress(54, "Scene verification done", {"phase": "verify", "phaseName": "Verifying scenes"})
 

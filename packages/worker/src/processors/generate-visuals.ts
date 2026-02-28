@@ -13,12 +13,12 @@ import { join, dirname, resolve } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { spawn, ChildProcess } from 'child_process';
-import { db, projects, tracks, timelineItems, transcripts, jobs, visuals } from '../db/index.js';
+import { db, projects, tracks, timelineItems, transcripts, jobs, visuals, projectAssets } from '../db/index.js';
 import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler, setJobProjectId } from '../services/redis.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
-import { uploadFile } from '../services/minio.js';
+import { uploadFile, downloadFile } from '../services/minio.js';
 import { buildStudioTemplateCatalog } from '../prompts/studio-templates.js';
 import { listTemplates } from '@viona/templates';
 
@@ -461,6 +461,50 @@ interface ClaudeCodeResult {
   status: string;
 }
 
+/**
+ * Inject user-uploaded assets into the workspace for the Animator to use.
+ * Downloads from MinIO → public/assets/user/ and writes user_assets.json manifest.
+ */
+async function injectUserAssets(projectId: string, projectDir: string): Promise<number> {
+  const workspacePath = getWorkspacePath();
+  const assets = await db.select().from(projectAssets)
+    .where(eq(projectAssets.projectId, projectId));
+
+  if (assets.length === 0) return 0;
+
+  const userAssetsDir = join(workspacePath, 'public', 'assets', 'user');
+  await mkdir(userAssetsDir, { recursive: true });
+
+  const manifest: { assets: Array<{ filename: string; label: string; contentType: string; remotionPath: string }> } = { assets: [] };
+
+  for (const asset of assets) {
+    // Sanitize filename for safe staticFile() paths, add ID suffix to prevent collisions
+    const extMatch = asset.filename.match(/\.[^.]+$/);
+    const extPart = extMatch ? extMatch[0] : '';
+    const basePart = asset.filename.replace(/\.[^.]+$/, '').replace(/[^\w.-]/g, '_');
+    const safeFilename = `${basePart}_${asset.id.slice(0, 8)}${extPart}`;
+    const destPath = join(userAssetsDir, safeFilename);
+    try {
+      await downloadFile('uploads', asset.storageKey, destPath);
+      manifest.assets.push({
+        filename: safeFilename,
+        label: asset.label || asset.filename.replace(/\.[^.]+$/, ''),
+        contentType: asset.contentType,
+        remotionPath: `assets/user/${safeFilename}`,
+      });
+    } catch (err) {
+      logger.warn({ err, assetId: asset.id, storageKey: asset.storageKey }, 'Failed to download user asset');
+    }
+  }
+
+  // Write manifest to project src dir so the Animator can read it
+  const manifestPath = join(projectDir, 'user_assets.json');
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  logger.info({ projectId, assetCount: manifest.assets.length }, 'Injected user assets into workspace');
+
+  return manifest.assets.length;
+}
+
 export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>) {
   const { projectId, jobId, stylePreset, layoutMode, dimensions, styleGuide } = job.data;
   setJobProjectId(jobId, projectId);
@@ -545,6 +589,12 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       const htPath = join(projectDir, 'head_tracking.json');
       await writeFile(htPath, JSON.stringify(project.headTrackingData), 'utf-8');
       logger.info({ projectDir }, 'Wrote head_tracking.json for spatial overlay');
+    }
+
+    // Inject user-uploaded assets (logos, icons, brand images) into workspace
+    const userAssetCount = await injectUserAssets(projectId, projectDir);
+    if (userAssetCount > 0) {
+      logger.info({ projectId, userAssetCount }, 'User assets injected into workspace');
     }
 
     // If this is an Animator-only run (plan was created separately), write plan files to project dir

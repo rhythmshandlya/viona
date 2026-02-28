@@ -1,9 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { eq, inArray, or, and } from 'drizzle-orm';
-import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
-import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix } from '../services/minio.js';
+import { eq, inArray, or, and, desc } from 'drizzle-orm';
+import { db, projects, tracks, timelineItems, jobs, transcripts, visuals, projectAssets } from '../db/index.js';
+import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix, deleteObject } from '../services/minio.js';
 import { queueTranscribeJob, queueRenderJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
@@ -988,6 +988,150 @@ export async function projectRoutes(fastify: FastifyInstance) {
       fastify.log.error(err, 'Failed to upload image');
       return reply.status(500).send({ error: 'Failed to upload image' });
     }
+  });
+
+  // Upload a project media asset (logo, icon, brand image)
+  fastify.post('/projects/:id/media', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    try {
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({ error: 'No file uploaded' });
+      }
+
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'];
+      if (!allowedTypes.includes(data.mimetype)) {
+        return reply.status(400).send({
+          error: 'Invalid file type. Allowed: PNG, JPEG, WebP, GIF, SVG'
+        });
+      }
+
+      // Read label from multipart fields
+      const label = (data.fields?.label as any)?.value as string | undefined;
+
+      const ext = data.mimetype === 'image/svg+xml' ? 'svg'
+        : data.mimetype.split('/')[1].replace('jpeg', 'jpg');
+      const storageKey = `assets/${id}/${nanoid()}.${ext}`;
+
+      await uploadStream('uploads', storageKey, data.file, undefined, data.mimetype);
+
+      // Validate file size AFTER stream consumption (bytesRead is 0 before)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (data.file.bytesRead > maxSize) {
+        // Clean up the already-uploaded file
+        try { await deleteObject('uploads', storageKey); } catch {}
+        return reply.status(413).send({ error: 'File too large (max 10MB)' });
+      }
+
+      const [asset] = await db.insert(projectAssets).values({
+        projectId: id,
+        filename: data.filename,
+        label: label || null,
+        storageKey,
+        contentType: data.mimetype,
+        fileSize: data.file.bytesRead || null,
+      }).returning();
+
+      const url = await getPresignedDownloadUrl('uploads', storageKey);
+
+      return {
+        id: asset.id,
+        filename: asset.filename,
+        label: asset.label,
+        mimeType: asset.contentType,
+        fileSize: asset.fileSize,
+        url,
+        createdAt: asset.createdAt.toISOString(),
+      };
+    } catch (err) {
+      fastify.log.error(err, 'Failed to upload media asset');
+      return reply.status(500).send({ error: 'Failed to upload media asset' });
+    }
+  });
+
+  // List project media assets
+  fastify.get('/projects/:id/media', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const assets = await db.select().from(projectAssets)
+      .where(eq(projectAssets.projectId, id))
+      .orderBy(desc(projectAssets.createdAt));
+
+    const assetsWithUrls = await Promise.all(assets.map(async (asset) => {
+      const url = await getPresignedDownloadUrl('uploads', asset.storageKey);
+      return {
+        id: asset.id,
+        filename: asset.filename,
+        label: asset.label,
+        mimeType: asset.contentType,
+        fileSize: asset.fileSize,
+        url,
+        createdAt: asset.createdAt.toISOString(),
+      };
+    }));
+
+    return { assets: assetsWithUrls };
+  });
+
+  // Delete a project media asset
+  fastify.delete('/projects/:id/media/:assetId', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id, assetId } = request.params as { id: string; assetId: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const asset = await db.query.projectAssets.findFirst({
+      where: and(eq(projectAssets.id, assetId), eq(projectAssets.projectId, id)),
+    });
+
+    if (!asset) {
+      return reply.status(404).send({ error: 'Asset not found' });
+    }
+
+    // Delete from storage and DB
+    try {
+      await deleteObject('uploads', asset.storageKey);
+    } catch (err) {
+      fastify.log.warn({ err, storageKey: asset.storageKey }, 'Failed to delete asset from storage');
+    }
+
+    await db.delete(projectAssets).where(eq(projectAssets.id, assetId));
+
+    return { success: true };
   });
 
   // Create SVG animation from uploaded image

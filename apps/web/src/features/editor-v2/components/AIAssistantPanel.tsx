@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw, Square, Clock, AlertCircle, Check, Circle, XCircle, ListOrdered, Plus } from 'lucide-react';
+import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw, Square, Clock, AlertCircle, Check, Circle, XCircle, ListOrdered, Plus, Paperclip } from 'lucide-react';
 import { api } from '@/lib/api';
 import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
@@ -248,6 +248,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const progressSourceRef = useRef<'sse' | 'ws' | 'http' | null>(null);
   const pendingWidgetResponseRef = useRef<Array<{ widgetId: string; value: unknown }>>([]);
   const lastEventIdRef = useRef<number | undefined>(undefined);
+
+  // Attachment state
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentLabel, setAttachmentLabel] = useState('');
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   // Stall detection
   const [stallState, setStallState] = useState<'ok' | 'slow' | 'stuck'>('ok');
@@ -1055,6 +1061,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   );
 
   // -----------------------------------------------------------------------
+  // Attachment helpers
+  // -----------------------------------------------------------------------
+  const handleAttachmentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAttachmentFile(file);
+    setAttachmentLabel(file.name.replace(/\.[^.]+$/, ''));
+    e.target.value = '';
+  };
+
+  // -----------------------------------------------------------------------
   // Send message (entry point — queues if streaming)
   // -----------------------------------------------------------------------
 
@@ -1347,16 +1364,51 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   };
 
   // -----------------------------------------------------------------------
+  // Send with attachment
+  // -----------------------------------------------------------------------
+  const handleSendWithAttachment = useCallback(async () => {
+    const text = input.trim();
+    if (!text && !attachmentFile) return;
+
+    if (attachmentFile) {
+      setAttachmentUploading(true);
+      try {
+        await api.uploadProjectMedia(projectId, attachmentFile, attachmentLabel || undefined);
+        const label = attachmentLabel || attachmentFile.name;
+        const fullText = text ? `[Attached: ${label}]\n${text}` : `[Attached: ${label}]`;
+        setAttachmentFile(null);
+        setAttachmentLabel('');
+        setAttachmentUploading(false);
+        setInput('');
+        sendMessage(fullText);
+      } catch (err) {
+        console.error('Attachment upload failed:', err);
+        setAttachmentUploading(false);
+        // Keep attachment chip visible so user can retry — add system message
+        setMessages(prev => [...prev, {
+          id: generateId(),
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: 'Failed to upload attachment. Please try again.' }],
+          createdAt: new Date().toISOString(),
+        }]);
+      }
+    } else {
+      setInput('');
+      sendMessage(text);
+    }
+  }, [input, attachmentFile, attachmentLabel, projectId, sendMessage]);
+
+  // -----------------------------------------------------------------------
   // Key handler
   // -----------------------------------------------------------------------
 
-  const canSend = input.trim().length > 0;
+  const canSend = input.trim().length > 0 || attachmentFile !== null;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (canSend) {
-        sendMessage(input.trim());
+        handleSendWithAttachment();
       }
     }
   };
@@ -1874,8 +1926,54 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
+        {/* Attachment chip */}
+        {attachmentFile && (
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
+                             bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25">
+              <Paperclip className="w-3 h-3" />
+              <input
+                type="text"
+                value={attachmentLabel}
+                onChange={(e) => setAttachmentLabel(e.target.value)}
+                className="bg-transparent outline-none text-[11px] w-24 max-w-[120px]"
+                placeholder="Label..."
+              />
+              <button
+                onClick={() => { setAttachmentFile(null); setAttachmentLabel(''); }}
+                className="ml-0.5 hover:text-red-400 transition-colors"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+            {attachmentUploading && (
+              <Loader2 className="w-3 h-3 animate-spin text-[var(--editor-text-muted)]" />
+            )}
+          </div>
+        )}
+
+        {/* Hidden attachment input */}
+        <input
+          ref={attachmentInputRef}
+          type="file"
+          accept="image/*,.svg"
+          className="hidden"
+          onChange={handleAttachmentSelect}
+        />
+
         <div className="relative flex items-end rounded-xl border border-[var(--editor-border-subtle)]
                         bg-[var(--editor-bg-elevated)]">
+          {/* Paperclip button */}
+          <button
+            onClick={() => attachmentInputRef.current?.click()}
+            className="absolute left-2 bottom-2.5 w-6 h-6 flex items-center justify-center
+                       rounded-md text-[var(--editor-text-muted)]
+                       hover:text-[var(--editor-text-secondary)] hover:bg-[var(--editor-bg-hover)]
+                       active:scale-95 transition-all"
+            title="Attach an image"
+          >
+            <Paperclip className="w-3.5 h-3.5" />
+          </button>
           <textarea
             ref={textareaRef}
             value={input}
@@ -1895,7 +1993,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             rows={3}
             className={`flex-1 bg-transparent text-[var(--editor-text-primary)] text-sm
                        placeholder:text-[var(--editor-text-muted)]
-                       pl-3.5 py-3
+                       pl-9 py-3
                        outline-none! focus:outline-none! focus-visible:outline-none!
                        resize-none ${isStreaming ? 'pr-[4.5rem]' : 'pr-11'}`}
           />
@@ -1915,7 +2013,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           )}
           {/* Send/Queue button — always visible on the right */}
           <button
-            onClick={() => canSend && sendMessage(input.trim())}
+            onClick={() => canSend && handleSendWithAttachment()}
             disabled={!canSend}
             className={`absolute right-2 bottom-2 w-7 h-7 flex items-center justify-center
                        rounded-lg active:scale-95 transition-all

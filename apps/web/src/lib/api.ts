@@ -258,6 +258,7 @@ export interface UserProject {
 export interface ProjectMediaAsset {
   id: string;
   filename: string;
+  label?: string | null;
   mimeType: string;
   fileSize: number | null;
   url: string;
@@ -602,12 +603,14 @@ class ApiClient {
   async uploadProjectMedia(
     projectId: string,
     file: File,
+    label?: string,
     onProgress?: (progress: number) => void
   ): Promise<ProjectMediaAsset> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const formData = new FormData();
       formData.append('file', file);
+      if (label) formData.append('label', label);
 
       if (onProgress) {
         xhr.upload.addEventListener('progress', (event) => {

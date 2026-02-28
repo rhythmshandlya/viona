@@ -427,13 +427,19 @@ Example:
 showing different faces as it tumbles. Ambient lighting creates realistic shadows."
 ```
 
-### Icons (Freepik MCP)
-The Animator can search and download professional SVG icons from Freepik.
+### Icons (Freepik MCP + Iconify)
+The Animator has TWO icon sources: Freepik (premium illustrations) and Iconify/better-icons (200k+ open-source icons including 3000+ brand logos via `simple-icons:*`).
+
 Specify icon needs with search terms the Animator can use:
 - **[ICON: checkmark]** - Professional checkmark/success icon
 - **[ICON: warning triangle]** - Warning/alert icon
 - **[ICON: cloud computing]** - Cloud infrastructure icon
 - **[ICON: neural network]** - AI/ML concept icon
+
+**For company/brand logos, use the brand name directly:**
+- **[ICON: claude]** - Claude logo (Animator fetches from Iconify `simple-icons:claude`)
+- **[ICON: google]** - Google logo (from `simple-icons:google`)
+- **[ICON: spotify]** - Spotify logo (from `simple-icons:spotify`)
 
 **Icon Style (`iconStyle` in plan root):** Choose a consistent icon style that matches your color palette and visual theme. The system will automatically lock all icons to the same design family after the first search — your style choice determines the family filter.
 
@@ -455,16 +461,22 @@ Specify icon needs with search terms the Animator can use:
 - Use plain English search terms, NOT icon library names (Lucide, Feather, Material, etc.)
 - Use spaces, not hyphens: "bar chart" not "bar-chart", "message circle" not "message-circle"
 - Use descriptive nouns: "checkmark" not "check-circle", "pencil" not "edit-3"
-- No brand names: "chat app" not "slack", "messaging" not "telegram"
+- **EXCEPTION — brand/company logos**: USE the brand name directly: "claude" not "chat bot", "spotify" not "music app", "google" not "search engine". The Animator uses Iconify's `simple-icons:*` collection which has 3000+ official brand marks searchable by name.
 - No technical suffixes: "arrow" not "arrow-right", "edit" not "edit-3"
 
 Be SPECIFIC with icon descriptions — "server rack" is better than "computer".
-The Animator searches Freepik by concept, so descriptive terms yield better results.
+The Animator searches Freepik by concept for general icons, and Iconify by brand name for company logos.
 
 Example:
 ```
 "visual": "Success confirmation appears with [ICON: checkmark circle] glowing green,
 followed by celebration particles."
+```
+
+Example (brand logo):
+```
+"visual": "The [ICON: claude] logo appears center-screen with a spring entrance,
+alongside the text 'Powered by Claude'."
 ```
 
 ### Illustrations & Vectors (Freepik MCP)

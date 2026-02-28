@@ -15,10 +15,11 @@ import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { db, projects, jobs, visuals } from '../db/index.js';
+import { mkdir, writeFile } from 'fs/promises';
+import { db, projects, jobs, visuals, projectAssets } from '../db/index.js';
 import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler, setJobProjectId } from '../services/redis.js';
 import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
-import { downloadSourceFromStorage, uploadFile, listObjects } from '../services/minio.js';
+import { downloadSourceFromStorage, uploadFile, downloadFile, listObjects } from '../services/minio.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
@@ -259,6 +260,47 @@ async function autoFixProjectFiles(projectDir: string): Promise<void> {
   }
 }
 
+/**
+ * Inject user-uploaded assets into the workspace for the Animator to use.
+ */
+async function injectUserAssets(projectId: string, projectDir: string): Promise<number> {
+  const workspacePath = getWorkspacePath();
+  const assets = await db.select().from(projectAssets)
+    .where(eq(projectAssets.projectId, projectId));
+
+  if (assets.length === 0) return 0;
+
+  const userAssetsDir = join(workspacePath, 'public', 'assets', 'user');
+  await mkdir(userAssetsDir, { recursive: true });
+
+  const manifest: { assets: Array<{ filename: string; label: string; contentType: string; remotionPath: string }> } = { assets: [] };
+
+  for (const asset of assets) {
+    const extMatch = asset.filename.match(/\.[^.]+$/);
+    const extPart = extMatch ? extMatch[0] : '';
+    const basePart = asset.filename.replace(/\.[^.]+$/, '').replace(/[^\w.-]/g, '_');
+    const safeFilename = `${basePart}_${asset.id.slice(0, 8)}${extPart}`;
+    const destPath = join(userAssetsDir, safeFilename);
+    try {
+      await downloadFile('uploads', asset.storageKey, destPath);
+      manifest.assets.push({
+        filename: safeFilename,
+        label: asset.label || asset.filename.replace(/\.[^.]+$/, ''),
+        contentType: asset.contentType,
+        remotionPath: `assets/user/${safeFilename}`,
+      });
+    } catch (err) {
+      logger.warn({ err, assetId: asset.id, storageKey: asset.storageKey }, 'Failed to download user asset');
+    }
+  }
+
+  const manifestPath = join(projectDir, 'user_assets.json');
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  logger.info({ projectId, assetCount: manifest.assets.length }, 'Injected user assets into workspace');
+
+  return manifest.assets.length;
+}
+
 export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
   const { projectId, jobId, compositionId, prompt, sceneId, elementName, transcript, scenePlan } = job.data;
   setJobProjectId(jobId, projectId);
@@ -338,6 +380,9 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       downloadedFiles = await downloadSourceFromStorage(sourceCompositionId, projectDir);
       logger.info({ projectId, compositionId, fileCount: downloadedFiles.length }, 'Source files restored');
     }
+
+    // Inject user-uploaded assets (logos, icons, brand images)
+    await injectUserAssets(projectId, projectDir);
 
     await publishJobProgress(jobId, 22, 'AI is editing your visuals...');
 
