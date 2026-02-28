@@ -25,6 +25,7 @@ import { StylePanel } from './panels/StylePanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { JobLogsPanel } from './components/JobLogsPanel';
 import { ExportModal } from './components/ExportModal';
+import { TransitionPickerModal } from './components/TransitionPickerModal';
 import { AIAssistantPanel } from './components/AIAssistantPanel';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
@@ -645,6 +646,9 @@ export function Editor({ projectId }: EditorProps) {
         projectStatus={project.status}
         hasOutputKey={!!project.outputKey}
       />
+
+      {/* Transition Picker Modal */}
+      <TransitionPickerModal />
     </div>
   );
 }

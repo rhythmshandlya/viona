@@ -83,6 +83,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     requestAIEdit,
     updateVisualDisplayMode,
     changeDisplayModeWithAI,
+    openTransitionPicker,
   } = useEditorActions();
 
   // Close on outside click
@@ -254,6 +255,10 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
                   ],
                 },
                 {
+                  label: 'Change Transition\u2026',
+                  action: withSelection(() => openTransitionPicker(itemId)),
+                },
+                {
                   label: 'Edit with AI',
                   shortcut: 'E',
                   action: withSelection(() => requestAIEdit(item)),
@@ -315,6 +320,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       requestAIEdit,
       updateVisualDisplayMode,
       changeDisplayModeWithAI,
+      openTransitionPicker,
     ]
   );
 

@@ -333,6 +333,10 @@ export function usePendingAIMessage() {
   return useEditorStore((state) => state.pendingAIMessage);
 }
 
+export function useTransitionPickerItemId() {
+  return useEditorStore((state) => state.transitionPickerItemId);
+}
+
 // ============================================
 // AI Editing Context Selector
 // ============================================
@@ -530,6 +534,9 @@ export function useEditorActions() {
       // Visual display mode
       updateVisualDisplayMode: state.updateVisualDisplayMode,
       updateOverlayOpacity: state.updateOverlayOpacity,
+      updateVisualTransition: state.updateVisualTransition,
+      openTransitionPicker: state.openTransitionPicker,
+      closeTransitionPicker: state.closeTransitionPicker,
 
       // Captions
       setShowCaptions: state.setShowCaptions,

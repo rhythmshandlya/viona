@@ -234,6 +234,11 @@ export interface SubtitleStyle {
   // Display mode
   displayMode?: 'word-by-word' | 'phrase' | 'karaoke';
   wordsPerPhrase?: number;
+  // Preset reference
+  presetId?: string;
+  // Background box styling
+  backgroundPadding?: { x: number; y: number };
+  backgroundRadius?: number;
 }
 
 export interface AnimatedSubtitleProps {
@@ -241,6 +246,124 @@ export interface AnimatedSubtitleProps {
   startMs: number;
   endMs: number;
   style?: SubtitleStyle;
+}
+
+// Dynamic hierarchy word classification (matches Composition.tsx preview)
+const POWER_WORD_SET = new Set([
+  'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
+  'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
+  'shocking', 'terrifying', 'brilliant', 'genius', 'perfect', 'worst',
+  'best', 'greatest', 'legendary', 'epic', 'massive', 'huge', 'evil',
+  'now', 'stop', 'wait', 'listen', 'watch', 'look', 'never', 'always',
+  'forever', 'immediately', 'urgent', 'warning', 'danger', 'critical',
+  'important', 'breaking', 'exclusive', 'secret', 'finally', 'today',
+  'million', 'billion', 'thousand', 'money', 'rich', 'free', 'paid',
+  'expensive', 'cheap', 'profit', 'cash', 'dollar', 'dollars', 'price',
+  'worth', 'cost', 'zero', 'double', 'triple', '100%', '1000',
+  'but', 'however', 'actually', 'wrong', 'right', 'truth', 'lie', 'real',
+  'fake', 'only', 'everything', 'nothing', 'impossible', 'possible',
+  'everyone', 'nobody', 'first', 'last', 'biggest', 'smallest',
+  'win', 'won', 'lose', 'lost', 'fight', 'broke', 'crushed', 'dominated',
+  'exploded', 'changed', 'saved', 'failed', 'success', 'discovered',
+]);
+
+const FILLER_WORD_SET = new Set([
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'to', 'of', 'in', 'for', 'on', 'at', 'by', 'with', 'from', 'as',
+  'and', 'or', 'if', 'it', 'its', 'that', 'this', 'than', 'then',
+  'so', 'up', 'do', 'did', 'has', 'had', 'have', 'will', 'would',
+  'could', 'should', 'can', 'may', 'might', 'shall', 'just', 'very',
+  'also', 'about', 'into', 'not', 'no', 'yes', 'some', 'my', 'your',
+  'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
+]);
+
+// ---------------------------------------------------------------------------
+// Emotional line breaking — matches Composition.tsx preview exactly
+// ---------------------------------------------------------------------------
+
+interface EmotionalSegment {
+  lines: number[][]; // each line is an array of word indices
+  startIdx: number;
+  endIdx: number;    // exclusive
+}
+
+function classifyWordTier(text: string): 'power' | 'medium' | 'filler' {
+  const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+  if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
+  if (POWER_WORD_SET.has(clean)) return 'power';
+  if (FILLER_WORD_SET.has(clean)) return 'filler';
+  return 'medium';
+}
+
+function computeEmotionalSegments(words: SubtitleWord[]): EmotionalSegment[] {
+  if (words.length === 0) return [];
+
+  const MAX_LINE = 5;
+  const PAUSE_THRESHOLD_MS = 400;
+  const lines: number[][] = [];
+  let currentLine: number[] = [];
+
+  for (let i = 0; i < words.length; i++) {
+    const tier = classifyWordTier(words[i].text);
+
+    const hasPause = i > 0 && (words[i].startMs - words[i - 1].endMs) > PAUSE_THRESHOLD_MS;
+
+    if (hasPause && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+
+    if (tier === 'power' && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+
+    if (tier === 'filler' && currentLine.length === 0 && lines.length > 0) {
+      const prevLine = lines[lines.length - 1];
+      if (prevLine.length < MAX_LINE) {
+        prevLine.push(i);
+        continue;
+      }
+    }
+
+    currentLine.push(i);
+
+    if (tier === 'power' && currentLine.length === 1) {
+      lines.push(currentLine);
+      currentLine = [];
+      continue;
+    }
+
+    if (currentLine.length >= MAX_LINE) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+  }
+
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+
+  const segments: EmotionalSegment[] = [];
+  for (let l = 0; l < lines.length; l += 2) {
+    const segLines = [lines[l]];
+    if (l + 1 < lines.length) segLines.push(lines[l + 1]);
+    const allIndices = segLines.flat();
+    segments.push({
+      lines: segLines,
+      startIdx: allIndices[0],
+      endIdx: allIndices[allIndices.length - 1] + 1,
+    });
+  }
+
+  return segments;
+}
+
+function findActiveSegment(segments: EmotionalSegment[], wordIdx: number): EmotionalSegment | null {
+  for (const seg of segments) {
+    if (wordIdx >= seg.startIdx && wordIdx < seg.endIdx) return seg;
+  }
+  return segments.length > 0 ? segments[0] : null;
 }
 
 const defaultStyle: SubtitleStyle = {
@@ -267,8 +390,12 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
   style: customStyle = {},
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width: canvasWidth } = useVideoConfig();
   const style = { ...defaultStyle, ...customStyle };
+
+  // Responsive font scale: preset font sizes are authored for 1080px wide canvas.
+  // Scale proportionally to match the preview (Composition.tsx CaptionRenderer).
+  const fontScale = canvasWidth / 1080;
 
   // Words from the DB have absolute timing (relative to video start).
   // Inside a Remotion Sequence, useCurrentFrame() is relative to the Sequence start.
@@ -280,11 +407,31 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
   const positionStyles = calculatePositionStyles(position, style.lineHeight ?? 1.4);
 
   const displayMode = style.displayMode || 'phrase';
+  const wordsPerPhrase = style.wordsPerPhrase || 5;
+  const isDynamicHierarchy = style.presetId === 'dynamic-hierarchy';
 
   // Find active word index
   const activeWordIndex = words.findIndex(
     (word) => currentTimeMs >= word.startMs && currentTimeMs < word.endMs
   );
+
+  // For phrase windowing: find the last word whose startMs we've reached
+  // (avoids jitter when activeWordIndex is -1 in gaps between words)
+  let lastAppearedIdx = -1;
+  for (let i = words.length - 1; i >= 0; i--) {
+    if (currentTimeMs >= words[i].startMs) {
+      lastAppearedIdx = i;
+      break;
+    }
+  }
+
+  // Compute which window group the current word belongs to
+  const currentGroupIdx = lastAppearedIdx >= 0
+    ? Math.floor(lastAppearedIdx / wordsPerPhrase)
+    : 0;
+  const groupStart = currentGroupIdx * wordsPerPhrase;
+  const groupEnd = Math.min(groupStart + wordsPerPhrase, words.length);
+  const visibleWords = words.slice(groupStart, groupEnd);
 
   // Resolve animation config
   const animConfig: AnimationConfig = isAnimationConfig(style.animation)
@@ -308,11 +455,36 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
     ...effectsStyles,
   });
 
+  // ── Dynamic hierarchy helpers ──
+  const getDHOverrides = (wordText: string, existing?: WordStyleOverrides): WordStyleOverrides => {
+    if (!isDynamicHierarchy) return existing || {};
+    const clean = wordText.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+    const isPower = /^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')
+      || POWER_WORD_SET.has(clean);
+    const isFiller = FILLER_WORD_SET.has(clean);
+    const computed: WordStyleOverrides = {};
+    if (isPower) {
+      computed.scale = 1.8;
+      computed.fontWeight = 900;
+      computed.activeColor = '#FFD400';
+      computed.color = '#FFFFFF';
+    } else if (isFiller) {
+      computed.scale = 0.65;
+      computed.fontWeight = 500;
+      computed.color = 'rgba(255,255,255,0.6)';
+      computed.activeColor = 'rgba(255,255,255,0.8)';
+    } else {
+      computed.scale = 1.0;
+      computed.fontWeight = 700;
+    }
+    return { ...computed, ...existing };
+  };
+
   // ── Word-by-word mode: only show the active word ──
   if (displayMode === 'word-by-word') {
     if (activeWordIndex < 0) return null;
     const activeWord = words[activeWordIndex];
-    const overrides = activeWord.styleOverrides;
+    const overrides = getDHOverrides(activeWord.text, activeWord.styleOverrides);
 
     const elapsedMs = currentTimeMs - activeWord.startMs;
     const wordDurationMs = activeWord.endMs - activeWord.startMs;
@@ -329,12 +501,14 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
         <span
           style={{
             fontFamily: overrides?.fontFamily || style.fontFamily,
-            fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize || 56),
+            fontSize: (overrides?.scale || 1) * (overrides?.fontSize || (style.fontSize || 56) * fontScale),
             fontWeight: overrides?.fontWeight || style.fontWeight,
             color: overrides?.activeColor || overrides?.color || style.activeColor,
             backgroundColor: overrides?.emphasisBg || style.activeBackgroundColor || 'transparent',
-            padding: '4px 12px',
-            borderRadius: '8px',
+            padding: style.backgroundPadding
+              ? `${style.backgroundPadding.y}px ${style.backgroundPadding.x}px`
+              : '4px 12px',
+            borderRadius: style.backgroundRadius != null ? `${style.backgroundRadius}px` : '8px',
             display: 'inline-block',
             whiteSpace: 'nowrap',
             ...getTypographyStyles(),
@@ -349,14 +523,15 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
     );
   }
 
-  // ── Karaoke mode: progressive color fill ──
+  // ── Karaoke mode: progressive color fill (windowed) ──
   if (displayMode === 'karaoke') {
     return (
       <div style={positionStyles}>
-        {words.map((word, index) => {
-          const isActive = index === activeWordIndex;
+        {visibleWords.map((word, index) => {
+          const globalIndex = groupStart + index;
+          const isActive = globalIndex === activeWordIndex;
           const hasAppeared = currentTimeMs >= word.startMs;
-          const overrides = word.styleOverrides;
+          const overrides = getDHOverrides(word.text, word.styleOverrides);
 
           const elapsedMs = currentTimeMs - word.startMs;
           const wordDurationMs = word.endMs - word.startMs;
@@ -377,13 +552,15 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
 
           return (
             <span
-              key={index}
+              key={globalIndex}
               style={{
                 fontFamily: overrides?.fontFamily || style.fontFamily,
-                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize || 56),
+                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || (style.fontSize || 56) * fontScale),
                 fontWeight: overrides?.fontWeight || style.fontWeight,
-                padding: '4px 12px',
-                borderRadius: '8px',
+                padding: style.backgroundPadding
+                  ? `${style.backgroundPadding.y}px ${style.backgroundPadding.x}px`
+                  : '4px 12px',
+                borderRadius: style.backgroundRadius != null ? `${style.backgroundRadius}px` : '8px',
                 display: 'inline-block',
                 whiteSpace: 'nowrap',
                 backgroundImage: hasAppeared
@@ -406,17 +583,77 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
     );
   }
 
-  // ── Default phrase mode: show all words, highlight active ──
+  // ── Dynamic hierarchy: emotional line breaking (matches preview exactly) ──
+  if (isDynamicHierarchy) {
+    const segments = computeEmotionalSegments(words);
+    const effectiveIdx = lastAppearedIdx >= 0 ? lastAppearedIdx : 0;
+    const activeSeg = findActiveSegment(segments, effectiveIdx);
+
+    if (!activeSeg) return null;
+
+    const textAlign = (typeof style.position === 'object' && style.position?.textAlign) || 'center';
+
+    return (
+      <div style={{
+        ...positionStyles,
+        width: '60%',
+        maxWidth: '60%',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: textAlign === 'left' ? 'flex-start'
+          : textAlign === 'right' ? 'flex-end'
+          : 'center',
+        gap: '2px',
+        overflow: 'hidden',
+      }}>
+        {activeSeg.lines.map((lineIndices, lineIdx) => (
+          <div
+            key={lineIdx}
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              alignItems: 'baseline',
+              gap: '0 6px',
+              maxWidth: '100%',
+            }}
+          >
+            {lineIndices.map((wordIdx) => {
+              const word = words[wordIdx];
+              const mergedWord = {
+                ...word,
+                styleOverrides: getDHOverrides(word.text, word.styleOverrides),
+              };
+              return (
+                <Word
+                  key={wordIdx}
+                  word={mergedWord}
+                  style={style}
+                  currentTimeMs={currentTimeMs}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // ── Default phrase mode: show windowed words, highlight active ──
   return (
     <div style={positionStyles}>
-      {words.map((word, index) => (
-        <Word
-          key={index}
-          word={word}
-          style={style}
-          currentTimeMs={currentTimeMs}
-        />
-      ))}
+      {visibleWords.map((word, index) => {
+        const globalIndex = groupStart + index;
+        return (
+          <Word
+            key={globalIndex}
+            word={word}
+            style={style}
+            currentTimeMs={currentTimeMs}
+          />
+        );
+      })}
     </div>
   );
 };
@@ -432,6 +669,9 @@ const Word: React.FC<WordProps> = ({
   style,
   currentTimeMs,
 }) => {
+  const { width: wordCanvasWidth } = useVideoConfig();
+  const fontScale = wordCanvasWidth / 1080;
+
   // 1. Resolve animation config (handle legacy strings via migrateAnimation)
   const animConfig: AnimationConfig = isAnimationConfig(style.animation)
     ? style.animation
@@ -474,7 +714,7 @@ const Word: React.FC<WordProps> = ({
   });
 
   // 7. Build final CSS
-  const baseFontSize = overrides?.fontSize ?? (style.fontSize || 56);
+  const baseFontSize = overrides?.fontSize ?? ((style.fontSize || 56) * fontScale);
   const wordCss: React.CSSProperties = {
     fontFamily: overrides?.fontFamily ?? style.fontFamily,
     fontSize: (overrides?.scale || 1) * baseFontSize,
@@ -484,8 +724,10 @@ const Word: React.FC<WordProps> = ({
       : (overrides?.color ?? style.color),
     backgroundColor: overrides?.emphasisBg
       || (isActive ? style.activeBackgroundColor : style.backgroundColor),
-    padding: '4px 12px',
-    borderRadius: '8px',
+    padding: style.backgroundPadding
+      ? `${style.backgroundPadding.y}px ${style.backgroundPadding.x}px`
+      : '4px 12px',
+    borderRadius: style.backgroundRadius != null ? `${style.backgroundRadius}px` : '8px',
     display: 'inline-block',
     ...getTypographyStyles(),
     // Per-word letter spacing and text transform override the caption-level values

@@ -11,6 +11,7 @@ import { Player } from '../player/Player';
 import { useProject, useSelectedElement, useElementPickerEnabled, useInspectModeEnabled, useIsPlaying } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
 import { ElementInspectOverlay } from './ElementInspectOverlay';
+import { CaptionDragOverlay } from '../components/CaptionDragOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
 
 interface HighlightRect {
@@ -168,6 +169,13 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
           {inspectModeEnabled && !isPlaying && (
             <ElementInspectOverlay playerContainerRef={playerContainerRef} />
           )}
+
+          {/* Caption drag/resize/rotate overlay */}
+          <CaptionDragOverlay
+            containerRef={playerContainerRef}
+            canvasWidth={videoWidth}
+            canvasHeight={videoHeight}
+          />
 
           {/* Element selection overlay */}
           {elementPickerEnabled && selectedElement && (

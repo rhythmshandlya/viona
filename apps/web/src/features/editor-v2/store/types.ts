@@ -52,6 +52,7 @@ export interface CaptionItemData {
   words: CaptionWord[];
   style: CaptionStyle;
   styleOverrides?: Partial<CaptionStyle>;
+  aiWordOverrides?: Record<number, WordStyleOverrides>;
 }
 
 export interface WordStyleOverrides {
@@ -241,16 +242,21 @@ export type AnimationType =
   | 'none'
   // Viral
   | 'elastic-pop' | 'bounce-up' | 'shake' | 'color-wipe'
-  | '3d-flip' | 'punch' | 'scale-bounce' | 'slide-up'
-  | 'weight-shift' | 'float'
+  | '3d-flip' | 'punch' | 'scale-bounce' | 'slide-up' | 'weight-shift' | 'float'
+  | 'rotate-bounce' | 'constant-wiggle' | 'slam-down' | 'shake-entry'
+  | 'bubble-pop' | 'wiggle'
   // Cinematic
   | 'fade' | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
-  | 'underline-wipe'
+  | 'underline-wipe' | 'scan-line' | 'hand-draw' | 'underline-sweep'
   // Ad / Premium
   | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal'
+  | 'slide-left'
   // Motion (AutoAE-inspired)
   | 'spotlight-reveal' | 'film-burn' | 'glitch' | 'spin-reveal'
-  | 'drop-slam' | 'wave' | 'blur-zoom' | 'chromatic-split';
+  | 'drop-slam' | 'wave' | 'blur-zoom' | 'chromatic-split'
+  | 'elastic-horizontal' | 'speed-blur' | 'particle-explode' | 'gather'
+  | 'blob-morph' | 'newspaper-rotate' | 'chrome-reflect' | 'brutal-slam'
+  | 'neon-buzz' | 'flicker';
 
 export type EasingType = 'linear' | 'ease-out' | 'ease-in-out' | 'spring' | 'elastic' | 'bounce';
 
@@ -553,6 +559,9 @@ export interface EditorState {
   // Pending AI message (auto-sent by AI panel, e.g. from "Change & AI Adapt")
   pendingAIMessage: string | null;
 
+  // Transition picker (set when user triggers "Change Transition" from context menu)
+  transitionPickerItemId: string | null;
+
   // Safe zone settings
   safeZonePlatform: string;  // 'tiktok' | 'instagram-reels' | etc.
   showSafeZone: boolean;
@@ -675,6 +684,11 @@ export interface EditorActions {
   // Visual display mode
   updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => void;
   updateOverlayOpacity: (itemId: string, opacity: number) => void;
+  updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => void;
+
+  // Transition picker
+  openTransitionPicker: (itemId: string) => void;
+  closeTransitionPicker: () => void;
 
   // Safe zone actions
   setSafeZonePlatform: (platform: string) => void;

@@ -35,6 +35,8 @@ import {
   PIP_SIZE_MAP,
   CaptionPosition,
   CaptionEffects,
+  CaptionWord,
+  WordStyleOverrides,
   DEFAULT_CAPTION_POSITION,
   migrateTextShadow,
 } from '../store/types';
@@ -165,6 +167,7 @@ function calculatePositionStyles(
     left: `${50 + offsetX}%`,
     width: '90%',
     maxWidth: '90%',
+    overflow: 'hidden',
     display: 'flex',
     flexWrap: 'wrap',
     gap: '8px',
@@ -906,9 +909,16 @@ function DynamicLayoutComposition({
   let layoutEnterProgress = 1;
   let layoutExitProgress = 0;
 
-  if (activeItem && activeData?.transition) {
+  // Use explicit transition if set, otherwise default to a 300ms fade in/out
+  const DEFAULT_FADE_TRANSITION = {
+    enter: { type: 'fade' as const, durationMs: 300 },
+    exit: { type: 'fade' as const, durationMs: 300 },
+  };
+  const effectiveTransition = activeData?.transition ?? DEFAULT_FADE_TRANSITION;
+
+  if (activeItem) {
     const itemDurationMs = activeItem.endMs - activeItem.startMs;
-    const { enter, exit } = activeData.transition;
+    const { enter, exit } = effectiveTransition;
 
     // Clamp transition durations to at most half the item duration
     const maxDuration = itemDurationMs / 2;
@@ -1115,6 +1125,179 @@ function DynamicLayoutComposition({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Dynamic Hierarchy — word classification for typography hierarchy preset
+// ---------------------------------------------------------------------------
+
+const POWER_WORDS = new Set([
+  // Emotion
+  'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
+  'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
+  'shocking', 'terrifying', 'brilliant', 'genius', 'perfect', 'worst',
+  'best', 'greatest', 'legendary', 'epic', 'massive', 'huge', 'evil',
+  // Urgency
+  'now', 'stop', 'wait', 'listen', 'watch', 'look', 'never', 'always',
+  'forever', 'immediately', 'urgent', 'warning', 'danger', 'critical',
+  'important', 'breaking', 'exclusive', 'secret', 'finally', 'today',
+  // Money & numbers
+  'million', 'billion', 'thousand', 'money', 'rich', 'free', 'paid',
+  'expensive', 'cheap', 'profit', 'cash', 'dollar', 'dollars', 'price',
+  'worth', 'cost', 'zero', 'double', 'triple', '100%', '1000',
+  // Contrast & impact
+  'but', 'however', 'actually', 'wrong', 'right', 'truth', 'lie', 'real',
+  'fake', 'only', 'everything', 'nothing', 'impossible', 'possible',
+  'everyone', 'nobody', 'first', 'last', 'biggest', 'smallest',
+  // Power verbs
+  'win', 'won', 'lose', 'lost', 'fight', 'broke', 'crushed', 'dominated',
+  'exploded', 'changed', 'saved', 'failed', 'success', 'discovered',
+]);
+
+const FILLER_WORDS = new Set([
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'to', 'of', 'in', 'for', 'on', 'at', 'by', 'with', 'from', 'as',
+  'and', 'or', 'if', 'it', 'its', 'that', 'this', 'than', 'then',
+  'so', 'up', 'do', 'did', 'has', 'had', 'have', 'will', 'would',
+  'could', 'should', 'can', 'may', 'might', 'shall', 'just', 'very',
+  'also', 'about', 'into', 'not', 'no', 'yes', 'some', 'my', 'your',
+  'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
+]);
+
+function classifyWordTier(text: string): 'power' | 'medium' | 'filler' {
+  const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+  // Numbers (dollar amounts, percentages, large numbers) are power words
+  if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
+  if (POWER_WORDS.has(clean)) return 'power';
+  if (FILLER_WORDS.has(clean)) return 'filler';
+  return 'medium';
+}
+
+function getDynamicHierarchyOverrides(
+  wordText: string,
+  existingOverrides?: WordStyleOverrides
+): WordStyleOverrides {
+  const tier = classifyWordTier(wordText);
+  const computed: WordStyleOverrides = {};
+
+  if (tier === 'power') {
+    computed.scale = 1.8;
+    computed.fontWeight = 900;
+    computed.activeColor = '#FFD400';
+    computed.color = '#FFFFFF';
+  } else if (tier === 'filler') {
+    computed.scale = 0.65;
+    computed.fontWeight = 500;
+    computed.color = 'rgba(255,255,255,0.6)';
+    computed.activeColor = 'rgba(255,255,255,0.8)';
+  } else {
+    // medium — default size, slight bump
+    computed.scale = 1.0;
+    computed.fontWeight = 700;
+  }
+
+  // Merge: existing manual overrides take priority over computed
+  return { ...computed, ...existingOverrides };
+}
+
+// ---------------------------------------------------------------------------
+// Emotional line breaking — break for impact, not grammar
+// ---------------------------------------------------------------------------
+
+interface EmotionalSegment {
+  lines: number[][]; // each line is an array of word indices
+  startIdx: number;
+  endIdx: number;    // exclusive
+}
+
+/**
+ * Break caption words into emotional segments (groups of 1-2 lines shown together).
+ * Rules:
+ *  - Max 5 words per line
+ *  - Isolate power words (single-word line for dramatic emphasis)
+ *  - Break on pauses > 400ms
+ *  - Don't start a line with a filler word (pull it to the previous line if possible)
+ *  - Alternate short (1-2 words) and medium (3-5 words) lines for visual rhythm
+ */
+function computeEmotionalSegments(words: CaptionWord[]): EmotionalSegment[] {
+  if (words.length === 0) return [];
+
+  const MAX_LINE = 5;
+  const PAUSE_THRESHOLD_MS = 400;
+  const lines: number[][] = [];
+  let currentLine: number[] = [];
+
+  for (let i = 0; i < words.length; i++) {
+    const tier = classifyWordTier(words[i].text);
+
+    // Check for pause before this word
+    const hasPause = i > 0 && (words[i].startMs - words[i - 1].endMs) > PAUSE_THRESHOLD_MS;
+
+    // Force break: pause detected
+    if (hasPause && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+
+    // Power word isolation: if this is a power word, break before it
+    // and give it its own line (or start of a new line)
+    if (tier === 'power' && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+
+    // Don't start a line with a filler word — pull it to previous line if possible
+    if (tier === 'filler' && currentLine.length === 0 && lines.length > 0) {
+      const prevLine = lines[lines.length - 1];
+      if (prevLine.length < MAX_LINE) {
+        prevLine.push(i);
+        continue;
+      }
+    }
+
+    currentLine.push(i);
+
+    // Power word gets its own line
+    if (tier === 'power' && currentLine.length === 1) {
+      // Check if the next word is also short — if so, keep the power word alone
+      lines.push(currentLine);
+      currentLine = [];
+      continue;
+    }
+
+    // Max line length hit
+    if (currentLine.length >= MAX_LINE) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+  }
+
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+
+  // Group lines into display segments (max 2 lines per segment for rhythm)
+  const segments: EmotionalSegment[] = [];
+  for (let l = 0; l < lines.length; l += 2) {
+    const segLines = [lines[l]];
+    if (l + 1 < lines.length) segLines.push(lines[l + 1]);
+    const allIndices = segLines.flat();
+    segments.push({
+      lines: segLines,
+      startIdx: allIndices[0],
+      endIdx: allIndices[allIndices.length - 1] + 1,
+    });
+  }
+
+  return segments;
+}
+
+/** Find which emotional segment contains a word index */
+function findActiveSegment(segments: EmotionalSegment[], wordIdx: number): EmotionalSegment | null {
+  for (const seg of segments) {
+    if (wordIdx >= seg.startIdx && wordIdx < seg.endIdx) return seg;
+  }
+  return segments.length > 0 ? segments[0] : null;
+}
+
 interface CaptionRendererProps {
   item: TimelineItem;
   fps: number;
@@ -1123,8 +1306,13 @@ interface CaptionRendererProps {
 function CaptionRenderer({ item, fps }: CaptionRendererProps) {
   // useCurrentFrame() inside a Sequence gives us the frame relative to that sequence
   const relativeFrame = useCurrentFrame();
+  const { width: canvasWidth } = useVideoConfig();
   const data = item.data as CaptionItemData;
   const style = data.style;
+
+  // Responsive font scale: preset font sizes are authored for 1080px wide canvas.
+  // Scale proportionally so subtitles fit any aspect ratio (9:16=1080, 16:9=1920, etc.)
+  const fontScale = canvasWidth / 1080;
 
   // Calculate relative time within caption (relativeFrame is already relative to sequence start)
   const relativeTimeMs = (relativeFrame / fps) * 1000;
@@ -1155,6 +1343,9 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
   const bgPadding = style.backgroundPadding ?? { x: 4, y: 2 };
   const bgRadius = style.backgroundRadius ?? 0;
 
+  // Scaled base font size — adapts to canvas width
+  const baseFontSize = style.fontSize * fontScale;
+
   // Helper: build padding + borderRadius only when a background is visible
   const getBoxStyles = (bg: string | undefined): React.CSSProperties => {
     const hasBg = bg && bg !== 'transparent';
@@ -1181,7 +1372,9 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
   if (style.displayMode === 'word-by-word') {
     if (activeWordIndex < 0 || !hasWordTimings) return null;
     const activeWord = words[activeWordIndex];
-    const overrides = activeWord.styleOverrides;
+    const overrides = style.presetId === 'dynamic-hierarchy'
+      ? getDynamicHierarchyOverrides(activeWord.text, activeWord.styleOverrides)
+      : activeWord.styleOverrides;
 
     // Resolve animation for the active word
     const elapsedMs = relativeTimeMs - activeWord.startMs;
@@ -1196,11 +1389,11 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
 
     const activeBg = overrides?.emphasisBg || style.activeBackgroundColor || 'transparent';
     return (
-      <div style={positionStyles}>
+      <div style={positionStyles} data-caption-overlay>
         <span
           style={{
             fontFamily: overrides?.fontFamily || style.fontFamily,
-            fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
+            fontSize: (overrides?.scale || 1) * (overrides?.fontSize || baseFontSize),
             fontWeight: overrides?.fontWeight || style.fontWeight,
             color: overrides?.activeColor || overrides?.color || style.activeColor,
             backgroundColor: activeBg,
@@ -1221,12 +1414,27 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
 
   // Karaoke mode: progressive fill with V2 animation engine
   if (style.displayMode === 'karaoke') {
+    const isDynHierarchy = style.presetId === 'dynamic-hierarchy';
+    const karaokePhraseSize = style.wordsPerPhrase || 5;
+    let karaokeLastAppeared = -1;
+    for (let w = words.length - 1; w >= 0; w--) {
+      if (relativeTimeMs >= words[w].startMs) { karaokeLastAppeared = w; break; }
+    }
+    const karaokeEffIdx = karaokeLastAppeared >= 0 ? karaokeLastAppeared : 0;
+    const karaokeGroupIdx = Math.floor(karaokeEffIdx / karaokePhraseSize);
+    const karaokeStart = karaokeGroupIdx * karaokePhraseSize;
+    const karaokeEnd = Math.min(karaokeStart + karaokePhraseSize, words.length);
+    const karaokeVisible = words.slice(karaokeStart, karaokeEnd);
+
     return (
-      <div style={positionStyles}>
-        {words.map((word, index) => {
+      <div style={positionStyles} data-caption-overlay>
+        {karaokeVisible.map((word, i) => {
+          const index = karaokeStart + i;
           const isActive = index === activeWordIndex;
           const hasAppeared = relativeTimeMs >= word.startMs;
-          const overrides = word.styleOverrides;
+          const overrides = isDynHierarchy
+            ? getDynamicHierarchyOverrides(word.text, word.styleOverrides)
+            : word.styleOverrides;
 
           // Resolve animation for this word
           const elapsedMs = relativeTimeMs - word.startMs;
@@ -1257,7 +1465,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
               key={index}
               style={{
                 fontFamily: overrides?.fontFamily || style.fontFamily,
-                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
+                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || baseFontSize),
                 fontWeight: overrides?.fontWeight || style.fontWeight,
                 ...getBoxStyles(wordBg),
                 display: 'inline-block',
@@ -1296,59 +1504,119 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     );
   }
 
-  // Default phrase mode: show all words, highlight active via V2 animation engine
+  // Default phrase mode: show a window of wordsPerPhrase words, highlight active via V2 animation engine
+  const isDynamicHierarchy = style.presetId === 'dynamic-hierarchy';
+  const phraseSize = style.wordsPerPhrase || 5;
+
+  // Use the last word that has started playing (not activeWordIndex which goes -1 in gaps).
+  let lastAppearedIdx = -1;
+  for (let w = words.length - 1; w >= 0; w--) {
+    if (relativeTimeMs >= words[w].startMs) { lastAppearedIdx = w; break; }
+  }
+  const effectiveIdx = lastAppearedIdx >= 0 ? lastAppearedIdx : 0;
+
+  // Helper: render a single word span
+  const renderWord = (word: CaptionWord, index: number) => {
+    const isActive = index === activeWordIndex;
+    const hasAppeared = relativeTimeMs >= word.startMs;
+    const overrides = isDynamicHierarchy
+      ? getDynamicHierarchyOverrides(word.text, word.styleOverrides)
+      : word.styleOverrides;
+
+    const elapsedMs = relativeTimeMs - word.startMs;
+    const wordDurationMs = word.endMs - word.startMs;
+    const { style: animStyle } = resolveAnimation(animConfig, {
+      elapsedMs: Math.max(0, elapsedMs),
+      wordDurationMs,
+      isActive,
+      hasAppeared: hasAppeared && !isActive,
+      isFuture: !hasAppeared,
+    });
+
+    const wordBg = overrides?.emphasisBg
+      || (isActive
+        ? style.activeBackgroundColor || 'transparent'
+        : style.backgroundColor || 'transparent');
+    return (
+      <span
+        key={index}
+        style={{
+          fontFamily: overrides?.fontFamily || style.fontFamily,
+          fontSize: (overrides?.scale || 1) * (overrides?.fontSize || baseFontSize),
+          fontWeight: overrides?.fontWeight || style.fontWeight,
+          color: isActive
+            ? (overrides?.activeColor || overrides?.color || style.activeColor)
+            : (overrides?.color || style.color),
+          backgroundColor: wordBg,
+          ...getBoxStyles(wordBg),
+          display: 'inline-block',
+          whiteSpace: 'nowrap',
+          ...getTypographyStyles(),
+          ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
+          ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
+          ...animStyle,
+        }}
+      >
+        {word.text}
+      </span>
+    );
+  };
+
+  // --- Dynamic hierarchy: emotional line breaking ---
+  if (isDynamicHierarchy && hasWordTimings) {
+    const segments = computeEmotionalSegments(words);
+    const activeSeg = findActiveSegment(segments, effectiveIdx);
+
+    if (!activeSeg) return null;
+
+    return (
+      <div style={{
+        ...positionStyles,
+        width: '60%',
+        maxWidth: '60%',
+        margin: '0 auto',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: (positionStyles as Record<string, unknown>).textAlign === 'left' ? 'flex-start'
+          : (positionStyles as Record<string, unknown>).textAlign === 'right' ? 'flex-end'
+          : 'center',
+        gap: '2px',
+        overflow: 'hidden',
+      }} data-caption-overlay>
+        {activeSeg.lines.map((lineIndices, lineIdx) => (
+          <div
+            key={lineIdx}
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              alignItems: 'baseline',
+              gap: '0 6px',
+              maxWidth: '100%',
+            }}
+          >
+            {lineIndices.map((wordIdx) => renderWord(words[wordIdx], wordIdx))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  // --- Standard phrase mode: fixed-size word window ---
+  const phraseGroupIndex = Math.floor(effectiveIdx / phraseSize);
+  const phraseStart = phraseGroupIndex * phraseSize;
+  const phraseEnd = Math.min(phraseStart + phraseSize, words.length);
+  const visibleWords = hasWordTimings ? words.slice(phraseStart, phraseEnd) : [];
+
   return (
-    <div style={positionStyles}>
+    <div style={positionStyles} data-caption-overlay>
       {hasWordTimings ? (
-        words.map((word, index) => {
-          const isActive = index === activeWordIndex;
-          const hasAppeared = relativeTimeMs >= word.startMs;
-          const overrides = word.styleOverrides;
-
-          // Resolve animation via V2 engine
-          const elapsedMs = relativeTimeMs - word.startMs;
-          const wordDurationMs = word.endMs - word.startMs;
-          const { style: animStyle } = resolveAnimation(animConfig, {
-            elapsedMs: Math.max(0, elapsedMs),
-            wordDurationMs,
-            isActive,
-            hasAppeared: hasAppeared && !isActive,
-            isFuture: !hasAppeared,
-          });
-
-          const wordBg = overrides?.emphasisBg
-            || (isActive
-              ? style.activeBackgroundColor || 'transparent'
-              : style.backgroundColor || 'transparent');
-          return (
-            <span
-              key={index}
-              style={{
-                fontFamily: overrides?.fontFamily || style.fontFamily,
-                fontSize: (overrides?.scale || 1) * (overrides?.fontSize || style.fontSize),
-                fontWeight: overrides?.fontWeight || style.fontWeight,
-                color: isActive
-                  ? (overrides?.activeColor || overrides?.color || style.activeColor)
-                  : (overrides?.color || style.color),
-                backgroundColor: wordBg,
-                ...getBoxStyles(wordBg),
-                display: 'inline-block',
-                whiteSpace: 'nowrap',
-                ...getTypographyStyles(),
-                ...(overrides?.letterSpacing != null ? { letterSpacing: `${overrides.letterSpacing}px` } : {}),
-                ...(overrides?.textTransform ? { textTransform: overrides.textTransform } : {}),
-                ...animStyle,
-              }}
-            >
-              {word.text}
-            </span>
-          );
-        })
+        visibleWords.map((word, i) => renderWord(word, phraseStart + i))
       ) : (
         <span
           style={{
             fontFamily: style.fontFamily,
-            fontSize: style.fontSize,
+            fontSize: baseFontSize,
             fontWeight: style.fontWeight,
             color: style.color,
             backgroundColor: style.backgroundColor || 'transparent',

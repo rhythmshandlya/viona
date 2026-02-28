@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { nanoid } from 'nanoid';
 import { api, Project as ApiProject } from '@/lib/api';
+import { loadFont, findFont } from '@/lib/font-registry';
 import {
   EditorStore,
   EditorState,
@@ -122,6 +123,9 @@ const initialState: EditorState = {
 
   // Pending AI message
   pendingAIMessage: null,
+
+  // Transition picker
+  transitionPickerItemId: null,
 
   // Safe zone settings
   safeZonePlatform: 'none',
@@ -298,6 +302,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
         text?: string;
         words?: Array<{ text: string; startMs: number; endMs: number; styleOverrides?: WordStyleOverrides }>;
         style?: Record<string, unknown>;
+        styleOverrides?: Partial<CaptionStyle>;
+        aiWordOverrides?: Record<number, WordStyleOverrides>;
       };
 
       // Merge caption style with defaults to ensure all properties exist
@@ -327,6 +333,8 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
           })),
           style: captionStyle,
+          ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
+          ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
         } as CaptionItemData,
       };
 
@@ -496,6 +504,20 @@ export const useEditorStore = create<EditorStore>()(
 
         // Push initial state to history
         get().pushHistory();
+
+        // Auto-load caption fonts used in the project
+        const captionFonts = new Set<string>();
+        for (const id of itemIds) {
+          const item = items[id];
+          if (item?.type === 'caption') {
+            const fontFamily = (item.data as CaptionItemData).style?.fontFamily;
+            if (fontFamily) captionFonts.add(fontFamily.split(',')[0].trim());
+          }
+        }
+        for (const family of captionFonts) {
+          const entry = findFont(family);
+          if (entry) loadFont(entry);
+        }
       } catch (err) {
         set((state) => {
           state.error = err instanceof Error ? err.message : 'Failed to load project';
@@ -621,6 +643,8 @@ export const useEditorStore = create<EditorStore>()(
                   ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
                 })),
                 style: data.style,
+                ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
+                ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
               },
             };
           });
@@ -1911,6 +1935,25 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       debouncedSave(() => get().saveProject());
+    },
+
+    updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => {
+      set((state) => {
+        const item = state.items[itemId];
+        if (item?.type === 'visual') {
+          (item.data as VisualItemData).transition = transition;
+        }
+      });
+      get().pushHistory();
+      debouncedSave(() => get().saveProject());
+    },
+
+    openTransitionPicker: (itemId: string) => {
+      set((state) => { state.transitionPickerItemId = itemId; });
+    },
+
+    closeTransitionPicker: () => {
+      set((state) => { state.transitionPickerItemId = null; });
     },
 
     // ========================================
