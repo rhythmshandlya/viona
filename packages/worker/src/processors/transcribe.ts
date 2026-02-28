@@ -41,7 +41,7 @@ interface WhisperXOutput {
 // Per-word style overrides stored in subtitle item JSONB data.
 // Uses the full editor-side field set (activeColor, textTransform) even though
 // @viona/shared's WordStyleOverrides is narrower — JSONB accepts any shape.
-interface PerWordStyleOverrides {
+export interface PerWordStyleOverrides {
   scale?: number;
   fontWeight?: number;
   color?: string;
@@ -49,7 +49,7 @@ interface PerWordStyleOverrides {
   textTransform?: 'uppercase' | 'lowercase' | 'none';
 }
 
-type WordTier = 'power' | 'medium' | 'filler';
+export type WordTier = 'power' | 'medium' | 'filler';
 
 export function mapWordTypeToOverrides(type: WordTier): PerWordStyleOverrides | null {
   if (type === 'power') {
