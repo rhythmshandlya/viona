@@ -48,7 +48,8 @@ const debouncedSave = (saveFn: () => Promise<void>, delay = 1000) => {
     clearTimeout(saveTimeout);
   }
   saveTimeout = setTimeout(() => {
-    saveFn();
+    console.log('[debouncedSave] firing save…');
+    saveFn().then(() => console.log('[debouncedSave] save OK')).catch((err) => console.error('[debouncedSave] save FAILED:', err));
     saveTimeout = null;
   }, delay);
 };
@@ -220,7 +221,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
     const hasVideoTrack = tracks.some((t) => t.type === 'video');
     if (!hasVideoTrack) {
       tracks.push({
-        id: `video-track-${nanoid(8)}`,
+        id: crypto.randomUUID(),
         type: 'video',
         name: 'Video',
         position: 0,
@@ -236,7 +237,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
   const hasCaptionTrack = tracks.some((t) => t.type === 'caption');
   if (!hasCaptionTrack) {
     tracks.push({
-      id: `caption-track-${nanoid(8)}`,
+      id: crypto.randomUUID(),
       type: 'caption',
       name: 'Captions',
       position: 1,
@@ -252,7 +253,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
   const hasVisualTrack = tracks.some((t) => t.type === 'visual');
   if (hasVisualItems && !hasVisualTrack) {
     tracks.push({
-      id: `visual-track-${nanoid(8)}`,
+      id: crypto.randomUUID(),
       type: 'visual',
       name: 'Visuals',
       position: tracks.length,
@@ -270,27 +271,61 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
   const items: Record<string, TimelineItem> = {};
   const itemIds: string[] = [];
 
-  // Add video item if project has video (not for audio projects)
+  // Add video items: prefer DB items (from splits), fall back to synthetic full-duration item
+  const dbVideoItems = apiProject.items?.filter((i: { type: string }) => i.type === 'video') || [];
   if (!isAudioProject && project.videoKey && project.videoUrl) {
     const videoTrack = tracks.find((t) => t.type === 'video');
     if (videoTrack) {
-      const videoId = `video-${nanoid(8)}`;
-      items[videoId] = {
-        id: videoId,
-        type: 'video',
-        trackId: videoTrack.id,
-        startMs: 0,
-        endMs: project.durationMs,
-        data: {
-          src: project.videoUrl,
-          width: project.sourceWidth,
-          height: project.sourceHeight,
-          volume: 1,
-          playbackRate: 1,
-          previewUrl: project.videoUrl,
-        } as VideoItemData,
-      };
-      itemIds.push(videoId);
+      if (dbVideoItems.length > 0) {
+        // Use saved video items (split state persisted)
+        for (const item of dbVideoItems) {
+          const raw = item.data as Record<string, unknown>;
+          const videoItem: TimelineItem = {
+            id: item.id,
+            type: 'video',
+            trackId: videoTrack.id,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: {
+              src: project.videoUrl,
+              width: (raw.width as number) || project.sourceWidth,
+              height: (raw.height as number) || project.sourceHeight,
+              volume: (raw.volume as number) ?? 1,
+              playbackRate: (raw.playbackRate as number) ?? 1,
+              muted: (raw.muted as boolean) ?? false,
+              separatedAudioItemId: (raw.separatedAudioItemId as string) || undefined,
+              previewUrl: project.videoUrl,
+            } as VideoItemData,
+          };
+          if (item.startMs != null && item.endMs != null) {
+            videoItem.trim = {
+              startMs: (raw.trimStartMs as number) ?? item.startMs,
+              endMs: (raw.trimEndMs as number) ?? item.endMs,
+            };
+          }
+          items[item.id] = videoItem;
+          itemIds.push(item.id);
+        }
+      } else {
+        // No saved video items — create synthetic full-duration item
+        const videoId = crypto.randomUUID();
+        items[videoId] = {
+          id: videoId,
+          type: 'video',
+          trackId: videoTrack.id,
+          startMs: 0,
+          endMs: project.durationMs,
+          data: {
+            src: project.videoUrl,
+            width: project.sourceWidth,
+            height: project.sourceHeight,
+            volume: 1,
+            playbackRate: 1,
+            previewUrl: project.videoUrl,
+          } as VideoItemData,
+        };
+        itemIds.push(videoId);
+      }
     }
   }
 
@@ -430,6 +465,117 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
     itemIds,
     duration: project.durationMs,
   };
+}
+
+/**
+ * Split a single item at the given absolute time within an immer draft.
+ * Removes the original item, creates left + right halves, and selects the right half.
+ * Returns the [leftId, rightId] or null if the split was invalid.
+ */
+function splitItemInDraft(
+  state: EditorState,
+  itemId: string,
+  atMs: number
+): [string, string] | null {
+  const original = state.items[itemId];
+  if (!original) return null;
+
+  atMs = Math.round(atMs);
+  const splitRelativeMs = atMs - original.startMs;
+  const duration = original.endMs - original.startMs;
+
+  if (splitRelativeMs <= 0 || splitRelativeMs >= duration) return null;
+
+  const leftId = crypto.randomUUID();
+  const rightId = crypto.randomUUID();
+
+  if (original.type === 'caption') {
+    const data = original.data as CaptionItemData;
+    const leftWords: CaptionWord[] = [];
+    const rightWords: CaptionWord[] = [];
+
+    for (const word of data.words) {
+      if (word.endMs <= splitRelativeMs) {
+        leftWords.push({ ...word });
+      } else {
+        rightWords.push({
+          ...word,
+          startMs: Math.max(0, word.startMs - splitRelativeMs),
+          endMs: word.endMs - splitRelativeMs,
+        });
+      }
+    }
+
+    const leftText = leftWords.map((w) => w.text).join(' ');
+    const rightText = rightWords.map((w) => w.text).join(' ');
+
+    state.items[leftId] = {
+      id: leftId,
+      type: 'caption',
+      trackId: original.trackId,
+      startMs: original.startMs,
+      endMs: atMs,
+      data: {
+        text: leftText,
+        words: leftWords,
+        style: { ...data.style },
+      } as CaptionItemData,
+    };
+
+    state.items[rightId] = {
+      id: rightId,
+      type: 'caption',
+      trackId: original.trackId,
+      startMs: atMs,
+      endMs: original.endMs,
+      data: {
+        text: rightText,
+        words: rightWords,
+        style: { ...data.style },
+      } as CaptionItemData,
+    };
+  } else {
+    const leftItem: TimelineItem = {
+      id: leftId,
+      type: original.type,
+      trackId: original.trackId,
+      startMs: original.startMs,
+      endMs: atMs,
+      data: JSON.parse(JSON.stringify(original.data)),
+    };
+    if (original.trim) {
+      leftItem.trim = {
+        startMs: original.trim.startMs,
+        endMs: original.trim.startMs + splitRelativeMs,
+      };
+    }
+
+    const rightItem: TimelineItem = {
+      id: rightId,
+      type: original.type,
+      trackId: original.trackId,
+      startMs: atMs,
+      endMs: original.endMs,
+      data: JSON.parse(JSON.stringify(original.data)),
+    };
+    if (original.trim) {
+      rightItem.trim = {
+        startMs: original.trim.startMs + splitRelativeMs,
+        endMs: original.trim.endMs,
+      };
+    }
+
+    state.items[leftId] = leftItem;
+    state.items[rightId] = rightItem;
+  }
+
+  state.itemIds.push(leftId, rightId);
+  delete state.items[itemId];
+  state.itemIds = state.itemIds.filter((id) => id !== itemId);
+  state.selectedIds = state.selectedIds.filter((id) => id !== itemId);
+  state.selectedIds.push(rightId);
+
+  return [leftId, rightId];
 }
 
 /**
@@ -625,7 +771,7 @@ export const useEditorStore = create<EditorStore>()(
         // Convert items back to API format — include trackId and type for new items (split/merge)
         const apiItems = itemIds
           .map((id) => items[id])
-          .filter((item) => item.type === 'caption')
+          .filter((item): item is TimelineItem => !!item && item.type === 'caption')
           .map((item) => {
             const data = item.data as CaptionItemData;
             return {
@@ -638,8 +784,8 @@ export const useEditorStore = create<EditorStore>()(
                 text: data.text,
                 words: data.words.map((w) => ({
                   text: w.text,
-                  startMs: w.startMs + item.startMs, // Convert back to absolute time
-                  endMs: w.endMs + item.startMs,
+                  startMs: Math.round(w.startMs + item.startMs), // Convert back to absolute time
+                  endMs: Math.round(w.endMs + item.startMs),
                   ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
                 })),
                 style: data.style,
@@ -652,7 +798,7 @@ export const useEditorStore = create<EditorStore>()(
         // Also save visual items (displayMode, transition, timing changes)
         const visualItems = itemIds
           .map((id) => items[id])
-          .filter((item) => item.type === 'visual')
+          .filter((item): item is TimelineItem => !!item && item.type === 'visual')
           .map((item) => ({
             id: item.id,
             trackId: item.trackId,
@@ -662,15 +808,66 @@ export const useEditorStore = create<EditorStore>()(
             data: item.data as unknown as Record<string, unknown>,
           }));
 
-        const allItems = [...apiItems, ...visualItems];
+        // Save video items (persists splits across reload)
+        // Exclude src/previewUrl — those are regenerated from project.videoUrl on load
+        const videoItems = itemIds
+          .map((id) => items[id])
+          .filter((item): item is TimelineItem => !!item && item.type === 'video')
+          .map((item) => {
+            const d = item.data as VideoItemData;
+            return {
+              id: item.id,
+              trackId: item.trackId,
+              type: 'video' as const,
+              startMs: item.startMs,
+              endMs: item.endMs,
+              data: {
+                width: d.width,
+                height: d.height,
+                volume: d.volume,
+                playbackRate: d.playbackRate,
+                muted: d.muted ?? false,
+                separatedAudioItemId: d.separatedAudioItemId,
+                ...(item.trim ? { trimStartMs: item.trim.startMs, trimEndMs: item.trim.endMs } : {}),
+              },
+            };
+          });
 
-        // Collect IDs of all caption items currently in the editor
-        // The API will delete any DB caption items NOT in this list (from split/merge)
+        // Save audio items (persists splits across reload)
+        // Exclude resolved URLs — those are regenerated from keys on load
+        const audioItems = itemIds
+          .map((id) => items[id])
+          .filter((item): item is TimelineItem => !!item && item.type === 'audio')
+          .map((item) => {
+            const d = item.data as AudioItemData;
+            return {
+              id: item.id,
+              trackId: item.trackId,
+              type: 'audio' as const,
+              startMs: item.startMs,
+              endMs: item.endMs,
+              data: {
+                sourceVideoItemId: d.sourceVideoItemId,
+                volume: d.volume,
+                isEnhanced: d.isEnhanced,
+                enhancementStatus: d.enhancementStatus,
+                enhancementProgress: d.enhancementProgress,
+              },
+            };
+          });
+
+        // Round all timestamps to integers (DB uses integer columns)
+        const allItems = [...apiItems, ...visualItems, ...videoItems, ...audioItems].map((item) => ({
+          ...item,
+          startMs: Math.round(item.startMs),
+          endMs: Math.round(item.endMs),
+        }));
+
+        // Collect IDs per type — the API deletes DB items NOT in these lists
         const captionItemIds = apiItems.map((item) => item.id);
-
-        // Collect IDs of all visual items currently in the editor
-        // The API will delete any DB visual items NOT in this list (from split)
         const visualItemIds = visualItems.map((item) => item.id);
+        const videoItemIds = videoItems.map((item) => item.id);
+        const audioItemIds = audioItems.map((item) => item.id);
 
         // Persist layout settings inside videoSettings JSONB
         const videoSettingsPayload = {
@@ -683,6 +880,8 @@ export const useEditorStore = create<EditorStore>()(
           items: allItems,
           captionItemIds,
           visualItemIds,
+          videoItemIds,
+          audioItemIds,
           videoSettings: videoSettingsPayload,
         });
 
@@ -690,6 +889,7 @@ export const useEditorStore = create<EditorStore>()(
           state.isSaving = false;
         });
       } catch (err) {
+        console.error('[saveProject] Failed:', err);
         set((state) => {
           state.error = err instanceof Error ? err.message : 'Failed to save project';
           state.isSaving = false;
@@ -880,6 +1080,16 @@ export const useEditorStore = create<EditorStore>()(
         }
       }
 
+      // Collect deleted ranges per track for ripple (gap closing)
+      const deletedPerTrack = new Map<string, { startMs: number; endMs: number }[]>();
+      for (const id of ids) {
+        const item = items[id];
+        if (!item) continue;
+        const ranges = deletedPerTrack.get(item.trackId) || [];
+        ranges.push({ startMs: item.startMs, endMs: item.endMs });
+        deletedPerTrack.set(item.trackId, ranges);
+      }
+
       set((state) => {
         for (const id of ids) {
           // If deleting an audio item, unmute linked video
@@ -899,6 +1109,47 @@ export const useEditorStore = create<EditorStore>()(
           state.itemIds = state.itemIds.filter((itemId) => itemId !== id);
           state.selectedIds = state.selectedIds.filter((selectedId) => selectedId !== id);
         }
+
+        // Ripple: close gaps by shifting remaining items left on affected tracks
+        for (const [trackId, ranges] of deletedPerTrack) {
+          // Sort deleted ranges by startMs and merge overlapping
+          ranges.sort((a, b) => a.startMs - b.startMs);
+          const merged: { startMs: number; endMs: number }[] = [];
+          for (const r of ranges) {
+            const last = merged[merged.length - 1];
+            if (last && r.startMs <= last.endMs) {
+              last.endMs = Math.max(last.endMs, r.endMs);
+            } else {
+              merged.push({ ...r });
+            }
+          }
+
+          // For each remaining item in this track, compute cumulative shift
+          for (const itemId of state.itemIds) {
+            const item = state.items[itemId];
+            if (!item || item.trackId !== trackId) continue;
+
+            let shift = 0;
+            for (const gap of merged) {
+              if (item.startMs >= gap.endMs) {
+                shift += gap.endMs - gap.startMs;
+              }
+            }
+
+            if (shift > 0) {
+              item.startMs -= shift;
+              item.endMs -= shift;
+            }
+          }
+        }
+
+        // Recalculate duration
+        let maxEnd = 0;
+        for (const itemId of state.itemIds) {
+          const item = state.items[itemId];
+          if (item && item.endMs > maxEnd) maxEnd = item.endMs;
+        }
+        state.duration = Math.max(maxEnd, 1000);
       });
 
       get().pushHistory();
@@ -1376,104 +1627,161 @@ export const useEditorStore = create<EditorStore>()(
       if (splitRelativeMs <= 100 || splitRelativeMs >= duration - 100) return;
 
       set((state) => {
-        const original = state.items[itemId];
-        if (!original) return;
-
-        const leftId = crypto.randomUUID();
-        const rightId = crypto.randomUUID();
-
-        if (original.type === 'caption') {
-          const data = original.data as CaptionItemData;
-          const leftWords: CaptionWord[] = [];
-          const rightWords: CaptionWord[] = [];
-
-          for (const word of data.words) {
-            if (word.endMs <= splitRelativeMs) {
-              leftWords.push({ ...word });
-            } else {
-              rightWords.push({
-                ...word,
-                startMs: word.startMs - splitRelativeMs,
-                endMs: word.endMs - splitRelativeMs,
-              });
-            }
-          }
-
-          const leftText = leftWords.map((w) => w.text).join(' ');
-          const rightText = rightWords.map((w) => w.text).join(' ');
-
-          const leftItem: TimelineItem = {
-            id: leftId,
-            type: 'caption',
-            trackId: original.trackId,
-            startMs: original.startMs,
-            endMs: atMs,
-            data: {
-              text: leftText,
-              words: leftWords,
-              style: { ...data.style },
-            } as CaptionItemData,
-          };
-
-          const rightItem: TimelineItem = {
-            id: rightId,
-            type: 'caption',
-            trackId: original.trackId,
-            startMs: atMs,
-            endMs: original.endMs,
-            data: {
-              text: rightText,
-              words: rightWords,
-              style: { ...data.style },
-            } as CaptionItemData,
-          };
-
-          state.items[leftId] = leftItem;
-          state.items[rightId] = rightItem;
-          state.itemIds.push(leftId, rightId);
-        } else {
-          const leftItem: TimelineItem = {
-            id: leftId,
-            type: original.type,
-            trackId: original.trackId,
-            startMs: original.startMs,
-            endMs: atMs,
-            data: JSON.parse(JSON.stringify(original.data)),
-          };
-          if (original.trim) {
-            leftItem.trim = {
-              startMs: original.trim.startMs,
-              endMs: original.trim.startMs + splitRelativeMs,
-            };
-          }
-
-          const rightItem: TimelineItem = {
-            id: rightId,
-            type: original.type,
-            trackId: original.trackId,
-            startMs: atMs,
-            endMs: original.endMs,
-            data: JSON.parse(JSON.stringify(original.data)),
-          };
-          if (original.trim) {
-            rightItem.trim = {
-              startMs: original.trim.startMs + splitRelativeMs,
-              endMs: original.trim.endMs,
-            };
-          }
-
-          state.items[leftId] = leftItem;
-          state.items[rightId] = rightItem;
-          state.itemIds.push(leftId, rightId);
-        }
-
-        delete state.items[itemId];
-        state.itemIds = state.itemIds.filter((id) => id !== itemId);
-        state.selectedIds = state.selectedIds.filter((id) => id !== itemId);
-        state.selectedIds.push(rightId);
+        splitItemInDraft(state, itemId, atMs);
       });
 
       get().pushHistory();
+    },
+
+    splitAllAtPlayhead: () => {
+      const { currentTimeMs, items, itemIds } = get();
+
+      // Find all items spanning the playhead with >100ms margin from edges
+      const splittableIds: string[] = [];
+      for (const id of itemIds) {
+        const item = items[id];
+        if (!item) continue;
+        const relMs = currentTimeMs - item.startMs;
+        const dur = item.endMs - item.startMs;
+        if (relMs > 100 && relMs < dur - 100) {
+          splittableIds.push(id);
+        }
+      }
+
+      set((state) => {
+        // Clear existing selection
+        state.selectedIds = [];
+
+        // Split all spanning items (splitItemInDraft selects right halves)
+        for (const id of splittableIds) {
+          splitItemInDraft(state, id, currentTimeMs);
+        }
+
+        // Also select any items that start at the playhead but weren't split
+        // (e.g. items from a previous split that already start here)
+        for (const id of state.itemIds) {
+          const item = state.items[id];
+          if (!item) continue;
+          if (Math.abs(item.startMs - currentTimeMs) < 1 && !state.selectedIds.includes(id)) {
+            state.selectedIds.push(id);
+          }
+        }
+      });
+
+      if (get().selectedIds.length > 0) {
+        get().pushHistory();
+        debouncedSave(() => get().saveProject());
+      }
+    },
+
+    deleteTimeRange: async (startMs: number, endMs: number, ripple?: boolean) => {
+      const { items, itemIds, project } = get();
+
+      // Collect items to split at boundaries and items to delete
+      const splitAtStart: string[] = [];
+      const splitAtEnd: string[] = [];
+
+      for (const id of itemIds) {
+        const item = items[id];
+        if (!item) continue;
+
+        // Item spans the start boundary (starts before, ends after startMs)
+        const relStart = startMs - item.startMs;
+        const dur = item.endMs - item.startMs;
+        if (relStart > 100 && relStart < dur - 100) {
+          splitAtStart.push(id);
+        }
+
+        // Item spans the end boundary (starts before endMs, ends after)
+        const relEnd = endMs - item.startMs;
+        if (relEnd > 100 && relEnd < dur - 100) {
+          splitAtEnd.push(id);
+        }
+      }
+
+      let hasVisualItems = false;
+
+      set((state) => {
+        // 1. Split items at start boundary
+        for (const id of splitAtStart) {
+          if (state.items[id]) {
+            splitItemInDraft(state, id, startMs);
+          }
+        }
+
+        // 2. Split items at end boundary
+        // After splitting at start, the original IDs are gone — scan for items spanning endMs
+        const idsAfterStartSplit = [...state.itemIds];
+        for (const id of idsAfterStartSplit) {
+          const item = state.items[id];
+          if (!item) continue;
+          const rel = endMs - item.startMs;
+          const dur = item.endMs - item.startMs;
+          if (rel > 100 && rel < dur - 100) {
+            splitItemInDraft(state, id, endMs);
+          }
+        }
+
+        // 3. Delete all items fully within [startMs, endMs]
+        const toDelete: string[] = [];
+        for (const id of [...state.itemIds]) {
+          const item = state.items[id];
+          if (!item) continue;
+          if (item.startMs >= startMs && item.endMs <= endMs) {
+            toDelete.push(id);
+          }
+        }
+
+        for (const id of toDelete) {
+          const item = state.items[id];
+          if (item?.type === 'visual') hasVisualItems = true;
+
+          // Unlink audio↔video
+          if (item?.type === 'audio') {
+            const audioData = item.data as AudioItemData;
+            if (audioData.sourceVideoItemId) {
+              const videoItem = state.items[audioData.sourceVideoItemId];
+              if (videoItem) {
+                (videoItem.data as VideoItemData).muted = false;
+                (videoItem.data as VideoItemData).separatedAudioItemId = undefined;
+              }
+            }
+          }
+
+          delete state.items[id];
+          state.itemIds = state.itemIds.filter((iid) => iid !== id);
+          state.selectedIds = state.selectedIds.filter((sid) => sid !== id);
+        }
+
+        // 4. Ripple: shift items starting at endMs+ left by gap duration
+        if (ripple) {
+          const gap = endMs - startMs;
+          for (const id of state.itemIds) {
+            const item = state.items[id];
+            if (!item) continue;
+            if (item.startMs >= endMs) {
+              item.startMs -= gap;
+              item.endMs -= gap;
+            }
+          }
+        }
+
+        // 5. Clear selected time range
+        state.selectedTimeRange = null;
+      });
+
+      get().pushHistory();
+
+      // Delete visuals from backend if needed
+      if (hasVisualItems && project) {
+        try {
+          await api.deleteVisuals(project.id);
+        } catch (err) {
+          console.error('Failed to delete visuals from backend:', err);
+        }
+      }
+
+      await get().saveProject();
     },
 
     setSplitMode: (active: boolean) => {
@@ -1659,6 +1967,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
     },
 
     mergeCaptions: (captionId1: string, captionId2: string) => {
@@ -1716,6 +2025,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
     },
 
     updateCaptionText: (captionId: string, newText: string) => {
@@ -1755,6 +2065,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
     },
 
     // ========================================
