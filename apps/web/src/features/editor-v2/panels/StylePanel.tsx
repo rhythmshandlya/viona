@@ -28,6 +28,7 @@ import {
   DEFAULT_CAPTION_EFFECTS,
   migratePosition,
   migrateTextShadow,
+  anchorToFreeCoords,
 } from '../store/types';
 import {
   isAnimationConfig,
@@ -1010,170 +1011,13 @@ export function StylePanel() {
 
         {/* ===== POSITION TAB ===== */}
         {topTab === 'position' && (
-          <div className="px-4 py-3 space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
-                Position
-              </label>
-              <button
-                onClick={() => customizeStyle({
-                  position: { anchor: getPositionValue(style.position).anchor, offsetX: 0, offsetY: 0, rotation: 0, textAlign: 'center' }
-                })}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] transition-colors"
-                title="Reset offsets and rotation"
-              >
-                Reset
-              </button>
-            </div>
-
-            {/* Anchor Selector */}
-            <div className="space-y-1.5">
-              <span className="text-xs text-[var(--editor-text-secondary)]">Anchor</span>
-              <SegmentedControl
-                options={[
-                  { value: 'top', label: 'Top' },
-                  { value: 'center', label: 'Center' },
-                  { value: 'bottom', label: 'Bottom' },
-                ]}
-                value={getPositionValue(style.position).anchor}
-                onChange={(value) => customizeStyle({
-                  position: { ...getPositionValue(style.position), anchor: value as 'top' | 'center' | 'bottom' }
-                })}
-              />
-            </div>
-
-            {/* Horizontal Offset (X) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--editor-text-secondary)]">Horizontal Offset</span>
-                {getPositionValue(style.position).offsetX !== 0 && (
-                  <button
-                    onClick={() => customizeStyle({
-                      position: { ...getPositionValue(style.position), offsetX: 0 }
-                    })}
-                    className="text-[10px] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-              <SliderRow
-                value={getPositionValue(style.position).offsetX}
-                min={-50}
-                max={50}
-                step={1}
-                unit="%"
-                onChange={(offsetX) => customizeStyle({
-                  position: { ...getPositionValue(style.position), offsetX }
-                })}
-              />
-            </div>
-
-            {/* Vertical Offset (Y) */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--editor-text-secondary)]">Vertical Offset</span>
-                {getPositionValue(style.position).offsetY !== 0 && (
-                  <button
-                    onClick={() => customizeStyle({
-                      position: { ...getPositionValue(style.position), offsetY: 0 }
-                    })}
-                    className="text-[10px] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-              <SliderRow
-                value={getPositionValue(style.position).offsetY}
-                min={-50}
-                max={50}
-                step={1}
-                unit="%"
-                onChange={(offsetY) => customizeStyle({
-                  position: { ...getPositionValue(style.position), offsetY }
-                })}
-              />
-            </div>
-
-            {/* Rotation */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-[var(--editor-text-secondary)]">Rotation</span>
-                {getPositionValue(style.position).rotation !== 0 && (
-                  <button
-                    onClick={() => customizeStyle({
-                      position: { ...getPositionValue(style.position), rotation: 0 }
-                    })}
-                    className="text-[10px] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-              <SliderRow
-                value={getPositionValue(style.position).rotation}
-                min={-180}
-                max={180}
-                step={1}
-                unit="°"
-                onChange={(rotation) => customizeStyle({
-                  position: { ...getPositionValue(style.position), rotation }
-                })}
-              />
-            </div>
-
-            {/* Text Alignment */}
-            <div className="space-y-1.5">
-              <span className="text-xs text-[var(--editor-text-secondary)]">Text Align</span>
-              <SegmentedControl
-                options={[
-                  { value: 'left', label: '≡L' },
-                  { value: 'center', label: '≡C' },
-                  { value: 'right', label: '≡R' },
-                ]}
-                value={getPositionValue(style.position).textAlign}
-                onChange={(value) => customizeStyle({
-                  position: { ...getPositionValue(style.position), textAlign: value as 'left' | 'center' | 'right' }
-                })}
-              />
-            </div>
-
-            <Divider />
-
-            {/* Safe Zone Section */}
-            <div className="space-y-3">
-              <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
-                Safe Zone Guide
-              </label>
-
-              <select
-                value={safeZonePlatform}
-                onChange={(e) => {
-                  const platform = e.target.value;
-                  setSafeZonePlatform(platform);
-                  setShowSafeZone(platform !== 'none');
-                }}
-                className="w-full px-3 py-2 text-xs rounded-md
-                           bg-[var(--editor-bg-elevated)] text-[var(--editor-text-primary)]
-                           border border-[var(--editor-border-subtle)]
-                           focus:outline-none focus:border-[var(--editor-accent)]
-                           cursor-pointer"
-              >
-                <option value="none">None</option>
-                <option value="tiktok">TikTok</option>
-                <option value="instagram-reels">Instagram Reels</option>
-                <option value="youtube-shorts">YouTube Shorts</option>
-                <option value="universal">Universal</option>
-              </select>
-
-              {safeZonePlatform !== 'none' && (
-                <p className="text-[10px] text-[var(--editor-text-secondary)]">
-                  Avoid placing captions in the red zones
-                </p>
-              )}
-            </div>
-          </div>
+          <PositionTab
+            style={style}
+            customizeStyle={customizeStyle}
+            safeZonePlatform={safeZonePlatform}
+            setSafeZonePlatform={setSafeZonePlatform}
+            setShowSafeZone={setShowSafeZone}
+          />
         )}
 
         {/* ===== TRANSITIONS TAB ===== */}
@@ -1186,6 +1030,374 @@ export function StylePanel() {
           </div>
         )}
 
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// Position Tab (extracted for clarity)
+// ============================================
+
+const GRID_POSITIONS: Array<{ x: number; y: number; label: string }> = [
+  { x: 10, y: 10, label: 'Top Left' },
+  { x: 50, y: 10, label: 'Top Center' },
+  { x: 90, y: 10, label: 'Top Right' },
+  { x: 10, y: 50, label: 'Middle Left' },
+  { x: 50, y: 50, label: 'Center' },
+  { x: 90, y: 50, label: 'Middle Right' },
+  { x: 10, y: 85, label: 'Bottom Left' },
+  { x: 50, y: 85, label: 'Bottom Center' },
+  { x: 90, y: 85, label: 'Bottom Right' },
+];
+
+const QUICK_POSITIONS = [
+  { label: 'Top', x: 50, y: 10 },
+  { label: 'Center', x: 50, y: 50 },
+  { label: 'Bottom', x: 50, y: 85 },
+  { label: 'Lower \u2153', x: 50, y: 67 },
+];
+
+const SIZE_PRESETS = [
+  { label: 'S', size: 36 },
+  { label: 'M', size: 56 },
+  { label: 'L', size: 80 },
+];
+
+function PositionTab({
+  style,
+  customizeStyle,
+  safeZonePlatform,
+  setSafeZonePlatform,
+  setShowSafeZone,
+}: {
+  style: CaptionStyle;
+  customizeStyle: (updates: Partial<CaptionStyle>) => void;
+  safeZonePlatform: string;
+  setSafeZonePlatform: (platform: string) => void;
+  setShowSafeZone: (show: boolean) => void;
+}) {
+  const pos = getPositionValue(style.position);
+  const mode = pos.mode ?? 'anchor';
+  const captionWidth = pos.width ?? 90;
+
+  const handleReset = () => {
+    if (mode === 'free') {
+      customizeStyle({
+        position: { ...pos, x: 50, y: 85, rotation: 0, width: 90 },
+      });
+    } else {
+      customizeStyle({
+        position: { anchor: pos.anchor, offsetX: 0, offsetY: 0, rotation: 0, textAlign: 'center', width: 90 },
+      });
+    }
+  };
+
+  const switchToFree = () => {
+    const coords = anchorToFreeCoords(pos);
+    customizeStyle({
+      position: { ...pos, mode: 'free', x: coords.x, y: coords.y },
+    });
+  };
+
+  const switchToAnchor = () => {
+    customizeStyle({
+      position: { ...pos, mode: 'anchor', offsetX: 0, offsetY: 0 },
+    });
+  };
+
+  return (
+    <div className="px-4 py-3 space-y-4">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+          Position
+        </label>
+        <button
+          onClick={handleReset}
+          className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] transition-colors"
+          title="Reset position"
+        >
+          Reset
+        </button>
+      </div>
+
+      {/* Mode Toggle */}
+      <div className="space-y-1.5">
+        <span className="text-xs text-[var(--editor-text-secondary)]">Mode</span>
+        <SegmentedControl
+          options={[
+            { value: 'anchor', label: 'Anchor' },
+            { value: 'free', label: 'Free' },
+          ]}
+          value={mode}
+          onChange={(v) => v === 'free' ? switchToFree() : switchToAnchor()}
+        />
+      </div>
+
+      {mode === 'anchor' ? (
+        <>
+          {/* Anchor Selector */}
+          <div className="space-y-1.5">
+            <span className="text-xs text-[var(--editor-text-secondary)]">Anchor</span>
+            <SegmentedControl
+              options={[
+                { value: 'top', label: 'Top' },
+                { value: 'center', label: 'Center' },
+                { value: 'bottom', label: 'Bottom' },
+              ]}
+              value={pos.anchor}
+              onChange={(value) => customizeStyle({
+                position: { ...pos, anchor: value as 'top' | 'center' | 'bottom' }
+              })}
+            />
+          </div>
+
+          {/* Horizontal Offset */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[var(--editor-text-secondary)]">Horizontal Offset</span>
+              {pos.offsetX !== 0 && (
+                <button
+                  onClick={() => customizeStyle({ position: { ...pos, offsetX: 0 } })}
+                  className="text-[10px] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <SliderRow
+              value={pos.offsetX}
+              min={-50}
+              max={50}
+              step={1}
+              unit="%"
+              onChange={(offsetX) => customizeStyle({ position: { ...pos, offsetX } })}
+            />
+          </div>
+
+          {/* Vertical Offset */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-[var(--editor-text-secondary)]">Vertical Offset</span>
+              {pos.offsetY !== 0 && (
+                <button
+                  onClick={() => customizeStyle({ position: { ...pos, offsetY: 0 } })}
+                  className="text-[10px] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <SliderRow
+              value={pos.offsetY}
+              min={-50}
+              max={50}
+              step={1}
+              unit="%"
+              onChange={(offsetY) => customizeStyle({ position: { ...pos, offsetY } })}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          {/* 9-point position grid */}
+          <div className="space-y-1.5">
+            <span className="text-xs text-[var(--editor-text-secondary)]">Position</span>
+            <div
+              className="relative rounded-lg border border-[var(--editor-border-subtle)] bg-[var(--editor-bg-elevated)]"
+              style={{ width: 140, height: 200 }}
+            >
+              {GRID_POSITIONS.map((gp) => {
+                const isActive = pos.x != null && pos.y != null
+                  && Math.abs((pos.x ?? 50) - gp.x) < 5
+                  && Math.abs((pos.y ?? 85) - gp.y) < 5;
+                return (
+                  <button
+                    key={`${gp.x}-${gp.y}`}
+                    title={gp.label}
+                    onClick={() => customizeStyle({
+                      position: { ...pos, mode: 'free', x: gp.x, y: gp.y },
+                    })}
+                    className="absolute rounded-full transition-all"
+                    style={{
+                      left: `${(gp.x / 100) * 100}%`,
+                      top: `${(gp.y / 100) * 100}%`,
+                      transform: 'translate(-50%, -50%)',
+                      width: isActive ? 12 : 8,
+                      height: isActive ? 12 : 8,
+                      backgroundColor: isActive ? 'var(--editor-accent, #6366f1)' : 'var(--editor-text-secondary)',
+                      opacity: isActive ? 1 : 0.4,
+                      border: isActive ? '2px solid var(--editor-text-primary)' : 'none',
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* X/Y sliders */}
+          <div className="space-y-1.5">
+            <span className="text-xs text-[var(--editor-text-secondary)]">X Position</span>
+            <SliderRow
+              value={Math.round(pos.x ?? 50)}
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
+              onChange={(x) => customizeStyle({ position: { ...pos, x } })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <span className="text-xs text-[var(--editor-text-secondary)]">Y Position</span>
+            <SliderRow
+              value={Math.round(pos.y ?? 85)}
+              min={0}
+              max={100}
+              step={1}
+              unit="%"
+              onChange={(y) => customizeStyle({ position: { ...pos, y } })}
+            />
+          </div>
+
+          {/* Quick position buttons */}
+          <div className="flex gap-1.5">
+            {QUICK_POSITIONS.map((qp) => (
+              <button
+                key={qp.label}
+                onClick={() => customizeStyle({
+                  position: { ...pos, mode: 'free', x: qp.x, y: qp.y },
+                })}
+                className="flex-1 px-1.5 py-1 text-[10px] rounded bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] hover:bg-[var(--editor-bg-surface)] transition-colors"
+              >
+                {qp.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <InlineDivider />
+
+      {/* Width slider (always visible) */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-[var(--editor-text-secondary)]">Width</span>
+          {captionWidth !== 90 && (
+            <button
+              onClick={() => customizeStyle({ position: { ...pos, width: 90 } })}
+              className="text-[10px] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <SliderRow
+          value={captionWidth}
+          min={20}
+          max={100}
+          step={1}
+          unit="%"
+          onChange={(width) => customizeStyle({ position: { ...pos, width } })}
+        />
+      </div>
+
+      {/* Font size presets */}
+      <div className="space-y-1.5">
+        <span className="text-xs text-[var(--editor-text-secondary)]">Size Presets</span>
+        <div className="flex gap-1.5">
+          {SIZE_PRESETS.map((sp) => (
+            <button
+              key={sp.label}
+              onClick={() => customizeStyle({ fontSize: sp.size })}
+              className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
+                style.fontSize === sp.size
+                  ? 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)] shadow-sm'
+                  : 'bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'
+              }`}
+            >
+              {sp.label}
+            </button>
+          ))}
+          <span className="flex-1 px-2 py-1.5 text-xs text-center tabular-nums text-[var(--editor-text-secondary)]">
+            {style.fontSize}px
+          </span>
+        </div>
+      </div>
+
+      <InlineDivider />
+
+      {/* Rotation */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-[var(--editor-text-secondary)]">Rotation</span>
+          {pos.rotation !== 0 && (
+            <button
+              onClick={() => customizeStyle({ position: { ...pos, rotation: 0 } })}
+              className="text-[10px] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <SliderRow
+          value={pos.rotation}
+          min={-180}
+          max={180}
+          step={1}
+          unit="\u00B0"
+          onChange={(rotation) => customizeStyle({ position: { ...pos, rotation } })}
+        />
+      </div>
+
+      {/* Text Alignment */}
+      <div className="space-y-1.5">
+        <span className="text-xs text-[var(--editor-text-secondary)]">Text Align</span>
+        <SegmentedControl
+          options={[
+            { value: 'left', label: '\u2261L' },
+            { value: 'center', label: '\u2261C' },
+            { value: 'right', label: '\u2261R' },
+          ]}
+          value={pos.textAlign}
+          onChange={(value) => customizeStyle({
+            position: { ...pos, textAlign: value as 'left' | 'center' | 'right' }
+          })}
+        />
+      </div>
+
+      <InlineDivider />
+
+      {/* Safe Zone Section */}
+      <div className="space-y-3">
+        <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+          Safe Zone Guide
+        </label>
+
+        <select
+          value={safeZonePlatform}
+          onChange={(e) => {
+            const platform = e.target.value;
+            setSafeZonePlatform(platform);
+            setShowSafeZone(platform !== 'none');
+          }}
+          className="w-full px-3 py-2 text-xs rounded-md
+                     bg-[var(--editor-bg-elevated)] text-[var(--editor-text-primary)]
+                     border border-[var(--editor-border-subtle)]
+                     focus:outline-none focus:border-[var(--editor-accent)]
+                     cursor-pointer"
+        >
+          <option value="none">None</option>
+          <option value="tiktok">TikTok</option>
+          <option value="instagram-reels">Instagram Reels</option>
+          <option value="youtube-shorts">YouTube Shorts</option>
+          <option value="universal">Universal</option>
+        </select>
+
+        {safeZonePlatform !== 'none' && (
+          <p className="text-[10px] text-[var(--editor-text-secondary)]">
+            Avoid placing captions in the red zones
+          </p>
+        )}
       </div>
     </div>
   );
