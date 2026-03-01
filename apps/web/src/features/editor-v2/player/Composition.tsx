@@ -161,13 +161,52 @@ function calculatePositionStyles(
   lineHeight: number
 ): React.CSSProperties {
   const { anchor, offsetX, offsetY, rotation, textAlign } = position;
+  const captionWidth = position.width ?? 90;
 
-  // Base position from anchor
+  // Free mode: absolute x,y positioning
+  if (position.mode === 'free' && position.x != null && position.y != null) {
+    const transforms: string[] = ['translate(-50%, -50%)'];
+    if (rotation !== 0) {
+      transforms.push(`rotate(${rotation}deg)`);
+    }
+
+    const baseStyles: React.CSSProperties = {
+      position: 'absolute',
+      left: `${position.x}%`,
+      top: `${position.y}%`,
+      width: `${captionWidth}%`,
+      maxWidth: `${captionWidth}%`,
+      overflow: 'hidden',
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '8px',
+      lineHeight,
+      textAlign,
+      transform: transforms.join(' '),
+    };
+
+    // Justify content based on text alignment
+    switch (textAlign) {
+      case 'left':
+        baseStyles.justifyContent = 'flex-start';
+        break;
+      case 'right':
+        baseStyles.justifyContent = 'flex-end';
+        break;
+      default:
+        baseStyles.justifyContent = 'center';
+        break;
+    }
+
+    return baseStyles;
+  }
+
+  // Anchor mode (default / legacy)
   const baseStyles: React.CSSProperties = {
     position: 'absolute',
     left: `${50 + offsetX}%`,
-    width: '90%',
-    maxWidth: '90%',
+    width: `${captionWidth}%`,
+    maxWidth: `${captionWidth}%`,
     overflow: 'hidden',
     display: 'flex',
     flexWrap: 'wrap',
@@ -1104,7 +1143,10 @@ function DynamicLayoutComposition({
 
       {/* Video layer */}
       {showVideoLayer && !hideVideoCompletely && (
-        <div style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}>
+        <div
+          style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}
+          {...(mode === 'pip' && displayMode === 'default' && !isGap ? { 'data-pip-overlay': true } : {})}
+        >
           <VideoSequences
             videoItems={videoItems}
             fps={fps}
