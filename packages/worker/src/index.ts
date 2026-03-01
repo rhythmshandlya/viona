@@ -138,10 +138,10 @@ async function main() {
     },
     {
       connection,
-      concurrency: 3,
+      concurrency: 1, // Must be 1 — workspace is shared (Root.tsx, index.ts, public/assets)
       lockDuration: 90 * 60 * 1000,   // 90 min — matches subprocess timeout
       stalledInterval: 10 * 60 * 1000, // Check every 10 min (generous buffer for lock extender)
-      maxStalledCount: 0,              // Never re-queue stalled jobs
+      maxStalledCount: 0,              // Immediately fail stalled jobs (no re-queue — generation is too expensive to retry blindly)
     }
   );
 
@@ -174,7 +174,7 @@ async function main() {
       concurrency: 1,
       lockDuration: 15 * 60 * 1000,  // 15 min — Director runs 5-12 min
       stalledInterval: 10 * 60 * 1000,
-      maxStalledCount: 0,
+      maxStalledCount: 0,              // Immediately fail stalled jobs (no re-queue)
     }
   );
 
@@ -206,7 +206,7 @@ async function main() {
       concurrency: 1,
       lockDuration: 20 * 60 * 1000,  // 20 min — edit jobs run 5-15 min
       stalledInterval: 10 * 60 * 1000,
-      maxStalledCount: 0,
+      maxStalledCount: 0,              // Immediately fail stalled jobs (no re-queue)
     }
   );
 

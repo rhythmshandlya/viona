@@ -119,7 +119,7 @@ async function main() {
 
       const contentType = contentTypes[ext] || 'application/octet-stream';
       reply.header('Content-Type', contentType);
-      reply.header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      reply.header('Cache-Control', 'no-cache'); // Always revalidate — bundles change on regeneration
 
       // Stream file from S3
       const stream = await getObjectStream('outputs', s3Key);

@@ -8,7 +8,7 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
 import { existsSync } from 'fs';
-import { mkdir, rm, writeFile, readFile, readdir, stat } from 'fs/promises';
+import { mkdir, rm, writeFile, readFile, readdir, stat, copyFile } from 'fs/promises';
 import { join, dirname, resolve } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
@@ -937,6 +937,20 @@ registerRoot(RemotionRoot);
       throw new Error(`Bundle not found at ${bundleDir}. Generator may have failed to create it.`);
     }
 
+    // Ensure user assets are in the bundle (Remotion bundle may not always copy them)
+    const userAssetsSource = join(getWorkspacePath(), 'public', 'assets', 'user');
+    if (existsSync(userAssetsSource)) {
+      const userAssetsDest = join(bundleDir, 'public', 'assets', 'user');
+      await mkdir(userAssetsDest, { recursive: true });
+      const userFiles = await readdir(userAssetsSource);
+      for (const f of userFiles) {
+        await copyFile(join(userAssetsSource, f), join(userAssetsDest, f));
+      }
+      if (userFiles.length > 0) {
+        logger.info({ count: userFiles.length }, 'Copied user assets into bundle');
+      }
+    }
+
     // Upload bundle to S3 for production persistence
     await publishJobProgress(jobId, 82, 'Uploading bundle to storage...');
     await uploadBundleToStorage(bundleDir, bundleCompositionId);
@@ -1133,17 +1147,30 @@ registerRoot(RemotionRoot);
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    await db.transaction(async (tx) => {
-      await tx.update(jobs)
-        .set({ status: 'failed', error: errorMessage })
-        .where(eq(jobs.id, jobId));
+    // Best-effort DB update — use Promise.race with timeout to prevent hanging
+    try {
+      await Promise.race([
+        db.transaction(async (tx) => {
+          await tx.update(jobs)
+            .set({ status: 'failed', error: errorMessage })
+            .where(eq(jobs.id, jobId));
 
-      await tx.update(projects)
-        .set({ status: 'failed' })
-        .where(eq(projects.id, projectId));
-    });
+          await tx.update(projects)
+            .set({ status: 'failed' })
+            .where(eq(projects.id, projectId));
+        }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('DB update timeout')), 10_000)),
+      ]);
+    } catch (dbErr) {
+      logger.error({ jobId, err: dbErr }, 'Failed to update DB on job failure — BullMQ on(failed) handler will retry');
+    }
 
-    await publishJobError(jobId, errorMessage);
+    // Best-effort SSE notification
+    try {
+      await publishJobError(jobId, errorMessage);
+    } catch (sseErr) {
+      logger.error({ jobId, err: sseErr }, 'Failed to publish job error event');
+    }
 
     throw error;
   } finally {

@@ -46,6 +46,7 @@ import {
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 import { api } from '@/lib/api';
+import { clearVisualCache } from './player/DynamicVisualLoader';
 
 interface EditorProps {
   projectId: string;
@@ -112,7 +113,7 @@ export function Editor({ projectId }: EditorProps) {
   const captionItems = useCaptionItems();
 
   // Actions
-  const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus, setInspectModeEnabled, pause } = useEditorActions();
+  const { loadProject, reloadVisuals, refreshMediaUrls, clearSelection, updateEnhancementStatus, setInspectModeEnabled, pause } = useEditorActions();
 
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
@@ -146,6 +147,15 @@ export function Editor({ projectId }: EditorProps) {
   useEffect(() => {
     loadProject(projectId);
   }, [projectId, loadProject]);
+
+  // Periodically refresh presigned media URLs before they expire (TTL = 8h, refresh every 3h)
+  useEffect(() => {
+    const REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours
+    const timer = setInterval(() => {
+      refreshMediaUrls(projectId);
+    }, REFRESH_INTERVAL);
+    return () => clearInterval(timer);
+  }, [projectId, refreshMediaUrls]);
 
   // Open AI sidebar when "Edit with AI" is requested from context menu
   const aiEditRequested = useAIEditRequested();
@@ -274,6 +284,9 @@ export function Editor({ projectId }: EditorProps) {
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
 
+          // Clear cached bundle so DynamicVisualLoader fetches fresh content
+          clearVisualCache();
+
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
             reloadVisuals(project.id);
@@ -316,6 +329,9 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsStatus('Complete!');
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
+
+          // Clear cached bundle so DynamicVisualLoader fetches fresh content
+          clearVisualCache();
 
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {

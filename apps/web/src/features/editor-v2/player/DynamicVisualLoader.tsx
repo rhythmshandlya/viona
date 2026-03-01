@@ -12,6 +12,7 @@ import * as RemotionNoise from '@remotion/noise';
 import * as RemotionShapes from '@remotion/shapes';
 import * as RemotionPaths from '@remotion/paths';
 import * as RemotionThree from '@remotion/three';
+import { FONT_REGISTRY, loadFont } from '@/lib/font-registry';
 
 interface DynamicVisualLoaderProps {
   bundleUrl: string;
@@ -251,6 +252,13 @@ export function DynamicVisualLoader({
 
       if (!CompositionComponent) {
         throw new Error(`Composition component not found. Exports: ${Object.keys(exports).join(', ')}`);
+      }
+
+      // Load any Google Fonts referenced in the composition code
+      for (const entry of FONT_REGISTRY) {
+        if (code.includes(entry.family)) {
+          loadFont(entry);
+        }
       }
 
       // Cache and set

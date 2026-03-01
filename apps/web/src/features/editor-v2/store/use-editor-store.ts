@@ -428,6 +428,7 @@ export function useEditorActions() {
       // Project
       loadProject: state.loadProject,
       reloadVisuals: state.reloadVisuals,
+      refreshMediaUrls: state.refreshMediaUrls,
       saveProject: state.saveProject,
       setProject: state.setProject,
 

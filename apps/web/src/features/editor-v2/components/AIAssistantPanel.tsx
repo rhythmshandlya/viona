@@ -249,9 +249,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const pendingWidgetResponseRef = useRef<Array<{ widgetId: string; value: unknown }>>([]);
   const lastEventIdRef = useRef<number | undefined>(undefined);
 
-  // Attachment state
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-  const [attachmentLabel, setAttachmentLabel] = useState('');
+  // Attachment state (supports multiple files)
+  const [attachmentFiles, setAttachmentFiles] = useState<{ file: File; label: string }[]>([]);
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
@@ -346,7 +345,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             ...m,
             content: m.content.map((b) =>
               b.type === 'progress' && !b.error
-                ? { ...b, percent: 100, message: 'Done!' }
+                ? { ...b, percent: 100, message: 'Done!', phase: 'done' }
                 : b,
             ),
           };
@@ -419,7 +418,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               return {
                 ...m,
                 content: m.content.map(b =>
-                  b.type === 'progress' && !b.error ? { ...b, percent: 100, message: 'Done!' } : b,
+                  b.type === 'progress' && !b.error ? { ...b, percent: 100, message: 'Done!', phase: 'done' } : b,
                 ),
               };
             });
@@ -1064,10 +1063,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // Attachment helpers
   // -----------------------------------------------------------------------
   const handleAttachmentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAttachmentFile(file);
-    setAttachmentLabel(file.name.replace(/\.[^.]+$/, ''));
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const newAttachments = Array.from(files).map(file => ({
+      file,
+      label: file.name.replace(/\.[^.]+$/, ''),
+    }));
+    setAttachmentFiles(prev => [...prev, ...newAttachments]);
     e.target.value = '';
   };
 
@@ -1345,9 +1347,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setSceneTags([]);
     messageQueueRef.current = [];
     setQueueSize(0);
-    // Clear any pending attachment
-    setAttachmentFile(null);
-    setAttachmentLabel('');
+    // Clear any pending attachments
+    setAttachmentFiles([]);
     // Re-trigger auto-greet
     autoGreetSent.current = false;
     clearVisualCache();
@@ -1371,27 +1372,35 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -----------------------------------------------------------------------
   const handleSendWithAttachment = useCallback(async () => {
     const text = input.trim();
-    if (!text && !attachmentFile) return;
+    if (!text && attachmentFiles.length === 0) return;
 
-    if (attachmentFile) {
+    if (attachmentFiles.length > 0) {
       setAttachmentUploading(true);
+      const labels: string[] = [];
       try {
-        await api.uploadProjectMedia(projectId, attachmentFile, attachmentLabel || undefined);
-        const label = attachmentLabel || attachmentFile.name;
-        const fullText = text ? `[Attached: ${label}]\n${text}` : `[Attached: ${label}]`;
-        setAttachmentFile(null);
-        setAttachmentLabel('');
+        for (const { file, label } of attachmentFiles) {
+          await api.uploadProjectMedia(projectId, file, label || undefined);
+          labels.push(label || file.name);
+        }
+        const attachPrefix = labels.map(l => `[Attached: ${l}]`).join('\n');
+        const fullText = text ? `${attachPrefix}\n${text}` : attachPrefix;
+        setAttachmentFiles([]);
         setAttachmentUploading(false);
         setInput('');
         sendMessage(fullText);
       } catch (err) {
         console.error('Attachment upload failed:', err);
+        // Remove successfully uploaded files, keep only un-uploaded ones
+        const uploadedCount = labels.length;
+        setAttachmentFiles(prev => prev.slice(uploadedCount));
         setAttachmentUploading(false);
-        // Keep attachment chip visible so user can retry — add system message
+        const msg = uploadedCount > 0
+          ? `Uploaded ${uploadedCount} file(s) but failed on the rest. Please retry.`
+          : 'Failed to upload attachment. Please try again.';
         setMessages(prev => [...prev, {
           id: generateId(),
           role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: 'Failed to upload attachment. Please try again.' }],
+          content: [{ type: 'text' as const, text: msg }],
           createdAt: new Date().toISOString(),
         }]);
       }
@@ -1399,13 +1408,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       setInput('');
       sendMessage(text);
     }
-  }, [input, attachmentFile, attachmentLabel, projectId, sendMessage]);
+  }, [input, attachmentFiles, projectId, sendMessage]);
 
   // -----------------------------------------------------------------------
   // Key handler
   // -----------------------------------------------------------------------
 
-  const canSend = input.trim().length > 0 || attachmentFile !== null;
+  const canSend = input.trim().length > 0 || attachmentFiles.length > 0;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1929,26 +1938,28 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
-        {/* Attachment chip */}
-        {attachmentFile && (
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
-                             bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25">
-              <Paperclip className="w-3 h-3" />
-              <input
-                type="text"
-                value={attachmentLabel}
-                onChange={(e) => setAttachmentLabel(e.target.value)}
-                className="bg-transparent outline-none text-[11px] w-24 max-w-[120px]"
-                placeholder="Label..."
-              />
-              <button
-                onClick={() => { setAttachmentFile(null); setAttachmentLabel(''); }}
-                className="ml-0.5 hover:text-red-400 transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
+        {/* Attachment chips */}
+        {attachmentFiles.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+            {attachmentFiles.map((att, idx) => (
+              <span key={`${att.file.name}-${att.file.lastModified}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
+                               bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25">
+                <Paperclip className="w-3 h-3" />
+                <input
+                  type="text"
+                  value={att.label}
+                  onChange={(e) => setAttachmentFiles(prev => prev.map((a, i) => i === idx ? { ...a, label: e.target.value } : a))}
+                  className="bg-transparent outline-none text-[11px] w-24 max-w-[120px]"
+                  placeholder="Label..."
+                />
+                <button
+                  onClick={() => setAttachmentFiles(prev => prev.filter((_, i) => i !== idx))}
+                  className="ml-0.5 hover:text-red-400 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
             {attachmentUploading && (
               <Loader2 className="w-3 h-3 animate-spin text-[var(--editor-text-muted)]" />
             )}
@@ -1960,6 +1971,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           ref={attachmentInputRef}
           type="file"
           accept="image/*,.svg"
+          multiple
           className="hidden"
           onChange={handleAttachmentSelect}
         />

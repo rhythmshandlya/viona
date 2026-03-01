@@ -609,6 +609,7 @@ export interface EditorActions {
   // Project actions
   loadProject: (projectId: string) => Promise<void>;
   reloadVisuals: (projectId: string) => Promise<void>;
+  refreshMediaUrls: (projectId: string) => Promise<void>;
   saveProject: () => Promise<void>;
   setProject: (project: Project) => void;
 

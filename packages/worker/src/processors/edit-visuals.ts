@@ -10,7 +10,7 @@
 
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { readFile, readdir, stat, writeFile as writeFileAsync } from 'fs/promises';
+import { readFile, readdir, stat, writeFile as writeFileAsync, copyFile } from 'fs/promises';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { spawn, ChildProcess, execSync } from 'child_process';
@@ -105,6 +105,114 @@ async function extractAssets(projectDir: string): Promise<ExtractedAsset[]> {
   return assets;
 }
 
+/**
+ * Build display-mode-specific layout rules for the edit agent.
+ * Mirrors the logic from animator.py's _build_default_rules() so the
+ * edit agent knows the exact dimensional constraints of each scene.
+ */
+async function buildLayoutContext(
+  projectDir: string,
+  targetSceneId: number | undefined,
+  canvasWidth: number,
+  canvasHeight: number,
+): Promise<string> {
+  try {
+    const scenesPath = join(projectDir, 'scenes.json');
+    const scenesContent = await readFile(scenesPath, 'utf-8');
+    const scenesData = JSON.parse(scenesContent);
+
+    if (!scenesData.scenes || !Array.isArray(scenesData.scenes)) {
+      return '';
+    }
+
+    // If targeting a specific scene, build rules for just that scene
+    if (targetSceneId) {
+      const scene = scenesData.scenes.find((s: any) => s.id === targetSceneId);
+      if (!scene) return '';
+
+      const eff = scene.effectiveDimensions || { width: canvasWidth, height: canvasHeight };
+      const ew = eff.width;
+      const eh = eff.height;
+      const displayMode = scene.displayMode || 'default';
+
+      return buildRulesForMode(displayMode, canvasWidth, canvasHeight, ew, eh);
+    }
+
+    // No target scene — summarize all unique display modes present
+    const modeMap = new Map<string, { ew: number; eh: number; sceneIds: number[] }>();
+    for (const scene of scenesData.scenes) {
+      const eff = scene.effectiveDimensions || { width: canvasWidth, height: canvasHeight };
+      const dm = scene.displayMode || 'default';
+      const key = `${dm}:${eff.width}x${eff.height}`;
+      if (!modeMap.has(key)) {
+        modeMap.set(key, { ew: eff.width, eh: eff.height, sceneIds: [] });
+      }
+      modeMap.get(key)!.sceneIds.push(scene.id);
+    }
+
+    const sections: string[] = [];
+    for (const [key, { ew, eh, sceneIds }] of modeMap) {
+      const dm = key.split(':')[0];
+      sections.push(`Scenes ${sceneIds.join(', ')}:\n${buildRulesForMode(dm, canvasWidth, canvasHeight, ew, eh)}`);
+    }
+    return sections.join('\n');
+  } catch {
+    return '';
+  }
+}
+
+function buildRulesForMode(
+  displayMode: string,
+  canvasWidth: number,
+  canvasHeight: number,
+  ew: number,
+  eh: number,
+): string {
+  if (displayMode === 'overlay') {
+    return `LAYOUT & DIMENSION RULES:
+Canvas: ${canvasWidth}x${canvasHeight} | Scene effective area: ${ew}x${eh} | Display mode: overlay
+- Transparent background — ZERO backgroundColor or Background component.
+- Speaker is fullscreen. Your visuals float ON TOP.
+- Max 1-3 elements. Subtle animations only (damping >= 28).
+- Position content in corners/edges, avoiding speaker's face area.
+- All sizes relative to EW/EH (const EW = ${ew}, EH = ${eh}). NEVER hardcoded pixels.
+- Clipping container: <div style={{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}>`;
+  }
+
+  if (displayMode === 'fullscreen') {
+    return `LAYOUT & DIMENSION RULES:
+Canvas: ${canvasWidth}x${canvasHeight} | Scene effective area: ${ew}x${eh} | Display mode: fullscreen
+- Full ${ew}x${eh} canvas. Speaker is HIDDEN.
+- Vertical stacking: title top 20%, primary content middle 50%, supporting bottom 25%.
+- All sizes relative to EW/EH (const EW = ${ew}, EH = ${eh}). NEVER hardcoded pixels.
+- Clipping container required with overflow: 'hidden'.`;
+  }
+
+  // Default mode — check if stacked (compact) or PiP (full portrait)
+  const isCompact = eh < ew * 1.2;
+
+  if (isCompact) {
+    return `LAYOUT & DIMENSION RULES:
+Canvas: ${canvasWidth}x${canvasHeight} | Scene effective area: ${ew}x${eh} | Display mode: default (STACKED — nearly square)
+- This scene renders in the TOP HALF. Speaker video appears below.
+- VERTICAL space is SCARCE — only ${eh}px of height!
+- Use HORIZONTAL layouts: title + content side-by-side, or compact title above wide content below.
+- Title font: EH * 0.05 to EH * 0.07 (NOT the large EH * 0.10 used in fullscreen).
+- Cards: WIDE (EW * 0.85) and SHORT (EH * 0.3 max). Think "dashboard widget", not "full phone screen".
+- Max 3 attention-grabbing elements + subtle ambient.
+- All sizes relative to EW/EH (const EW = ${ew}, EH = ${eh}). NEVER hardcoded pixels.
+- Clipping container: <div style={{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}>`;
+  }
+
+  return `LAYOUT & DIMENSION RULES:
+Canvas: ${canvasWidth}x${canvasHeight} | Scene effective area: ${ew}x${eh} | Display mode: default (PIP — full portrait)
+- Full portrait canvas. Speaker PiP bubble floats in bottom-right corner.
+- Design for TALL portrait — stack content vertically.
+- Bottom-right ~15%: avoid placing critical content (PiP bubble overlaps).
+- All sizes relative to EW/EH (const EW = ${ew}, EH = ${eh}). NEVER hardcoded pixels.
+- Clipping container required with overflow: 'hidden'.`;
+}
+
 export interface EditVisualsJobData {
   projectId: string;
   jobId: string;
@@ -119,7 +227,7 @@ export interface EditVisualsJobData {
 /**
  * Upload bundle directory to S3 storage.
  */
-export async function uploadBundleToStorage(bundleDir: string, compositionId: string): Promise<void> {
+async function uploadBundleToStorage(bundleDir: string, compositionId: string): Promise<void> {
   const files = await readdir(bundleDir, { recursive: true, withFileTypes: true });
 
   for (const file of files) {
@@ -142,7 +250,7 @@ export async function uploadBundleToStorage(bundleDir: string, compositionId: st
 /**
  * Upload source project directory to S3 storage.
  */
-export async function uploadSourceToStorage(projectDir: string, compositionId: string): Promise<string> {
+async function uploadSourceToStorage(projectDir: string, compositionId: string): Promise<string> {
   const files = await readdir(projectDir, { recursive: true, withFileTypes: true });
 
   for (const file of files) {
@@ -168,7 +276,7 @@ export async function uploadSourceToStorage(projectDir: string, compositionId: s
  * Compile composition source to CommonJS for dynamic frontend loading.
  * The frontend's DynamicVisualLoader expects a composition.cjs.js file.
  */
-export async function compileCjs(projectDir: string, bundleDir: string): Promise<void> {
+async function compileCjs(projectDir: string, bundleDir: string): Promise<void> {
   const indexTsx = join(projectDir, 'index.tsx');
   const cjsOutput = join(bundleDir, 'composition.cjs.js');
   const workspacePath = getWorkspacePath();
@@ -211,7 +319,7 @@ export async function compileCjs(projectDir: string, bundleDir: string): Promise
  * Auto-fix common Remotion issues in all .tsx files within a project directory.
  * Fixes descending interpolate ranges that crash the Remotion player.
  */
-export async function autoFixProjectFiles(projectDir: string): Promise<void> {
+async function autoFixProjectFiles(projectDir: string): Promise<void> {
   const entries = await readdir(projectDir, { recursive: true, withFileTypes: true });
   let fixedCount = 0;
 
@@ -263,7 +371,7 @@ export async function autoFixProjectFiles(projectDir: string): Promise<void> {
 /**
  * Inject user-uploaded assets into the workspace for the Animator to use.
  */
-export async function injectUserAssets(projectId: string, projectDir: string): Promise<number> {
+async function injectUserAssets(projectId: string, projectDir: string): Promise<number> {
   const workspacePath = getWorkspacePath();
   const assets = await db.select().from(projectAssets)
     .where(eq(projectAssets.projectId, projectId));
@@ -333,6 +441,11 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       throw new Error('Project not found');
     }
 
+    // Extract canvas dimensions from project settings
+    const videoSettings = (project.videoSettings || {}) as Record<string, unknown>;
+    const canvasWidth = (videoSettings.canvasWidth as number) ?? 1080;
+    const canvasHeight = (videoSettings.canvasHeight as number) ?? 1920;
+
     // Load existing visual
     const visual = await db.query.visuals.findFirst({
       where: eq(visuals.projectId, projectId),
@@ -397,6 +510,8 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       targetElementName: elementName,
       transcript,
       scenePlan,
+      canvasWidth,
+      canvasHeight,
     });
 
     await publishJobProgress(jobId, 85, 'Validating changes...');
@@ -440,6 +555,20 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
     // Compile composition to CJS for dynamic frontend loading
     await publishJobProgress(jobId, 89, 'Compiling for preview...');
     await compileCjs(projectDir, bundleDir);
+
+    // Ensure user assets are in the bundle (Remotion bundle may not always copy them)
+    const userAssetsSource = join(getWorkspacePath(), 'public', 'assets', 'user');
+    if (existsSync(userAssetsSource)) {
+      const userAssetsDest = join(bundleDir, 'public', 'assets', 'user');
+      await mkdir(userAssetsDest, { recursive: true });
+      const userFiles = await readdir(userAssetsSource);
+      for (const f of userFiles) {
+        await copyFile(join(userAssetsSource, f), join(userAssetsDest, f));
+      }
+      if (userFiles.length > 0) {
+        logger.info({ count: userFiles.length }, 'Copied user assets into bundle');
+      }
+    }
 
     // Upload updated bundle to S3
     await publishJobProgress(jobId, 91, 'Uploading updated bundle...');
@@ -568,7 +697,7 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
   }
 }
 
-export interface ClaudeEditorOptions {
+interface ClaudeEditorOptions {
   projectId: string;
   jobId: string;
   projectDir: string;
@@ -578,6 +707,8 @@ export interface ClaudeEditorOptions {
   targetElementName?: string;
   transcript?: string;          // Timestamped transcript of what the speaker says
   scenePlan?: string;           // JSON scene plan describing what each scene visualizes
+  canvasWidth?: number;
+  canvasHeight?: number;
 }
 
 interface ClaudeEditorResult {
@@ -591,8 +722,8 @@ interface ClaudeEditorResult {
  * Gives Claude full project context and lets it decide what to change.
  * No pre-filtering or edit mode detection — the model is smarter than keyword heuristics.
  */
-export async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEditorResult> {
-  const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId, targetElementName, transcript, scenePlan } = options;
+async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEditorResult> {
+  const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId, targetElementName, transcript, scenePlan, canvasWidth, canvasHeight } = options;
 
   const workspacePath = getWorkspacePath();
   const bundleOutputDir = config.remotion.bundleOutputDir;
@@ -661,12 +792,45 @@ ${scenePlan}
 Each scene has a time range, description, and purpose. Use this to understand the visual structure.`
     : '';
 
+  // Build user-provided assets section if any were uploaded
+  let userAssetsSection = '';
+  try {
+    const userAssetsPath = join(projectDir, 'user_assets.json');
+    const userAssetsRaw = await readFile(userAssetsPath, 'utf-8');
+    const userAssetsData = JSON.parse(userAssetsRaw);
+    if (userAssetsData.assets?.length > 0) {
+      const assetLines = userAssetsData.assets.map((a: { label: string; remotionPath: string; contentType: string }) => {
+        // Sanitize user-provided label to prevent prompt injection
+        const safeLabel = (a.label || 'Untitled').replace(/[`*\[\]{}\\<>]/g, '').slice(0, 100);
+        return `- ${safeLabel}: staticFile('${a.remotionPath}') (${a.contentType})`;
+      });
+      userAssetsSection = `
+USER-PROVIDED ASSETS (uploaded by the user — YOU MUST USE THESE when the user references them):
+${assetLines.join('\n')}
+
+When the user's request contains [Attached: X], that refers to the asset labeled "X" above.
+If the user says "use the X" or references an attached asset by name, you MUST use the corresponding staticFile() path.
+
+Usage: <Img src={staticFile('assets/user/filename.ext')} style={{ width: 200 }} />
+For SVGs needing color changes, read the SVG file from public/assets/user/ and inline its content in JSX.`;
+    }
+  } catch {
+    // No user assets — that's fine
+  }
+
+  // Build layout & dimension context from scenes.json
+  const layoutContext = await buildLayoutContext(
+    projectDir, targetSceneId, canvasWidth ?? 1080, canvasHeight ?? 1920
+  );
+
   logger.info({
     projectId,
     fileCount: existingFiles.length,
     hasTargetScene: !!targetSceneId,
     hasTargetElement: !!targetElementName,
     transcriptLength: transcript?.length || 0,
+    hasUserAssets: userAssetsSection.length > 0,
+    hasLayoutContext: layoutContext.length > 0,
   }, 'Edit context prepared');
 
   const editPrompt = `
@@ -676,6 +840,7 @@ PROJECT DIRECTORY: ${projectDir}
 ${targetSceneContext}${elementContext}
 ${transcriptSection}
 ${scenePlanSection}
+${layoutContext ? `\n${layoutContext}\n` : ''}${userAssetsSection}
 
 USER'S REQUEST:
 "${prompt}"

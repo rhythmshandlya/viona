@@ -171,8 +171,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
       where: eq(transcripts.projectId, id),
     });
 
-    // Generate presigned URL for video playback (valid for 1 hour)
+    // Generate presigned URL for video playback (valid for 8 hours)
     // This allows the frontend to load video without cookies for cross-origin requests
+    const PRESIGNED_TTL = 28800; // 8 hours — covers a full editing session
     let videoPresignedUrl: string | null = null;
     if (project.videoKey) {
       try {
@@ -180,7 +181,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         const exists = await objectExists('uploads', project.videoKey);
         fastify.log.info({ videoKey: project.videoKey, exists }, 'Video exists check result');
         if (exists) {
-          videoPresignedUrl = await getPresignedDownloadUrl('uploads', project.videoKey, 3600);
+          videoPresignedUrl = await getPresignedDownloadUrl('uploads', project.videoKey, PRESIGNED_TTL);
           fastify.log.info({ videoKey: project.videoKey, urlGenerated: !!videoPresignedUrl, videoPresignedUrl }, 'Presigned URL generated');
         }
       } catch (err) {
@@ -196,7 +197,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       try {
         const exists = await objectExists('uploads', project.audioKey);
         if (exists) {
-          audioPresignedUrl = await getPresignedDownloadUrl('uploads', project.audioKey, 3600);
+          audioPresignedUrl = await getPresignedDownloadUrl('uploads', project.audioKey, PRESIGNED_TTL);
         }
       } catch (err) {
         fastify.log.warn({ err, audioKey: project.audioKey }, 'Failed to generate presigned URL for audio');

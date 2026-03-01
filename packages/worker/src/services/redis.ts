@@ -70,11 +70,12 @@ export async function publishJobProgress(
 ) {
   // Update progress in DB so frontend polling can see it
   const meta = extras?.meta as Record<string, unknown> | undefined;
+  const truncatedMessage = message && message.length > 500 ? message.slice(0, 497) + '...' : message;
   try {
     await db.update(jobs)
       .set({
         progress,
-        ...(message ? { progressMessage: message } : {}),
+        ...(truncatedMessage ? { progressMessage: truncatedMessage } : {}),
         ...(meta ? { progressMeta: meta } : {}),
       })
       .where(eq(jobs.id, jobId));

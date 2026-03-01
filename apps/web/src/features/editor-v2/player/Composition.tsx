@@ -42,11 +42,6 @@ import {
 } from '../store/types';
 import { effectsToCss } from '@/lib/effects-utils';
 import { DynamicVisualLoader } from './DynamicVisualLoader';
-import {
-  classifyWordTier,
-  computeEmotionalSegments,
-  findActiveSegment,
-} from '@viona/shared';
 
 // Calculate video transform for crop/pan
 function calculateVideoTransform(
@@ -83,19 +78,24 @@ function calculateVideoTransform(
 }
 
 // Calculate video transform to achieve "cover" behavior for an arbitrary container
+// Optional cropX/cropY (0-100, 50=center) and userScale (>=1.0) allow pan/zoom.
 function calculateCoverTransform(
   sourceWidth: number,
   sourceHeight: number,
   containerWidth: number,
   containerHeight: number,
+  cropX: number = 50,
+  cropY: number = 50,
+  userScale: number = 1.0,
 ) {
-  const scale = Math.max(containerWidth / sourceWidth, containerHeight / sourceHeight);
-  const scaledWidth = sourceWidth * scale;
-  const scaledHeight = sourceHeight * scale;
-  // Center the scaled video within the container
-  const translateX = (containerWidth - scaledWidth) / 2;
-  const translateY = (containerHeight - scaledHeight) / 2;
-  return { scale, translateX, translateY };
+  const baseScale = Math.max(containerWidth / sourceWidth, containerHeight / sourceHeight) * userScale;
+  const scaledWidth = sourceWidth * baseScale;
+  const scaledHeight = sourceHeight * baseScale;
+  const overflowX = scaledWidth - containerWidth;
+  const overflowY = scaledHeight - containerHeight;
+  const translateX = -(overflowX * (cropX / 100));
+  const translateY = -(overflowY * (cropY / 100));
+  return { scale: baseScale, translateX, translateY };
 }
 
 // Helper to build PiP container style from settings
@@ -143,7 +143,6 @@ function buildPiPStyle(pip: PiPSettings): React.CSSProperties {
     boxShadow,
     border: pip.borderWidth > 0 ? `${pip.borderWidth}px solid ${pip.borderColor}` : 'none',
     opacity: pip.opacity,
-    transform: pip.rotation ? `rotate(${pip.rotation}deg)` : undefined,
     zIndex: 10,
   };
 }
@@ -166,52 +165,13 @@ function calculatePositionStyles(
   lineHeight: number
 ): React.CSSProperties {
   const { anchor, offsetX, offsetY, rotation, textAlign } = position;
-  const captionWidth = position.width ?? 90;
 
-  // Free mode: absolute x,y positioning
-  if (position.mode === 'free' && position.x != null && position.y != null) {
-    const transforms: string[] = ['translate(-50%, -50%)'];
-    if (rotation !== 0) {
-      transforms.push(`rotate(${rotation}deg)`);
-    }
-
-    const baseStyles: React.CSSProperties = {
-      position: 'absolute',
-      left: `${position.x}%`,
-      top: `${position.y}%`,
-      width: `${captionWidth}%`,
-      maxWidth: `${captionWidth}%`,
-      overflow: 'hidden',
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '8px',
-      lineHeight,
-      textAlign,
-      transform: transforms.join(' '),
-    };
-
-    // Justify content based on text alignment
-    switch (textAlign) {
-      case 'left':
-        baseStyles.justifyContent = 'flex-start';
-        break;
-      case 'right':
-        baseStyles.justifyContent = 'flex-end';
-        break;
-      default:
-        baseStyles.justifyContent = 'center';
-        break;
-    }
-
-    return baseStyles;
-  }
-
-  // Anchor mode (default / legacy)
+  // Base position from anchor
   const baseStyles: React.CSSProperties = {
     position: 'absolute',
     left: `${50 + offsetX}%`,
-    width: `${captionWidth}%`,
-    maxWidth: `${captionWidth}%`,
+    width: '90%',
+    maxWidth: '90%',
     overflow: 'hidden',
     display: 'flex',
     flexWrap: 'wrap',
@@ -586,6 +546,9 @@ export function Composition() {
           transform={transform}
           hasSeparateAudio={hasSeparateAudio || videoAudioExtracted}
           fullScreenStyle={fullScreenStyle}
+          cropX={videoSettings?.cropX ?? 50}
+          cropY={videoSettings?.cropY ?? 50}
+          userScale={videoSettings?.scale ?? 1.0}
         />
       )}
 
@@ -890,6 +853,9 @@ interface DynamicLayoutProps {
   transform: { scale: number; translateX: number; translateY: number };
   hasSeparateAudio: boolean;
   fullScreenStyle: React.CSSProperties;
+  cropX: number;
+  cropY: number;
+  userScale: number;
 }
 
 /**
@@ -916,6 +882,9 @@ function DynamicLayoutComposition({
   transform,
   hasSeparateAudio,
   fullScreenStyle,
+  cropX,
+  cropY,
+  userScale,
 }: DynamicLayoutProps) {
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
@@ -1111,19 +1080,14 @@ function DynamicLayoutComposition({
   };
 
   // Determine whether the video should use simple (cover) or crop/pan rendering
-  // PiP mode uses simple render (objectFit: cover); fullscreen/overlay/gap use crop/pan
+  // All modes now use transform-based rendering so cropX/cropY/scale are respected.
   const { width: compWidth, height: compHeight } = useVideoConfig();
 
-  // For stacked mode, compute a cover transform for the video container so the
-  // speaker video fills the bottom half without gaps. We use the transform-based
-  // rendering path (same as crop/pan) since objectFit: cover is unreliable inside
-  // Remotion's flex-based AbsoluteFill containers.
-  let videoUseSimpleRender: boolean;
+  let videoUseSimpleRender = false;
   let videoTransform = transform;
 
   if (useSplitLayout && videoItems.length > 0) {
-    // Stacked mode: use transform-based cover for the stacked container
-    videoUseSimpleRender = false;
+    // Stacked mode: cover transform for the stacked video container
     const containerW = compWidth;
     const containerH = Math.round(compHeight * (100 - split.ratio) / 100);
     const firstVideoData = videoItems[0].data as VideoItemData;
@@ -1131,30 +1095,22 @@ function DynamicLayoutComposition({
       videoTransform = calculateCoverTransform(
         firstVideoData.width, firstVideoData.height,
         containerW, containerH,
+        cropX, cropY, userScale,
       );
     }
-  } else if (mode === 'pip' && displayMode === 'default' && !isGap) {
-    // PiP mode: use transform-based rendering with PiP-specific crop settings
-    videoUseSimpleRender = false;
-    const pipCrop = pip.crop || { cropX: 50, cropY: 50, zoom: 1.0 };
-    // Get PiP container dimensions for transform calculation
+  } else if (!isGap && displayMode === 'default') {
+    // PiP mode: cover transform for the PiP bubble container
     const pipSizePercent = pip.size === 'custom' ? pip.customSize : PIP_SIZE_MAP[pip.size];
-    const containerW = Math.round(compWidth * (pipSizePercent / 100));
-    const containerH = containerW; // PiP is square aspect ratio
+    const pipW = Math.round(compWidth * pipSizePercent / 100);
+    const pipH = pipW; // PiP is always 1:1 aspect ratio
     const firstVideoData = videoItems.length > 0 ? videoItems[0].data as VideoItemData : null;
     if (firstVideoData && firstVideoData.width > 0 && firstVideoData.height > 0) {
-      videoTransform = calculateVideoTransform(
-        firstVideoData.width,
-        firstVideoData.height,
-        containerW,
-        containerH,
-        pipCrop.cropX,
-        pipCrop.cropY,
-        pipCrop.zoom,
+      videoTransform = calculateCoverTransform(
+        firstVideoData.width, firstVideoData.height,
+        pipW, pipH,
+        cropX, cropY, userScale,
       );
     }
-  } else {
-    videoUseSimpleRender = !isGap && displayMode === 'default';
   }
 
   return (
@@ -1168,10 +1124,7 @@ function DynamicLayoutComposition({
 
       {/* Video layer */}
       {showVideoLayer && !hideVideoCompletely && (
-        <div
-          style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}
-          {...(mode === 'pip' && displayMode === 'default' && !isGap ? { 'data-pip-overlay': true } : {})}
-        >
+        <div style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}>
           <VideoSequences
             videoItems={videoItems}
             fps={fps}
@@ -1194,9 +1147,50 @@ function DynamicLayoutComposition({
 }
 
 // ---------------------------------------------------------------------------
-// Dynamic Hierarchy — word classification imported from @viona/shared
-// getDynamicHierarchyOverrides uses platform-specific scale values
+// Dynamic Hierarchy — word classification for typography hierarchy preset
 // ---------------------------------------------------------------------------
+
+const POWER_WORDS = new Set([
+  // Emotion
+  'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
+  'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
+  'shocking', 'terrifying', 'brilliant', 'genius', 'perfect', 'worst',
+  'best', 'greatest', 'legendary', 'epic', 'massive', 'huge', 'evil',
+  // Urgency
+  'now', 'stop', 'wait', 'listen', 'watch', 'look', 'never', 'always',
+  'forever', 'immediately', 'urgent', 'warning', 'danger', 'critical',
+  'important', 'breaking', 'exclusive', 'secret', 'finally', 'today',
+  // Money & numbers
+  'million', 'billion', 'thousand', 'money', 'rich', 'free', 'paid',
+  'expensive', 'cheap', 'profit', 'cash', 'dollar', 'dollars', 'price',
+  'worth', 'cost', 'zero', 'double', 'triple', '100%', '1000',
+  // Contrast & impact
+  'but', 'however', 'actually', 'wrong', 'right', 'truth', 'lie', 'real',
+  'fake', 'only', 'everything', 'nothing', 'impossible', 'possible',
+  'everyone', 'nobody', 'first', 'last', 'biggest', 'smallest',
+  // Power verbs
+  'win', 'won', 'lose', 'lost', 'fight', 'broke', 'crushed', 'dominated',
+  'exploded', 'changed', 'saved', 'failed', 'success', 'discovered',
+]);
+
+const FILLER_WORDS = new Set([
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'to', 'of', 'in', 'for', 'on', 'at', 'by', 'with', 'from', 'as',
+  'and', 'or', 'if', 'it', 'its', 'that', 'this', 'than', 'then',
+  'so', 'up', 'do', 'did', 'has', 'had', 'have', 'will', 'would',
+  'could', 'should', 'can', 'may', 'might', 'shall', 'just', 'very',
+  'also', 'about', 'into', 'not', 'no', 'yes', 'some', 'my', 'your',
+  'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
+]);
+
+function classifyWordTier(text: string): 'power' | 'medium' | 'filler' {
+  const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+  // Numbers (dollar amounts, percentages, large numbers) are power words
+  if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
+  if (POWER_WORDS.has(clean)) return 'power';
+  if (FILLER_WORDS.has(clean)) return 'filler';
+  return 'medium';
+}
 
 function getDynamicHierarchyOverrides(
   wordText: string,
@@ -1206,24 +1200,123 @@ function getDynamicHierarchyOverrides(
   const computed: WordStyleOverrides = {};
 
   if (tier === 'power') {
-    computed.scale = 1.6;
+    computed.scale = 1.8;
     computed.fontWeight = 900;
-    computed.color = '#ffffff';
     computed.activeColor = '#FFD400';
-    computed.textTransform = 'uppercase';
+    computed.color = '#FFFFFF';
   } else if (tier === 'filler') {
-    computed.scale = 1.0;
+    computed.scale = 0.65;
     computed.fontWeight = 500;
-    computed.color = 'rgba(255,255,255,0.7)';
-    computed.activeColor = 'rgba(255,255,255,0.85)';
+    computed.color = 'rgba(255,255,255,0.6)';
+    computed.activeColor = 'rgba(255,255,255,0.8)';
   } else {
-    // medium — normal size, standard weight
+    // medium — default size, slight bump
     computed.scale = 1.0;
     computed.fontWeight = 700;
   }
 
   // Merge: existing manual overrides take priority over computed
   return { ...computed, ...existingOverrides };
+}
+
+// ---------------------------------------------------------------------------
+// Emotional line breaking — break for impact, not grammar
+// ---------------------------------------------------------------------------
+
+interface EmotionalSegment {
+  lines: number[][]; // each line is an array of word indices
+  startIdx: number;
+  endIdx: number;    // exclusive
+}
+
+/**
+ * Break caption words into emotional segments (groups of 1-2 lines shown together).
+ * Rules:
+ *  - Max 5 words per line
+ *  - Isolate power words (single-word line for dramatic emphasis)
+ *  - Break on pauses > 400ms
+ *  - Don't start a line with a filler word (pull it to the previous line if possible)
+ *  - Alternate short (1-2 words) and medium (3-5 words) lines for visual rhythm
+ */
+function computeEmotionalSegments(words: CaptionWord[]): EmotionalSegment[] {
+  if (words.length === 0) return [];
+
+  const MAX_LINE = 5;
+  const PAUSE_THRESHOLD_MS = 400;
+  const lines: number[][] = [];
+  let currentLine: number[] = [];
+
+  for (let i = 0; i < words.length; i++) {
+    const tier = classifyWordTier(words[i].text);
+
+    // Check for pause before this word
+    const hasPause = i > 0 && (words[i].startMs - words[i - 1].endMs) > PAUSE_THRESHOLD_MS;
+
+    // Force break: pause detected
+    if (hasPause && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+
+    // Power word isolation: if this is a power word, break before it
+    // and give it its own line (or start of a new line)
+    if (tier === 'power' && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+
+    // Don't start a line with a filler word — pull it to previous line if possible
+    if (tier === 'filler' && currentLine.length === 0 && lines.length > 0) {
+      const prevLine = lines[lines.length - 1];
+      if (prevLine.length < MAX_LINE) {
+        prevLine.push(i);
+        continue;
+      }
+    }
+
+    currentLine.push(i);
+
+    // Power word gets its own line
+    if (tier === 'power' && currentLine.length === 1) {
+      // Check if the next word is also short — if so, keep the power word alone
+      lines.push(currentLine);
+      currentLine = [];
+      continue;
+    }
+
+    // Max line length hit
+    if (currentLine.length >= MAX_LINE) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+  }
+
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+
+  // Group lines into display segments (max 2 lines per segment for rhythm)
+  const segments: EmotionalSegment[] = [];
+  for (let l = 0; l < lines.length; l += 2) {
+    const segLines = [lines[l]];
+    if (l + 1 < lines.length) segLines.push(lines[l + 1]);
+    const allIndices = segLines.flat();
+    segments.push({
+      lines: segLines,
+      startIdx: allIndices[0],
+      endIdx: allIndices[allIndices.length - 1] + 1,
+    });
+  }
+
+  return segments;
+}
+
+/** Find which emotional segment contains a word index */
+function findActiveSegment(segments: EmotionalSegment[], wordIdx: number): EmotionalSegment | null {
+  for (const seg of segments) {
+    if (wordIdx >= seg.startIdx && wordIdx < seg.endIdx) return seg;
+  }
+  return segments.length > 0 ? segments[0] : null;
 }
 
 interface CaptionRendererProps {
@@ -1302,7 +1395,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     const activeWord = words[activeWordIndex];
     const overrides = style.presetId === 'dynamic-hierarchy'
       ? getDynamicHierarchyOverrides(activeWord.text, activeWord.styleOverrides)
-      : undefined;
+      : activeWord.styleOverrides;
 
     // Resolve animation for the active word
     const elapsedMs = relativeTimeMs - activeWord.startMs;
@@ -1362,7 +1455,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
           const hasAppeared = relativeTimeMs >= word.startMs;
           const overrides = isDynHierarchy
             ? getDynamicHierarchyOverrides(word.text, word.styleOverrides)
-            : undefined;
+            : word.styleOverrides;
 
           // Resolve animation for this word
           const elapsedMs = relativeTimeMs - word.startMs;
@@ -1449,7 +1542,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     const hasAppeared = relativeTimeMs >= word.startMs;
     const overrides = isDynamicHierarchy
       ? getDynamicHierarchyOverrides(word.text, word.styleOverrides)
-      : undefined;
+      : word.styleOverrides;
 
     const elapsedMs = relativeTimeMs - word.startMs;
     const wordDurationMs = word.endMs - word.startMs;
@@ -1516,7 +1609,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             key={lineIdx}
             style={{
               display: 'flex',
-              flexWrap: 'nowrap',
+              flexWrap: 'wrap',
               justifyContent: 'center',
               alignItems: 'baseline',
               gap: '0 6px',

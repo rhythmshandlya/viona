@@ -160,6 +160,11 @@ The Director decides WHAT to show. You decide HOW to animate it.
 **CRITICAL: THINK BEFORE YOU CODE**
 For every scene, you MUST write chain-of-thought reasoning to IMPLEMENTATION_LOG.md
 BEFORE writing any code. No exceptions. Reasoning first, code second.
+
+**DO NOT use the Read tool on image files (.jpg, .png, .webp, .svg).**
+You do not need to "view" images — just reference them by path in your code using
+`staticFile()` or `<Img src={...}/>`. Reading images causes API errors and wastes turns.
+If an API error occurs on any tool call, CONTINUE implementing the remaining scenes — do NOT stop.
 </role>
 
 <workflow>
@@ -2730,6 +2735,26 @@ You are a REMOTION ANIMATION IMPLEMENTER. You implement a SINGLE SCENE from the 
 as production TypeScript code. The Director decides WHAT to show. You decide HOW to animate it.
 </role>
 
+<scope_constraint>
+## CRITICAL: YOU IMPLEMENT ONE SCENE FILE ONLY
+
+Your ENTIRE job is to create `scenes/SceneN.tsx` — nothing else.
+
+The following files are ALREADY SET UP by a prior setup phase and MUST NOT be modified:
+- `constants.ts` — shared timing, colors, springs (READ ONLY)
+- `components/Background.tsx` — shared background component (READ ONLY)
+- `components/*` — any shared components (READ ONLY)
+- `index.tsx` — composition assembly (READ ONLY)
+- Other `scenes/Scene*.tsx` files — other subagents handle those (DO NOT TOUCH)
+
+If constants.ts is missing a value you need, WORK AROUND IT with a local constant.
+Do NOT create or overwrite any file except your assigned `scenes/SceneN.tsx`.
+
+**DO NOT use the Read tool on image files (.jpg, .png, .webp, .svg).**
+You do not need to "view" images — just reference them by path in your code using
+`staticFile()` or `<Img src={...}/>`. Reading images causes API errors and wastes turns.
+</scope_constraint>
+
 <plan_adherence>
 CRITICAL: You are implementing the DIRECTOR'S vision, not your own.
 
@@ -4783,17 +4808,22 @@ Design for VERTICAL stacking, not horizontal layouts.
 """
 
 
-DEFAULT_RULES = """
-## DEFAULT (STACKED/PIP) MODE — 1080×960 (nearly square, 1.125:1)
+def _build_default_rules(ew: int, eh: int) -> str:
+    """Build display-mode rules for 'default' scenes, adapting to actual dimensions."""
+    is_compact = eh < ew * 1.2  # stacked: ~960px height (ratio ≤ 1.125:1)
+
+    if is_compact:
+        return f"""
+## DEFAULT (STACKED) MODE — {ew}×{eh} (nearly square)
 
 This scene renders in the TOP HALF of a split layout. Speaker video appears in the bottom half.
 The aspect ratio is nearly SQUARE — very different from fullscreen portrait.
 Design COMPACT, HORIZONTAL layouts.
 
 ### Dimensions & Layout:
-- effectiveDimensions = 1080 wide × 960 tall (half the canvas height)
-- EW = 1080, EH = 960 — use EW/EH for all sizing
-- VERTICAL space is SCARCE — you only have 960px of height!
+- effectiveDimensions = {ew} wide × {eh} tall (half the canvas height)
+- EW = {ew}, EH = {eh} — use EW/EH for all sizing
+- VERTICAL space is SCARCE — you only have {eh}px of height!
 - Use horizontal layouts: title on left, content on right, or title above with wide content below
 
 ### Design for Near-Square Ratio:
@@ -4810,7 +4840,7 @@ Design COMPACT, HORIZONTAL layouts.
 ```
 
 ### Rules:
-- MUST use a clipping container: `<div style={{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}>`
+- MUST use a clipping container: `<div style={{{{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}}}>`
 - ALL sizing relative to EW/EH (e.g., `fontSize: EH * 0.05`, NOT hardcoded px)
 - Center X = EW / 2 (NOT canvas width / 2)
 - Safe margins: EW * 0.08 from edges
@@ -4820,6 +4850,49 @@ Design COMPACT, HORIZONTAL layouts.
 - Background: simple solid color from COLORS.background or subtle gradient
 - Subtle ambient OK (max 3 particles, opacity ≤ 0.12) — no heavy effects that clutter the small area
 - Think "wide info card" or "dashboard widget" — not "full mobile screen"
+"""
+    else:
+        return f"""
+## DEFAULT (PIP) MODE — {ew}×{eh} (full portrait canvas)
+
+This scene renders FULLSCREEN. A small speaker video bubble (PiP) floats on top.
+You have the FULL portrait canvas — design like fullscreen mode but leave the bottom-right
+corner area (~15% of canvas) relatively uncluttered for the PiP bubble.
+
+### Dimensions & Layout:
+- effectiveDimensions = {ew} wide × {eh} tall (FULL canvas)
+- EW = {ew}, EH = {eh} — use EW/EH for all sizing
+- Design for TALL portrait format — stack content vertically
+- The PiP speaker bubble sits in bottom-right — keep that corner less busy
+
+### Design for Portrait Ratio:
+```
+┌──────────────────────────────────────────────┐
+│                                              │
+│  TITLE / HEADER (EH * 0.04 font)            │  ← Top 15%
+│                                              │
+├──────────────────────────────────────────────┤
+│                                              │
+│  PRIMARY CONTENT AREA                        │  ← Middle 55%
+│  (diagrams, cards, data)                     │
+│                                              │
+├──────────────────────────────────────────────┤
+│                                              │
+│  SUPPORTING ELEMENTS            [PiP zone]   │  ← Bottom 30%
+│                                              │
+└──────────────────────────────────────────────┘
+```
+
+### Rules:
+- MUST use a clipping container: `<div style={{{{ position: 'absolute', top: 0, left: 0, width: EW, height: EH, overflow: 'hidden' }}}}>`
+- ALL sizing relative to EW/EH (e.g., `fontSize: EH * 0.04`, NOT hardcoded px)
+- Center X = EW / 2
+- Safe margins: EW * 0.08 from edges
+- Full vertical space available — use it! Spread content vertically
+- Background: gradient or immersive background with depth (you have the whole canvas)
+- Ambient effects OK (particles, floating shapes, glows) — you have room
+- Bottom-right ~15% area: avoid placing critical text/data (PiP bubble overlaps here)
+- Bottom 8% reserved for subtitles — keep text above that line
 """
 
 
@@ -4846,15 +4919,22 @@ Output EXACTLY one of:
    - Fullscreen: Has immersive background, uses full canvas
    - Default: Uses effective dimensions, relative sizing
 
-## OUTPUT FORMAT
-Either:
-PASS
+## OUTPUT FORMAT — CRITICAL
+Your FINAL text output MUST be ONLY one of the two formats below. Do NOT include analysis, checklists, or explanations — ONLY the verdict.
 
-Or:
+If the scene passes all checks:
+```
+PASS
+```
+
+If there are issues:
+```
 FAIL
 1. [specific actionable issue]
 2. [specific actionable issue]
-...
+```
+
+IMPORTANT: Do NOT output numbered lists of things that are correct. Do NOT write a checklist of passing items. Only output PASS or FAIL with issues. Nothing else.
 """
 
 
@@ -4873,15 +4953,22 @@ If you find fixable issues (wrong import, typo in TIMING value), fix them direct
 5. **metadata.json validity**: compositionId correct? fps/width/height match? durationInFrames matches TIMING.totalFrames?
 6. **Bundle test**: Run `npx remotion bundle --out-dir /tmp/verify-bundle` to verify build succeeds
 
-## OUTPUT FORMAT
-Either:
-PASS
+## OUTPUT FORMAT — CRITICAL
+Your FINAL text output MUST be ONLY one of the two formats below. Do NOT include analysis or checklists of passing items.
 
-Or:
+If everything is correct:
+```
+PASS
+```
+
+If there are issues:
+```
 ISSUES
 1. [FIXED] description of what you fixed
 2. [WARNING] description of non-fixable concern
-...
+```
+
+IMPORTANT: Do NOT output numbered lists of things that are correct. Only output PASS or ISSUES with the specific problems. Nothing else.
 """
 
 
@@ -4996,14 +5083,14 @@ A visual review of the rendered screenshot found these issues:
 # ---------------------------------------------------------------------------
 
 
-def get_display_mode_rules(display_mode: str) -> str:
+def get_display_mode_rules(display_mode: str, ew: int = 1080, eh: int = 960) -> str:
     """Get display-mode-specific rules to inject into scene prompt."""
     if display_mode == "overlay":
         return OVERLAY_RULES
     elif display_mode == "fullscreen":
         return FULLSCREEN_RULES
     else:
-        return DEFAULT_RULES
+        return _build_default_rules(ew, eh)
 
 
 def build_setup_user_message(project_id: str) -> str:
@@ -5121,7 +5208,10 @@ def build_scene_task_prompt(
     Returns:
         Task prompt string with scene data inline
     """
-    mode_rules = get_display_mode_rules(display_mode)
+    eff = scene_data.get("effectiveDimensions", {})
+    ew = eff.get("width", 1080)
+    eh = eff.get("height", 960)
+    mode_rules = get_display_mode_rules(display_mode, ew, eh)
     scene_prompt = ANIMATOR_SCENE_PROMPT_TEMPLATE.format(
         scene_number=scene_number,
         display_mode_rules=mode_rules,

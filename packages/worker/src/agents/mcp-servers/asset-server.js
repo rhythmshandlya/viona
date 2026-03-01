@@ -102,16 +102,18 @@ async function extractImageFromZip(buf) {
       .sort((a, b) => b.uncompressedSize - a.uncompressedSize);
 
     if (imageFiles.length === 0) {
-      // No image found in ZIP — return original buffer
-      return buf;
+      // ZIP contains only vector files (EPS, AI) — no raster image to extract.
+      // Throw so the caller gets a clear error instead of saving a ZIP as an image.
+      const allFiles = directory.files.map((f) => f.path);
+      throw new Error(`ZIP contains no raster images (files: ${allFiles.join(', ')})`);
     }
 
     const extracted = await imageFiles[0].buffer();
     console.error(`[asset-server] Extracted ${imageFiles[0].path} (${extracted.length} bytes) from ZIP archive`);
     return extracted;
   } catch (err) {
-    console.error(`[asset-server] ZIP extraction failed, using raw buffer: ${err.message}`);
-    return buf;
+    console.error(`[asset-server] ZIP extraction failed: ${err.message}`);
+    throw err;
   }
 }
 

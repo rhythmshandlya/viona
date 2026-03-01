@@ -357,7 +357,10 @@ async def run_animator(workspace: Path, project_id: str) -> dict:
     for i, scene in enumerate(scenes):
         scene_num = i + 1
         display_mode = scene.get("displayMode", "fullscreen")
-        mode_rules = get_display_mode_rules(display_mode)
+        eff = scene.get("effectiveDimensions", {})
+        ew = eff.get("width", 1080)
+        eh = eff.get("height", 960)
+        mode_rules = get_display_mode_rules(display_mode, ew, eh)
 
         # Build scene prompt using the template + appended scene data
         scene_prompt = ANIMATOR_SCENE_PROMPT_TEMPLATE.format(

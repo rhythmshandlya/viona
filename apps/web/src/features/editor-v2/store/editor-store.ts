@@ -680,8 +680,20 @@ export const useEditorStore = create<EditorStore>()(
 
     reloadVisuals: async (projectId: string) => {
       // Reload only visual items without resetting playback position or other state
+      // Retry once on 401 — Stytch JWT may have expired and the SDK refreshes it in the background
+      const fetchProject = async (retry = true): ReturnType<typeof api.getProject> => {
+        try {
+          return await api.getProject(projectId);
+        } catch (err) {
+          if (retry && err instanceof Error && err.message.includes('Unauthorized')) {
+            await new Promise(r => setTimeout(r, 2000)); // wait for Stytch SDK to refresh JWT
+            return fetchProject(false);
+          }
+          throw err;
+        }
+      };
       try {
-        const apiProject = await api.getProject(projectId);
+        const apiProject = await fetchProject();
 
         // Use presigned URL from API
         const videoUrl = (apiProject as any).videoPresignedUrl
@@ -762,6 +774,45 @@ export const useEditorStore = create<EditorStore>()(
         });
       } catch (err) {
         console.error('Failed to reload visuals:', err);
+      }
+    },
+
+    refreshMediaUrls: async (projectId: string) => {
+      // Lightweight refresh: only update presigned video/audio URLs without
+      // touching tracks, items, layout, or playback state. Prevents videos
+      // from vanishing when presigned URLs expire during long editing sessions.
+      try {
+        const apiProject = await api.getProject(projectId);
+        const videoUrl = (apiProject as any).videoPresignedUrl
+          || (apiProject.videoKey ? `${API_URL}/api/projects/${projectId}/video` : '');
+        const audioUrl = (apiProject as any).audioPresignedUrl
+          || (apiProject.audioKey ? `${API_URL}/api/projects/${projectId}/audio` : '');
+
+        set((state) => {
+          if (state.project) {
+            state.project.videoUrl = videoUrl;
+            state.project.audioUrl = audioUrl;
+          }
+          // Update src on video and audio items so <Video>/<Audio> elements pick up fresh URLs
+          for (const id of state.itemIds) {
+            const item = state.items[id];
+            if (!item) continue;
+            if (item.type === 'video' && videoUrl) {
+              (item.data as any).src = videoUrl;
+            } else if (item.type === 'audio') {
+              const audioData = item.data as any;
+              // Only refresh items that use the project video/audio as source
+              if (audioData.src?.includes('/api/projects/') || audioData.src?.includes('X-Amz-')) {
+                audioData.src = audioData.src.includes('/video') ? videoUrl : audioUrl;
+                if (audioData.originalSrc?.includes('/api/projects/') || audioData.originalSrc?.includes('X-Amz-')) {
+                  audioData.originalSrc = audioData.originalSrc.includes('/video') ? videoUrl : audioUrl;
+                }
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.warn('Failed to refresh media URLs:', err);
       }
     },
 
