@@ -77,6 +77,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     copyItems,
     duplicateItems,
     deleteItems,
+    deleteTimeRange,
     pasteItems,
     updateTrack,
     select,
@@ -268,10 +269,20 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
         ];
       }
 
-      // "Edit with AI" entry shown when a time range is selected (from ruler Alt+drag)
+      // Range entries shown when a time range is selected (from ruler Alt+drag)
       const rangeEditEntries: MenuEntry[] = selectedTimeRange
         ? [
             { type: 'separator' as const },
+            {
+              label: 'Delete Range',
+              shortcut: 'Del',
+              action: () => deleteTimeRange(selectedTimeRange.startMs, selectedTimeRange.endMs, false),
+            },
+            {
+              label: 'Ripple Delete Range',
+              shortcut: '⇧Del',
+              action: () => deleteTimeRange(selectedTimeRange.startMs, selectedTimeRange.endMs, true),
+            },
             {
               label: 'Edit with AI',
               shortcut: 'E',

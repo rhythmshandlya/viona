@@ -34,6 +34,7 @@ export interface RenderState {
   // Split tool state
   splitMode?: boolean;
   splitCursorTimeMs?: number;
+  splitHoveredItemId?: string | null;
 }
 
 export interface CanvasRendererOptions {
@@ -496,11 +497,12 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw split line indicator — vertical dashed red/orange line at cursor time position
+   * Draw split line indicator — vertical dashed violet line at cursor time position
+   * with item highlight overlay and time label pill.
    */
   private drawSplitLine(state: RenderState): void {
     const { ctx } = this;
-    const { viewport, splitCursorTimeMs } = state;
+    const { viewport, splitCursorTimeMs, splitHoveredItemId, items, tracks } = state;
     const height = this.getHeight();
 
     if (splitCursorTimeMs === undefined) return;
@@ -513,7 +515,35 @@ export class CanvasRenderer {
       return;
     }
 
-    // Draw vertical dashed line in red/orange
+    // Highlight the item under cursor with subtle violet overlay + border
+    if (splitHoveredItemId) {
+      const item = items[splitHoveredItemId];
+      if (item) {
+        const trackYMap = this.buildTrackYMap(state);
+        const trackY = trackYMap.get(item.trackId);
+        const track = tracks.find((t) => t.id === item.trackId);
+        if (trackY !== undefined && track) {
+          const ix = item.startMs * viewport.zoom - viewport.scrollX;
+          const iw = (item.endMs - item.startMs) * viewport.zoom;
+          const iy = trackY + 4;
+          const ih = track.height - 8;
+
+          ctx.save();
+          // Violet overlay
+          ctx.fillStyle = 'rgba(124, 58, 237, 0.10)';
+          this.roundRect(ix, iy, iw, ih, 4);
+          ctx.fill();
+          // Violet border
+          ctx.strokeStyle = 'rgba(124, 58, 237, 0.5)';
+          ctx.lineWidth = 1.5;
+          this.roundRect(ix, iy, iw, ih, 4);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    // Draw vertical dashed line
     ctx.save();
     ctx.strokeStyle = '#7C3AED'; // violet-500
     ctx.lineWidth = 2;
@@ -523,6 +553,32 @@ export class CanvasRenderer {
     ctx.lineTo(x, height);
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Draw time label pill at the top of the split line
+    const totalSeconds = splitCursorTimeMs / 1000;
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = Math.floor(totalSeconds % 60);
+    const ms = Math.floor((splitCursorTimeMs % 1000) / 10);
+    const label = `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+
+    ctx.font = '10px ui-monospace, SFMono-Regular, monospace';
+    const textMetrics = ctx.measureText(label);
+    const pillW = textMetrics.width + 10;
+    const pillH = 18;
+    const pillX = x - pillW / 2;
+    const pillY = 4;
+
+    // Pill background
+    ctx.fillStyle = '#7C3AED';
+    this.roundRect(pillX, pillY, pillW, pillH, 4);
+    ctx.fill();
+
+    // Pill text
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, pillY + pillH / 2);
+
     ctx.restore();
   }
 

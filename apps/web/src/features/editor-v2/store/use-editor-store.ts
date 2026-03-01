@@ -262,6 +262,7 @@ export function useLayoutMode(): LayoutMode {
   return useEditorStore((state) => state.layoutSettings.mode);
 }
 
+
 export function useLayoutActions() {
   return useEditorStore(
     useShallow((state) => ({
@@ -490,7 +491,11 @@ export function useEditorActions() {
 
       // Split
       splitItem: state.splitItem,
+      splitAllAtPlayhead: state.splitAllAtPlayhead,
       setSplitMode: state.setSplitMode,
+
+      // Range delete
+      deleteTimeRange: state.deleteTimeRange,
 
       // Clipboard
       copyItems: state.copyItems,

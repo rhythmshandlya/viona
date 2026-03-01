@@ -4,7 +4,8 @@
  *
  * Shortcuts:
  *   Space          – Play / Pause
- *   Delete/Backsp  – Delete selected items
+ *   Delete/Backsp  – Delete selected items / delete time range
+ *   Shift+Delete   – Ripple delete time range
  *   Ctrl+A         – Select all
  *   Ctrl+Z         – Undo
  *   Ctrl+Shift+Z/Y – Redo
@@ -58,6 +59,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
   const {
     togglePlayback,
     deleteItems,
+    deleteTimeRange,
     selectAll,
     clearSelection,
     undo,
@@ -110,11 +112,19 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         return;
       }
 
-      // Delete/Backspace: Delete selected items
-      if ((e.code === 'Delete' || e.code === 'Backspace') && selectedIds.length > 0) {
-        e.preventDefault();
-        deleteItems(selectedIds);
-        return;
+      // Delete/Backspace: Delete selected items or time range
+      if (e.code === 'Delete' || e.code === 'Backspace') {
+        if (selectedIds.length > 0) {
+          e.preventDefault();
+          deleteItems(selectedIds);
+          return;
+        }
+        const timeRange = useEditorStore.getState().selectedTimeRange;
+        if (timeRange) {
+          e.preventDefault();
+          deleteTimeRange(timeRange.startMs, timeRange.endMs, e.shiftKey);
+          return;
+        }
       }
 
       // Cmd/Ctrl + A: Select all
@@ -295,6 +305,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
     [
       togglePlayback,
       deleteItems,
+      deleteTimeRange,
       selectAll,
       clearSelection,
       undo,
