@@ -299,6 +299,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('[API Error]', response.status, url, JSON.stringify(error).slice(0, 500));
       throw new Error(error.error || `Request failed: ${response.status}`);
     }
 
@@ -336,7 +337,7 @@ class ApiClient {
 
   async updateProject(
     projectId: string,
-    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; captionItemIds?: string[]; visualItemIds?: string[]; videoSettings?: Record<string, unknown> }
+    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; captionItemIds?: string[]; visualItemIds?: string[]; videoItemIds?: string[]; audioItemIds?: string[]; videoSettings?: Record<string, unknown> }
   ): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}`, {
       method: 'PATCH',

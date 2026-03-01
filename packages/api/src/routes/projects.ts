@@ -35,6 +35,10 @@ const updateProjectSchema = z.object({
   captionItemIds: z.array(z.string()).optional(),
   // IDs of all visual items currently in the editor — DB items not in this list are deleted
   visualItemIds: z.array(z.string()).optional(),
+  // IDs of all video items currently in the editor — DB items not in this list are deleted
+  videoItemIds: z.array(z.string()).optional(),
+  // IDs of all audio items currently in the editor — DB items not in this list are deleted
+  audioItemIds: z.array(z.string()).optional(),
   videoSettings: z.record(z.unknown()).optional(),
 });
 
@@ -596,6 +600,54 @@ export async function projectRoutes(fastify: FastifyInstance) {
           .set({ timestamps: newTimestamps })
           .where(eq(visuals.id, visual.id));
         fastify.log.info({ projectId: id, sceneCount: newTimestamps.length }, 'Synced visuals.timestamps from timeline state');
+      }
+    }
+
+    // Delete video items that no longer exist in the editor (removed by split/delete)
+    if (body.videoItemIds) {
+      const trackIds = (await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      })).map(t => t.id);
+
+      if (trackIds.length > 0) {
+        const existingVideoItems = await db.select({ id: timelineItems.id }).from(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, trackIds),
+            eq(timelineItems.type, 'video')
+          ));
+
+        const videoIdsToDelete = existingVideoItems
+          .map(i => i.id)
+          .filter(dbId => !body.videoItemIds!.includes(dbId));
+
+        if (videoIdsToDelete.length > 0) {
+          await db.delete(timelineItems).where(inArray(timelineItems.id, videoIdsToDelete));
+          fastify.log.info({ deletedCount: videoIdsToDelete.length }, 'Deleted orphaned video items from split');
+        }
+      }
+    }
+
+    // Delete audio items that no longer exist in the editor (removed by split/delete)
+    if (body.audioItemIds) {
+      const trackIds = (await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      })).map(t => t.id);
+
+      if (trackIds.length > 0) {
+        const existingAudioItems = await db.select({ id: timelineItems.id }).from(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, trackIds),
+            eq(timelineItems.type, 'audio')
+          ));
+
+        const audioIdsToDelete = existingAudioItems
+          .map(i => i.id)
+          .filter(dbId => !body.audioItemIds!.includes(dbId));
+
+        if (audioIdsToDelete.length > 0) {
+          await db.delete(timelineItems).where(inArray(timelineItems.id, audioIdsToDelete));
+          fastify.log.info({ deletedCount: audioIdsToDelete.length }, 'Deleted orphaned audio items from split');
+        }
       }
     }
 
