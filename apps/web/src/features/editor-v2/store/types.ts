@@ -175,7 +175,7 @@ export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
 // Legacy position type (for backward compatibility)
 export type CaptionPositionLegacy = 'top' | 'center' | 'bottom';
 
-// V2 Position System
+// V2/V3 Position System
 export interface CaptionPosition {
   // Anchor point (where the caption "attaches")
   anchor: 'top' | 'center' | 'bottom';
@@ -191,6 +191,12 @@ export interface CaptionPosition {
 
   // Text alignment within caption box
   textAlign: 'left' | 'center' | 'right';
+
+  // V3 additions (all optional — existing data works unchanged)
+  mode?: 'anchor' | 'free';  // undefined = 'anchor' (legacy)
+  x?: number;     // 0-100% of canvas (center of caption box)
+  y?: number;     // 0-100% of canvas (center of caption box)
+  width?: number;  // 20-100% of canvas (default 90)
 }
 
 // Safe zone definitions for different platforms
@@ -216,6 +222,30 @@ export const DEFAULT_CAPTION_POSITION: CaptionPosition = {
   rotation: 0,
   textAlign: 'center',
 };
+
+// Convert anchor-mode position to free x,y coordinates
+export function anchorToFreeCoords(pos: CaptionPosition): { x: number; y: number } {
+  let x = 50 + (pos.offsetX || 0);
+  let y: number;
+
+  switch (pos.anchor) {
+    case 'top':
+      y = 10 + (pos.offsetY || 0);
+      break;
+    case 'center':
+      y = 50 + (pos.offsetY || 0);
+      break;
+    case 'bottom':
+    default:
+      y = 85 + (pos.offsetY || 0);
+      break;
+  }
+
+  return {
+    x: Math.max(0, Math.min(100, x)),
+    y: Math.max(0, Math.min(100, y)),
+  };
+}
 
 // Migration function for legacy position format
 export function migratePosition(style: { position?: CaptionPosition | CaptionPositionLegacy; offsetY?: number; textAlign?: 'left' | 'center' | 'right' }): CaptionPosition {
@@ -640,7 +670,11 @@ export interface EditorActions {
 
   // Split
   splitItem: (itemId: string, atMs: number) => void;
+  splitAllAtPlayhead: () => void;
   setSplitMode: (active: boolean) => void;
+
+  // Range delete
+  deleteTimeRange: (startMs: number, endMs: number, ripple?: boolean) => Promise<void>;
 
   // Clipboard
   copyItems: (ids: string[]) => void;
