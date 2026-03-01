@@ -1,6 +1,6 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm, access, constants, readFile, writeFile, readdir, unlink, stat } from 'fs/promises';
+import { mkdir, rm, access, constants, readFile, writeFile, readdir, unlink, stat, symlink } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
@@ -1817,6 +1817,15 @@ registerRoot(RemotionRoot);
 
   logger.info({ entryPath, srcDir }, 'Created entry point for bundle');
 
+  // Symlink node_modules from the remotion-template so webpack can resolve
+  // packages like @remotion/google-fonts that generated scenes may import.
+  const templateNodeModules = join(config.worker.templatePath, 'node_modules');
+  try {
+    await symlink(templateNodeModules, join(tempDir, 'node_modules'));
+  } catch (err) {
+    logger.warn({ err, templateNodeModules }, 'Could not symlink node_modules, bundle may fail');
+  }
+
   // Use Remotion's bundle() to create a proper bundle
   const newBundleLocation = await bundle({
     entryPoint: entryPath,
@@ -2434,19 +2443,25 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       ? `,${pipStyleFilters.join(',')}`
       : '';
 
+    // Build enable expression to hide PiP during fullscreen visual segments
+    const pipDisableExpr = fullscreenVisualSegments && fullscreenVisualSegments.length > 0
+      ? `:enable='not(${fullscreenVisualSegments.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+')})'`
+      : '';
+
     logger.info({
       mode,
       pipDimensions: { pipWidth, pipHeight, pipX, pipY },
       pipBorderRadius,
       pipOpacity: pip.opacity,
+      pipDisableExpr: pipDisableExpr ? 'yes' : 'no',
     }, 'Rendering with PiP layout');
     filterComplex = [
       // Scale Remotion visuals to full screen
       `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
       // Scale source video to PiP size with crop/pan + styling
       `[0:v]${pipCropFilter}${pipFilterChain}[pip]`,
-      // Overlay PiP on background
-      `[bg][pip]overlay=${pipX}:${pipY}:format=auto[outv]`
+      // Overlay PiP on background (disabled during fullscreen visual segments)
+      `[bg][pip]overlay=${pipX}:${pipY}:format=auto${pipDisableExpr}[outv]`
     ].join(';');
 
   } else if (mode === 'stacked') {
@@ -2536,10 +2551,15 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       ? buildVideoCropFilter(videoCrop, pipWidth, pipHeight)
       : `scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1`;
 
+    // Build enable expression to hide PiP during fullscreen visual segments
+    const fallbackDisableExpr = fullscreenVisualSegments && fullscreenVisualSegments.length > 0
+      ? `:enable='not(${fullscreenVisualSegments.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+')})'`
+      : '';
+
     filterComplex = [
       `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
       `[0:v]${fallbackCropFilter}[pip]`,
-      `[bg][pip]overlay=${pipX}:${pipY}[outv]`
+      `[bg][pip]overlay=${pipX}:${pipY}${fallbackDisableExpr}[outv]`
     ].join(';');
   }
 
@@ -3233,20 +3253,28 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   const displayMode = firstStyle.displayMode || 'phrase';
   const wordsPerPhrase = firstStyle.wordsPerPhrase || 5;
 
-  // Parse V2 position system (object or legacy string)
+  // Parse V2/V3 position system (object or legacy string)
   let captionPosition: string;
   let offsetX = 0;
   let offsetY = 0;
   let rotation = 0;
   let textAlign: string = 'center';
+  let positionMode: 'anchor' | 'free' = 'anchor';
+  let freeX = 50; // percentage 0-100
+  let freeY = 85; // percentage 0-100
+  let captionWidthPercent = 90; // percentage 20-100
 
   if (typeof firstStyle.position === 'object' && firstStyle.position !== null) {
-    // V2 position object
+    // V2/V3 position object
     captionPosition = firstStyle.position.anchor || 'bottom';
     offsetX = firstStyle.position.offsetX || 0;
     offsetY = firstStyle.position.offsetY || 0;
     rotation = firstStyle.position.rotation || 0;
     textAlign = firstStyle.position.textAlign || 'center';
+    positionMode = firstStyle.position.mode === 'free' ? 'free' : 'anchor';
+    freeX = firstStyle.position.x ?? 50;
+    freeY = firstStyle.position.y ?? 85;
+    captionWidthPercent = firstStyle.position.width ?? 90;
   } else {
     // Legacy string position
     captionPosition = firstStyle.position || 'bottom';
@@ -3257,9 +3285,24 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   //                 4=middle-left, 5=middle-center, 6=middle-right
   //                 7=top-left, 8=top-center, 9=top-right
   let alignment: number;
-  const alignCol = textAlign === 'left' ? 1 : textAlign === 'right' ? 3 : 2;
-  const alignRow = captionPosition === 'top' ? 6 : (captionPosition === 'center' || captionPosition === 'middle') ? 3 : 0;
-  alignment = alignRow + alignCol;
+  if (positionMode === 'free') {
+    // For free mode with \pos override, use middle-row alignment (4/5/6)
+    // so the anchor point is at the center of the text block
+    const alignCol = textAlign === 'left' ? 4 : textAlign === 'right' ? 6 : 5;
+    alignment = alignCol;
+  } else {
+    const alignCol = textAlign === 'left' ? 1 : textAlign === 'right' ? 3 : 2;
+    const alignRow = captionPosition === 'top' ? 6 : (captionPosition === 'center' || captionPosition === 'middle') ? 3 : 0;
+    alignment = alignRow + alignCol;
+  }
+
+  // Free mode: compute pixel position for \pos(x,y) override tag
+  let freePosTag = '';
+  if (positionMode === 'free') {
+    const posXPx = Math.round(freeX * width / 100);
+    const posYPx = Math.round(freeY * height / 100);
+    freePosTag = `\\pos(${posXPx},${posYPx})`;
+  }
 
   // Get layout info
   const mode = layoutSettings?.mode || 'pip';
@@ -3286,49 +3329,64 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
     }
   }
 
-  // Calculate margin based on position, offsetY, and layout
+  // Calculate margins
   let marginV: number;
-  if (captionPosition === 'top') {
-    marginV = Math.round(effectiveHeight * 0.10 + (offsetY * effectiveHeight / 100));
-  } else if (captionPosition === 'center' || captionPosition === 'middle') {
-    marginV = Math.round(effectiveHeight * 0.5 + (offsetY * effectiveHeight / 100));
+  let marginL: number;
+  let marginR: number;
+
+  if (positionMode === 'free') {
+    // In free mode, margins control text wrapping width, not position
+    // \pos() handles the actual position
+    marginV = 0;
+    const captionWidthPx = Math.round(captionWidthPercent * width / 100);
+    const sideMargin = Math.round((width - captionWidthPx) / 2);
+    marginL = Math.max(0, sideMargin);
+    marginR = Math.max(0, sideMargin);
   } else {
-    // bottom - most common
-    marginV = Math.round(effectiveHeight * 0.15 - (offsetY * effectiveHeight / 100));
-  }
-
-  // For stacked with visuals-first, add the vertical offset
-  if (mode === 'stacked' && split?.position === 'visuals-first' && captionPosition === 'bottom') {
-    // Captions are at bottom of video section which is at bottom of frame
-    // marginV is from bottom, so no adjustment needed
-  } else if (mode === 'stacked' && split?.position !== 'visuals-first' && captionPosition === 'bottom') {
-    // Video on top, captions should be at bottom of top section
-    // Need to add offset for visuals section below
-    marginV += Math.round(height * ((split?.ratio || 50) / 100));
-  }
-
-  // For PiP mode, avoid overlapping with PiP window
-  if (mode === 'pip' && pip) {
-    const pipSize = pip.size === 'custom' ? pip.customSize : PIP_SIZE_MAP[pip.size] || 25;
-    const pipHeight = Math.round(width * (pipSize / 100)); // PiP is square
-
-    // If caption is at bottom and PiP is at bottom, add margin to avoid overlap
-    if (captionPosition === 'bottom' && (pip.position === 'bottom-left' || pip.position === 'bottom-right')) {
-      marginV = Math.max(marginV, pipHeight + pip.offsetY + 20);
+    // Anchor mode: existing margin-based positioning
+    if (captionPosition === 'top') {
+      marginV = Math.round(effectiveHeight * 0.10 + (offsetY * effectiveHeight / 100));
+    } else if (captionPosition === 'center' || captionPosition === 'middle') {
+      marginV = Math.round(effectiveHeight * 0.5 + (offsetY * effectiveHeight / 100));
+    } else {
+      // bottom - most common
+      marginV = Math.round(effectiveHeight * 0.15 - (offsetY * effectiveHeight / 100));
     }
-    // If caption is at top and PiP is at top, add margin to avoid overlap
-    if (captionPosition === 'top' && (pip.position === 'top-left' || pip.position === 'top-right')) {
-      marginV = Math.max(marginV, pipHeight + pip.offsetY + 20);
+
+    // For stacked with visuals-first, add the vertical offset
+    if (mode === 'stacked' && split?.position === 'visuals-first' && captionPosition === 'bottom') {
+      // Captions are at bottom of video section which is at bottom of frame
+      // marginV is from bottom, so no adjustment needed
+    } else if (mode === 'stacked' && split?.position !== 'visuals-first' && captionPosition === 'bottom') {
+      // Video on top, captions should be at bottom of top section
+      // Need to add offset for visuals section below
+      marginV += Math.round(height * ((split?.ratio || 50) / 100));
     }
+
+    // For PiP mode, avoid overlapping with PiP window
+    if (mode === 'pip' && pip) {
+      const pipSize = pip.size === 'custom' ? pip.customSize : PIP_SIZE_MAP[pip.size] || 25;
+      const pipHeight = Math.round(width * (pipSize / 100)); // PiP is square
+
+      // If caption is at bottom and PiP is at bottom, add margin to avoid overlap
+      if (captionPosition === 'bottom' && (pip.position === 'bottom-left' || pip.position === 'bottom-right')) {
+        marginV = Math.max(marginV, pipHeight + pip.offsetY + 20);
+      }
+      // If caption is at top and PiP is at top, add margin to avoid overlap
+      if (captionPosition === 'top' && (pip.position === 'top-left' || pip.position === 'top-right')) {
+        marginV = Math.max(marginV, pipHeight + pip.offsetY + 20);
+      }
+    }
+
+    marginV = Math.max(20, Math.min(marginV, height / 2)); // Clamp to reasonable range
+
+    // Calculate horizontal margins based on offsetX and width
+    const offsetXPixels = Math.round(offsetX * width / 100);
+    const captionWidthPx = Math.round(captionWidthPercent * width / 100);
+    const baseHMargin = Math.round((width - captionWidthPx) / 2);
+    marginL = Math.max(0, baseHMargin + offsetXPixels);
+    marginR = Math.max(0, baseHMargin - offsetXPixels);
   }
-
-  marginV = Math.max(20, Math.min(marginV, height / 2)); // Clamp to reasonable range
-
-  // Calculate horizontal margins based on offsetX
-  // offsetX is a percentage (-50 to +50), convert to pixels
-  const offsetXPixels = Math.round(offsetX * width / 100);
-  let marginL = 10 + Math.max(0, offsetXPixels);
-  let marginR = 10 + Math.max(0, -offsetXPixels);
 
   // ── Effects mapping: stroke → ASS Outline, shadow → ASS inline xshad/yshad/blur ──
   // Stroke (CSS WebkitTextStroke) maps to ASS Outline (border around glyphs).
@@ -3409,7 +3467,9 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
 
   // Build the inline effect override tags that get prepended to every dialogue line.
   // These override the Style-level Shadow field with per-axis values + Gaussian blur.
+  // In free mode, also includes \pos(x,y) for absolute positioning.
   const effectOverrideParts: string[] = [];
+  if (freePosTag) effectOverrideParts.push(freePosTag);
   if (shadowXShad !== 0) effectOverrideParts.push(`\\xshad${shadowXShad}`);
   if (shadowYShad !== 0) effectOverrideParts.push(`\\yshad${shadowYShad}`);
   if (shadowBlur > 0) effectOverrideParts.push(`\\blur${shadowBlur}`);
