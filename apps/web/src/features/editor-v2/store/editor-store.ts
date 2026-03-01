@@ -1724,7 +1724,34 @@ export const useEditorStore = create<EditorStore>()(
         if (!item || item.type !== 'caption') return;
 
         const data = item.data as CaptionItemData;
+        const oldWords = data.words;
         data.text = newText;
+
+        // Rebuild words array so preview reflects the edit
+        const newTokens = newText.split(/\s+/).filter(Boolean);
+        if (newTokens.length === 0) {
+          data.words = [];
+          return;
+        }
+
+        if (newTokens.length === oldWords.length) {
+          // Same word count: keep timings and overrides, just update text
+          for (let i = 0; i < newTokens.length; i++) {
+            oldWords[i].text = newTokens[i];
+          }
+        } else {
+          // Word count changed: redistribute timing evenly
+          const totalDuration =
+            oldWords.length > 0
+              ? oldWords[oldWords.length - 1].endMs
+              : item.endMs - item.startMs;
+          const perWord = totalDuration / newTokens.length;
+          data.words = newTokens.map((token, i) => ({
+            text: token,
+            startMs: Math.round(i * perWord),
+            endMs: Math.round((i + 1) * perWord),
+          }));
+        }
       });
 
       get().pushHistory();

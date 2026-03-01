@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { RotateCcw, Wand2 } from 'lucide-react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { RotateCcw, Wand2, Loader2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import {
   useFirstCaptionStyle,
@@ -10,7 +10,9 @@ import {
   useSafeZonePlatform,
   useVideoUrl,
   useCurrentTimeMs,
+  useProjectId,
 } from '../store/use-editor-store';
+import { api } from '@/lib/api';
 import {
   CaptionDisplayMode,
   CaptionStyle,
@@ -86,7 +88,8 @@ export function StylePanel() {
   const style = useFirstCaptionStyle();
   const selectedIds = useSelectedIds();
   const safeZonePlatform = useSafeZonePlatform();
-  const { updateAllCaptionStyles, updateSelectedCaptionStyles, clearSelection, selectAll, setSafeZonePlatform, setShowSafeZone } =
+  const projectId = useProjectId();
+  const { updateAllCaptionStyles, updateSelectedCaptionStyles, clearSelection, selectAll, setSafeZonePlatform, setShowSafeZone, loadProject } =
     useEditorActions();
 
   const videoUrl = useVideoUrl();
@@ -96,6 +99,37 @@ export function StylePanel() {
   const [topTab, setTopTab] = useState<'templates' | 'font' | 'position' | 'transitions'>('templates');
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoPalettes, setAutoPalettes] = useState<ColorPalette[] | null>(null);
+  const [aiStylingJobId, setAiStylingJobId] = useState<string | null>(null);
+  const [aiStylingStatus, setAiStylingStatus] = useState<'idle' | 'loading' | 'complete' | 'error'>('idle');
+  const aiPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll for AI caption style job completion
+  useEffect(() => {
+    if (!aiStylingJobId || aiStylingStatus !== 'loading') return;
+
+    aiPollRef.current = setInterval(async () => {
+      try {
+        const job = await api.getJob(aiStylingJobId);
+        if (job.status === 'complete') {
+          setAiStylingStatus('complete');
+          setAiStylingJobId(null);
+          // Reload project to pick up the new styleOverrides from DB
+          if (projectId) {
+            await loadProject(projectId);
+          }
+        } else if (job.status === 'failed') {
+          setAiStylingStatus('error');
+          setAiStylingJobId(null);
+        }
+      } catch {
+        // Ignore poll errors
+      }
+    }, 2000);
+
+    return () => {
+      if (aiPollRef.current) clearInterval(aiPollRef.current);
+    };
+  }, [aiStylingJobId, aiStylingStatus, projectId, loadProject]);
 
   // Apply to all when nothing selected, otherwise apply to selected only
   const updateStyle = useCallback(
@@ -178,6 +212,18 @@ export function StylePanel() {
       // Position is NOT applied here — user's position should be preserved
       presetId: preset.id,
     });
+
+    // For dynamic-hierarchy, trigger LLM-powered per-caption styling
+    if (preset.id === 'dynamic-hierarchy' && projectId && aiStylingStatus !== 'loading') {
+      setAiStylingStatus('loading');
+      api.generateCaptionStyles(projectId)
+        .then(({ jobId }) => {
+          setAiStylingJobId(jobId);
+        })
+        .catch(() => {
+          setAiStylingStatus('error');
+        });
+    }
   };
 
   const resetToPreset = () => {
@@ -333,8 +379,14 @@ export function StylePanel() {
                       <div className={`px-2 py-1.5 text-center ${
                         selected ? 'bg-[var(--editor-accent)]/10' : 'bg-[var(--editor-bg-elevated)]'
                       }`}>
-                        <div className="text-[10px] text-[var(--editor-text-secondary)] truncate">
+                        <div className="text-[10px] text-[var(--editor-text-secondary)] truncate flex items-center justify-center gap-1">
+                          {preset.id === 'dynamic-hierarchy' && aiStylingStatus === 'loading' && (
+                            <Loader2 className="w-3 h-3 animate-spin text-[var(--editor-accent)]" />
+                          )}
                           {preset.name}
+                          {preset.id === 'dynamic-hierarchy' && aiStylingStatus === 'loading' && (
+                            <span className="text-[9px] text-[var(--editor-accent)]">AI</span>
+                          )}
                         </div>
                       </div>
                     </button>
@@ -490,7 +542,7 @@ export function StylePanel() {
               <SliderRow
                 value={style.fontSize}
                 min={24}
-                max={96}
+                max={200}
                 step={2}
                 unit="px"
                 onChange={(fontSize) => customizeStyle({ fontSize })}

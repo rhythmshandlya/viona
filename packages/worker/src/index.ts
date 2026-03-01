@@ -11,6 +11,7 @@ import { processPreloadProjectJob, PreloadProjectJobData } from './processors/pr
 import { processPlanVisualsJob, PlanVisualsJobData } from './processors/plan-visuals.js';
 import { processHeadTrackingJob, HeadTrackingJobData } from './processors/head-tracking.js';
 import { processGenerateReframeJob } from './processors/generate-reframe.js';
+import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from './processors/generate-caption-styles.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
 import { redisConnection } from './utils/redis.js';
@@ -310,6 +311,27 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Generate-reframe job failed');
   });
 
+  // Generate caption styles worker — AI-powered per-caption styling
+  const generateCaptionStylesWorker = new Worker<GenerateCaptionStylesJobData>(
+    'generate-caption-styles',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing generate-caption-styles job');
+      await processGenerateCaptionStylesJob(job);
+    },
+    {
+      connection,
+      concurrency: 2,
+    }
+  );
+
+  generateCaptionStylesWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Generate-caption-styles job completed');
+  });
+
+  generateCaptionStylesWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Generate-caption-styles job failed');
+  });
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown — close all workers in parallel, waiting for in-progress
@@ -318,7 +340,7 @@ async function main() {
     transcribeWorker, renderWorker,
     generateVisualsWorker, planVisualsWorker, editVisualsWorker,
     svgAnimationWorker, preloadProjectWorker,
-    headTrackingWorker, generateReframeWorker,
+    headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
   ];
 
   const shutdown = async (signal: string) => {

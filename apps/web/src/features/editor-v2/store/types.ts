@@ -801,6 +801,9 @@ export interface PiPSettings {
   shape: PiPShape;
   borderRadius: number;
 
+  // Transform
+  rotation: number; // degrees, -180 to 180
+
   // Styling
   borderWidth: number;
   borderColor: string;
@@ -845,7 +848,8 @@ export const DEFAULT_PIP_SETTINGS: PiPSettings = {
   size: 'medium',
   customSize: 25,
   shape: 'rounded',
-  borderRadius: 12,
+  borderRadius: 20,
+  rotation: 0,
   borderWidth: 2,
   borderColor: 'rgba(255, 255, 255, 0.2)',
   shadowEnabled: true,
@@ -912,7 +916,8 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         size: 'medium',
         customSize: 25,
         shape: 'rounded',
-        borderRadius: 12,
+        borderRadius: 20,
+        rotation: 0,
         borderWidth: 2,
         borderColor: 'rgba(255, 255, 255, 0.2)',
         shadowEnabled: true,
@@ -937,6 +942,7 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         customSize: 35,
         shape: 'circle',
         borderRadius: 9999,
+        rotation: 0,
         borderWidth: 4,
         borderColor: 'rgba(255, 255, 255, 0.3)',
         shadowEnabled: true,
@@ -961,6 +967,7 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         customSize: 18,
         shape: 'circle',
         borderRadius: 9999,
+        rotation: 0,
         borderWidth: 0,
         borderColor: 'transparent',
         shadowEnabled: true,
@@ -985,6 +992,7 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         customSize: 22,
         shape: 'rounded',
         borderRadius: 8,
+        rotation: 0,
         borderWidth: 3,
         borderColor: '#a855f7',
         shadowEnabled: true,

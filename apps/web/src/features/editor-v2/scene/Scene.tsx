@@ -12,6 +12,7 @@ import { useProject, useSelectedElement, useElementPickerEnabled, useInspectMode
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
 import { ElementInspectOverlay } from './ElementInspectOverlay';
 import { CaptionDragOverlay } from '../components/CaptionDragOverlay';
+import { PiPDragOverlay } from '../components/PiPDragOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
 
 interface HighlightRect {
@@ -172,6 +173,13 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
 
           {/* Caption drag/resize/rotate overlay */}
           <CaptionDragOverlay
+            containerRef={playerContainerRef}
+            canvasWidth={videoWidth}
+            canvasHeight={videoHeight}
+          />
+
+          {/* PiP drag/resize/border-radius overlay */}
+          <PiPDragOverlay
             containerRef={playerContainerRef}
             canvasWidth={videoWidth}
             canvasHeight={videoHeight}

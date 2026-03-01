@@ -138,6 +138,7 @@ function buildPiPStyle(pip: PiPSettings): React.CSSProperties {
     boxShadow,
     border: pip.borderWidth > 0 ? `${pip.borderWidth}px solid ${pip.borderColor}` : 'none',
     opacity: pip.opacity,
+    transform: pip.rotation ? `rotate(${pip.rotation}deg)` : undefined,
     zIndex: 10,
   };
 }

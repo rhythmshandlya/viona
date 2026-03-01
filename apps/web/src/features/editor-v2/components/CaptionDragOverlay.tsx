@@ -33,9 +33,10 @@ interface DragState {
 
 // --- Constants ---
 
-const HANDLE_SIZE = 8;
+const HANDLE_SIZE = 10;
+const HANDLE_HIT_AREA = 24; // Larger invisible hit area for easier grabbing
 const ROTATION_HANDLE_DISTANCE = 30;
-const ROTATION_HANDLE_SIZE = 10;
+const ROTATION_HANDLE_SIZE = 12;
 const MIN_FONT_SIZE = 16;
 const MAX_OFFSET = 80;
 
@@ -351,19 +352,30 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
               key={handle}
               style={{
                 position: 'absolute',
-                left: box.left + offset.x - HANDLE_SIZE / 2,
-                top: box.top + offset.y - HANDLE_SIZE / 2,
-                width: HANDLE_SIZE,
-                height: HANDLE_SIZE,
-                backgroundColor: '#ffffff',
-                border: '1.5px solid #8b5cf6',
-                borderRadius: 1,
+                left: box.left + offset.x - HANDLE_HIT_AREA / 2,
+                top: box.top + offset.y - HANDLE_HIT_AREA / 2,
+                width: HANDLE_HIT_AREA,
+                height: HANDLE_HIT_AREA,
                 cursor: getRotatedCursor(handle, currentRotation),
                 pointerEvents: 'auto',
                 zIndex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
               onPointerDown={(e) => handlePointerDown(e, 'resize', handle)}
-            />
+            >
+              {/* Visible handle dot */}
+              <div
+                style={{
+                  width: HANDLE_SIZE,
+                  height: HANDLE_SIZE,
+                  backgroundColor: '#ffffff',
+                  border: '1.5px solid #8b5cf6',
+                  borderRadius: 1,
+                }}
+              />
+            </div>
           );
         })}
 

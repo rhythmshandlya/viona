@@ -36,7 +36,7 @@ export function TranscriptPanel() {
   const currentTimeMs = useCurrentTimeMs();
   const project = useProject();
   const selectedSceneId = useSelectedSceneId();
-  const { seek, updateItemData, select, setSelectedScene } = useEditorActions();
+  const { seek, updateCaptionText, select, setSelectedScene } = useEditorActions();
 
   // Fetch scenes when project loads
   useEffect(() => {
@@ -92,11 +92,11 @@ export function TranscriptPanel() {
 
   const handleConfirmEdit = useCallback(() => {
     if (editingId && editText.trim()) {
-      updateItemData(editingId, { text: editText.trim() });
+      updateCaptionText(editingId, editText.trim());
     }
     setEditingId(null);
     setEditText('');
-  }, [editingId, editText, updateItemData]);
+  }, [editingId, editText, updateCaptionText]);
 
   const handleCancelEdit = useCallback(() => {
     setEditingId(null);

@@ -59,6 +59,15 @@ export interface RenderJobData {
     };
   };
   fullscreenSegments?: Array<{ startMs: number; endMs: number }>;
+  visualDisplayData?: Array<{
+    startMs: number;
+    endMs: number;
+    displayMode?: string;
+    transition?: {
+      enter: { type: string; durationMs: number };
+      exit: { type: string; durationMs: number };
+    };
+  }>;
 }
 
 // Queue job creators
@@ -232,6 +241,24 @@ export const generateReframeQueue = new Queue('generate-reframe', { connection }
 export async function queueGenerateReframeJob(data: GenerateReframeJobData) {
   return generateReframeQueue.add('generate-reframe', data, {
     attempts: 1,
+  });
+}
+
+// Generate caption styles job - AI-powered per-caption styling
+export interface GenerateCaptionStylesJobData {
+  projectId: string;
+  jobId: string;
+}
+
+export const generateCaptionStylesQueue = new Queue('generate-caption-styles', { connection });
+
+export async function queueGenerateCaptionStylesJob(data: GenerateCaptionStylesJobData) {
+  return generateCaptionStylesQueue.add('generate-caption-styles', data, {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
   });
 }
 

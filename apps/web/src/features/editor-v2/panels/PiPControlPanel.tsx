@@ -315,12 +315,24 @@ export function PiPControlPanel() {
                 <Slider
                   value={[pip.borderRadius]}
                   min={0}
-                  max={40}
+                  max={50}
                   step={2}
                   onValueChange={([v]) => updatePiPSettings({ borderRadius: v })}
                 />
               </div>
             )}
+
+            {/* Rotation */}
+            <div className="space-y-1.5">
+              <FieldLabel value={`${pip.rotation || 0}°`}>Rotation</FieldLabel>
+              <Slider
+                value={[pip.rotation || 0]}
+                min={-180}
+                max={180}
+                step={1}
+                onValueChange={([v]) => updatePiPSettings({ rotation: v })}
+              />
+            </div>
 
             {/* Shadow */}
             <div className="flex items-center justify-between">

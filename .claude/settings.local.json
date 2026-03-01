@@ -162,7 +162,11 @@
       "Bash(git stash:*)",
       "Bash(claude setup-token:*)",
       "Bash(head:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(git rebase:*)",
+      "Bash(GIT_SEQUENCE_EDITOR=true git rebase:*)",
+      "Bash(EDITOR=true git rebase:*)",
+      "Bash(git:*)"
     ]
   },
   "enabledMcpjsonServers": [

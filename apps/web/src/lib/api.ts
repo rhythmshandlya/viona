@@ -344,7 +344,7 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> }): Promise<ProcessProjectResponse> {
+  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> }): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
       body: JSON.stringify(options || {}),
@@ -355,6 +355,13 @@ class ApiClient {
     return this.request(`/api/projects/${projectId}/separate-audio`, {
       method: 'POST',
       body: JSON.stringify({ videoItemId }),
+    });
+  }
+
+  async generateCaptionStyles(projectId: string): Promise<{ jobId: string }> {
+    return this.request(`/api/projects/${projectId}/generate-caption-styles`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 

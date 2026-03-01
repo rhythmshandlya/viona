@@ -585,10 +585,19 @@ export interface RenderJobData {
   projectType?: string;
   layoutSettings?: LayoutSettings;
   fullscreenSegments?: FullscreenSegment[];
+  visualDisplayData?: Array<{
+    startMs: number;
+    endMs: number;
+    displayMode?: string;
+    transition?: {
+      enter: { type: string; durationMs: number };
+      exit: { type: string; durationMs: number };
+    };
+  }>;
 }
 
 export async function processRenderJob(job: Job<RenderJobData>) {
-  const { projectId, jobId, layoutSettings } = job.data;
+  const { projectId, jobId, layoutSettings, visualDisplayData } = job.data;
   setJobProjectId(jobId, projectId);
   const workDir = join(tmpdir(), `viona-render-${nanoid()}`);
 
@@ -623,10 +632,24 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       allItems.push(...items);
     }
 
-    // Extract display mode segments from visual timeline items
-    const visualItems = allItems
-      .filter((item: any) => item.type === 'visual')
-      .sort((a: any, b: any) => a.startMs - b.startMs);
+    // Extract display mode segments from visual timeline items.
+    // When visualDisplayData is provided by the frontend, use it as the authoritative
+    // source (matches the exact preview state). Otherwise, fall back to DB items.
+    const visualItemsRaw = visualDisplayData
+      ? visualDisplayData.map((v) => ({
+          startMs: v.startMs,
+          endMs: v.endMs,
+          data: { displayMode: v.displayMode || 'pip', transition: v.transition },
+        }))
+      : allItems
+          .filter((item: any) => item.type === 'visual')
+          .map((item: any) => ({
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: { displayMode: (item.data as any)?.displayMode || 'pip', transition: (item.data as any)?.transition },
+          }));
+
+    const visualItems = visualItemsRaw.sort((a, b) => a.startMs - b.startMs);
 
     const fullscreenVisualSegments: DisplayModeSegment[] = [];
     const overlaySegments: DisplayModeSegment[] = [];
@@ -634,15 +657,15 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
     for (let i = 0; i < visualItems.length; i++) {
       const item = visualItems[i];
-      const dm = (item.data as any)?.displayMode || 'default';
-      const transition = (item.data as any)?.transition;
+      const dm = item.data.displayMode;
+      const transition = item.data.transition;
 
       // Determine if layout changes at enter/exit boundaries
       // For stacked mode, 'default' is the base stacked layout — only non-default modes need overlay layers
       const prevItem = i > 0 ? visualItems[i - 1] : null;
       const nextItem = i < visualItems.length - 1 ? visualItems[i + 1] : null;
-      const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'default') : 'gap';
-      const nextDm = nextItem ? ((nextItem.data as any)?.displayMode || 'default') : 'gap';
+      const prevDm = prevItem ? prevItem.data.displayMode : 'gap';
+      const nextDm = nextItem ? nextItem.data.displayMode : 'gap';
 
       // Check if there's a gap between prev and current (gap = different layout)
       const hasPrevGap = !prevItem || prevItem.endMs < item.startMs - 50;
@@ -681,14 +704,14 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         if (item.startMs > cursor) {
           // For gap enter: check transition of the preceding visual item (its exit)
           const prevItem = i > 0 ? visualItems[i - 1] : null;
-          const prevTransition = prevItem ? (prevItem.data as any)?.transition : null;
-          const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'default') : 'default';
+          const prevTransition = prevItem ? prevItem.data.transition : null;
+          const prevDm = prevItem ? prevItem.data.displayMode : 'pip';
           const gapEnterDuration = (prevDm !== 'gap' && prevTransition?.exit?.type !== 'cut')
             ? (prevTransition?.exit?.durationMs || 0) : 0;
 
           // For gap exit: check transition of the next visual item (its enter)
-          const nextTransition = (item.data as any)?.transition;
-          const nextDm = (item.data as any)?.displayMode || 'default';
+          const nextTransition = item.data.transition;
+          const nextDm = item.data.displayMode;
           const gapExitDuration = (nextDm !== 'gap' && nextTransition?.enter?.type !== 'cut')
             ? (nextTransition?.enter?.durationMs || 0) : 0;
 
@@ -701,8 +724,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       }
       if (cursor < durationMs) {
         const lastItem = visualItems[visualItems.length - 1];
-        const lastTransition = lastItem ? (lastItem.data as any)?.transition : null;
-        const lastDm = lastItem ? ((lastItem.data as any)?.displayMode || 'default') : 'default';
+        const lastTransition = lastItem ? lastItem.data.transition : null;
+        const lastDm = lastItem ? lastItem.data.displayMode : 'pip';
         const enterDuration = (lastDm !== 'gap' && lastTransition?.exit?.type !== 'cut')
           ? (lastTransition?.exit?.durationMs || 0) : 0;
         gapSegments.push({ startMs: cursor, endMs: durationMs, enterDurationMs: enterDuration, exitDurationMs: 0 });
@@ -714,7 +737,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       overlayCount: overlaySegments.length,
       gapCount: gapSegments.length,
       visualItemCount: visualItems.length,
-    }, 'Extracted display mode segments from DB');
+      source: visualDisplayData ? 'frontend' : 'db',
+    }, 'Extracted display mode segments');
 
     const isAudioProject = (job.data.projectType || project.projectType || 'video') === 'audio';
 
@@ -2386,6 +2410,16 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
         `if(gte(X,${pw}-${r})*gte(Y,${ph}-${r}),if(lte(hypot(X-${pw}+${r},Y-${ph}+${r}),${r}),255,0),` +
         `255))))'`
       );
+    }
+
+    // Rotation
+    const pipRotation = pip.rotation || 0;
+    if (pipRotation !== 0) {
+      if (!pipStyleFilters.some(f => f.includes('format=yuva420p'))) {
+        pipStyleFilters.push('format=yuva420p');
+      }
+      const radians = (pipRotation * Math.PI / 180).toFixed(4);
+      pipStyleFilters.push(`rotate=${radians}:ow=rotw(${radians}):oh=roth(${radians}):c=none`);
     }
 
     // Opacity

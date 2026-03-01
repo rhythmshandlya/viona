@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import { eq, inArray, or, and, desc } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals, projectAssets } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix, deleteObject } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, publishJobCancel } from '../services/queue.js';
+import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
 
@@ -741,7 +741,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> } || {};
+    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -768,13 +768,45 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job with layout settings and fullscreen segments for exact preview match
+    // Queue the job with layout settings, fullscreen segments, and visual display data for exact preview match
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
       projectType: project.projectType || 'video',
       layoutSettings: body.layoutSettings,
       fullscreenSegments: body.fullscreenSegments,
+      visualDisplayData: body.visualDisplayData,
+    });
+
+    return { jobId: job.id };
+  });
+
+  // Generate AI caption styles — LLM analyzes transcript and generates per-caption style overrides
+  fastify.post('/projects/:id/generate-caption-styles', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    // Create job record
+    const [job] = await db.insert(jobs).values({
+      projectId: id,
+      type: 'generate-caption-styles',
+      status: 'pending',
+    }).returning();
+
+    await queueGenerateCaptionStylesJob({
+      projectId: id,
+      jobId: job.id,
     });
 
     return { jobId: job.id };
