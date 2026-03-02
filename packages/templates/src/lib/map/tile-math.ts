@@ -3,6 +3,9 @@
  * lat/lng coordinates and pixel/tile positions.
  */
 
+import type { Viewport, MultiPointViewport, TileInfo, MapStyle } from './types';
+import { MAP_STYLES } from './map-styles';
+
 const TILE_SIZE = 256;
 
 export function lngToTileX(lng: number, zoom: number): number {
@@ -57,14 +60,6 @@ export function fitZoom(
   return 1;
 }
 
-export interface Viewport {
-  zoom: number;
-  offsetX: number;
-  offsetY: number;
-  point1: { x: number; y: number };
-  point2: { x: number; y: number };
-}
-
 /**
  * Compute the viewport transformation: world-to-screen offsets
  * and the screen-space positions of the two points.
@@ -99,13 +94,6 @@ export function computeViewport(
     point1: { x: px1 + offsetX, y: py1 + offsetY },
     point2: { x: px2 + offsetX, y: py2 + offsetY },
   };
-}
-
-export interface TileInfo {
-  tileX: number;
-  tileY: number;
-  screenX: number;
-  screenY: number;
 }
 
 /**
@@ -149,55 +137,6 @@ export function getTilesForViewport(
   }
 
   return tiles;
-}
-
-export type MapStyle = 'satellite' | 'watercolor' | 'toner' | 'tonerLite' | 'terrain' | 'osm';
-
-export interface MapStyleConfig {
-  urlTemplate: string;
-  background: string;
-  darkMap: boolean;
-}
-
-export const MAP_STYLES: Record<MapStyle, MapStyleConfig> = {
-  satellite: {
-    urlTemplate:
-      'https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    background: '#1a1a2e',
-    darkMap: true,
-  },
-  watercolor: {
-    urlTemplate: 'https://tiles.stadiamaps.com/tiles/stamen_watercolor/{z}/{x}/{y}.jpg',
-    background: '#F5F0EB',
-    darkMap: false,
-  },
-  toner: {
-    urlTemplate: 'https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png',
-    background: '#000000',
-    darkMap: true,
-  },
-  tonerLite: {
-    urlTemplate: 'https://tiles.stadiamaps.com/tiles/stamen_toner_lite/{z}/{x}/{y}.png',
-    background: '#FFFFFF',
-    darkMap: false,
-  },
-  terrain: {
-    urlTemplate: 'https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}.png',
-    background: '#F4F0E8',
-    darkMap: false,
-  },
-  osm: {
-    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    background: '#E8E0D8',
-    darkMap: false,
-  },
-};
-
-export interface MultiPointViewport {
-  zoom: number;
-  offsetX: number;
-  offsetY: number;
-  points: { x: number; y: number }[];
 }
 
 /**
@@ -273,7 +212,7 @@ export function computeBezierControl(
 }
 
 /**
- * Get a point along a quadratic bezier curve at parameter t (0–1).
+ * Get a point along a quadratic bezier curve at parameter t (0-1).
  */
 export function getPointOnQuadBezier(
   x1: number,

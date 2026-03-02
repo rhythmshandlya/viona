@@ -9,19 +9,17 @@ import {
   MAP_STYLES,
   computeBezierControl,
   getPointOnQuadBezier,
-} from './lib/tile-math';
-import type { Viewport, MultiPointViewport } from './lib/tile-math';
-import {
   getFollowDrawCamera,
   getZoomRevealCamera,
   getKenBurnsCamera,
   getStaticCamera,
-} from './lib/camera';
-import { haversineDistance } from './lib/distance';
-import MapTileGrid from './components/MapTileGrid';
-import AnimatedPath from './components/AnimatedPath';
-import LocationMarker from './components/LocationMarker';
-import LocationLabel from './components/LocationLabel';
+  haversineDistance,
+  MapTileGrid,
+  AnimatedPath,
+  LocationMarker,
+  LocationLabel,
+} from '../../lib/map';
+import type { Viewport, MultiPointViewport } from '../../lib/map';
 import AirplaneIcon from './components/AirplaneIcon';
 import DistanceCounter from './components/DistanceCounter';
 import ProgressBar from './components/ProgressBar';

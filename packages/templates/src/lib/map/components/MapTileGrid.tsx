@@ -1,7 +1,7 @@
 import React from 'react';
 import { Img } from 'remotion';
-import type { Viewport, MapStyle } from '../lib/tile-math';
-import { getTilesForViewport, getTileUrl } from '../lib/tile-math';
+import type { Viewport, MapStyle } from '../types';
+import { getTilesForViewport, getTileUrl } from '../tile-math';
 
 interface MapTileGridProps {
   viewport: Viewport;

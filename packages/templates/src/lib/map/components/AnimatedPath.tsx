@@ -11,10 +11,12 @@ interface AnimatedPathProps {
   endFrame: number;
   lineColor: string;
   lineWidth: number;
-  lineStyle: 'solid' | 'dashed';
+  lineStyle: 'solid' | 'dashed' | 'dotted' | 'glow';
   curveIntensity: number;
   width: number;
   height: number;
+  /** Unique ID suffix for SVG masks when rendering multiple paths. Defaults to 'default'. */
+  maskId?: string;
 }
 
 const AnimatedPath: React.FC<AnimatedPathProps> = ({
@@ -31,6 +33,7 @@ const AnimatedPath: React.FC<AnimatedPathProps> = ({
   curveIntensity,
   width,
   height,
+  maskId = 'default',
 }) => {
   const progress = interpolate(frame, [startFrame, endFrame], [0, 1], {
     extrapolateLeft: 'clamp',
@@ -54,6 +57,21 @@ const AnimatedPath: React.FC<AnimatedPathProps> = ({
   const cy = midY + ny * offset;
 
   const d = `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+  const drawMaskId = `draw-mask-${maskId}`;
+
+  /** Compute strokeDasharray for different line styles */
+  function getStrokeDasharray(): string | undefined {
+    switch (lineStyle) {
+      case 'dashed':
+        return `${lineWidth * 3} ${lineWidth * 2}`;
+      case 'dotted':
+        return `2 8`;
+      case 'glow':
+      case 'solid':
+      default:
+        return undefined;
+    }
+  }
 
   return (
     <svg
@@ -63,7 +81,7 @@ const AnimatedPath: React.FC<AnimatedPathProps> = ({
     >
       {/* Mask that progressively reveals the path */}
       <defs>
-        <mask id="draw-mask">
+        <mask id={drawMaskId}>
           <path
             d={d}
             fill="none"
@@ -76,18 +94,28 @@ const AnimatedPath: React.FC<AnimatedPathProps> = ({
           />
         </mask>
       </defs>
+
+      {/* Glow: extra wide semi-transparent stroke underneath */}
+      {lineStyle === 'glow' && (
+        <path
+          d={d}
+          fill="none"
+          stroke={lineColor}
+          strokeWidth={lineWidth * 3}
+          strokeLinecap="round"
+          mask={`url(#${drawMaskId})`}
+          opacity={0.25}
+        />
+      )}
+
       <path
         d={d}
         fill="none"
         stroke={lineColor}
         strokeWidth={lineWidth}
         strokeLinecap="round"
-        mask="url(#draw-mask)"
-        strokeDasharray={
-          lineStyle === 'dashed'
-            ? `${lineWidth * 3} ${lineWidth * 2}`
-            : undefined
-        }
+        mask={`url(#${drawMaskId})`}
+        strokeDasharray={getStrokeDasharray()}
       />
     </svg>
   );

@@ -32,7 +32,7 @@ export function getFollowDrawCamera(
 }
 
 /**
- * Zoom-reveal camera: starts zoomed out at 0.45x, zooms to 1x over frames 0–90,
+ * Zoom-reveal camera: starts zoomed out at 0.45x, zooms to 1x over frames 0-90,
  * then stays static.
  */
 export function getZoomRevealCamera(frame: number, width: number, height: number): CameraState {
