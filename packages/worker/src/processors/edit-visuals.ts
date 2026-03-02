@@ -119,7 +119,7 @@ export interface EditVisualsJobData {
 /**
  * Upload bundle directory to S3 storage.
  */
-async function uploadBundleToStorage(bundleDir: string, compositionId: string): Promise<void> {
+export async function uploadBundleToStorage(bundleDir: string, compositionId: string): Promise<void> {
   const files = await readdir(bundleDir, { recursive: true, withFileTypes: true });
 
   for (const file of files) {
@@ -142,7 +142,7 @@ async function uploadBundleToStorage(bundleDir: string, compositionId: string): 
 /**
  * Upload source project directory to S3 storage.
  */
-async function uploadSourceToStorage(projectDir: string, compositionId: string): Promise<string> {
+export async function uploadSourceToStorage(projectDir: string, compositionId: string): Promise<string> {
   const files = await readdir(projectDir, { recursive: true, withFileTypes: true });
 
   for (const file of files) {
@@ -168,7 +168,7 @@ async function uploadSourceToStorage(projectDir: string, compositionId: string):
  * Compile composition source to CommonJS for dynamic frontend loading.
  * The frontend's DynamicVisualLoader expects a composition.cjs.js file.
  */
-async function compileCjs(projectDir: string, bundleDir: string): Promise<void> {
+export async function compileCjs(projectDir: string, bundleDir: string): Promise<void> {
   const indexTsx = join(projectDir, 'index.tsx');
   const cjsOutput = join(bundleDir, 'composition.cjs.js');
   const workspacePath = getWorkspacePath();
@@ -211,7 +211,7 @@ async function compileCjs(projectDir: string, bundleDir: string): Promise<void> 
  * Auto-fix common Remotion issues in all .tsx files within a project directory.
  * Fixes descending interpolate ranges that crash the Remotion player.
  */
-async function autoFixProjectFiles(projectDir: string): Promise<void> {
+export async function autoFixProjectFiles(projectDir: string): Promise<void> {
   const entries = await readdir(projectDir, { recursive: true, withFileTypes: true });
   let fixedCount = 0;
 
@@ -263,7 +263,7 @@ async function autoFixProjectFiles(projectDir: string): Promise<void> {
 /**
  * Inject user-uploaded assets into the workspace for the Animator to use.
  */
-async function injectUserAssets(projectId: string, projectDir: string): Promise<number> {
+export async function injectUserAssets(projectId: string, projectDir: string): Promise<number> {
   const workspacePath = getWorkspacePath();
   const assets = await db.select().from(projectAssets)
     .where(eq(projectAssets.projectId, projectId));
@@ -568,7 +568,7 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
   }
 }
 
-interface ClaudeEditorOptions {
+export interface ClaudeEditorOptions {
   projectId: string;
   jobId: string;
   projectDir: string;
@@ -591,7 +591,7 @@ interface ClaudeEditorResult {
  * Gives Claude full project context and lets it decide what to change.
  * No pre-filtering or edit mode detection — the model is smarter than keyword heuristics.
  */
-async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEditorResult> {
+export async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEditorResult> {
   const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId, targetElementName, transcript, scenePlan } = options;
 
   const workspacePath = getWorkspacePath();

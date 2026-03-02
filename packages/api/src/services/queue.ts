@@ -171,6 +171,27 @@ export async function queueEditVisualsJob(data: EditVisualsJobData) {
   });
 }
 
+// Split visual scene job — triggered when user cuts a visual timeline item
+export interface SplitVisualSceneJobData {
+  projectId: string;
+  jobId: string;
+  compositionId: string;      // e.g. "proj-abc-def" (with hyphens)
+  sourceSceneId: number;      // 1-indexed scene being split
+  splitAtMs: number;          // Absolute timeline position of cut
+  leftItemId: string;         // New timeline item ID for left half
+  rightItemId: string;        // New timeline item ID for right half
+  transcript?: string;        // Full transcript text with timestamps for context
+}
+
+export const splitVisualSceneQueue = new Queue('split-visual-scene', { connection });
+
+export async function queueSplitVisualSceneJob(data: SplitVisualSceneJobData) {
+  return splitVisualSceneQueue.add('split-visual-scene', data, {
+    jobId: `${data.projectId}:split:${Date.now()}`,
+    attempts: 1,
+  });
+}
+
 // SVG Animation job - for converting images to animated SVG compositions
 export interface SvgAnimationJobData {
   projectId: string;
