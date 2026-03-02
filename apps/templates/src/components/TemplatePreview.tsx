@@ -10,9 +10,7 @@ interface TemplatePreviewProps {
 }
 
 export function TemplatePreview({ template, props }: TemplatePreviewProps) {
-  const [Component, setComponent] = useState<React.ComponentType<any> | null>(
-    null
-  );
+  const [Component, setComponent] = useState<React.ComponentType<any> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useMemo(() => {
@@ -36,52 +34,68 @@ export function TemplatePreview({ template, props }: TemplatePreviewProps) {
 
   const renderPoster = useCallback(() => {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-black/5">
-        <div className="text-muted-foreground text-sm">Click to play</div>
+      <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+        <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+          <svg className="w-6 h-6 text-primary ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        </div>
       </div>
     );
   }, []);
 
   if (loading || !Component) {
     return (
-      <div
-        className="rounded-lg bg-muted animate-pulse flex items-center justify-center"
-        style={{
-          ...containerStyle,
-          aspectRatio: `${width}/${height}`,
-        }}
-      >
-        <span className="text-muted-foreground text-sm">Loading preview...</span>
+      <div className="rounded-xl bg-neutral-950 p-6">
+        <div
+          className="rounded-lg bg-neutral-800 animate-pulse flex items-center justify-center"
+          style={{ ...containerStyle, aspectRatio: `${width}/${height}` }}
+        >
+          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={containerStyle}>
-      <div className="rounded-lg overflow-hidden border border-border shadow-sm">
-        <Player
-          component={Component}
-          inputProps={props}
-          durationInFrames={durationInFrames}
-          compositionWidth={width}
-          compositionHeight={height}
-          fps={fps}
-          style={{ width: "100%" }}
-          controls
-          autoPlay
-          loop
-          renderPoster={renderPoster}
-          showPosterWhenUnplayed
-        />
+    <div>
+      {/* Dark canvas wrapper */}
+      <div className="rounded-xl bg-neutral-950 p-4 sm:p-6">
+        <div style={containerStyle}>
+          <div className="rounded-lg overflow-hidden shadow-2xl ring-1 ring-white/10">
+            <Player
+              component={Component}
+              inputProps={props}
+              durationInFrames={durationInFrames}
+              compositionWidth={width}
+              compositionHeight={height}
+              fps={fps}
+              style={{ width: "100%" }}
+              controls
+              autoPlay
+              loop
+              renderPoster={renderPoster}
+              showPosterWhenUnplayed
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-        <span>
-          {width}x{height}
-        </span>
-        <span>{fps} fps</span>
-        <span>{(durationInFrames / fps).toFixed(1)}s</span>
-        <span>{durationInFrames} frames</span>
+      {/* Specs bar */}
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
+        {[
+          `${width}\u00d7${height}`,
+          `${fps} fps`,
+          `${(durationInFrames / fps).toFixed(1)}s`,
+          `${durationInFrames} frames`,
+        ].map((spec) => (
+          <span
+            key={spec}
+            className="text-xs px-2.5 py-1 rounded-md bg-secondary text-muted-foreground font-medium"
+          >
+            {spec}
+          </span>
+        ))}
       </div>
     </div>
   );

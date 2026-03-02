@@ -28,7 +28,7 @@ export function PropsEditorField({
           type="text"
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
-          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-shadow"
+          className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary transition-all"
         />
       </div>
     );
@@ -45,13 +45,13 @@ export function PropsEditorField({
             type="color"
             value={(value as string) ?? "#000000"}
             onChange={(e) => onChange(field.key, e.target.value)}
-            className="h-9 w-12 rounded border border-input cursor-pointer"
+            className="h-9 w-12 rounded border border-border cursor-pointer"
           />
           <input
             type="text"
             value={(value as string) ?? ""}
             onChange={(e) => onChange(field.key, e.target.value)}
-            className="flex-1 rounded-md border border-input bg-card px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1 h-9 rounded-md border border-border bg-card px-3 text-sm font-mono outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary transition-all"
           />
         </div>
       </div>
@@ -68,7 +68,7 @@ export function PropsEditorField({
           type="number"
           value={(value as number) ?? 0}
           onChange={(e) => onChange(field.key, Number(e.target.value))}
-          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring transition-shadow"
+          className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary transition-all"
         />
       </div>
     );
@@ -105,7 +105,7 @@ export function PropsEditorField({
         <select
           value={(value as string) ?? ""}
           onChange={(e) => onChange(field.key, e.target.value)}
-          className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
+          className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary transition-all"
         >
           {field.enumValues?.map((v) => (
             <option key={v} value={v}>
@@ -119,7 +119,7 @@ export function PropsEditorField({
 
   if (field.type === "object" && field.children) {
     return (
-      <fieldset className="space-y-3 rounded-lg border border-border p-3">
+      <fieldset className="space-y-3 rounded-lg border border-border/60 p-3.5">
         <legend className="text-sm font-medium text-foreground px-1">
           {field.label}
         </legend>
@@ -175,7 +175,7 @@ export function PropsEditorField({
           {arr.map((item, idx) => (
             <div
               key={idx}
-              className="flex items-start gap-2 rounded-md border border-border/50 p-2"
+              className="flex items-start gap-2 rounded-lg border border-border/60 p-3"
             >
               <div className="flex-1 space-y-2">
                 {itemFields?.length === 1 && itemFields[0].key === "value" ? (
@@ -185,7 +185,7 @@ export function PropsEditorField({
                     onChange={(e) =>
                       onChange(`${field.key}.${idx}`, e.target.value)
                     }
-                    className="w-full rounded-md border border-input bg-card px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-ring"
+                    className="w-full h-9 rounded-md border border-border bg-card px-3 text-sm outline-none focus:ring-2 focus:ring-ring/30 focus:border-primary transition-all"
                   />
                 ) : (
                   itemFields?.map((itemField) => {

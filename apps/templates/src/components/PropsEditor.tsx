@@ -32,7 +32,7 @@ export function PropsEditor({
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide">
+        <h3 className="text-sm font-semibold text-foreground">
           Properties
         </h3>
         <button

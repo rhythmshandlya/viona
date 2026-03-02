@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import type { TemplateRegistryEntry } from "@viona/templates";
 import { TemplateCard } from "./TemplateCard";
 import { FilterBar } from "./FilterBar";
+import { Search } from "lucide-react";
 
 interface TemplateGalleryProps {
   templates: TemplateRegistryEntry[];
@@ -63,12 +64,20 @@ export function TemplateGallery({ templates }: TemplateGalleryProps) {
         tags={allTags}
         selectedTag={selectedTag}
         onTagChange={setSelectedTag}
+        totalCount={templates.length}
+        filteredCount={filtered.length}
       />
 
       {filtered.length === 0 ? (
-        <div className="text-center py-16">
-          <p className="text-muted-foreground text-lg">
-            No templates match your filters
+        <div className="text-center py-24 animate-fade-in-up">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-secondary flex items-center justify-center mb-4">
+            <Search className="h-7 w-7 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold text-foreground">
+            No templates found
+          </h3>
+          <p className="text-muted-foreground mt-1 text-sm max-w-sm mx-auto">
+            Try adjusting your search or filters to find what you&apos;re looking for.
           </p>
           <button
             onClick={() => {
@@ -77,15 +86,15 @@ export function TemplateGallery({ templates }: TemplateGalleryProps) {
               setAspectRatio("");
               setSelectedTag("");
             }}
-            className="mt-4 text-primary hover:underline text-sm"
+            className="mt-5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
           >
             Clear all filters
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-          {filtered.map((template) => (
-            <TemplateCard key={template.meta.slug} template={template} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+          {filtered.map((template, i) => (
+            <TemplateCard key={template.meta.slug} template={template} index={i} />
           ))}
         </div>
       )}
