@@ -90,3 +90,4 @@ import './templates/formula-display/register';
 import './templates/emoji-slider-poll/register';
 import './templates/number-ticker/register';
 import './templates/split-stat/register';
+import './templates/indiana-jones/register';

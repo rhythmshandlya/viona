@@ -1,0 +1,12 @@
+{
+  "slug": "indiana-jones",
+  "name": "Indiana Jones Trail",
+  "description": "Classic vintage red dashed line tracing a route across a parchment-style map with airplane icon and compass",
+  "category": "entertainment",
+  "tags": ["adventure", "vintage", "classic", "travel", "retro", "parchment", "map", "journey", "explorer", "cinematic"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "16:9",
+  "sceneCount": 1,
+  "estimatedDuration": "10s",
+  "thumbnail": "thumbnail.png"
+}
