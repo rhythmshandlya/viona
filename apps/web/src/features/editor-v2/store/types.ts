@@ -595,6 +595,10 @@ export interface EditorState {
   // Safe zone settings
   safeZonePlatform: string;  // 'tiktok' | 'instagram-reels' | etc.
   showSafeZone: boolean;
+
+  // Visual scene regeneration tracking (not persisted to DB)
+  regeneratingVisualItemIds: Set<string>;
+  splitJobToItems: Record<string, [string, string]>;  // jobId -> [leftId, rightId]
 }
 
 // ============================================
@@ -727,6 +731,10 @@ export interface EditorActions {
   // Safe zone actions
   setSafeZonePlatform: (platform: string) => void;
   setShowSafeZone: (show: boolean) => void;
+
+  // Scene split regeneration
+  clearRegeneratingItems: (itemIds: string[]) => void;
+  removeSplitJob: (jobId: string) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;
@@ -821,6 +829,18 @@ export type PiPPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-rig
 export type PiPSize = 'small' | 'medium' | 'large' | 'custom';
 export type PiPShape = 'square' | 'circle' | 'rounded';
 
+export interface PiPCrop {
+  cropX: number;  // 0-100, horizontal pan (50 = center)
+  cropY: number;  // 0-100, vertical pan (50 = center)
+  zoom: number;   // 1.0 = fill frame (cover), up to 3.0
+}
+
+export const DEFAULT_PIP_CROP: PiPCrop = {
+  cropX: 50,
+  cropY: 50,
+  zoom: 1.0,
+};
+
 export interface PiPSettings {
   // Position
   position: PiPPosition;
@@ -845,6 +865,9 @@ export interface PiPSettings {
   shadowColor: string;
   shadowBlur: number;
   opacity: number;
+
+  // Video framing inside the PiP bubble
+  crop: PiPCrop;
 }
 
 export interface SplitSettings {
@@ -890,6 +913,7 @@ export const DEFAULT_PIP_SETTINGS: PiPSettings = {
   shadowColor: 'rgba(0, 0, 0, 0.5)',
   shadowBlur: 20,
   opacity: 1,
+  crop: DEFAULT_PIP_CROP,
 };
 
 export const DEFAULT_SPLIT_SETTINGS: SplitSettings = {
@@ -958,6 +982,7 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         shadowColor: 'rgba(0, 0, 0, 0.5)',
         shadowBlur: 20,
         opacity: 1,
+        crop: DEFAULT_PIP_CROP,
       },
       split: DEFAULT_SPLIT_SETTINGS,
     },
@@ -983,6 +1008,7 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         shadowColor: 'rgba(0, 0, 0, 0.6)',
         shadowBlur: 30,
         opacity: 1,
+        crop: DEFAULT_PIP_CROP,
       },
       split: DEFAULT_SPLIT_SETTINGS,
     },
@@ -1008,6 +1034,7 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         shadowColor: 'rgba(0, 0, 0, 0.3)',
         shadowBlur: 10,
         opacity: 0.95,
+        crop: DEFAULT_PIP_CROP,
       },
       split: DEFAULT_SPLIT_SETTINGS,
     },
@@ -1033,6 +1060,7 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         shadowColor: 'rgba(168, 85, 247, 0.4)',
         shadowBlur: 15,
         opacity: 1,
+        crop: DEFAULT_PIP_CROP,
       },
       split: DEFAULT_SPLIT_SETTINGS,
     },
