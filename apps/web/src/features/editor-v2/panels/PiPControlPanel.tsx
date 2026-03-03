@@ -439,7 +439,7 @@ export function PiPControlPanel() {
       {/* Hint */}
       <div className="pt-3 border-t border-[var(--editor-border-subtle)]">
         <p className="text-[11px] leading-relaxed text-[var(--editor-text-muted)]">
-          {mode === 'pip' && 'Talking head overlays the AI visuals. Customize position, size, and style.'}
+          {mode === 'pip' && 'Drag PiP to reposition. Alt+drag to pan video inside. Scroll to zoom.'}
           {mode === 'stacked' && 'Stacked layout with visuals and video. Adjust the ratio to your preference.'}
         </p>
       </div>
