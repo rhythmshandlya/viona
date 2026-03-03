@@ -42,6 +42,11 @@ import {
 } from '../store/types';
 import { effectsToCss } from '@/lib/effects-utils';
 import { DynamicVisualLoader } from './DynamicVisualLoader';
+import {
+  classifyWordTier,
+  computeEmotionalSegments,
+  findActiveSegment,
+} from '@viona/shared';
 
 // Calculate video transform for crop/pan
 function calculateVideoTransform(
@@ -1128,6 +1133,26 @@ function DynamicLayoutComposition({
         containerW, containerH,
       );
     }
+  } else if (mode === 'pip' && displayMode === 'default' && !isGap) {
+    // PiP mode: use transform-based rendering with PiP-specific crop settings
+    videoUseSimpleRender = false;
+    const pipCrop = pip.crop || { cropX: 50, cropY: 50, zoom: 1.0 };
+    // Get PiP container dimensions for transform calculation
+    const pipSizePercent = pip.size === 'custom' ? pip.customSize : PIP_SIZE_MAP[pip.size];
+    const containerW = Math.round(compWidth * (pipSizePercent / 100));
+    const containerH = containerW; // PiP is square aspect ratio
+    const firstVideoData = videoItems.length > 0 ? videoItems[0].data as VideoItemData : null;
+    if (firstVideoData && firstVideoData.width > 0 && firstVideoData.height > 0) {
+      videoTransform = calculateVideoTransform(
+        firstVideoData.width,
+        firstVideoData.height,
+        containerW,
+        containerH,
+        pipCrop.cropX,
+        pipCrop.cropY,
+        pipCrop.zoom,
+      );
+    }
   } else {
     videoUseSimpleRender = !isGap && displayMode === 'default';
   }
@@ -1169,50 +1194,9 @@ function DynamicLayoutComposition({
 }
 
 // ---------------------------------------------------------------------------
-// Dynamic Hierarchy — word classification for typography hierarchy preset
+// Dynamic Hierarchy — word classification imported from @viona/shared
+// getDynamicHierarchyOverrides uses platform-specific scale values
 // ---------------------------------------------------------------------------
-
-const POWER_WORDS = new Set([
-  // Emotion
-  'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
-  'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
-  'shocking', 'terrifying', 'brilliant', 'genius', 'perfect', 'worst',
-  'best', 'greatest', 'legendary', 'epic', 'massive', 'huge', 'evil',
-  // Urgency
-  'now', 'stop', 'wait', 'listen', 'watch', 'look', 'never', 'always',
-  'forever', 'immediately', 'urgent', 'warning', 'danger', 'critical',
-  'important', 'breaking', 'exclusive', 'secret', 'finally', 'today',
-  // Money & numbers
-  'million', 'billion', 'thousand', 'money', 'rich', 'free', 'paid',
-  'expensive', 'cheap', 'profit', 'cash', 'dollar', 'dollars', 'price',
-  'worth', 'cost', 'zero', 'double', 'triple', '100%', '1000',
-  // Contrast & impact
-  'but', 'however', 'actually', 'wrong', 'right', 'truth', 'lie', 'real',
-  'fake', 'only', 'everything', 'nothing', 'impossible', 'possible',
-  'everyone', 'nobody', 'first', 'last', 'biggest', 'smallest',
-  // Power verbs
-  'win', 'won', 'lose', 'lost', 'fight', 'broke', 'crushed', 'dominated',
-  'exploded', 'changed', 'saved', 'failed', 'success', 'discovered',
-]);
-
-const FILLER_WORDS = new Set([
-  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-  'to', 'of', 'in', 'for', 'on', 'at', 'by', 'with', 'from', 'as',
-  'and', 'or', 'if', 'it', 'its', 'that', 'this', 'than', 'then',
-  'so', 'up', 'do', 'did', 'has', 'had', 'have', 'will', 'would',
-  'could', 'should', 'can', 'may', 'might', 'shall', 'just', 'very',
-  'also', 'about', 'into', 'not', 'no', 'yes', 'some', 'my', 'your',
-  'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
-]);
-
-function classifyWordTier(text: string): 'power' | 'medium' | 'filler' {
-  const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
-  // Numbers (dollar amounts, percentages, large numbers) are power words
-  if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
-  if (POWER_WORDS.has(clean)) return 'power';
-  if (FILLER_WORDS.has(clean)) return 'filler';
-  return 'medium';
-}
 
 function getDynamicHierarchyOverrides(
   wordText: string,
@@ -1240,106 +1224,6 @@ function getDynamicHierarchyOverrides(
 
   // Merge: existing manual overrides take priority over computed
   return { ...computed, ...existingOverrides };
-}
-
-// ---------------------------------------------------------------------------
-// Emotional line breaking — break for impact, not grammar
-// ---------------------------------------------------------------------------
-
-interface EmotionalSegment {
-  lines: number[][]; // each line is an array of word indices
-  startIdx: number;
-  endIdx: number;    // exclusive
-}
-
-/**
- * Break caption words into emotional segments (groups of 1-2 lines shown together).
- * Rules:
- *  - Max 5 words per line
- *  - Isolate power words (single-word line for dramatic emphasis)
- *  - Break on pauses > 400ms
- *  - Don't start a line with a filler word (pull it to the previous line if possible)
- *  - Alternate short (1-2 words) and medium (3-5 words) lines for visual rhythm
- */
-function computeEmotionalSegments(words: CaptionWord[]): EmotionalSegment[] {
-  if (words.length === 0) return [];
-
-  const MAX_LINE = 5;
-  const PAUSE_THRESHOLD_MS = 400;
-  const lines: number[][] = [];
-  let currentLine: number[] = [];
-
-  for (let i = 0; i < words.length; i++) {
-    const tier = classifyWordTier(words[i].text);
-
-    // Check for pause before this word
-    const hasPause = i > 0 && (words[i].startMs - words[i - 1].endMs) > PAUSE_THRESHOLD_MS;
-
-    // Force break: pause detected
-    if (hasPause && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = [];
-    }
-
-    // Power word isolation: if this is a power word, break before it
-    // and give it its own line (or start of a new line)
-    if (tier === 'power' && currentLine.length > 0) {
-      lines.push(currentLine);
-      currentLine = [];
-    }
-
-    // Don't start a line with a filler word — pull it to previous line if possible
-    if (tier === 'filler' && currentLine.length === 0 && lines.length > 0) {
-      const prevLine = lines[lines.length - 1];
-      if (prevLine.length < MAX_LINE) {
-        prevLine.push(i);
-        continue;
-      }
-    }
-
-    currentLine.push(i);
-
-    // Power word gets its own line
-    if (tier === 'power' && currentLine.length === 1) {
-      // Check if the next word is also short — if so, keep the power word alone
-      lines.push(currentLine);
-      currentLine = [];
-      continue;
-    }
-
-    // Max line length hit
-    if (currentLine.length >= MAX_LINE) {
-      lines.push(currentLine);
-      currentLine = [];
-    }
-  }
-
-  if (currentLine.length > 0) {
-    lines.push(currentLine);
-  }
-
-  // Group lines into display segments (max 2 lines per segment for rhythm)
-  const segments: EmotionalSegment[] = [];
-  for (let l = 0; l < lines.length; l += 2) {
-    const segLines = [lines[l]];
-    if (l + 1 < lines.length) segLines.push(lines[l + 1]);
-    const allIndices = segLines.flat();
-    segments.push({
-      lines: segLines,
-      startIdx: allIndices[0],
-      endIdx: allIndices[allIndices.length - 1] + 1,
-    });
-  }
-
-  return segments;
-}
-
-/** Find which emotional segment contains a word index */
-function findActiveSegment(segments: EmotionalSegment[], wordIdx: number): EmotionalSegment | null {
-  for (const seg of segments) {
-    if (wordIdx >= seg.startIdx && wordIdx < seg.endIdx) return seg;
-  }
-  return segments.length > 0 ? segments[0] : null;
 }
 
 interface CaptionRendererProps {
@@ -1632,7 +1516,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             key={lineIdx}
             style={{
               display: 'flex',
-              flexWrap: 'wrap',
+              flexWrap: 'nowrap',
               justifyContent: 'center',
               alignItems: 'baseline',
               gap: '0 6px',
