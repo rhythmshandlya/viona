@@ -15,6 +15,9 @@ import {
   PictureInPicture,
   Video,
   Sparkles,
+  Crosshair,
+  Expand,
+  Crop,
 } from 'lucide-react';
 import {
   useLayoutSettings,
@@ -26,6 +29,7 @@ import {
   PiPPosition,
   PiPShape,
   LayoutMode,
+  DEFAULT_PIP_CROP,
 } from '../store/types';
 import { cn } from '@/lib/utils';
 
@@ -83,8 +87,16 @@ function ToggleButton({
 export function PiPControlPanel() {
   const layoutSettings = useLayoutSettings();
   const presetId = useLayoutPresetId();
-  const { updatePiPSettings, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
+  const { updatePiPSettings, updatePiPCrop, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
   const { mode, pip, split } = layoutSettings;
+
+  const crop = pip.crop || DEFAULT_PIP_CROP;
+
+  const cropPresets = [
+    { label: 'Fit', icon: <Expand className="w-3 h-3" />, crop: { cropX: 50, cropY: 50, zoom: 1.0 } },
+    { label: 'Face', icon: <Crosshair className="w-3 h-3" />, crop: { cropX: 50, cropY: 30, zoom: 1.3 } },
+    { label: 'Top', icon: <Crop className="w-3 h-3" />, crop: { cropX: 50, cropY: 25, zoom: 1.0 } },
+  ];
 
   const layoutModes: { value: LayoutMode; icon: React.ReactNode; label: string }[] = [
     { value: 'stacked', icon: <Rows className="w-4 h-4" />, label: 'Stacked' },
@@ -354,6 +366,72 @@ export function PiPControlPanel() {
                 onValueChange={([v]) => updatePiPSettings({ opacity: v })}
               />
             </div>
+          </div>
+
+          {/* Video Framing */}
+          <div className="border-t border-[var(--editor-border-subtle)]" />
+
+          <div className="space-y-3">
+            <SectionLabel>Video Framing</SectionLabel>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {cropPresets.map((preset) => (
+                <ToggleButton
+                  key={preset.label}
+                  active={
+                    crop.cropX === preset.crop.cropX &&
+                    crop.cropY === preset.crop.cropY &&
+                    crop.zoom === preset.crop.zoom
+                  }
+                  onClick={() => updatePiPCrop(preset.crop)}
+                  className="h-8"
+                >
+                  {preset.icon}
+                  <span>{preset.label}</span>
+                </ToggleButton>
+              ))}
+            </div>
+
+            {/* Horizontal Pan */}
+            <div className="space-y-1.5">
+              <FieldLabel value={Math.round(crop.cropX)}>Horizontal Pan</FieldLabel>
+              <Slider
+                value={[crop.cropX]}
+                min={0}
+                max={100}
+                step={1}
+                onValueChange={([v]) => updatePiPCrop({ cropX: v })}
+              />
+            </div>
+
+            {/* Vertical Pan */}
+            <div className="space-y-1.5">
+              <FieldLabel value={Math.round(crop.cropY)}>Vertical Pan</FieldLabel>
+              <Slider
+                value={[crop.cropY]}
+                min={0}
+                max={100}
+                step={1}
+                onValueChange={([v]) => updatePiPCrop({ cropY: v })}
+              />
+            </div>
+
+            {/* Zoom */}
+            <div className="space-y-1.5">
+              <FieldLabel value={`${crop.zoom.toFixed(1)}x`}>Zoom</FieldLabel>
+              <Slider
+                value={[crop.zoom]}
+                min={1.0}
+                max={3.0}
+                step={0.1}
+                onValueChange={([v]) => updatePiPCrop({ zoom: v })}
+              />
+            </div>
+
+            <p className="text-[10px] text-[var(--editor-text-muted)]">
+              Alt+drag on PiP to pan. Scroll to zoom.
+            </p>
           </div>
         </div>
       )}
