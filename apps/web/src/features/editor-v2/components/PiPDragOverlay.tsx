@@ -2,8 +2,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useLayoutSettings, useLayoutActions } from '../store/use-editor-store';
-import type { PiPSettings, PiPPosition } from '../store/types';
-import { PIP_SIZE_MAP } from '../store/types';
+import type { PiPSettings, PiPPosition, PiPCrop } from '../store/types';
+import { PIP_SIZE_MAP, DEFAULT_PIP_CROP } from '../store/types';
 
 // --- Types ---
 
@@ -15,7 +15,7 @@ interface BoundingBox {
 }
 
 type HandlePosition = 'nw' | 'ne' | 'se' | 'sw';
-type DragMode = 'move' | 'resize' | 'border-radius' | 'rotate';
+type DragMode = 'move' | 'resize' | 'border-radius' | 'rotate' | 'crop-pan';
 
 interface DragState {
   mode: DragMode;
@@ -25,6 +25,7 @@ interface DragState {
   startBox: BoundingBox;
   startPiP: PiPSettings;
   startAngle?: number; // for rotation mode
+  startCrop?: PiPCrop;
 }
 
 // --- Constants ---
@@ -130,11 +131,12 @@ interface PiPDragOverlayProps {
 
 export function PiPDragOverlay({ containerRef, canvasWidth, canvasHeight }: PiPDragOverlayProps) {
   const layoutSettings = useLayoutSettings();
-  const { updatePiPSettings } = useLayoutActions();
+  const { updatePiPSettings, updatePiPCrop } = useLayoutActions();
 
   const [box, setBox] = useState<BoundingBox | null>(null);
   const [isSelected, setIsSelected] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [altHeld, setAltHeld] = useState(false);
   const dragRef = useRef<DragState | null>(null);
   const rafRef = useRef<number>(0);
   const lastBoxRef = useRef<BoundingBox | null>(null);
@@ -194,6 +196,18 @@ export function PiPDragOverlay({ containerRef, canvasWidth, canvasHeight }: PiPD
     return () => cancelAnimationFrame(rafRef.current);
   }, [isPiPMode, measureBox]);
 
+  // Track Alt key for crop-pan mode
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.altKey) setAltHeld(true); };
+    const up = (e: KeyboardEvent) => { if (!e.altKey) setAltHeld(false); };
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
+    return () => {
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
+    };
+  }, []);
+
   // --- Pointer Handlers ---
 
   const getZoom = useCallback(() => {
@@ -228,6 +242,10 @@ export function PiPDragOverlay({ containerRef, canvasWidth, canvasHeight }: PiPD
           const localY = (e.clientY - containerRect.top) / zoom;
           state.startAngle = getAngleFromCenter(box, localX, localY);
         }
+      }
+
+      if (mode === 'crop-pan') {
+        state.startCrop = { ...(pip.crop || DEFAULT_PIP_CROP) };
       }
 
       dragRef.current = state;
@@ -309,9 +327,19 @@ export function PiPDragOverlay({ containerRef, canvasWidth, canvasHeight }: PiPD
           180,
         );
         updatePiPSettings({ rotation: newRotation });
+      } else if (mode === 'crop-pan' && dragRef.current.startCrop) {
+        const startCrop = dragRef.current.startCrop;
+        // Pan sensitivity: map pixel drag to 0-100 crop range
+        const pipSizePercent = pip.size === 'custom' ? pip.customSize : PIP_SIZE_MAP[pip.size];
+        const pipPixelSize = canvasWidth * (pipSizePercent / 100);
+        const sensitivity = 100 / (pipPixelSize * (startCrop.zoom || 1));
+
+        const newCropX = clamp(startCrop.cropX - dx * sensitivity, 0, 100);
+        const newCropY = clamp(startCrop.cropY - dy * sensitivity, 0, 100);
+        updatePiPCrop({ cropX: newCropX, cropY: newCropY });
       }
     },
-    [containerRef, canvasWidth, canvasHeight, updatePiPSettings, getZoom]
+    [containerRef, canvasWidth, canvasHeight, updatePiPSettings, updatePiPCrop, pip, getZoom]
   );
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
@@ -325,6 +353,19 @@ export function PiPDragOverlay({ containerRef, canvasWidth, canvasHeight }: PiPD
       setIsDragging(false);
     }
   }, []);
+
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (!isSelected) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const currentCrop = pip.crop || DEFAULT_PIP_CROP;
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      const newZoom = clamp(currentCrop.zoom + delta, 1.0, 3.0);
+      updatePiPCrop({ zoom: Math.round(newZoom * 10) / 10 });
+    },
+    [isSelected, pip.crop, updatePiPCrop]
+  );
 
   // Click on PiP area to select
   const handlePiPClick = useCallback(
@@ -381,14 +422,19 @@ export function PiPDragOverlay({ containerRef, canvasWidth, canvasHeight }: PiPD
             ? `1.5px solid ${accentColor}`
             : '1.5px solid transparent',
           borderRadius: pip.shape === 'circle' ? '50%' : pip.shape === 'rounded' ? pip.borderRadius : 0,
-          cursor: 'move',
+          cursor: altHeld ? 'crosshair' : 'move',
           pointerEvents: 'auto',
           transition: isDragging ? 'none' : 'border-color 0.15s',
         }}
         onPointerDown={(e) => {
           handlePiPClick(e);
-          handlePointerDown(e, 'move');
+          if (e.altKey) {
+            handlePointerDown(e, 'crop-pan');
+          } else {
+            handlePointerDown(e, 'move');
+          }
         }}
+        onWheel={handleWheel}
       />
 
       {/* Corner resize handles */}
