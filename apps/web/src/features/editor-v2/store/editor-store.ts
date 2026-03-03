@@ -7,6 +7,7 @@ import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { nanoid } from 'nanoid';
 import { api, Project as ApiProject } from '@/lib/api';
+import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
 import {
   EditorStore,
@@ -35,6 +36,7 @@ import {
   LayoutPresetId,
   LayoutMode,
   PiPSettings,
+  PiPCrop,
   SplitSettings,
   normalizeLayoutMode,
 } from './types';
@@ -131,6 +133,10 @@ const initialState: EditorState = {
   // Safe zone settings
   safeZonePlatform: 'none',
   showSafeZone: false,
+
+  // Visual scene regeneration tracking
+  regeneratingVisualItemIds: new Set<string>(),
+  splitJobToItems: {},
 };
 
 /**
@@ -1626,11 +1632,51 @@ export const useEditorStore = create<EditorStore>()(
 
       if (splitRelativeMs <= 100 || splitRelativeMs >= duration - 100) return;
 
+      // Capture pre-split info for visual items
+      const isVisual = item.type === 'visual';
+      const visualData = isVisual ? (item.data as VisualItemData) : null;
+
+      let splitResult: [string, string] | null = null as [string, string] | null;
+
       set((state) => {
-        splitItemInDraft(state, itemId, atMs);
+        const result = splitItemInDraft(state, itemId, atMs);
+        if (result) {
+          splitResult = result;
+          if (isVisual) {
+            state.regeneratingVisualItemIds.add(result[0]);
+            state.regeneratingVisualItemIds.add(result[1]);
+          }
+        }
       });
 
       get().pushHistory();
+      debouncedSave(() => get().saveProject());
+
+      // Trigger AI regeneration for visual splits
+      if (isVisual && splitResult && visualData?.sourceSceneId) {
+        const [leftId, rightId] = splitResult;
+        const projectId = get().project?.id;
+        if (projectId) {
+          api.splitVisualScene(projectId, {
+            compositionId: visualData.compositionId,
+            sourceSceneId: visualData.sourceSceneId,
+            splitAtMs: atMs,
+            leftItemId: leftId,
+            rightItemId: rightId,
+          }).then(({ jobId }) => {
+            wsClient.subscribeToJob(jobId);
+            set((state) => {
+              state.splitJobToItems[jobId] = [leftId, rightId];
+            });
+          }).catch((err) => {
+            console.error('[splitItem] Failed to trigger scene split:', err);
+            set((state) => {
+              state.regeneratingVisualItemIds.delete(leftId);
+              state.regeneratingVisualItemIds.delete(rightId);
+            });
+          });
+        }
+      }
     },
 
     splitAllAtPlayhead: () => {
@@ -1787,6 +1833,20 @@ export const useEditorStore = create<EditorStore>()(
     setSplitMode: (active: boolean) => {
       set((state) => {
         state.splitMode = active;
+      });
+    },
+
+    clearRegeneratingItems: (itemIds: string[]) => {
+      set((state) => {
+        for (const id of itemIds) {
+          state.regeneratingVisualItemIds.delete(id);
+        }
+      });
+    },
+
+    removeSplitJob: (jobId: string) => {
+      set((state) => {
+        delete state.splitJobToItems[jobId];
       });
     },
 
@@ -2088,6 +2148,17 @@ export const useEditorStore = create<EditorStore>()(
         state.layoutSettings.pip = {
           ...state.layoutSettings.pip,
           ...settings,
+        };
+        state.layoutPresetId = 'custom';
+      });
+      debouncedSave(() => get().saveProject());
+    },
+
+    updatePiPCrop: (crop: Partial<PiPCrop>) => {
+      set((state) => {
+        state.layoutSettings.pip.crop = {
+          ...state.layoutSettings.pip.crop,
+          ...crop,
         };
         state.layoutPresetId = 'custom';
       });

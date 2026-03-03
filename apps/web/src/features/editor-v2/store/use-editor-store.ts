@@ -268,6 +268,7 @@ export function useLayoutActions() {
     useShallow((state) => ({
       updateLayoutSettings: state.updateLayoutSettings,
       updatePiPSettings: state.updatePiPSettings,
+      updatePiPCrop: state.updatePiPCrop,
       updateSplitSettings: state.updateSplitSettings,
       setLayoutPreset: state.setLayoutPreset,
       setLayoutMode: state.setLayoutMode,

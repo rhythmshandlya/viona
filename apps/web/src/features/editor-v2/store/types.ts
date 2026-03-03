@@ -697,6 +697,7 @@ export interface EditorActions {
   // Layout actions
   updateLayoutSettings: (settings: Partial<LayoutSettings>) => void;
   updatePiPSettings: (settings: Partial<PiPSettings>) => void;
+  updatePiPCrop: (crop: Partial<PiPCrop>) => void;
   updateSplitSettings: (settings: Partial<SplitSettings>) => void;
   setLayoutPreset: (presetId: LayoutPresetId) => void;
   setLayoutMode: (mode: LayoutMode) => void;
