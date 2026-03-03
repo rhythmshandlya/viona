@@ -12,6 +12,8 @@ import { logger } from '../logger.js';
 import { renderVideo, SubtitleItem, SubtitleStyle } from '@viona/renderer';
 import { renderMedia, selectComposition, getCompositions } from '@remotion/renderer';
 import { bundle } from '@remotion/bundler';
+import { classifyWordTier, computeEmotionalSegments } from '@viona/shared';
+import type { MinimalWord } from '@viona/shared';
 
 // Font directory for FFmpeg's libass subtitle filter.
 // In Docker (production), fonts are installed in /usr/share/fonts.
@@ -32,7 +34,7 @@ const LOCAL_FONTS_CACHE = join(tmpdir(), 'clippify-fonts');
  * Verified working with FFmpeg 8.x on Windows. On Linux/macOS (no colons in
  * paths), the function is effectively a no-op.
  */
-function escapePathForFilter(p: string): string {
+export function escapePathForFilter(p: string): string {
   const normalized = p.replace(/\\/g, '/');
   // Windows paths contain drive letter colons (C:) which FFmpeg misparses
   if (normalized.includes(':')) {
@@ -191,7 +193,7 @@ const downloadedFonts = new Set<string>();
  * Walks the comma-separated list and returns the first available font,
  * checking Google Fonts registry and fallback map.
  */
-function resolveAvailableFontFamily(fontFamilyCSS: string): string {
+export function resolveAvailableFontFamily(fontFamilyCSS: string): string {
   const families = fontFamilyCSS.split(',').map(f => f.trim());
 
   for (const family of families) {
@@ -498,6 +500,7 @@ export interface LayoutSettings {
     shadowColor: string;
     shadowBlur: number;
     opacity: number;
+    rotation: number;
   };
   split: {
     position: 'visuals-first' | 'video-first';
@@ -532,7 +535,7 @@ interface VideoCropSettings {
  * Scales the source video to fill the target area (with optional zoom via scale),
  * then crops at an offset determined by cropX/cropY (0=left/top, 50=center, 100=right/bottom).
  */
-function buildVideoCropFilter(
+export function buildVideoCropFilter(
   crop: VideoCropSettings,
   targetWidth: number,
   targetHeight: number,
@@ -1440,7 +1443,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
   }
 }
 
-function convertToSubtitles(items: any[]): SubtitleItem[] {
+export function convertToSubtitles(items: any[]): SubtitleItem[] {
   // Frontend uses 'caption' type, not 'subtitle'
   return items
     .filter(item => item.type === 'caption' || item.type === 'subtitle')
@@ -1685,7 +1688,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return ass;
 }
 
-function formatASSTime(ms: number): string {
+export function formatASSTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -2346,6 +2349,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     shadowColor: 'rgba(0, 0, 0, 0.5)',
     shadowBlur: 20,
     opacity: 1,
+    rotation: 0,
   };
   const split = layoutSettings?.split || {
     position: 'visuals-first' as const,
@@ -2392,10 +2396,38 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
         break;
     }
 
-    // Build PiP-specific crop filter: use user's crop/pan/scale for the PiP bubble
-    const pipCropFilter = videoCrop
-      ? buildVideoCropFilter(videoCrop, pipWidth, pipHeight)
-      : `scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1`;
+    // Build PiP-specific crop filter using PiP's own crop settings
+    const pipCrop = (pip as any).crop || { cropX: 50, cropY: 50, zoom: 1.0 };
+    const pipHasCrop = pipCrop.cropX !== 50 || pipCrop.cropY !== 50 || pipCrop.zoom !== 1.0;
+
+    let pipCropFilter: string;
+    if (pipHasCrop && videoCrop) {
+      // Use PiP-specific crop values with the source video dimensions
+      const pipVideoCrop: VideoCropSettings = {
+        sourceWidth: videoCrop.sourceWidth,
+        sourceHeight: videoCrop.sourceHeight,
+        cropX: pipCrop.cropX,
+        cropY: pipCrop.cropY,
+        scale: pipCrop.zoom,
+      };
+      pipCropFilter = buildVideoCropFilter(pipVideoCrop, pipWidth, pipHeight);
+    } else if (pipHasCrop) {
+      // No global videoCrop but PiP has custom crop — estimate source dimensions
+      const pipVideoCrop: VideoCropSettings = {
+        sourceWidth: 1920,
+        sourceHeight: 1080,
+        cropX: pipCrop.cropX,
+        cropY: pipCrop.cropY,
+        scale: pipCrop.zoom,
+      };
+      pipCropFilter = buildVideoCropFilter(pipVideoCrop, pipWidth, pipHeight);
+    } else if (videoCrop) {
+      // No PiP-specific crop, fall back to global video crop
+      pipCropFilter = buildVideoCropFilter(videoCrop, pipWidth, pipHeight);
+    } else {
+      // Default center cover
+      pipCropFilter = `scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1`;
+    }
 
     // Apply PiP styling: rounded corners, border, shadow, opacity
     // Uses FFmpeg geq+alphaextract for rounded mask, drawbox for border
@@ -3120,7 +3152,7 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
 /**
  * Convert hex or rgba color to ASS color format (&HAABBGGRR)
  */
-function hexToASSColor(color: string): string {
+export function hexToASSColor(color: string): string {
   if (!color) return '&H00FFFFFF'; // Default to white
 
   // Handle rgba format: rgba(r, g, b, a)
@@ -3161,7 +3193,7 @@ function hexToASSColor(color: string): string {
  *                 4=middle-left, 5=middle-center, 6=middle-right
  *                 7=top-left, 8=top-center, 9=top-right
  */
-function getASSAlignment(position: string): number {
+export function getASSAlignment(position: string): number {
   switch (position) {
     case 'top': return 8;
     case 'middle': case 'center': return 5;
@@ -3591,44 +3623,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return applyTextTransform(text);
   };
 
-  // ── Dynamic hierarchy word classification (matches Composition.tsx preview) ──
+  // ── Dynamic hierarchy (word classification imported from @viona/shared) ──
   const isDynamicHierarchy = firstStyle.presetId === 'dynamic-hierarchy';
-
-  const POWER_WORDS = new Set([
-    'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
-    'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
-    'shocking', 'terrifying', 'brilliant', 'genius', 'perfect', 'worst',
-    'best', 'greatest', 'legendary', 'epic', 'massive', 'huge', 'evil',
-    'now', 'stop', 'wait', 'listen', 'watch', 'look', 'never', 'always',
-    'forever', 'immediately', 'urgent', 'warning', 'danger', 'critical',
-    'important', 'breaking', 'exclusive', 'secret', 'finally', 'today',
-    'million', 'billion', 'thousand', 'money', 'rich', 'free', 'paid',
-    'expensive', 'cheap', 'profit', 'cash', 'dollar', 'dollars', 'price',
-    'worth', 'cost', 'zero', 'double', 'triple', '100%', '1000',
-    'but', 'however', 'actually', 'wrong', 'right', 'truth', 'lie', 'real',
-    'fake', 'only', 'everything', 'nothing', 'impossible', 'possible',
-    'everyone', 'nobody', 'first', 'last', 'biggest', 'smallest',
-    'win', 'won', 'lose', 'lost', 'fight', 'broke', 'crushed', 'dominated',
-    'exploded', 'changed', 'saved', 'failed', 'success', 'discovered',
-  ]);
-
-  const FILLER_WORDS = new Set([
-    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'to', 'of', 'in', 'for', 'on', 'at', 'by', 'with', 'from', 'as',
-    'and', 'or', 'if', 'it', 'its', 'that', 'this', 'than', 'then',
-    'so', 'up', 'do', 'did', 'has', 'had', 'have', 'will', 'would',
-    'could', 'should', 'can', 'may', 'might', 'shall', 'just', 'very',
-    'also', 'about', 'into', 'not', 'no', 'yes', 'some', 'my', 'your',
-    'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
-  ]);
-
-  const classifyWordTier = (text: string): 'power' | 'medium' | 'filler' => {
-    const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
-    if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
-    if (POWER_WORDS.has(clean)) return 'power';
-    if (FILLER_WORDS.has(clean)) return 'filler';
-    return 'medium';
-  };
 
   // Build dynamic hierarchy ASS override tags for a word
   const buildDynamicHierarchyTags = (word: any, isActive: boolean): string => {
@@ -3731,62 +3727,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${effectOverrideTags}${karaokeText}\n`;
       }
     } else if (isDynamicHierarchy) {
-      // ── Dynamic hierarchy: emotional segmentation (matches Composition.tsx preview) ──
-      // Instead of fixed wordsPerPhrase chunks, use emotional line breaking:
-      // - Power words get their own line for dramatic emphasis
-      // - Pauses > 400ms force line breaks
-      // - Filler words don't start lines (pull to previous)
-      // - Max 5 words per line, max 2 lines per segment
-      const DH_MAX_LINE = 5;
-      const DH_PAUSE_MS = 400;
-      const emotionalLines: number[][] = [];
-      let curLine: number[] = [];
-
-      for (let i = 0; i < words.length; i++) {
-        const tier = classifyWordTier(words[i].text || '');
-        const hasPause = i > 0 &&
-          (getAbsoluteWordTime(subtitle, words[i], false) - getAbsoluteWordTime(subtitle, words[i - 1], true)) > DH_PAUSE_MS;
-
-        if (hasPause && curLine.length > 0) {
-          emotionalLines.push(curLine);
-          curLine = [];
-        }
-        if (tier === 'power' && curLine.length > 0) {
-          emotionalLines.push(curLine);
-          curLine = [];
-        }
-        if (tier === 'filler' && curLine.length === 0 && emotionalLines.length > 0) {
-          const prevLine = emotionalLines[emotionalLines.length - 1];
-          if (prevLine.length < DH_MAX_LINE) {
-            prevLine.push(i);
-            continue;
-          }
-        }
-        curLine.push(i);
-        if (tier === 'power' && curLine.length === 1) {
-          emotionalLines.push(curLine);
-          curLine = [];
-          continue;
-        }
-        if (curLine.length >= DH_MAX_LINE) {
-          emotionalLines.push(curLine);
-          curLine = [];
-        }
-      }
-      if (curLine.length > 0) emotionalLines.push(curLine);
-
-      // Group lines into 2-line display segments (same as preview)
-      const dhSegments: { lines: number[][]; startIdx: number; endIdx: number }[] = [];
-      for (let l = 0; l < emotionalLines.length; l += 2) {
-        const segLines = [emotionalLines[l]];
-        if (l + 1 < emotionalLines.length) segLines.push(emotionalLines[l + 1]);
-        const allIdx = segLines.flat();
-        dhSegments.push({
-          lines: segLines,
-          startIdx: allIdx[0],
-          endIdx: allIdx[allIdx.length - 1] + 1,
-        });
-      }
+      // ── Dynamic hierarchy: emotional segmentation (shared with preview) ──
+      // Map worker words to MinimalWord for the shared algorithm
+      const minimalWords: MinimalWord[] = words.map((w: any) => ({
+        text: w.text || '',
+        startMs: getAbsoluteWordTime(subtitle, w, false),
+        endMs: getAbsoluteWordTime(subtitle, w, true),
+      }));
+      const dhSegments = computeEmotionalSegments(minimalWords);
 
       // Wider margins to constrain text to ~60% width (matching preview's width: 60%)
       const dhMarginL = Math.round(width * 0.2);
