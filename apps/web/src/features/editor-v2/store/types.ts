@@ -403,6 +403,8 @@ export interface VisualItemData {
   effectiveHeight?: number;
   /** How this visual composites with speaker video. Defaults to 'default' for standard layout behavior. */
   displayMode?: VisualDisplayMode;
+  /** Zone-based positioning for overlay compositing */
+  overlayZone?: OverlayZone;
   /** Enter/exit transitions at segment boundaries */
   transition?: {
     enter: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
