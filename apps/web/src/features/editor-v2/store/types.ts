@@ -363,6 +363,8 @@ export interface ImageItemData {
 
 export type VisualDisplayMode = 'default' | 'fullscreen' | 'overlay';
 
+export type OverlayZone = 'behind' | 'lower-third' | 'top' | 'frame' | 'background' | 'none';
+
 export interface VisualItemData {
   visualId: string;
   compositionId: string;
@@ -390,6 +392,12 @@ export interface VisualItemData {
   overlayOpacity?: number;
   /** Speaker face bounding box for overlay masking (0-1 fractions of canvas). */
   speakerBbox?: { x: number; y: number; w: number; h: number };
+
+  // Template-based visual support (alternative to bundleUrl for registered templates)
+  /** Template slug from packages/templates registry (e.g., 'youtube-clip', 'watercolor-map') */
+  templateId?: string;
+  /** Props for the template component, validated against template schema */
+  templateProps?: Record<string, unknown>;
 }
 
 export interface BrollItemData {
