@@ -767,6 +767,9 @@ export interface EditorActions {
   // Scene split regeneration
   clearRegeneratingItems: (itemIds: string[]) => void;
   removeSplitJob: (jobId: string) => void;
+  // Overlay zone actions
+  updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => void;
+  getVideoSegmentation: (videoItemId: string) => SegmentationData | undefined;
 }
 
 export type EditorStore = EditorState & EditorActions;
