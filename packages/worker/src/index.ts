@@ -12,6 +12,8 @@ import { processPlanVisualsJob, PlanVisualsJobData } from './processors/plan-vis
 import { processHeadTrackingJob, HeadTrackingJobData } from './processors/head-tracking.js';
 import { processGenerateReframeJob } from './processors/generate-reframe.js';
 import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from './processors/generate-caption-styles.js';
+import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-clip.js';
+import { processSegmentation, SegmentationJobData } from './processors/segmentation.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
 import { redisConnection } from './utils/redis.js';
@@ -332,6 +334,52 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Generate-caption-styles job failed');
   });
 
+  // YouTube clip extraction worker
+  const youtubeClipWorker = new Worker<YouTubeClipJobData>(
+    'youtube-clip',
+    async (job) => {
+      logger.info({ jobId: job.id, url: job.data.url }, 'Processing youtube-clip job');
+      return await processYouTubeClipJob(job);
+    },
+    {
+      connection,
+      concurrency: 2, // Can process multiple clips in parallel
+      lockDuration: 10 * 60 * 1000, // 10 minutes
+    }
+  );
+
+  youtubeClipWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'YouTube-clip job completed');
+  });
+
+  youtubeClipWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'YouTube-clip job failed');
+  });
+
+  // Segmentation worker — extracts speaker from video using SAM2
+  const segmentationWorker = new Worker<SegmentationJobData>(
+    'segmentation',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing segmentation job');
+      await processSegmentation(job);
+    },
+    {
+      connection,
+      concurrency: 1, // GPU-intensive, process one at a time
+      lockDuration: 30 * 60 * 1000, // 30 minutes — SAM2 can be slow on long videos
+      stalledInterval: 10 * 60 * 1000, // Check for stalls every 10 minutes
+      maxStalledCount: 2,
+    }
+  );
+
+  segmentationWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Segmentation job completed');
+  });
+
+  segmentationWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Segmentation job failed');
+  });
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown — close all workers in parallel, waiting for in-progress
@@ -341,6 +389,7 @@ async function main() {
     generateVisualsWorker, planVisualsWorker, editVisualsWorker,
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
+    youtubeClipWorker, segmentationWorker,
   ];
 
   const shutdown = async (signal: string) => {
