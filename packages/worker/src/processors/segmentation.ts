@@ -1,7 +1,8 @@
 import { Job } from 'bullmq';
 import { exec, spawn } from 'child_process';
 import { mkdir, rm, readdir } from 'fs/promises';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { nanoid } from 'nanoid';
@@ -13,6 +14,10 @@ import { db, timelineItems } from '../db/index.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError } from '../services/redis.js';
 import { logger } from '../logger.js';
+
+// ESM-compatible __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 export interface SegmentationJobData {
   projectId: string;
