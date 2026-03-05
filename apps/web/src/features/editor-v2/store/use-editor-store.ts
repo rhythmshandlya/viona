@@ -8,7 +8,8 @@
 import { useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
-import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData } from './types';
+import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData, SegmentationData } from './types';
+import { migrateDisplayModeToZone } from '../utils/overlay-zones';
 
 /**
  * Like useShallow but uses JSON.stringify for deep comparison.
@@ -66,6 +67,10 @@ export function useError() {
 
 export function useIsSaving() {
   return useEditorStore((state) => state.isSaving);
+}
+
+export function useIsDirty() {
+  return useEditorStore((state) => state.isDirty);
 }
 
 // ============================================
@@ -419,6 +424,25 @@ export function useShowSafeZone() {
 }
 
 // ============================================
+// Overlay Zone Selectors
+// ============================================
+
+export const useVisualOverlayZone = (itemId: string) =>
+  useEditorStore((state) => {
+    const item = state.items[itemId];
+    if (!item || item.type !== 'visual') return 'none';
+    const data = item.data as VisualItemData;
+    return data.overlayZone ?? migrateDisplayModeToZone(data.displayMode);
+  });
+
+export const useVideoSegmentation = (videoItemId: string): SegmentationData | undefined =>
+  useEditorStore((state) => {
+    const item = state.items[videoItemId];
+    if (!item || item.type !== 'video') return undefined;
+    return (item.data as VideoItemData).segmentation;
+  });
+
+// ============================================
 // Action Hooks
 // ============================================
 
@@ -551,6 +575,10 @@ export function useEditorActions() {
       // Safe zone
       setSafeZonePlatform: state.setSafeZonePlatform,
       setShowSafeZone: state.setShowSafeZone,
+
+      // Overlay zones
+      updateVisualOverlayZone: state.updateVisualOverlayZone,
+      getVideoSegmentation: state.getVideoSegmentation,
     }))
   );
 }
