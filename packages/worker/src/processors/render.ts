@@ -3562,8 +3562,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return subtitle.startMs + wordTime;
   };
 
-  // Helper: build ASS inline override tags from per-word styleOverrides
+  // Helper: build ASS inline override tags from per-word styleOverrides.
+  // Only apply when using dynamic hierarchy — baked overrides must not leak.
   const buildWordOverrideTags = (word: any, isActive: boolean): string => {
+    if (!isDynamicHierarchy) return '';
     const ov = word.styleOverrides;
     if (!ov) return '';
     const tags: string[] = [];
@@ -3602,6 +3604,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   // Helper: reset ASS inline overrides back to style defaults after an overridden word
   const buildResetTags = (word: any): string => {
+    if (!isDynamicHierarchy) return '';
     const ov = word.styleOverrides;
     if (!ov) return '';
     const tags: string[] = [];
@@ -3615,16 +3618,19 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   };
 
   // Helper: apply per-word textTransform (override > caption-level)
-  const transformWordText = (word: any): string => {
-    const text = word.text || '';
-    const ov = word.styleOverrides;
-    if (ov?.textTransform === 'uppercase') return text.toUpperCase();
-    if (ov?.textTransform === 'lowercase') return text.toLowerCase();
-    return applyTextTransform(text);
-  };
-
   // ── Dynamic hierarchy (word classification imported from @viona/shared) ──
   const isDynamicHierarchy = firstStyle.presetId === 'dynamic-hierarchy';
+
+  // Helper: apply per-word textTransform (only for dynamic hierarchy preset)
+  const transformWordText = (word: any): string => {
+    const text = word.text || '';
+    if (isDynamicHierarchy) {
+      const ov = word.styleOverrides;
+      if (ov?.textTransform === 'uppercase') return text.toUpperCase();
+      if (ov?.textTransform === 'lowercase') return text.toLowerCase();
+    }
+    return applyTextTransform(text);
+  };
 
   // Build dynamic hierarchy ASS override tags for a word
   const buildDynamicHierarchyTags = (word: any, isActive: boolean): string => {
@@ -3716,9 +3722,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           } else {
             karaokeText += `{\\kf${duration}}${wordText}`;
           }
-          // Reset after overridden word so next word uses defaults
-          const needsReset = (word as any).styleOverrides || isDynamicHierarchy;
-          if (needsReset && i < group.groupWords.length - 1) {
+          // Reset after overridden word so next word uses defaults (DH only)
+          if (isDynamicHierarchy && i < group.groupWords.length - 1) {
             karaokeText += buildResetTags(word);
             karaokeText += buildDynamicHierarchyReset(word);
           }
@@ -3839,48 +3844,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       for (const group of groups) {
         const gw = group.groupWords;
 
-        // Helper: build phrase text for this group with one word optionally highlighted
+        // Helper: build phrase text for this group with one word optionally highlighted.
+        // Per-word styleOverrides are NOT applied here — they only apply in DH mode.
         const buildGroupLine = (activeWordRef: any | null): string => {
           let text = '';
           for (let j = 0; j < gw.length; j++) {
             const w = gw[j];
             const isWordActive = w === activeWordRef;
-            const ov = w.styleOverrides;
             const wordText = transformWordText(w);
 
             const tags: string[] = [];
-
-            // Standard color: active word uses activeColor, inactive uses base color
-            if (isWordActive) {
-              const wordColor = ov?.activeColor
-                ? hexToASSColor(ov.activeColor)
-                : (ov?.color ? hexToASSColor(ov.color) : activeColor);
-              tags.push(`\\c${wordColor}`);
-            } else {
-              const wordColor = ov?.color ? hexToASSColor(ov.color) : color;
-              tags.push(`\\c${wordColor}`);
-            }
-
-            // Background: active word may have activeBackgroundColor or emphasisBg
-            if (ov?.emphasisBg) {
-              tags.push(`\\3c${hexToASSColor(ov.emphasisBg)}`);
-            }
-
-            // Font overrides (from per-word styleOverrides)
-            if (ov?.fontFamily) {
-              tags.push(`\\fn${resolveAvailableFontFamily(ov.fontFamily)}`);
-            }
-            if (ov?.fontSize) {
-              tags.push(`\\fs${Math.round((ov.scale || 1) * ov.fontSize * fontSizeMultiplier)}`);
-            } else if (ov?.scale && ov.scale !== 1) {
-              tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
-            }
-            if (ov?.fontWeight && ov.fontWeight >= 700) {
-              tags.push('\\b1');
-            }
-            if (ov?.letterSpacing != null) {
-              tags.push(`\\fsp${ov.letterSpacing}`);
-            }
+            tags.push(`\\c${isWordActive ? activeColor : color}`);
 
             text += `{${tags.join('')}}${wordText}`;
             if (j < gw.length - 1) text += ' \\h';

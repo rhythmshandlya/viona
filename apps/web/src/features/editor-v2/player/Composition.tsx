@@ -1302,7 +1302,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     const activeWord = words[activeWordIndex];
     const overrides = style.presetId === 'dynamic-hierarchy'
       ? getDynamicHierarchyOverrides(activeWord.text, activeWord.styleOverrides)
-      : activeWord.styleOverrides;
+      : undefined;
 
     // Resolve animation for the active word
     const elapsedMs = relativeTimeMs - activeWord.startMs;
@@ -1362,7 +1362,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
           const hasAppeared = relativeTimeMs >= word.startMs;
           const overrides = isDynHierarchy
             ? getDynamicHierarchyOverrides(word.text, word.styleOverrides)
-            : word.styleOverrides;
+            : undefined;
 
           // Resolve animation for this word
           const elapsedMs = relativeTimeMs - word.startMs;
@@ -1449,7 +1449,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     const hasAppeared = relativeTimeMs >= word.startMs;
     const overrides = isDynamicHierarchy
       ? getDynamicHierarchyOverrides(word.text, word.styleOverrides)
-      : word.styleOverrides;
+      : undefined;
 
     const elapsedMs = relativeTimeMs - word.startMs;
     const wordDurationMs = word.endMs - word.startMs;
