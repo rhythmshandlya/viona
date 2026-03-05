@@ -42,6 +42,14 @@ import {
 } from '../store/types';
 import { effectsToCss } from '@/lib/effects-utils';
 import { DynamicVisualLoader } from './DynamicVisualLoader';
+import { StaticTemplateRenderer } from './StaticTemplateRenderer';
+import {
+  interpolateFaceBbox,
+  getEffectiveZone,
+  ZONE_Z_INDEX,
+  ZONE_DIMENSIONS,
+} from '../utils/overlay-zones';
+import type { FaceBbox, OverlayZone, SegmentationData } from '../store/types';
 
 // Calculate video transform for crop/pan
 function calculateVideoTransform(
@@ -143,6 +151,7 @@ function buildPiPStyle(pip: PiPSettings): React.CSSProperties {
     boxShadow,
     border: pip.borderWidth > 0 ? `${pip.borderWidth}px solid ${pip.borderColor}` : 'none',
     opacity: pip.opacity,
+    transform: pip.rotation ? `rotate(${pip.rotation}deg)` : undefined,
     zIndex: 10,
   };
 }
@@ -165,13 +174,52 @@ function calculatePositionStyles(
   lineHeight: number
 ): React.CSSProperties {
   const { anchor, offsetX, offsetY, rotation, textAlign } = position;
+  const captionWidth = position.width ?? 90;
 
-  // Base position from anchor
+  // Free mode: absolute x,y positioning
+  if (position.mode === 'free' && position.x != null && position.y != null) {
+    const transforms: string[] = ['translate(-50%, -50%)'];
+    if (rotation !== 0) {
+      transforms.push(`rotate(${rotation}deg)`);
+    }
+
+    const baseStyles: React.CSSProperties = {
+      position: 'absolute',
+      left: `${position.x}%`,
+      top: `${position.y}%`,
+      width: `${captionWidth}%`,
+      maxWidth: `${captionWidth}%`,
+      overflow: 'hidden',
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '8px',
+      lineHeight,
+      textAlign,
+      transform: transforms.join(' '),
+    };
+
+    // Justify content based on text alignment
+    switch (textAlign) {
+      case 'left':
+        baseStyles.justifyContent = 'flex-start';
+        break;
+      case 'right':
+        baseStyles.justifyContent = 'flex-end';
+        break;
+      default:
+        baseStyles.justifyContent = 'center';
+        break;
+    }
+
+    return baseStyles;
+  }
+
+  // Anchor mode (default / legacy)
   const baseStyles: React.CSSProperties = {
     position: 'absolute',
     left: `${50 + offsetX}%`,
-    width: '90%',
-    maxWidth: '90%',
+    width: `${captionWidth}%`,
+    maxWidth: `${captionWidth}%`,
     overflow: 'hidden',
     display: 'flex',
     flexWrap: 'wrap',
@@ -384,6 +432,36 @@ function findNextVisualItem(
     }
   }
   return next;
+}
+
+/**
+ * Validate mask path format to prevent path traversal attacks.
+ * Valid format: videos/{projectId}/masks
+ */
+function isValidMaskPath(maskPath: string): boolean {
+  // Must match pattern: videos/<alphanumeric_id>/masks
+  const pattern = /^videos\/[a-zA-Z0-9_-]+\/masks$/;
+  return pattern.test(maskPath);
+}
+
+// Compute mask URL for segmented video frame
+function getMaskUrl(
+  segmentation: SegmentationData | undefined,
+  frame: number,
+  fps: number
+): string | null {
+  if (!segmentation?.maskPath || segmentation.status !== 'ready') return null;
+
+  // Validate mask path format to prevent path traversal
+  if (!isValidMaskPath(segmentation.maskPath)) {
+    console.warn('Invalid mask path format:', segmentation.maskPath);
+    return null;
+  }
+
+  const maskFps = segmentation.maskFps || 10;
+  const maskFrame = Math.floor(frame / (fps / maskFps));
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  return `${apiUrl}/storage/${segmentation.maskPath}/${String(maskFrame + 1).padStart(4, '0')}.webp`;
 }
 
 // Get the effective layout mode for an item ('gap' if null, otherwise its displayMode)
@@ -651,6 +729,45 @@ export function Composition() {
 // Extracted sub-components for visual and video sequences
 // ---------------------------------------------------------------------------
 
+/**
+ * Fix expired presigned URLs for youtube-clip templates.
+ * Converts old presigned URLs to the new proxy format.
+ */
+function fixYouTubeClipUrl(templateProps: Record<string, unknown>): Record<string, unknown> {
+  const clipUrl = templateProps.clipUrl;
+  if (typeof clipUrl !== 'string' || !clipUrl) {
+    return templateProps;
+  }
+
+  // Check if this is a presigned URL (contains signature parameters)
+  const isPresignedUrl = clipUrl.includes('X-Amz-') || clipUrl.includes('?AWSAccessKeyId');
+
+  if (isPresignedUrl) {
+    // Extract the storage key from the presigned URL
+    // Pattern: .../outputs/clips/{clipId}.mp4?...
+    const match = clipUrl.match(/\/outputs\/(clips\/[^?]+)/);
+    if (match) {
+      const clipKey = match[1];
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      return {
+        ...templateProps,
+        clipUrl: `${apiUrl}/api/media/outputs/${clipKey}`,
+      };
+    }
+  }
+
+  // Also handle relative URLs (from new API) - convert to absolute
+  if (clipUrl.startsWith('/api/media/')) {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    return {
+      ...templateProps,
+      clipUrl: `${apiUrl}${clipUrl}`,
+    };
+  }
+
+  return templateProps;
+}
+
 /** Renders grouped visual item Sequences (shared by static and dynamic paths).
  *  Visuals are generated at full canvas dimensions with per-scene effective areas.
  *  The container clips via overflow:hidden — no contain-fit scaling needed. */
@@ -668,13 +785,19 @@ function VisualSequences({
   const groups = new Map<string, {
     bundleUrl: string;
     compositionId: string;
-    videoUrl: string | undefined;
     minStartMs: number;
     maxEndMs: number;
     width: number;
     height: number;
     fps: number;
+    // Template-based visual support
+    templateId?: string;
+    templateProps?: Record<string, unknown>;
   }>();
+
+  // Collect video clips per scene (sceneIndex → proxyUrl)
+  // These are passed to DynamicVisualLoader as inputProps.videoClips
+  const videoClipsMap: Record<string, string> = {};
 
   for (const item of visualItems) {
     const data = item.data as VisualItemData;
@@ -683,20 +806,30 @@ function VisualSequences({
     if (existing) {
       existing.minStartMs = Math.min(existing.minStartMs, item.startMs);
       existing.maxEndMs = Math.max(existing.maxEndMs, item.endMs);
-      if (data.videoUrl && !existing.videoUrl) {
-        existing.videoUrl = data.videoUrl;
-      }
     } else {
       groups.set(key, {
         bundleUrl: data.bundleUrl,
         compositionId: data.compositionId,
-        videoUrl: data.videoUrl,
         minStartMs: item.startMs,
         maxEndMs: item.endMs,
         width: data.width,
         height: data.height,
         fps: data.fps,
+        // Include template data for template-based visuals
+        templateId: data.templateId,
+        templateProps: data.templateProps,
       });
+    }
+
+    // Track video clips by scene ID for inputProps
+    // sourceSceneId is set by generate-visuals (1-indexed scene ID)
+    if (data.videoUrl && data.sourceSceneId !== undefined) {
+      const isYouTubeUrl = (url: string) =>
+        url.includes('youtube.com') || url.includes('youtu.be');
+      if (!isYouTubeUrl(data.videoUrl)) {
+        const fullUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${data.videoUrl}`;
+        videoClipsMap[String(data.sourceSceneId)] = fullUrl;
+      }
     }
   }
 
@@ -706,10 +839,6 @@ function VisualSequences({
         const fromFrame = Math.round((group.minStartMs / 1000) * fps);
         const durationInFrames = Math.round(((group.maxEndMs - group.minStartMs) / 1000) * fps);
 
-        const videoSrc = group.videoUrl
-          ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${group.videoUrl}`
-          : null;
-
         return (
           <Sequence
             key={key}
@@ -717,22 +846,20 @@ function VisualSequences({
             durationInFrames={durationInFrames}
           >
             <AbsoluteFill>
-              {videoSrc ? (
-                <Video
-                  src={videoSrc}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                  onError={(e) => {
-                    console.warn('Visual video playback error:', e?.message);
-                  }}
+              {group.templateId ? (
+                <StaticTemplateRenderer
+                  templateId={group.templateId}
+                  templateProps={
+                    group.templateId === 'youtube-clip'
+                      ? fixYouTubeClipUrl(group.templateProps || {})
+                      : group.templateProps || {}
+                  }
                 />
               ) : (
                 <DynamicVisualLoader
                   bundleUrl={group.bundleUrl}
                   compositionId={group.compositionId}
+                  inputProps={{ videoClips: videoClipsMap }}
                 />
               )}
             </AbsoluteFill>
@@ -834,6 +961,85 @@ function VideoSequences({
         );
       })}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Zone-based overlay components
+// ---------------------------------------------------------------------------
+
+interface ZoneLayerProps {
+  zone: OverlayZone;
+  children: React.ReactNode;
+  zIndex?: number;
+}
+
+/** Container for a specific overlay zone */
+function ZoneLayer({ zone, children, zIndex }: ZoneLayerProps) {
+  const dimensions = ZONE_DIMENSIONS[zone];
+  const effectiveZIndex = zIndex ?? ZONE_Z_INDEX[zone];
+
+  const style: React.CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    width: '100%',
+    zIndex: effectiveZIndex,
+    ...dimensions,
+    height: dimensions.height || '100%',
+    overflow: 'hidden',
+  };
+
+  return <div style={style}>{children}</div>;
+}
+
+interface SegmentedSpeakerProps {
+  videoItems: TimelineItem[];
+  fps: number;
+  hasSeparateAudio: boolean;
+  transform: { scale: number; translateX: number; translateY: number };
+  maskUrl: string | null;
+}
+
+/** Renders video with CSS mask for speaker segmentation */
+function SegmentedSpeaker({
+  videoItems,
+  fps,
+  hasSeparateAudio,
+  transform,
+  maskUrl,
+}: SegmentedSpeakerProps) {
+  const maskStyle: React.CSSProperties = maskUrl
+    ? {
+        WebkitMaskImage: `url(${maskUrl})`,
+        maskImage: `url(${maskUrl})`,
+        WebkitMaskSize: 'cover',
+        maskSize: 'cover',
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+      }
+    : {};
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
+        zIndex: 2, // Speaker is above 'behind' zone, below other zones
+        ...maskStyle,
+      }}
+    >
+      <VideoSequences
+        videoItems={videoItems}
+        fps={fps}
+        hasSeparateAudio={hasSeparateAudio}
+        transform={transform}
+        useSimpleRender={true}
+      />
+    </div>
   );
 }
 
@@ -1045,11 +1251,10 @@ function DynamicLayoutComposition({
     };
   }
 
-  // For overlay mode, visuals sit on top of video with real alpha compositing.
-  // The generated index.tsx conditionally removes Background during overlay frames,
-  // so the composition is genuinely transparent. FFmpeg export still uses screen blend
-  // for H.264 compositing (render.ts). The face mask below is a safety net against
-  // AI-generated scenes that place elements over the speaker's face.
+  // For overlay mode, visuals sit on top of video with CSS opacity compositing.
+  // FFmpeg export matches this using overlay filter with colorchannelmixer alpha
+  // (render.ts). The face mask below is a safety net against AI-generated scenes
+  // that place elements over the speaker's face.
   const overlayOpacity = activeData?.overlayOpacity ?? 0.85;
   const speakerBbox = activeData?.speakerBbox;
   // Build a CSS mask that fades out the overlay over the speaker's face area.
@@ -1070,14 +1275,68 @@ function DynamicLayoutComposition({
     transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
     transformOrigin: 'center center',
     zIndex: 5,
-    // No blend mode — overlay compositions use real alpha transparency.
-    // index.tsx conditionally removes Background during overlay frames.
-    // FFmpeg export still uses blend=all_mode=screen for H.264 compositing.
+    // No blend mode — CSS opacity compositing matches the FFmpeg export
+    // which uses overlay filter with colorchannelmixer alpha (render.ts).
     ...(faceMask ? {
       WebkitMaskImage: faceMask,
       maskImage: faceMask,
     } : {}),
   };
+
+  // ---------------------------------------------------------------------------
+  // Zone-based rendering setup
+  // ---------------------------------------------------------------------------
+
+  // Group visuals by their overlay zone
+  const visualsByZone = React.useMemo(() => {
+    const grouped: Record<OverlayZone, TimelineItem[]> = {
+      'background': [],
+      'behind': [],
+      'frame': [],
+      'lower-third': [],
+      'top': [],
+      'none': [],
+    };
+
+    for (const item of visualItems) {
+      const data = item.data as VisualItemData;
+      const zone = getEffectiveZone(data.overlayZone, data.displayMode);
+      grouped[zone].push(item);
+    }
+
+    return grouped;
+  }, [visualItems]);
+
+  // Get segmentation data from first video item
+  const videoSegmentation = videoItems.length > 0
+    ? (videoItems[0].data as VideoItemData).segmentation
+    : undefined;
+
+  // Compute mask URL for current frame
+  const maskUrl = getMaskUrl(videoSegmentation, frame, fps);
+
+  // Get interpolated face bbox for zone-aware templates
+  const faceBbox = videoSegmentation?.faceBboxTimeline
+    ? interpolateFaceBbox(
+        videoSegmentation.faceBboxTimeline,
+        Math.floor(frame / fps * (videoSegmentation.maskFps || 10))
+      )
+    : null;
+
+  // Determine if we should use zone-based rendering
+  // Zone rendering activates when: segmentation is ready AND at least one visual uses a zone
+  const hasZonedVisuals =
+    visualsByZone.background.length > 0 ||
+    visualsByZone.behind.length > 0 ||
+    visualsByZone.frame.length > 0 ||
+    visualsByZone['lower-third'].length > 0 ||
+    visualsByZone.top.length > 0;
+
+  const useZoneRendering = videoSegmentation?.status === 'ready' && hasZonedVisuals;
+
+  // ---------------------------------------------------------------------------
+  // Video transform calculation
+  // ---------------------------------------------------------------------------
 
   // Determine whether the video should use simple (cover) or crop/pan rendering
   // All modes now use transform-based rendering so cropX/cropY/scale are respected.
@@ -1115,32 +1374,103 @@ function DynamicLayoutComposition({
 
   return (
     <>
-      {/* Visual layer (behind video for pip/split) */}
-      {displayMode !== 'overlay' && showVisualLayer && (
-        <div style={visualLayerStyle}>
-          <VisualSequences visualItems={visualItems} fps={fps} />
-        </div>
-      )}
+      {useZoneRendering ? (
+        /* Zone-based rendering */
+        <>
+          {/* Background zone */}
+          {visualsByZone.background.length > 0 && (
+            <ZoneLayer zone="background">
+              <VisualSequences visualItems={visualsByZone.background} fps={fps} />
+            </ZoneLayer>
+          )}
 
-      {/* Video layer */}
-      {showVideoLayer && !hideVideoCompletely && (
-        <div style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}>
-          <VideoSequences
+          {/* Behind zone */}
+          {visualsByZone.behind.length > 0 && (
+            <ZoneLayer zone="behind">
+              <VisualSequences visualItems={visualsByZone.behind} fps={fps} />
+            </ZoneLayer>
+          )}
+
+          {/* Segmented speaker */}
+          <SegmentedSpeaker
             videoItems={videoItems}
             fps={fps}
             hasSeparateAudio={hasSeparateAudio}
-            transform={videoTransform}
-            useSimpleRender={videoUseSimpleRender}
+            transform={transform}
+            maskUrl={maskUrl}
           />
-        </div>
-      )}
 
+          {/* Frame zone (edge effects around speaker) */}
+          {visualsByZone.frame.length > 0 && (
+            <ZoneLayer zone="frame">
+              <VisualSequences visualItems={visualsByZone.frame} fps={fps} />
+            </ZoneLayer>
+          )}
 
-      {/* Overlay mode: visual on top of video with real alpha compositing */}
-      {displayMode === 'overlay' && showVisualLayer && (
-        <div style={overlayVisualStyle}>
-          <VisualSequences visualItems={visualItems} fps={fps} />
-        </div>
+          {/* Lower-third zone */}
+          {visualsByZone['lower-third'].length > 0 && (
+            <ZoneLayer zone="lower-third">
+              <VisualSequences visualItems={visualsByZone['lower-third']} fps={fps} />
+            </ZoneLayer>
+          )}
+
+          {/* Top zone */}
+          {visualsByZone.top.length > 0 && (
+            <ZoneLayer zone="top">
+              <VisualSequences visualItems={visualsByZone.top} fps={fps} />
+            </ZoneLayer>
+          )}
+
+          {/* Non-zone visuals still use displayMode logic */}
+          {visualsByZone.none.length > 0 && (
+            /* Render these using the existing displayMode logic */
+            <>
+              {displayMode !== 'overlay' && (
+                <div style={visualLayerStyle}>
+                  <VisualSequences visualItems={visualsByZone.none} fps={fps} />
+                </div>
+              )}
+              {displayMode === 'overlay' && (
+                <div style={overlayVisualStyle}>
+                  <VisualSequences visualItems={visualsByZone.none} fps={fps} />
+                </div>
+              )}
+            </>
+          )}
+        </>
+      ) : (
+        /* Existing displayMode-based rendering (keep the original code) */
+        <>
+          {/* Visual layer (behind video for pip/split) */}
+          {displayMode !== 'overlay' && showVisualLayer && (
+            <div style={visualLayerStyle}>
+              <VisualSequences visualItems={visualItems} fps={fps} />
+            </div>
+          )}
+
+          {/* Video layer */}
+          {showVideoLayer && !hideVideoCompletely && (
+            <div
+              style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}
+              {...(mode === 'pip' && displayMode === 'default' && !isGap ? { 'data-pip-overlay': true } : {})}
+            >
+              <VideoSequences
+                videoItems={videoItems}
+                fps={fps}
+                hasSeparateAudio={hasSeparateAudio}
+                transform={videoTransform}
+                useSimpleRender={videoUseSimpleRender}
+              />
+            </div>
+          )}
+
+          {/* Overlay mode: visual on top of video with real alpha compositing */}
+          {displayMode === 'overlay' && showVisualLayer && (
+            <div style={overlayVisualStyle}>
+              <VisualSequences visualItems={visualItems} fps={fps} />
+            </div>
+          )}
+        </>
       )}
     </>
   );
@@ -1200,17 +1530,18 @@ function getDynamicHierarchyOverrides(
   const computed: WordStyleOverrides = {};
 
   if (tier === 'power') {
-    computed.scale = 1.8;
+    computed.scale = 1.6;
     computed.fontWeight = 900;
+    computed.color = '#ffffff';
     computed.activeColor = '#FFD400';
-    computed.color = '#FFFFFF';
+    computed.textTransform = 'uppercase';
   } else if (tier === 'filler') {
-    computed.scale = 0.65;
+    computed.scale = 1.0;
     computed.fontWeight = 500;
-    computed.color = 'rgba(255,255,255,0.6)';
-    computed.activeColor = 'rgba(255,255,255,0.8)';
+    computed.color = 'rgba(255,255,255,0.7)';
+    computed.activeColor = 'rgba(255,255,255,0.85)';
   } else {
-    // medium — default size, slight bump
+    // medium — normal size, standard weight
     computed.scale = 1.0;
     computed.fontWeight = 700;
   }
