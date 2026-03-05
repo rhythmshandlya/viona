@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { FaceBbox } from './segmentation.js';
 
 // Mock the dependencies before importing the module
 vi.mock('fs/promises', () => ({
@@ -42,14 +43,7 @@ describe('Segmentation Processor', () => {
 
   describe('FaceBbox interpolation', () => {
     it('should handle empty timeline gracefully', () => {
-      const timeline: Array<{
-        frame: number;
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-        confidence: number;
-      }> = [];
+      const timeline: FaceBbox[] = [];
 
       // For empty timeline, interpolation should return null
       const interpolated = interpolateFaceBbox(timeline, 5);
@@ -148,67 +142,70 @@ describe('Segmentation Processor', () => {
   });
 });
 
-// Helper functions for testing (these would normally be imported from the module)
+// =============================================================================
+// Test utility functions - these MUST match the implementations in:
+// apps/web/src/features/editor-v2/utils/overlay-zones.ts
+// =============================================================================
+
+/**
+ * Linear interpolation helper
+ */
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+/**
+ * Interpolate face bounding box between keyframes for smooth tracking.
+ * @see apps/web/src/features/editor-v2/utils/overlay-zones.ts
+ */
 function interpolateFaceBbox(
-  timeline: Array<{
-    frame: number;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    confidence: number;
-  }>,
+  timeline: FaceBbox[],
   targetFrame: number
-): { x: number; y: number; width: number; height: number; confidence: number } | null {
-  if (timeline.length === 0) return null;
-  if (timeline.length === 1) return timeline[0];
-
-  // Sort by frame
-  const sorted = [...timeline].sort((a, b) => a.frame - b.frame);
-
-  // Clamp to first keyframe if before timeline
-  if (targetFrame <= sorted[0].frame) {
-    return sorted[0];
-  }
-
-  // Clamp to last keyframe if after timeline
-  if (targetFrame >= sorted[sorted.length - 1].frame) {
-    return sorted[sorted.length - 1];
-  }
+): FaceBbox | null {
+  if (!timeline || timeline.length === 0) return null;
 
   // Find surrounding keyframes
-  let prev = sorted[0];
-  let next = sorted[1];
-  for (let i = 0; i < sorted.length - 1; i++) {
-    if (sorted[i].frame <= targetFrame && sorted[i + 1].frame >= targetFrame) {
-      prev = sorted[i];
-      next = sorted[i + 1];
-      break;
-    }
-  }
+  const before = timeline.filter(f => f.frame <= targetFrame).pop();
+  const after = timeline.find(f => f.frame > targetFrame);
 
-  // Linear interpolation
-  const t = (targetFrame - prev.frame) / (next.frame - prev.frame);
+  if (!before && !after) return null;
+  if (!before) return after!;
+  if (!after) return before;
+
+  // Linear interpolation between keyframes
+  const t = (targetFrame - before.frame) / (after.frame - before.frame);
   return {
-    x: prev.x + (next.x - prev.x) * t,
-    y: prev.y + (next.y - prev.y) * t,
-    width: prev.width + (next.width - prev.width) * t,
-    height: prev.height + (next.height - prev.height) * t,
-    confidence: prev.confidence + (next.confidence - prev.confidence) * t,
+    frame: targetFrame,
+    x: lerp(before.x, after.x, t),
+    y: lerp(before.y, after.y, t),
+    width: lerp(before.width, after.width, t),
+    height: lerp(before.height, after.height, t),
+    confidence: lerp(before.confidence, after.confidence, t),
   };
 }
 
+/**
+ * Convert legacy displayMode to overlayZone.
+ * @see apps/web/src/features/editor-v2/utils/overlay-zones.ts
+ */
 function migrateDisplayModeToZone(displayMode: string | undefined): string {
   if (displayMode === 'overlay') return 'behind';
   if (displayMode === 'fullscreen') return 'background';
   return 'none';
 }
 
+/**
+ * Get effective overlay zone with fallback.
+ * @see apps/web/src/features/editor-v2/utils/overlay-zones.ts
+ */
 function getEffectiveZone(zone: string | undefined | null): string {
   if (!zone) return 'none';
   return zone;
 }
 
+/**
+ * Validate segmentation status value.
+ */
 function isValidSegmentationStatus(status: string): boolean {
   return ['pending', 'processing', 'ready', 'failed'].includes(status);
 }
