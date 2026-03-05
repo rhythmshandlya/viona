@@ -1,10 +1,11 @@
 import { Job } from 'bullmq';
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { mkdir, rm, readdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { promisify } from 'util';
 import { nanoid } from 'nanoid';
+import { getPythonPath } from '../utils/python.js';
 
 const execAsync = promisify(exec);
 import { eq } from 'drizzle-orm';
@@ -111,14 +112,56 @@ async function runSAM2Segmentation(
   outputDir: string,
   onProgress: (progress: number) => void
 ): Promise<void> {
-  // TODO: Implement with SAM2 Python script
-  logger.info({ framesDir, outputDir }, 'runSAM2Segmentation not implemented');
+  const scriptPath = join(__dirname, '../scripts/sam2_segment.py');
+  const device = process.env.SAM2_DEVICE || 'cuda';
+  const pythonPath = getPythonPath();
+
+  const proc = spawn(pythonPath, [scriptPath, framesDir, outputDir, '--device', device]);
+
+  return new Promise((resolve, reject) => {
+    proc.stdout.on('data', (data: Buffer) => {
+      const lines = data.toString().split('\n').filter(Boolean);
+      for (const line of lines) {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.progress !== undefined) {
+            onProgress(msg.progress);
+          }
+        } catch {
+          // Non-JSON output, ignore
+        }
+      }
+    });
+
+    proc.stderr.on('data', (data: Buffer) => {
+      logger.warn({ output: data.toString() }, 'SAM2 stderr');
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`SAM2 script exited with code ${code}`));
+    });
+
+    proc.on('error', reject);
+  });
 }
 
 async function detectFaces(framesDir: string): Promise<FaceBbox[]> {
-  // TODO: Implement with MediaPipe
-  logger.info({ framesDir }, 'detectFaces not implemented');
-  return [];
+  const scriptPath = join(__dirname, '../scripts/face_detect.py');
+  const pythonPath = getPythonPath();
+
+  const { stdout } = await execAsync(`"${pythonPath}" "${scriptPath}" "${framesDir}"`, {
+    maxBuffer: 50 * 1024 * 1024
+  });
+
+  try {
+    const results = JSON.parse(stdout);
+    logger.info({ faceCount: results.length }, 'Face detection complete');
+    return results;
+  } catch (error) {
+    logger.error({ error, stdout }, 'Failed to parse face detection output');
+    return [];
+  }
 }
 
 async function uploadMaskDirectory(localDir: string, remoteKeyPrefix: string): Promise<void> {
