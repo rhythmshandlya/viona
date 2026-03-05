@@ -1,8 +1,12 @@
 import { Job } from 'bullmq';
+import { exec } from 'child_process';
 import { mkdir, rm, readdir } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
+import { promisify } from 'util';
 import { nanoid } from 'nanoid';
+
+const execAsync = promisify(exec);
 import { eq } from 'drizzle-orm';
 import { db, timelineItems } from '../db/index.js';
 import { downloadFile, uploadFile } from '../services/minio.js';
@@ -91,9 +95,15 @@ export async function processSegmentation(job: Job<SegmentationJobData>): Promis
 }
 
 async function extractFrames(videoPath: string, outputDir: string, fps: number): Promise<number> {
-  // TODO: Implement with FFmpeg
-  logger.info({ videoPath, outputDir, fps }, 'extractFrames not implemented');
-  return 0;
+  const cmd = `ffmpeg -i "${videoPath}" -vf "fps=${fps}" -q:v 2 "${outputDir}/%04d.png"`;
+
+  await execAsync(cmd, { maxBuffer: 50 * 1024 * 1024 });
+
+  const files = await readdir(outputDir);
+  const frameCount = files.filter(f => f.endsWith('.png')).length;
+
+  logger.info({ frameCount, fps }, 'Extracted frames');
+  return frameCount;
 }
 
 async function runSAM2Segmentation(
