@@ -39,6 +39,7 @@ import {
   PiPCrop,
   SplitSettings,
   normalizeLayoutMode,
+  OverlayZone,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -50,10 +51,15 @@ const debouncedSave = (saveFn: () => Promise<void>, delay = 1000) => {
     clearTimeout(saveTimeout);
   }
   saveTimeout = setTimeout(() => {
-    console.log('[debouncedSave] firing save…');
-    saveFn().then(() => console.log('[debouncedSave] save OK')).catch((err) => console.error('[debouncedSave] save FAILED:', err));
+    saveFn().catch((err) => console.error('[debouncedSave] save FAILED:', err));
     saveTimeout = null;
   }, delay);
+};
+const cancelDebouncedSave = () => {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
 };
 
 // Initial state
@@ -95,6 +101,7 @@ const initialState: EditorState = {
 
   // UI state
   isSaving: false,
+  isDirty: false,
 
   // Caption style toggle
   applyStyleToAll: false,
@@ -652,10 +659,14 @@ export const useEditorStore = create<EditorStore>()(
           // Clear history on load
           state.history = [];
           state.historyIndex = -1;
+          state.isDirty = false;
         });
 
         // Push initial state to history
         get().pushHistory();
+        // Reset dirty flag and cancel the debounced save — the initial pushHistory is not a user change
+        cancelDebouncedSave();
+        set((state) => { state.isDirty = false; });
 
         // Auto-load caption fonts used in the project
         const captionFonts = new Set<string>();
@@ -944,6 +955,7 @@ export const useEditorStore = create<EditorStore>()(
 
         set((state) => {
           state.isSaving = false;
+          state.isDirty = false;
         });
       } catch (err) {
         console.error('[saveProject] Failed:', err);
@@ -996,8 +1008,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      // Auto-save caption styles to database
-      debouncedSave(() => get().saveProject());
     },
 
     updateSelectedCaptionStyles: (ids: string[], styleUpdates: Partial<CaptionStyle>) => {
@@ -1014,8 +1024,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      // Auto-save caption styles to database
-      debouncedSave(() => get().saveProject());
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {
@@ -1049,7 +1057,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     setApplyStyleToAll: (value: boolean) => {
@@ -1210,6 +1217,8 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Cancel the debounced save from pushHistory — we save immediately below
+      cancelDebouncedSave();
 
       // If visual items were deleted, delete visuals from backend
       if (hasVisualItems && project) {
@@ -1427,7 +1436,10 @@ export const useEditorStore = create<EditorStore>()(
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
         state.historyIndex = newIndex;
+        state.isDirty = true;
       });
+
+      debouncedSave(() => get().saveProject());
     },
 
     redo: () => {
@@ -1443,7 +1455,10 @@ export const useEditorStore = create<EditorStore>()(
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
         state.historyIndex = newIndex;
+        state.isDirty = true;
       });
+
+      debouncedSave(() => get().saveProject());
     },
 
     pushHistory: () => {
@@ -1468,7 +1483,11 @@ export const useEditorStore = create<EditorStore>()(
           state.history.shift();
           state.historyIndex--;
         }
+
+        state.isDirty = true;
       });
+
+      debouncedSave(() => get().saveProject());
     },
 
     // ========================================
@@ -1767,7 +1786,6 @@ export const useEditorStore = create<EditorStore>()(
 
       if (get().selectedIds.length > 0) {
         get().pushHistory();
-        debouncedSave(() => get().saveProject());
       }
     },
 
@@ -1868,6 +1886,8 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Cancel the debounced save from pushHistory — we save immediately below
+      cancelDebouncedSave();
 
       // Delete visuals from backend if needed
       if (hasVisualItems && project) {
@@ -2078,7 +2098,6 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     mergeCaptions: (captionId1: string, captionId2: string) => {
@@ -2136,7 +2155,6 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     updateCaptionText: (captionId: string, newText: string) => {
@@ -2176,7 +2194,6 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     // ========================================
@@ -2190,6 +2207,7 @@ export const useEditorStore = create<EditorStore>()(
           ...settings,
         };
         state.layoutPresetId = 'custom';
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2201,6 +2219,7 @@ export const useEditorStore = create<EditorStore>()(
           ...settings,
         };
         state.layoutPresetId = 'custom';
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2223,6 +2242,7 @@ export const useEditorStore = create<EditorStore>()(
           ...settings,
         };
         state.layoutPresetId = 'custom';
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2234,6 +2254,7 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.layoutPresetId = presetId;
         state.layoutSettings = JSON.parse(JSON.stringify(preset.settings));
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2242,6 +2263,7 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.layoutSettings.mode = mode;
         state.layoutPresetId = 'custom';
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2383,7 +2405,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     updateOverlayOpacity: (itemId: string, opacity: number) => {
@@ -2394,7 +2415,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => {
@@ -2405,7 +2425,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     openTransitionPicker: (itemId: string) => {
@@ -2430,6 +2449,36 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.showSafeZone = show;
       });
+    },
+
+    // ========================================
+    // Overlay Zone Actions
+    // ========================================
+
+    updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => {
+      set((state) => {
+        const item = state.items[itemId];
+        if (!item || item.type !== 'visual') return state;
+
+        const data = item.data as VisualItemData;
+        state.items[itemId] = {
+          ...item,
+          data: {
+            ...data,
+            overlayZone: zone,
+            // Clear deprecated displayMode when zone is set
+            displayMode: zone === 'none' ? data.displayMode : undefined,
+          },
+        };
+        state.isDirty = true;
+      });
+      get().pushHistory();
+    },
+
+    getVideoSegmentation: (videoItemId: string) => {
+      const item = get().items[videoItemId];
+      if (!item || item.type !== 'video') return undefined;
+      return (item.data as VideoItemData).segmentation;
     },
   }))
 );
