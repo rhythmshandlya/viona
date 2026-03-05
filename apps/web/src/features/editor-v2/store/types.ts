@@ -33,6 +33,7 @@ export interface VideoItemData {
   previewUrl?: string;
   muted?: boolean;
   separatedAudioItemId?: string;
+  segmentation?: SegmentationData;  // NEW: speaker segmentation data
 }
 
 export interface AudioItemData {
