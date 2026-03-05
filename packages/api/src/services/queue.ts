@@ -67,6 +67,7 @@ export interface RenderJobData {
       enter: { type: string; durationMs: number };
       exit: { type: string; durationMs: number };
     };
+    overlayOpacity?: number;
   }>;
 }
 
@@ -107,6 +108,14 @@ export interface VisualsDimensions {
   height: number;
 }
 
+export interface VideoSelection {
+  videoId: string;
+  title: string;
+  thumbnailUrl: string;
+  duration?: string;
+  url: string;
+}
+
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
@@ -117,6 +126,8 @@ export interface GenerateVisualsJobData {
   pipEffective?: VisualsDimensions;
   styleGuide?: string;
   planJobId?: string;  // ID of the plan-visuals job that created the plan
+  /** User-selected videos for scenes: sceneIndex → keyword → VideoSelection */
+  selectedVideos?: Record<number, Record<string, VideoSelection>>;
 }
 
 export const generateVisualsQueue = new Queue('generate-visuals', { connection });
@@ -280,6 +291,45 @@ export async function queueGenerateCaptionStylesJob(data: GenerateCaptionStylesJ
       type: 'exponential',
       delay: 5000,
     },
+  });
+}
+
+// YouTube clip extraction queue
+export interface YouTubeClipJobData {
+  jobId: string;
+  url: string;
+  startSeconds: number;
+  endSeconds: number;
+  quality?: string;
+  projectId?: string;
+}
+
+export const youtubeClipQueue = new Queue('youtube-clip', { connection });
+
+export async function queueYouTubeClipJob(data: YouTubeClipJobData) {
+  return youtubeClipQueue.add('extract-clip', data, {
+    jobId: data.jobId,
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
+  });
+}
+
+// Segmentation queue — ML video segmentation pipeline
+export interface SegmentationJobData {
+  projectId: string;
+  videoItemId: string;
+  videoKey: string;
+}
+
+export const segmentationQueue = new Queue('segmentation', { connection });
+
+export async function queueSegmentationJob(data: SegmentationJobData) {
+  return segmentationQueue.add('segment-video', data, {
+    jobId: `${data.projectId}:segment:${Date.now()}`,
+    attempts: 1,
   });
 }
 
