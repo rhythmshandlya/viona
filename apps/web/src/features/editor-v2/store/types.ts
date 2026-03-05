@@ -365,11 +365,30 @@ export type VisualDisplayMode = 'default' | 'fullscreen' | 'overlay';
 
 export type OverlayZone = 'behind' | 'lower-third' | 'top' | 'frame' | 'background' | 'none';
 
+export interface FaceBbox {
+  frame: number;
+  x: number;      // 0-1 normalized (left edge)
+  y: number;      // 0-1 normalized (top edge)
+  width: number;  // 0-1 normalized
+  height: number; // 0-1 normalized
+  confidence: number;
+}
+
+export interface SegmentationData {
+  status: 'pending' | 'processing' | 'ready' | 'failed';
+  progress?: number;
+  maskPath?: string;           // Path to mask images (e.g., /videos/{id}/masks/)
+  maskFps?: number;            // Frame rate of masks (e.g., 10)
+  faceBboxTimeline?: FaceBbox[];
+  error?: string;
+}
+
 export interface VisualItemData {
   visualId: string;
   compositionId: string;
   bundleUrl: string;
-  videoUrl?: string; // Rendered video URL for playback
+  videoUrl?: string; // Stream URL for preview (e.g., /api/youtube/proxy/{tokenId})
+  sourceVideoUrl?: string; // Original YouTube URL for export download
   type: string; // 'process' | 'chart' | 'diagram' etc.
   description: string;
   width: number;
