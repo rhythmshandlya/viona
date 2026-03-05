@@ -1,9 +1,11 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm, access, constants, readFile, writeFile, readdir, unlink, stat, symlink } from 'fs/promises';
-import { join } from 'path';
+import { mkdir, rm, access, constants, readFile, writeFile, readdir, unlink, stat, symlink, copyFile } from 'fs/promises';
+import { join, basename } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { db, projects, tracks, timelineItems, jobs, visuals } from '../db/index.js';
 import { downloadFile, uploadFile, listObjects } from '../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../services/redis.js';
@@ -14,6 +16,20 @@ import { renderMedia, selectComposition, getCompositions } from '@remotion/rende
 import { bundle } from '@remotion/bundler';
 import { classifyWordTier, computeEmotionalSegments } from '@viona/shared';
 import type { MinimalWord } from '@viona/shared';
+
+const execFileAsync = promisify(execFile);
+
+// YouTube URL validation patterns
+const YOUTUBE_URL_PATTERNS = [
+  /^https?:\/\/(www\.)?youtube\.com\/watch\?v=[a-zA-Z0-9_-]{11}/,
+  /^https?:\/\/youtu\.be\/[a-zA-Z0-9_-]{11}/,
+  /^https?:\/\/(www\.)?youtube\.com\/embed\/[a-zA-Z0-9_-]{11}/,
+  /^https?:\/\/(www\.)?youtube\.com\/shorts\/[a-zA-Z0-9_-]{11}/,
+];
+
+function isValidYouTubeUrl(url: string): boolean {
+  return YOUTUBE_URL_PATTERNS.some(pattern => pattern.test(url));
+}
 
 // Font directory for FFmpeg's libass subtitle filter.
 // In Docker (production), fonts are installed in /usr/share/fonts.
@@ -484,6 +500,110 @@ async function ensureFontsDir(fontFamilyCSS: string): Promise<string> {
   return escapePathForFilter(LOCAL_FONTS_CACHE);
 }
 
+// ---------------------------------------------------------------------------
+// Video clip download for render phase
+// NOTE: These interfaces duplicate packages/api/src/types/video.ts - keep in sync!
+// Worker can't import from API package due to build isolation.
+// ---------------------------------------------------------------------------
+
+interface VideoAssetEntry {
+  sceneId: string;
+  keyword: string;
+  videoId: string;
+  sourceUrl: string;
+  title: string;
+  thumbnailUrl: string;
+  trimStart: number;
+  trimEnd: number;
+}
+
+interface VideoManifest {
+  videos: VideoAssetEntry[];
+}
+
+/**
+ * Format seconds as HH:MM:SS for yt-dlp --download-sections
+ */
+function formatTimestamp(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Download video clips for render using yt-dlp.
+ * Returns clips map (sceneId → local clip path) and list of failed scene IDs.
+ */
+async function downloadVideoClipsForRender(
+  projectId: string,
+  workDir: string
+): Promise<{ clips: Map<string, string>; failed: string[]; manifest: VideoManifest | null }> {
+  const clipPaths = new Map<string, string>();
+  const failedScenes: string[] = [];
+
+  // Try to read video_assets.json from project sources
+  let videoAssets: VideoManifest | null = null;
+  try {
+    const sourcesPrefix = `sources/${projectId}/`;
+    const manifestKey = `${sourcesPrefix}video_assets.json`;
+    const manifestPath = join(workDir, 'video_assets.json');
+    await downloadFile('outputs', manifestKey, manifestPath);
+    videoAssets = JSON.parse(await readFile(manifestPath, 'utf-8'));
+  } catch {
+    // No video assets for this project
+    return { clips: clipPaths, failed: failedScenes, manifest: null };
+  }
+
+  if (!videoAssets?.videos?.length) return { clips: clipPaths, failed: failedScenes, manifest: videoAssets };
+
+  const clipsDir = join(workDir, 'clips');
+  await mkdir(clipsDir, { recursive: true });
+
+  logger.info({ count: videoAssets.videos.length }, 'Downloading video clips for render');
+
+  for (const video of videoAssets.videos) {
+    // Validate URL before download (security check)
+    if (!isValidYouTubeUrl(video.sourceUrl)) {
+      logger.warn({ sourceUrl: video.sourceUrl, sceneId: video.sceneId },
+        'Skipping non-YouTube URL for security');
+      failedScenes.push(video.sceneId);
+      continue;
+    }
+
+    try {
+      // Download via yt-dlp
+      const clipId = nanoid();
+      const outputPath = join(clipsDir, `${clipId}.mp4`);
+
+      const timeRange = `*${formatTimestamp(video.trimStart || 0)}-${formatTimestamp(video.trimEnd || 30)}`;
+
+      const args = [
+        '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]',
+        '--download-sections', timeRange,
+        '--force-keyframes-at-cuts',
+        '-o', outputPath,
+        video.sourceUrl,
+      ];
+
+      logger.info({ sceneId: video.sceneId, sourceUrl: video.sourceUrl, timeRange }, 'Downloading video clip');
+
+      await execFileAsync('yt-dlp', args, {
+        timeout: 5 * 60 * 1000, // 5 minute timeout
+        maxBuffer: 50 * 1024 * 1024,
+      });
+
+      clipPaths.set(video.sceneId, outputPath);
+      logger.info({ sceneId: video.sceneId, path: outputPath }, 'Video clip downloaded');
+    } catch (err) {
+      logger.error({ err, video }, 'Failed to download video clip');
+      failedScenes.push(video.sceneId);
+    }
+  }
+
+  return { clips: clipPaths, failed: failedScenes, manifest: videoAssets };
+}
+
 export interface LayoutSettings {
   mode: 'pip' | 'stacked';
   pip: {
@@ -582,6 +702,48 @@ interface DisplayModeSegment {
   overlayOpacity?: number;  // per-item overlay opacity (0-1), default 0.85
 }
 
+// Zone types for overlay system
+type OverlayZone = 'behind' | 'lower-third' | 'top' | 'frame' | 'background' | 'none';
+
+interface SegmentationData {
+  status: 'pending' | 'processing' | 'ready' | 'failed';
+  maskPath?: string;
+  maskFps?: number;
+}
+
+/**
+ * Check if any visual items use zone-based overlay positioning
+ */
+function hasZoneBasedVisuals(visualItems: Array<{ data: Record<string, unknown> }>): boolean {
+  return visualItems.some(item => {
+    const zone = item.data.overlayZone as OverlayZone | undefined;
+    return zone && zone !== 'none';
+  });
+}
+
+/**
+ * Group visual items by their overlay zone
+ */
+function groupVisualsByZone(
+  visualItems: Array<{ data: Record<string, unknown>; startMs: number; endMs: number }>
+): Record<OverlayZone, typeof visualItems> {
+  const grouped: Record<OverlayZone, typeof visualItems> = {
+    'background': [],
+    'behind': [],
+    'frame': [],
+    'lower-third': [],
+    'top': [],
+    'none': [],
+  };
+
+  for (const item of visualItems) {
+    const zone = (item.data.overlayZone as OverlayZone | undefined) || 'none';
+    grouped[zone].push(item);
+  }
+
+  return grouped;
+}
+
 export interface RenderJobData {
   projectId: string;
   jobId: string;
@@ -596,6 +758,7 @@ export interface RenderJobData {
       enter: { type: string; durationMs: number };
       exit: { type: string; durationMs: number };
     };
+    overlayOpacity?: number;
   }>;
 }
 
@@ -642,17 +805,41 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       ? visualDisplayData.map((v) => ({
           startMs: v.startMs,
           endMs: v.endMs,
-          data: { displayMode: v.displayMode || 'pip', transition: v.transition },
+          data: { displayMode: v.displayMode || 'pip', transition: v.transition, overlayOpacity: v.overlayOpacity, overlayZone: (v as any).overlayZone },
         }))
       : allItems
           .filter((item: any) => item.type === 'visual')
           .map((item: any) => ({
             startMs: item.startMs,
             endMs: item.endMs,
-            data: { displayMode: (item.data as any)?.displayMode || 'pip', transition: (item.data as any)?.transition },
+            data: { displayMode: (item.data as any)?.displayMode || 'pip', transition: (item.data as any)?.transition, overlayOpacity: (item.data as any)?.overlayOpacity, overlayZone: (item.data as any)?.overlayZone },
           }));
 
     const visualItems = visualItemsRaw.sort((a, b) => a.startMs - b.startMs);
+
+    // Check for zone-based visuals (requires segmentation for full effect)
+    const hasZonedVisuals = hasZoneBasedVisuals(visualItems as Array<{ data: Record<string, unknown> }>);
+
+    // Get video segmentation data if available (from project video settings)
+    const projectVideoSettings = (project as any).videoSettings as Record<string, unknown> | undefined;
+    const segmentation = projectVideoSettings?.segmentation as SegmentationData | undefined;
+    const segmentationReady = segmentation?.status === 'ready';
+
+    // Zone-based rendering note:
+    // When segmentation is ready and visuals use zones, the Remotion composition
+    // handles the zone layering internally. For export, we continue using the
+    // standard overlay pipeline since Remotion's output already includes
+    // zone-positioned graphics. The FFmpeg filter chain composites this correctly.
+    //
+    // Future enhancement: Download masks and use alphamerge for true speaker
+    // segmentation in FFmpeg export (bypassing Remotion for better quality).
+
+    if (hasZonedVisuals) {
+      logger.info({
+        segmentationReady,
+        hasZonedVisuals
+      }, 'Export includes zone-based visuals');
+    }
 
     const fullscreenVisualSegments: DisplayModeSegment[] = [];
     const overlaySegments: DisplayModeSegment[] = [];
@@ -740,6 +927,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       overlayCount: overlaySegments.length,
       gapCount: gapSegments.length,
       visualItemCount: visualItems.length,
+      hasZonedVisuals,
+      segmentationReady,
       source: visualDisplayData ? 'frontend' : 'db',
     }, 'Extracted display mode segments');
 
@@ -883,6 +1072,20 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
     // Render path with Remotion visuals - export exactly what user sees in preview
     if (projectVisual) {
+      await publishJobProgress(jobId, 25, 'Downloading video clips...');
+
+      // Download YouTube video clips if the project has any
+      const { clips: videoClipPaths, failed: failedClips, manifest: videoManifest } =
+        await downloadVideoClipsForRender(projectId, workDir);
+
+      if (failedClips.length > 0) {
+        logger.warn({ failedScenes: failedClips },
+          'Some video clips failed to download - scenes will render without video');
+      }
+      if (videoClipPaths.size > 0) {
+        logger.info({ clipCount: videoClipPaths.size }, 'Video clips downloaded for render');
+      }
+
       await publishJobProgress(jobId, 30, 'Rendering visuals with Remotion...');
 
       // Get bundle path from compositionId (hyphens for directory, underscores for composition ID)
@@ -909,6 +1112,18 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         scale: (videoSettings.scale as number) ?? 1.0,
       };
 
+      // Copy video clips to bundle's public directory so Remotion can access them
+      if (videoClipPaths.size > 0) {
+        const bundleClipsDir = join(bundlePath, 'public', 'clips');
+        await mkdir(bundleClipsDir, { recursive: true });
+
+        for (const [sceneId, clipPath] of videoClipPaths) {
+          const destPath = join(bundleClipsDir, basename(clipPath));
+          await copyFile(clipPath, destPath);
+          logger.info({ sceneId, destPath }, 'Copied video clip to bundle');
+        }
+      }
+
       logger.info({
         projectId,
         compositionId: projectVisual.compositionId,
@@ -919,6 +1134,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         outputHeight,
         videoCrop,
         sceneCount: sceneTimestamps.length,
+        videoClipCount: videoClipPaths.size,
       }, 'Starting Remotion SSR render');
 
       // Step 1: Render Remotion composition exactly as shown in preview
@@ -1062,6 +1278,9 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           fontsDir,
           resolvedFontFamily,
           fontSizeMultiplier,
+          videoClipPaths,
+          videoManifest: videoManifest ?? undefined,
+          sceneTimestamps,
           onProgress: (progress) => {
             // Map compositing progress from 75% to 82%
             const jobProgress = 75 + Math.round(progress * 7);
@@ -1843,6 +2062,70 @@ registerRoot(RemotionRoot);
 }
 
 /**
+ * Scan bundled JS files for references to known Google Fonts.
+ * Returns the list of font names found in the bundle.
+ */
+async function detectFontsInBundle(bundlePath: string): Promise<string[]> {
+  const assetsDir = join(bundlePath, 'assets');
+  let jsFiles: string[] = [];
+
+  try {
+    const entries = await readdir(assetsDir);
+    jsFiles = entries.filter(f => f.endsWith('.js')).map(f => join(assetsDir, f));
+  } catch {
+    // No assets dir — try flat bundle
+    try {
+      const entries = await readdir(bundlePath);
+      jsFiles = entries.filter(f => f.endsWith('.js')).map(f => join(bundlePath, f));
+    } catch {
+      logger.warn({ bundlePath }, 'Could not read bundle directory for font detection, skipping');
+      return [];
+    }
+  }
+
+  if (jsFiles.length === 0) return [];
+
+  // Concatenate all JS content
+  const chunks = await Promise.all(jsFiles.map(f => readFile(f, 'utf-8')));
+  const allJs = chunks.join('\n');
+
+  const matched: string[] = [];
+  for (const fontName of Object.keys(GOOGLE_FONT_URLS)) {
+    // Match as quoted string literals to avoid substring false positives
+    // (e.g. "Inter" must not match "interpolate")
+    if (allJs.includes(`"${fontName}"`) || allJs.includes(`'${fontName}'`)) {
+      matched.push(fontName);
+    }
+  }
+
+  return matched;
+}
+
+/**
+ * Inject Google Fonts <link> tags into the bundle's index.html so headless
+ * Chromium loads them during renderMedia().
+ */
+async function injectGoogleFontsIntoBundle(bundlePath: string, fonts: string[]): Promise<void> {
+  if (fonts.length === 0) return;
+
+  const indexPath = join(bundlePath, 'index.html');
+  let html = await readFile(indexPath, 'utf-8');
+
+  // Skip if already injected (idempotency for retries)
+  if (html.includes('fonts.googleapis.com')) return;
+
+  const linkTags = fonts.map(font => {
+    const query = GOOGLE_FONT_URLS[font];
+    return `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${query}&display=swap">`;
+  }).join('\n    ');
+
+  html = html.replace('</head>', `    ${linkTags}\n  </head>`);
+  await writeFile(indexPath, html, 'utf-8');
+
+  logger.info({ fonts, count: fonts.length }, 'Injected Google Font links into bundle index.html');
+}
+
+/**
  * Render a Remotion composition to a video file using SSR.
  * Uses the existing bundle created by the visual generator.
  * If the composition is not found, attempts to rebuild the bundle from source.
@@ -1905,6 +2188,10 @@ async function renderWithRemotion(options: RenderRemotionOptions): Promise<void>
       });
     }
   }
+
+  // Inject Google Fonts into bundle HTML so headless Chromium renders them
+  const detectedFonts = await detectFontsInBundle(serveUrl);
+  await injectGoogleFontsIntoBundle(serveUrl, detectedFonts);
 
   logger.info({
     compositionId: composition.id,
@@ -2266,6 +2553,9 @@ interface RenderWithPiPLayoutOptions {
   fontsDir: string;
   resolvedFontFamily?: string;
   fontSizeMultiplier?: number;
+  videoClipPaths?: Map<string, string>;  // sceneId → local clip path
+  videoManifest?: VideoManifest;         // For timing info
+  sceneTimestamps?: Array<{ startMs: number; endMs: number; sourceSceneId?: number }>;
 }
 
 /**
@@ -2293,6 +2583,9 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     fontsDir,
     resolvedFontFamily,
     fontSizeMultiplier = 1,
+    videoClipPaths,
+    videoManifest,
+    sceneTimestamps,
   } = options;
 
   // Render at full resolution for caption/text quality
@@ -2605,39 +2898,16 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
   const hasNonPipSegments = needsFullscreen || needsOverlay || needsGaps;
 
   if (hasNonPipSegments) {
-    // Helper: build FFmpeg enable expression from segments (hard on/off)
-    const buildEnableExpr = (segs: DisplayModeSegment[]): string =>
-      segs.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+');
-
-    // Helper: build fade filter chain for smooth enter/exit transitions
-    // alphaOnly=true: uses alpha=1 (only affects alpha channel) — for overlay/fullscreen layers
-    // alphaOnly=false: fades RGB toward black — for screen blend layers (dark = transparent in screen)
-    const buildFadeFilters = (segs: DisplayModeSegment[], alphaOnly = true): string => {
-      const fades: string[] = [];
-      for (const s of segs) {
-        if ((s.enterDurationMs || 0) > 0) {
-          const st = (s.startMs / 1000).toFixed(3);
-          const d = ((s.enterDurationMs || 0) / 1000).toFixed(3);
-          fades.push(`fade=t=in:st=${st}:d=${d}${alphaOnly ? ':alpha=1' : ''}`);
-        }
-        if ((s.exitDurationMs || 0) > 0) {
-          const st = ((s.endMs - (s.exitDurationMs || 0)) / 1000).toFixed(3);
-          const d = ((s.exitDurationMs || 0) / 1000).toFixed(3);
-          fades.push(`fade=t=out:st=${st}:d=${d}${alphaOnly ? ':alpha=1' : ''}`);
-        }
-      }
-      return fades.join(',');
-    };
-
-    // Check if any segments have transitions (need fade pipeline)
-    const anyTransitions = (segs: DisplayModeSegment[] | undefined): boolean =>
-      !!segs?.some(s => (s.enterDurationMs || 0) > 0 || (s.exitDurationMs || 0) > 0);
-
     // Calculate how many copies of each stream we need
-    // Source (0:v): 1 for layout + 1 if gaps or overlay need fullscreen source
-    const srcSplitCount = 1 + (needsGaps || needsOverlay ? 1 : 0);
-    // Remotion (1:v): 1 for layout + 1 if fullscreen + 1 if overlay
-    const visSplitCount = 1 + (needsFullscreen ? 1 : 0) + (needsOverlay ? 1 : 0);
+    // Source (0:v): 1 for layout + 1 per gap/overlay background segment
+    const gapAndOverlaySegs = [...(gapSegments || []), ...(overlaySegments || [])];
+    const srcExtraCount = gapAndOverlaySegs.length;
+    const srcSplitCount = 1 + srcExtraCount;
+    // Remotion (1:v): 1 for layout + 1 per fullscreen segment + 1 per overlay segment
+    // Each segment needs its own stream to avoid chained-fade interference
+    const fsCount = fullscreenVisualSegments?.length || 0;
+    const ovlCount = overlaySegments?.length || 0;
+    const visSplitCount = 1 + fsCount + ovlCount;
 
     // Replace raw input refs in existing filter with split output labels
     filterComplex = filterComplex.replace(/\[0:v\]/g, '[src_layout]');
@@ -2646,19 +2916,19 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     // Build split filters
     const splitFilters: string[] = [];
 
-    // Source split
+    // Source split — one stream per gap/overlay background segment
     const srcLabels = ['src_layout'];
-    if (needsGaps || needsOverlay) srcLabels.push('src_extra');
+    for (let i = 0; i < srcExtraCount; i++) srcLabels.push(`src_extra_${i}`);
     if (srcSplitCount > 1) {
       splitFilters.push(`[0:v]split=${srcSplitCount}${srcLabels.map(l => `[${l}]`).join('')}`);
     } else {
       splitFilters.push(`[0:v]copy[src_layout]`);
     }
 
-    // Remotion split
+    // Remotion split — one stream per fullscreen/overlay segment
     const visLabels = ['vis_layout'];
-    if (needsFullscreen) visLabels.push('vis_fs');
-    if (needsOverlay) visLabels.push('vis_ovl');
+    for (let i = 0; i < fsCount; i++) visLabels.push(`vis_fs_${i}`);
+    for (let i = 0; i < ovlCount; i++) visLabels.push(`vis_ovl_${i}`);
     if (visSplitCount > 1) {
       splitFilters.push(`[1:v]split=${visSplitCount}${visLabels.map(l => `[${l}]`).join('')}`);
     } else {
@@ -2672,91 +2942,119 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     let currentOut = 'outv';
 
     // Layer 1: Fullscreen visual — Remotion fills canvas (hides split/pip)
+    // Each segment gets its own stream to avoid chained-fade interference:
+    // fade=t=in:alpha=1 sets alpha=0 for ALL frames before st, so a later
+    // segment's fade-in would destroy an earlier segment's alpha.
     if (needsFullscreen) {
       const prevOut = currentOut;
-      currentOut = 'after_fs';
       filterComplex = filterComplex.replace(`[${prevOut}]`, `[${prevOut === 'outv' ? 'base' : prevOut}]`);
-      const baseLabel = prevOut === 'outv' ? 'base' : prevOut;
-      const expr = buildEnableExpr(fullscreenVisualSegments!);
+      let chainLabel = prevOut === 'outv' ? 'base' : prevOut;
 
-      if (anyTransitions(fullscreenVisualSegments)) {
-        // Smooth transitions: convert to yuva420p and use fade filters for alpha
-        const fadeChain = buildFadeFilters(fullscreenVisualSegments!);
-        filterComplex += `;[vis_fs]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,${fadeChain}[vis_fs_faded]`;
-        filterComplex += `;[${baseLabel}][vis_fs_faded]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
-      } else {
-        filterComplex += `;[vis_fs]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[vis_fs_scaled]`;
-        filterComplex += `;[${baseLabel}][vis_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
+      for (let i = 0; i < fullscreenVisualSegments!.length; i++) {
+        const seg = fullscreenVisualSegments![i];
+        const isLast = i === fullscreenVisualSegments!.length - 1;
+        const outLabel = isLast ? 'after_fs' : `after_fs_${i}`;
+        const inputLabel = `vis_fs_${i}`;
+        const enableExpr = `between(t,${(seg.startMs / 1000).toFixed(3)},${(seg.endMs / 1000).toFixed(3)})`;
+
+        const hasFades = (seg.enterDurationMs || 0) > 0 || (seg.exitDurationMs || 0) > 0;
+        if (hasFades) {
+          const fades: string[] = [];
+          if ((seg.enterDurationMs || 0) > 0) {
+            fades.push(`fade=t=in:st=${(seg.startMs / 1000).toFixed(3)}:d=${((seg.enterDurationMs || 0) / 1000).toFixed(3)}:alpha=1`);
+          }
+          if ((seg.exitDurationMs || 0) > 0) {
+            fades.push(`fade=t=out:st=${((seg.endMs - (seg.exitDurationMs || 0)) / 1000).toFixed(3)}:d=${((seg.exitDurationMs || 0) / 1000).toFixed(3)}:alpha=1`);
+          }
+          filterComplex += `;[${inputLabel}]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,${fades.join(',')}[${inputLabel}_f]`;
+          filterComplex += `;[${chainLabel}][${inputLabel}_f]overlay=0:0:enable='${enableExpr}':format=auto[${outLabel}]`;
+        } else {
+          // No transitions — skip yuva420p conversion, just hard overlay
+          filterComplex += `;[${inputLabel}]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[${inputLabel}_s]`;
+          filterComplex += `;[${chainLabel}][${inputLabel}_s]overlay=0:0:enable='${enableExpr}'[${outLabel}]`;
+        }
+        chainLabel = outLabel;
       }
+      currentOut = 'after_fs';
     }
 
     // Layer 2: Gap + Overlay background — Source video fills canvas
-    const gapAndOverlaySegs = [...(gapSegments || []), ...(overlaySegments || [])];
+    // Per-segment streams (same fix as Layer 1) to avoid chained-fade interference.
     if (gapAndOverlaySegs.length > 0) {
       const prevOut = currentOut;
-      currentOut = 'after_src';
       if (prevOut === 'outv') {
         filterComplex = filterComplex.replace('[outv]', '[base]');
       }
-      const expr = buildEnableExpr(gapAndOverlaySegs);
+      let chainLabel = prevOut === 'outv' ? 'base' : prevOut;
 
-      if (anyTransitions(gapAndOverlaySegs)) {
-        const fadeChain = buildFadeFilters(gapAndOverlaySegs);
-        filterComplex += `;[src_extra]${srcCropFull},format=yuva420p,${fadeChain}[src_fs_faded]`;
-        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][src_fs_faded]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
-      } else {
-        filterComplex += `;[src_extra]${srcCropFull}[src_fs_scaled]`;
-        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][src_fs_scaled]overlay=0:0:enable='${expr}'[${currentOut}]`;
+      for (let i = 0; i < gapAndOverlaySegs.length; i++) {
+        const seg = gapAndOverlaySegs[i];
+        const isLast = i === gapAndOverlaySegs.length - 1;
+        const outLabel = isLast ? 'after_src' : `after_src_${i}`;
+        const inputLabel = `src_extra_${i}`;
+        const enableExpr = `between(t,${(seg.startMs / 1000).toFixed(3)},${(seg.endMs / 1000).toFixed(3)})`;
+
+        const hasFades = (seg.enterDurationMs || 0) > 0 || (seg.exitDurationMs || 0) > 0;
+        if (hasFades) {
+          const fades: string[] = [];
+          if ((seg.enterDurationMs || 0) > 0) {
+            fades.push(`fade=t=in:st=${(seg.startMs / 1000).toFixed(3)}:d=${((seg.enterDurationMs || 0) / 1000).toFixed(3)}:alpha=1`);
+          }
+          if ((seg.exitDurationMs || 0) > 0) {
+            fades.push(`fade=t=out:st=${((seg.endMs - (seg.exitDurationMs || 0)) / 1000).toFixed(3)}:d=${((seg.exitDurationMs || 0) / 1000).toFixed(3)}:alpha=1`);
+          }
+          filterComplex += `;[${inputLabel}]${srcCropFull},format=yuva420p,${fades.join(',')}[${inputLabel}_f]`;
+          filterComplex += `;[${chainLabel}][${inputLabel}_f]overlay=0:0:enable='${enableExpr}':format=auto[${outLabel}]`;
+        } else {
+          filterComplex += `;[${inputLabel}]${srcCropFull}[${inputLabel}_s]`;
+          filterComplex += `;[${chainLabel}][${inputLabel}_s]overlay=0:0:enable='${enableExpr}'[${outLabel}]`;
+        }
+        chainLabel = outLabel;
       }
+      currentOut = 'after_src';
     }
 
-    // Layer 3: Overlay visuals — Remotion on top of source using screen blend
-    // Screen blend makes dark pixels transparent (matching editor's mixBlendMode: 'screen').
-    // Without this, the Remotion composition's opaque dark background would darken the video.
+    // Layer 3: Overlay visuals — Remotion on top of source with alpha compositing.
+    // Uses overlay filter with reduced alpha (colorchannelmixer=aa=OP) to match the
+    // editor preview's CSS opacity compositing. Previous screen blend approach caused
+    // heavy color tinting from the composition's background (screen formula brightens
+    // every pixel, whereas alpha compositing simply blends at the target opacity).
+    // Each segment gets its own stream (same chained-fade fix as fullscreen).
     if (needsOverlay) {
       const prevOut = currentOut;
-      currentOut = 'after_ovl';
       if (prevOut === 'outv') {
         filterComplex = filterComplex.replace('[outv]', '[base]');
       }
-      const expr = buildEnableExpr(overlaySegments!);
+      let chainLabel = prevOut === 'outv' ? 'base' : prevOut;
 
-      // Build per-segment opacity via RGB channel scaling.
-      // Pre-multiplying RGB simulates overlay opacity with screen blend:
-      // screen(A, B*op) ≈ blend with all_opacity=op for screen mode.
-      const opacityGroups = new Map<number, DisplayModeSegment[]>();
-      for (const seg of overlaySegments!) {
-        const op = seg.overlayOpacity ?? 0.85;
-        if (!opacityGroups.has(op)) opacityGroups.set(op, []);
-        opacityGroups.get(op)!.push(seg);
-      }
+      for (let i = 0; i < overlaySegments!.length; i++) {
+        const seg = overlaySegments![i];
+        const isLast = i === overlaySegments!.length - 1;
+        const outLabel = isLast ? 'after_ovl' : `after_ovl_${i}`;
+        const inputLabel = `vis_ovl_${i}`;
+        const enableExpr = `between(t,${(seg.startMs / 1000).toFixed(3)},${(seg.endMs / 1000).toFixed(3)})`;
+        const opacity = Math.max(0, Math.min(1, seg.overlayOpacity ?? 0.85));
 
-      let rgbOpacityFilter: string;
-      if (opacityGroups.size === 1) {
-        const [[opacity]] = opacityGroups;
-        rgbOpacityFilter = `colorchannelmixer=rr=${opacity}:gg=${opacity}:bb=${opacity}`;
-      } else {
-        // Multiple distinct opacities: chain filters with time-based enable.
-        const parts: string[] = [];
-        for (const [opacity, segs] of opacityGroups) {
-          const enable = segs.map(s =>
-            `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`
-          ).join('+');
-          parts.push(`colorchannelmixer=rr=${opacity}:gg=${opacity}:bb=${opacity}:enable='${enable}'`);
+        const hasFades = (seg.enterDurationMs || 0) > 0 || (seg.exitDurationMs || 0) > 0;
+        if (hasFades) {
+          // Alpha fades for smooth transitions — fade the alpha channel so the
+          // overlay smoothly appears/disappears over the source video.
+          const fades: string[] = [];
+          if ((seg.enterDurationMs || 0) > 0) {
+            fades.push(`fade=t=in:st=${(seg.startMs / 1000).toFixed(3)}:d=${((seg.enterDurationMs || 0) / 1000).toFixed(3)}:alpha=1`);
+          }
+          if ((seg.exitDurationMs || 0) > 0) {
+            fades.push(`fade=t=out:st=${((seg.endMs - (seg.exitDurationMs || 0)) / 1000).toFixed(3)}:d=${((seg.exitDurationMs || 0) / 1000).toFixed(3)}:alpha=1`);
+          }
+          filterComplex += `;[${inputLabel}]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=${opacity},${fades.join(',')}[${inputLabel}_f]`;
+          filterComplex += `;[${chainLabel}][${inputLabel}_f]overlay=0:0:enable='${enableExpr}':format=auto[${outLabel}]`;
+        } else {
+          filterComplex += `;[${inputLabel}]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=${opacity}[${inputLabel}_s]`;
+          filterComplex += `;[${chainLabel}][${inputLabel}_s]overlay=0:0:enable='${enableExpr}':format=auto[${outLabel}]`;
         }
-        rgbOpacityFilter = parts.join(',');
+        chainLabel = outLabel;
       }
-
-      if (anyTransitions(overlaySegments)) {
-        // RGB fade (not alpha) — fading toward black makes screen blend transition smooth
-        // (black is identity for screen blend, so fading to black = fading out the effect)
-        const fadeChain = buildFadeFilters(overlaySegments!, false);
-        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,${rgbOpacityFilter},${fadeChain}[vis_ovl_faded]`;
-        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_faded]blend=all_mode=screen:enable='${expr}'[${currentOut}]`;
-      } else {
-        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,${rgbOpacityFilter}[vis_ovl_screen]`;
-        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_screen]blend=all_mode=screen:enable='${expr}'[${currentOut}]`;
-      }
+      currentOut = 'after_ovl';
     }
 
     // Final output must be [outv] for downstream subtitle filter and mapping
@@ -2783,17 +3081,69 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     logger.info({ subtitleCount: subtitles.length, assFilename, mode, resolvedFontFamily, fontSizeMultiplier }, 'Generated ASS subtitles with layout');
   }
 
+  // Build video clip input mappings and filters
+  const clipInputs: Array<{ sceneId: string; inputIdx: number; clipPath: string }> = [];
+  let nextInputIdx = 2; // 0=source, 1=remotion, clips start at 2
+
+  if (videoClipPaths && videoClipPaths.size > 0 && sceneTimestamps) {
+    for (const [sceneId, clipPath] of videoClipPaths) {
+      clipInputs.push({ sceneId, inputIdx: nextInputIdx, clipPath });
+      nextInputIdx++;
+    }
+    logger.info({ clipCount: clipInputs.length }, 'Adding video clip inputs to FFmpeg');
+  }
+
+  // Add video clip overlay filters (before subtitles, so clips appear under captions)
+  if (clipInputs.length > 0 && sceneTimestamps) {
+    // Chain clip overlays into the filter
+    filterComplex = filterComplex.replace('[outv]', '[pre_clips]');
+    let chainLabel = 'pre_clips';
+
+    for (let i = 0; i < clipInputs.length; i++) {
+      const clip = clipInputs[i];
+      const isLast = i === clipInputs.length - 1;
+      const outLabel = isLast ? 'outv' : `after_clip_${i}`;
+
+      // Find scene timing from timestamps using sourceSceneId
+      const sceneTs = sceneTimestamps.find(s =>
+        String(s.sourceSceneId) === clip.sceneId
+      );
+      if (!sceneTs) {
+        logger.warn({ sceneId: clip.sceneId }, 'No timestamp found for video clip scene');
+        if (isLast) {
+          // If this is the last clip but we couldn't find timing, just pass through
+          filterComplex += `;[${chainLabel}]copy[outv]`;
+        }
+        continue;
+      }
+
+      const startSec = (sceneTs.startMs / 1000).toFixed(3);
+      const endSec = (sceneTs.endMs / 1000).toFixed(3);
+
+      // Scale clip to canvas size and overlay during scene time range
+      filterComplex += `;[${clip.inputIdx}:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,setpts=PTS-STARTPTS[clip_${clip.sceneId}]`;
+      filterComplex += `;[${chainLabel}][clip_${clip.sceneId}]overlay=0:0:enable='between(t,${startSec},${endSec})'[${outLabel}]`;
+
+      chainLabel = outLabel;
+    }
+  }
+
   // Add subtitles filter if we have them
   if (assFilename) {
     filterComplex = filterComplex.replace('[outv]', '[pre]') + `;[pre]subtitles=${assFilename}:fontsdir=${fontsDir}[outv]`;
   }
 
   // Build FFmpeg args
-  // Input order: 0=source, 1=remotion, 2=audio (optional)
+  // Input order: 0=source, 1=remotion, 2..N=clips (optional), then audio
   const args = [
     '-i', 'source.mp4',
     '-i', 'remotion.mp4',
   ];
+
+  // Add clip inputs
+  for (const clip of clipInputs) {
+    args.push('-i', clip.clipPath);
+  }
 
   if (audioFilename) {
     args.push('-i', audioFilename);
@@ -2805,9 +3155,10 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     '-map', '[outv]',
   );
 
-  // Map audio
+  // Map audio (audio input index = 2 + number of clip inputs)
   if (audioFilename) {
-    args.push('-map', '2:a');
+    const audioInputIdx = 2 + clipInputs.length;
+    args.push('-map', `${audioInputIdx}:a`);
   } else {
     args.push('-map', '0:a?');  // Use source audio if available
   }
