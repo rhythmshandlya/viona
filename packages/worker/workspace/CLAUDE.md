@@ -10,6 +10,7 @@
 - Use `spring()` for entrances/exits — import SPRINGS from constants.ts (SMOOTH: `{ damping: 26, stiffness: 120, mass: 1.0 }`, SNAPPY: `{ damping: 18, stiffness: 180, mass: 0.8 }`)
 - Use `interpolate()` with `extrapolateRight: 'clamp'` ALWAYS
 - Stagger elements by 6+ frames minimum (NEVER animate all at once)
+- Text entrances: fade + gentle scale (1.05-1.15x max) via SPRINGS.SMOOTH — never slam, crash, or zoom text onto screen
 
 ## File Structure
 ```
@@ -38,10 +39,21 @@ import { Background } from './components/Background';
 ```
 
 ## Common Gotchas
-- NEVER use `Math.sin/cos` on text positions (causes jittery text)
+- NEVER use `Math.sin/cos` on text or any parent container holding text (OK only for Layer 3 particles at opacity <= 0.15)
 - NEVER use damping < 20 (too bouncy)
 - NEVER use R3F's `useFrame()` hook - breaks video rendering
 - For 3D: use `<ThreeCanvas>` from @remotion/three, NOT R3F `<Canvas>`
+- NEVER scatter elements at independent absolute positions — wrap all content in a single centered flex column
+- NEVER overlay domain-specific decorative SVGs on the dot-grid (pool lanes, circuits, etc.)
+- NEVER hardcode 1080/1920 in scene files — use EW/EH from constants.ts
+
+## Animation Quality Rules
+- Always pair opacity + transform for entries (never opacity alone)
+- Entries: ease-out (fast appear, smooth settle). Exits: ease-in (75% of entry duration)
+- Stagger with variable delays (4, 6, 8 frames) not uniform gaps
+- Text scale max 1.15x during entry — never slam/zoom
+- Add micro-motion to persistent elements (0.5% scale oscillation over 90 frames)
+- Spring damping >= 20 always, no exceptions
 
 ## Available Skills
 

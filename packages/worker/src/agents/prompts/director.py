@@ -43,7 +43,7 @@ Your job is to FIX THIS by:
 1. Deep transcript analysis - understand what's ACTUALLY being explained
 2. Precise timestamp alignment - visuals sync to SPECIFIC WORDS
 3. Visual continuity - the SAME elements transform across scenes
-4. Concrete metaphors - every abstract concept gets a TANGIBLE visual
+4. Template-first visuals - every abstract concept maps to a template component or styled typography
 </philosophy>
 
 <transcript_analysis>
@@ -258,21 +258,24 @@ Before finishing, verify your plan passes these tests:
 </quality_criteria>
 
 <visual_metaphors>
-Use TANGIBLE real-world metaphors:
+Map abstract concepts to TEMPLATE COMPONENTS or styled typography — never to hand-drawn physical objects:
 
-| Abstract Concept | Concrete Metaphor |
-|-----------------|-------------------|
-| Data stream | River of glowing particles flowing |
-| Memory/Storage | Physical container/bucket that fills |
-| Random selection | Spotlight/laser sweeping and landing |
-| Probability | Dice rolling, wheel spinning, coin flipping |
-| Algorithm steps | Assembly line / conveyor belt |
-| Comparison | Side-by-side scales / before-after split |
-| Growth | Plant growing / balloon inflating |
-| Efficiency | Small box vs large pile |
-| Network | Connected nodes with pulses traveling |
-| Error | Red warning flash + shake |
-| Success | Green checkmark + confetti |
+| Concept | Template to Use | Fallback |
+|---------|----------------|----------|
+| Data comparison | stat-comparison, split-stat, versus-screen | Bold side-by-side text with accent colors |
+| Metrics/progress | stat-progress, stat-bar-chart, score-meter | number-ticker with large text |
+| Rankings/tiers | tier-board, rating-display | Styled numbered list |
+| Counters/stats | number-ticker, stat-counter | Large animated number with label |
+| Before/after | before-after-reveal | Side-by-side glassmorphic cards |
+| Head-to-head | versus-screen, poll-battle | Comparison cards |
+| Sequences/steps | process-flow, step-counter | Numbered text stack |
+| Growth/trends | stat-line-chart, stat-donut | Bold percentage with direction arrow |
+| Quotes/emphasis | quote-pulse, headline-storm | Centered large typography |
+| Features/lists | feature-list, bullet-stack | Staggered text rows with accent bullets |
+
+NEVER describe physical objects (seesaws, gauges with needles, conveyor belts, swimming pool lanes, circuit boards, trophies).
+The Animator cannot render realistic objects — they always degrade to crude colored rectangles.
+A polished template component is ALWAYS better than a hand-drawn approximation.
 </visual_metaphors>
 
 <animation_vocabulary>
@@ -285,7 +288,7 @@ creative intent translates into the precise motion you envision.
 |------|--------|----------|
 | `word-cascade` | Words appear one-by-one with slide-up + fade | Quotes, taglines, explanations |
 | `char-stagger` | Characters appear letter-by-letter with spring scale | Titles, emphasis words |
-| `text-slam` | Text scales from 2.5x to 1x with heavy spring + glow | Hook titles, big reveals, key stats |
+| `text-reveal` | Text fades in with gentle scale (1.05-1.15x) + SPRINGS.SMOOTH + optional soft glow | Hook titles, big reveals, key stats |
 | `typewriter` | Characters reveal left-to-right with blinking cursor | Code, terminal output, step-by-step |
 | `text-morph-position` | Text smoothly repositions/rescales (e.g. center→top) | Title settling after hook, layout shifts |
 | `number-roll` | Counter animates from 0 to target value with easing | Stats, metrics, data points |
@@ -308,12 +311,12 @@ creative intent translates into the precise motion you envision.
 | `crossfade` | Scenes blend via opacity over ~15 frames | Mood changes, gentle topic shifts |
 | `slide-left` | New scene slides in from right, pushing old left | Sequential progression, next-step |
 | `wipe-right` | Reveal wipe from left to right | Before/after, transformations |
-| `zoom-punch` | Quick scale punch (1→1.1→1) at transition | Impact moments, exclamation points |
+| `glow-pulse` | Subtle brightness pulse (opacity 0.85 to 1.0) at transition | Impact moments, exclamation points |
 | `cut` | Instant switch (current default behavior) | Fast pace, dramatic contrast |
 
 ### How to Use in Visual Descriptions
 Reference animations by name in your scene "visual" field:
-- "Title 'Hash Tables' enters with `text-slam` at center."
+- "Title 'Hash Tables' enters with `text-reveal` at center."
 - "At sync point 'buckets', title uses `text-morph-position` to shrink to top while bucket diagram uses `draw-in` to reveal below."
 - "Stats appear with `number-roll` for each metric, staggered with `stagger-cascade`."
 - "Transition to Scene 3 with `crossfade` as tone shifts to the solution."
@@ -327,8 +330,8 @@ Specify an archetype in each scene to guide the Animator toward polished, purpos
 
 | Archetype | Best For | Key Animations | Layout |
 |-----------|----------|----------------|--------|
-| `hook-title` | Opening scene, first 3 seconds | `text-slam` title → `text-morph-position` to top | Title fills screen, then settles for content |
-| `stat-reveal` | Data points, metrics, numbers | `count-up` + `text-slam` for the number, `fade-rise` label | Large number center, label below |
+| `hook-title` | Opening scene, first 3 seconds | `text-reveal` title → `text-morph-position` to top | Title fills screen, then settles for content |
+| `stat-reveal` | Data points, metrics, numbers | `count-up` + `text-reveal` for the number, `fade-rise` label | Large number center, label below |
 | `process-flow` | How-to, algorithms, step-by-step | `draw-in` connections, `stagger-cascade` steps | Nodes connected by animated lines |
 | `comparison-split` | Before/after, A vs B, pros/cons | `slide-left` split divider, `stagger-cascade` each side | Canvas split vertically, items per side |
 | `feature-list` | Benefits, announcements, bullet points | `stagger-cascade` with `spring-in` icons per item | Icon + text rows, staggered entrance |
@@ -336,9 +339,10 @@ Specify an archetype in each scene to guide the Animator toward polished, purpos
 | `code-demo` | Programming, technical, CLI output | `typewriter` for code lines, `spring-in` for output | Dark code block with syntax colors |
 | `quote-spotlight` | Testimonials, famous quotes, key phrases | `word-cascade` for quote text, `fade-rise` attribution | Large centered quote with subtle accents |
 | `data-chart` | Charts, rankings, comparisons | `draw-in` axes, `fill-progress` bars, `count-up` labels | Chart area with animated bars/lines |
-| `hero-image` | Real-world context, product shots | Ken Burns image + `text-slam` overlay text | Image fills 60-80%, text overlaid |
+| `hero-image` | Real-world context, product shots | Ken Burns image + `text-reveal` overlay text | Image fills 60-80%, text overlaid |
+| `video-embed` | Real-world footage, demos, interviews | `zoom` video entrance + `fade-rise` overlay text | Video fills canvas with text overlays |
 | `payoff-close` | Conclusion, CTA, final takeaway | `spring-in` callback element + `word-cascade` summary | Centered payoff with returning visual anchor |
-| `concept-metaphor` | Abstract ideas made tangible | `spring-in` metaphor visual + `draw-in` transformation | Metaphor object center, transforming over time |
+| `concept-visual` | Abstract ideas made tangible | `spring-in` template component (stat-counter, score-meter, etc.) | Template component center with accent colors |
 
 ### How to Use Archetypes
 1. Set the `"archetype"` field in each scene of scenes.json
@@ -351,7 +355,7 @@ Example:
   "id": 1,
   "name": "The Hook",
   "archetype": "hook-title",
-  "visual": "Dark gradient background. Title 'Why Hash Tables Are Genius' enters with `text-slam`..."
+  "visual": "Dark gradient background. Title 'Why Hash Tables Are Genius' enters with `text-reveal`..."
 }
 ```
 
@@ -360,7 +364,11 @@ freely — the archetype just provides a proven starting structure.
 </scene_archetypes>
 
 <color_palettes>
-Choose a palette that fits the content mood:
+**STUDIO THEME COLOR RULE:** When using studio-dark or studio-light themes, DO NOT specify a full custom color palette. The studio theme provides background, text, textMuted, cardBg, cardBorder, gridColor automatically. You may only customize `accent` and `secondary` colors to complement the video topic. All other colors come from the studio theme.
+
+Example colorPalette for studio themes: "studio-dark (accent: #6366F1, secondary: #EC4899)"
+
+The following palettes are ONLY for future non-studio styles (currently unused). Default to studio-dark or studio-light instead:
 
 **Cyber Neon (Tech/Data):**
 - Primary: #00f5d4 (Cyan)
@@ -555,7 +563,102 @@ impact, establishing shots), mark with **[PHOTO: search terms]**:
 a dark overlay, while animated stats float in the foreground."
 ```
 
-This way the Animator knows exactly which scenes need screenshots vs photos vs illustrations.
+### Video Clips (YouTube)
+When a scene would benefit from real video footage rather than static images or animations,
+mark it with **[VIDEO: search terms]**. The system can search YouTube and extract relevant
+clips to embed in your scene.
+
+**When to use video clips:**
+| Content Type | Use Video? |
+|-------------|------------|
+| Product demos, tutorials | Yes - [VIDEO: product name demo] |
+| Historical footage, news clips | Yes - [VIDEO: historical event] |
+| Real-world processes in action | Yes - [VIDEO: manufacturing process] |
+| Sports highlights, action sequences | Yes - [VIDEO: basketball dunk] |
+| Talking heads, interviews | Yes - [VIDEO: expert interview topic] |
+| Abstract concepts, diagrams | No - use illustrations or animations instead |
+| Logo reveals, brand elements | No - use icons/illustrations |
+
+**Specifying video clips in scene descriptions:**
+```
+"visual": "[VIDEO: rocket launch SpaceX] The rocket lifts off in the background
+while animated text overlays appear with launch statistics."
+```
+
+Each video entry in scenes.json specifies:
+- `keyword`: Search terms to find the video (e.g., "SpaceX rocket launch")
+- `purpose`: `"hero"` (focal point), `"background"` (behind other elements), or `"accent"`
+- `placement`: Where in the scene: `"center"`, `"background"`, `"left"`, or `"right"`
+- `trimHint`: Optional suggested portion (e.g., `"action-start"`, `"middle"`, `"highlight"`)
+- `muted`: Whether to mute the video audio (default: true for background usage)
+
+**Example scene with video:**
+```json
+{
+  "id": 3,
+  "name": "The Launch",
+  "archetype": "video-embed",
+  "visual": "[VIDEO: rocket launch] Full-screen rocket launch video with countdown overlay...",
+  "videos": [
+    {
+      "keyword": "SpaceX Falcon 9 launch",
+      "purpose": "hero",
+      "placement": "center",
+      "trimHint": "liftoff moment",
+      "muted": false
+    }
+  ]
+}
+```
+
+**Budget constraints:** Max 1 video per scene, max 3 videos total across all scenes.
+Videos require more processing time than images, so use sparingly for maximum impact.
+
+This way the Animator knows exactly which scenes need screenshots vs photos vs illustrations vs videos.
+
+### YouTube Clip Scenes (Full-Scene Video)
+Sometimes a scene should BE a YouTube video clip — not animation with embedded video, but the video itself
+displayed with a decorative frame overlay. Use `type: "youtube-clip"` for these scenes.
+
+**When to use youtube-clip scene type:**
+| Scenario | Use youtube-clip? |
+|----------|-------------------|
+| Showing a product demo, app interface, tutorial | YES - browser/laptop frame |
+| Referencing external content (news, reactions) | YES - browser/phone frame |
+| "Show don't tell" moments where footage > graphics | YES - appropriate frame |
+| Explaining concepts that need custom graphics | NO - use regular animation |
+| Data visualization, statistics | NO - use regular animation |
+| Abstract ideas that need visual metaphors | NO - use regular animation |
+
+**Frame styles available:**
+| Frame | Best for |
+|-------|----------|
+| `"phone"` | Mobile app demos, vertical content, TikTok/Instagram references |
+| `"laptop"` | Desktop software demos, presentations |
+| `"browser"` | Web apps, websites, online tools |
+| `"polaroid"` | Nostalgic feel, personal moments, artistic effect |
+| `"film"` | Cinematic clips, dramatic footage |
+| `"none"` | Clean fullscreen video, no frame |
+
+**Example youtube-clip scene:**
+```json
+{
+  "id": 4,
+  "name": "AI Assistant Demo",
+  "type": "youtube-clip",
+  "videoSearch": "AI code assistant demo",
+  "frameStyle": "browser",
+  "trimHint": "show the autocomplete feature",
+  "visual": "YouTube clip of AI assistant in a browser frame with subtle shadow",
+  "frames": [300, 600],
+  "displayMode": "fullscreen"
+}
+```
+
+**Key differences from embedded video:**
+- `type: "youtube-clip"` = The ENTIRE scene is the video with frame
+- `videos: [...]` array = Video embedded WITHIN an animated scene
+- Use youtube-clip when video IS the content; use videos array when video SUPPORTS the content
 
 ### Animation Hints
 The Animator has pre-built animation wrappers. Use these hints so the Animator picks the right preset:
@@ -601,48 +704,34 @@ Research BEFORE planning to create more informed, visually compelling scene desi
 
 import math
 
-STYLE_PRESET_DESCRIPTIONS = {
-    "minimal": """Clean lines, whitespace, monochrome with single accent color. Focus on simplicity and negative space.
+STUDIO_THEMES = {
+    "studio-dark": {
+        "variant": "dark",
+        "background": "#0B0F1A",
+        "text": "#FFFFFF",
+        "textMuted": "rgba(255,255,255,0.45)",
+        "gridColor": "rgba(255,255,255,0.04)",
+        "cardBg": "rgba(255,255,255,0.06)",
+        "cardBorder": "rgba(255,255,255,0.10)",
+    },
+    "studio-light": {
+        "variant": "light",
+        "background": "#F8F9FB",
+        "text": "#111827",
+        "textMuted": "rgba(0,0,0,0.45)",
+        "gridColor": "rgba(0,0,0,0.04)",
+        "cardBg": "rgba(0,0,0,0.04)",
+        "cardBorder": "rgba(0,0,0,0.08)",
+    },
+}
 
-**COLOR PALETTE:** Arctic Blue or Soft Gradient — muted tones, single accent pop.
-**TYPOGRAPHY:** Plus Jakarta Sans (titles, 5% height) + JetBrains Mono (body/code, 3% height). Lightweight.
-**ANIMATION FEEL:** Gentle and deliberate. spring({ damping: 30, stiffness: 60 }) for slow, smooth entrances.
-Stagger elements 10-12 frames apart. Prefer `fade-rise` and `text-morph-position` over dramatic slams.
-No particles, no glow — let negative space breathe.""",
-    "modern": """Gradients, rounded corners, vibrant colors. Contemporary feel with smooth transitions.
+_STUDIO_STYLE_TEMPLATE = """Polished card-based animations floating on dot-grid backgrounds. {variant_label} with glassmorphic cards.
+This style has a PRE-BUILT TEMPLATE LIBRARY of 60+ components the Animator can copy and customize.
 
-**COLOR PALETTE:** Cyber Neon or Electric Sunset — rich gradients, dual-tone backgrounds.
-**TYPOGRAPHY:** Space Grotesk (titles, 5% height) + Inter (body, 3% height). Clean geometric shapes.
-**ANIMATION FEEL:** Polished and fluid. SPRINGS.SMOOTH ({ damping: 26, stiffness: 120 }) for premium settle, SPRINGS.SNAPPY for hero reveals.
-Stagger 6-8 frames. Use `text-slam` for key reveals, `stagger-cascade` for lists, `crossfade` transitions.
-Glassmorphism cards, subtle gradient shifts in backgrounds.""",
-    "playful": """Bright colors, bouncy animations, friendly feel. Fun and energetic with playful motion.
-
-**COLOR PALETTE:** Electric Sunset or custom bright palette — high saturation, warm accents.
-**TYPOGRAPHY:** Nunito (titles, 6% height — slightly larger) + Source Code Pro (body, 3.5% height). Rounded, friendly.
-**ANIMATION FEEL:** Bouncy and energetic. spring({ damping: 18, stiffness: 120 }) for visible overshoot.
-Stagger 5-6 frames (faster cascade). Use `char-stagger` for fun text reveals, `pop-scatter` for celebrations,
-`spring-in` with extra bounce for icons. Floating accent particles welcome.""",
-    "bold": """High contrast, large text, dramatic impact. Strong visual statements with stark contrasts.
-
-**COLOR PALETTE:** Midnight Gold or Warm Ember — stark dark backgrounds with bright focal elements.
-**TYPOGRAPHY:** Bebas Neue or Oswald (titles, 7% height — oversized) + Open Sans (body, 3% height). Heavy weight.
-**ANIMATION FEEL:** Punchy and dramatic. spring({ damping: 25, stiffness: 150 }) for fast, decisive motion.
-Stagger 4-5 frames (rapid fire). Use `text-slam` aggressively, `zoom-punch` transitions between scenes,
-`number-roll` with exponential easing for stats. High contrast shadows and glow effects.""",
-    "classic": """Traditional charts, serif fonts, professional tones. Timeless and business-appropriate.
-
-**COLOR PALETTE:** Arctic Blue or Forest Tech — subdued, corporate-safe tones.
-**TYPOGRAPHY:** Cormorant Garamond (titles, 5% height) + Lato (body, 3% height). Elegant serifs for headings.
-**ANIMATION FEEL:** Dignified and smooth. spring({ damping: 28, stiffness: 70 }) for measured, unhurried motion.
-Stagger 8-10 frames. Prefer `fade-rise` over spring-in, `word-cascade` for quotes, `fill-progress` for charts.
-Easing.inOut(Easing.cubic) for continuous motion. No bounce, no particles — pure clarity.""",
-    "studio": """Polished card-based animations floating on dot-grid backgrounds. Dark-mode-first with glassmorphic cards.
-This style has a PRE-BUILT TEMPLATE LIBRARY of 60 components the Animator can copy and customize.
-
-**COLOR PALETTE:** Dark mode default — background #0B0F1A, text #FFFFFF, accent #6366F1 (indigo),
-secondary #EC4899 (pink). Light mode: background #F8F9FB, text #111827. Cards: glassmorphic
-(rgba(255,255,255,0.06) bg, blur(20px), 1px rgba(255,255,255,0.10) border, 32px radius).
+**COLOR PALETTE:** {variant_label} — background {background}, text {text}, textMuted {textMuted}.
+Cards: glassmorphic ({cardBg} bg, blur(20px), 1px {cardBorder} border, 32px radius).
+Grid: dot-grid ({gridColor}, 32px spacing, r=1 dots).
+Default accents: primary #6366F1 (indigo), secondary #EC4899 (pink).
 
 **FONT PAIRS (pick ONE per project):**
 | Key | Headline | Body | Vibe |
@@ -653,8 +742,8 @@ secondary #EC4899 (pink). Light mode: background #F8F9FB, text #111827. Cards: g
 | elegantEditorial | Playfair Display | Lato | Sophisticated |
 | friendlyTech | Poppins | Inter | Approachable |
 
-**CARD LAYOUT:** Centered flex containers on dot-grid background (32px grid, r=1 dots, 0.04 opacity).
-Cards: 56-64px padding, maxWidth 900px (or 85% canvas). Glass style default, also solid/gradient/outline.
+**CARD LAYOUT:** Centered flex containers on dot-grid background.
+Cards: s(56)-s(64) padding, maxWidth s(900) (or 85% canvas). Glass style default, also solid/gradient/outline.
 
 **TEMPLATE LIBRARY:**
 Check src/.templates/ for pre-built template source code. If a template matches the scene purpose,
@@ -666,42 +755,28 @@ marketing (product-card, coupon-badge, qr-code-reveal), education (definition-to
 If a STUDIO_TEMPLATES.md file exists in the workspace src/ directory, READ IT FIRST for the full
 template catalog. Plan scenes that can leverage existing templates when possible.
 
-**TEMPLATE SUGGESTIONS (Studio only):**
+**TEMPLATE SUGGESTIONS:**
 For each scene, add a "suggestedTemplates" array to scenes.json with 1-2 template slugs that match
 the scene's purpose. If no template fits, omit the field.
 Examples: revenue growth → ["stat-counter"], comparison → ["versus-screen", "pros-cons"],
 timeline → ["timeline-cascade"], process → ["process-flow"].
-""",
-    "kinetic-typography": """Full-screen text cards synced to narration — Apple ad style.
 
-**CONCEPT:** Every word the narrator says appears as large bold text on solid colored backgrounds.
-Words are grouped into short phrases (2-8 words per card). Background colors rotate through 3 brand
-colors. One emphasis word per card gets a hand-drawn doodle annotation (underline, circle, arrow,
-or checkmark).
+**ANIMATION FEEL:** SPRINGS.SMOOTH (damping: 26, stiffness: 120) for premium settle, SPRINGS.SNAPPY (damping: 18, stiffness: 180) for hero reveals.
+Stagger 6-8 frames. Use spring entrances for cards, interpolate for continuous motion.
+"""
 
-**THIS IS NOT A DATA VISUALIZATION STYLE.** Do not plan charts, diagrams, or illustrations.
-Instead, plan TEXT CARDS that display the narrator's actual words.
 
-**COLOR RULES:**
-- Rotate through the 3 brand colors provided in the user guidance
-- Never use the same background color 3 times in a row
-- Text color: white (#FFFFFF) on dark backgrounds, black (#000000) on light backgrounds
-- Use contrast ratio check: if background luminance > 0.5, use black text; otherwise white
+def get_style_description(style_preset: str) -> str:
+    """Get the style description for the given preset, filled with theme colors."""
+    theme = STUDIO_THEMES.get(style_preset, STUDIO_THEMES["studio-dark"])
+    variant_label = "Dark mode" if theme["variant"] == "dark" else "Light mode"
+    return _STUDIO_STYLE_TEMPLATE.format(variant_label=variant_label, **theme)
 
-**DOODLE ANNOTATIONS:**
-Each segment gets ONE emphasis word with a doodle type:
-- "underline" (50% frequency) — wavy hand-drawn underline
-- "circle" (20%) — loose ellipse around the word
-- "arrow" (15%) — curved arrow pointing to the word
-- "checkmark" (10%) — hand-drawn check mark next to the word
-- null (5%) — no doodle
 
-**DISPLAY MODES:**
-- "phrase" — entire phrase appears at once with scale animation (use for short punchy text, 2-4 words)
-- "word-by-word" — words pop in one at a time synced to timestamps (use for dramatic reveals, 4-8 words)
-
-**PACING:** Fast — each text card lasts 0.6-4 seconds matching voiceover speed.
-""",
+# Backward compat — some code may still reference this dict
+STYLE_PRESET_DESCRIPTIONS = {
+    "studio-dark": get_style_description("studio-dark"),
+    "studio-light": get_style_description("studio-light"),
 }
 
 
@@ -851,168 +926,6 @@ This means most scenes stay in the familiar stacked layout, but 1-3 high-impact 
         return f"Custom layout: {width}x{height}px ({aspect})"
 
 
-def _build_kinetic_typography_director_message(
-    project_id: str,
-    formatted_transcript: str,
-    width: int,
-    height: int,
-    duration_frames: int,
-    fps: int,
-    style_desc: str,
-    style_guide: str | None = None,
-    output_dir: str | None = None,
-) -> str:
-    """Build Director message for kinetic-typography style.
-
-    Outputs a different schema: text-card segments with word timings,
-    background colors, emphasis words, and doodle types.
-    """
-    duration_seconds = duration_frames / fps
-    aspect_ratio = get_aspect_ratio_name(width, height)
-
-    # Parse brand colors from style_guide JSON (injected by frontend)
-    brand_colors_section = ""
-    if style_guide and style_guide.strip():
-        try:
-            import json as _json
-            parsed = _json.loads(style_guide.split("\n")[0])
-            if parsed.get("kineticTypography") and parsed.get("brandColors"):
-                bc = parsed["brandColors"]
-                brand_colors_section = f"""
-**BRAND COLORS (from user):**
-- Accent: {bc.get('accent', '#00E556')}
-- Dark: {bc.get('dark', '#000000')}
-- Light: {bc.get('light', '#EBEBEB')}
-
-Rotate through these 3 colors for backgrounds. Never use the same color 3x in a row.
-"""
-                # Remove the JSON line from style_guide so remaining text is user prose
-                remaining = "\n".join(style_guide.split("\n")[1:]).strip()
-                if remaining:
-                    brand_colors_section += f"\n**Additional user guidance:** {remaining}\n"
-        except Exception:
-            pass
-
-    if not brand_colors_section:
-        brand_colors_section = """
-**BRAND COLORS (defaults):**
-- Accent: #00E556
-- Dark: #000000
-- Light: #EBEBEB
-
-Rotate through these 3 colors for backgrounds. Never use the same color 3x in a row.
-"""
-
-    # Use absolute paths when output_dir is provided
-    if output_dir:
-        abs_plan_path = output_dir.replace("\\", "/") + "/SCENE_PLAN.md"
-        abs_scenes_path = output_dir.replace("\\", "/") + "/scenes.json"
-    else:
-        abs_plan_path = "SCENE_PLAN.md"
-        abs_scenes_path = "scenes.json"
-
-    return f"""
-## PROJECT: {project_id}
-
-## CANVAS SPECIFICATIONS
-- Dimensions: {width}x{height}px
-- Aspect Ratio: {aspect_ratio}
-- Duration: {duration_frames} frames ({duration_seconds:.1f}s)
-- FPS: {fps}
-
-## VISUAL STYLE: KINETIC TYPOGRAPHY
-{style_desc}
-{brand_colors_section}
-{formatted_transcript}
-
-## YOUR TASK
-
-Group the transcript words into text-card segments (2-8 words each) and assign visual properties.
-
-### Step 1: Group Words into Segments
-- Read every word and its timestamp from the transcript
-- Group consecutive words into short phrases (2-8 words)
-- Break at natural pauses, sentence boundaries, or emphasis points
-- Each segment becomes one full-screen text card
-
-### Step 2: Assign Visual Properties
-For each segment:
-1. Pick a background color (rotate through brand colors, never 3x in a row)
-2. Pick text color (white on dark backgrounds, black on light backgrounds)
-3. Choose displayMode: "phrase" for short punchy text (2-4 words), "word-by-word" for dramatic reveals (4-8 words)
-4. Pick ONE emphasis word and a doodle type (underline 50%, circle 20%, arrow 15%, checkmark 10%, null 5%)
-
-### Step 3: Write Output Files
-
-**CRITICAL: You MUST use the Write tool to create these files at the EXACT paths below.**
-
-#### 1. SCENE_PLAN.md
-**EXACT path:** `{abs_plan_path}`
-Human-readable plan listing each segment with its text, timing, colors, and emphasis.
-
-#### 2. scenes.json
-**EXACT path:** `{abs_scenes_path}`
-Machine-readable with this EXACT structure:
-
-```json
-{{
-  "projectId": "{project_id}",
-  "style": "kinetic-typography",
-  "fps": {fps},
-  "totalFrames": {duration_frames},
-  "durationSeconds": {duration_seconds:.1f},
-  "canvas": {{"width": {width}, "height": {height}}},
-  "segments": [
-    {{
-      "id": 1,
-      "text": "Every product",
-      "words": [
-        {{"word": "Every", "start": 0.48, "end": 0.72}},
-        {{"word": "product", "start": 0.72, "end": 1.12}}
-      ],
-      "startTime": 0.48,
-      "endTime": 1.12,
-      "startFrame": 14,
-      "endFrame": 34,
-      "background": "#00E556",
-      "textColor": "#000000",
-      "displayMode": "phrase",
-      "emphasis": {{"word": "product", "doodle": "underline"}}
-    }}
-  ]
-}}
-```
-
-**SCHEMA RULES:**
-- `segments` is an array of text cards, NOT scenes with visuals
-- `words` array must include EVERY word with `start` and `end` timestamps from the transcript
-- `startTime`/`endTime` = first word's start / last word's end
-- `startFrame` = round(startTime * {fps}), `endFrame` = round(endTime * {fps})
-- `background` = one of the 3 brand colors (hex string)
-- `textColor` = "#FFFFFF" or "#000000" based on background luminance
-- `displayMode` = "phrase" or "word-by-word"
-- `emphasis.word` = one word from `text`, `emphasis.doodle` = "underline"|"circle"|"arrow"|"checkmark"|null
-
-**CRITICAL CONSTRAINTS:**
-- First segment must start at the first word's timestamp
-- Last segment must end at the last word's timestamp
-- Segments MUST be contiguous — no gaps in transcript coverage
-- Every word from the transcript must appear in exactly one segment
-- Total segment count: typically 15-60 depending on transcript length
-
-## FINAL CHECKLIST
-1. [ ] Used Write tool to create `{abs_plan_path}`
-2. [ ] Used Write tool to create `{abs_scenes_path}`
-3. [ ] scenes.json has valid JSON with "style": "kinetic-typography"
-4. [ ] Every transcript word appears in exactly one segment
-5. [ ] Segments are contiguous (no gaps)
-6. [ ] Background colors rotate (never 3x same in a row)
-7. [ ] Each segment has exactly one emphasis word with doodle type
-
-When your plan files are written, respond: "PLANNING COMPLETE"
-"""
-
-
 def build_director_user_message(
     project_id: str,
     formatted_transcript: str,
@@ -1044,21 +957,7 @@ def build_director_user_message(
     duration_seconds = duration_frames / fps
 
     # Get descriptions for selected options
-    style_desc = STYLE_PRESET_DESCRIPTIONS.get(style_preset, STYLE_PRESET_DESCRIPTIONS["modern"])
-
-    # Kinetic typography uses a fundamentally different output schema
-    if style_preset == "kinetic-typography":
-        return _build_kinetic_typography_director_message(
-            project_id=project_id,
-            formatted_transcript=formatted_transcript,
-            width=width,
-            height=height,
-            duration_frames=duration_frames,
-            fps=fps,
-            style_desc=style_desc,
-            style_guide=style_guide,
-            output_dir=output_dir,
-        )
+    style_desc = get_style_description(style_preset)
 
     layout_context = get_layout_context(layout_mode, width, height, source_width, source_height, pip_width, pip_height)
     aspect_ratio = get_aspect_ratio_name(width, height)
@@ -1239,6 +1138,7 @@ Machine-readable with this structure:
     {{
       "id": 1,
       "name": "Scene Name",
+      "type": "animation",  // "animation" (default) or "youtube-clip"
       "archetype": "hook-title",
       "frames": [startFrame, endFrame],
       "timestampRange": [startSec, endSec],
@@ -1278,6 +1178,18 @@ Machine-readable with this structure:
           "animation": "ken-burns"
         }}
       ],
+      "videos": [
+        {{
+          "keyword": "search terms for YouTube video",
+          "purpose": "hero, accent, or background",
+          "placement": "center, background, left, or right",
+          "trimHint": "optional hint for which part to use",
+          "muted": true
+        }}
+      ],
+      // For type: "youtube-clip" scenes only:
+      "videoSearch": "search query for YouTube",  // Required for youtube-clip
+      "frameStyle": "browser",  // phone | laptop | browser | polaroid | film | none
       "suggestedTemplates": ["stat-counter", "bar-chart-race"]
     }}
   ]

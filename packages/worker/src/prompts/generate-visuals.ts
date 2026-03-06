@@ -6,150 +6,8 @@ import { AD_MOTION_UTILITIES } from './motion-utilities.js';
  * Each style includes exact CSS values the AI should use.
  */
 export const STYLE_GUIDELINES: Record<string, string> = {
-  minimal: `
-Style: Minimal (Clean & Professional)
-
-**COLOR PALETTE:**
-- Background: #1a1a1a (dark gray)
-- Elements: #ffffff (white)
-- Accent: #3b82f6 (blue)
-- Muted: #6b7280
-
-**DESIGN:**
-- Clean geometric shapes, generous whitespace
-- Monochrome diagrams with single accent color for highlights
-- Thin lines, subtle shadows, elegant simplicity
-- Icons: Line-style, single weight, consistent sizing
-
-**ANIMATION:**
-- Use spring({ damping: 20, stiffness: 60 }) - smooth, no bounce
-- Stagger elements by 20 frames
-- Fade in with interpolate over 20 frames
-- Elements fade in smoothly, subtle position shifts`,
-
-  modern: `
-Style: Modern (Vibrant & Dynamic)
-
-**COLOR PALETTE:**
-- Background: #0f0f23 (deep navy/purple)
-- Primary gradient: Purple #8b5cf6 to Blue #3b82f6
-- Accent: Cyan #06b6d4
-- Success: #22c55e
-- White: #ffffff
-
-**DESIGN:**
-- Gradient-filled shapes, rounded corners on everything
-- Vibrant colors that pop, glass morphism effects
-- Icons: Filled style, colorful, modern flat design
-- Colorful nodes, gradient connections, depth with shadows
-
-**EFFECTS:**
-- Glass cards: background blur, subtle borders
-- Soft glows on key elements
-- Gradient backgrounds
-
-**LAYOUT (CRITICAL - avoid overlapping):**
-- Stack elements vertically with clear separation
-- Title/heading at TOP (first 15% of height)
-- Main visual in MIDDLE (next 70% of height)
-- Keep bottom 15% CLEAR for subtitle overlay (rendered separately)
-- Use flexbox with RESPONSIVE gap: display: 'flex', flexDirection: 'column', gap: minDim * 0.03
-- NEVER place text directly on top of diagrams
-- NEVER add captions or subtitle text — subtitles are handled by a separate system
-
-**ANIMATION:**
-- Use spring({ damping: 12, stiffness: 80 }) - bouncy, satisfying
-- Stagger elements by 15 frames
-- Spring physics, elements bounce in, satisfying motion`,
-
-  playful: `
-Style: Playful (Fun & Energetic)
-
-**COLOR PALETTE:**
-- Background: #1a1a2e (dark purple)
-- Primary: Orange #f97316
-- Secondary: Yellow #eab308
-- Accent: Pink #ec4899
-- Success: Green #22c55e
-
-**DESIGN:**
-- Bright saturated colors, rounded bubbly shapes
-- Hand-drawn style elements, imperfect circles, wobbly lines
-- Icons: Emoji-style, illustrated, character-based
-- Cartoon-like, characters pointing at things, fun illustrations
-
-**ANIMATION:**
-- Use spring({ damping: 8, stiffness: 200 }) - very bouncy with overshoot
-- Add wiggle: rotation oscillates ±3 degrees
-- Stagger by 10 frames for rapid fire effect
-- Bouncy entrances, wiggle effects, playful transitions`,
-
-  bold: `
-Style: Bold (High Contrast & Impactful)
-
-**COLOR PALETTE:**
-- Background: #000000 (pure black)
-- Primary: #ffffff (pure white)
-- Accent: #ef4444 (red) or #eab308 (yellow)
-
-**DESIGN:**
-- Maximum contrast: black/white with ONE neon accent
-- Large, chunky shapes that command attention
-- Icons: Solid, heavy weight, impossible to miss
-- Thick borders, heavy arrows, stark contrasts
-
-**ANIMATION:**
-- Use spring({ damping: 15, stiffness: 150 }) - snappy, powerful
-- Scale from 0 to 1 for dramatic reveals
-- Dramatic reveals, scale from zero, powerful presence`,
-
-  classic: `
-Style: Classic (Trustworthy & Educational)
-
-**COLOR PALETTE:**
-- Background: Navy #1e3a5f
-- Primary: Gold #d4af37
-- Text: Cream #f5f5dc
-- Muted: Charcoal #374151
-
-**DESIGN:**
-- Traditional diagram layouts, clean data visualization
-- Muted, professional color palette
-- Icons: Traditional, professional, outline or subtle fill
-- Academic charts, clean axes, proper labels, traditional graphs
-
-**ANIMATION:**
-- Use spring({ damping: 25, stiffness: 50 }) - dignified, no bounce
-- Smooth fades over 30 frames
-- Smooth fades, professional transitions, no gimmicks
-- Understated motion, nothing flashy`,
-
-  apple: `
-Style: Apple (Premium Minimalism)
-
-**COLOR PALETTE:**
-- Background: #000000 (pure black) or #ffffff (pure white)
-- Accent: #0071e3 (Apple blue)
-- Text: #f5f5f7 (on dark) or #1d1d1f (on light)
-- No gradients — flat, clean surfaces
-
-**DESIGN:**
-- Extreme minimalism, maximum whitespace
-- One focal element at a time
-- Typography-driven: product name + one line of copy
-- No borders, no shadows, no ornaments
-- Max 3 visible elements at any moment
-
-**ANIMATION:**
-- Use spring({ damping: 30, stiffness: 40 }) - slow, deliberate, premium
-- Stagger elements by 30 frames (one second apart)
-- Fade + blur transitions: opacity 0→1 with filter blur(4px→0)
-- Scale 0.95→1.0 (subtle settle, never overshoot)
-- Hold each element for at least 60 frames before transitioning
-- Movement should feel like breathing — unhurried, confident`,
-
-  studio: `
-Style: Studio (Polished Card Animations)
+  'studio-dark': `
+Style: Studio Dark (Polished Card Animations — Dark Mode)
 
 **DESIGN SYSTEM — DotGrid Theme:**
 This style has a complete template library. When possible, USE EXISTING TEMPLATES as building blocks (see template catalog below). Copy their code into the workspace, customize props, and compose them into scenes.
@@ -157,94 +15,112 @@ This style has a complete template library. When possible, USE EXISTING TEMPLATE
 **DESIGN:**
 - Polished card-based layouts floating on dot-grid backgrounds
 - Centered content containers with generous padding and rounded corners
-- Dark/light mode support with consistent color tokens
 - Clean typography hierarchy using Google Font pairs
 
-**COLOR PALETTE:**
-- Dark mode: Background #0B0F1A, text #FFFFFF, muted #94A3B8, grid #FFFFFF08
-- Light mode: Background #F8FAFC, text #0F172A, muted #64748B, grid #0F172A08
-- Accent: Indigo #6366F1 (primary), customizable per-scene
+**COLOR PALETTE (Dark Mode):**
+- Background: #0B0F1A
+- Text: #FFFFFF
+- Text muted: rgba(255,255,255,0.45)
+- Grid: rgba(255,255,255,0.04)
+- Card bg: rgba(255,255,255,0.06)
+- Card border: rgba(255,255,255,0.10)
+- Accent: Indigo #6366F1 (primary), Pink #EC4899 (secondary)
 
 **BACKGROUND:**
 Every scene MUST include a DotGrid SVG background layer:
 \`\`\`tsx
 <svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
   <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-    <circle cx="2" cy="2" r="1" fill={gridColor} />
+    <circle cx="2" cy="2" r="1" fill="rgba(255,255,255,0.04)" />
   </pattern>
-  <rect width="100%" height="100%" fill={bg} />
+  <rect width="100%" height="100%" fill="#0B0F1A" />
   <rect width="100%" height="100%" fill="url(#dots)" />
 </svg>
 \`\`\`
 
 **TYPOGRAPHY (FONT_PAIRS):**
-Use Google Fonts pairs. Default: boldImpact (Oswald + Inter).
-Available: modernTech (Space Grotesk + IBM Plex Mono), friendlyTech (Nunito + Source Code Pro), strongReadable (Bebas Neue + Open Sans), elegantEditorial (Cormorant Garamond + Lato), cleanMinimal (Plus Jakarta Sans + JetBrains Mono).
+Import from shared fonts module. Default: boldImpact (Bebas Neue + Roboto).
+Available: modernTech (Montserrat + Inter), friendlyTech (Poppins + Inter), elegantEditorial (Playfair Display + Lato), cleanMinimal (Inter + Inter).
 
 **CARD LAYOUT:**
-Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background.
+Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background. Use glass cards: background rgba(255,255,255,0.06), backdropFilter blur(20px), border rgba(255,255,255,0.10).
 
 **ANIMATION:**
-- Use spring({ damping: 14, stiffness: 80 }) for card entrances
+- Use spring({ damping: 22, stiffness: 100 }) for card entrances
 - Stagger elements by 8-12 frames
 - Standard timeline: fade-in (0-15 frames), content animate (20-260), hold (280-330), fade-out (330-360)
 - Progress bars, counters, charts use smooth interpolate over 100+ frames
 
 **MANDATORY: { extrapolateRight: 'clamp' } on ALL interpolate calls**
+
+**ANIMATION QUALITY (MANDATORY):**
+- All text enters via fade + gentle scale (1.05-1.15x max) or slide-up — NEVER slam, crash, or zoom
+- Always pair opacity with translateY or scale — never animate opacity alone
+- Exits are 75% the duration of entries
+- Stagger delays should vary (4, 6, 8 frames) not be uniform
+- Spring damping >= 20 always, no exceptions
+- No frozen frames — add micro-motion (0.5% scale oscillation) to persistent elements
+
+Use \`BACKGROUNDS.dark\` when adapting template code.
 `,
 
-  google: `
-Style: Google (Material Design 3)
+  'studio-light': `
+Style: Studio Light (Polished Card Animations — Light Mode)
 
-**COLOR PALETTE:**
-- Background: #ffffff or #f8f9fa (light gray)
-- Primary: #1a73e8 (Google Blue)
-- Secondary: #34a853 (Google Green)
-- Tertiary: #ea4335 (Google Red)
-- Accent: #fbbc04 (Google Yellow)
-- Text: #202124 (dark gray)
+**DESIGN SYSTEM — DotGrid Theme:**
+This style has a complete template library. When possible, USE EXISTING TEMPLATES as building blocks (see template catalog below). Copy their code into the workspace, customize props, and compose them into scenes.
 
 **DESIGN:**
-- Material Design 3 principles: card-based, elevation shadows
-- Rounded corners (28px on cards, pill-shaped buttons)
-- Colorful but balanced — use Google's 4-color palette purposefully
-- Elevation: cards float with box-shadow 0 2px 8px rgba(0,0,0,0.1)
-- Clean iconography, product-grade UI elements
+- Polished card-based layouts floating on dot-grid backgrounds
+- Centered content containers with generous padding and rounded corners
+- Clean typography hierarchy using Google Font pairs
+
+**COLOR PALETTE (Light Mode):**
+- Background: #F8F9FB
+- Text: #111827
+- Text muted: rgba(0,0,0,0.45)
+- Grid: rgba(0,0,0,0.04)
+- Card bg: rgba(0,0,0,0.04)
+- Card border: rgba(0,0,0,0.08)
+- Accent: Indigo #6366F1 (primary), Pink #EC4899 (secondary)
+
+**BACKGROUND:**
+Every scene MUST include a DotGrid SVG background layer:
+\`\`\`tsx
+<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
+  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill="rgba(0,0,0,0.04)" />
+  </pattern>
+  <rect width="100%" height="100%" fill="#F8F9FB" />
+  <rect width="100%" height="100%" fill="url(#dots)" />
+</svg>
+\`\`\`
+
+**TYPOGRAPHY (FONT_PAIRS):**
+Import from shared fonts module. Default: boldImpact (Bebas Neue + Roboto).
+Available: modernTech (Montserrat + Inter), friendlyTech (Poppins + Inter), elegantEditorial (Playfair Display + Lato), cleanMinimal (Inter + Inter).
+
+**CARD LAYOUT:**
+Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background. Use glass cards: background rgba(0,0,0,0.04), backdropFilter blur(20px), border rgba(0,0,0,0.08).
 
 **ANIMATION:**
-- Use spring({ damping: 18, stiffness: 100 }) - snappy, responsive, Material motion
-- Stagger elements by 12 frames (fast, cascading)
-- Slide-up motion: translateY(16→0) with fade
-- Cards rise into view with subtle shadow growth
-- Emphasize spatial relationships — elements come from where they "live"`,
+- Use spring({ damping: 22, stiffness: 100 }) for card entrances
+- Stagger elements by 8-12 frames
+- Standard timeline: fade-in (0-15 frames), content animate (20-260), hold (280-330), fade-out (330-360)
+- Progress bars, counters, charts use smooth interpolate over 100+ frames
 
-  'kinetic-typography': `
-Style: Kinetic Typography (Bold Text Cards — Apple Ad Style)
+**MANDATORY: { extrapolateRight: 'clamp' } on ALL interpolate calls**
 
-**CONCEPT:** Full-screen text cards synced to narration. Every word the narrator says
-appears as large bold text on solid colored backgrounds. Words grouped into short
-phrases (2-8 words per card). One emphasis word per card gets a hand-drawn doodle
-annotation (underline, circle, arrow, or checkmark).
+**ANIMATION QUALITY (MANDATORY):**
+- All text enters via fade + gentle scale (1.05-1.15x max) or slide-up — NEVER slam, crash, or zoom
+- Always pair opacity with translateY or scale — never animate opacity alone
+- Exits are 75% the duration of entries
+- Stagger delays should vary (4, 6, 8 frames) not be uniform
+- Spring damping >= 20 always, no exceptions
+- No frozen frames — add micro-motion (0.5% scale oscillation) to persistent elements
 
-**COLOR PALETTE:**
-- Accent: #00E556 (neon green)
-- Dark: #000000 (black)
-- Light: #EBEBEB (light gray)
-- Rotate through these 3 as backgrounds, never 3x same in a row
-- Text: white on dark backgrounds, black on light backgrounds
-
-**TYPOGRAPHY:**
-- Font: Inter Black (900 weight), 60-120px
-- Fewer words = larger font size
-- All text centered on screen
-- No data visualizations, no charts — ONLY text cards
-
-**ANIMATION:**
-- Phrase mode: scale 0.7→1 with spring({ damping: 12, stiffness: 100 })
-- Word-by-word mode: each word scale 0.5→1 synced to timestamps
-- Doodles: SVG stroke-draw animation, appear 6 frames after text
-- Hard cuts between cards — NO dissolves or fades
-- Pacing: 0.6-4 seconds per card`,
+Use \`BACKGROUNDS.light\` when adapting template code.
+`,
 };
 
 /**
@@ -348,7 +224,7 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
     : `Stacked layout (${width}×${height}) - REDUCED HEIGHT. Stack elements tightly, use smaller fonts.`;
 
   const referenceExamples = buildReferenceExamplesSection(projectId);
-  const adMotionSection = (stylePreset === 'apple' || stylePreset === 'google') ? `\n\n${AD_MOTION_UTILITIES}\n` : '';
+  const adMotionSection = '';
 
   return `You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
 

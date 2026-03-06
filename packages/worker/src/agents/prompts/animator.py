@@ -9,129 +9,424 @@ import json
 
 
 # ---------------------------------------------------------------------------
-# Studio Design System — injected ONLY when style_preset == "studio"
+# Studio Design System — injected when style_preset starts with "studio"
+# Single source of truth for studio-dark / studio-light theme colors.
 # ---------------------------------------------------------------------------
 
-STUDIO_DESIGN_SYSTEM = """
+STUDIO_THEMES = {
+    "studio-dark": {
+        "variant": "dark",
+        "background": "#0B0F1A",
+        "text": "#FFFFFF",
+        "textMuted": "rgba(255,255,255,0.45)",
+        "gridColor": "rgba(255,255,255,0.04)",
+        "cardBg": "rgba(255,255,255,0.06)",
+        "cardBorder": "rgba(255,255,255,0.10)",
+        "accentDefault": "#6366F1",
+        "secondaryDefault": "#EC4899",
+    },
+    "studio-light": {
+        "variant": "light",
+        "background": "#F8F9FB",
+        "text": "#111827",
+        "textMuted": "rgba(0,0,0,0.45)",
+        "gridColor": "rgba(0,0,0,0.04)",
+        "cardBg": "rgba(0,0,0,0.04)",
+        "cardBorder": "rgba(0,0,0,0.08)",
+        "accentDefault": "#6366F1",
+        "secondaryDefault": "#EC4899",
+    },
+}
+
+_STUDIO_DESIGN_SYSTEM_TEMPLATE = """
 <studio_templates>
 ## STUDIO THEME — TEMPLATE LIBRARY (shadcn model)
 
 Templates are **source code you own**. Like shadcn/ui, you copy the source into your
-scene file and customize freely — they are NOT imported as black-box packages. You have
-full control: rename variables, merge pieces from multiple templates, delete what you
-don't need, add new elements. The templates are a starting point, not a constraint.
+scene file and customize freely — they are NOT imported as black-box packages.
 
-### Primary Use — Direct Reuse (~60 %+ visual match)
-When a template closely matches the Director's scene description, **copy its code into
-your Scene file and adapt it**. This is the fastest path to high-quality output.
-
-### Secondary Use — Style Reference
-Even when no template is a close match, **read 2-3 templates first** to absorb the
-Studio aesthetic (color usage, spring configs, DotGrid pattern, card layout, stagger
-timing). Then build custom visuals that feel like they belong to the same design system.
-
-### Template Location & Structure
-Each template lives in `src/.templates/{slug}/` with:
-- `index.tsx` — Main composition component (the most important file)
-- `schema.ts` — Zod props schema (every template self-defaults via `schema.parse({})`)
-- `constants.ts` — BACKGROUNDS object + `getConstants()` that resolves colors/fonts from props
+### Template Location
+Each template lives in `src/.templates/{{slug}}/` with:
+- `index.tsx` — Main component
+- `schema.ts` — Zod props schema (self-defaults via `schema.parse({{}})`)
+- `constants.ts` — BACKGROUNDS object + `getConstants()` for colors/fonts
 - `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
-- `meta.json` — Tags, description, and suggested use-cases
 
 ### Workflow
-1. **Check `suggestedTemplates`** in `scenes.json` for each scene — the Director already
-   picked the best-matching templates for you
-2. **Read template source** — open `src/.templates/{slug}/index.tsx` (and `components/` if needed)
-3. **Copy into Scene file** — paste the relevant code into `scenes/SceneN.tsx`
-4. **Adapt** — swap data values, adjust frame timing, update the 5-color palette,
-   copy sub-components you need from the template's `components/` folder
-5. **Compose** — you can combine pieces from multiple templates in one scene
-   (e.g., `stat-counter` hero + `stat-bar-chart` supporting visual)
+1. Check `suggestedTemplates` in `scenes.json` for each scene
+2. Read template source — `src/.templates/{{slug}}/index.tsx` (and `components/`)
+3. Copy into Scene file — paste relevant code into `scenes/SceneN.tsx`
+4. Adapt — swap data, adjust timing, use the theme colors below
+5. When adapting template code, use **`BACKGROUNDS.{variant}`** for theme colors
 
-### Studio Design System (MANDATORY when plan says "Studio"):
+### ACTIVE THEME: {variant_label}
 
-**COLOR SYSTEM (5-color contract — every scene uses all 5):**
-Dark mode (default):
-- background: #0B0F1A (deep navy-black)
-- text: #FFFFFF
-- textMuted: rgba(255,255,255,0.45)
-- gridColor: rgba(255,255,255,0.04)
-- cardBg: rgba(255,255,255,0.06)
-- cardBorder: rgba(255,255,255,0.10)
+**Theme Colors (from BACKGROUNDS.{variant}):**
+- background: `{background}`
+- text: `{text}`
+- textMuted: `{textMuted}`
+- gridColor: `{gridColor}`
+- cardBg: `{cardBg}`
+- cardBorder: `{cardBorder}`
 
-Light mode:
-- background: #F8F9FB
-- text: #111827
-- textMuted: rgba(0,0,0,0.45)
-- gridColor: rgba(0,0,0,0.04)
-- cardBg: rgba(0,0,0,0.04)
-- cardBorder: rgba(0,0,0,0.08)
+Default accents: primary `{accentDefault}` (indigo), secondary `{secondaryDefault}` (pink).
 
-Accent defaults: primary #6366F1 (indigo), secondary #EC4899 (pink).
+### RESPONSIVE SCALING (CRITICAL)
 
-**DotGrid Background (MUST include in EVERY scene):**
-The dot grid is SUBTLE — a background texture, not a prominent element. This is the Studio signature.
+Templates use `useScale()` from `../../use-scale` for ALL pixel values.
+Base canvas: 1080px wide. `s(32)` = 32px at 1080w, scales proportionally.
+
 ```tsx
-<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
-  <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-    <circle cx="16" cy="16" r="1" fill="rgba(255,255,255,0.04)" />
-  </pattern>
-  <rect width="100%" height="100%" fill="#0B0F1A" />
-  <rect width="100%" height="100%" fill="url(#dot-grid)" />
-</svg>
+import {{{{ useScale }}}} from '../../use-scale';
+const s = useScale();
+// Use s() for ALL numeric values:
+fontSize: s(48),  padding: s(56),  borderRadius: s(32),  gap: s(20)
 ```
-32px grid spacing, r=1 dots, 0.04 opacity. Subtle and consistent.
 
-**Card Containers (glassmorphic by default):**
-- borderRadius: 32px, padding: 56-64px, maxWidth: 900px (or 85% of canvas)
-- Glass: background rgba(255,255,255,0.06), backdropFilter: blur(20px), border 1px solid rgba(255,255,255,0.10)
-- Also supported: solid (opaque bg), gradient (linear-gradient bg), outline (transparent bg + border only)
-- Cards are centered flex containers floating on the dot-grid background
+**You MUST use `s()` for every pixel value in your scene code.** Raw pixel numbers
+will break on non-1080 canvases.
 
-**Font Pairs (import from Google Fonts — pick ONE pair per project):**
-| Key | Headline | Body | Vibe |
-|-----|----------|------|------|
-| boldImpact | Bebas Neue | Roboto | Bold dramatic (most common) |
-| cleanMinimal | Inter | Inter | Clean restrained |
-| modernTech | Montserrat | Inter | Professional |
-| elegantEditorial | Playfair Display | Lato | Sophisticated |
-| friendlyTech | Poppins | Inter | Approachable |
+### FONT SYSTEM
 
-**ANIMATION LIFECYCLE (every scene MUST follow this arc):**
-1. Intro (frames 0→15): opacity interpolates 0→1
-2. Staggered entrance (frames 15→100): elements spring/slide in with 6-8 frame delays between each
-3. Hold (frames 100→dF-30): content visible, subtle continuous motion (counters counting up, progress bars filling, gentle floats/wiggles)
-4. Outro (frames dF-30→dF): opacity interpolates 1→0
-- ALWAYS combine: `const opacity = introOpacity * outroOpacity;` — both active simultaneously
+Import from shared fonts module — do NOT use raw font-family strings:
+```tsx
+import {{{{ FONT_PAIRS }}}} from '../../fonts';
+const FONTS = FONT_PAIRS['boldImpact']; // or cleanMinimal, modernTech, etc.
+// Then use: fontFamily: FONTS.headline, fontFamily: FONTS.body
+```
 
-**Spring & Easing Constants:**
-- Card entrances: spring({ config: { damping: 26, stiffness: 120 } }) — smooth premium settle
-- Hero text reveals: spring({ config: { damping: 20, stiffness: 170 } }) — snappy
-- Element stagger delay: 6-8 frames apart
-- Progress/counter animations: smooth interpolate() over 100+ frames during hold phase
-- Exit easing: Easing.out(Easing.cubic) for smooth decelerations
+Available pairs:
+| Key | Headline | Body |
+|-----|----------|------|
+| boldImpact | Bebas Neue | Roboto |
+| cleanMinimal | Inter | Inter |
+| modernTech | Montserrat | Inter |
+| elegantEditorial | Playfair Display | Lato |
+| friendlyTech | Poppins | Inter |
 
-**RENDERING RULES:**
-- Pure inline styles ONLY: `style={{...}}` on every element. No CSS files, no CSS-in-JS libraries.
-- All graphics via inline SVG — charts (arcs, bars, lines), icons, decorative shapes. No image imports.
-- Flexbox layout via inline styles for all positioning
-- Every interpolate() MUST have { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
+### DOT GRID BACKGROUND (include in every non-overlay scene)
 
-**If NO template matches:** Create custom visuals but ALWAYS maintain:
-- DotGrid SVG background (32px grid, r=1 dots, 0.04 opacity)
-- Card-based glassmorphic layout
-- Studio color palette (dark: #0B0F1A bg, #6366F1 accent, #FFFFFF text)
-- The 4-phase animation lifecycle (intro → stagger entrance → hold → outro)
-- Font pair from the table above
-- Pure inline styles + inline SVG only
+```tsx
+const DotGrid: React.FC<{{{{ color: string; s: (px: number) => number }}}}> = ({{{{ color, s }}}}) => (
+  <svg width="100%" height="100%" style={{{{{{ position: 'absolute', inset: 0, pointerEvents: 'none' }}}}}}>
+    <defs>
+      <pattern id="dot-grid" width={{{{s(32)}}}} height={{{{s(32)}}}} patternUnits="userSpaceOnUse">
+        <circle cx={{{{s(16)}}}} cy={{{{s(16)}}}} r={{{{s(1)}}}} fill={{{{color}}}} />
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill="url(#dot-grid)" />
+  </svg>
+);
+// Usage: <DotGrid color="{gridColor}" s={{{{s}}}} />
+```
+
+### CARD CONTAINERS
+
+Glass card (default):
+```tsx
+{{{{
+  background: '{cardBg}',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  border: '1px solid {cardBorder}',
+  borderRadius: s(32),
+  padding: `${{{{s(56)}}}}px ${{{{s(64)}}}}px`,
+  maxWidth: s(900),
+  boxShadow: `0 ${{{{s(8)}}}}px ${{{{s(32)}}}}px rgba(0, 0, 0, 0.2)`,
+}}}}
+```
+Variants: solid (opaque bg), gradient (`linear-gradient(135deg, ${{{{accentColor}}}}18 0%, {cardBg} 100%)`), outline (transparent + border only).
+
+### ACCENT COLOR TRANSPARENCY CONVENTION
+
+When using accent colors for glows, tints, and overlays, append hex alpha:
+- `${{{{accentColor}}}}18` — 9% opacity (subtle tint, gradient bg)
+- `${{{{accentColor}}}}30` — 19% (medium tint)
+- `${{{{accentColor}}}}44` — 27% (radial glow)
+- `${{{{accentColor}}}}66` — 40% (text shadow glow)
+- `${{{{accentColor}}}}88` — 53% (strong glow)
+
+### ANIMATION LIFECYCLE (every scene MUST follow)
+
+1. **Intro** (frames 0-15): opacity 0→1
+2. **Stagger entrance** (frames 15-100): elements spring in, 6-8 frame delays
+3. **Hold** (frames 100 to dF-30): content visible, subtle continuous motion
+4. **Outro** (frames dF-30 to dF): opacity 1→0
+- Combine: `const opacity = introOpacity * outroOpacity;`
+
+### SPRING CONFIGS (from templates)
+
+- Card entrance: `{{{{ damping: 20, stiffness: 120, mass: 0.8 }}}}` — smooth settle
+- Hero text reveal: `{{{{ damping: 20, stiffness: 170 }}}}` — snappy
+- Gentle slide: `{{{{ damping: 20, stiffness: 90, mass: 1 }}}}` — standard
+- **NEVER** damping < 10 (too bouncy) or > 26 (overdamped)
+
+### RENDERING RULES
+
+- Pure inline styles ONLY: `style={{{{{{...}}}}}}`. No CSS files, no CSS-in-JS.
+- All graphics via inline SVG (charts, icons, shapes). No image imports.
+- Every `interpolate()` MUST have `{{{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}}}`
+- Never use `Math.sin/cos` on text positions (causes jitter)
+- `backdropFilter` always paired with `WebkitBackdropFilter`
+- Stagger minimum 6 frames between elements
 </studio_templates>
 """
 
 
 def get_studio_section(style_preset: str) -> str:
-    """Return the Studio design system section if style_preset is 'studio', else empty string."""
-    if style_preset == "studio":
-        return STUDIO_DESIGN_SYSTEM
+    """Return the Studio design system prompt for the given theme, or empty string."""
+    theme = STUDIO_THEMES.get(style_preset)
+    if not theme:
+        return ""
+    variant_label = "Dark mode" if theme["variant"] == "dark" else "Light mode"
+    return _STUDIO_DESIGN_SYSTEM_TEMPLATE.format(variant_label=variant_label, **theme)
+
+
+# ---------------------------------------------------------------------------
+# Video overlay section — injected when a scene has a video background
+# ---------------------------------------------------------------------------
+
+VIDEO_OVERLAY_SECTION = """
+<video_overlays>
+## SCENES WITH VIDEO BACKGROUNDS
+
+When a scene has a video clip (indicated in scenes.json with `hasVideo: true`),
+the video renders BEHIND your visual. You create OVERLAYS only.
+
+### How to know if a scene has video:
+Check scenes.json - scenes with video will have:
+```json
+{
+  "id": 3,
+  "hasVideo": true,
+  "videoKeyword": "rocket launch"
+}
+```
+
+### Design overlays for video scenes:
+
+1. **NO background** - the video IS the background
+2. **Add readability layer** - dark gradient or vignette
+3. **Text/graphics float on top** - lower thirds, titles, callouts
+
+```tsx
+const VideoOverlayScene: React.FC = () => {
+  const frame = useCurrentFrame();
+
+  return (
+    <AbsoluteFill>
+      {/* NO background component - video renders behind */}
+
+      {/* Gradient for text readability */}
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)',
+      }} />
+
+      {/* Lower third text */}
+      <div style={{
+        position: 'absolute',
+        bottom: '15%',
+        left: '8%',
+        right: '8%',
+      }}>
+        <AnimatedText style={{ fontSize: EH * 0.04, color: '#fff' }}>
+          {title}
+        </AnimatedText>
+      </div>
+
+      {/* Optional: Animated callouts/annotations */}
+      <AnimatedCallout
+        position={{ x: '70%', y: '30%' }}
+        label="Key moment"
+      />
+    </AbsoluteFill>
+  );
+};
+```
+
+### DO for video scenes:
+- Dark gradients for text contrast
+- Animated lower thirds
+- Floating callouts/labels
+- Subtle particle effects
+
+### DON'T for video scenes:
+- Full-canvas backgrounds
+- Opaque shapes covering video
+- Complex animations that distract from video
+</video_overlays>
+"""
+
+
+def get_video_overlay_section(has_video_scenes: bool) -> str:
+    """Return the video overlay section if any scene has video backgrounds."""
+    if has_video_scenes:
+        return VIDEO_OVERLAY_SECTION
+    return ""
+
+
+# ---------------------------------------------------------------------------
+# YouTube Clip Scene section — for scenes where type === "youtube-clip"
+# ---------------------------------------------------------------------------
+
+YOUTUBE_CLIP_SCENE_SECTION = """
+<youtube_clip_scenes>
+## YOUTUBE CLIP SCENES (type: "youtube-clip")
+
+When a scene has `type: "youtube-clip"` in scenes.json, the ENTIRE scene is a YouTube video
+displayed with a decorative frame overlay. DO NOT create custom animations — use the
+youtube-clip template instead.
+
+### How to identify youtube-clip scenes:
+Check scenes.json for:
+```json
+{
+  "id": 4,
+  "type": "youtube-clip",
+  "videoSearch": "AI code assistant demo",
+  "frameStyle": "browser"
+}
+```
+
+### Implementation for youtube-clip scenes:
+
+**Step 1:** Import the YouTube clip template
+```tsx
+import YouTubeClip from '@viona/templates/youtube-clip';
+```
+
+**Step 2:** Create a simple scene that renders the template
+
+IMPORTANT: The scene must accept `videoClips` from inputProps for preview playback.
+During preview, the frontend passes `{ videoClips: { "4": "http://..." } }` with streaming URLs.
+During export, render.ts downloads clips and passes local paths.
+Special value `__loading__` means the video URL is being fetched - show a loading state.
+
+```tsx
+// scenes/Scene4.tsx - YouTube Clip Scene
+import React from 'react';
+import { AbsoluteFill, Video, staticFile, useCurrentFrame } from 'remotion';
+
+// Frame constants from constants.ts
+const EW = 1080;  // Effective width
+const EH = 960;   // Effective height
+
+// CRITICAL: Accept videoClips from inputProps
+interface Scene4Props {
+  videoClips?: Record<string, string>;  // sceneId → video URL
+}
+
+export const Scene4: React.FC<Scene4Props> = ({ videoClips }) => {
+  const clipUrl = videoClips?.['4'];
+  // During preview: use inputProps URL. During export: use staticFile.
+  // '__loading__' means still fetching - don't render video yet
+  const isLoading = clipUrl === '__loading__';
+  const videoSrc = clipUrl && !isLoading ? clipUrl : staticFile('assets/clips/scene4-youtube-clip.mp4');
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#1a1a2e' }}> {/* Background can be creative */}
+      <div style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        {/* Browser frame mockup */}
+        <div style={{
+          width: EW * 0.85,
+          backgroundColor: '#2a2a2a',
+          borderRadius: 12,
+          overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        }}>
+          {/* Browser toolbar */}
+          <div style={{
+            height: 40,
+            backgroundColor: '#3a3a3a',
+            display: 'flex',
+            alignItems: 'center',
+            padding: '0 12px',
+            gap: 8,
+          }}>
+            <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ff5f57' }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#febc2e' }} />
+            <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#28c840' }} />
+            <div style={{
+              flex: 1,
+              height: 24,
+              backgroundColor: '#1a1a1a',
+              borderRadius: 4,
+              marginLeft: 20,
+            }} />
+          </div>
+          {/* Video content area */}
+          <div style={{
+            width: '100%',
+            aspectRatio: '16/9',
+            backgroundColor: '#000',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <Video
+              src={videoSrc}
+              muted
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          </div>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};
+```
+
+### Frame style implementations:
+
+| frameStyle | Visual |
+|------------|--------|
+| `"browser"` | Chrome-style window with traffic lights, URL bar |
+| `"laptop"` | MacBook display with base |
+| `"phone"` | iPhone mockup with notch, rounded corners |
+| `"polaroid"` | Instant film with white border, slight rotation |
+| `"film"` | 35mm strip with sprocket holes |
+| `"none"` | Clean fullscreen video, no frame |
+
+### Critical rules for youtube-clip scenes:
+1. **Accept videoClips prop** — scene must receive `videoClips?: Record<string, string>` from inputProps
+2. **Handle loading state** — check for `'__loading__'` value before using the URL:
+   ```tsx
+   const clipUrl = videoClips?.['N'];
+   const isLoading = clipUrl === '__loading__';
+   const videoSrc = clipUrl && !isLoading ? clipUrl : staticFile('assets/clips/sceneN-youtube-clip.mp4');
+   ```
+3. **Always muted** — add `muted` prop to `<Video>` — only speaker audio should play
+4. **Minimal code** — just frame + video placeholder
+5. **No animations** — the video content IS the animation
+6. **Creative backgrounds** — match the video style, can be colorful, gradient, animated, etc.
+7. **Center the frame** — use flexbox to center the device mockup
+
+### DO for youtube-clip scenes:
+- Simple device frame mockup
+- Subtle shadow and rounded corners
+- Center alignment
+
+### DON'T for youtube-clip scenes:
+- Complex animations or transitions
+- Multiple visual elements
+- Text overlays (unless specified in visual description)
+- Custom backgrounds behind the frame
+</youtube_clip_scenes>
+"""
+
+
+def get_youtube_clip_section(has_youtube_clip_scenes: bool) -> str:
+    """Return the youtube-clip scene section if any scene has type: youtube-clip."""
+    if has_youtube_clip_scenes:
+        return YOUTUBE_CLIP_SCENE_SECTION
     return ""
 
 
@@ -200,7 +495,8 @@ MANDATORY WORKFLOW - Follow this exactly. VIOLATIONS WILL CAUSE GENERATION FAILU
 
 5. **CREATE SHARED COMPONENTS**
    Write components in `components/` folder:
-   - `Background.tsx` - animated background
+   - `Background.tsx` - GENERIC Studio Dark background (dot-grid + subtle gradient overlay).
+     Do NOT put topic-specific visuals here (pool lanes, tech grids, etc.) — those belong in scene files. Scene files must ALSO NOT overlay domain-specific decorative SVGs (pool lanes, circuit boards, DNA helices, swimming lanes, etc.) on the dot-grid. The dot-grid IS the complete background — content lives in cards/containers on top.
    - Any icons or shapes used across scenes
 
 ## PHASE 2: SCENE-BY-SCENE IMPLEMENTATION (one at a time!)
@@ -234,8 +530,7 @@ For EACH scene (do not batch multiple scenes):
 
       ### 3. TECHNICAL DECISIONS
       - What icons are needed? (search with mcp__freepik__search_icons — ALWAYS paired with text labels)
-      - What kinetic typography pattern fits? (word-cascade, text-slam, char-stagger, number-roll)
-      - What animation technique for secondary elements? (spring, interpolate, stagger)
+      - What text animation technique fits? (spring, interpolate, stagger)
       - What components from `components/` can I reuse?
 
       ### 4. SYNC STRATEGY (MOST IMPORTANT SECTION)
@@ -529,7 +824,7 @@ where elements build tension, deliver the payload, and breathe.
 
 ### Act 1 — Anticipation (frames 0 to keySync - 10)
 Build visual tension. The screen is NOT empty — it's LOADING.
-- Title animates in immediately (frame 0-15) using word-cascade or text-slam
+- Title animates in immediately (frame 0-15) using word-cascade or text-reveal (fade + gentle scale 1.05-1.15x)
 - Background establishes mood (gradient, ambient particles at opacity ≤ 0.15)
 - Subtle build-up elements hint at what's coming (progress bar, pulsing glow)
 - The viewer should feel "something is about to happen"
@@ -593,7 +888,7 @@ of NO new elements. The viewer needs time to absorb information.
 ### Scene Internal Pacing Formula (for a 150-frame / 5s scene)
 | Beat | Frame Range | Duration | What Happens |
 |------|------------|----------|-------------|
-| Title entrance | 0-15 | 0.5s | Title word-cascades or slams in |
+| Title entrance | 0-15 | 0.5s | Title word-cascades or text-reveals in |
 | Build/context | 15-50 | 1.2s | Context text, setup visuals, mood |
 | **Hero reveal** | 50-75 | 0.8s | keySync trigger — main content springs in |
 | Supporting cascade | 75-110 | 1.2s | Secondary elements stagger in (6 frames apart) |
@@ -609,110 +904,6 @@ Overlay scenes do NOT use the full 3-act structure above. Instead:
 - **Gentle springs only** (damping ≥ 28, stiffness ≤ 60) or simple `interpolate()` fades
 - **Breathing room still applies** — don't crowd the speaker with constant annotations
 </choreography>
-
-<kinetic_typography>
-## KINETIC TYPOGRAPHY PATTERNS
-
-When the Director specifies a named text animation, implement it using these exact patterns.
-Import `Easing` from remotion: `import { Easing } from 'remotion';`
-
-### `word-cascade` — Words appear one-by-one with slide-up + fade
-```tsx
-const words = text.split(' ');
-const framesPerWord = 6;
-
-{words.map((word, i) => {
-  const wordDelay = startFrame + i * framesPerWord;
-  const opacity = interpolate(frame, [wordDelay, wordDelay + 10], [0, 1], { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' });
-  const y = interpolate(frame, [wordDelay, wordDelay + 10], [20, 0], {
-    extrapolateRight: 'clamp', extrapolateLeft: 'clamp',
-    easing: Easing.out(Easing.exp),
-  });
-  return (
-    <span key={i} style={{ opacity, transform: `translateY(${y}px)`, display: 'inline-block', marginRight: 12 }}>
-      {word}
-    </span>
-  );
-})}
-```
-
-### `char-stagger` — Characters appear letter-by-letter with spring scale
-```tsx
-const chars = text.split('');
-const framesPerChar = 3;
-
-{chars.map((char, i) => {
-  const charDelay = startFrame + i * framesPerChar;
-  const scale = spring({ frame: frame - charDelay, fps, config: { damping: 22, stiffness: 120 } });
-  return (
-    <span key={i} style={{ display: 'inline-block', transform: `scale(${scale})`, minWidth: char === ' ' ? 8 : undefined }}>
-      {char}
-    </span>
-  );
-})}
-```
-
-### `text-slam` — Text scales from 2.5x to 1x with heavy spring + text shadow glow
-```tsx
-const slamProgress = spring({ frame: frame - slamFrame, fps, config: { damping: 18, stiffness: 150, mass: 1.2 } });
-const scale = interpolate(slamProgress, [0, 1], [2.5, 1]);
-const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-
-// Parent container MUST clip overflow during the scale-up phase
-<div style={{ overflow: 'hidden', width: '100%', display: 'flex', justifyContent: 'center' }}>
-  <div style={{
-    transform: `scale(${scale})`,
-    textShadow: `0 0 ${40 * glowOpacity}px ${COLORS.primary}`,
-    fontWeight: 900,
-    textAlign: 'center',
-    maxWidth: EW * 0.85,
-  }}>
-    {text}
-  </div>
-</div>
-```
-
-### `typewriter` — Characters reveal left-to-right with blinking cursor
-```tsx
-const charsVisible = Math.floor(interpolate(
-  frame, [startFrame, startFrame + text.length * 2], [0, text.length],
-  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' }
-));
-const cursorOpacity = Math.sin(frame * 0.15) > 0 ? 1 : 0;
-
-<span style={{ fontFamily: 'monospace' }}>
-  {text.slice(0, charsVisible)}
-  <span style={{ opacity: cursorOpacity, marginLeft: 2 }}>|</span>
-</span>
-```
-
-### `number-roll` — Counter animates 0 to target with exponential ease-out
-```tsx
-const rollProgress = interpolate(
-  frame, [startFrame, startFrame + 45], [0, 1],
-  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.out(Easing.exp) }
-);
-const displayValue = Math.round(rollProgress * targetNumber);
-
-<span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
-  {prefix}{displayValue.toLocaleString()}{suffix}
-</span>
-```
-
-### `text-morph-position` — Text smoothly repositions/rescales
-```tsx
-// Use for title that starts centered-large and settles to top-small
-const morphProgress = interpolate(
-  frame, [morphStartFrame, morphStartFrame + 20], [0, 1],
-  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.inOut(Easing.cubic) }
-);
-const posY = interpolate(morphProgress, [0, 1], [EH * 0.4, EH * 0.08]);
-const fontSize = interpolate(morphProgress, [0, 1], [EH * 0.09, EH * 0.05]);
-```
-
-**RULE: When the Director specifies a text animation name, use the matching pattern above.
-These are COPY-PASTE-READY — adapt values (colors, sizes, timing) but keep the core technique.**
-</kinetic_typography>
 
 <easing_guide>
 ## EASING GUIDE — VARY YOUR MOTION
@@ -751,7 +942,7 @@ const titleOpacity = interpolate(frame, [start, start + 15], [0, 1], {
 const barWidth = spring({ frame, fps, config: SPRING_CONFIG });  // spring is wrong for a bar fill
 ```
 
-**KEY RULE:** Use `spring()` for bouncy entrances (icons, cards, titles slamming in).
+**KEY RULE:** Use `spring()` for smooth entrances (icons, cards, titles with gentle spring settle).
 Use `Easing` with `interpolate()` for everything else (fills, fades, counts, morphs, continuous motion).
 
 ### Entrance Easing Hierarchy (ranked by professionalism)
@@ -790,6 +981,152 @@ const tertiaryOpacity = interpolate(frame, [keySync + 12, keySync + 27], [0, 1],
 });
 ```
 </easing_guide>
+
+<animation_quality>
+## ANIMATION QUALITY TECHNIQUES — From Amateur to Professional
+
+These techniques, based on Disney's 12 Principles and industry motion design standards
+(Apple HIG, Material Design 3, NN/g research), elevate animations from generic to polished.
+
+### Technique 1: Asymmetric Timing (Ease-Out Entries, Ease-In Exits)
+Objects enter FAST and settle SLOW (ease-out). Objects exit SLOW then accelerate away (ease-in).
+This mimics real-world physics and feels natural to the eye.
+
+- Entry: `Easing.out(Easing.cubic)` or `spring()` with damping >= 20
+- Exit: `Easing.in(Easing.cubic)` — shorter duration than entry (75% of entry time)
+- NEVER use linear or symmetric easing for entries/exits — feels robotic
+
+```tsx
+// GOOD: Asymmetric entry/exit
+const entryOpacity = interpolate(frame, [0, 18], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.out(Easing.cubic),  // fast appear, smooth settle
+});
+const exitOpacity = interpolate(frame, [dF - 12, dF], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),  // slow start, quick disappear
+});
+```
+
+### Technique 2: Overlapping Action (Offset Timing)
+Different parts of a composition should NOT move in lockstep. Offset related elements
+by 3-6 frames so they feel organic rather than mechanical.
+
+- Title text enters first, supporting label 4 frames later, icon 4 frames after that
+- Within a card: border draws first, background fades 3 frames later, content 6 frames later
+- This creates a "ripple" of motion that guides the eye naturally
+
+```tsx
+// Card entrance with overlapping action
+const cardBorder = spring({ frame, fps, config: SPRINGS.SMOOTH });
+const cardBg = spring({ frame: frame - 3, fps, config: SPRINGS.SMOOTH });
+const cardContent = spring({ frame: frame - 6, fps, config: SPRINGS.SMOOTH });
+```
+
+### Technique 3: Property Coupling (Always Pair Opacity + Transform)
+NEVER animate opacity alone — it looks cheap. Always pair opacity with at least one
+transform property (translateY, scale, or both).
+
+- Entry: opacity 0->1 AND translateY(12px -> 0) simultaneously
+- This creates "rising into view" which reads as intentional, not glitchy
+- Scale entries: opacity 0->1 AND scale(0.95 -> 1.0) — subtle, not dramatic
+
+```tsx
+// GOOD: Paired opacity + transform
+const entryProgress = interpolate(frame, [start, start + 15], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.out(Easing.cubic),
+});
+<div style={{
+  opacity: entryProgress,
+  transform: `translateY(${interpolate(entryProgress, [0, 1], [12, 0])}px)`,
+}}>
+
+// BAD: Opacity alone
+<div style={{ opacity: entryProgress }}>  // feels like a rendering glitch
+```
+
+### Technique 4: Stagger with Hierarchy (Variable Delays)
+Don't use uniform stagger gaps. Primary elements get shorter delays (building momentum),
+secondary elements get wider delays (breathing room).
+
+- First 2 elements: 4-frame gaps (quick, builds energy)
+- Middle elements: 6-frame gaps (standard rhythm)
+- Final element: 8-10 frame gap (lands with weight, punctuation)
+
+```tsx
+const staggerDelays = [0, 4, 8, 14, 22]; // accelerating gaps
+items.map((item, i) => {
+  const delay = staggerDelays[Math.min(i, staggerDelays.length - 1)];
+  const progress = spring({ frame: frame - delay, fps, config: SPRINGS.SMOOTH });
+  // ...
+});
+```
+
+### Technique 5: Settle and Breathe (No Frozen Frames)
+After elements have entered and settled, the scene should never feel "frozen."
+Add micro-motion to persistent elements:
+
+- Scale oscillation: 99.5% to 100.5% over 90-120 frames (barely perceptible)
+- Shadow depth variation: boxShadow blur cycles between 80-120% of base value
+- Accent glow: subtle opacity pulse on accent-colored elements
+
+These keep the scene feeling alive without distracting from content.
+
+### Technique 6: Anticipation Before Reveals (Subtle Scale Pull-Back)
+Before a key element reveals at a sync point, add a micro-anticipation:
+scale to 0.97 over 5 frames, THEN spring to 1.0 at the sync point.
+This "coiling" effect makes the reveal feel more impactful without being jarring.
+
+```tsx
+const anticipation = frame < keySync - 5 ? 1.0 :
+  frame < keySync ? interpolate(frame, [keySync - 5, keySync], [1.0, 0.97], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  }) : undefined; // spring takes over at keySync
+
+const reveal = spring({ frame: frame - keySync, fps, config: SPRINGS.SMOOTH });
+const scale = frame < keySync ? (anticipation ?? 1.0) : 0.97 + reveal * 0.03;
+```
+
+### Technique 7: Exit Choreography (Don't Just Fade Everything)
+Scene exits should be choreographed, not just "fade all to 0":
+- Secondary elements exit first (4-frame head start)
+- Primary element exits last
+- Exit direction should contrast entry: if entered from bottom, exit upward
+
+```tsx
+// Choreographed exit (last 20 frames of scene)
+const exitStart = dF - 20;
+const secondaryExit = interpolate(frame, [exitStart, exitStart + 10], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+const primaryExit = interpolate(frame, [exitStart + 4, exitStart + 16], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+```
+
+### Technique 8: Color Emphasis Through Opacity, Not New Colors
+Express visual hierarchy through opacity variations of accent/secondary:
+- Full emphasis: accent at 100% opacity
+- Medium emphasis: accent at 60% opacity
+- Subtle/muted: accent at 20% opacity
+- Background tint: accent at 6-8% opacity (for cards, highlights)
+
+This maintains palette discipline while creating rich visual hierarchy.
+
+### Quality Checklist (Apply to Every Scene)
+Before marking a scene complete, verify:
+- [ ] All entries pair opacity + transform (no opacity-only fades)
+- [ ] Stagger delays vary (not uniform gaps)
+- [ ] Exits are faster than entries (75% duration)
+- [ ] No frozen frames — persistent elements have micro-motion
+- [ ] All content centered in one flex container
+- [ ] Only studio palette colors used
+- [ ] Spring damping >= 20 everywhere
+- [ ] Text scale never exceeds 1.15x during entry
+</animation_quality>
 
 <exit_animations>
 ## EXIT ANIMATION RECIPES
@@ -890,7 +1227,7 @@ import { linearTiming, springTiming } from '@remotion/transitions';
 | `"crossfade"` | `fade()` with `linearTiming({ durationInFrames: 15 })` |
 | `"slide-left"` | `slide({ direction: 'from-right' })` with `springTiming({ config: { damping: 26, stiffness: 120 } })` |
 | `"wipe-right"` | `wipe({ direction: 'from-left' })` with `linearTiming({ durationInFrames: 20 })` |
-| `"zoom-punch"` | No @remotion/transitions — use manual scale interpolate at transition boundary |
+| `"glow-pulse"` | No @remotion/transitions — use manual opacity pulse (0.85 to 1.0) at transition boundary |
 | `"cut"` (default) | Regular `Sequence` (current behavior, no TransitionSeries needed) |
 
 ### Using TransitionSeries in index.tsx
@@ -1209,17 +1546,20 @@ Hollow outlined text — great for background accents or dramatic reveals.
 - Content sitting at the top with empty space below — NEVER use `cardTopY = EH * 0.05` or similar small fixed values. Instead, ALWAYS compute: `const contentTopY = (EH * 0.85 - totalContentHeight) / 2` to vertically center the content block. When new elements appear at sync points, existing content spring-animates upward. See layout_rules for the Vertical Centering Formula and Side-by-Side Layout Pattern.
 - Title/heading sitting small at the top with the rest of the screen empty — instead, titles should START large and centered (filling the viewport) then spring-animate to their final top position when supporting content appears. This keeps the screen visually full at all times.
 - Missing key prop on children arrays (causes React warnings)
-- Math.sin() or Math.cos() on text rotation/position (causes jittery text)
-- damping < 20 in spring config (too bouncy) — EXCEPTION: `text-slam` uses damping: 18 deliberately for dramatic impact
+- Math.sin() or Math.cos() on ANY element containing text, including parent containers/wrappers. Only allowed on Layer 3 decorative particles at opacity <= 0.15.
+- damping < 20 in spring config (too bouncy) — NO EXCEPTIONS
 - All elements animating at the same time (no stagger)
-- Plain colored circles instead of proper visuals
+- Colored div rectangles/circles representing real-world objects (scales, gauges, speedometers, trophies, globes, pool lanes, circuit boards). Use template components (stat-counter, score-meter, versus-screen, etc.) or styled typography instead. A polished template > a crude shape approximation.
 - Instant teleportation (no animation)
 - Static backgrounds with no motion
 - Missing extrapolateLeft: 'clamp' or extrapolateRight: 'clamp' in interpolate() — BOTH are required
-- Scenes with no visual metaphor (just text on background)
+- Hardcoded canvas dimensions (1080, 1920) in scene code — ALWAYS use EW/EH from constants.ts TIMING or destructure from useVideoConfig()
+- Scenes with no visual content (just plain text on background) — use template components, animated data, or bold typographic treatment with accent colors
 - Gaps between scenes (no animation happening)
 - Using spring() for EVERYTHING — vary with Easing (see easing_guide above)
-- Ignoring Director's named animations (word-cascade, text-slam, etc.) and using generic fade-in instead
+- Ignoring Director's named animations (word-cascade, text-reveal, etc.) and using generic fade-in instead
+- Multiple absolutely-positioned elements at unrelated screen positions (scattered layout). ALL scene content MUST live inside a single centered flex container (display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '85%', padding: '0 8%'). Elements stack inside with gap spacing. The ONLY elements outside this container are: Background component, Layer 3 ambient particles, and full-screen overlays.
+- Domain-specific decorative SVGs overlaid on the dot-grid background (pool lanes, circuit boards, DNA helices, conveyor belts). The dot-grid is the COMPLETE background. Scene content goes INSIDE glassmorphic cards that float on the grid.
 </prohibited_patterns>
 
 <three_dimensional_animations>
@@ -1849,7 +2189,7 @@ interpolate(frame, [0, 30], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight:
 **THE #1 QUALITY RULE: Every visual must EXPLAIN the transcript, not decorate it.**
 
 The viewer watches to UNDERSTAND the narrator's words. Your job is information design,
-not abstract art. Think: explainer video, motion infographic, kinetic typography.
+not abstract art. Think: explainer video, motion infographic, animated data visualization.
 
 ### Visual Layer Hierarchy — every scene uses 3 layers:
 
@@ -1933,7 +2273,7 @@ For longer scenes (7+ seconds), add more beats. The narrator doesn't pause — n
 A "visual beat" is NOT just fading in one word. It's a CLUSTER of related elements:
 - Primary text (the key phrase from narration) — Layer 1
 - Supporting visual (icon, diagram, counter) — Layer 2
-- Motion choreography (how it enters — spring, cascade, slam)
+- Motion choreography (how it enters — spring, cascade, reveal)
 
 ### Overlay Scenes — Adapted Storytelling
 Overlay scenes still follow continuous storytelling, but with constraints:
@@ -1954,6 +2294,8 @@ If any phrase lacks a visual, add one. No narrator sentence should go unillustra
 
 ### Center-Then-Shift Pattern (MOST IMPORTANT LAYOUT RULE)
 Content must ALWAYS be vertically centered in the visual area. When new elements appear at sync points, existing content spring-animates upward to make room. The screen must look balanced at EVERY frame — no content sitting at the top with dead space below.
+
+**HARD RULE:** If your scene has more than one element, they MUST share a single parent flex container that is centered on screen. Do NOT create multiple independent position: 'absolute' divs at arbitrary top/left coordinates. A scene with elements at top: EH*0.15, top: EH*0.35, top: EH*0.5 is WRONG — wrap them in one centered column with gap spacing.
 
 **Implementation pattern:**
 ```tsx
@@ -2131,184 +2473,10 @@ If the Director's plan describes 5+ attention-grabbing elements, implement them 
 - For body text, keep under ~60 characters per line or use `maxWidth` to force wrapping
 - **Container overflow:** Any element with fixed width/height MUST include `overflow: 'hidden'`
 </layout_rules>
-
-<kinetic_typography>
-## KINETIC TYPOGRAPHY — COMPONENT GENERATION
-
-When scenes.json has `"style": "kinetic-typography"`, you are generating a text-card animation,
-NOT data visualizations. The Director's output contains `segments` (not `scenes`).
-
-### Required Components
-
-Generate these components in `index.tsx` (the main Remotion composition):
-
-**1. Scene Component (per segment)**
-- Full-screen `<AbsoluteFill>` with solid background color from segment's `background`
-- Centers text content horizontally and vertically
-- Contains either PhraseReveal or WordByWord based on `displayMode`
-- Contains doodle annotation overlay for the emphasis word
-
-**2. PhraseReveal (displayMode: "phrase")**
-```tsx
-// Entire phrase scales from 0.7 → 1 with spring animation
-const scale = spring({{ fps, frame: frame - startFrame, config: {{ damping: 12, stiffness: 100 }} }});
-const opacity = interpolate(frame - startFrame, [0, 8], [0, 1], {{ extrapolateRight: 'clamp' }});
-<div style={{{{
-  transform: `scale(${{0.7 + scale * 0.3}})`,
-  opacity,
-  fontSize: /* 80-120px based on word count, fewer words = larger */,
-  fontWeight: 900,
-  fontFamily: "'Inter', sans-serif",
-  color: segment.textColor,
-  textAlign: 'center',
-  padding: '0 10%',
-}}}}>
-  {{segment.text}}
-</div>
-```
-
-**3. WordByWord (displayMode: "word-by-word")**
-```tsx
-// Words appear one at a time, synced to their timestamps
-{{segment.words.map((w, i) => {{
-  const wordFrame = Math.round(w.start * fps);
-  const isVisible = frame >= wordFrame;
-  const localFrame = frame - wordFrame;
-  const wordScale = isVisible
-    ? spring({{ fps, frame: localFrame, config: {{ damping: 10, stiffness: 120 }} }})
-    : 0;
-  return (
-    <span key={{i}} style={{{{
-      display: 'inline-block',
-      transform: `scale(${{0.5 + wordScale * 0.5}})`,
-      opacity: isVisible ? 1 : 0,
-      marginRight: '0.3em',
-      fontSize: /* 60-100px */,
-      fontWeight: 900,
-      fontFamily: "'Inter', sans-serif",
-      color: segment.textColor,
-    }}}}>
-      {{w.word}}
-    </span>
-  );
-}})}}
-```
-
-**4. Doodle Annotations (SVG overlays)**
-Each doodle is an SVG that appears ~6 frames AFTER the emphasis word appears.
-Use `stroke-dasharray` + `stroke-dashoffset` animated with spring for a draw-on effect.
-
-**DoodleUnderline:**
-```tsx
-// Wavy SVG line under the emphasis word
-<svg width={{wordWidth + 20}} height="20" style={{{{ position: 'absolute', bottom: -5, left: -10 }}}}>
-  <path
-    d={{`M 0 10 Q ${{wordWidth * 0.25}} 0, ${{wordWidth * 0.5}} 10 Q ${{wordWidth * 0.75}} 20, ${{wordWidth}} 10`}}
-    stroke={{doodleColor}}
-    strokeWidth="3"
-    fill="none"
-    strokeLinecap="round"
-    strokeDasharray={{pathLength}}
-    strokeDashoffset={{interpolate(drawProgress, [0, 1], [pathLength, 0])}}
-  />
-</svg>
-```
-
-**DoodleCircle:**
-```tsx
-// Loose ellipse around the word
-<svg width={{wordWidth + 30}} height={{wordHeight + 20}}>
-  <ellipse cx="50%" cy="50%" rx={{wordWidth * 0.6}} ry={{wordHeight * 0.7}}
-    stroke={{doodleColor}} strokeWidth="3" fill="none"
-    strokeDasharray={{pathLength}}
-    strokeDashoffset={{interpolate(drawProgress, [0, 1], [pathLength, 0])}}
-    transform={{`rotate(-5 ${{cx}} ${{cy}})`}}
-  />
-</svg>
-```
-
-**DoodleArrow:**
-```tsx
-// Curved arrow pointing to word from above-right
-<svg width="60" height="60">
-  <path d="M 50 10 Q 30 5, 15 25 L 20 20 M 15 25 L 22 28"
-    stroke={{doodleColor}} strokeWidth="3" fill="none" strokeLinecap="round"
-    strokeDasharray={{pathLength}}
-    strokeDashoffset={{interpolate(drawProgress, [0, 1], [pathLength, 0])}}
-  />
-</svg>
-```
-
-**DoodleCheckmark:**
-```tsx
-// Hand-drawn check next to word
-<svg width="40" height="40">
-  <path d="M 8 20 L 16 28 L 32 12"
-    stroke={{doodleColor}} strokeWidth="3" fill="none" strokeLinecap="round"
-    strokeDasharray={{pathLength}}
-    strokeDashoffset={{interpolate(drawProgress, [0, 1], [pathLength, 0])}}
-  />
-</svg>
-```
-
-### Doodle Color Rule
-- On dark backgrounds: doodle color = white (#FFFFFF)
-- On light backgrounds: doodle color = black or dark accent
-
-### Draw Animation
-```tsx
-const drawProgress = spring({{
-  fps,
-  frame: frame - (emphasisFrame + 6), // 6 frames after text appears
-  config: {{ damping: 15, stiffness: 80 }},
-}});
-```
-
-### Font Loading
-Import Inter Black from Google Fonts:
-```tsx
-import {{ loadFont }} from "@remotion/google-fonts/Inter";
-const {{ fontFamily }} = loadFont();
-```
-
-### Composition Structure
-```tsx
-const KineticTypography: React.FC = () => {{
-  const frame = useCurrentFrame();
-  const {{ fps }} = useVideoConfig();
-  const segments = [...]; // From scenes.json
-
-  return (
-    <AbsoluteFill>
-      {{segments.map((seg) => (
-        <Sequence key={{seg.id}} from={{seg.startFrame}} durationInFrames={{seg.endFrame - seg.startFrame}}>
-          <AbsoluteFill style={{{{ backgroundColor: seg.background }}}}>
-            {{/* Text content */}}
-            {{seg.displayMode === 'phrase'
-              ? <PhraseReveal segment={{seg}} />
-              : <WordByWord segment={{seg}} />}}
-            {{/* Doodle overlay */}}
-            {{seg.emphasis.doodle && <DoodleOverlay segment={{seg}} />}}
-          </AbsoluteFill>
-        </Sequence>
-      ))}}
-    </AbsoluteFill>
-  );
-}};
-```
-
-### CRITICAL RULES
-- Hard cuts between segments — NO dissolves or fade transitions
-- Font size: 60-120px, scale inversely with word count (fewer words = bigger)
-- All text centered on screen
-- MANDATORY: `{{ extrapolateRight: 'clamp' }}` on ALL interpolate calls
-- Segment data comes from scenes.json — read it and embed as constants
-- This is a SINGLE index.tsx file, no separate scene files needed
-</kinetic_typography>
 """
 
 
-def build_animator_user_message(project_id: str, style_preset: str = "modern") -> str:
+def build_animator_user_message(project_id: str, style_preset: str = "studio-dark") -> str:
     """Build the user message for the Animator agent."""
     # Composition ID must use dashes (Remotion requirement), folder uses underscores
     composition_id = project_id.replace("_", "-")
@@ -2412,12 +2580,18 @@ src/{project_id}/
 
 ### constants.ts
 ```tsx
-// Colors from the plan's colorPalette
+// STUDIO THEME: COLORS must ONLY use these keys. NO domain-specific names.
+// DO NOT add: water, poolLane, danger, warning, success, lava, circuit, etc.
+// Express all visual meaning through accent/secondary + opacity variations.
 export const COLORS = {{
-  primary: '#...',
-  secondary: '#...',
-  accent: '#...',
-  background: '#...',
+  background: '#...',   // from studio theme
+  text: '#...',         // from studio theme
+  textMuted: '...',     // from studio theme
+  accent: '#...',       // primary accent (default #6366F1 or from plan)
+  secondary: '#...',    // secondary accent (default #EC4899 or from plan)
+  cardBg: '...',        // from studio theme
+  cardBorder: '...',    // from studio theme
+  gridColor: '...',     // from studio theme
 }};
 
 // Standard spring config (matches SPRINGS.SMOOTH for backwards compatibility)
@@ -2429,7 +2603,7 @@ export const SPRINGS = {{
   SNAPPY:  {{ damping: 18, stiffness: 180, mass: 0.8 }},  // Hero reveals, card entrances (~12 frames)
   SMOOTH:  {{ damping: 26, stiffness: 120, mass: 1.0 }},  // Apple "smooth" equivalent — premium settle (~18 frames)
   BOUNCY:  {{ damping: 12, stiffness: 200, mass: 1.0 }},  // Playful, energetic — visible overshoot (~15 frames)
-  HEAVY:   {{ damping: 20, stiffness: 150, mass: 1.5 }},  // Text slams, big numbers — weighty authority (~22 frames)
+  HEAVY:   {{ damping: 24, stiffness: 120, mass: 1.4 }},  // Big numbers, weighty settle — smooth authority (~22 frames)
   STIFF:   {{ damping: 24, stiffness: 300, mass: 0.6 }},  // Micro-interactions, fast snaps (~8 frames)
   GENTLE:  {{ damping: 14, stiffness: 80,  mass: 1.2 }},  // Background elements, ambient motion (~25 frames)
   OVERLAY: {{ damping: 32, stiffness: 50,  mass: 1.0 }},  // Overlay scenes — subtle, non-distracting
@@ -2603,7 +2777,12 @@ import {{ Scene1 }} from './scenes/Scene1';
 import {{ Scene2 }} from './scenes/Scene2';
 // ... import other scenes
 
-const MainComposition: React.FC = () => {{
+// CRITICAL: Accept inputProps for video clips and other runtime data
+interface MainCompositionProps {{
+  videoClips?: Record<string, string>;  // sceneId → video URL for youtube-clip scenes
+}}
+
+const MainComposition: React.FC<MainCompositionProps> = ({{ videoClips }}) => {{
   const frame = useCurrentFrame();
   // During overlay frames, skip Background so the composition is transparent.
   // The editor uses real alpha compositing; FFmpeg export uses screen blend.
@@ -2615,14 +2794,14 @@ const MainComposition: React.FC = () => {{
 
       {{/* useCurrentFrame() inside each Scene returns 0 at the Sequence start — already local! */}}
       <Sequence key="scene1" from={{TIMING.scene1Start}} durationInFrames={{TIMING.scene1End - TIMING.scene1Start}}>
-        <Scene1 />
+        <Scene1 videoClips={{videoClips}} />
       </Sequence>
 
       <Sequence key="scene2" from={{TIMING.scene2Start}} durationInFrames={{TIMING.scene2End - TIMING.scene2Start}}>
-        <Scene2 />
+        <Scene2 videoClips={{videoClips}} />
       </Sequence>
 
-      {{/* Add more scenes — NO startFrame prop needed */}}
+      {{/* Add more scenes — pass videoClips to ALL scenes (they'll use it if needed) */}}
     </AbsoluteFill>
   );
 }};
@@ -2688,7 +2867,7 @@ ONLY when ALL files are written AND TypeScript passes, respond:
 """
 
     # Conditionally append studio template workflow instructions
-    if style_preset == "studio":
+    if style_preset.startswith("studio"):
         base_message += """
 
 ---
@@ -2717,6 +2896,9 @@ copy, modify, and combine freely.
 Templates are a starting point, not a constraint. Rename variables, merge pieces from
 multiple templates, delete what you don't need, add new elements.
 """
+        theme = STUDIO_THEMES.get(style_preset, {})
+        variant = theme.get("variant", "dark")
+        base_message += f"\nWhen adapting template code, use `BACKGROUNDS.{variant}` for theme colors.\n"
 
     return base_message
 
@@ -2945,7 +3127,7 @@ where elements build tension, deliver the payload, and breathe.
 
 ### Act 1 — Anticipation (frames 0 to keySync - 10)
 Build visual tension. The screen is NOT empty — it's LOADING.
-- Title animates in immediately (frame 0-15) using word-cascade or text-slam
+- Title animates in immediately (frame 0-15) using word-cascade or text-reveal (fade + gentle scale 1.05-1.15x)
 - Background establishes mood (gradient, ambient particles at opacity ≤ 0.15)
 - Subtle build-up elements hint at what's coming (progress bar, pulsing glow)
 - The viewer should feel "something is about to happen"
@@ -3009,7 +3191,7 @@ of NO new elements. The viewer needs time to absorb information.
 ### Scene Internal Pacing Formula (for a 150-frame / 5s scene)
 | Beat | Frame Range | Duration | What Happens |
 |------|------------|----------|-------------|
-| Title entrance | 0-15 | 0.5s | Title word-cascades or slams in |
+| Title entrance | 0-15 | 0.5s | Title word-cascades or text-reveals in |
 | Build/context | 15-50 | 1.2s | Context text, setup visuals, mood |
 | **Hero reveal** | 50-75 | 0.8s | keySync trigger — main content springs in |
 | Supporting cascade | 75-110 | 1.2s | Secondary elements stagger in (6 frames apart) |
@@ -3025,110 +3207,6 @@ Overlay scenes do NOT use the full 3-act structure above. Instead:
 - **Gentle springs only** (damping ≥ 28, stiffness ≤ 60) or simple `interpolate()` fades
 - **Breathing room still applies** — don't crowd the speaker with constant annotations
 </choreography>
-
-<kinetic_typography>
-## KINETIC TYPOGRAPHY PATTERNS
-
-When the Director specifies a named text animation, implement it using these exact patterns.
-Import `Easing` from remotion: `import { Easing } from 'remotion';`
-
-### `word-cascade` — Words appear one-by-one with slide-up + fade
-```tsx
-const words = text.split(' ');
-const framesPerWord = 6;
-
-{words.map((word, i) => {
-  const wordDelay = startFrame + i * framesPerWord;
-  const opacity = interpolate(frame, [wordDelay, wordDelay + 10], [0, 1], { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' });
-  const y = interpolate(frame, [wordDelay, wordDelay + 10], [20, 0], {
-    extrapolateRight: 'clamp', extrapolateLeft: 'clamp',
-    easing: Easing.out(Easing.exp),
-  });
-  return (
-    <span key={i} style={{ opacity, transform: `translateY(${y}px)`, display: 'inline-block', marginRight: 12 }}>
-      {word}
-    </span>
-  );
-})}
-```
-
-### `char-stagger` — Characters appear letter-by-letter with spring scale
-```tsx
-const chars = text.split('');
-const framesPerChar = 3;
-
-{chars.map((char, i) => {
-  const charDelay = startFrame + i * framesPerChar;
-  const scale = spring({ frame: frame - charDelay, fps, config: { damping: 22, stiffness: 120 } });
-  return (
-    <span key={i} style={{ display: 'inline-block', transform: `scale(${scale})`, minWidth: char === ' ' ? 8 : undefined }}>
-      {char}
-    </span>
-  );
-})}
-```
-
-### `text-slam` — Text scales from 2.5x to 1x with heavy spring + text shadow glow
-```tsx
-const slamProgress = spring({ frame: frame - slamFrame, fps, config: { damping: 18, stiffness: 150, mass: 1.2 } });
-const scale = interpolate(slamProgress, [0, 1], [2.5, 1]);
-const glowOpacity = interpolate(slamProgress, [0, 0.5, 1], [0, 1, 0.6], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
-
-// Parent container MUST clip overflow during the scale-up phase
-<div style={{ overflow: 'hidden', width: '100%', display: 'flex', justifyContent: 'center' }}>
-  <div style={{
-    transform: `scale(${scale})`,
-    textShadow: `0 0 ${40 * glowOpacity}px ${COLORS.primary}`,
-    fontWeight: 900,
-    textAlign: 'center',
-    maxWidth: EW * 0.85,
-  }}>
-    {text}
-  </div>
-</div>
-```
-
-### `typewriter` — Characters reveal left-to-right with blinking cursor
-```tsx
-const charsVisible = Math.floor(interpolate(
-  frame, [startFrame, startFrame + text.length * 2], [0, text.length],
-  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp' }
-));
-const cursorOpacity = Math.sin(frame * 0.15) > 0 ? 1 : 0;
-
-<span style={{ fontFamily: 'monospace' }}>
-  {text.slice(0, charsVisible)}
-  <span style={{ opacity: cursorOpacity, marginLeft: 2 }}>|</span>
-</span>
-```
-
-### `number-roll` — Counter animates 0 to target with exponential ease-out
-```tsx
-const rollProgress = interpolate(
-  frame, [startFrame, startFrame + 45], [0, 1],
-  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.out(Easing.exp) }
-);
-const displayValue = Math.round(rollProgress * targetNumber);
-
-<span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800 }}>
-  {prefix}{displayValue.toLocaleString()}{suffix}
-</span>
-```
-
-### `text-morph-position` — Text smoothly repositions/rescales
-```tsx
-// Use for title that starts centered-large and settles to top-small
-const morphProgress = interpolate(
-  frame, [morphStartFrame, morphStartFrame + 20], [0, 1],
-  { extrapolateRight: 'clamp', extrapolateLeft: 'clamp', easing: Easing.inOut(Easing.cubic) }
-);
-const posY = interpolate(morphProgress, [0, 1], [EH * 0.4, EH * 0.08]);
-const fontSize = interpolate(morphProgress, [0, 1], [EH * 0.09, EH * 0.05]);
-```
-
-**RULE: When the Director specifies a text animation name, use the matching pattern above.
-These are COPY-PASTE-READY — adapt values (colors, sizes, timing) but keep the core technique.**
-</kinetic_typography>
 
 <easing_guide>
 ## EASING GUIDE — VARY YOUR MOTION
@@ -3169,7 +3247,7 @@ const titleOpacity = interpolate(frame, [start, start + 15], [0, 1], {
 const barWidth = spring({ frame, fps, config: SPRING_CONFIG });  // spring is wrong for a bar fill
 ```
 
-**KEY RULE:** Use `spring()` for bouncy entrances (icons, cards, titles slamming in).
+**KEY RULE:** Use `spring()` for smooth entrances (icons, cards, titles with gentle spring settle).
 Use `Easing` with `interpolate()` for everything else (fills, fades, counts, morphs, continuous motion).
 
 ### Entrance Easing Hierarchy (ranked by professionalism)
@@ -3208,6 +3286,152 @@ const tertiaryOpacity = interpolate(frame, [keySync + 12, keySync + 27], [0, 1],
 });
 ```
 </easing_guide>
+
+<animation_quality>
+## ANIMATION QUALITY TECHNIQUES — From Amateur to Professional
+
+These techniques, based on Disney's 12 Principles and industry motion design standards
+(Apple HIG, Material Design 3, NN/g research), elevate animations from generic to polished.
+
+### Technique 1: Asymmetric Timing (Ease-Out Entries, Ease-In Exits)
+Objects enter FAST and settle SLOW (ease-out). Objects exit SLOW then accelerate away (ease-in).
+This mimics real-world physics and feels natural to the eye.
+
+- Entry: `Easing.out(Easing.cubic)` or `spring()` with damping >= 20
+- Exit: `Easing.in(Easing.cubic)` — shorter duration than entry (75% of entry time)
+- NEVER use linear or symmetric easing for entries/exits — feels robotic
+
+```tsx
+// GOOD: Asymmetric entry/exit
+const entryOpacity = interpolate(frame, [0, 18], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.out(Easing.cubic),  // fast appear, smooth settle
+});
+const exitOpacity = interpolate(frame, [dF - 12, dF], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),  // slow start, quick disappear
+});
+```
+
+### Technique 2: Overlapping Action (Offset Timing)
+Different parts of a composition should NOT move in lockstep. Offset related elements
+by 3-6 frames so they feel organic rather than mechanical.
+
+- Title text enters first, supporting label 4 frames later, icon 4 frames after that
+- Within a card: border draws first, background fades 3 frames later, content 6 frames later
+- This creates a "ripple" of motion that guides the eye naturally
+
+```tsx
+// Card entrance with overlapping action
+const cardBorder = spring({ frame, fps, config: SPRINGS.SMOOTH });
+const cardBg = spring({ frame: frame - 3, fps, config: SPRINGS.SMOOTH });
+const cardContent = spring({ frame: frame - 6, fps, config: SPRINGS.SMOOTH });
+```
+
+### Technique 3: Property Coupling (Always Pair Opacity + Transform)
+NEVER animate opacity alone — it looks cheap. Always pair opacity with at least one
+transform property (translateY, scale, or both).
+
+- Entry: opacity 0->1 AND translateY(12px -> 0) simultaneously
+- This creates "rising into view" which reads as intentional, not glitchy
+- Scale entries: opacity 0->1 AND scale(0.95 -> 1.0) — subtle, not dramatic
+
+```tsx
+// GOOD: Paired opacity + transform
+const entryProgress = interpolate(frame, [start, start + 15], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.out(Easing.cubic),
+});
+<div style={{
+  opacity: entryProgress,
+  transform: `translateY(${interpolate(entryProgress, [0, 1], [12, 0])}px)`,
+}}>
+
+// BAD: Opacity alone
+<div style={{ opacity: entryProgress }}>  // feels like a rendering glitch
+```
+
+### Technique 4: Stagger with Hierarchy (Variable Delays)
+Don't use uniform stagger gaps. Primary elements get shorter delays (building momentum),
+secondary elements get wider delays (breathing room).
+
+- First 2 elements: 4-frame gaps (quick, builds energy)
+- Middle elements: 6-frame gaps (standard rhythm)
+- Final element: 8-10 frame gap (lands with weight, punctuation)
+
+```tsx
+const staggerDelays = [0, 4, 8, 14, 22]; // accelerating gaps
+items.map((item, i) => {
+  const delay = staggerDelays[Math.min(i, staggerDelays.length - 1)];
+  const progress = spring({ frame: frame - delay, fps, config: SPRINGS.SMOOTH });
+  // ...
+});
+```
+
+### Technique 5: Settle and Breathe (No Frozen Frames)
+After elements have entered and settled, the scene should never feel "frozen."
+Add micro-motion to persistent elements:
+
+- Scale oscillation: 99.5% to 100.5% over 90-120 frames (barely perceptible)
+- Shadow depth variation: boxShadow blur cycles between 80-120% of base value
+- Accent glow: subtle opacity pulse on accent-colored elements
+
+These keep the scene feeling alive without distracting from content.
+
+### Technique 6: Anticipation Before Reveals (Subtle Scale Pull-Back)
+Before a key element reveals at a sync point, add a micro-anticipation:
+scale to 0.97 over 5 frames, THEN spring to 1.0 at the sync point.
+This "coiling" effect makes the reveal feel more impactful without being jarring.
+
+```tsx
+const anticipation = frame < keySync - 5 ? 1.0 :
+  frame < keySync ? interpolate(frame, [keySync - 5, keySync], [1.0, 0.97], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  }) : undefined; // spring takes over at keySync
+
+const reveal = spring({ frame: frame - keySync, fps, config: SPRINGS.SMOOTH });
+const scale = frame < keySync ? (anticipation ?? 1.0) : 0.97 + reveal * 0.03;
+```
+
+### Technique 7: Exit Choreography (Don't Just Fade Everything)
+Scene exits should be choreographed, not just "fade all to 0":
+- Secondary elements exit first (4-frame head start)
+- Primary element exits last
+- Exit direction should contrast entry: if entered from bottom, exit upward
+
+```tsx
+// Choreographed exit (last 20 frames of scene)
+const exitStart = dF - 20;
+const secondaryExit = interpolate(frame, [exitStart, exitStart + 10], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+const primaryExit = interpolate(frame, [exitStart + 4, exitStart + 16], [1, 0], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  easing: Easing.in(Easing.cubic),
+});
+```
+
+### Technique 8: Color Emphasis Through Opacity, Not New Colors
+Express visual hierarchy through opacity variations of accent/secondary:
+- Full emphasis: accent at 100% opacity
+- Medium emphasis: accent at 60% opacity
+- Subtle/muted: accent at 20% opacity
+- Background tint: accent at 6-8% opacity (for cards, highlights)
+
+This maintains palette discipline while creating rich visual hierarchy.
+
+### Quality Checklist (Apply to Every Scene)
+Before marking a scene complete, verify:
+- [ ] All entries pair opacity + transform (no opacity-only fades)
+- [ ] Stagger delays vary (not uniform gaps)
+- [ ] Exits are faster than entries (75% duration)
+- [ ] No frozen frames — persistent elements have micro-motion
+- [ ] All content centered in one flex container
+- [ ] Only studio palette colors used
+- [ ] Spring damping >= 20 everywhere
+- [ ] Text scale never exceeds 1.15x during entry
+</animation_quality>
 
 <exit_animations>
 ## EXIT ANIMATION RECIPES
@@ -3308,7 +3532,7 @@ import { linearTiming, springTiming } from '@remotion/transitions';
 | `"crossfade"` | `fade()` with `linearTiming({ durationInFrames: 15 })` |
 | `"slide-left"` | `slide({ direction: 'from-right' })` with `springTiming({ config: { damping: 26, stiffness: 120 } })` |
 | `"wipe-right"` | `wipe({ direction: 'from-left' })` with `linearTiming({ durationInFrames: 20 })` |
-| `"zoom-punch"` | No @remotion/transitions — use manual scale interpolate at transition boundary |
+| `"glow-pulse"` | No @remotion/transitions — use manual opacity pulse (0.85 to 1.0) at transition boundary |
 | `"cut"` (default) | Regular `Sequence` (current behavior, no TransitionSeries needed) |
 
 ### Using TransitionSeries in index.tsx
@@ -3627,17 +3851,20 @@ Hollow outlined text — great for background accents or dramatic reveals.
 - Content sitting at the top with empty space below — NEVER use `cardTopY = EH * 0.05` or similar small fixed values. Instead, ALWAYS compute: `const contentTopY = (EH * 0.85 - totalContentHeight) / 2` to vertically center the content block. When new elements appear at sync points, existing content spring-animates upward. See layout_rules for the Vertical Centering Formula and Side-by-Side Layout Pattern.
 - Title/heading sitting small at the top with the rest of the screen empty — instead, titles should START large and centered (filling the viewport) then spring-animate to their final top position when supporting content appears. This keeps the screen visually full at all times.
 - Missing key prop on children arrays (causes React warnings)
-- Math.sin() or Math.cos() on text rotation/position (causes jittery text)
-- damping < 20 in spring config (too bouncy) — EXCEPTION: `text-slam` uses damping: 18 deliberately for dramatic impact
+- Math.sin() or Math.cos() on ANY element containing text, including parent containers/wrappers. Only allowed on Layer 3 decorative particles at opacity <= 0.15.
+- damping < 20 in spring config (too bouncy) — NO EXCEPTIONS
 - All elements animating at the same time (no stagger)
-- Plain colored circles instead of proper visuals
+- Colored div rectangles/circles representing real-world objects (scales, gauges, speedometers, trophies, globes, pool lanes, circuit boards). Use template components (stat-counter, score-meter, versus-screen, etc.) or styled typography instead. A polished template > a crude shape approximation.
 - Instant teleportation (no animation)
 - Static backgrounds with no motion
 - Missing extrapolateLeft: 'clamp' or extrapolateRight: 'clamp' in interpolate() — BOTH are required
-- Scenes with no visual metaphor (just text on background)
+- Hardcoded canvas dimensions (1080, 1920) in scene code — ALWAYS use EW/EH from constants.ts TIMING or destructure from useVideoConfig()
+- Scenes with no visual content (just plain text on background) — use template components, animated data, or bold typographic treatment with accent colors
 - Gaps between scenes (no animation happening)
 - Using spring() for EVERYTHING — vary with Easing (see easing_guide above)
-- Ignoring Director's named animations (word-cascade, text-slam, etc.) and using generic fade-in instead
+- Ignoring Director's named animations (word-cascade, text-reveal, etc.) and using generic fade-in instead
+- Multiple absolutely-positioned elements at unrelated screen positions (scattered layout). ALL scene content MUST live inside a single centered flex container (display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '85%', padding: '0 8%'). Elements stack inside with gap spacing. The ONLY elements outside this container are: Background component, Layer 3 ambient particles, and full-screen overlays.
+- Domain-specific decorative SVGs overlaid on the dot-grid background (pool lanes, circuit boards, DNA helices, conveyor belts). The dot-grid is the COMPLETE background. Scene content goes INSIDE glassmorphic cards that float on the grid.
 </prohibited_patterns>
 
 <three_dimensional_animations>
@@ -4179,7 +4406,7 @@ interpolate(frame, [0, 30], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight:
 **THE #1 QUALITY RULE: Every visual must EXPLAIN the transcript, not decorate it.**
 
 The viewer watches to UNDERSTAND the narrator's words. Your job is information design,
-not abstract art. Think: explainer video, motion infographic, kinetic typography.
+not abstract art. Think: explainer video, motion infographic, animated data visualization.
 
 ### Visual Layer Hierarchy — every scene uses 3 layers:
 
@@ -4263,7 +4490,7 @@ For longer scenes (7+ seconds), add more beats. The narrator doesn't pause — n
 A "visual beat" is NOT just fading in one word. It's a CLUSTER of related elements:
 - Primary text (the key phrase from narration) — Layer 1
 - Supporting visual (icon, diagram, counter) — Layer 2
-- Motion choreography (how it enters — spring, cascade, slam)
+- Motion choreography (how it enters — spring, cascade, reveal)
 
 ### Overlay Scenes — Adapted Storytelling
 Overlay scenes still follow continuous storytelling, but with constraints:
@@ -4284,6 +4511,8 @@ If any phrase lacks a visual, add one. No narrator sentence should go unillustra
 
 ### Center-Then-Shift Pattern (MOST IMPORTANT LAYOUT RULE)
 Content must ALWAYS be vertically centered in the visual area. When new elements appear at sync points, existing content spring-animates upward to make room. The screen must look balanced at EVERY frame — no content sitting at the top with dead space below.
+
+**HARD RULE:** If your scene has more than one element, they MUST share a single parent flex container that is centered on screen. Do NOT create multiple independent position: 'absolute' divs at arbitrary top/left coordinates. A scene with elements at top: EH*0.15, top: EH*0.35, top: EH*0.5 is WRONG — wrap them in one centered column with gap spacing.
 
 **Implementation pattern:**
 ```tsx
@@ -4471,12 +4700,12 @@ You are setting up the project foundation for a Remotion animation.
 1. Read SCENE_PLAN.md and scenes.json to understand the full plan
 2. Create folder structure: components/ and scenes/ directories
 3. Create constants.ts — COPY the motion token code block below VERBATIM, then add COLORS, TIMING, and OVERLAY_RANGES from scenes.json
-4. Create components/Background.tsx with an animated background based on the plan's color palette
+4. Create components/Background.tsx — the GENERIC Studio Dark background (see rules below)
 
 ## RULES
 - constants.ts TIMING values MUST match scenes.json exactly
 - OVERLAY_RANGES must list [start, end] frame pairs for all overlay scenes
-- Background.tsx should have subtle animation (gradient shift, floating particles)
+- Background.tsx MUST be copied VERBATIM from the code block below — do NOT improvise or add topic-specific visuals
 - Do NOT create any scene files — those will be created by separate agents
 - Do NOT create index.tsx — that will be assembled later
 
@@ -4496,7 +4725,7 @@ export const SPRINGS = {
   SNAPPY:  { damping: 18, stiffness: 180, mass: 0.8 },
   SMOOTH:  { damping: 26, stiffness: 120, mass: 1.0 },
   BOUNCY:  { damping: 12, stiffness: 200, mass: 1.0 },
-  HEAVY:   { damping: 20, stiffness: 150, mass: 1.5 },
+  HEAVY:   { damping: 24, stiffness: 120, mass: 1.4 },
   STIFF:   { damping: 24, stiffness: 300, mass: 0.6 },
   GENTLE:  { damping: 14, stiffness: 80,  mass: 1.2 },
   OVERLAY: { damping: 32, stiffness: 50,  mass: 1.0 },
@@ -4532,14 +4761,42 @@ scene2Sync_logo: 322 - 300, // = 22
 scene2KeySync: 322, // Causes animation at frame 322 of a 600-frame scene (WAY too late)
 ```
 
+## VERBATIM Background.tsx CODE — COPY EXACTLY
+
+```tsx
+import React from 'react';
+import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { COLORS } from '../constants';
+
+const DotGrid: React.FC<{ color: string; spacing: number }> = ({ color, spacing }) => {
+  const { width, height } = useVideoConfig();
+  return (
+    <svg width={width} height={height} style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+      <defs>
+        <pattern id="dot-grid" width={spacing} height={spacing} patternUnits="userSpaceOnUse">
+          <circle cx={spacing / 2} cy={spacing / 2} r={1} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#dot-grid)" />
+    </svg>
+  );
+};
+
+export const Background: React.FC = () => {
+  return (
+    <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
+      <DotGrid color={COLORS.gridColor || 'rgba(255,255,255,0.04)'} spacing={32} />
+    </AbsoluteFill>
+  );
+};
+```
+
+constants.ts MUST export `gridColor` in the COLORS object.
+
 ## REMOTION RULES FOR Background.tsx (CRITICAL)
-- Import ONLY from 'remotion': useCurrentFrame, interpolate, spring, AbsoluteFill
-- Import COLORS and SPRING_CONFIG from '../constants'
-- Use `useCurrentFrame()` for ALL animation — NO CSS animations, NO @keyframes
-- Use inline `style={{}}` props — NO className, NO Tailwind, NO styled-jsx
-- NEVER import @react-spring, framer-motion, or any animation library
-- The component should take NO props — it reads frame internally via useCurrentFrame()
-- Wrap everything in <AbsoluteFill>
+- Background.tsx must be the VERBATIM code above — no creative additions
+- Do NOT add topic-specific visuals to Background.tsx (pool lanes, tech grids, etc.)
+- Topic-specific visuals belong in individual scene files
 
 ## OUTPUT
 After creating constants.ts and components/Background.tsx:
@@ -4783,7 +5040,7 @@ Design for VERTICAL stacking, not horizontal layouts.
 ```
 ┌──────────────────┐
 │                  │
-│   TITLE TEXT     │  ← Top 20%: Large kinetic title (EH * 0.08 font)
+│   TITLE TEXT     │  ← Top 20%: Large animated title (EH * 0.08 font)
 │                  │
 ├──────────────────┤
 │                  │
@@ -4804,7 +5061,7 @@ Design for VERTICAL stacking, not horizontal layouts.
 - Primary visual MUST be text/data, not decorative effects
 - MAX 4 attention-grabbing elements + ambient — fullscreen means BIGGER elements, not MORE elements
 - ALL sizes relative to EW/EH — never hardcoded pixels (no `width: 360`, `fontSize: '24px'`)
-- Spring entrances, stagger for secondary elements, kinetic typography for key phrases
+- Spring entrances, stagger for secondary elements, animated text for key phrases
 """
 
 
@@ -5190,7 +5447,7 @@ def build_scene_task_prompt(
     scene_number: int,
     display_mode: str,
     scene_data: dict,
-    style_preset: str = "modern",
+    style_preset: str = "studio-dark",
 ) -> str:
     """Build a Task prompt with scene data embedded inline.
 
@@ -5221,7 +5478,7 @@ def build_scene_task_prompt(
 
     # Add template hint for studio preset when suggestedTemplates is present
     template_hint = ""
-    if style_preset == "studio":
+    if style_preset.startswith("studio"):
         suggested = scene_data.get("suggestedTemplates")
         if suggested:
             slugs = ", ".join(suggested)
