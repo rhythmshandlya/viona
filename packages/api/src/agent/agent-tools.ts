@@ -4,6 +4,7 @@ import { eq, and, desc, sql, isNotNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { projects, visuals, transcripts, jobs } from '../db/schema.js';
 import { queueGenerateVisualsJob, queueEditVisualsJob, queuePlanVisualsJob } from '../services/queue.js';
+import { youtubeSearchService } from '../services/youtube-search.js';
 import { nanoid } from 'nanoid';
 
 const MCP_SERVER_NAME = 'creative-director';
@@ -18,6 +19,7 @@ export const TOOL_NAMES = [
   `mcp__${MCP_SERVER_NAME}__plan_visuals`,
   `mcp__${MCP_SERVER_NAME}__start_generation`,
   `mcp__${MCP_SERVER_NAME}__edit_visuals`,
+  `mcp__${MCP_SERVER_NAME}__search_youtube`,
 ];
 
 // Tool executor context
@@ -647,7 +649,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         'Run the Director phase to create a scene-by-scene visual plan based on the transcript. This queues a planning job that analyzes the transcript and produces a detailed plan. The plan is then shown to the user as an interactive widget for approval before any generation begins. Only call this after the user has selected a theme and layout.',
         {
           stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio', 'apple', 'google', 'kinetic-typography']),
-          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
+          layoutMode: z.enum(['pip', 'stacked']),
           styleGuide: z.string().optional(),
         },
         async ({ stylePreset, layoutMode, styleGuide }) => {
@@ -814,9 +816,19 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         {
           planJobId: z.string(),
           stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio', 'apple', 'google', 'kinetic-typography']),
-          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
+          layoutMode: z.enum(['pip', 'stacked']),
+          selectedVideos: z.record(
+            z.coerce.number(),
+            z.record(z.string(), z.object({
+              videoId: z.string(),
+              title: z.string(),
+              thumbnailUrl: z.string(),
+              duration: z.string().optional(),
+              url: z.string(),
+            }))
+          ).optional().describe('User-selected videos for scenes: sceneIndex → keyword → VideoSelection'),
         },
-        async ({ planJobId, stylePreset, layoutMode }) => {
+        async ({ planJobId, stylePreset, layoutMode, selectedVideos }) => {
           // Hard gate: refuse if plan was just shown this turn (user hasn't had a chance to approve)
           if (planShownThisTurn) {
             return {
@@ -888,6 +900,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             dimensions,
             pipEffective,
             planJobId,
+            selectedVideos,
           });
 
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual generation from approved plan...', jobId: job.id });
@@ -1042,6 +1055,67 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
               message: 'Visual edit failed. User can ask to retry.',
             }) }],
           };
+        },
+      ),
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // YouTube Search Tool - enables AI to find and select YouTube clips
+      // ─────────────────────────────────────────────────────────────────────────
+      tool(
+        'search_youtube',
+        'Search YouTube for video clips to embed in scenes. Use this when planning scenes that should show real footage instead of animations. Returns video options with thumbnails, duration, and URLs.',
+        {
+          query: z.string().describe('Search query for YouTube (e.g., "product demo", "AI code assistant")'),
+          maxResults: z.number().min(1).max(5).default(3).describe('Number of results to return (1-5)'),
+          videoDuration: z.enum(['short', 'medium', 'long', 'any']).default('medium')
+            .describe('Video length filter: short (<4min), medium (4-20min), long (>20min), any'),
+        },
+        async ({ query, maxResults, videoDuration }) => {
+          try {
+            const results = await youtubeSearchService.searchVideos(query, {
+              maxResults,
+              videoDuration,
+              videoDefinition: 'high',
+              order: 'relevance',
+            });
+
+            if (results.length === 0) {
+              return {
+                content: [{ type: 'text' as const, text: JSON.stringify({
+                  success: false,
+                  message: 'No YouTube videos found for this query. Try different search terms.',
+                  query,
+                }) }],
+              };
+            }
+
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                success: true,
+                query,
+                resultCount: results.length,
+                videos: results.map((r, idx) => ({
+                  index: idx + 1,
+                  videoId: r.videoId,
+                  title: r.title,
+                  url: r.url,
+                  duration: r.duration || 'unknown',
+                  channel: r.channelTitle,
+                  thumbnail: r.thumbnail.url,
+                  viewCount: r.viewCount,
+                })),
+                hint: 'Use update_plan to add a selected video to a scene with videoUrl, trimStart, trimEnd, and frameStyle fields.',
+              }) }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                success: false,
+                error: err instanceof Error ? err.message : 'YouTube search failed',
+                query,
+              }) }],
+            };
+          }
         },
       ),
     ],
