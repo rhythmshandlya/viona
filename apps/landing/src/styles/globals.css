@@ -271,6 +271,20 @@ details > div {
   color: var(--color-primary);
 }
 
+/* Mobile readability */
+@media (max-width: 639px) {
+  .text-xs {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+}
+
+/* Touch target minimum size */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

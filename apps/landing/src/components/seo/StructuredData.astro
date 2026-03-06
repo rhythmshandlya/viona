@@ -2,10 +2,14 @@
 import { siteConfig } from "@/data/site";
 
 interface Props {
-  type?: "WebSite" | "Organization" | "SoftwareApplication";
+  pathname: string;
 }
 
-const { type = "WebSite" } = Astro.props;
+const { pathname } = Astro.props;
+
+const isHomepage = pathname === "/" || pathname === "";
+
+// --- Homepage schemas: WebSite + Organization + SoftwareApplication ---
 
 const websiteSchema = {
   "@context": "https://schema.org",
@@ -13,14 +17,6 @@ const websiteSchema = {
   name: siteConfig.name,
   url: siteConfig.url,
   description: siteConfig.description,
-  potentialAction: {
-    "@type": "SearchAction",
-    target: {
-      "@type": "EntryPoint",
-      urlTemplate: `${siteConfig.url}/search?q={search_term_string}`,
-    },
-    "query-input": "required name=search_term_string",
-  },
 };
 
 const organizationSchema = {
@@ -28,7 +24,18 @@ const organizationSchema = {
   "@type": "Organization",
   name: siteConfig.name,
   url: siteConfig.url,
-  logo: `${siteConfig.url}/favicon.svg`,
+  description: siteConfig.description,
+  logo: {
+    "@type": "ImageObject",
+    url: `${siteConfig.url}/favicon.svg`,
+    width: 512,
+    height: 512,
+  },
+  contactPoint: {
+    "@type": "ContactPoint",
+    email: "hello@viona.app",
+    contactType: "customer support",
+  },
   sameAs: [
     siteConfig.links.twitter,
     siteConfig.links.github,
@@ -39,27 +46,96 @@ const softwareSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: siteConfig.name,
+  description: siteConfig.description,
+  url: siteConfig.url,
   operatingSystem: "Web",
   applicationCategory: "MultimediaApplication",
   offers: {
-    "@type": "Offer",
-    price: "0",
+    "@type": "AggregateOffer",
     priceCurrency: "USD",
-  },
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.8",
-    ratingCount: "1250",
+    lowPrice: "0",
+    highPrice: "29",
+    offerCount: 3,
+    offers: [
+      {
+        "@type": "Offer",
+        name: "Free",
+        price: "0",
+        priceCurrency: "USD",
+        url: `${siteConfig.url}/pricing`,
+      },
+      {
+        "@type": "Offer",
+        name: "Pro",
+        price: "29",
+        priceCurrency: "USD",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: "29",
+          priceCurrency: "USD",
+          billingDuration: "P1M",
+        },
+        url: `${siteConfig.url}/pricing`,
+      },
+      {
+        "@type": "Offer",
+        name: "Enterprise",
+        price: "0",
+        priceCurrency: "USD",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: "0",
+          priceCurrency: "USD",
+          description: "Contact us for pricing",
+        },
+        url: `${siteConfig.url}/pricing`,
+      },
+    ],
   },
 };
 
-const schemas = {
-  WebSite: websiteSchema,
-  Organization: organizationSchema,
-  SoftwareApplication: softwareSchema,
+// --- Subpage schemas: BreadcrumbList + WebPage ---
+
+const segments = pathname.replace(/\/$/, "").split("/").filter(Boolean);
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  itemListElement: [
+    {
+      "@type": "ListItem",
+      position: 1,
+      name: "Home",
+      item: siteConfig.url,
+    },
+    ...segments.map((segment, index) => ({
+      "@type": "ListItem" as const,
+      position: index + 2,
+      name: segment.charAt(0).toUpperCase() + segment.slice(1),
+      item: `${siteConfig.url}/${segments.slice(0, index + 1).join("/")}`,
+    })),
+  ],
 };
 
-const schema = schemas[type];
+const webPageSchema = {
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  name: segments.length > 0
+    ? segments[segments.length - 1].charAt(0).toUpperCase() + segments[segments.length - 1].slice(1)
+    : siteConfig.name,
+  url: `${siteConfig.url}${pathname}`,
+  isPartOf: {
+    "@type": "WebSite",
+    name: siteConfig.name,
+    url: siteConfig.url,
+  },
+};
+
+const schemas = isHomepage
+  ? [websiteSchema, organizationSchema, softwareSchema]
+  : [breadcrumbSchema, webPageSchema];
 ---
 
-<script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
+{schemas.map((schema) => (
+  <script is:inline type="application/ld+json" set:html={JSON.stringify(schema)} />
+))}

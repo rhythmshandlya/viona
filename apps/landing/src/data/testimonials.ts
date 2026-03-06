@@ -3,7 +3,7 @@ export interface Testimonial {
   author: string;
   role: string;
   company: string;
-  avatar: string;
+  color: string;
   featured?: boolean;
 }
 
@@ -13,7 +13,7 @@ export const testimonials: Testimonial[] = [
     author: "James Park",
     role: "Course Creator",
     company: "CodeMentor Academy",
-    avatar: "https://i.pravatar.cc/150?img=11",
+    color: "#7C3AED",
     featured: true,
   },
   {
@@ -21,7 +21,7 @@ export const testimonials: Testimonial[] = [
     author: "Dr. Lisa Chen",
     role: "EdTech Founder",
     company: "MedLearn Pro",
-    avatar: "https://i.pravatar.cc/150?img=5",
+    color: "#2563EB",
     featured: true,
   },
   {
@@ -29,7 +29,7 @@ export const testimonials: Testimonial[] = [
     author: "Marcus Webb",
     role: "Creative Director",
     company: "Explainer Studio",
-    avatar: "https://i.pravatar.cc/150?img=12",
+    color: "#059669",
     featured: true,
   },
   {
@@ -37,21 +37,21 @@ export const testimonials: Testimonial[] = [
     author: "Priya Sharma",
     role: "YouTube Creator",
     company: "LearnWithPriya",
-    avatar: "https://i.pravatar.cc/150?img=32",
+    color: "#D97706",
   },
   {
     quote: "Being able to export the same video in 9:16, 16:9, and 1:1 from one project saved me from using three different tools. The safe zone preview is a game-changer.",
     author: "Alex Rivera",
     role: "Social Media Manager",
     company: "GrowthLoop Agency",
-    avatar: "https://i.pravatar.cc/150?img=53",
+    color: "#DC2626",
   },
   {
     quote: "I just told the AI assistant 'make the background darker and add a split layout' and it did it instantly. Feels like having a junior editor on call 24/7.",
     author: "Tomoko Hayashi",
     role: "Product Trainer",
     company: "Notion",
-    avatar: "https://i.pravatar.cc/150?img=23",
+    color: "#7C3AED",
   },
 ];
 

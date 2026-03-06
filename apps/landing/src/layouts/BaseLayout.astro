@@ -28,9 +28,7 @@ const { title, description, image } = Astro.props;
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet" />
 
     <SEO title={title} description={description} image={image} />
-    <StructuredData type="WebSite" />
-    <StructuredData type="Organization" />
-    <StructuredData type="SoftwareApplication" />
+    <StructuredData pathname={Astro.url.pathname} />
     <ClientRouter />
   </head>
   <body class="min-h-screen bg-background text-foreground">
