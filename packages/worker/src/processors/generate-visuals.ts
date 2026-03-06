@@ -1210,7 +1210,7 @@ registerRoot(RemotionRoot);
             // Video clip URLs for preview and export
             ...(sceneVideo ? {
               sourceVideoUrl: sceneVideo.sourceUrl,
-              videoUrl: sceneVideo.proxyUrl || '',
+              videoUrl: sceneVideo.proxyUrl || sceneVideo.sourceUrl || '',
               hasVideo: true,
             } : {}),
           },
