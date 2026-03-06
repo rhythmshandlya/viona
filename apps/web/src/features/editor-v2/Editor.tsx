@@ -595,7 +595,10 @@ export function Editor({ projectId }: EditorProps) {
                         const state = useEditorStore.getState();
                         const { tracks, fps: currentFps } = state;
                         const visualTrack = tracks.find((t) => t.type === 'visual');
-                        if (!visualTrack) return;
+                        if (!visualTrack) {
+                          console.warn('[Editor] No visual track found for YouTube clip');
+                          return;
+                        }
                         state.addItem(visualTrack.id, {
                           type: 'visual',
                           startMs: 0,
