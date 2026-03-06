@@ -531,13 +531,23 @@ function formatTimestamp(seconds: number): string {
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 }
 
+/** Video clip trim override data from editor */
+interface VideoClipOverride {
+  sourceSceneId: number;
+  sourceVideoUrl: string;
+  trimStartSeconds: number;
+  trimEndSeconds: number;
+}
+
 /**
  * Download video clips for render using yt-dlp.
  * Returns clips map (sceneId → local clip path) and list of failed scene IDs.
+ * @param videoClipOverrides - User-edited trim values from the editor (overrides video_assets.json values)
  */
 async function downloadVideoClipsForRender(
   projectId: string,
-  workDir: string
+  workDir: string,
+  videoClipOverrides?: VideoClipOverride[]
 ): Promise<{ clips: Map<string, string>; failed: string[]; manifest: VideoManifest | null }> {
   const clipPaths = new Map<string, string>();
   const failedScenes: string[] = [];
@@ -551,16 +561,72 @@ async function downloadVideoClipsForRender(
     await downloadFile('outputs', manifestKey, manifestPath);
     videoAssets = JSON.parse(await readFile(manifestPath, 'utf-8'));
   } catch {
-    // No video assets for this project
-    return { clips: clipPaths, failed: failedScenes, manifest: null };
+    // No video_assets.json found - will use videoClipOverrides as primary source
+    videoAssets = { videos: [] };
   }
 
-  if (!videoAssets?.videos?.length) return { clips: clipPaths, failed: failedScenes, manifest: videoAssets };
+  // Ensure videos array exists
+  if (!videoAssets.videos) {
+    videoAssets.videos = [];
+  }
+
+  // Merge user-specified trim values into video assets AND add any new clips
+  // This handles clips added in the editor after generation
+  if (videoClipOverrides && videoClipOverrides.length > 0) {
+    for (const override of videoClipOverrides) {
+      const existingVideo = videoAssets.videos.find(
+        v => String(v.sceneId) === String(override.sourceSceneId)
+      );
+      if (existingVideo) {
+        // Update existing entry with user's trim values
+        logger.info({
+          sceneId: existingVideo.sceneId,
+          oldTrim: { start: existingVideo.trimStart, end: existingVideo.trimEnd },
+          newTrim: { start: override.trimStartSeconds, end: override.trimEndSeconds },
+        }, 'Applying user trim override for video clip');
+        existingVideo.trimStart = override.trimStartSeconds;
+        existingVideo.trimEnd = override.trimEndSeconds;
+        // Also update sourceUrl in case it changed
+        if (override.sourceVideoUrl && isValidYouTubeUrl(override.sourceVideoUrl)) {
+          existingVideo.sourceUrl = override.sourceVideoUrl;
+        }
+      } else if (override.sourceVideoUrl && isValidYouTubeUrl(override.sourceVideoUrl)) {
+        // Add new clip that was added in the editor (not in video_assets.json)
+        logger.info({
+          sceneId: override.sourceSceneId,
+          sourceUrl: override.sourceVideoUrl,
+          trim: { start: override.trimStartSeconds, end: override.trimEndSeconds },
+        }, 'Adding video clip from editor (not in video_assets.json)');
+        videoAssets.videos.push({
+          sceneId: String(override.sourceSceneId),
+          keyword: 'editor-added',
+          videoId: '',
+          sourceUrl: override.sourceVideoUrl,
+          thumbnailUrl: '',
+          trimStart: override.trimStartSeconds,
+          trimEnd: override.trimEndSeconds,
+        });
+      }
+    }
+  }
+
+  // If no videos to download, return early
+  if (!videoAssets.videos.length) {
+    logger.info('No video clips to download (video_assets.json empty and no overrides)');
+    return { clips: clipPaths, failed: failedScenes, manifest: videoAssets };
+  }
 
   const clipsDir = join(workDir, 'clips');
   await mkdir(clipsDir, { recursive: true });
 
-  logger.info({ count: videoAssets.videos.length }, 'Downloading video clips for render');
+  logger.info({
+    count: videoAssets.videos.length,
+    videos: videoAssets.videos.map(v => ({
+      sceneId: v.sceneId,
+      url: v.sourceUrl?.substring(0, 50) + '...',
+      trim: { start: v.trimStart, end: v.trimEnd },
+    })),
+  }, 'Downloading video clips for render');
 
   for (const video of videoAssets.videos) {
     // Validate URL before download (security check)
@@ -572,9 +638,9 @@ async function downloadVideoClipsForRender(
     }
 
     try {
-      // Download via yt-dlp
-      const clipId = nanoid();
-      const outputPath = join(clipsDir, `${clipId}.mp4`);
+      // Download via yt-dlp with scene-based naming for Remotion staticFile() lookup
+      const clipFilename = `scene${video.sceneId}-youtube-clip.mp4`;
+      const outputPath = join(clipsDir, clipFilename);
 
       const timeRange = `*${formatTimestamp(video.trimStart || 0)}-${formatTimestamp(video.trimEnd || 30)}`;
 
@@ -586,7 +652,7 @@ async function downloadVideoClipsForRender(
         video.sourceUrl,
       ];
 
-      logger.info({ sceneId: video.sceneId, sourceUrl: video.sourceUrl, timeRange }, 'Downloading video clip');
+      logger.info({ sceneId: video.sceneId, sourceUrl: video.sourceUrl, timeRange, outputPath }, 'Downloading video clip');
 
       await execFileAsync('yt-dlp', args, {
         timeout: 5 * 60 * 1000, // 5 minute timeout
@@ -760,10 +826,17 @@ export interface RenderJobData {
     };
     overlayOpacity?: number;
   }>;
+  // Video clip trim data from user-edited templateProps
+  videoClipData?: Array<{
+    sourceSceneId: number;
+    sourceVideoUrl: string;
+    trimStartSeconds: number;
+    trimEndSeconds: number;
+  }>;
 }
 
 export async function processRenderJob(job: Job<RenderJobData>) {
-  const { projectId, jobId, layoutSettings, visualDisplayData } = job.data;
+  const { projectId, jobId, layoutSettings, visualDisplayData, videoClipData } = job.data;
   setJobProjectId(jobId, projectId);
   const workDir = join(tmpdir(), `viona-render-${nanoid()}`);
 
@@ -1074,9 +1147,20 @@ export async function processRenderJob(job: Job<RenderJobData>) {
     if (projectVisual) {
       await publishJobProgress(jobId, 25, 'Downloading video clips...');
 
+      // Log received video clip data for debugging
+      logger.info({
+        videoClipDataCount: videoClipData?.length ?? 0,
+        videoClipData: videoClipData?.map(c => ({
+          sceneId: c.sourceSceneId,
+          url: c.sourceVideoUrl?.substring(0, 50) + '...',
+          trim: { start: c.trimStartSeconds, end: c.trimEndSeconds },
+        })),
+      }, 'Received video clip data from editor');
+
       // Download YouTube video clips if the project has any
+      // Pass videoClipData to override trim values with user-edited values from the editor
       const { clips: videoClipPaths, failed: failedClips, manifest: videoManifest } =
-        await downloadVideoClipsForRender(projectId, workDir);
+        await downloadVideoClipsForRender(projectId, workDir, videoClipData);
 
       if (failedClips.length > 0) {
         logger.warn({ failedScenes: failedClips },
@@ -1112,15 +1196,47 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         scale: (videoSettings.scale as number) ?? 1.0,
       };
 
-      // Copy video clips to bundle's public directory so Remotion can access them
+      // Copy video clips to bundle's public/assets/clips/ directory so Remotion staticFile() can access them
+      // Scenes use: staticFile('assets/clips/scene{N}-youtube-clip.mp4')
       if (videoClipPaths.size > 0) {
-        const bundleClipsDir = join(bundlePath, 'public', 'clips');
+        const bundleClipsDir = join(bundlePath, 'public', 'assets', 'clips');
         await mkdir(bundleClipsDir, { recursive: true });
 
         for (const [sceneId, clipPath] of videoClipPaths) {
           const destPath = join(bundleClipsDir, basename(clipPath));
           await copyFile(clipPath, destPath);
-          logger.info({ sceneId, destPath }, 'Copied video clip to bundle');
+          logger.info({ sceneId, destPath }, 'Copied video clip to bundle public/assets/clips/');
+        }
+
+        // Inject clipUrl into templateProps for youtube-clip template scenes.
+        // generate-visuals.ts sets templateProps.clipUrl to '' with the expectation
+        // that render.ts fills it during export. The staticFile()-compatible path
+        // lets the youtube-clip template component resolve the downloaded clip.
+        const youtubeClipItems = allItems.filter((item: any) => {
+          const data = item.data as Record<string, unknown>;
+          return data?.templateId === 'youtube-clip' && data?.sourceSceneId !== undefined;
+        });
+
+        for (const item of youtubeClipItems) {
+          const data = item.data as Record<string, unknown>;
+          const sceneId = String(data.sourceSceneId);
+          if (videoClipPaths.has(sceneId)) {
+            const clipFilename = basename(videoClipPaths.get(sceneId)!);
+            const staticFilePath = `assets/clips/${clipFilename}`;
+            const templateProps = (data.templateProps || {}) as Record<string, unknown>;
+            const updatedData = {
+              ...data,
+              templateProps: {
+                ...templateProps,
+                clipUrl: staticFilePath,
+              },
+            };
+            await db.update(timelineItems)
+              .set({ data: updatedData })
+              .where(eq(timelineItems.id, item.id));
+            logger.info({ sceneId, clipUrl: staticFilePath, itemId: item.id },
+              'Injected clipUrl into youtube-clip templateProps for export');
+          }
         }
       }
 
