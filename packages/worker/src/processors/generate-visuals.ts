@@ -491,7 +491,7 @@ async function injectUserAssets(projectId: string, projectDir: string): Promise<
   const userAssetsDir = join(workspacePath, 'public', 'assets', 'user');
   await mkdir(userAssetsDir, { recursive: true });
 
-  const manifest: { assets: Array<{ filename: string; label: string; description?: string; contentType: string; remotionPath: string }> } = { assets: [] };
+  const manifest: { assets: Array<{ filename: string; label: string; contentType: string; remotionPath: string }> } = { assets: [] };
 
   for (const asset of assets) {
     // Sanitize filename for safe staticFile() paths, add ID suffix to prevent collisions
@@ -505,7 +505,6 @@ async function injectUserAssets(projectId: string, projectDir: string): Promise<
       manifest.assets.push({
         filename: safeFilename,
         label: asset.label || asset.filename.replace(/\.[^.]+$/, ''),
-        description: asset.description || undefined,
         contentType: asset.contentType,
         remotionPath: `assets/user/${safeFilename}`,
       });

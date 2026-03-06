@@ -548,21 +548,21 @@ async function downloadVideoClipsForRender(
   projectId: string,
   workDir: string,
   videoClipOverrides?: VideoClipOverride[]
-): Promise<{ clips: Map<string, string>; failed: string[]; manifest: VideoManifest | null }> {
+): Promise<{ clips: Map<string, string>; failed: string[]; manifest: VideoManifest }> {
   const clipPaths = new Map<string, string>();
   const failedScenes: string[] = [];
 
   // Try to read video_assets.json from project sources
-  let videoAssets: VideoManifest | null = null;
+  let videoAssets: VideoManifest = { videos: [] };
   try {
     const sourcesPrefix = `sources/${projectId}/`;
     const manifestKey = `${sourcesPrefix}video_assets.json`;
     const manifestPath = join(workDir, 'video_assets.json');
     await downloadFile('outputs', manifestKey, manifestPath);
-    videoAssets = JSON.parse(await readFile(manifestPath, 'utf-8'));
+    const parsed = JSON.parse(await readFile(manifestPath, 'utf-8')) as VideoManifest;
+    videoAssets = parsed;
   } catch {
     // No video_assets.json found - will use videoClipOverrides as primary source
-    videoAssets = { videos: [] };
   }
 
   // Ensure videos array exists
@@ -602,6 +602,7 @@ async function downloadVideoClipsForRender(
           keyword: 'editor-added',
           videoId: '',
           sourceUrl: override.sourceVideoUrl,
+          title: '',
           thumbnailUrl: '',
           trimStart: override.trimStartSeconds,
           trimEnd: override.trimEndSeconds,
