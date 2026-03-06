@@ -406,6 +406,19 @@ export interface VisualsDimensions {
   height: number;
 }
 
+/**
+ * Video selection data from user's scene plan approval.
+ * NOTE: This duplicates packages/api/src/types/video.ts - keep in sync!
+ * Worker can't import from API package due to build isolation.
+ */
+export interface VideoSelection {
+  videoId: string;
+  title: string;
+  thumbnailUrl: string;
+  duration?: string;
+  url: string;
+}
+
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
@@ -420,6 +433,8 @@ export interface GenerateVisualsJobData {
   verbose?: boolean;
   /** If set, skip Director phase and run Animator only using plan from this job */
   planJobId?: string;
+  /** User-selected videos for scenes: sceneIndex → keyword → VideoSelection */
+  selectedVideos?: Record<number, Record<string, VideoSelection>>;
 }
 
 interface VisualMetadata {
@@ -476,7 +491,7 @@ async function injectUserAssets(projectId: string, projectDir: string): Promise<
   const userAssetsDir = join(workspacePath, 'public', 'assets', 'user');
   await mkdir(userAssetsDir, { recursive: true });
 
-  const manifest: { assets: Array<{ filename: string; label: string; contentType: string; remotionPath: string }> } = { assets: [] };
+  const manifest: { assets: Array<{ filename: string; label: string; description?: string; contentType: string; remotionPath: string }> } = { assets: [] };
 
   for (const asset of assets) {
     // Sanitize filename for safe staticFile() paths, add ID suffix to prevent collisions
@@ -490,6 +505,7 @@ async function injectUserAssets(projectId: string, projectDir: string): Promise<
       manifest.assets.push({
         filename: safeFilename,
         label: asset.label || asset.filename.replace(/\.[^.]+$/, ''),
+        description: asset.description || undefined,
         contentType: asset.contentType,
         remotionPath: `assets/user/${safeFilename}`,
       });
@@ -504,6 +520,63 @@ async function injectUserAssets(projectId: string, projectDir: string): Promise<
   logger.info({ projectId, assetCount: manifest.assets.length }, 'Injected user assets into workspace');
 
   return manifest.assets.length;
+}
+
+/**
+ * Video asset manifest for render phase — maps scene indices to video clips.
+ */
+interface VideoAssetEntry {
+  sceneId: string;
+  keyword: string;
+  videoId: string;
+  sourceUrl: string;
+  proxyUrl?: string;
+  title: string;
+  thumbnailUrl: string;
+  trimStart: number;
+  trimEnd: number;
+}
+
+interface VideoManifest {
+  videos: VideoAssetEntry[];
+}
+
+/**
+ * Prepare video assets manifest from user's video selections.
+ * This manifest is used by the render processor to download clips for final export.
+ */
+async function prepareVideoAssets(
+  selectedVideos: Record<number, Record<string, VideoSelection>> | undefined,
+  projectDir: string
+): Promise<VideoManifest> {
+  const manifest: VideoManifest = { videos: [] };
+
+  if (!selectedVideos) return manifest;
+
+  for (const [sceneIndexStr, keywords] of Object.entries(selectedVideos)) {
+    const sceneIndex = parseInt(sceneIndexStr, 10);
+    for (const [keyword, selection] of Object.entries(keywords as Record<string, VideoSelection>)) {
+      manifest.videos.push({
+        sceneId: String(sceneIndex + 1), // 1-indexed scene ID
+        keyword,
+        videoId: selection.videoId,
+        sourceUrl: selection.url,
+        title: selection.title,
+        thumbnailUrl: selection.thumbnailUrl,
+        trimStart: 0,
+        trimEnd: 30, // Default 30s clip
+      });
+    }
+  }
+
+  if (manifest.videos.length > 0) {
+    // Write manifest for render phase
+    const manifestPath = join(projectDir, 'video_assets.json');
+    await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+    logger.info({ projectDir, videoCount: manifest.videos.length }, 'Wrote video_assets.json manifest');
+  }
+
+  return manifest;
 }
 
 export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>) {
@@ -601,6 +674,9 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       logger.info({ projectId, userAssetCount }, 'User assets injected into workspace');
     }
 
+    // Prepare video assets manifest from user selections (for render phase)
+    const videoManifest = await prepareVideoAssets(job.data.selectedVideos, projectDir);
+
     // If this is an Animator-only run (plan was created separately), write plan files to project dir
     // Also enrich scenes.json with per-scene effectiveDimensions
     const canvasWidth = dimensions?.width || 1080;
@@ -665,6 +741,14 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
                 endMs,
               );
             }
+          }
+
+          // Enrich scenes with video indicator for Animator awareness
+          const sceneIdStr = String(scene.id);
+          const sceneVideo = videoManifest.videos.find(v => v.sceneId === sceneIdStr);
+          if (sceneVideo) {
+            scene.hasVideo = true;
+            scene.videoKeyword = sceneVideo.keyword;
           }
         }
         await writeFile(scenesJsonPath, JSON.stringify({ ...scenesObj, scenes: scenesArray }, null, 2), 'utf-8');
@@ -1082,6 +1166,12 @@ registerRoot(RemotionRoot);
         // Survives timeline splits so the agent can target the correct file
         const sourceSceneId = sceneIndex + 1;
 
+        // Check if this scene has a video clip selected
+        const sceneVideo = videoManifest.videos.find(v => v.sceneId === String(sourceSceneId));
+
+        // Detect youtube-clip scenes for template-based rendering
+        const isYouTubeClip = scene.type === 'youtube-clip';
+
         await tx.insert(timelineItems).values({
           trackId: visualsTrack.id,
           type: 'visual',
@@ -1089,8 +1179,10 @@ registerRoot(RemotionRoot);
           endMs: scene.endMs,
           data: {
             visualId,
-            compositionId: metadata.compositionId,
-            bundleUrl,
+            compositionId: isYouTubeClip
+              ? `youtube-clip-scene${sourceSceneId}`
+              : metadata.compositionId,
+            bundleUrl: isYouTubeClip ? '' : bundleUrl,
             type: scene.type || 'visual',
             description: scene.description || 'AI-generated visual',
             width: canvasWidth,
@@ -1102,6 +1194,25 @@ registerRoot(RemotionRoot);
             transition: scene.transition || undefined,
             sourceSceneId,
             ...(speakerBbox ? { speakerBbox } : {}),
+            // Template-based rendering for youtube-clip scenes
+            ...(isYouTubeClip ? {
+              templateId: 'youtube-clip',
+              templateProps: {
+                clipUrl: '', // Filled by render.ts during export; preview uses videoUrl
+                frame: (scene as any).frameStyle || 'browser',
+                trimStartSeconds: sceneVideo?.trimStart ?? 0,
+                trimEndSeconds: sceneVideo?.trimEnd ?? 30,
+                backgroundColor: '#000000',
+                muted: false,
+                volume: 1,
+              },
+            } : {}),
+            // Video clip URLs for preview and export
+            ...(sceneVideo ? {
+              sourceVideoUrl: sceneVideo.sourceUrl,
+              videoUrl: sceneVideo.proxyUrl || '',
+              hasVideo: true,
+            } : {}),
           },
         });
       }
