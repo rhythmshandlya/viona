@@ -2869,7 +2869,17 @@ class ClaudeVisualGenerator:
         except Exception as e:
             return False, str(e)
 
-    def _validate_scene_plan(self, plan_data: dict, fps: int, total_frames: int) -> dict:
+    def _validate_scene_plan(
+        self,
+        plan_data: dict,
+        fps: int,
+        total_frames: int,
+        canvas_width: int = 1080,
+        canvas_height: int = 1920,
+        layout_mode: str = "pip",
+        pip_width: int | None = None,
+        pip_height: int | None = None,
+    ) -> dict:
         """Validate scenes.json constraints and auto-repair violations.
 
         Checks:
@@ -3100,6 +3110,26 @@ class ClaudeVisualGenerator:
                     f"Scene {scene['id']}: {last_gap} frames ({last_gap/fps:.1f}s) "
                     f"after last sync point. Scene end may feel stale."
                 )
+
+        # ── Enforce effectiveDimensions per scene ──
+        eff_pip_w = pip_width or canvas_width
+        eff_pip_h = pip_height or canvas_height
+
+        for scene in scenes:
+            dm = scene.get("displayMode", "default")
+            if dm in ("fullscreen", "overlay"):
+                correct = {"width": canvas_width, "height": canvas_height}
+            else:
+                correct = {"width": eff_pip_w, "height": eff_pip_h}
+            existing = scene.get("effectiveDimensions")
+            if existing != correct:
+                if existing:
+                    warnings.append(
+                        f"Scene {scene.get('id', '?')}: fixed effectiveDimensions "
+                        f"{existing} → {correct}"
+                    )
+                scene["effectiveDimensions"] = correct
+                repaired = True
 
         # ── Clean up internal fields and write back ──
         for scene in scenes:
@@ -4263,7 +4293,12 @@ Output PASS or FAIL with numbered issues.
             }
 
         # ── Programmatic scene constraint validation ──
-        validation = self._validate_scene_plan(plan_data, fps, duration_frames)
+        validation = self._validate_scene_plan(
+            plan_data, fps, duration_frames,
+            canvas_width=width, canvas_height=height,
+            layout_mode=layout_mode,
+            pip_width=pip_width, pip_height=pip_height,
+        )
 
         if validation["warnings"]:
             print(f"[ClaudeGenerator] Scene plan warnings ({len(validation['warnings'])}):")
@@ -4320,7 +4355,7 @@ Output PASS or FAIL with numbered issues.
         Returns:
             dict with success status
         """
-        from prompts.animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message, get_studio_section
+        from prompts.animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message, get_studio_section, get_youtube_clip_section
 
         print(f"[ClaudeGenerator] Phase 2: Animator implementing scenes...")
 
@@ -4328,9 +4363,21 @@ Output PASS or FAIL with numbered issues.
         remotion_libraries = get_remotion_libraries_guide()
         condensed_skills = get_condensed_skills()
 
+        # Check if any scene has type "youtube-clip" for conditional section
+        has_youtube_clip_scenes = False
+        scenes_path = self.src_dir / self.project_id / "scenes.json"
+        if scenes_path.exists():
+            try:
+                scenes_data = json.loads(scenes_path.read_text(encoding="utf-8"))
+                scenes_list = scenes_data.get("scenes", [])
+                has_youtube_clip_scenes = any(s.get("type") == "youtube-clip" for s in scenes_list)
+            except Exception as e:
+                print(f"[ClaudeGenerator] Warning: Failed to check scenes for youtube-clip type: {e}")
+
         # Build full system prompt with skills (+ studio design system only when studio preset)
         studio_section = get_studio_section(style_preset)
-        full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}"
+        youtube_clip_section = get_youtube_clip_section(has_youtube_clip_scenes)
+        full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}{studio_section}{youtube_clip_section}\n\n{remotion_libraries}\n\n{condensed_skills}"
 
         # Inject user-provided assets summary so the AI knows about them immediately
         user_assets_path = self.src_dir / "user_assets.json"
