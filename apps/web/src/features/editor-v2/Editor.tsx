@@ -621,6 +621,7 @@ export function Editor({ projectId }: EditorProps) {
                               muted: false,
                               volume: 1,
                             },
+                            sourceSceneId: 1, // Manual clips get scene 1; render uses this for clip path mapping
                             sourceVideoUrl: clip.sourceUrl,
                             videoUrl: clip.clipUrl,
                             hasVideo: true,
