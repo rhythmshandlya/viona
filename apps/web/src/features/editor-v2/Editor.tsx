@@ -43,6 +43,7 @@ import {
   useCaptionItems,
   useAIEditRequested,
   useEditorStore,
+  useIsDirty,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 import { api } from '@/lib/api';
@@ -142,6 +143,17 @@ export function Editor({ projectId }: EditorProps) {
       if (next && state.isPlaying) pause();
     }, [setInspectModeEnabled, pause]),
   });
+
+  // Warn before navigating away with unsaved changes
+  const isDirty = useIsDirty();
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   // Load project on mount
   useEffect(() => {
@@ -578,6 +590,39 @@ export function Editor({ projectId }: EditorProps) {
                       onEditWithAI={() => {
                         setLeftSidebarTab('agent');
                         useEditorStore.setState({ aiEditRequested: true });
+                      }}
+                      onYouTubeClipAdded={(clip) => {
+                        const state = useEditorStore.getState();
+                        const { tracks, fps: currentFps } = state;
+                        const visualTrack = tracks.find((t) => t.type === 'visual');
+                        if (!visualTrack) return;
+                        state.addItem(visualTrack.id, {
+                          type: 'visual',
+                          startMs: 0,
+                          endMs: clip.duration * 1000,
+                          data: {
+                            compositionId: `youtube-clip-${clip.clipId}`,
+                            bundleUrl: '',
+                            type: 'youtube-clip',
+                            description: clip.sourceTitle || 'YouTube Clip',
+                            width: 1920,
+                            height: 1080,
+                            fps: currentFps,
+                            templateId: 'youtube-clip',
+                            templateProps: {
+                              clipUrl: clip.clipUrl,
+                              frame: clip.frameStyle || 'browser',
+                              trimStartSeconds: clip.startSeconds,
+                              trimEndSeconds: clip.endSeconds,
+                              backgroundColor: '#000000',
+                              muted: false,
+                              volume: 1,
+                            },
+                            sourceVideoUrl: clip.sourceUrl,
+                            videoUrl: clip.clipUrl,
+                            hasVideo: true,
+                          },
+                        });
                       }}
                     />
                   )}
