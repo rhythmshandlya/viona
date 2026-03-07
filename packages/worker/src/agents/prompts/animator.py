@@ -5619,4 +5619,14 @@ Read 2-3 templates to absorb the Studio aesthetic, then build custom visuals fol
 3. List `src/{project_id}/components/` — available shared components
 {template_hint}
 Write your implementation to `src/{project_id}/scenes/Scene{scene_number}.tsx`.
+
+## QUALITY CHECK (before completing this scene)
+- [ ] All entrances combine opacity + at least one transform (scale, translateX, translateY)
+- [ ] Staggered elements use VARIED animation types (not all identical)
+- [ ] Spring configs match intent (bouncy for impact, smooth for reveal)
+- [ ] No emoji content, no placeholder SVG shapes
+- [ ] Glow/shadow intensifies at sync points (not constant)
+- [ ] Every sync point has a corresponding visual change
+- [ ] Uses `useScale()` for all pixel values, `FONT_PAIRS` for fonts (studio preset)
+- [ ] Studio background (THEME.background + DotGrid) present (non-overlay scenes)
 """
