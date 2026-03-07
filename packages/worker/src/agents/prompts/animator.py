@@ -52,11 +52,35 @@ Each template lives in `src/.templates/{{slug}}/` with:
 - `constants.ts` — BACKGROUNDS object + `getConstants()` for colors/fonts
 - `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
 
+### MANDATORY: Theme Immersion Before Implementation
+
+**Before writing ANY scene code, you MUST complete this step:**
+
+1. Read at least 3 different templates from `src/.templates/` (e.g., `stat-counter`, `quote-pulse`, `versus-screen`)
+2. Study how they use: DotGrid backgrounds, glass card containers, `useScale()`, `FONT_PAIRS`, spring configs, accent color transparency
+3. Write `constants.ts` using the STUDIO THEME COLORS below — NOT the Director's `colorPalette` field
+
+The Director's `colorPalette` in scenes.json is a **topic hint only**. Your constants.ts MUST use these exact studio theme values:
+```tsx
+export const THEME = {{{{
+  background: '{background}',
+  text: '{text}',
+  textMuted: '{textMuted}',
+  gridColor: '{gridColor}',
+  cardBg: '{cardBg}',
+  cardBorder: '{cardBorder}',
+  accent: '{accentDefault}',
+  secondary: '{secondaryDefault}',
+}}}};
+```
+
+If you skip this step, your scenes will look generic and off-brand. Templates show you **what good looks like** — the DotGrid, the glass cards, the spring entrances, the font system, the accent glow conventions. Internalize these patterns before you write a single line.
+
 ### Workflow
-1. Check `suggestedTemplates` in `scenes.json` for each scene
-2. Read template source — `src/.templates/{{slug}}/index.tsx` (and `components/`)
-3. Copy into Scene file — paste relevant code into `scenes/SceneN.tsx`
-4. Adapt — swap data, adjust timing, use the theme colors below
+1. **Read 3+ templates** to absorb the studio design language (MANDATORY — see above)
+2. Check `suggestedTemplates` in `scenes.json` for each scene
+3. Read suggested template source — `src/.templates/{{slug}}/index.tsx` (and `components/`)
+4. Implement scene — use template patterns (DotGrid, cards, springs, fonts) whether copying or going custom
 5. When adapting template code, use **`BACKGROUNDS.{variant}`** for theme colors
 
 ### ACTIVE THEME: {variant_label}
@@ -104,9 +128,19 @@ Available pairs:
 | elegantEditorial | Playfair Display | Lato |
 | friendlyTech | Poppins | Inter |
 
-### DOT GRID BACKGROUND (include in every non-overlay scene)
+### DOT GRID BACKGROUND (MANDATORY in every non-overlay scene)
+
+**Every scene with `displayMode: "default"` or `displayMode: "fullscreen"` MUST have:**
+1. A solid background fill using `THEME.background` (`{background}`)
+2. The DotGrid overlay on top
+
+Scenes with `displayMode: "overlay"` skip the background (they render over video).
 
 ```tsx
+// MANDATORY: Add this to every non-overlay scene
+<div style={{{{{{ position: 'absolute', inset: 0, background: '{background}' }}}}}} />
+<DotGrid color="{gridColor}" s={{{{s}}}} />
+
 const DotGrid: React.FC<{{{{ color: string; s: (px: number) => number }}}}> = ({{{{ color, s }}}}) => (
   <svg width="100%" height="100%" style={{{{{{ position: 'absolute', inset: 0, pointerEvents: 'none' }}}}}}>
     <defs>
@@ -117,8 +151,59 @@ const DotGrid: React.FC<{{{{ color: string; s: (px: number) => number }}}}> = ({
     <rect width="100%" height="100%" fill="url(#dot-grid)" />
   </svg>
 );
-// Usage: <DotGrid color="{gridColor}" s={{{{s}}}} />
 ```
+
+**A scene without the studio background (`{background}` + DotGrid) is BROKEN.** Do not skip this.
+
+### ANIMATION QUALITY STANDARDS (MANDATORY)
+
+These 8 rules separate professional motion design from AI slop. Violating any rule = revision.
+
+**RULE 1: Combine opacity + scale + slide (NEVER animate one dimension alone)**
+WRONG:
+```tsx
+style={{{{{{ opacity: fadeIn }}}}}}
+```
+RIGHT:
+```tsx
+style={{{{{{ opacity: fadeIn, transform: `scale(${{{{popScale}}}}) translateY(${{{{slideY}}}}px)` }}}}}}
+```
+
+**RULE 2: Vary animation types across staggered elements**
+WRONG: all items use identical `spring()` + opacity with only delay offset.
+RIGHT: item 0 pops with snappy spring, item 1 slides from left, item 2 scales up from below. Each element has its own animation character.
+
+**RULE 3: Spring config MUST match animation intent**
+- Impact/pop: `{{{{ damping: 10, stiffness: 200, mass: 1.4 }}}}` — bouncy overshoot
+- Smooth settle: `{{{{ damping: 26, stiffness: 120, mass: 1.0 }}}}` — no overshoot
+- Connecting lines/paths: use `Easing.out(Easing.cubic)` not springs
+- WRONG: every animation uses the same spring config
+
+**RULE 4: No emoji as content**
+Emoji (e.g. stars, icons, symbols) is placeholder thinking. Use custom SVG `<path>` elements or fetch professional icons via MCP icon tools.
+
+**RULE 5: No placeholder SVG shapes**
+WRONG:
+```tsx
+<ellipse cx={{{{50}}}} cy={{{{50}}}} rx={{{{40}}}} ry={{{{40}}}} fill="blue" />
+```
+RIGHT: Use detailed `<path d="...">` with curves, or use Iconify/Freepik MCP tools for professional icons. Simple geometric primitives without detail look AI-generated.
+
+**RULE 6: Glow/shadow intensity must match narrative moments**
+Glow should INTENSIFY at key sync points, not remain constant.
+```tsx
+textShadow: `0 0 ${{{{s(glowRadius)}}}}px ${{{{accentColor}}}}88, 0 0 ${{{{s(glowRadius * 2)}}}}px ${{{{accentColor}}}}44, 0 0 ${{{{s(glowRadius * 3)}}}}px ${{{{accentColor}}}}22`
+```
+Use 3 layered opacity tiers (88/44/22) for depth. Animate `glowRadius` to peak at sync points.
+
+**RULE 7: Gradient direction must encode meaning**
+- `90deg` = progression/timeline
+- `135deg` = emphasis/growth
+- `radial-gradient` = energy radiating from a point
+- Never use arbitrary angles. The direction must reinforce the visual narrative.
+
+**RULE 8: Every visual moment must connect to narration**
+Map each narration phrase to a specific visual change. Pause test: at any random frame, the viewer should understand what is being said from the visuals alone.
 
 ### CARD CONTAINERS
 
@@ -276,8 +361,8 @@ YOUTUBE_CLIP_SCENE_SECTION = """
 ## YOUTUBE CLIP SCENES (type: "youtube-clip")
 
 When a scene has `type: "youtube-clip"` in scenes.json, the ENTIRE scene is a YouTube video
-displayed with a decorative frame overlay. DO NOT create custom animations — use the
-youtube-clip template instead.
+displayed with a themed frame. DO NOT create custom animations — just render the video
+inside a frame that matches the studio theme.
 
 ### How to identify youtube-clip scenes:
 Check scenes.json for:
@@ -285,48 +370,45 @@ Check scenes.json for:
 {
   "id": 4,
   "type": "youtube-clip",
-  "videoSearch": "AI code assistant demo",
-  "frameStyle": "browser"
+  "videoSearch": "AI code assistant demo"
 }
 ```
 
 ### Implementation for youtube-clip scenes:
-
-**Step 1:** Import the YouTube clip template
-```tsx
-import YouTubeClip from '@viona/templates/youtube-clip';
-```
-
-**Step 2:** Create a simple scene that renders the template
 
 IMPORTANT: The scene must accept `videoClips` from inputProps for preview playback.
 During preview, the frontend passes `{ videoClips: { "4": "http://..." } }` with streaming URLs.
 During export, render.ts downloads clips and passes local paths.
 Special value `__loading__` means the video URL is being fetched - show a loading state.
 
+**Frame styling:** Use the studio theme's card styling for the frame around the video —
+`COLORS.cardBg` as background, `1px solid COLORS.cardBorder` border, `32px` border radius,
+`backdrop-filter: blur(20px)`, and a subtle box shadow. This keeps the clip visually
+consistent with all other cards and containers in the composition.
+
+**NEVER use device mockup frames** (browser windows, phone bezels, laptop screens, polaroid,
+film strips). Always use the studio theme's glassmorphic card style.
+
 ```tsx
 // scenes/Scene4.tsx - YouTube Clip Scene
 import React from 'react';
-import { AbsoluteFill, Video, staticFile, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Video, staticFile } from 'remotion';
+import { COLORS } from '../constants';
 
-// Frame constants from constants.ts
-const EW = 1080;  // Effective width
-const EH = 960;   // Effective height
+const EW = 1080;
+const EH = 960;
 
-// CRITICAL: Accept videoClips from inputProps
 interface Scene4Props {
-  videoClips?: Record<string, string>;  // sceneId → video URL
+  videoClips?: Record<string, string>;
 }
 
 export const Scene4: React.FC<Scene4Props> = ({ videoClips }) => {
   const clipUrl = videoClips?.['4'];
-  // During preview: use inputProps URL. During export: use staticFile.
-  // '__loading__' means still fetching - don't render video yet
   const isLoading = clipUrl === '__loading__';
   const videoSrc = clipUrl && !isLoading ? clipUrl : staticFile('assets/clips/scene4-youtube-clip.mp4');
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#1a1a2e' }}> {/* Background can be creative */}
+    <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
       <div style={{
         width: '100%',
         height: '100%',
@@ -334,42 +416,23 @@ export const Scene4: React.FC<Scene4Props> = ({ videoClips }) => {
         alignItems: 'center',
         justifyContent: 'center',
       }}>
-        {/* Browser frame mockup */}
+        {/* Themed glassmorphic frame */}
         <div style={{
           width: EW * 0.85,
-          backgroundColor: '#2a2a2a',
-          borderRadius: 12,
+          background: COLORS.cardBg,
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: `1px solid ${COLORS.cardBorder}`,
+          borderRadius: 32,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
           overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          padding: 8,
         }}>
-          {/* Browser toolbar */}
-          <div style={{
-            height: 40,
-            backgroundColor: '#3a3a3a',
-            display: 'flex',
-            alignItems: 'center',
-            padding: '0 12px',
-            gap: 8,
-          }}>
-            <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#ff5f57' }} />
-            <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#febc2e' }} />
-            <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#28c840' }} />
-            <div style={{
-              flex: 1,
-              height: 24,
-              backgroundColor: '#1a1a1a',
-              borderRadius: 4,
-              marginLeft: 20,
-            }} />
-          </div>
-          {/* Video content area */}
           <div style={{
             width: '100%',
             aspectRatio: '16/9',
-            backgroundColor: '#000',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            borderRadius: 24,
+            overflow: 'hidden',
           }}>
             <Video
               src={videoSrc}
@@ -384,17 +447,6 @@ export const Scene4: React.FC<Scene4Props> = ({ videoClips }) => {
 };
 ```
 
-### Frame style implementations:
-
-| frameStyle | Visual |
-|------------|--------|
-| `"browser"` | Chrome-style window with traffic lights, URL bar |
-| `"laptop"` | MacBook display with base |
-| `"phone"` | iPhone mockup with notch, rounded corners |
-| `"polaroid"` | Instant film with white border, slight rotation |
-| `"film"` | 35mm strip with sprocket holes |
-| `"none"` | Clean fullscreen video, no frame |
-
 ### Critical rules for youtube-clip scenes:
 1. **Accept videoClips prop** — scene must receive `videoClips?: Record<string, string>` from inputProps
 2. **Handle loading state** — check for `'__loading__'` value before using the URL:
@@ -404,21 +456,21 @@ export const Scene4: React.FC<Scene4Props> = ({ videoClips }) => {
    const videoSrc = clipUrl && !isLoading ? clipUrl : staticFile('assets/clips/sceneN-youtube-clip.mp4');
    ```
 3. **Always muted** — add `muted` prop to `<Video>` — only speaker audio should play
-4. **Minimal code** — just frame + video placeholder
-5. **No animations** — the video content IS the animation
-6. **Creative backgrounds** — match the video style, can be colorful, gradient, animated, etc.
-7. **Center the frame** — use flexbox to center the device mockup
+4. **Use studio theme frame** — use COLORS.cardBg, COLORS.cardBorder, 32px radius, blur(20px)
+5. **Minimal code** — just themed frame + video
+6. **No device mockups** — no browser, phone, laptop, polaroid, or film frames
+7. **Center the frame** — use flexbox to center
 
 ### DO for youtube-clip scenes:
-- Simple device frame mockup
+- Studio theme glassmorphic card frame
 - Subtle shadow and rounded corners
 - Center alignment
 
 ### DON'T for youtube-clip scenes:
+- Device mockup frames (browser, phone, laptop, polaroid, film)
 - Complex animations or transitions
 - Multiple visual elements
 - Text overlays (unless specified in visual description)
-- Custom backgrounds behind the frame
 </youtube_clip_scenes>
 """
 
@@ -2022,22 +2074,33 @@ looks like this:
 ```json
 {
   "speakerGrid": {
-    "grid": [[0,0,0,0,1,1],[0,0,0,1,1,1],[0,0,0,1,1,1],[0,0,0,1,1,1],[0,0,0,0,1,1],[0,0,0,0,0,0]],
-    "occupancy": "33%",
+    "grid": [
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0],
+      "... (24 rows x 24 cols — each cell ≈ 4% of each axis) ..."
+    ],
+    "occupancy": "18%",
     "safePlacement": ["top-left","bottom-left","top","bottom","left"]
   }
 }
 ```
 
-- `grid`: 6x6 matrix — 1 = speaker present, 0 = safe zone
+- `grid`: 24x24 matrix — 1 = speaker present, 0 = safe zone. Each cell covers ~4% of each axis.
 - `safePlacement`: array of safe regions — place ALL content within these regions
 - `occupancy`: percentage of cells occupied by speaker
 
-**How to use safePlacement:**
-- If safePlacement includes `"left"` → position content on the left side of the canvas
-- If safePlacement includes `"top-left"` and `"bottom-left"` → use the full left column
-- If safePlacement includes `"top"` → top strip is safe for banners/titles
-- Leave a 1-cell buffer around occupied cells for breathing room
+**How to use the grid for pixel-precise placement:**
+The 24x24 grid maps directly to canvas coordinates. For a 1080x1920 canvas:
+- Each cell = 45px wide × 80px tall
+- Cell [row][col] covers: x = col × (canvasWidth/24), y = row × (canvasHeight/24)
+- To place an element: find a contiguous rectangle of 0-cells large enough, convert to pixel position
+- Leave a 1-cell buffer around occupied cells (1 cells) for breathing room
+
+**How to use safePlacement (quick reference):**
+- `"left"` → left ~17% of canvas is clear
+- `"top-left"` / `"bottom-left"` → that quadrant is clear
+- `"top"` → top ~17% strip is clear for banners/titles
+- Use the raw grid for precise positioning when safePlacement regions are too coarse
 
 **Fallback:** If `speakerGrid` is missing from scenes.json, call `mcp__assets__get_speaker_grid`
 with the scene's startMs and endMs. If that also fails, design centered with generous margins.
@@ -2878,20 +2941,29 @@ You are working with the **Studio** style preset. A library of 60 pre-built temp
 is available in `src/.templates/`. These are **source code you own** (shadcn model) —
 copy, modify, and combine freely.
 
+### MANDATORY: Theme Immersion Before Implementation
+
+**Before writing ANY scene code, you MUST:**
+
+1. **Read at least 3 templates** from `src/.templates/` (e.g., `stat-counter`, `quote-pulse`, `versus-screen`)
+2. **Study how they use:** DotGrid backgrounds, glass card containers, `useScale()`, `FONT_PAIRS`, spring configs, accent color transparency
+3. **Write `constants.ts` using STUDIO THEME COLORS** — NOT the Director's `colorPalette`
+
+The Director's `colorPalette` in scenes.json is a topic hint only. Your constants.ts MUST use the studio theme values from the design system section above. If you skip this step, your scenes will look generic and off-brand.
+
 ### How to use templates:
-1. **Check `suggestedTemplates`** in `scenes.json` — the Director already picked the
-   best-matching templates for each scene
-2. **Read the template source** from `src/.templates/{slug}/` — especially `index.tsx`
+1. **Read 3+ templates** to absorb studio design language (MANDATORY)
+2. **Check `suggestedTemplates`** in `scenes.json` — the Director picked matching templates
+3. **Read the template source** from `src/.templates/{slug}/` — especially `index.tsx`
    and any files in `components/`
-3. **Copy into your Scene file** — paste the relevant code into `scenes/SceneN.tsx`
-4. **Customize** — swap data, adjust timing to your frame range, update colors to match
-   the Director's palette, copy sub-components you need
+4. **Implement scene** — use template patterns (DotGrid, cards, springs, fonts) whether copying or going custom
+5. **Customize** — swap data, adjust timing to your frame range, use studio theme colors
 
 ### When to use vs. when to go custom:
 - **Use a template** when the `suggestedTemplates` entry is a 60%+ visual match —
   adapting existing code is faster and more consistent
-- **Go custom** when nothing in `suggestedTemplates` fits — but even then, **read 2-3
-  templates first** to absorb the Studio theme (DotGrid, cards, springs, color palette)
+- **Go custom** when nothing in `suggestedTemplates` fits — but even then, you already
+  read 3+ templates in step 1, so apply those patterns (DotGrid, cards, springs, fonts)
 
 Templates are a starting point, not a constraint. Rename variables, merge pieces from
 multiple templates, delete what you don't need, add new elements.
@@ -4937,22 +5009,33 @@ looks like this:
 ```json
 {
   "speakerGrid": {
-    "grid": [[0,0,0,0,1,1],[0,0,0,1,1,1],[0,0,0,1,1,1],[0,0,0,1,1,1],[0,0,0,0,1,1],[0,0,0,0,0,0]],
-    "occupancy": "33%",
+    "grid": [
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0],
+      [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0],
+      "... (24 rows x 24 cols — each cell ≈ 4% of each axis) ..."
+    ],
+    "occupancy": "18%",
     "safePlacement": ["top-left","bottom-left","top","bottom","left"]
   }
 }
 ```
 
-- `grid`: 6x6 matrix — 1 = speaker present, 0 = safe zone
+- `grid`: 24x24 matrix — 1 = speaker present, 0 = safe zone. Each cell covers ~4% of each axis.
 - `safePlacement`: array of safe regions — place ALL content within these regions
 - `occupancy`: percentage of cells occupied by speaker
 
-**How to use safePlacement:**
-- If safePlacement includes `"left"` -> position content on the left side of the canvas
-- If safePlacement includes `"top-left"` and `"bottom-left"` -> use the full left column
-- If safePlacement includes `"top"` -> top strip is safe for banners/titles
-- Leave a 1-cell buffer around occupied cells for breathing room
+**How to use the grid for pixel-precise placement:**
+The 24x24 grid maps directly to canvas coordinates. For a 1080x1920 canvas:
+- Each cell = 45px wide × 80px tall
+- Cell [row][col] covers: x = col × (canvasWidth/24), y = row × (canvasHeight/24)
+- To place an element: find a contiguous rectangle of 0-cells large enough, convert to pixel position
+- Leave a 1-cell buffer around occupied cells (1 cells) for breathing room
+
+**How to use safePlacement (quick reference):**
+- `"left"` → left ~17% of canvas is clear
+- `"top-left"` / `"bottom-left"` → that quadrant is clear
+- `"top"` → top ~17% strip is clear for banners/titles
+- Use the raw grid for precise positioning when safePlacement regions are too coarse
 
 **Fallback:** If `speakerGrid` is missing from scenes.json, call `mcp__assets__get_speaker_grid`
 with the scene's startMs and endMs. If that also fails, design centered with generous margins.
@@ -5172,9 +5255,11 @@ Output EXACTLY one of:
 7. **Prohibited patterns**: No empty frames, no decorative-only visuals without Layer 1 content, no pulsing circles without labels, no CSS animation property
 8. **Asset usage**: Icons from Freepik (not emoji/text substitutes)? Images wrapped in AnimatedImage?
 9. **Display-mode rules**:
-   - Overlay: No Background component, no backgroundColor, positions avoid speaker area
+   - Overlay: No Background component, no backgroundColor, positions avoid speaker area, ALL elements at opacity 1.0 at rest (no ghosting)
    - Fullscreen: Has immersive background, uses full canvas
    - Default: Uses effective dimensions, relative sizing
+10. **Overlay placement** (overlay scenes only): If scene data has `speakerGrid`, verify that absolute-positioned elements (left/top values) fall within safe zones (grid cells with value 0). Elements must NOT overlap occupied cells (value 1). Each cell = canvasWidth/24 × canvasHeight/24 pixels.
+11. **Overlay opacity** (overlay scenes only): No element should have opacity < 1.0 at its resting state. Fade-in animations (0→1) are fine, but the final state must be 1.0. Patterns like `opacity: progress * 0.6` are WRONG.
 
 ## OUTPUT FORMAT — CRITICAL
 Your FINAL text output MUST be ONLY one of the two formats below. Do NOT include analysis, checklists, or explanations — ONLY the verdict.
