@@ -205,6 +205,62 @@ Use 3 layered opacity tiers (88/44/22) for depth. Animate `glowRadius` to peak a
 **RULE 8: Every visual moment must connect to narration**
 Map each narration phrase to a specific visual change. Pause test: at any random frame, the viewer should understand what is being said from the visuals alone.
 
+### VISUAL CONTENT HIERARCHY (MANDATORY)
+
+Every scene MUST have three layers. A scene with only text is BROKEN.
+
+**Layer 1 — PRIMARY CONTENT (60% visual weight):**
+The core idea as a VISUAL, not just text. Map concept → template:
+| Concept | Use | Not |
+|---------|-----|-----|
+| Number/stat | stat-counter, animated counter | Plain text "10,000+" |
+| Comparison | versus-screen, split layout with metrics | Two text labels |
+| Before/After | before-after-reveal, divider wipe | Side-by-side text |
+| Process/Steps | process-flow, connecting nodes | Numbered text list |
+| Data trend | stat-bar-chart, stat-line-chart | Descriptive paragraph |
+| Feature list | bullet-stack with icons | Plain bullet points |
+| Quote/Hook | quote-pulse, large typography + accent | Small centered text |
+
+**Layer 2 — SUPPORTING GRAPHICS (30% visual weight):**
+Labels, icons, arrows that annotate Layer 1. Rules:
+- Icons MUST be paired with text labels (never standalone decorative icons)
+- Diagrams MUST have labels on arrows/zones/connections
+- Use Freepik/Iconify MCP for icons — never bare emoji or crude SVG shapes
+
+**Layer 3 — AMBIENT ATMOSPHERE (10% visual weight, opacity ≤ 15%):**
+Subtle depth: DotGrid, particle flow, glow intensification at sync points.
+Direction must match narrative (upward particles = growth, lateral = progression).
+
+### SYNC COVERAGE (MANDATORY)
+
+Every 3-5 seconds of narration MUST have a visual CHANGE (not just animation continuation).
+
+Plan your scene timeline BEFORE coding:
+- Frame 0-30: Setup (title, initial composition)
+- Every 60-90 frames: New visual event (icon enters, metric appears, diagram evolves)
+- keySync frame: MAJOR transformation (multiple elements change simultaneously)
+- Last 30 frames: Settle (no new content, subtle ambient only)
+
+A sync point is NOT just an opacity change. It must introduce new CONTENT:
+new element, new label, color shift, diagram evolution, metric update.
+
+### WHAT NOT TO BUILD (ANTI-PATTERNS)
+
+**Text-Only Scene:** If your scene is just typography fading in, it's broken.
+Add a visual metaphor — a diagram, chart, icon set, or comparison layout.
+
+**Decorative Icons:** An icon that bounces/pulses but has no label = decoration.
+Every icon needs a text label explaining what it represents.
+
+**Empty Frames:** If narrator speaks for 5+ seconds with a static visual, it's broken.
+Add intermediate visual events every 3-5 seconds.
+
+**Raw Shapes as Concepts:** Drawing circles/rectangles to represent complex ideas = lazy.
+Use template component structures (stat-counter, process-flow, versus-screen).
+
+**Over-Animated Text:** Text bouncing with 3 springs, rotating, with particle emitter = slop.
+Text gets simple fade+scale. Save dramatic animation for GRAPHICS.
+
 ### CARD CONTAINERS
 
 Glass card (default):
@@ -1877,6 +1933,15 @@ These patterns make animations look cheap and AI-generated. NEVER use them:
 - **Constant glow/shadow**. Tie intensity to sync points; use 3-layer alpha progression (88/44/22).
 - **Random gradient angles**. Direction must encode meaning (90°=progression, radial=energy).
 - **Visual filler unrelated to narration**. Every animation must connect to what's being said.
+
+### VISUAL CONTENT RULES
+
+- **Text-only scenes are BROKEN.** Every scene needs graphics: diagrams, charts, icons with labels, comparison layouts, or data visualizations. Text alone = slide deck, not motion design.
+- **Map concept → template structure:** stat → stat-counter, comparison → versus-screen/split layout, process → process-flow/nodes, data → bar-chart/line-chart. Don't reinvent what templates already solve.
+- **Icons MUST have text labels.** A pulsing icon without a label is decoration. Every icon needs a label below it explaining what it represents.
+- **Visual changes every 3-5 seconds.** If narrator speaks for 5+ seconds with a static visual, add intermediate events (new icon, metric update, diagram evolution, color shift).
+- **3-layer composition:** Layer 1 (60%) = primary content (charts, diagrams, metrics). Layer 2 (30%) = supporting labels, icons, annotations. Layer 3 (10%, opacity ≤ 15%) = ambient atmosphere (DotGrid, particles, glow).
+- **Save dramatic animation for graphics, not text.** Text gets simple fade+scale. Charts, icons, and diagrams get springs, reveals, and choreography.
 
 ### GUARDRAILS
 
@@ -4214,6 +4279,15 @@ These patterns make animations look cheap and AI-generated. NEVER use them:
 - **Constant glow/shadow**. Tie intensity to sync points; use 3-layer alpha progression (88/44/22).
 - **Random gradient angles**. Direction must encode meaning (90°=progression, radial=energy).
 - **Visual filler unrelated to narration**. Every animation must connect to what's being said.
+
+### VISUAL CONTENT RULES
+
+- **Text-only scenes are BROKEN.** Every scene needs graphics: diagrams, charts, icons with labels, comparison layouts, or data visualizations. Text alone = slide deck, not motion design.
+- **Map concept → template structure:** stat → stat-counter, comparison → versus-screen/split layout, process → process-flow/nodes, data → bar-chart/line-chart. Don't reinvent what templates already solve.
+- **Icons MUST have text labels.** A pulsing icon without a label is decoration. Every icon needs a label below it explaining what it represents.
+- **Visual changes every 3-5 seconds.** If narrator speaks for 5+ seconds with a static visual, add intermediate events (new icon, metric update, diagram evolution, color shift).
+- **3-layer composition:** Layer 1 (60%) = primary content (charts, diagrams, metrics). Layer 2 (30%) = supporting labels, icons, annotations. Layer 3 (10%, opacity ≤ 15%) = ambient atmosphere (DotGrid, particles, glow).
+- **Save dramatic animation for graphics, not text.** Text gets simple fade+scale. Charts, icons, and diagrams get springs, reveals, and choreography.
 
 ### GUARDRAILS
 
