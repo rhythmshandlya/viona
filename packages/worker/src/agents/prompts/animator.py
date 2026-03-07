@@ -1866,6 +1866,18 @@ Presets: `"photo-ken-burns"` | `"photo-zoom"` | `"photo-blur-reveal"` | `"photo-
 - Custom spring configs per-element beyond what the wrapper exposes
 - Data visualizations (counters, charts) — these are NOT asset animations
 
+### ANIMATION QUALITY (ANTI-SLOP)
+
+These patterns make animations look cheap and AI-generated. NEVER use them:
+- **Single-dimension animation** (opacity-only fade). ALWAYS combine opacity + scale + slide.
+- **Cloned stagger** (same animation type with different delays). VARY animation types per element.
+- **Same spring config everywhere**. Match spring to intent: bouncy for impact, smooth for reveals.
+- **Emoji as content**. Use SVG paths or MCP icon tools instead.
+- **Placeholder SVG shapes** (bare ellipse/rect). Use custom paths or professional icons.
+- **Constant glow/shadow**. Tie intensity to sync points; use 3-layer alpha progression (88/44/22).
+- **Random gradient angles**. Direction must encode meaning (90°=progression, radial=energy).
+- **Visual filler unrelated to narration**. Every animation must connect to what's being said.
+
 ### GUARDRAILS
 
 - **ASSET BUDGET**: 1-3 icons per scene, 0-1 illustration per scene. Don't clutter.
@@ -4190,6 +4202,18 @@ Presets: `"photo-ken-burns"` | `"photo-zoom"` | `"photo-blur-reveal"` | `"photo-
 - Complex choreography where assets interact with each other
 - Custom spring configs per-element beyond what the wrapper exposes
 - Data visualizations (counters, charts) — these are NOT asset animations
+
+### ANIMATION QUALITY (ANTI-SLOP)
+
+These patterns make animations look cheap and AI-generated. NEVER use them:
+- **Single-dimension animation** (opacity-only fade). ALWAYS combine opacity + scale + slide.
+- **Cloned stagger** (same animation type with different delays). VARY animation types per element.
+- **Same spring config everywhere**. Match spring to intent: bouncy for impact, smooth for reveals.
+- **Emoji as content**. Use SVG paths or MCP icon tools instead.
+- **Placeholder SVG shapes** (bare ellipse/rect). Use custom paths or professional icons.
+- **Constant glow/shadow**. Tie intensity to sync points; use 3-layer alpha progression (88/44/22).
+- **Random gradient angles**. Direction must encode meaning (90°=progression, radial=energy).
+- **Visual filler unrelated to narration**. Every animation must connect to what's being said.
 
 ### GUARDRAILS
 
