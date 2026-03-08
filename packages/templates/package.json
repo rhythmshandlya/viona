@@ -18,10 +18,12 @@
   },
   "dependencies": {
     "@remotion/google-fonts": "4.0.422",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "remotion": "4.0.422",
     "zod": "^3.22.4"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18",
+    "remotion": ">=4"
   },
   "devDependencies": {
     "@types/node": "^20.10.6",

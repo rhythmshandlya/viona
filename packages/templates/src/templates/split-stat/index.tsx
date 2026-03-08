@@ -6,6 +6,7 @@ import {
   interpolate,
   Easing,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants } from './constants';
 import type { SplitStatProps } from './schema';
 
@@ -23,8 +24,9 @@ const DotGrid: React.FC<{ color: string; size: number }> = ({
   color,
   size,
 }) => {
-  const spacing = 28;
-  const dotR = 2;
+  const s = useScale();
+  const spacing = s(28);
+  const dotR = s(2);
   const cols = Math.ceil(size / spacing) + 1;
   const rows = Math.ceil(size / spacing) + 1;
 
@@ -60,7 +62,8 @@ const DotGrid: React.FC<{ color: string; size: number }> = ({
 const SplitStat: React.FC<SplitStatProps> = (props) => {
   const { COLORS, FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
+  const { durationInFrames, width, height } = useVideoConfig();
+  const s = useScale();
 
   const maxValue = Math.max(props.leftValue, props.rightValue, 1);
 
@@ -68,15 +71,15 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
 
   // Background fade in: 0-15
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Title fade in: 10-25
   const titleOpacity = interpolate(frame, [10, 25], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const titleY = interpolate(frame, [10, 25], [-20, 0], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
     easing: Easing.out(Easing.cubic),
   });
 
@@ -147,9 +150,9 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
 
   /* ── Render ────────────────────────────────────────────────────── */
 
-  const panelWidth = 490;
-  const barMaxWidth = 380;
-  const barHeight = 64;
+  const panelWidth = s(490);
+  const barMaxWidth = s(380);
+  const barHeight = s(64);
 
   return (
     <AbsoluteFill
@@ -161,14 +164,14 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
     >
       {/* Dot grid background */}
       <div style={{ opacity: bgOpacity * 0.8, position: 'absolute', inset: 0 }}>
-        <DotGrid color={COLORS.dotColor} size={1080} />
+        <DotGrid color={COLORS.dotColor} size={width} />
       </div>
 
       {/* Title */}
       <div
         style={{
           position: 'absolute',
-          top: 90,
+          top: s(90),
           left: 0,
           right: 0,
           textAlign: 'center',
@@ -179,10 +182,10 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 56,
+            fontSize: s(56),
             fontWeight: 700,
             color: COLORS.text,
-            letterSpacing: 3,
+            letterSpacing: s(3),
             textTransform: 'uppercase',
           }}
         >
@@ -195,7 +198,7 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         style={{
           position: 'absolute',
           left: '50%',
-          top: 200,
+          top: s(200),
           transform: 'translateX(-50%)',
           display: 'flex',
           flexDirection: 'column',
@@ -206,8 +209,8 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         {/* Divider line */}
         <div
           style={{
-            width: 2,
-            height: 680 * dividerProgress,
+            width: s(2),
+            height: s(680) * dividerProgress,
             background: `linear-gradient(to bottom, transparent, ${COLORS.dividerLine} 10%, ${COLORS.dividerLine} 90%, transparent)`,
             position: 'absolute',
             top: 0,
@@ -218,7 +221,7 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         <div
           style={{
             position: 'absolute',
-            top: 280,
+            top: s(280),
             opacity: vsOpacity,
             transform: `scale(${vsScale})`,
             display: 'flex',
@@ -228,11 +231,11 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         >
           <div
             style={{
-              width: 80,
-              height: 80,
+              width: s(80),
+              height: s(80),
               borderRadius: '50%',
               backgroundColor: COLORS.background,
-              border: `2px solid ${COLORS.dividerLine}`,
+              border: `${s(2)}px solid ${COLORS.dividerLine}`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -241,10 +244,10 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 30,
+                fontSize: s(30),
                 fontWeight: 700,
                 color: COLORS.subtleText,
-                letterSpacing: 2,
+                letterSpacing: s(2),
               }}
             >
               {props.dividerText}
@@ -259,8 +262,8 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
           position: 'absolute',
           left: 0,
           top: 0,
-          width: 540,
-          height: 1080,
+          width: width / 2,
+          height,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -274,10 +277,10 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
             position: 'relative',
             width: panelWidth,
             height: barHeight,
-            borderRadius: 12,
+            borderRadius: s(12),
             overflow: 'hidden',
             backgroundColor: `${props.leftColor}15`,
-            marginBottom: 24,
+            marginBottom: s(24),
           }}
         >
           <div
@@ -288,7 +291,7 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
               height: '100%',
               width: `${leftBarWidth * 100}%`,
               maxWidth: barMaxWidth,
-              borderRadius: 12,
+              borderRadius: s(12),
               background: `linear-gradient(90deg, ${props.leftColor}40, ${props.leftColor}90)`,
             }}
           />
@@ -298,11 +301,11 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 120,
+            fontSize: s(120),
             fontWeight: 700,
             color: props.leftColor,
             lineHeight: 1,
-            letterSpacing: -2,
+            letterSpacing: s(-2),
           }}
         >
           {props.prefix}
@@ -313,7 +316,7 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         {/* Label */}
         <div
           style={{
-            marginTop: 28,
+            marginTop: s(28),
             opacity: labelOpacity,
             transform: `translateY(${labelY}px)`,
           }}
@@ -321,10 +324,10 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 36,
+              fontSize: s(36),
               fontWeight: 500,
               color: COLORS.subtleText,
-              letterSpacing: 4,
+              letterSpacing: s(4),
               textTransform: 'uppercase',
             }}
           >
@@ -339,8 +342,8 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
           position: 'absolute',
           right: 0,
           top: 0,
-          width: 540,
-          height: 1080,
+          width: width / 2,
+          height,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -354,10 +357,10 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
             position: 'relative',
             width: panelWidth,
             height: barHeight,
-            borderRadius: 12,
+            borderRadius: s(12),
             overflow: 'hidden',
             backgroundColor: `${props.rightColor}15`,
-            marginBottom: 24,
+            marginBottom: s(24),
           }}
         >
           <div
@@ -368,7 +371,7 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
               height: '100%',
               width: `${rightBarWidth * 100}%`,
               maxWidth: barMaxWidth,
-              borderRadius: 12,
+              borderRadius: s(12),
               background: `linear-gradient(270deg, ${props.rightColor}40, ${props.rightColor}90)`,
             }}
           />
@@ -378,11 +381,11 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 120,
+            fontSize: s(120),
             fontWeight: 700,
             color: props.rightColor,
             lineHeight: 1,
-            letterSpacing: -2,
+            letterSpacing: s(-2),
           }}
         >
           {props.prefix}
@@ -393,7 +396,7 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
         {/* Label */}
         <div
           style={{
-            marginTop: 28,
+            marginTop: s(28),
             opacity: labelOpacity,
             transform: `translateY(${labelY}px)`,
           }}
@@ -401,10 +404,10 @@ const SplitStat: React.FC<SplitStatProps> = (props) => {
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 36,
+              fontSize: s(36),
               fontWeight: 500,
               color: COLORS.subtleText,
-              letterSpacing: 4,
+              letterSpacing: s(4),
               textTransform: 'uppercase',
             }}
           >

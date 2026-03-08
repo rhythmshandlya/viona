@@ -115,7 +115,7 @@ MOCK_SCENES = [
     {
         "id": 1,
         "title": "Introduction",
-        "displayMode": "pip",
+        "displayMode": "default",
         "effectiveDimensions": {"width": 1080, "height": 960},
         "transition": {"enter": {"type": "cut", "durationMs": 0}, "exit": {"type": "fade", "durationMs": 300}},
     },
@@ -174,8 +174,8 @@ async def test_get_scene_dimensions_all(client: McpStdioClient):
     assert data["totalScenes"] == 3, f"Expected 3 scenes, got {data['totalScenes']}"
     scenes = data["scenes"]
 
-    # Scene 1: pip, 1080x960
-    assert scenes[0]["displayMode"] == "pip"
+    # Scene 1: default, 1080x960
+    assert scenes[0]["displayMode"] == "default"
     assert scenes[0]["effectiveWidth"] == 1080
     assert scenes[0]["effectiveHeight"] == 960
     assert "aspectRatio" in scenes[0]

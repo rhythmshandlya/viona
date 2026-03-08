@@ -6,33 +6,38 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { KeywordPopProps } from './schema';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern
-        id="kp-dot-grid"
-        width="32"
-        height="32"
-        patternUnits="userSpaceOnUse"
-      >
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#kp-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern
+          id="kp-dot-grid"
+          width={s(32)}
+          height={s(32)}
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#kp-dot-grid)" />
+    </svg>
+  );
+};
 
 const KeywordPop: React.FC<KeywordPopProps> = (props) => {
   const { FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const keywords = props.keywords;
@@ -45,7 +50,7 @@ const KeywordPop: React.FC<KeywordPopProps> = (props) => {
   // 330-360: Fade out
 
   const bgFadeIn = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   const outroOpacity = interpolate(
@@ -113,7 +118,7 @@ const KeywordPop: React.FC<KeywordPopProps> = (props) => {
 
         // Fade in with slam
         const fadeIn = interpolate(localFrame, [0, 5], [0, 1], {
-          extrapolateRight: 'clamp',
+          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
         });
 
         // Exit: scale down + fade out (only for non-last keywords)
@@ -163,15 +168,15 @@ const KeywordPop: React.FC<KeywordPopProps> = (props) => {
             <div
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 120,
+                fontSize: s(120),
                 fontWeight: 900,
                 color: theme.text,
                 textAlign: 'center',
                 lineHeight: 1.1,
                 transform: `scale(${totalScale})`,
-                textShadow: `0 0 40px ${props.accentColor}80, 0 0 80px ${props.accentColor}40`,
+                textShadow: `0 0 ${s(40)}px ${props.accentColor}80, 0 0 ${s(80)}px ${props.accentColor}40`,
                 letterSpacing: '0.02em',
-                padding: '0 60px',
+                padding: `0 ${s(60)}px`,
                 textTransform: 'uppercase',
               }}
             >
@@ -183,11 +188,11 @@ const KeywordPop: React.FC<KeywordPopProps> = (props) => {
               <div
                 style={{
                   fontFamily: FONTS.body,
-                  fontSize: 32,
+                  fontSize: s(32),
                   fontWeight: 400,
                   color: theme.textMuted,
                   textAlign: 'center',
-                  marginTop: 24,
+                  marginTop: s(24),
                   opacity: subtitleOpacity,
                   transform: `translateY(${subtitleSlideY}px)`,
                   letterSpacing: '0.04em',
@@ -207,8 +212,8 @@ const KeywordPop: React.FC<KeywordPopProps> = (props) => {
             position: 'absolute',
             top: '50%',
             left: '50%',
-            width: 400,
-            height: 400,
+            width: s(400),
+            height: s(400),
             transform: 'translate(-50%, -50%)',
             borderRadius: '50%',
             background: `radial-gradient(circle, ${props.accentColor}15 0%, transparent 70%)`,

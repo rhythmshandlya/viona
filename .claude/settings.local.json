@@ -162,7 +162,17 @@
       "Bash(git stash:*)",
       "Bash(claude setup-token:*)",
       "Bash(head:*)",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(git rebase:*)",
+      "Bash(GIT_SEQUENCE_EDITOR=true git rebase:*)",
+      "Bash(EDITOR=true git rebase:*)",
+      "Bash(git:*)",
+      "Bash(sort:*)",
+      "Bash(du:*)",
+      "Bash(docker system:*)",
+      "Bash(brew cleanup:*)",
+      "Bash(pip cache:*)",
+      "Bash(pip3 cache:*)"
     ]
   },
   "enabledMcpjsonServers": [

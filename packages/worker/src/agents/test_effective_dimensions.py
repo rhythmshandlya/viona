@@ -21,26 +21,16 @@ from animator import ANIMATOR_SYSTEM_PROMPT
 # Director — get_layout_context tests
 # ===================================================================
 
-def test_split_horizontal_includes_pip_dimensions():
-    """split-horizontal with explicit pip dims should mention them."""
+def test_stacked_includes_pip_dimensions():
+    """stacked with explicit pip dims should mention them."""
     ctx = get_layout_context(
-        "split-horizontal", 1080, 1920,
+        "stacked", 1080, 1920,
         pip_width=1080, pip_height=960,
     )
-    assert "1080x960" in ctx, f"Expected '1080x960' in split-horizontal context, got:\n{ctx[:500]}"
+    assert "1080x960" in ctx, f"Expected '1080x960' in stacked context, got:\n{ctx[:500]}"
     # Should also mention full canvas for fullscreen/overlay
     assert "1080x1920" in ctx, "Expected full canvas '1080x1920' in context"
-    print("  PASS: split-horizontal includes pip dimensions 1080x960")
-
-
-def test_split_vertical_includes_pip_dimensions():
-    """split-vertical with explicit pip dims should mention them."""
-    ctx = get_layout_context(
-        "split-vertical", 1080, 1920,
-        pip_width=540, pip_height=1920,
-    )
-    assert "540x1920" in ctx, f"Expected '540x1920' in split-vertical context, got:\n{ctx[:500]}"
-    print("  PASS: split-vertical includes pip dimensions 540x1920")
+    print("  PASS: stacked includes pip dimensions 1080x960")
 
 
 def test_pip_layout_shows_full_canvas_for_all_modes():
@@ -48,14 +38,14 @@ def test_pip_layout_shows_full_canvas_for_all_modes():
     ctx = get_layout_context("pip", 1080, 1920)
     # In pip layout, pip effective defaults to full canvas
     assert "1080x1920" in ctx, "Expected full canvas dims in pip layout context"
-    # The per-dm dims block should list pip as full canvas too
-    assert '"pip"' in ctx or "'pip'" in ctx or "pip" in ctx.lower()
+    # The per-dm dims block should list default as full canvas too
+    assert '"default"' in ctx or "'default'" in ctx or "default" in ctx.lower()
     print("  PASS: pip layout shows full canvas for all modes")
 
 
 def test_per_displaymode_dimensions_block_present():
     """All layout contexts include the per-displayMode dimensions block."""
-    for layout_mode in ["pip", "split-horizontal", "split-vertical"]:
+    for layout_mode in ["pip", "stacked"]:
         ctx = get_layout_context(layout_mode, 1080, 1920, pip_width=540, pip_height=960)
         assert "Per-scene dimensions" in ctx or "per-scene" in ctx.lower() or "displayMode" in ctx, (
             f"Missing per-displayMode dimensions block in {layout_mode} context"
@@ -63,20 +53,20 @@ def test_per_displaymode_dimensions_block_present():
     print("  PASS: all layout modes include per-displayMode dimensions block")
 
 
-def test_split_horizontal_pip_area_label():
-    """split-horizontal context mentions 'Pip area' with correct dimensions."""
+def test_stacked_pip_area_label():
+    """stacked context mentions 'Pip area' with correct dimensions."""
     ctx = get_layout_context(
-        "split-horizontal", 1080, 1920,
+        "stacked", 1080, 1920,
         pip_width=1080, pip_height=960,
     )
     assert "Pip area" in ctx or "pip area" in ctx.lower() or "1080x960" in ctx
-    print("  PASS: split-horizontal mentions pip area dimensions")
+    print("  PASS: stacked mentions pip area dimensions")
 
 
 def test_fallback_when_pip_dims_are_none():
     """When pip_width/pip_height are None, defaults to full canvas."""
     ctx = get_layout_context(
-        "split-horizontal", 1080, 1920,
+        "stacked", 1080, 1920,
         pip_width=None, pip_height=None,
     )
     # Per-dm dims for pip should show full canvas since no explicit pip dims
@@ -99,7 +89,7 @@ def test_build_director_user_message_passes_pip_dims():
         duration_frames=300,
         fps=30,
         style_preset="modern",
-        layout_mode="split-horizontal",
+        layout_mode="stacked",
         pip_width=1080,
         pip_height=960,
     )
@@ -111,7 +101,7 @@ def test_build_director_user_message_passes_pip_dims():
 
 
 def test_build_director_user_message_display_mode_schema():
-    """User message includes displayMode schema with pip/fullscreen/overlay."""
+    """User message includes displayMode schema with default/fullscreen/overlay."""
     msg = build_director_user_message(
         project_id="test_proj",
         formatted_transcript="[0.00s] Test (frame 0)",
@@ -136,12 +126,12 @@ def test_build_director_user_message_fallback_no_pip():
         height=1920,
         duration_frames=300,
         fps=30,
-        layout_mode="split-vertical",
+        layout_mode="stacked",
         # No pip_width / pip_height
     )
     # Should still contain canvas dimensions and layout context
     assert "1080x1920" in msg
-    assert "split" in msg.lower() or "Split" in msg
+    assert "stacked" in msg.lower() or "Stacked" in msg
     print("  PASS: user message works without explicit pip dims")
 
 
@@ -207,11 +197,10 @@ def main():
 
     tests = [
         # Director — get_layout_context
-        test_split_horizontal_includes_pip_dimensions,
-        test_split_vertical_includes_pip_dimensions,
+        test_stacked_includes_pip_dimensions,
         test_pip_layout_shows_full_canvas_for_all_modes,
         test_per_displaymode_dimensions_block_present,
-        test_split_horizontal_pip_area_label,
+        test_stacked_pip_area_label,
         test_fallback_when_pip_dims_are_none,
         # Director — build_director_user_message
         test_build_director_user_message_passes_pip_dims,

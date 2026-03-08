@@ -7,26 +7,29 @@ import {
   spring,
 } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { EventAnnounceProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  Sub-components                                                     */
 /* ------------------------------------------------------------------ */
 
-const DotGrid: React.FC<{ color: string; frame: number }> = ({
+const DotGrid: React.FC<{ color: string; frame: number; size: number }> = ({
   color,
   frame,
+  size,
 }) => {
+  const s = useScale();
   const dots: React.ReactNode[] = [];
-  const spacing = 40;
-  const cols = Math.ceil(1080 / spacing);
-  const rows = Math.ceil(1080 / spacing);
+  const spacing = s(40);
+  const cols = Math.ceil(size / spacing);
+  const rows = Math.ceil(size / spacing);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const delay = (r + c) * 0.3;
       const pulse = Math.sin((frame - delay) * 0.04) * 0.5 + 0.5;
-      const radius = 1.2 + pulse * 0.6;
+      const radius = s(1.2) + pulse * s(0.6);
       dots.push(
         <circle
           key={`${r}-${c}`}
@@ -41,9 +44,9 @@ const DotGrid: React.FC<{ color: string; frame: number }> = ({
 
   return (
     <svg
-      width="1080"
-      height="1080"
-      viewBox="0 0 1080 1080"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
       style={{ position: 'absolute', top: 0, left: 0 }}
     >
       {dots}
@@ -84,13 +87,14 @@ const AccentLine: React.FC<{
 
 const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const { FONTS, COLORS } = getConstants(props);
   const theme = BACKGROUNDS[props.background] || BACKGROUNDS.dark;
 
   /* ---- Global fade in/out ---- */
   const introOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,
@@ -102,7 +106,7 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
 
   /* ---- Accent lines draw-in (0-15) ---- */
   const lineProgress = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   /* ---- Accent lines pulse during hold (130-330) ---- */
@@ -159,13 +163,13 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
       }}
     >
       {/* Dot grid background */}
-      <DotGrid color={theme.gridColor} frame={frame} />
+      <DotGrid color={theme.gridColor} frame={frame} size={width} />
 
       {/* Accent lines SVG overlay */}
       <svg
-        width="1080"
-        height="1080"
-        viewBox="0 0 1080 1080"
+        width={width}
+        height={width}
+        viewBox={`0 0 ${width} ${width}`}
         style={{
           position: 'absolute',
           top: 0,
@@ -175,19 +179,19 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
       >
         {/* Top-left accent */}
         <AccentLine
-          x1={80}
-          y1={200}
-          x2={300}
-          y2={200}
+          x1={s(80)}
+          y1={s(200)}
+          x2={s(300)}
+          y2={s(200)}
           color={COLORS.primary}
           progress={lineProgress}
           strokeWidth={4}
         />
         <AccentLine
-          x1={80}
-          y1={200}
-          x2={80}
-          y2={340}
+          x1={s(80)}
+          y1={s(200)}
+          x2={s(80)}
+          y2={s(340)}
           color={COLORS.primary}
           progress={lineProgress}
           strokeWidth={4}
@@ -195,19 +199,19 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
 
         {/* Bottom-right accent */}
         <AccentLine
-          x1={1000}
-          y1={880}
-          x2={780}
-          y2={880}
+          x1={s(1000)}
+          y1={s(880)}
+          x2={s(780)}
+          y2={s(880)}
           color={COLORS.accent}
           progress={lineProgress}
           strokeWidth={4}
         />
         <AccentLine
-          x1={1000}
-          y1={880}
-          x2={1000}
-          y2={740}
+          x1={s(1000)}
+          y1={s(880)}
+          x2={s(1000)}
+          y2={s(740)}
           color={COLORS.accent}
           progress={lineProgress}
           strokeWidth={4}
@@ -215,19 +219,19 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
 
         {/* Center horizontal dividers */}
         <AccentLine
-          x1={200}
-          y1={520}
-          x2={880}
-          y2={520}
+          x1={s(200)}
+          y1={s(520)}
+          x2={s(880)}
+          y2={s(520)}
           color={COLORS.secondary}
           progress={lineProgress}
           strokeWidth={2}
         />
         <AccentLine
-          x1={200}
-          y1={700}
-          x2={880}
-          y2={700}
+          x1={s(200)}
+          y1={s(700)}
+          x2={s(880)}
+          y2={s(700)}
           color={COLORS.secondary}
           progress={lineProgress}
           strokeWidth={2}
@@ -241,7 +245,7 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '80px 100px',
+          padding: `${s(80)}px ${s(100)}px`,
         }}
       >
         {/* Event Title */}
@@ -250,7 +254,7 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
             opacity: titleOpacity,
             transform: `scale(${titleScale}) translateY(${titleTranslateY}px)`,
             textAlign: 'center',
-            marginBottom: 50,
+            marginBottom: s(50),
           }}
         >
           {titleLines.map((line, i) => (
@@ -258,7 +262,7 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
               key={i}
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 82,
+                fontSize: s(82),
                 fontWeight: 700,
                 color: theme.text,
                 lineHeight: 1.05,
@@ -278,13 +282,13 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
             transform: `translateX(${dateTranslateX}px)`,
             display: 'flex',
             alignItems: 'center',
-            gap: 16,
-            marginBottom: 16,
-            marginTop: 20,
+            gap: s(16),
+            marginBottom: s(16),
+            marginTop: s(20),
           }}
         >
           {/* Decorative diamond */}
-          <svg width="20" height="20" viewBox="0 0 20 20">
+          <svg width={s(20)} height={s(20)} viewBox="0 0 20 20">
             <rect
               x="4"
               y="4"
@@ -298,7 +302,7 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 32,
+              fontSize: s(32),
               fontWeight: 600,
               color: COLORS.primary,
               letterSpacing: '0.02em',
@@ -313,13 +317,13 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
           style={{
             opacity: dateOpacity,
             transform: `translateX(${dateTranslateX}px)`,
-            marginBottom: 30,
+            marginBottom: s(30),
           }}
         >
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 24,
+              fontSize: s(24),
               fontWeight: 400,
               color: theme.textMuted,
               letterSpacing: '0.01em',
@@ -336,12 +340,12 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
             transform: `translateX(${locationTranslateX}px)`,
             display: 'flex',
             alignItems: 'center',
-            gap: 16,
-            marginBottom: 50,
+            gap: s(16),
+            marginBottom: s(50),
           }}
         >
           {/* Decorative diamond */}
-          <svg width="18" height="18" viewBox="0 0 18 18">
+          <svg width={s(18)} height={s(18)} viewBox="0 0 18 18">
             <rect
               x="3"
               y="3"
@@ -355,7 +359,7 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 28,
+              fontSize: s(28),
               fontWeight: 500,
               color: theme.textMuted,
               letterSpacing: '0.02em',
@@ -375,12 +379,12 @@ const EventAnnounce: React.FC<EventAnnounceProps> = (props) => {
           <div
             style={{
               fontFamily: FONTS.body,
-              fontSize: 26,
+              fontSize: s(26),
               fontWeight: 700,
               color: '#FFFFFF',
               backgroundColor: COLORS.primary,
-              padding: '18px 56px',
-              borderRadius: 50,
+              padding: `${s(18)}px ${s(56)}px`,
+              borderRadius: s(50),
               letterSpacing: '0.04em',
               textTransform: 'uppercase',
               boxShadow: `0 8px 32px ${COLORS.primary}66`,

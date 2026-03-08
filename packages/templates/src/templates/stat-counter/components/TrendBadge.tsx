@@ -1,5 +1,6 @@
 import React from 'react';
 import { interpolate } from 'remotion';
+import { useScale } from '../../../use-scale';
 
 interface TrendBadgeProps {
   direction: 'up' | 'down';
@@ -16,6 +17,8 @@ const TrendBadge: React.FC<TrendBadgeProps> = ({
   enterFrame,
   font,
 }) => {
+  const s = useScale();
+
   const opacity = interpolate(frame, [enterFrame, enterFrame + 10], [0, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -37,20 +40,20 @@ const TrendBadge: React.FC<TrendBadgeProps> = ({
       style={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 8,
-        padding: '8px 20px',
-        borderRadius: 100,
+        gap: s(8),
+        padding: `${s(8)}px ${s(20)}px`,
+        borderRadius: s(100),
         background: `${color}18`,
         border: `1px solid ${color}30`,
         opacity,
         transform: `translateY(${slideY}px)`,
       }}
     >
-      <span style={{ fontSize: 22, color }}>{arrow}</span>
+      <span style={{ fontSize: s(22), color }}>{arrow}</span>
       <span
         style={{
           fontFamily: font,
-          fontSize: 22,
+          fontSize: s(22),
           fontWeight: 600,
           color,
         }}

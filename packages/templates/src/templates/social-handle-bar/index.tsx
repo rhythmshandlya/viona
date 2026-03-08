@@ -6,28 +6,32 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS, getPlatformInfo } from './constants';
 import type { SocialHandleBarProps, Handle } from './schema';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern
-        id="social-dot-grid"
-        width="32"
-        height="32"
-        patternUnits="userSpaceOnUse"
-      >
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#social-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern
+          id="social-dot-grid"
+          width={s(32)}
+          height={s(32)}
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#social-dot-grid)" />
+    </svg>
+  );
+};
 
 const PlatformIcon: React.FC<{
   abbr: string;
@@ -81,6 +85,7 @@ const HandleRow: React.FC<{
   bodyFont,
   springConfig,
 }) => {
+  const s = useScale();
   const { abbr, color } = getPlatformInfo(handle.platform, handle.color);
 
   // Staggered entrance: first at frame 20, each subsequent 15 frames later
@@ -106,27 +111,27 @@ const HandleRow: React.FC<{
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 24,
+        gap: s(24),
         transform: `translateX(${translateX}px)`,
         opacity,
-        padding: '20px 36px',
-        borderRadius: 20,
+        padding: `${s(20)}px ${s(36)}px`,
+        borderRadius: s(20),
         backgroundColor: theme.handleBg,
         border: `1px solid ${theme.handleBorder}`,
         backdropFilter: 'blur(8px)',
         width: 'fit-content',
-        maxWidth: 700,
+        maxWidth: s(700),
       }}
     >
-      <PlatformIcon abbr={abbr} color={color} size={64} />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <PlatformIcon abbr={abbr} color={color} size={s(64)} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: s(4) }}>
         <span
           style={{
             fontFamily: bodyFont,
-            fontSize: 18,
+            fontSize: s(18),
             fontWeight: 500,
             color: theme.textMuted,
-            letterSpacing: 1.5,
+            letterSpacing: s(1.5),
             textTransform: 'uppercase',
           }}
         >
@@ -135,7 +140,7 @@ const HandleRow: React.FC<{
         <span
           style={{
             fontFamily: headlineFont,
-            fontSize: 32,
+            fontSize: s(32),
             fontWeight: 600,
             color: theme.text,
             letterSpacing: -0.3,
@@ -152,11 +157,12 @@ const SocialHandleBar: React.FC<SocialHandleBarProps> = (props) => {
   const { FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   // Background fade in (0-15)
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Final fade out (330-360)
@@ -181,9 +187,9 @@ const SocialHandleBar: React.FC<SocialHandleBarProps> = (props) => {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'flex-end',
-          paddingBottom: 120,
-          paddingLeft: 72,
-          gap: 16,
+          paddingBottom: s(120),
+          paddingLeft: s(72),
+          gap: s(16),
         }}
       >
         {props.handles.map((handle, i) => (
@@ -209,7 +215,7 @@ const SocialHandleBar: React.FC<SocialHandleBarProps> = (props) => {
           bottom: 0,
           left: 0,
           right: 0,
-          height: 4,
+          height: s(4),
           background: `linear-gradient(90deg, ${props.accentColor}, ${props.colors.accent})`,
           opacity: interpolate(frame, [20, 40, 300, 330], [0, 0.8, 0.8, 0], {
             extrapolateLeft: 'clamp',

@@ -34,6 +34,7 @@ interface ReframeKeyframe {
 
 export async function processGenerateReframeJob(job: Job<GenerateReframeJobData>) {
   const { projectId, jobId } = job.data;
+  const pubExtras = { projectId };
 
   try {
     // Update job status
@@ -41,7 +42,7 @@ export async function processGenerateReframeJob(job: Job<GenerateReframeJobData>
       .set({ status: 'processing', progress: 0 })
       .where(eq(jobs.id, jobId));
 
-    await publishJobProgress(jobId, 10, 'Loading tracking data...');
+    await publishJobProgress(jobId, 10, 'Loading tracking data...', pubExtras);
 
     // Load project with head tracking data
     const project = await db.query.projects.findFirst({
@@ -57,7 +58,7 @@ export async function processGenerateReframeJob(job: Job<GenerateReframeJobData>
       throw new Error('No head tracking data found. Run head tracking first.');
     }
 
-    await publishJobProgress(jobId, 20, 'Generating reframe keyframes...');
+    await publishJobProgress(jobId, 20, 'Generating reframe keyframes...', pubExtras);
 
     const { width: videoWidth, height: videoHeight } = trackingData.video;
 
@@ -88,12 +89,12 @@ export async function processGenerateReframeJob(job: Job<GenerateReframeJobData>
       throw new Error('No face detections found in tracking data.');
     }
 
-    await publishJobProgress(jobId, 50, 'Applying temporal smoothing...');
+    await publishJobProgress(jobId, 50, 'Applying temporal smoothing...', pubExtras);
 
     // Apply exponential moving average smoothing (~500ms window)
     const smoothedKeyframes = applyTemporalSmoothing(rawKeyframes, 500);
 
-    await publishJobProgress(jobId, 80, 'Saving reframe keyframes...');
+    await publishJobProgress(jobId, 80, 'Saving reframe keyframes...', pubExtras);
 
     // Store in project's videoSettings
     const currentSettings = (project.videoSettings as Record<string, unknown>) || {};
@@ -115,7 +116,7 @@ export async function processGenerateReframeJob(job: Job<GenerateReframeJobData>
       .set({ status: 'complete', progress: 100, completedAt: new Date() })
       .where(eq(jobs.id, jobId));
 
-    await publishJobProgress(jobId, 100, 'Complete');
+    await publishJobProgress(jobId, 100, 'Complete', pubExtras);
     await publishJobComplete(jobId, projectId);
 
     logger.info({
@@ -133,7 +134,7 @@ export async function processGenerateReframeJob(job: Job<GenerateReframeJobData>
       .set({ status: 'failed', error: errorMessage })
       .where(eq(jobs.id, jobId));
 
-    await publishJobError(jobId, errorMessage);
+    await publishJobError(jobId, errorMessage, pubExtras);
 
     throw error;
   }

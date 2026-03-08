@@ -1,5 +1,5 @@
 ---
-import { siteConfig } from "@/data/site";
+// Frontmatter (no server-side imports needed)
 ---
 
 <section class="relative pt-24 pb-12 sm:pt-28 sm:pb-16 lg:pt-32 lg:pb-20 overflow-hidden">
@@ -31,14 +31,31 @@ import { siteConfig } from "@/data/site";
       and generates charts, diagrams, and graphics synced to your explanations.
     </p>
 
-    <!-- CTA Button -->
-    <div class="flex justify-center mb-10 sm:mb-16" data-hero-cta>
-      <a href={siteConfig.appUrl} class="btn-primary">
-        Start Creating Free
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-        </svg>
-      </a>
+    <!-- Waitlist Form -->
+    <div class="flex flex-col items-center mb-10 sm:mb-16" data-hero-cta>
+      <form id="waitlist-form" class="email-input-group w-full max-w-md">
+        <input
+          type="email"
+          id="waitlist-email"
+          placeholder="Enter your email"
+          required
+          autocomplete="email"
+        />
+        <button type="submit" id="waitlist-btn">
+          Join Waitlist
+        </button>
+      </form>
+      <!-- Success message (hidden by default) -->
+      <div id="waitlist-success" class="hidden text-sm font-medium text-primary mt-3">
+        You're on the list!
+      </div>
+      <!-- Error message (hidden by default) -->
+      <div id="waitlist-error" class="hidden text-sm text-red-500 mt-3"></div>
+      <!-- Counter -->
+      <p class="text-xs sm:text-sm text-muted-foreground mt-3" id="waitlist-counter" style="visibility: hidden;">
+        <span id="waitlist-count" class="font-semibold text-foreground tabular-nums">0</span>
+        creators on the waitlist
+      </p>
     </div>
 
     <!-- Before/After Visual -->
@@ -100,6 +117,8 @@ import { siteConfig } from "@/data/site";
 <script>
   import { gsap } from "@/scripts/animations";
 
+  const API_URL = import.meta.env.PUBLIC_API_URL || "http://localhost:4000";
+
   document.addEventListener("astro:page-load", () => {
     // Lazy-load Three.js scene so it doesn't block initial paint
     const canvas = document.getElementById("hero-canvas") as HTMLCanvasElement;
@@ -157,6 +176,88 @@ import { siteConfig } from "@/data/site";
       repeat: -1,
       yoyo: true,
     });
+
+    // --- Waitlist ---
+    const form = document.getElementById("waitlist-form") as HTMLFormElement | null;
+    const emailInput = document.getElementById("waitlist-email") as HTMLInputElement | null;
+    const btn = document.getElementById("waitlist-btn") as HTMLButtonElement | null;
+    const successEl = document.getElementById("waitlist-success");
+    const errorEl = document.getElementById("waitlist-error");
+    const counterEl = document.getElementById("waitlist-counter");
+    const countEl = document.getElementById("waitlist-count");
+
+    // Fetch initial count
+    fetch(`${API_URL}/api/waitlist/count`, { signal: AbortSignal.timeout(5000) })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.count != null && countEl && counterEl) {
+          animateCount(0, data.count, countEl);
+          counterEl.style.visibility = "visible";
+        }
+      })
+      .catch(() => {
+        // Silently fail — counter stays hidden
+      });
+
+    // Handle form submit
+    form?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!emailInput || !btn) return;
+
+      const email = emailInput.value.trim();
+      if (!email) return;
+
+      // Set loading state
+      btn.disabled = true;
+      btn.textContent = "Joining...";
+      errorEl?.classList.add("hidden");
+
+      try {
+        const res = await fetch(`${API_URL}/api/waitlist`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+          signal: AbortSignal.timeout(10000),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Something went wrong");
+        }
+
+        // Show success
+        form.classList.add("hidden");
+        successEl?.classList.remove("hidden");
+
+        // Update counter
+        if (data.count != null && countEl && counterEl) {
+          const current = parseInt(countEl.textContent || "0", 10);
+          animateCount(current, data.count, countEl);
+          counterEl.style.visibility = "visible";
+        }
+      } catch (err: any) {
+        if (errorEl) {
+          errorEl.textContent = err.message || "Something went wrong. Please try again.";
+          errorEl.classList.remove("hidden");
+        }
+        btn.disabled = false;
+        btn.textContent = "Join Waitlist";
+      }
+    });
+
+    function animateCount(from: number, to: number, el: HTMLElement) {
+      const duration = 1;
+      const obj = { val: from };
+      gsap.to(obj, {
+        val: to,
+        duration,
+        ease: "power2.out",
+        onUpdate: () => {
+          el.textContent = Math.round(obj.val).toLocaleString();
+        },
+      });
+    }
 
     // Cleanup on page transition
     document.addEventListener("astro:before-preparation", () => {

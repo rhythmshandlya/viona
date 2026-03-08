@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { PollBattleProps } from './schema';
 
@@ -8,7 +9,8 @@ const POLL_COLORS = ['#61DAFB', '#42B883', '#FF3E00', '#DD0031', '#6366F1', '#EC
 const PollBattle: React.FC<PollBattleProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const options = props.options;
@@ -16,7 +18,7 @@ const PollBattle: React.FC<PollBattleProps> = (props) => {
   const maxVotes = Math.max(...options.map((o) => o.votes));
   const winnerIdx = options.findIndex((o) => o.votes === maxVotes);
 
-  const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateRight: 'clamp' });
+  const introOpacity = interpolate(frame, [0, 15], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const outroOpacity = interpolate(frame, [durationInFrames - 30, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   const questionOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
@@ -29,23 +31,23 @@ const PollBattle: React.FC<PollBattleProps> = (props) => {
   const winnerBadgeScale = spring({ frame: frame - 260, fps, config: { damping: 12, stiffness: 180, mass: 0.5 } });
 
   // Layout
-  const BAR_TOP = 200;
-  const BAR_LEFT = 80;
-  const BAR_RIGHT = 80;
-  const BAR_WIDTH = 1080 - BAR_LEFT - BAR_RIGHT;
-  const BAR_HEIGHT = 52;
-  const BAR_GAP = 100;
+  const BAR_TOP = s(200);
+  const BAR_LEFT = s(80);
+  const BAR_RIGHT = s(80);
+  const BAR_WIDTH = width - BAR_LEFT - BAR_RIGHT;
+  const BAR_HEIGHT = s(52);
+  const BAR_GAP = s(100);
 
   return (
     <AbsoluteFill style={{ backgroundColor: theme.bg, opacity: introOpacity * outroOpacity }}>
       {/* Question */}
-      <div style={{ position: 'absolute', top: 60, left: 60, right: 60, textAlign: 'center', opacity: questionOpacity, transform: `translateY(${questionSlide}px)` }}>
-        <span style={{ fontFamily: FONTS.headline, fontSize: 42, fontWeight: 800, color: theme.text, lineHeight: 1.2 }}>{props.question}</span>
+      <div style={{ position: 'absolute', top: s(60), left: s(60), right: s(60), textAlign: 'center', opacity: questionOpacity, transform: `translateY(${questionSlide}px)` }}>
+        <span style={{ fontFamily: FONTS.headline, fontSize: s(42), fontWeight: 800, color: theme.text, lineHeight: 1.2 }}>{props.question}</span>
       </div>
 
       {/* Total votes label */}
-      <div style={{ position: 'absolute', top: 140, left: 0, right: 0, textAlign: 'center', opacity: questionOpacity }}>
-        <span style={{ fontFamily: FONTS.body, fontSize: 18, fontWeight: 500, color: theme.textMuted }}>{props.totalLabel}</span>
+      <div style={{ position: 'absolute', top: s(140), left: 0, right: 0, textAlign: 'center', opacity: questionOpacity }}>
+        <span style={{ fontFamily: FONTS.body, fontSize: s(18), fontWeight: 500, color: theme.textMuted }}>{props.totalLabel}</span>
       </div>
 
       {/* Option bars */}
@@ -64,14 +66,14 @@ const PollBattle: React.FC<PollBattleProps> = (props) => {
         return (
           <div key={i} style={{ position: 'absolute', left: BAR_LEFT, top: y, width: BAR_WIDTH }}>
             {/* Label + percentage row */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10, opacity: labelEnter }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: FONTS.headline, fontSize: 26, fontWeight: 700, color: theme.text }}>{opt.label}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: s(10), opacity: labelEnter }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: s(10) }}>
+                <span style={{ fontFamily: FONTS.headline, fontSize: s(26), fontWeight: 700, color: theme.text }}>{opt.label}</span>
                 {isWinner && frame >= 260 && (
-                  <span style={{ fontSize: 22, transform: `scale(${winnerBadgeScale})`, display: 'inline-block' }}>&#128081;</span>
+                  <span style={{ fontSize: s(22), transform: `scale(${winnerBadgeScale})`, display: 'inline-block' }}>&#128081;</span>
                 )}
               </div>
-              <span style={{ fontFamily: FONTS.headline, fontSize: 28, fontWeight: 800, color }}>{displayPct}%</span>
+              <span style={{ fontFamily: FONTS.headline, fontSize: s(28), fontWeight: 800, color }}>{displayPct}%</span>
             </div>
 
             {/* Bar track */}
@@ -81,7 +83,7 @@ const PollBattle: React.FC<PollBattleProps> = (props) => {
                 height: '100%',
                 borderRadius: BAR_HEIGHT / 2,
                 background: `linear-gradient(90deg, ${color} 0%, ${color}CC 100%)`,
-                boxShadow: isWinner && frame >= 250 ? `0 0 20px ${color}60` : `0 0 8px ${color}30`,
+                boxShadow: isWinner && frame >= 250 ? `0 0 ${s(20)}px ${color}60` : `0 0 ${s(8)}px ${color}30`,
               }} />
             </div>
           </div>

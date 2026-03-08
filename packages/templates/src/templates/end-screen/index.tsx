@@ -1,17 +1,19 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { EndScreenProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  SVG sub-components                                                 */
 /* ------------------------------------------------------------------ */
 
-const DotGrid: React.FC<{ color: string; opacity: number }> = ({ color, opacity }) => {
+const DotGrid: React.FC<{ color: string; opacity: number; size: number }> = ({ color, opacity, size }) => {
+  const s = useScale();
   const dots: React.ReactNode[] = [];
-  const spacing = 40;
-  const cols = Math.ceil(1080 / spacing);
-  const rows = Math.ceil(1080 / spacing);
+  const spacing = s(40);
+  const cols = Math.ceil(size / spacing);
+  const rows = Math.ceil(size / spacing);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -20,7 +22,7 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({ color, opacity 
           key={`${r}-${c}`}
           cx={c * spacing + spacing / 2}
           cy={r * spacing + spacing / 2}
-          r={1.5}
+          r={s(1.5)}
           fill={color}
         />
       );
@@ -29,9 +31,9 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({ color, opacity 
 
   return (
     <svg
-      width={1080}
-      height={1080}
-      viewBox="0 0 1080 1080"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
       style={{ position: 'absolute', top: 0, left: 0, opacity, pointerEvents: 'none' }}
     >
       {dots}
@@ -65,16 +67,17 @@ const VideoPlaceholder: React.FC<{
   headlineFont: string;
   bodyFont: string;
   playColor: string;
-}> = ({ label, borderColor, textColor, mutedColor, headlineFont, bodyFont, playColor }) => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+  s: (px: number) => number;
+}> = ({ label, borderColor, textColor, mutedColor, headlineFont, bodyFont, playColor, s }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: s(16) }}>
     {/* Label */}
     <span
       style={{
         fontFamily: bodyFont,
-        fontSize: 22,
+        fontSize: s(22),
         fontWeight: 600,
         color: mutedColor,
-        letterSpacing: 2,
+        letterSpacing: s(2),
         textTransform: 'uppercase',
       }}
     >
@@ -84,9 +87,9 @@ const VideoPlaceholder: React.FC<{
     {/* Placeholder rectangle */}
     <div
       style={{
-        width: 400,
-        height: 260,
-        borderRadius: 20,
+        width: s(400),
+        height: s(260),
+        borderRadius: s(20),
         border: `3px dashed ${borderColor}`,
         display: 'flex',
         alignItems: 'center',
@@ -101,15 +104,15 @@ const VideoPlaceholder: React.FC<{
         style={{
           position: 'absolute',
           inset: 0,
-          borderRadius: 17,
+          borderRadius: s(17),
           background: `radial-gradient(ellipse at center, ${borderColor}10 0%, transparent 70%)`,
         }}
       />
       {/* Play icon */}
       <div
         style={{
-          width: 72,
-          height: 72,
+          width: s(72),
+          height: s(72),
           borderRadius: '50%',
           border: `2px solid ${borderColor}`,
           display: 'flex',
@@ -119,7 +122,7 @@ const VideoPlaceholder: React.FC<{
           zIndex: 1,
         }}
       >
-        <PlayTriangle color={playColor} size={36} />
+        <PlayTriangle color={playColor} size={s(36)} />
       </div>
     </div>
   </div>
@@ -132,7 +135,8 @@ const VideoPlaceholder: React.FC<{
 const EndScreen: React.FC<EndScreenProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps, durationInFrames } = useVideoConfig();
+  const { fps, durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   /* ---- Animation values ---- */
@@ -161,7 +165,7 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
   });
   const leftSlideX = interpolate(leftSpring, [0, 1], [-500, 0]);
   const leftOpacity = interpolate(leftSpring, [0, 0.3], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Right video placeholder - spring slide from right (40-60)
@@ -172,7 +176,7 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
   });
   const rightSlideX = interpolate(rightSpring, [0, 1], [500, 0]);
   const rightOpacity = interpolate(rightSpring, [0, 0.3], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Subscribe button - bounce scale in (55-75)
@@ -216,42 +220,43 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
       <DotGrid
         color={props.background === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}
         opacity={elementOpacity}
+        size={width}
       />
 
       {/* Channel name + icon at top */}
       <div
         style={{
           position: 'absolute',
-          top: 100,
+          top: s(100),
           left: 0,
           right: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: 16,
+          gap: s(16),
           opacity: channelOpacity * elementOpacity,
           transform: `translateY(${channelSlideY}px)`,
         }}
       >
-        <ChannelIcon color={props.accentColor} size={64} />
+        <ChannelIcon color={props.accentColor} size={s(64)} />
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 42,
+            fontSize: s(42),
             fontWeight: 800,
             color: theme.text,
-            letterSpacing: 3,
+            letterSpacing: s(3),
           }}
         >
           {props.channelName}
         </span>
         <div
           style={{
-            width: 60,
+            width: s(60),
             height: 3,
             backgroundColor: props.accentColor,
             borderRadius: 2,
-            marginTop: 4,
+            marginTop: s(4),
           }}
         />
       </div>
@@ -260,12 +265,12 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          top: 340,
+          top: s(340),
           left: 0,
           right: 0,
           display: 'flex',
           justifyContent: 'center',
-          gap: 50,
+          gap: s(50),
         }}
       >
         {/* Left placeholder */}
@@ -283,6 +288,7 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
             headlineFont={FONTS.headline}
             bodyFont={FONTS.body}
             playColor={props.accentColor}
+            s={s}
           />
         </div>
 
@@ -301,6 +307,7 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
             headlineFont={FONTS.headline}
             bodyFont={FONTS.body}
             playColor={props.accentColor}
+            s={s}
           />
         </div>
       </div>
@@ -309,7 +316,7 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          bottom: 180,
+          bottom: s(180),
           left: 0,
           right: 0,
           display: 'flex',
@@ -330,9 +337,9 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
           <div
             style={{
               position: 'absolute',
-              width: 280,
-              height: 70,
-              borderRadius: 35,
+              width: s(280),
+              height: s(70),
+              borderRadius: s(35),
               backgroundColor: props.accentColor,
               filter: 'blur(20px)',
               opacity: pulseGlow,
@@ -342,9 +349,9 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
           <div
             style={{
               position: 'relative',
-              width: 260,
-              height: 60,
-              borderRadius: 30,
+              width: s(260),
+              height: s(60),
+              borderRadius: s(30),
               backgroundColor: props.accentColor,
               display: 'flex',
               alignItems: 'center',
@@ -355,10 +362,10 @@ const EndScreen: React.FC<EndScreenProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 24,
+                fontSize: s(24),
                 fontWeight: 700,
                 color: '#FFFFFF',
-                letterSpacing: 3,
+                letterSpacing: s(3),
               }}
             >
               {props.buttonText}

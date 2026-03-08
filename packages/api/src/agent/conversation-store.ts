@@ -60,6 +60,10 @@ export async function updateMessageContent(messageId: string, content: unknown) 
     .where(eq(conversationMessages.id, messageId));
 }
 
+export async function updateConversationSessionId(conversationId: string, sdkSessionId: string | null) {
+  await db.update(conversations).set({ sdkSessionId }).where(eq(conversations.id, conversationId));
+}
+
 export async function deleteConversation(projectId: string) {
   await db.delete(conversations)
     .where(eq(conversations.projectId, projectId));

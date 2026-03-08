@@ -7,13 +7,15 @@ import {
   spring,
 } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { PopupFactProps } from './schema';
 
 /* ── Dot-grid SVG background ─────────────────────────────────────── */
 
 const DotGrid: React.FC<{ color: string }> = ({ color }) => {
-  const spacing = 32;
-  const radius = 1.5;
+  const s = useScale();
+  const spacing = s(32);
+  const radius = s(1.5);
   return (
     <AbsoluteFill>
       <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
@@ -98,6 +100,7 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background] || BACKGROUNDS.dark;
   const accent = props.accentColor;
   const facts = props.facts;
@@ -105,7 +108,7 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
 
   // ── Global intro / outro ────────────────────────────────────────
   const introOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,
@@ -200,9 +203,9 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
             key={i}
             style={{
               position: 'absolute',
-              top: 160,
-              right: 60,
-              width: 680,
+              top: s(160),
+              right: s(60),
+              width: s(680),
               transform: `translateX(${translateX}px)`,
               opacity: exitOpacity,
             }}
@@ -212,12 +215,12 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
               style={{
                 display: 'flex',
                 alignItems: 'flex-start',
-                gap: 28,
-                padding: '40px 44px',
-                borderRadius: 24,
+                gap: s(28),
+                padding: `${s(40)}px ${s(44)}px`,
+                borderRadius: s(24),
                 backgroundColor: theme.cardBg,
                 border: `1px solid ${theme.cardBorder}`,
-                boxShadow: `0 20px 60px rgba(0,0,0,0.25), 0 4px 16px rgba(0,0,0,0.15)`,
+                boxShadow: `0 ${s(20)}px ${s(60)}px rgba(0,0,0,0.25), 0 ${s(4)}px ${s(16)}px rgba(0,0,0,0.15)`,
                 backdropFilter: 'blur(12px)',
               }}
             >
@@ -225,18 +228,18 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
               <div
                 style={{
                   flexShrink: 0,
-                  width: 56,
-                  height: 56,
-                  borderRadius: 16,
+                  width: s(56),
+                  height: s(56),
+                  borderRadius: s(16),
                   backgroundColor: `${accent}18`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   transform: `scale(${iconScale})`,
-                  marginTop: 4,
+                  marginTop: s(4),
                 }}
               >
-                <IconComponent color={accent} size={30} />
+                <IconComponent color={accent} size={s(30)} />
               </div>
 
               {/* Text content */}
@@ -244,7 +247,7 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 12,
+                  gap: s(12),
                   flex: 1,
                   minWidth: 0,
                 }}
@@ -253,7 +256,7 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
                 <span
                   style={{
                     fontFamily: FONTS.headline,
-                    fontSize: 28,
+                    fontSize: s(28),
                     fontWeight: 700,
                     color: accent,
                     letterSpacing: 0.5,
@@ -268,7 +271,7 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
                 <span
                   style={{
                     fontFamily: FONTS.body,
-                    fontSize: 24,
+                    fontSize: s(24),
                     fontWeight: 400,
                     color: theme.text,
                     lineHeight: 1.55,
@@ -285,10 +288,10 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
               style={{
                 position: 'absolute',
                 left: 0,
-                top: 20,
-                bottom: 20,
-                width: 4,
-                borderRadius: 2,
+                top: s(20),
+                bottom: s(20),
+                width: s(4),
+                borderRadius: s(2),
                 backgroundColor: accent,
                 opacity: slideInProgress,
               }}
@@ -302,11 +305,11 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
         <div
           style={{
             position: 'absolute',
-            bottom: 80,
+            bottom: s(80),
             left: '50%',
             transform: 'translateX(-50%)',
             display: 'flex',
-            gap: 12,
+            gap: s(12),
           }}
         >
           {facts.map((_, i) => {
@@ -318,9 +321,9 @@ const PopupFact: React.FC<PopupFactProps> = (props) => {
               <div
                 key={i}
                 style={{
-                  width: isActive ? 28 : 10,
-                  height: 10,
-                  borderRadius: 5,
+                  width: isActive ? s(28) : s(10),
+                  height: s(10),
+                  borderRadius: s(5),
                   backgroundColor: isActive
                     ? accent
                     : isPast

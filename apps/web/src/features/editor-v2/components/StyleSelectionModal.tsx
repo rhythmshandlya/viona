@@ -114,6 +114,17 @@ const STYLE_OPTIONS: StyleOption[] = [
       </div>
     ),
   },
+  {
+    id: 'kinetic-typography',
+    name: 'Kinetic Text',
+    description: 'Bold text cards with hand-drawn doodle annotations',
+    colors: ['#00E556', '#000000', '#EBEBEB'],
+    preview: (
+      <div className="w-full h-full bg-[#00E556] flex items-center justify-center">
+        <span className="text-black font-black text-base leading-none">Aa</span>
+      </div>
+    ),
+  },
 ];
 
 interface JobMetrics {
@@ -153,14 +164,10 @@ function calculateVisualsDimensions(
   if (layoutMode === 'pip') {
     // PiP: visuals take full canvas
     return { width: canvasWidth, height: canvasHeight };
-  } else if (layoutMode === 'split-horizontal') {
-    // Horizontal split: visuals get top portion based on ratio
+  } else {
+    // Stacked: visuals get top portion based on ratio
     const visualsHeight = Math.round(canvasHeight * (splitRatio / 100));
     return { width: canvasWidth, height: visualsHeight };
-  } else {
-    // Vertical split: visuals get left portion based on ratio
-    const visualsWidth = Math.round(canvasWidth * (splitRatio / 100));
-    return { width: visualsWidth, height: canvasHeight };
   }
 }
 
@@ -181,18 +188,35 @@ export function StyleSelectionModal({
   canvasHeight = 1920,
 }: StyleSelectionModalProps) {
   const [selectedStyle, setSelectedStyle] = useState<StylePreset>('modern');
-  const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('pip');
+  const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('stacked');
   const [splitRatio, setSplitRatio] = useState(50); // Percentage for visuals
   const [styleGuide, setStyleGuide] = useState('');
+  const [brandColors, setBrandColors] = useState({
+    accent: '#00E556',
+    dark: '#000000',
+    light: '#EBEBEB',
+  });
 
   const dimensions = calculateVisualsDimensions(canvasWidth, canvasHeight, layoutMode, splitRatio);
 
   const handleGenerate = () => {
+    let finalStyleGuide = styleGuide.trim() || undefined;
+
+    if (selectedStyle === 'kinetic-typography') {
+      const colorData = JSON.stringify({
+        kineticTypography: true,
+        brandColors: brandColors,
+      });
+      finalStyleGuide = finalStyleGuide
+        ? `${colorData}\n\n${finalStyleGuide}`
+        : colorData;
+    }
+
     onSelect({
       stylePreset: selectedStyle,
       layoutMode,
       dimensions,
-      styleGuide: styleGuide.trim() || undefined,
+      styleGuide: finalStyleGuide,
     });
   };
 
@@ -417,11 +441,11 @@ export function StyleSelectionModal({
               </div>
             </button>
             <button
-              onClick={() => setLayoutMode('split-horizontal')}
+              onClick={() => setLayoutMode('stacked')}
               disabled={isLoading}
               className={cn(
                 'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
-                layoutMode === 'split-horizontal'
+                layoutMode === 'stacked'
                   ? 'border-violet-500 bg-violet-50'
                   : 'border-gray-200 bg-gray-50 hover:border-gray-300',
                 isLoading && 'opacity-50 cursor-not-allowed'
@@ -429,14 +453,14 @@ export function StyleSelectionModal({
             >
               <Rows className={cn(
                 'w-6 h-6',
-                layoutMode === 'split-horizontal' ? 'text-violet-500' : 'text-gray-400'
+                layoutMode === 'stacked' ? 'text-violet-500' : 'text-gray-400'
               )} />
               <div className="text-left">
                 <p className={cn(
                   'font-medium text-sm',
-                  layoutMode === 'split-horizontal' ? 'text-violet-700' : 'text-gray-900'
+                  layoutMode === 'stacked' ? 'text-violet-700' : 'text-gray-900'
                 )}>
-                  Split Screen
+                  Stacked
                 </p>
                 <p className="text-xs text-gray-500">
                   Visuals top, video bottom
@@ -446,7 +470,7 @@ export function StyleSelectionModal({
           </div>
 
           {/* Split ratio slider - only show for split mode */}
-          {layoutMode === 'split-horizontal' && (
+          {layoutMode === 'stacked' && (
             <div className="space-y-2 pt-2">
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Split Ratio</span>
@@ -512,6 +536,31 @@ export function StyleSelectionModal({
             ))}
           </div>
         </div>
+
+        {/* Brand Colors — only for kinetic-typography */}
+        {selectedStyle === 'kinetic-typography' && (
+          <div className="space-y-3 py-2 border-t border-gray-200">
+            <label className="text-sm font-medium text-gray-700">Brand Colors</label>
+            <div className="grid grid-cols-3 gap-3">
+              {(['accent', 'dark', 'light'] as const).map((key) => (
+                <div key={key} className="flex flex-col items-center gap-1.5">
+                  <label
+                    className="relative w-10 h-10 rounded-lg border border-gray-300 cursor-pointer overflow-hidden"
+                    style={{ backgroundColor: brandColors[key] }}
+                  >
+                    <input
+                      type="color"
+                      value={brandColors[key]}
+                      onChange={(e) => setBrandColors((prev) => ({ ...prev, [key]: e.target.value }))}
+                      className="absolute inset-0 opacity-0 cursor-pointer"
+                    />
+                  </label>
+                  <span className="text-xs text-gray-500 capitalize">{key}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Style Guide Input */}
         <div className="space-y-2 py-2 border-t border-gray-200">

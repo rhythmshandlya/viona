@@ -171,9 +171,20 @@ export function DynamicVisualLoader({
           // Provide Remotion with Composition as a no-op
           // <Composition> is a config component for Root.tsx, not meant for rendering
           // When encountered inside a Player, it should just return null
+          //
+          // Override staticFile to resolve assets from the API bundle directory
+          // instead of the browser origin. Generated code calls staticFile('assets/images/foo.jpg')
+          // which Remotion resolves to /assets/images/foo.jpg (localhost:3000), but the actual
+          // files live in the bundle's public/ dir served from the API server.
+          const bundleBasePath = bundleUrl.replace('/index.html', '');
+          const customStaticFile = (relativePath: string) => {
+            const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
+            return `${apiUrl}${bundleBasePath}/public/${cleanPath}`;
+          };
           return {
             ...Remotion,
             Composition: () => null,
+            staticFile: customStaticFile,
           };
         }
         // Remotion sub-packages used by generated compositions
@@ -181,6 +192,22 @@ export function DynamicVisualLoader({
         if (moduleName === '@remotion/shapes') return RemotionShapes;
         if (moduleName === '@remotion/paths') return RemotionPaths;
         if (moduleName === '@remotion/three') return RemotionThree;
+        // @remotion/google-fonts/* — shim loadFont to return CSS font-family name
+        if (moduleName.startsWith('@remotion/google-fonts/')) {
+          const fontName = moduleName.replace('@remotion/google-fonts/', '').replace(/-/g, ' ');
+          return {
+            loadFont: () => ({ fontFamily: `'${fontName}', sans-serif` }),
+            getInfo: () => ({ fontFamily: fontName }),
+          };
+        }
+        // remotion/no-react — exports NoReactInternals used by @remotion/google-fonts
+        if (moduleName === 'remotion/no-react') {
+          return {
+            NoReactInternals: {
+              ENABLE_V5_BREAKING_CHANGES: false,
+            },
+          };
+        }
         throw new Error(`Unknown module: ${moduleName}`);
       };
 

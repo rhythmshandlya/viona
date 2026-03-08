@@ -1,33 +1,38 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { FormulaDisplayProps } from './schema';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#dot-grid)" />
+    </svg>
+  );
+};
 
 const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   // --- Animation timeline ---
   // 0-15: Background fade in
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 15-30: Title fades in
@@ -100,7 +105,7 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 80,
+          padding: s(80),
           opacity: elementsOutOpacity,
         }}
       >
@@ -109,15 +114,15 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
           <div
             style={{
               fontFamily: FONTS.body,
-              fontSize: 26,
+              fontSize: s(26),
               fontWeight: 500,
-              letterSpacing: 4,
+              letterSpacing: s(4),
               color: theme.textMuted,
               textTransform: 'uppercase',
               textAlign: 'center',
               opacity: titleOpacity,
               transform: `translateY(${titleSlideY}px)`,
-              marginBottom: 48,
+              marginBottom: s(48),
             }}
           >
             {props.title}
@@ -130,8 +135,8 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '40px 64px',
-            borderRadius: 20,
+            padding: `${s(40)}px ${s(64)}px`,
+            borderRadius: s(20),
             backgroundColor: theme.containerBg,
             border: `1px solid ${theme.containerBorder}`,
             opacity: containerOpacity,
@@ -168,7 +173,7 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
                   key={index}
                   style={{
                     fontFamily: FONTS.headline,
-                    fontSize: 88,
+                    fontSize: s(88),
                     fontWeight: 700,
                     color: isHighlighted ? props.accentColor : theme.text,
                     lineHeight: 1.2,
@@ -188,11 +193,11 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
         {props.variables && props.variables.length > 0 && (
           <div
             style={{
-              marginTop: 48,
+              marginTop: s(48),
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-start',
-              gap: 14,
+              gap: s(14),
               opacity: variablesOpacity,
               transform: `translateY(${variablesSlideY}px)`,
             }}
@@ -200,11 +205,11 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 20,
+                fontSize: s(20),
                 fontWeight: 400,
                 fontStyle: 'italic',
                 color: theme.textMuted,
-                marginBottom: 6,
+                marginBottom: s(6),
               }}
             >
               where
@@ -216,13 +221,13 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 12,
+                  gap: s(12),
                 }}
               >
                 <span
                   style={{
-                    width: 6,
-                    height: 6,
+                    width: s(6),
+                    height: s(6),
                     borderRadius: '50%',
                     backgroundColor: props.accentColor,
                     flexShrink: 0,
@@ -231,7 +236,7 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
                 <span
                   style={{
                     fontFamily: FONTS.headline,
-                    fontSize: 24,
+                    fontSize: s(24),
                     fontWeight: 700,
                     color: props.accentColor,
                   }}
@@ -241,7 +246,7 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
                 <span
                   style={{
                     fontFamily: FONTS.body,
-                    fontSize: 22,
+                    fontSize: s(22),
                     fontWeight: 400,
                     color: theme.textMuted,
                   }}
@@ -257,13 +262,13 @@ const FormulaDisplay: React.FC<FormulaDisplayProps> = (props) => {
         {props.description && (
           <div
             style={{
-              marginTop: 40,
+              marginTop: s(40),
               fontFamily: FONTS.body,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 400,
               color: theme.textMuted,
               textAlign: 'center',
-              maxWidth: 700,
+              maxWidth: s(700),
               lineHeight: 1.5,
               opacity: descriptionOpacity,
             }}

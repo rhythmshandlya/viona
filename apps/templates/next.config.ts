@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   reactStrictMode: false,
@@ -16,6 +20,14 @@ const nextConfig: NextConfig = {
         path: false,
       };
     }
+
+    // Force all packages to use the same copy of remotion
+    // to prevent duplicate context issues with @remotion/player <Thumbnail>
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      remotion: path.resolve(__dirname, "node_modules/remotion"),
+    };
+
     return config;
   },
 };

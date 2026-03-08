@@ -66,6 +66,16 @@ export const jobs = pgTable('jobs', {
   status: varchar('status', { length: 50 }).notNull().default('pending'),
   progress: integer('progress').default(0).notNull(),
   progressMessage: varchar('progress_message', { length: 500 }),
+  progressMeta: jsonb('progress_meta').$type<{
+    phase?: string;
+    phaseName?: string;
+    scene?: number;
+    totalScenes?: number;
+    iteration?: number;
+    maxIterations?: number;
+    score?: number;
+    detail?: string;
+  }>(),
   error: text('error'),
   metrics: jsonb('metrics').$type<{
     inputTokens?: number;
@@ -103,6 +113,8 @@ export const visuals = pgTable('visuals', {
     endMs: number;
     type: string;
     description: string;
+    /** Original 1-indexed scene file ID (scenes/SceneN.tsx). Survives timeline splits. */
+    sourceSceneId?: number;
     elements?: Array<{
       id: string;
       name: string;
@@ -121,6 +133,7 @@ export const projectAssets = pgTable('project_assets', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
   filename: varchar('filename', { length: 255 }).notNull(),
+  label: varchar('label', { length: 255 }),
   storageKey: varchar('storage_key', { length: 500 }).notNull(),
   contentType: varchar('content_type', { length: 100 }).notNull(),
   fileSize: integer('file_size'),
@@ -134,6 +147,7 @@ export const projectAssets = pgTable('project_assets', {
 export const conversations = pgTable('conversations', {
   id: uuid('id').primaryKey().defaultRandom(),
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  sdkSessionId: varchar('sdk_session_id', { length: 255 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -143,6 +157,13 @@ export const conversationMessages = pgTable('conversation_messages', {
   conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'cascade' }).notNull(),
   role: varchar('role', { length: 50 }).notNull(), // 'user' | 'assistant'
   content: jsonb('content').notNull(), // Array of MessageContent blocks
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+// Waitlist signups
+export const waitlist = pgTable('waitlist', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: varchar('email', { length: 255 }).unique().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -167,3 +188,5 @@ export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
 export type ConversationMessage = typeof conversationMessages.$inferSelect;
 export type NewConversationMessage = typeof conversationMessages.$inferInsert;
+export type WaitlistEntry = typeof waitlist.$inferSelect;
+export type NewWaitlistEntry = typeof waitlist.$inferInsert;

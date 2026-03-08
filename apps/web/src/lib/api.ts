@@ -25,6 +25,7 @@ export interface ProcessProjectResponse {
   jobId: string;
   transcribeJobId: string;
   enhanceJobId: string | null;
+  headTrackJobId?: string | null;
   totalJobs?: number;
 }
 
@@ -102,6 +103,16 @@ export interface Job {
   status: string;
   progress: number;
   progressMessage: string | null;
+  progressMeta?: {
+    phase?: string;
+    phaseName?: string;
+    scene?: number;
+    totalScenes?: number;
+    iteration?: number;
+    maxIterations?: number;
+    score?: number;
+    detail?: string;
+  } | null;
   error: string | null;
   metrics?: JobMetrics | null;
   logs?: string[] | null;
@@ -115,14 +126,14 @@ export interface DownloadResponse {
 }
 
 export interface SeparateAudioResponse {
-  jobId: string;
   trackId: string;
   itemId: string;
+  src: string;
 }
 
-export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
+export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
 
-export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+export type VisualsLayoutMode = 'pip' | 'stacked';
 
 export interface VisualsDimensions {
   width: number;
@@ -247,6 +258,7 @@ export interface UserProject {
 export interface ProjectMediaAsset {
   id: string;
   filename: string;
+  label?: string | null;
   mimeType: string;
   fileSize: number | null;
   url: string;
@@ -287,6 +299,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error('[API Error]', response.status, url, JSON.stringify(error).slice(0, 500));
       throw new Error(error.error || `Request failed: ${response.status}`);
     }
 
@@ -324,7 +337,7 @@ class ApiClient {
 
   async updateProject(
     projectId: string,
-    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; captionItemIds?: string[]; videoSettings?: Record<string, unknown> }
+    updates: { title?: string; tracks?: Partial<Track>[]; items?: Partial<TimelineItem>[]; captionItemIds?: string[]; visualItemIds?: string[]; videoItemIds?: string[]; audioItemIds?: string[]; videoSettings?: Record<string, unknown> }
   ): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}`, {
       method: 'PATCH',
@@ -332,7 +345,7 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> }): Promise<ProcessProjectResponse> {
+  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> }): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
       body: JSON.stringify(options || {}),
@@ -343,6 +356,13 @@ class ApiClient {
     return this.request(`/api/projects/${projectId}/separate-audio`, {
       method: 'POST',
       body: JSON.stringify({ videoItemId }),
+    });
+  }
+
+  async generateCaptionStyles(projectId: string): Promise<{ jobId: string }> {
+    return this.request(`/api/projects/${projectId}/generate-caption-styles`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     });
   }
 
@@ -536,7 +556,18 @@ class ApiClient {
       progress: number;
       message: string | null;
       phase?: string;
+      phaseName?: string;
       jobType?: string;
+      progressMeta?: {
+        phase?: string;
+        phaseName?: string;
+        scene?: number;
+        totalScenes?: number;
+        iteration?: number;
+        maxIterations?: number;
+        score?: number;
+        detail?: string;
+      } | null;
     } | null;
   }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`);
@@ -545,6 +576,24 @@ class ApiClient {
   async clearConversation(projectId: string): Promise<{ success: boolean }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`, {
       method: 'DELETE',
+    });
+  }
+
+  async updatePlanScenes(
+    projectId: string,
+    planJobId: string,
+    scenes: Array<{ id: number; title?: string; description?: string; displayMode?: 'default' | 'fullscreen' | 'overlay' }>
+  ): Promise<{ success: boolean; scenes: Array<{
+    startMs: number; endMs: number; title: string; description: string;
+    emotion?: string; displayMode?: string;
+    keySync?: { word: string; timestamp: number; visualEvent: string };
+    buildsFrom?: string | null; connectsTo?: string | null;
+    layout?: Record<string, unknown> | null; frames?: [number, number] | null;
+    icons?: string[]; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } };
+  }> }> {
+    return this.request(`/api/projects/${projectId}/plan/${planJobId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ scenes }),
     });
   }
 
@@ -562,12 +611,14 @@ class ApiClient {
   async uploadProjectMedia(
     projectId: string,
     file: File,
+    label?: string,
     onProgress?: (progress: number) => void
   ): Promise<ProjectMediaAsset> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const formData = new FormData();
       formData.append('file', file);
+      if (label) formData.append('label', label);
 
       if (onProgress) {
         xhr.upload.addEventListener('progress', (event) => {

@@ -456,8 +456,10 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
   });
 
   // ── Dynamic hierarchy helpers ──
+  // Only compute per-word style overrides for dynamic hierarchy preset.
+  // Other presets must not be affected by AI-baked word classifications.
   const getDHOverrides = (wordText: string, existing?: WordStyleOverrides): WordStyleOverrides => {
-    if (!isDynamicHierarchy) return existing || {};
+    if (!isDynamicHierarchy) return {};
     const clean = wordText.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
     const isPower = /^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')
       || POWER_WORD_SET.has(clean);
@@ -641,14 +643,18 @@ export const AnimatedSubtitle: React.FC<AnimatedSubtitleProps> = ({
   }
 
   // ── Default phrase mode: show windowed words, highlight active ──
+  // Strip per-word styleOverrides — they are only for dynamic hierarchy preset
   return (
     <div style={positionStyles}>
       {visibleWords.map((word, index) => {
         const globalIndex = groupStart + index;
+        const cleanWord = word.styleOverrides
+          ? { ...word, styleOverrides: undefined }
+          : word;
         return (
           <Word
             key={globalIndex}
-            word={word}
+            word={cleanWord}
             style={style}
             currentTimeMs={currentTimeMs}
           />

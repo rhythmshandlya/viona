@@ -6,26 +6,30 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { FeatureListProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  Dot-grid SVG background pattern                                    */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', top: 0, left: 0 }}
-  >
-    <defs>
-      <pattern id="dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="2" cy="2" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', top: 0, left: 0 }}
+    >
+      <defs>
+        <pattern id="dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(2)} cy={s(2)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Single feature row                                                 */
@@ -55,7 +59,8 @@ const FeatureItem: React.FC<FeatureItemProps> = ({
   progress,
   accentHeight,
 }) => {
-  const translateX = interpolate(progress, [0, 1], [120, 0]);
+  const s = useScale();
+  const translateX = interpolate(progress, [0, 1], [s(120), 0]);
   const opacity = interpolate(progress, [0, 1], [0, 1]);
   const barHeight = interpolate(accentHeight, [0, 1], [0, 100]);
 
@@ -65,7 +70,7 @@ const FeatureItem: React.FC<FeatureItemProps> = ({
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 24,
+        gap: s(24),
         opacity,
         transform: `translateX(${translateX}px)`,
       }}
@@ -73,10 +78,10 @@ const FeatureItem: React.FC<FeatureItemProps> = ({
       {/* Accent bar */}
       <div
         style={{
-          width: 4,
+          width: s(4),
           height: `${barHeight}%`,
           backgroundColor: accentColor,
-          borderRadius: 2,
+          borderRadius: s(2),
           flexShrink: 0,
           alignSelf: 'stretch',
           minHeight: 0,
@@ -86,10 +91,10 @@ const FeatureItem: React.FC<FeatureItemProps> = ({
       {/* Icon */}
       <div
         style={{
-          fontSize: 48,
+          fontSize: s(48),
           lineHeight: 1,
           flexShrink: 0,
-          width: 60,
+          width: s(60),
           textAlign: 'center',
         }}
       >
@@ -97,12 +102,12 @@ const FeatureItem: React.FC<FeatureItemProps> = ({
       </div>
 
       {/* Text */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: s(6) }}>
         <div
           style={{
             fontFamily: headlineFont,
             fontWeight: 700,
-            fontSize: 32,
+            fontSize: s(32),
             color: textColor,
             lineHeight: 1.2,
           }}
@@ -113,7 +118,7 @@ const FeatureItem: React.FC<FeatureItemProps> = ({
           style={{
             fontFamily: bodyFont,
             fontWeight: 400,
-            fontSize: 22,
+            fontSize: s(22),
             color: mutedColor,
             lineHeight: 1.4,
           }}
@@ -131,12 +136,13 @@ const FeatureItem: React.FC<FeatureItemProps> = ({
 const FeatureList: React.FC<FeatureListProps> = (props) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const { FONTS } = getConstants(props);
   const theme = BACKGROUNDS[props.background] ?? BACKGROUNDS.dark;
 
   /* ---- global intro / outro opacity ---- */
   const introOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,
@@ -179,7 +185,7 @@ const FeatureList: React.FC<FeatureListProps> = (props) => {
           bottom: 0,
           display: 'flex',
           flexDirection: 'column',
-          padding: '80px 72px',
+          padding: `${s(80)}px ${s(72)}px`,
         }}
       >
         {/* Heading */}
@@ -187,9 +193,9 @@ const FeatureList: React.FC<FeatureListProps> = (props) => {
           style={{
             fontFamily: FONTS.headline,
             fontWeight: 800,
-            fontSize: 56,
+            fontSize: s(56),
             color: theme.text,
-            marginBottom: 60,
+            marginBottom: s(60),
             opacity: headingOpacity,
             transform: `translateY(${headingY}px)`,
             textAlign: 'center',
@@ -203,7 +209,7 @@ const FeatureList: React.FC<FeatureListProps> = (props) => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 40,
+            gap: s(40),
             flex: 1,
             justifyContent: 'center',
           }}

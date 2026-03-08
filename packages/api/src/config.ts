@@ -54,7 +54,7 @@ export const config = {
   // Anthropic (Creative Director agent)
   // Requires ANTHROPIC_API_KEY in environment (Claude Agent SDK uses it for auth)
   anthropic: {
-    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929',
+    model: process.env.ANTHROPIC_MODEL || 'claude-opus-4-6',
   },
 
   // Stytch authentication

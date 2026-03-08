@@ -15,6 +15,9 @@ import {
   PictureInPicture,
   Video,
   Sparkles,
+  Crosshair,
+  Expand,
+  Crop,
 } from 'lucide-react';
 import {
   useLayoutSettings,
@@ -26,6 +29,7 @@ import {
   PiPPosition,
   PiPShape,
   LayoutMode,
+  DEFAULT_PIP_CROP,
 } from '../store/types';
 import { cn } from '@/lib/utils';
 
@@ -83,11 +87,19 @@ function ToggleButton({
 export function PiPControlPanel() {
   const layoutSettings = useLayoutSettings();
   const presetId = useLayoutPresetId();
-  const { updatePiPSettings, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
+  const { updatePiPSettings, updatePiPCrop, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
   const { mode, pip, split } = layoutSettings;
 
+  const crop = pip.crop || DEFAULT_PIP_CROP;
+
+  const cropPresets = [
+    { label: 'Fit', icon: <Expand className="w-3 h-3" />, crop: { cropX: 50, cropY: 50, zoom: 1.0 } },
+    { label: 'Face', icon: <Crosshair className="w-3 h-3" />, crop: { cropX: 50, cropY: 30, zoom: 1.3 } },
+    { label: 'Top', icon: <Crop className="w-3 h-3" />, crop: { cropX: 50, cropY: 25, zoom: 1.0 } },
+  ];
+
   const layoutModes: { value: LayoutMode; icon: React.ReactNode; label: string }[] = [
-    { value: 'split-horizontal', icon: <Rows className="w-4 h-4" />, label: 'Split' },
+    { value: 'stacked', icon: <Rows className="w-4 h-4" />, label: 'Stacked' },
     { value: 'pip', icon: <PictureInPicture className="w-4 h-4" />, label: 'PiP' },
   ];
 
@@ -158,33 +170,10 @@ export function PiPControlPanel() {
       {/* Divider */}
       <div className="border-t border-[var(--editor-border-subtle)]" />
 
-      {/* Split Mode Controls */}
-      {(mode === 'split-horizontal' || mode === 'split-vertical') && (
+      {/* Stacked Mode Controls */}
+      {mode === 'stacked' && (
         <div className="space-y-4">
-          <SectionLabel>Split Settings</SectionLabel>
-
-          {/* Direction */}
-          <div className="space-y-1.5">
-            <FieldLabel>Direction</FieldLabel>
-            <div className="grid grid-cols-2 gap-1.5">
-              <ToggleButton
-                active={mode === 'split-horizontal'}
-                onClick={() => setLayoutMode('split-horizontal')}
-                className="h-8 px-2"
-              >
-                <Rows className="w-3.5 h-3.5" />
-                <span>Top/Bottom</span>
-              </ToggleButton>
-              <ToggleButton
-                active={mode === 'split-vertical'}
-                onClick={() => setLayoutMode('split-vertical')}
-                className="h-8 px-2"
-              >
-                <Columns className="w-3.5 h-3.5" />
-                <span>Left/Right</span>
-              </ToggleButton>
-            </div>
-          </div>
+          <SectionLabel>Stacked Settings</SectionLabel>
 
           {/* Ratio */}
           <div className="space-y-2">
@@ -215,7 +204,7 @@ export function PiPControlPanel() {
 
           {/* Content Order */}
           <div className="space-y-1.5">
-            <FieldLabel>{mode === 'split-horizontal' ? 'Top' : 'Left'} Content</FieldLabel>
+            <FieldLabel>Top Content</FieldLabel>
             <div className="grid grid-cols-2 gap-1.5">
               <ToggleButton
                 active={split.position === 'visuals-first'}
@@ -338,12 +327,24 @@ export function PiPControlPanel() {
                 <Slider
                   value={[pip.borderRadius]}
                   min={0}
-                  max={40}
+                  max={50}
                   step={2}
                   onValueChange={([v]) => updatePiPSettings({ borderRadius: v })}
                 />
               </div>
             )}
+
+            {/* Rotation */}
+            <div className="space-y-1.5">
+              <FieldLabel value={`${pip.rotation || 0}°`}>Rotation</FieldLabel>
+              <Slider
+                value={[pip.rotation || 0]}
+                min={-180}
+                max={180}
+                step={1}
+                onValueChange={([v]) => updatePiPSettings({ rotation: v })}
+              />
+            </div>
 
             {/* Shadow */}
             <div className="flex items-center justify-between">
@@ -366,14 +367,80 @@ export function PiPControlPanel() {
               />
             </div>
           </div>
+
+          {/* Video Framing */}
+          <div className="border-t border-[var(--editor-border-subtle)]" />
+
+          <div className="space-y-3">
+            <SectionLabel>Video Framing</SectionLabel>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {cropPresets.map((preset) => (
+                <ToggleButton
+                  key={preset.label}
+                  active={
+                    crop.cropX === preset.crop.cropX &&
+                    crop.cropY === preset.crop.cropY &&
+                    crop.zoom === preset.crop.zoom
+                  }
+                  onClick={() => updatePiPCrop(preset.crop)}
+                  className="h-8"
+                >
+                  {preset.icon}
+                  <span>{preset.label}</span>
+                </ToggleButton>
+              ))}
+            </div>
+
+            {/* Horizontal Pan */}
+            <div className="space-y-1.5">
+              <FieldLabel value={Math.round(crop.cropX)}>Horizontal Pan</FieldLabel>
+              <Slider
+                value={[crop.cropX]}
+                min={0}
+                max={100}
+                step={1}
+                onValueChange={([v]) => updatePiPCrop({ cropX: v })}
+              />
+            </div>
+
+            {/* Vertical Pan */}
+            <div className="space-y-1.5">
+              <FieldLabel value={Math.round(crop.cropY)}>Vertical Pan</FieldLabel>
+              <Slider
+                value={[crop.cropY]}
+                min={0}
+                max={100}
+                step={1}
+                onValueChange={([v]) => updatePiPCrop({ cropY: v })}
+              />
+            </div>
+
+            {/* Zoom */}
+            <div className="space-y-1.5">
+              <FieldLabel value={`${crop.zoom.toFixed(1)}x`}>Zoom</FieldLabel>
+              <Slider
+                value={[crop.zoom]}
+                min={1.0}
+                max={3.0}
+                step={0.1}
+                onValueChange={([v]) => updatePiPCrop({ zoom: v })}
+              />
+            </div>
+
+            <p className="text-[10px] text-[var(--editor-text-muted)]">
+              Alt+drag on PiP to pan. Scroll to zoom.
+            </p>
+          </div>
         </div>
       )}
 
       {/* Hint */}
       <div className="pt-3 border-t border-[var(--editor-border-subtle)]">
         <p className="text-[11px] leading-relaxed text-[var(--editor-text-muted)]">
-          {mode === 'pip' && 'Talking head overlays the AI visuals. Customize position, size, and style.'}
-          {(mode === 'split-horizontal' || mode === 'split-vertical') && 'Split screen between visuals and video. Adjust the ratio to your preference.'}
+          {mode === 'pip' && 'Drag PiP to reposition. Alt+drag to pan video inside. Scroll to zoom.'}
+          {mode === 'stacked' && 'Stacked layout with visuals and video. Adjust the ratio to your preference.'}
         </p>
       </div>
     </div>

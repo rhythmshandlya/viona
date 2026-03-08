@@ -6,26 +6,30 @@ import {
   interpolate,
   spring,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { VersusScreenProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  DotGrid SVG background                                            */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="vs-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#vs-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="vs-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#vs-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Attribute row                                                      */
@@ -40,20 +44,21 @@ const AttributeRow: React.FC<{
   side: 'left' | 'right';
   textColor: string;
 }> = ({ text, frame, enterFrame, fps, color, font, side, textColor }) => {
+  const s = useScale();
   const progress = spring({
     frame: frame - enterFrame,
     fps,
     config: { damping: 18, stiffness: 100, mass: 0.8 },
   });
 
-  const slideX = side === 'left' ? -60 * (1 - progress) : 60 * (1 - progress);
+  const slideX = side === 'left' ? s(-60) * (1 - progress) : s(60) * (1 - progress);
 
   return (
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 14,
+        gap: s(14),
         opacity: progress,
         transform: `translateX(${slideX}px)`,
         flexDirection: side === 'left' ? 'row' : 'row-reverse',
@@ -61,18 +66,18 @@ const AttributeRow: React.FC<{
     >
       <div
         style={{
-          width: 10,
-          height: 10,
+          width: s(10),
+          height: s(10),
           borderRadius: '50%',
           backgroundColor: color,
           flexShrink: 0,
-          boxShadow: `0 0 8px ${color}`,
+          boxShadow: `0 0 ${s(8)}px ${color}`,
         }}
       />
       <span
         style={{
           fontFamily: font,
-          fontSize: 32,
+          fontSize: s(32),
           fontWeight: 500,
           color: textColor,
           letterSpacing: 0.5,
@@ -91,11 +96,12 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   /* ---- global fade in / out ---- */
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,
@@ -180,7 +186,7 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '80px 40px',
+          padding: `${s(80)}px ${s(40)}px`,
           boxSizing: 'border-box',
         }}
       >
@@ -198,15 +204,15 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 72,
+            fontSize: s(72),
             fontWeight: 800,
             color: props.leftColor,
             textTransform: 'uppercase',
-            letterSpacing: 4,
+            letterSpacing: s(4),
             textAlign: 'center',
             lineHeight: 1.1,
-            marginBottom: 48,
-            textShadow: `0 0 30px ${props.leftColor}66`,
+            marginBottom: s(48),
+            textShadow: `0 0 ${s(30)}px ${props.leftColor}66`,
             position: 'relative',
           }}
         >
@@ -218,10 +224,10 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 20,
+            gap: s(20),
             alignItems: 'flex-start',
             width: '100%',
-            paddingLeft: 40,
+            paddingLeft: s(40),
             position: 'relative',
           }}
         >
@@ -254,7 +260,7 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '80px 40px',
+          padding: `${s(80)}px ${s(40)}px`,
           boxSizing: 'border-box',
         }}
       >
@@ -272,15 +278,15 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 72,
+            fontSize: s(72),
             fontWeight: 800,
             color: props.rightColor,
             textTransform: 'uppercase',
-            letterSpacing: 4,
+            letterSpacing: s(4),
             textAlign: 'center',
             lineHeight: 1.1,
-            marginBottom: 48,
-            textShadow: `0 0 30px ${props.rightColor}66`,
+            marginBottom: s(48),
+            textShadow: `0 0 ${s(30)}px ${props.rightColor}66`,
             position: 'relative',
           }}
         >
@@ -292,10 +298,10 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 20,
+            gap: s(20),
             alignItems: 'flex-end',
             width: '100%',
-            paddingRight: 40,
+            paddingRight: s(40),
             position: 'relative',
           }}
         >
@@ -321,12 +327,12 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
           position: 'absolute',
           top: 0,
           left: '50%',
-          width: 3,
+          width: s(3),
           height: '100%',
           transform: 'translateX(-50%)',
           backgroundColor: theme.dividerGlow,
           opacity: dividerBaseOpacity + dividerGlow * 0.7,
-          boxShadow: `0 0 ${12 + dividerGlow * 30}px ${dividerGlow * 8}px ${props.colors.accent}`,
+          boxShadow: `0 0 ${s(12) + dividerGlow * s(30)}px ${dividerGlow * s(8)}px ${props.colors.accent}`,
           pointerEvents: 'none',
         }}
       />
@@ -349,8 +355,8 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
         <div
           style={{
             position: 'absolute',
-            width: 200,
-            height: 200,
+            width: s(200),
+            height: s(200),
             borderRadius: '50%',
             background: `radial-gradient(circle, ${props.colors.accent}44 0%, transparent 70%)`,
             filter: 'blur(20px)',
@@ -359,14 +365,14 @@ const VersusScreen: React.FC<VersusScreenProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 140,
+            fontSize: s(140),
             fontWeight: 900,
             color: props.colors.accent,
-            letterSpacing: 8,
+            letterSpacing: s(8),
             textShadow: `
-              0 0 20px ${props.colors.accent}88,
-              0 0 60px ${props.colors.accent}44,
-              0 0 100px ${props.colors.accent}22
+              0 0 ${s(20)}px ${props.colors.accent}88,
+              0 0 ${s(60)}px ${props.colors.accent}44,
+              0 0 ${s(100)}px ${props.colors.accent}22
             `,
             position: 'relative',
             lineHeight: 1,

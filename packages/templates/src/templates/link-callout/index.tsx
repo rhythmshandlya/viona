@@ -7,14 +7,16 @@ import {
   spring,
   Easing,
 } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants } from './constants';
 import type { LinkCalloutProps } from './schema';
 
 /* ─── SVG Background: Dot Grid ─────────────────────────────────────── */
 
 const DotGrid: React.FC<{ color: string; size: number }> = ({ color, size }) => {
-  const spacing = 32;
-  const dotR = 2;
+  const s = useScale();
+  const spacing = s(32);
+  const dotR = s(2);
   const cols = Math.ceil(size / spacing) + 1;
   const rows = Math.ceil(size / spacing) + 1;
 
@@ -92,11 +94,12 @@ const BouncingArrow: React.FC<{
 const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
   const { COLORS, FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width } = useVideoConfig();
+  const s = useScale();
 
   // ── Background fade in (0-15) ──────────────────────────────────────
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // ── Bubble scale in (20-40) with spring ────────────────────────────
@@ -181,7 +184,7 @@ const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
     >
       {/* Dot grid background */}
       <div style={{ opacity: bgOpacity }}>
-        <DotGrid color={COLORS.dotColor} size={1080} />
+        <DotGrid color={COLORS.dotColor} size={width} />
       </div>
 
       {/* Subtle radial glow behind bubble */}
@@ -191,8 +194,8 @@ const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -55%)',
-          width: 700,
-          height: 700,
+          width: s(700),
+          height: s(700),
           borderRadius: '50%',
           background: `radial-gradient(circle, ${COLORS.bubbleBorder}15 0%, transparent 70%)`,
           opacity: bgOpacity * finalBubbleScale,
@@ -216,7 +219,7 @@ const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 24,
+            gap: s(24),
           }}
         >
           {/* Pill container */}
@@ -225,22 +228,22 @@ const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 16,
-              padding: '48px 64px',
-              borderRadius: 60,
+              gap: s(16),
+              padding: `${s(48)}px ${s(64)}px`,
+              borderRadius: s(60),
               backgroundColor: COLORS.bubbleBg,
-              border: `3px solid ${COLORS.bubbleBorder}`,
-              boxShadow: `0 0 60px ${COLORS.bubbleBorder}20, 0 20px 60px rgba(0,0,0,0.3)`,
-              minWidth: 420,
-              maxWidth: 720,
+              border: `${s(3)}px solid ${COLORS.bubbleBorder}`,
+              boxShadow: `0 0 ${s(60)}px ${COLORS.bubbleBorder}20, 0 ${s(20)}px ${s(60)}px rgba(0,0,0,0.3)`,
+              minWidth: s(420),
+              maxWidth: s(720),
             }}
           >
             {/* Link chain icon */}
             <div style={{ opacity: iconOpacity }}>
               <div
                 style={{
-                  width: 72,
-                  height: 72,
+                  width: s(72),
+                  height: s(72),
                   borderRadius: '50%',
                   backgroundColor: `${COLORS.bubbleBorder}18`,
                   display: 'flex',
@@ -248,7 +251,7 @@ const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
                   justifyContent: 'center',
                 }}
               >
-                <LinkChainIcon color={COLORS.bubbleBorder} size={36} />
+                <LinkChainIcon color={COLORS.bubbleBorder} size={s(36)} />
               </div>
             </div>
 
@@ -256,13 +259,13 @@ const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
             <div
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 52,
+                fontSize: s(52),
                 fontWeight: 700,
                 color: COLORS.text,
                 textAlign: 'center',
                 lineHeight: 1.2,
                 letterSpacing: '-0.02em',
-                minHeight: 63,
+                minHeight: s(63),
                 whiteSpace: 'pre',
               }}
             >
@@ -285,12 +288,12 @@ const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
               style={{
                 opacity: urlOpacity,
                 fontFamily: FONTS.body,
-                fontSize: 28,
+                fontSize: s(28),
                 color: COLORS.bubbleBorder,
                 textAlign: 'center',
                 letterSpacing: '0.02em',
-                padding: '8px 24px',
-                borderRadius: 30,
+                padding: `${s(8)}px ${s(24)}px`,
+                borderRadius: s(30),
                 backgroundColor: `${COLORS.bubbleBorder}12`,
               }}
             >
@@ -303,13 +306,13 @@ const LinkCallout: React.FC<LinkCalloutProps> = (props) => {
             <div
               style={{
                 transform: `scale(${arrowScale})`,
-                marginTop: 12,
+                marginTop: s(12),
                 opacity: frame >= 300 ? bubbleOut : 1,
               }}
             >
               <BouncingArrow
                 color={COLORS.bubbleBorder}
-                size={56}
+                size={s(56)}
                 bounceOffset={arrowBounce}
               />
             </div>

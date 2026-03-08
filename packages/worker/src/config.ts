@@ -34,8 +34,8 @@ export const config = {
     maxThinkingTokens: parseInt(process.env.CLAUDE_AGENT_MAX_THINKING_TOKENS || '10000', 10),
     // Maximum agent turns
     maxTurns: parseInt(process.env.CLAUDE_AGENT_MAX_TURNS || '100', 10),
-    // Timeout for generation (45 minutes default - includes Director + Animator + retries)
-    timeoutSeconds: parseInt(process.env.CLAUDE_AGENT_TIMEOUT || '2700', 10),
+    // Timeout for generation (90 minutes default - includes Director + Animator + verification + retries)
+    timeoutSeconds: parseInt(process.env.CLAUDE_AGENT_TIMEOUT || '5400', 10),
     // Maximum retries on failure (more for transient API errors)
     maxRetries: parseInt(process.env.CLAUDE_AGENT_MAX_RETRIES || '4', 10),
   },
@@ -101,6 +101,13 @@ export const config = {
     get disabled() {
       return !this.enabled;
     },
+  },
+
+
+  wordStyleAnalysis: {
+    // Set WORD_STYLE_ANALYSIS_ENABLED=false to skip LLM word analysis
+    enabled: process.env.WORD_STYLE_ANALYSIS_ENABLED === 'true',
+    model: process.env.WORD_STYLE_ANALYSIS_MODEL || 'gpt-4o-mini',
   },
 
   freepik: {

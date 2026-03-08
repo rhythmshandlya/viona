@@ -55,7 +55,7 @@ import { Img, staticFile } from "remotion";
 fail during rendering due to CORS, rate limits, or unavailability. This crashes the entire render.
 
 Instead:
-- **Icons**: Download via Freepik MCP → inline the SVG directly in JSX
+- **Icons**: Download via Freepik MCP or Iconify/better-icons → inline the SVG directly in JSX. For company/brand logos, use Iconify `simple-icons:*` first (3000+ official brand SVGs).
 - **Photos/illustrations**: Download via asset tools → use `staticFile('assets/...')`
 - **Pre-fetched images**: Use the `remotionPath` from scenes.json with `staticFile()`
 

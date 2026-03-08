@@ -1,39 +1,44 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { NewsTickerProps } from './schema';
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="news-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#news-dot-grid)" />
-  </svg>
-);
-
-const TICKER_BAR_HEIGHT = 80;
-const BADGE_LEFT_MARGIN = 24;
-const TEXT_LEFT_OFFSET = 200;
-const SCROLL_SPEED = 3.2;
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="news-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#news-dot-grid)" />
+    </svg>
+  );
+};
 
 const NewsTicker: React.FC<NewsTickerProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames, width } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
+
+  const TICKER_BAR_HEIGHT = s(80);
+  const BADGE_LEFT_MARGIN = s(24);
+  const TEXT_LEFT_OFFSET = s(200);
+  const SCROLL_SPEED = s(3.2);
 
   // --- Animation timeline ---
 
   // 0-15: Background fade in
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 10-25: Ticker bar slides up from bottom
@@ -74,7 +79,7 @@ const NewsTicker: React.FC<NewsTickerProps> = (props) => {
   const fullText = props.tickerText + separator + props.tickerText + separator;
 
   // Measure approximate text width (character count * approximate char width)
-  const charWidth = 18;
+  const charWidth = s(18);
   const singleTextWidth = (props.tickerText.length + separator.length) * charWidth;
 
   // 20-320: Continuous scroll from right to left
@@ -140,20 +145,20 @@ const NewsTicker: React.FC<NewsTickerProps> = (props) => {
             alignItems: 'center',
             justifyContent: 'center',
             backgroundColor: props.accentColor,
-            borderRadius: 6,
-            padding: '8px 18px',
+            borderRadius: s(6),
+            padding: `${s(8)}px ${s(18)}px`,
             transform: `scale(${badgeScale})`,
             opacity: badgeOpacity,
-            boxShadow: `0 0 20px ${props.accentColor}44`,
+            boxShadow: `0 0 ${s(20)}px ${props.accentColor}44`,
           }}
         >
           <span
             style={{
               fontFamily: FONTS.headline,
-              fontSize: 18,
+              fontSize: s(18),
               fontWeight: 800,
               color: '#FFFFFF',
-              letterSpacing: 2,
+              letterSpacing: s(2),
               lineHeight: 1,
               textTransform: 'uppercase',
             }}
@@ -177,7 +182,7 @@ const NewsTicker: React.FC<NewsTickerProps> = (props) => {
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 26,
+              fontSize: s(26),
               fontWeight: 500,
               color: theme.text,
               whiteSpace: 'nowrap',
@@ -194,10 +199,10 @@ const NewsTicker: React.FC<NewsTickerProps> = (props) => {
         <div
           style={{
             position: 'absolute',
-            left: TEXT_LEFT_OFFSET - 4,
+            left: TEXT_LEFT_OFFSET - s(4),
             top: 0,
             bottom: 0,
-            width: 60,
+            width: s(60),
             background: `linear-gradient(to right, ${
               props.background === 'dark'
                 ? 'rgba(0,0,0,0.75)'
@@ -215,7 +220,7 @@ const NewsTicker: React.FC<NewsTickerProps> = (props) => {
             right: 0,
             top: 0,
             bottom: 0,
-            width: 80,
+            width: s(80),
             background: `linear-gradient(to left, ${
               props.background === 'dark'
                 ? 'rgba(0,0,0,0.75)'

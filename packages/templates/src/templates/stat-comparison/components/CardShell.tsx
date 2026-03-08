@@ -1,5 +1,6 @@
 import React from 'react';
 import { interpolate, spring, useVideoConfig } from 'remotion';
+import { useScale } from '../../../use-scale';
 
 interface CardShellProps {
   children: React.ReactNode;
@@ -23,6 +24,7 @@ const CardShell: React.FC<CardShellProps> = ({
   accentColor,
 }) => {
   const { fps } = useVideoConfig();
+  const s = useScale();
   const localFrame = frame - enterFrame;
 
   const entranceScale = spring({
@@ -83,17 +85,17 @@ const CardShell: React.FC<CardShellProps> = ({
     >
       <div
         style={{
-          width: 900,
-          minHeight: 600,
-          borderRadius: 32,
+          width: s(900),
+          minHeight: s(600),
+          borderRadius: s(32),
           background: cardBackground,
           border,
-          backdropFilter: cardStyle === 'glass' ? 'blur(20px)' : undefined,
-          WebkitBackdropFilter: cardStyle === 'glass' ? 'blur(20px)' : undefined,
-          padding: '56px 64px',
+          backdropFilter: cardStyle === 'glass' ? `blur(${s(20)}px)` : undefined,
+          WebkitBackdropFilter: cardStyle === 'glass' ? `blur(${s(20)}px)` : undefined,
+          padding: `${s(56)}px ${s(64)}px`,
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: cardStyle !== 'outline' ? '0 8px 32px rgba(0, 0, 0, 0.2)' : undefined,
+          boxShadow: cardStyle !== 'outline' ? `0 ${s(8)}px ${s(32)}px rgba(0, 0, 0, 0.2)` : undefined,
         }}
       >
         {children}

@@ -38,6 +38,110 @@ interface WhisperXOutput {
   language: string;
 }
 
+// Per-word style overrides stored in subtitle item JSONB data.
+// Uses the full editor-side field set (activeColor, textTransform) even though
+// @viona/shared's WordStyleOverrides is narrower — JSONB accepts any shape.
+export interface PerWordStyleOverrides {
+  scale?: number;
+  fontWeight?: number;
+  color?: string;
+  activeColor?: string;
+  textTransform?: 'uppercase' | 'lowercase' | 'none';
+}
+
+export type WordTier = 'power' | 'medium' | 'filler';
+
+export function mapWordTypeToOverrides(type: WordTier): PerWordStyleOverrides | null {
+  if (type === 'power') {
+    return {
+      scale: 1.6,
+      fontWeight: 900,
+      color: '#ffffff',
+      activeColor: '#FFD400',
+      textTransform: 'uppercase',
+    };
+  }
+  if (type === 'filler') {
+    return {
+      scale: 1.0,
+      fontWeight: 500,
+      color: 'rgba(255,255,255,0.7)',
+      activeColor: 'rgba(255,255,255,0.85)',
+    };
+  }
+  // medium — let the preset's base style apply
+  return null;
+}
+
+const WORD_ANALYSIS_BATCH_SIZE = 200;
+
+const WORD_ANALYSIS_SYSTEM_PROMPT = `You are a subtitle typography designer.
+Classify each spoken word for visual emphasis in short-form video subtitles.
+
+Types:
+- "power": emotionally strong, surprising, impactful, or key-information words (nouns, strong verbs, numbers, dollar amounts, superlatives, emotional adjectives)
+- "filler": articles (a, an, the), prepositions (in, on, at, to, of, for, with, by, from), conjunctions (and, but, or), auxiliary verbs (is, are, was, were, be, been, do, did, has, had, have, will, would, could, should), pronouns (i, you, we, they, he, she, it, me, us, them)
+- "medium": everything else (default — do not include in output)
+
+Return ONLY a JSON object. Keys = word index (string), values = {"type":"power"|"filler"}.
+Include ONLY power and filler words. Omit medium words entirely.
+Example: {"3":{"type":"power"},"7":{"type":"filler"},"12":{"type":"power"}}`;
+
+async function analyzeWordStyles(
+  words: WhisperXWord[],
+  apiKey: string,
+  model: string,
+): Promise<Record<number, PerWordStyleOverrides>> {
+  const OpenAI = (await import('openai')).default;
+  const openai = new OpenAI({ apiKey });
+
+  const allOverrides: Record<number, PerWordStyleOverrides> = {};
+
+  // Process in batches to stay within token limits
+  for (let batchStart = 0; batchStart < words.length; batchStart += WORD_ANALYSIS_BATCH_SIZE) {
+    const batchEnd = Math.min(batchStart + WORD_ANALYSIS_BATCH_SIZE, words.length);
+    const batchWords = words.slice(batchStart, batchEnd);
+
+    // Build word list with global indices
+    const wordList = batchWords
+      .map((w, localIdx) => `${batchStart + localIdx}: "${w.text}"`)
+      .join('\n');
+
+    const response = await openai.chat.completions.create({
+      model,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: WORD_ANALYSIS_SYSTEM_PROMPT },
+        { role: 'user', content: `Classify these words:\n${wordList}` },
+      ],
+      temperature: 0,
+      max_tokens: 800,
+    });
+
+    const raw = response.choices[0]?.message?.content ?? '{}';
+    let parsed: Record<string, { type: WordTier }>;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      logger.warn({ batchStart }, 'Word style analysis: failed to parse LLM JSON, skipping batch');
+      continue;
+    }
+
+    for (const [idxStr, entry] of Object.entries(parsed)) {
+      const globalIdx = parseInt(idxStr, 10);
+      if (isNaN(globalIdx) || globalIdx < batchStart || globalIdx >= batchEnd) continue;
+      const tier = entry?.type as WordTier;
+      if (tier !== 'power' && tier !== 'filler' && tier !== 'medium') continue;
+      const overrides = mapWordTypeToOverrides(tier);
+      if (overrides) {
+        allOverrides[globalIdx] = overrides;
+      }
+    }
+  }
+
+  return allOverrides;
+}
+
 async function extractAudio(videoPath: string, audioPath: string): Promise<void> {
   // Use spawn with cwd and relative filenames to avoid Windows path issues
   // (FFmpeg interprets colons in paths like C:/... as stream specifiers)
@@ -443,6 +547,32 @@ function isAudioFile(key: string): boolean {
   return ['.mp3', '.m4a', '.wav', '.ogg', '.flac'].includes(ext);
 }
 
+// Check if a downloaded file actually has a video stream (handles .mp4 with audio-only)
+async function hasVideoStream(filePath: string): Promise<boolean> {
+  const { dirname, basename } = await import('path');
+  return new Promise((resolve) => {
+    const proc = spawn('ffprobe', [
+      '-v', 'error',
+      '-select_streams', 'v:0',
+      '-show_entries', 'stream=codec_type',
+      '-of', 'json',
+      basename(filePath),
+    ], { cwd: dirname(filePath), stdio: ['ignore', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.on('close', () => {
+      try {
+        const data = JSON.parse(stdout);
+        resolve((data.streams?.length ?? 0) > 0);
+      } catch {
+        resolve(false);
+      }
+    });
+    proc.on('error', () => resolve(false));
+  });
+}
+
 // Convert audio to 16kHz mono WAV for Whisper
 async function convertToWhisperWav(inputPath: string, outputPath: string): Promise<void> {
   const { dirname, basename } = await import('path');
@@ -492,7 +622,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     // Create working directory
     await mkdir(workDir, { recursive: true });
 
-    const isAudio = isAudioFile(videoKey);
+    let isAudio = isAudioFile(videoKey);
     const inputExt = videoKey.match(/\.[^.]+$/)?.[0] || (isAudio ? '.mp3' : '.mp4');
     const inputPath = join(workDir, `input${inputExt}`);
     const audioPath = join(workDir, 'audio.wav');
@@ -508,6 +638,11 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     await publishJobProgress(jobId, 5, `Downloading ${isAudio ? 'audio' : 'video'}...`, pubExtras);
     await downloadFile('uploads', videoKey, inputPath);
     await publishJobProgress(jobId, 10, `${isAudio ? 'Audio' : 'Video'} downloaded`, pubExtras);
+
+    // Handle .mp4 files that are actually audio-only (no video stream)
+    if (!isAudio && !(await hasVideoStream(inputPath))) {
+      isAudio = true;
+    }
 
     // Step 2: Get metadata
     let durationMs: number;
@@ -555,15 +690,37 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     const whisperxOutput = await runTranscription(audioPath, jobId, projectId);
     await publishJobProgress(jobId, 70, 'Transcription complete', pubExtras);
 
-    // Step 5: Process captions (75%)
-    await publishJobProgress(jobId, 72, 'Processing captions...', pubExtras);
+    // Step 4.5: LLM word style analysis (70% → 80%)
+    let wordStyleOverrides: Record<number, PerWordStyleOverrides> = {};
+    const analysisEnabled = config.wordStyleAnalysis.enabled;
+    const analysisApiKey = config.transcription.openaiApiKey;
+
+    if (analysisEnabled && analysisApiKey) {
+      try {
+        await publishJobProgress(jobId, 71, 'Analysing word styles...', pubExtras);
+        wordStyleOverrides = await analyzeWordStyles(
+          whisperxOutput.words,
+          analysisApiKey,
+          config.wordStyleAnalysis.model,
+        );
+        await publishJobProgress(jobId, 80, 'Word styles analysed', pubExtras);
+        logger.info({ projectId, wordCount: whisperxOutput.words.length, overrideCount: Object.keys(wordStyleOverrides).length }, 'Word style analysis complete');
+      } catch (err) {
+        logger.warn({ projectId, err }, 'Word style analysis failed — continuing without overrides');
+      }
+    } else if (analysisEnabled && !analysisApiKey) {
+      logger.info({ projectId }, 'Word style analysis skipped — no OPENAI_API_KEY');
+    }
+
+    // Step 5: Process captions (82%)
+    await publishJobProgress(jobId, 81, 'Processing captions...', pubExtras);
 
     const pages = groupWordsIntoPages(whisperxOutput.words);
 
-    await publishJobProgress(jobId, 75, 'Captions processed', pubExtras);
+    await publishJobProgress(jobId, 82, 'Captions processed', pubExtras);
 
     // Step 6: Save transcript to database (80%)
-    await publishJobProgress(jobId, 78, 'Saving transcript...', pubExtras);
+    await publishJobProgress(jobId, 83, 'Saving transcript...', pubExtras);
 
     await db.insert(transcripts).values({
       projectId,
@@ -571,7 +728,7 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       words: whisperxOutput.words as any,
     });
 
-    await publishJobProgress(jobId, 80, 'Transcript saved', pubExtras);
+    await publishJobProgress(jobId, 85, 'Transcript saved', pubExtras);
 
     // Step 7: Create subtitle track and items (90%)
     await publishJobProgress(jobId, 82, 'Creating subtitle track...', pubExtras);
@@ -585,6 +742,8 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
     }).returning();
 
     // Create timeline items from caption pages
+    // Track global word index across pages so overrides align correctly
+    let globalWordIdx = 0;
     const subtitleItems = pages.map((page) => ({
       trackId: subtitleTrack.id,
       type: 'subtitle' as const,
@@ -592,11 +751,16 @@ export async function processTranscribeJob(job: Job<TranscribeJobData>) {
       endMs: page.endMs,
       data: {
         text: page.text,
-        words: page.words.map(w => ({
-          text: w.text,
-          startMs: w.startMs,
-          endMs: w.endMs,
-        })),
+        words: page.words.map((w) => {
+          const idx = globalWordIdx++;
+          const styleOverrides = wordStyleOverrides[idx];
+          return {
+            text: w.text,
+            startMs: w.startMs,
+            endMs: w.endMs,
+            ...(styleOverrides ? { styleOverrides } : {}),
+          };
+        }),
         style: DEFAULT_SUBTITLE_STYLE,
       },
     }));

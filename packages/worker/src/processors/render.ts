@@ -1,6 +1,6 @@
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm, access, constants, readFile, writeFile, readdir, unlink, stat } from 'fs/promises';
+import { mkdir, rm, access, constants, readFile, writeFile, readdir, unlink, stat, symlink } from 'fs/promises';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { nanoid } from 'nanoid';
@@ -12,6 +12,8 @@ import { logger } from '../logger.js';
 import { renderVideo, SubtitleItem, SubtitleStyle } from '@viona/renderer';
 import { renderMedia, selectComposition, getCompositions } from '@remotion/renderer';
 import { bundle } from '@remotion/bundler';
+import { classifyWordTier, computeEmotionalSegments } from '@viona/shared';
+import type { MinimalWord } from '@viona/shared';
 
 // Font directory for FFmpeg's libass subtitle filter.
 // In Docker (production), fonts are installed in /usr/share/fonts.
@@ -32,7 +34,7 @@ const LOCAL_FONTS_CACHE = join(tmpdir(), 'clippify-fonts');
  * Verified working with FFmpeg 8.x on Windows. On Linux/macOS (no colons in
  * paths), the function is effectively a no-op.
  */
-function escapePathForFilter(p: string): string {
+export function escapePathForFilter(p: string): string {
   const normalized = p.replace(/\\/g, '/');
   // Windows paths contain drive letter colons (C:) which FFmpeg misparses
   if (normalized.includes(':')) {
@@ -191,7 +193,7 @@ const downloadedFonts = new Set<string>();
  * Walks the comma-separated list and returns the first available font,
  * checking Google Fonts registry and fallback map.
  */
-function resolveAvailableFontFamily(fontFamilyCSS: string): string {
+export function resolveAvailableFontFamily(fontFamilyCSS: string): string {
   const families = fontFamilyCSS.split(',').map(f => f.trim());
 
   for (const family of families) {
@@ -483,7 +485,7 @@ async function ensureFontsDir(fontFamilyCSS: string): Promise<string> {
 }
 
 export interface LayoutSettings {
-  mode: 'pip' | 'split-horizontal' | 'split-vertical';
+  mode: 'pip' | 'stacked';
   pip: {
     position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
     offsetX: number;
@@ -498,6 +500,7 @@ export interface LayoutSettings {
     shadowColor: string;
     shadowBlur: number;
     opacity: number;
+    rotation: number;
   };
   split: {
     position: 'visuals-first' | 'video-first';
@@ -532,7 +535,7 @@ interface VideoCropSettings {
  * Scales the source video to fill the target area (with optional zoom via scale),
  * then crops at an offset determined by cropX/cropY (0=left/top, 50=center, 100=right/bottom).
  */
-function buildVideoCropFilter(
+export function buildVideoCropFilter(
   crop: VideoCropSettings,
   targetWidth: number,
   targetHeight: number,
@@ -576,6 +579,7 @@ interface DisplayModeSegment {
   endMs: number;
   enterDurationMs?: number; // transition duration when entering (0 = cut)
   exitDurationMs?: number;  // transition duration when exiting (0 = cut)
+  overlayOpacity?: number;  // per-item overlay opacity (0-1), default 0.85
 }
 
 export interface RenderJobData {
@@ -584,10 +588,19 @@ export interface RenderJobData {
   projectType?: string;
   layoutSettings?: LayoutSettings;
   fullscreenSegments?: FullscreenSegment[];
+  visualDisplayData?: Array<{
+    startMs: number;
+    endMs: number;
+    displayMode?: string;
+    transition?: {
+      enter: { type: string; durationMs: number };
+      exit: { type: string; durationMs: number };
+    };
+  }>;
 }
 
 export async function processRenderJob(job: Job<RenderJobData>) {
-  const { projectId, jobId, layoutSettings } = job.data;
+  const { projectId, jobId, layoutSettings, visualDisplayData } = job.data;
   setJobProjectId(jobId, projectId);
   const workDir = join(tmpdir(), `viona-render-${nanoid()}`);
 
@@ -622,26 +635,40 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       allItems.push(...items);
     }
 
-    // Extract display mode segments from visual timeline items
-    const visualItems = allItems
-      .filter((item: any) => item.type === 'visual')
-      .sort((a: any, b: any) => a.startMs - b.startMs);
+    // Extract display mode segments from visual timeline items.
+    // When visualDisplayData is provided by the frontend, use it as the authoritative
+    // source (matches the exact preview state). Otherwise, fall back to DB items.
+    const visualItemsRaw = visualDisplayData
+      ? visualDisplayData.map((v) => ({
+          startMs: v.startMs,
+          endMs: v.endMs,
+          data: { displayMode: v.displayMode || 'pip', transition: v.transition },
+        }))
+      : allItems
+          .filter((item: any) => item.type === 'visual')
+          .map((item: any) => ({
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: { displayMode: (item.data as any)?.displayMode || 'pip', transition: (item.data as any)?.transition },
+          }));
+
+    const visualItems = visualItemsRaw.sort((a, b) => a.startMs - b.startMs);
 
     const fullscreenVisualSegments: DisplayModeSegment[] = [];
     const overlaySegments: DisplayModeSegment[] = [];
-    const isSplitLayout = layoutSettings?.mode === 'split-horizontal' || layoutSettings?.mode === 'split-vertical';
+    const isSplitLayout = layoutSettings?.mode === 'stacked';
 
     for (let i = 0; i < visualItems.length; i++) {
       const item = visualItems[i];
-      const dm = (item.data as any)?.displayMode || 'pip';
-      const transition = (item.data as any)?.transition;
+      const dm = item.data.displayMode;
+      const transition = item.data.transition;
 
       // Determine if layout changes at enter/exit boundaries
-      // For split mode, 'pip' is the base split layout — only non-pip modes need overlay layers
+      // For stacked mode, 'default' is the base stacked layout — only non-default modes need overlay layers
       const prevItem = i > 0 ? visualItems[i - 1] : null;
       const nextItem = i < visualItems.length - 1 ? visualItems[i + 1] : null;
-      const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'pip') : 'gap';
-      const nextDm = nextItem ? ((nextItem.data as any)?.displayMode || 'pip') : 'gap';
+      const prevDm = prevItem ? prevItem.data.displayMode : 'gap';
+      const nextDm = nextItem ? nextItem.data.displayMode : 'gap';
 
       // Check if there's a gap between prev and current (gap = different layout)
       const hasPrevGap = !prevItem || prevItem.endMs < item.startMs - 50;
@@ -661,7 +688,10 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       if (dm === 'fullscreen') {
         fullscreenVisualSegments.push({ startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs });
       } else if (dm === 'overlay') {
-        overlaySegments.push({ startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs });
+        overlaySegments.push({
+          startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs,
+          overlayOpacity: (item.data as any)?.overlayOpacity ?? 0.85,
+        });
       }
     }
 
@@ -677,14 +707,14 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         if (item.startMs > cursor) {
           // For gap enter: check transition of the preceding visual item (its exit)
           const prevItem = i > 0 ? visualItems[i - 1] : null;
-          const prevTransition = prevItem ? (prevItem.data as any)?.transition : null;
-          const prevDm = prevItem ? ((prevItem.data as any)?.displayMode || 'pip') : 'pip';
+          const prevTransition = prevItem ? prevItem.data.transition : null;
+          const prevDm = prevItem ? prevItem.data.displayMode : 'pip';
           const gapEnterDuration = (prevDm !== 'gap' && prevTransition?.exit?.type !== 'cut')
             ? (prevTransition?.exit?.durationMs || 0) : 0;
 
           // For gap exit: check transition of the next visual item (its enter)
-          const nextTransition = (item.data as any)?.transition;
-          const nextDm = (item.data as any)?.displayMode || 'pip';
+          const nextTransition = item.data.transition;
+          const nextDm = item.data.displayMode;
           const gapExitDuration = (nextDm !== 'gap' && nextTransition?.enter?.type !== 'cut')
             ? (nextTransition?.enter?.durationMs || 0) : 0;
 
@@ -697,8 +727,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       }
       if (cursor < durationMs) {
         const lastItem = visualItems[visualItems.length - 1];
-        const lastTransition = lastItem ? (lastItem.data as any)?.transition : null;
-        const lastDm = lastItem ? ((lastItem.data as any)?.displayMode || 'pip') : 'pip';
+        const lastTransition = lastItem ? lastItem.data.transition : null;
+        const lastDm = lastItem ? lastItem.data.displayMode : 'pip';
         const enterDuration = (lastDm !== 'gap' && lastTransition?.exit?.type !== 'cut')
           ? (lastTransition?.exit?.durationMs || 0) : 0;
         gapSegments.push({ startMs: cursor, endMs: durationMs, enterDurationMs: enterDuration, exitDurationMs: 0 });
@@ -710,7 +740,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       overlayCount: overlaySegments.length,
       gapCount: gapSegments.length,
       visualItemCount: visualItems.length,
-    }, 'Extracted display mode segments from DB');
+      source: visualDisplayData ? 'frontend' : 'db',
+    }, 'Extracted display mode segments');
 
     const isAudioProject = (job.data.projectType || project.projectType || 'video') === 'audio';
 
@@ -1412,7 +1443,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
   }
 }
 
-function convertToSubtitles(items: any[]): SubtitleItem[] {
+export function convertToSubtitles(items: any[]): SubtitleItem[] {
   // Frontend uses 'caption' type, not 'subtitle'
   return items
     .filter(item => item.type === 'caption' || item.type === 'subtitle')
@@ -1657,7 +1688,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   return ass;
 }
 
-function formatASSTime(ms: number): string {
+export function formatASSTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
@@ -1788,6 +1819,15 @@ registerRoot(RemotionRoot);
   await writeFile(entryPath, entryContent, 'utf-8');
 
   logger.info({ entryPath, srcDir }, 'Created entry point for bundle');
+
+  // Symlink node_modules from the remotion-template so webpack can resolve
+  // packages like @remotion/google-fonts that generated scenes may import.
+  const templateNodeModules = join(config.worker.templatePath, 'node_modules');
+  try {
+    await symlink(templateNodeModules, join(tempDir, 'node_modules'));
+  } catch (err) {
+    logger.warn({ err, templateNodeModules }, 'Could not symlink node_modules, bundle may fail');
+  }
 
   // Use Remotion's bundle() to create a proper bundle
   const newBundleLocation = await bundle({
@@ -2309,6 +2349,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
     shadowColor: 'rgba(0, 0, 0, 0.5)',
     shadowBlur: 20,
     opacity: 1,
+    rotation: 0,
   };
   const split = layoutSettings?.split || {
     position: 'visuals-first' as const,
@@ -2355,10 +2396,38 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
         break;
     }
 
-    // Build PiP-specific crop filter: use user's crop/pan/scale for the PiP bubble
-    const pipCropFilter = videoCrop
-      ? buildVideoCropFilter(videoCrop, pipWidth, pipHeight)
-      : `scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1`;
+    // Build PiP-specific crop filter using PiP's own crop settings
+    const pipCrop = (pip as any).crop || { cropX: 50, cropY: 50, zoom: 1.0 };
+    const pipHasCrop = pipCrop.cropX !== 50 || pipCrop.cropY !== 50 || pipCrop.zoom !== 1.0;
+
+    let pipCropFilter: string;
+    if (pipHasCrop && videoCrop) {
+      // Use PiP-specific crop values with the source video dimensions
+      const pipVideoCrop: VideoCropSettings = {
+        sourceWidth: videoCrop.sourceWidth,
+        sourceHeight: videoCrop.sourceHeight,
+        cropX: pipCrop.cropX,
+        cropY: pipCrop.cropY,
+        scale: pipCrop.zoom,
+      };
+      pipCropFilter = buildVideoCropFilter(pipVideoCrop, pipWidth, pipHeight);
+    } else if (pipHasCrop) {
+      // No global videoCrop but PiP has custom crop — estimate source dimensions
+      const pipVideoCrop: VideoCropSettings = {
+        sourceWidth: 1920,
+        sourceHeight: 1080,
+        cropX: pipCrop.cropX,
+        cropY: pipCrop.cropY,
+        scale: pipCrop.zoom,
+      };
+      pipCropFilter = buildVideoCropFilter(pipVideoCrop, pipWidth, pipHeight);
+    } else if (videoCrop) {
+      // No PiP-specific crop, fall back to global video crop
+      pipCropFilter = buildVideoCropFilter(videoCrop, pipWidth, pipHeight);
+    } else {
+      // Default center cover
+      pipCropFilter = `scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1`;
+    }
 
     // Apply PiP styling: rounded corners, border, shadow, opacity
     // Uses FFmpeg geq+alphaextract for rounded mask, drawbox for border
@@ -2384,6 +2453,16 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       );
     }
 
+    // Rotation
+    const pipRotation = pip.rotation || 0;
+    if (pipRotation !== 0) {
+      if (!pipStyleFilters.some(f => f.includes('format=yuva420p'))) {
+        pipStyleFilters.push('format=yuva420p');
+      }
+      const radians = (pipRotation * Math.PI / 180).toFixed(4);
+      pipStyleFilters.push(`rotate=${radians}:ow=rotw(${radians}):oh=roth(${radians}):c=none`);
+    }
+
     // Opacity
     if (pip.opacity < 1) {
       if (!pipStyleFilters.some(f => f.includes('format=yuva420p'))) {
@@ -2396,23 +2475,29 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       ? `,${pipStyleFilters.join(',')}`
       : '';
 
+    // Build enable expression to hide PiP during fullscreen visual segments
+    const pipDisableExpr = fullscreenVisualSegments && fullscreenVisualSegments.length > 0
+      ? `:enable='not(${fullscreenVisualSegments.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+')})'`
+      : '';
+
     logger.info({
       mode,
       pipDimensions: { pipWidth, pipHeight, pipX, pipY },
       pipBorderRadius,
       pipOpacity: pip.opacity,
+      pipDisableExpr: pipDisableExpr ? 'yes' : 'no',
     }, 'Rendering with PiP layout');
     filterComplex = [
       // Scale Remotion visuals to full screen
       `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
       // Scale source video to PiP size with crop/pan + styling
       `[0:v]${pipCropFilter}${pipFilterChain}[pip]`,
-      // Overlay PiP on background
-      `[bg][pip]overlay=${pipX}:${pipY}:format=auto[outv]`
+      // Overlay PiP on background (disabled during fullscreen visual segments)
+      `[bg][pip]overlay=${pipX}:${pipY}:format=auto${pipDisableExpr}[outv]`
     ].join(';');
 
-  } else if (mode === 'split-horizontal') {
-    // Split horizontal (top/bottom)
+  } else if (mode === 'stacked') {
+    // Stacked (top/bottom)
     const visualsPercent = split.ratio / 100;
     const videoPercent = 1 - visualsPercent;
     const gap = Math.round(split.gap);
@@ -2425,7 +2510,7 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       mode,
       splitSettings: split,
       dimensions: { visualsHeight, videoHeight, gap },
-    }, 'Rendering with horizontal split layout');
+    }, 'Rendering with stacked layout');
 
     // Use scale + crop to fill containers without black bars
     // IMPORTANT: Visual stream (1:v) must crop from top-left (0:0) because Remotion
@@ -2498,10 +2583,15 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       ? buildVideoCropFilter(videoCrop, pipWidth, pipHeight)
       : `scale=${pipWidth}:${pipHeight}:force_original_aspect_ratio=increase,crop=${pipWidth}:${pipHeight},setsar=1`;
 
+    // Build enable expression to hide PiP during fullscreen visual segments
+    const fallbackDisableExpr = fullscreenVisualSegments && fullscreenVisualSegments.length > 0
+      ? `:enable='not(${fullscreenVisualSegments.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+')})'`
+      : '';
+
     filterComplex = [
       `[1:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1[bg]`,
       `[0:v]${fallbackCropFilter}[pip]`,
-      `[bg][pip]overlay=${pipX}:${pipY}[outv]`
+      `[bg][pip]overlay=${pipX}:${pipY}${fallbackDisableExpr}[outv]`
     ].join(';');
   }
 
@@ -2520,19 +2610,20 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       segs.map(s => `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`).join('+');
 
     // Helper: build fade filter chain for smooth enter/exit transitions
-    // Uses FFmpeg's native fade filter with alpha=1 (only affects alpha channel)
-    const buildFadeFilters = (segs: DisplayModeSegment[]): string => {
+    // alphaOnly=true: uses alpha=1 (only affects alpha channel) — for overlay/fullscreen layers
+    // alphaOnly=false: fades RGB toward black — for screen blend layers (dark = transparent in screen)
+    const buildFadeFilters = (segs: DisplayModeSegment[], alphaOnly = true): string => {
       const fades: string[] = [];
       for (const s of segs) {
         if ((s.enterDurationMs || 0) > 0) {
           const st = (s.startMs / 1000).toFixed(3);
           const d = ((s.enterDurationMs || 0) / 1000).toFixed(3);
-          fades.push(`fade=t=in:st=${st}:d=${d}:alpha=1`);
+          fades.push(`fade=t=in:st=${st}:d=${d}${alphaOnly ? ':alpha=1' : ''}`);
         }
         if ((s.exitDurationMs || 0) > 0) {
           const st = ((s.endMs - (s.exitDurationMs || 0)) / 1000).toFixed(3);
           const d = ((s.exitDurationMs || 0) / 1000).toFixed(3);
-          fades.push(`fade=t=out:st=${st}:d=${d}:alpha=1`);
+          fades.push(`fade=t=out:st=${st}:d=${d}${alphaOnly ? ':alpha=1' : ''}`);
         }
       }
       return fades.join(',');
@@ -2619,7 +2710,9 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       }
     }
 
-    // Layer 3: Overlay visuals — Remotion at 70% opacity on top of source
+    // Layer 3: Overlay visuals — Remotion on top of source using screen blend
+    // Screen blend makes dark pixels transparent (matching editor's mixBlendMode: 'screen').
+    // Without this, the Remotion composition's opaque dark background would darken the video.
     if (needsOverlay) {
       const prevOut = currentOut;
       currentOut = 'after_ovl';
@@ -2628,13 +2721,41 @@ async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): Promise
       }
       const expr = buildEnableExpr(overlaySegments!);
 
-      if (anyTransitions(overlaySegments)) {
-        const fadeChain = buildFadeFilters(overlaySegments!);
-        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=0.7,${fadeChain}[vis_ovl_faded]`;
-        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_faded]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+      // Build per-segment opacity via RGB channel scaling.
+      // Pre-multiplying RGB simulates overlay opacity with screen blend:
+      // screen(A, B*op) ≈ blend with all_opacity=op for screen mode.
+      const opacityGroups = new Map<number, DisplayModeSegment[]>();
+      for (const seg of overlaySegments!) {
+        const op = seg.overlayOpacity ?? 0.85;
+        if (!opacityGroups.has(op)) opacityGroups.set(op, []);
+        opacityGroups.get(op)!.push(seg);
+      }
+
+      let rgbOpacityFilter: string;
+      if (opacityGroups.size === 1) {
+        const [[opacity]] = opacityGroups;
+        rgbOpacityFilter = `colorchannelmixer=rr=${opacity}:gg=${opacity}:bb=${opacity}`;
       } else {
-        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,format=yuva420p,colorchannelmixer=aa=0.7[vis_ovl_alpha]`;
-        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_alpha]overlay=0:0:enable='${expr}':format=auto[${currentOut}]`;
+        // Multiple distinct opacities: chain filters with time-based enable.
+        const parts: string[] = [];
+        for (const [opacity, segs] of opacityGroups) {
+          const enable = segs.map(s =>
+            `between(t,${(s.startMs / 1000).toFixed(3)},${(s.endMs / 1000).toFixed(3)})`
+          ).join('+');
+          parts.push(`colorchannelmixer=rr=${opacity}:gg=${opacity}:bb=${opacity}:enable='${enable}'`);
+        }
+        rgbOpacityFilter = parts.join(',');
+      }
+
+      if (anyTransitions(overlaySegments)) {
+        // RGB fade (not alpha) — fading toward black makes screen blend transition smooth
+        // (black is identity for screen blend, so fading to black = fading out the effect)
+        const fadeChain = buildFadeFilters(overlaySegments!, false);
+        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,${rgbOpacityFilter},${fadeChain}[vis_ovl_faded]`;
+        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_faded]blend=all_mode=screen:enable='${expr}'[${currentOut}]`;
+      } else {
+        filterComplex += `;[vis_ovl]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height},setsar=1,${rgbOpacityFilter}[vis_ovl_screen]`;
+        filterComplex += `;[${prevOut === 'outv' ? 'base' : prevOut}][vis_ovl_screen]blend=all_mode=screen:enable='${expr}'[${currentOut}]`;
       }
     }
 
@@ -3031,7 +3152,7 @@ async function compositeFullVideo(options: CompositeFullVideoOptions): Promise<v
 /**
  * Convert hex or rgba color to ASS color format (&HAABBGGRR)
  */
-function hexToASSColor(color: string): string {
+export function hexToASSColor(color: string): string {
   if (!color) return '&H00FFFFFF'; // Default to white
 
   // Handle rgba format: rgba(r, g, b, a)
@@ -3072,7 +3193,7 @@ function hexToASSColor(color: string): string {
  *                 4=middle-left, 5=middle-center, 6=middle-right
  *                 7=top-left, 8=top-center, 9=top-right
  */
-function getASSAlignment(position: string): number {
+export function getASSAlignment(position: string): number {
   switch (position) {
     case 'top': return 8;
     case 'middle': case 'center': return 5;
@@ -3083,7 +3204,7 @@ function getASSAlignment(position: string): number {
 /**
  * Generate ASS subtitles using style from subtitle data.
  * Matches frontend caption styling as closely as possible.
- * Adjusts positioning based on layout mode (PiP, split-horizontal, split-vertical).
+ * Adjusts positioning based on layout mode (PiP, stacked).
  * Supports word-by-word, phrase, and karaoke display modes.
  */
 function generateASSForComposite(subtitles: SubtitleItem[], width: number, height: number, layoutSettings?: LayoutSettings, fontFamilyOverride?: string, fontSizeMultiplier: number = 1): string {
@@ -3164,20 +3285,28 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   const displayMode = firstStyle.displayMode || 'phrase';
   const wordsPerPhrase = firstStyle.wordsPerPhrase || 5;
 
-  // Parse V2 position system (object or legacy string)
+  // Parse V2/V3 position system (object or legacy string)
   let captionPosition: string;
   let offsetX = 0;
   let offsetY = 0;
   let rotation = 0;
   let textAlign: string = 'center';
+  let positionMode: 'anchor' | 'free' = 'anchor';
+  let freeX = 50; // percentage 0-100
+  let freeY = 85; // percentage 0-100
+  let captionWidthPercent = 90; // percentage 20-100
 
   if (typeof firstStyle.position === 'object' && firstStyle.position !== null) {
-    // V2 position object
+    // V2/V3 position object
     captionPosition = firstStyle.position.anchor || 'bottom';
     offsetX = firstStyle.position.offsetX || 0;
     offsetY = firstStyle.position.offsetY || 0;
     rotation = firstStyle.position.rotation || 0;
     textAlign = firstStyle.position.textAlign || 'center';
+    positionMode = firstStyle.position.mode === 'free' ? 'free' : 'anchor';
+    freeX = firstStyle.position.x ?? 50;
+    freeY = firstStyle.position.y ?? 85;
+    captionWidthPercent = firstStyle.position.width ?? 90;
   } else {
     // Legacy string position
     captionPosition = firstStyle.position || 'bottom';
@@ -3188,9 +3317,24 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   //                 4=middle-left, 5=middle-center, 6=middle-right
   //                 7=top-left, 8=top-center, 9=top-right
   let alignment: number;
-  const alignCol = textAlign === 'left' ? 1 : textAlign === 'right' ? 3 : 2;
-  const alignRow = captionPosition === 'top' ? 6 : (captionPosition === 'center' || captionPosition === 'middle') ? 3 : 0;
-  alignment = alignRow + alignCol;
+  if (positionMode === 'free') {
+    // For free mode with \pos override, use middle-row alignment (4/5/6)
+    // so the anchor point is at the center of the text block
+    const alignCol = textAlign === 'left' ? 4 : textAlign === 'right' ? 6 : 5;
+    alignment = alignCol;
+  } else {
+    const alignCol = textAlign === 'left' ? 1 : textAlign === 'right' ? 3 : 2;
+    const alignRow = captionPosition === 'top' ? 6 : (captionPosition === 'center' || captionPosition === 'middle') ? 3 : 0;
+    alignment = alignRow + alignCol;
+  }
+
+  // Free mode: compute pixel position for \pos(x,y) override tag
+  let freePosTag = '';
+  if (positionMode === 'free') {
+    const posXPx = Math.round(freeX * width / 100);
+    const posYPx = Math.round(freeY * height / 100);
+    freePosTag = `\\pos(${posXPx},${posYPx})`;
+  }
 
   // Get layout info
   const mode = layoutSettings?.mode || 'pip';
@@ -3201,8 +3345,8 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
   let effectiveHeight = height;
   let verticalOffset = 0;
 
-  if (mode === 'split-horizontal') {
-    // In horizontal split, captions should be in the video section
+  if (mode === 'stacked') {
+    // In stacked layout, captions should be in the video section
     const visualsRatio = (split?.ratio || 50) / 100;
     const isVisualsFirst = split?.position === 'visuals-first';
 
@@ -3215,54 +3359,66 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
       effectiveHeight = Math.round(height * (1 - visualsRatio));
       verticalOffset = 0;
     }
-  } else if (mode === 'split-vertical') {
-    // In vertical split, captions span the full height but may need adjustment
-    // Keep full height, no offset needed
   }
 
-  // Calculate margin based on position, offsetY, and layout
+  // Calculate margins
   let marginV: number;
-  if (captionPosition === 'top') {
-    marginV = Math.round(effectiveHeight * 0.10 + (offsetY * effectiveHeight / 100));
-  } else if (captionPosition === 'center' || captionPosition === 'middle') {
-    marginV = Math.round(effectiveHeight * 0.5 + (offsetY * effectiveHeight / 100));
+  let marginL: number;
+  let marginR: number;
+
+  if (positionMode === 'free') {
+    // In free mode, margins control text wrapping width, not position
+    // \pos() handles the actual position
+    marginV = 0;
+    const captionWidthPx = Math.round(captionWidthPercent * width / 100);
+    const sideMargin = Math.round((width - captionWidthPx) / 2);
+    marginL = Math.max(0, sideMargin);
+    marginR = Math.max(0, sideMargin);
   } else {
-    // bottom - most common
-    marginV = Math.round(effectiveHeight * 0.15 - (offsetY * effectiveHeight / 100));
-  }
-
-  // For split-horizontal with visuals-first, add the vertical offset
-  if (mode === 'split-horizontal' && split?.position === 'visuals-first' && captionPosition === 'bottom') {
-    // Captions are at bottom of video section which is at bottom of frame
-    // marginV is from bottom, so no adjustment needed
-  } else if (mode === 'split-horizontal' && split?.position !== 'visuals-first' && captionPosition === 'bottom') {
-    // Video on top, captions should be at bottom of top section
-    // Need to add offset for visuals section below
-    marginV += Math.round(height * ((split?.ratio || 50) / 100));
-  }
-
-  // For PiP mode, avoid overlapping with PiP window
-  if (mode === 'pip' && pip) {
-    const pipSize = pip.size === 'custom' ? pip.customSize : PIP_SIZE_MAP[pip.size] || 25;
-    const pipHeight = Math.round(width * (pipSize / 100)); // PiP is square
-
-    // If caption is at bottom and PiP is at bottom, add margin to avoid overlap
-    if (captionPosition === 'bottom' && (pip.position === 'bottom-left' || pip.position === 'bottom-right')) {
-      marginV = Math.max(marginV, pipHeight + pip.offsetY + 20);
+    // Anchor mode: existing margin-based positioning
+    if (captionPosition === 'top') {
+      marginV = Math.round(effectiveHeight * 0.10 + (offsetY * effectiveHeight / 100));
+    } else if (captionPosition === 'center' || captionPosition === 'middle') {
+      marginV = Math.round(effectiveHeight * 0.5 + (offsetY * effectiveHeight / 100));
+    } else {
+      // bottom - most common
+      marginV = Math.round(effectiveHeight * 0.15 - (offsetY * effectiveHeight / 100));
     }
-    // If caption is at top and PiP is at top, add margin to avoid overlap
-    if (captionPosition === 'top' && (pip.position === 'top-left' || pip.position === 'top-right')) {
-      marginV = Math.max(marginV, pipHeight + pip.offsetY + 20);
+
+    // For stacked with visuals-first, add the vertical offset
+    if (mode === 'stacked' && split?.position === 'visuals-first' && captionPosition === 'bottom') {
+      // Captions are at bottom of video section which is at bottom of frame
+      // marginV is from bottom, so no adjustment needed
+    } else if (mode === 'stacked' && split?.position !== 'visuals-first' && captionPosition === 'bottom') {
+      // Video on top, captions should be at bottom of top section
+      // Need to add offset for visuals section below
+      marginV += Math.round(height * ((split?.ratio || 50) / 100));
     }
+
+    // For PiP mode, avoid overlapping with PiP window
+    if (mode === 'pip' && pip) {
+      const pipSize = pip.size === 'custom' ? pip.customSize : PIP_SIZE_MAP[pip.size] || 25;
+      const pipHeight = Math.round(width * (pipSize / 100)); // PiP is square
+
+      // If caption is at bottom and PiP is at bottom, add margin to avoid overlap
+      if (captionPosition === 'bottom' && (pip.position === 'bottom-left' || pip.position === 'bottom-right')) {
+        marginV = Math.max(marginV, pipHeight + pip.offsetY + 20);
+      }
+      // If caption is at top and PiP is at top, add margin to avoid overlap
+      if (captionPosition === 'top' && (pip.position === 'top-left' || pip.position === 'top-right')) {
+        marginV = Math.max(marginV, pipHeight + pip.offsetY + 20);
+      }
+    }
+
+    marginV = Math.max(20, Math.min(marginV, height / 2)); // Clamp to reasonable range
+
+    // Calculate horizontal margins based on offsetX and width
+    const offsetXPixels = Math.round(offsetX * width / 100);
+    const captionWidthPx = Math.round(captionWidthPercent * width / 100);
+    const baseHMargin = Math.round((width - captionWidthPx) / 2);
+    marginL = Math.max(0, baseHMargin + offsetXPixels);
+    marginR = Math.max(0, baseHMargin - offsetXPixels);
   }
-
-  marginV = Math.max(20, Math.min(marginV, height / 2)); // Clamp to reasonable range
-
-  // Calculate horizontal margins based on offsetX
-  // offsetX is a percentage (-50 to +50), convert to pixels
-  const offsetXPixels = Math.round(offsetX * width / 100);
-  let marginL = 10 + Math.max(0, offsetXPixels);
-  let marginR = 10 + Math.max(0, -offsetXPixels);
 
   // ── Effects mapping: stroke → ASS Outline, shadow → ASS inline xshad/yshad/blur ──
   // Stroke (CSS WebkitTextStroke) maps to ASS Outline (border around glyphs).
@@ -3343,7 +3499,9 @@ function generateASSForComposite(subtitles: SubtitleItem[], width: number, heigh
 
   // Build the inline effect override tags that get prepended to every dialogue line.
   // These override the Style-level Shadow field with per-axis values + Gaussian blur.
+  // In free mode, also includes \pos(x,y) for absolute positioning.
   const effectOverrideParts: string[] = [];
+  if (freePosTag) effectOverrideParts.push(freePosTag);
   if (shadowXShad !== 0) effectOverrideParts.push(`\\xshad${shadowXShad}`);
   if (shadowYShad !== 0) effectOverrideParts.push(`\\yshad${shadowYShad}`);
   if (shadowBlur > 0) effectOverrideParts.push(`\\blur${shadowBlur}`);
@@ -3404,8 +3562,10 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     return subtitle.startMs + wordTime;
   };
 
-  // Helper: build ASS inline override tags from per-word styleOverrides
+  // Helper: build ASS inline override tags from per-word styleOverrides.
+  // Only apply when using dynamic hierarchy — baked overrides must not leak.
   const buildWordOverrideTags = (word: any, isActive: boolean): string => {
+    if (!isDynamicHierarchy) return '';
     const ov = word.styleOverrides;
     if (!ov) return '';
     const tags: string[] = [];
@@ -3444,6 +3604,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
   // Helper: reset ASS inline overrides back to style defaults after an overridden word
   const buildResetTags = (word: any): string => {
+    if (!isDynamicHierarchy) return '';
     const ov = word.styleOverrides;
     if (!ov) return '';
     const tags: string[] = [];
@@ -3457,51 +3618,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   };
 
   // Helper: apply per-word textTransform (override > caption-level)
-  const transformWordText = (word: any): string => {
-    const text = word.text || '';
-    const ov = word.styleOverrides;
-    if (ov?.textTransform === 'uppercase') return text.toUpperCase();
-    if (ov?.textTransform === 'lowercase') return text.toLowerCase();
-    return applyTextTransform(text);
-  };
-
-  // ── Dynamic hierarchy word classification (matches Composition.tsx preview) ──
+  // ── Dynamic hierarchy (word classification imported from @viona/shared) ──
   const isDynamicHierarchy = firstStyle.presetId === 'dynamic-hierarchy';
 
-  const POWER_WORDS = new Set([
-    'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
-    'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
-    'shocking', 'terrifying', 'brilliant', 'genius', 'perfect', 'worst',
-    'best', 'greatest', 'legendary', 'epic', 'massive', 'huge', 'evil',
-    'now', 'stop', 'wait', 'listen', 'watch', 'look', 'never', 'always',
-    'forever', 'immediately', 'urgent', 'warning', 'danger', 'critical',
-    'important', 'breaking', 'exclusive', 'secret', 'finally', 'today',
-    'million', 'billion', 'thousand', 'money', 'rich', 'free', 'paid',
-    'expensive', 'cheap', 'profit', 'cash', 'dollar', 'dollars', 'price',
-    'worth', 'cost', 'zero', 'double', 'triple', '100%', '1000',
-    'but', 'however', 'actually', 'wrong', 'right', 'truth', 'lie', 'real',
-    'fake', 'only', 'everything', 'nothing', 'impossible', 'possible',
-    'everyone', 'nobody', 'first', 'last', 'biggest', 'smallest',
-    'win', 'won', 'lose', 'lost', 'fight', 'broke', 'crushed', 'dominated',
-    'exploded', 'changed', 'saved', 'failed', 'success', 'discovered',
-  ]);
-
-  const FILLER_WORDS = new Set([
-    'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
-    'to', 'of', 'in', 'for', 'on', 'at', 'by', 'with', 'from', 'as',
-    'and', 'or', 'if', 'it', 'its', 'that', 'this', 'than', 'then',
-    'so', 'up', 'do', 'did', 'has', 'had', 'have', 'will', 'would',
-    'could', 'should', 'can', 'may', 'might', 'shall', 'just', 'very',
-    'also', 'about', 'into', 'not', 'no', 'yes', 'some', 'my', 'your',
-    'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
-  ]);
-
-  const classifyWordTier = (text: string): 'power' | 'medium' | 'filler' => {
-    const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
-    if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
-    if (POWER_WORDS.has(clean)) return 'power';
-    if (FILLER_WORDS.has(clean)) return 'filler';
-    return 'medium';
+  // Helper: apply per-word textTransform (only for dynamic hierarchy preset)
+  const transformWordText = (word: any): string => {
+    const text = word.text || '';
+    if (isDynamicHierarchy) {
+      const ov = word.styleOverrides;
+      if (ov?.textTransform === 'uppercase') return text.toUpperCase();
+      if (ov?.textTransform === 'lowercase') return text.toLowerCase();
+    }
+    return applyTextTransform(text);
   };
 
   // Build dynamic hierarchy ASS override tags for a word
@@ -3594,9 +3722,8 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
           } else {
             karaokeText += `{\\kf${duration}}${wordText}`;
           }
-          // Reset after overridden word so next word uses defaults
-          const needsReset = (word as any).styleOverrides || isDynamicHierarchy;
-          if (needsReset && i < group.groupWords.length - 1) {
+          // Reset after overridden word so next word uses defaults (DH only)
+          if (isDynamicHierarchy && i < group.groupWords.length - 1) {
             karaokeText += buildResetTags(word);
             karaokeText += buildDynamicHierarchyReset(word);
           }
@@ -3605,62 +3732,14 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
         ass += `Dialogue: 0,${startTime},${endTime},Default,,0,0,0,,${effectOverrideTags}${karaokeText}\n`;
       }
     } else if (isDynamicHierarchy) {
-      // ── Dynamic hierarchy: emotional segmentation (matches Composition.tsx preview) ──
-      // Instead of fixed wordsPerPhrase chunks, use emotional line breaking:
-      // - Power words get their own line for dramatic emphasis
-      // - Pauses > 400ms force line breaks
-      // - Filler words don't start lines (pull to previous)
-      // - Max 5 words per line, max 2 lines per segment
-      const DH_MAX_LINE = 5;
-      const DH_PAUSE_MS = 400;
-      const emotionalLines: number[][] = [];
-      let curLine: number[] = [];
-
-      for (let i = 0; i < words.length; i++) {
-        const tier = classifyWordTier(words[i].text || '');
-        const hasPause = i > 0 &&
-          (getAbsoluteWordTime(subtitle, words[i], false) - getAbsoluteWordTime(subtitle, words[i - 1], true)) > DH_PAUSE_MS;
-
-        if (hasPause && curLine.length > 0) {
-          emotionalLines.push(curLine);
-          curLine = [];
-        }
-        if (tier === 'power' && curLine.length > 0) {
-          emotionalLines.push(curLine);
-          curLine = [];
-        }
-        if (tier === 'filler' && curLine.length === 0 && emotionalLines.length > 0) {
-          const prevLine = emotionalLines[emotionalLines.length - 1];
-          if (prevLine.length < DH_MAX_LINE) {
-            prevLine.push(i);
-            continue;
-          }
-        }
-        curLine.push(i);
-        if (tier === 'power' && curLine.length === 1) {
-          emotionalLines.push(curLine);
-          curLine = [];
-          continue;
-        }
-        if (curLine.length >= DH_MAX_LINE) {
-          emotionalLines.push(curLine);
-          curLine = [];
-        }
-      }
-      if (curLine.length > 0) emotionalLines.push(curLine);
-
-      // Group lines into 2-line display segments (same as preview)
-      const dhSegments: { lines: number[][]; startIdx: number; endIdx: number }[] = [];
-      for (let l = 0; l < emotionalLines.length; l += 2) {
-        const segLines = [emotionalLines[l]];
-        if (l + 1 < emotionalLines.length) segLines.push(emotionalLines[l + 1]);
-        const allIdx = segLines.flat();
-        dhSegments.push({
-          lines: segLines,
-          startIdx: allIdx[0],
-          endIdx: allIdx[allIdx.length - 1] + 1,
-        });
-      }
+      // ── Dynamic hierarchy: emotional segmentation (shared with preview) ──
+      // Map worker words to MinimalWord for the shared algorithm
+      const minimalWords: MinimalWord[] = words.map((w: any) => ({
+        text: w.text || '',
+        startMs: getAbsoluteWordTime(subtitle, w, false),
+        endMs: getAbsoluteWordTime(subtitle, w, true),
+      }));
+      const dhSegments = computeEmotionalSegments(minimalWords);
 
       // Wider margins to constrain text to ~60% width (matching preview's width: 60%)
       const dhMarginL = Math.round(width * 0.2);
@@ -3765,48 +3844,17 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
       for (const group of groups) {
         const gw = group.groupWords;
 
-        // Helper: build phrase text for this group with one word optionally highlighted
+        // Helper: build phrase text for this group with one word optionally highlighted.
+        // Per-word styleOverrides are NOT applied here — they only apply in DH mode.
         const buildGroupLine = (activeWordRef: any | null): string => {
           let text = '';
           for (let j = 0; j < gw.length; j++) {
             const w = gw[j];
             const isWordActive = w === activeWordRef;
-            const ov = w.styleOverrides;
             const wordText = transformWordText(w);
 
             const tags: string[] = [];
-
-            // Standard color: active word uses activeColor, inactive uses base color
-            if (isWordActive) {
-              const wordColor = ov?.activeColor
-                ? hexToASSColor(ov.activeColor)
-                : (ov?.color ? hexToASSColor(ov.color) : activeColor);
-              tags.push(`\\c${wordColor}`);
-            } else {
-              const wordColor = ov?.color ? hexToASSColor(ov.color) : color;
-              tags.push(`\\c${wordColor}`);
-            }
-
-            // Background: active word may have activeBackgroundColor or emphasisBg
-            if (ov?.emphasisBg) {
-              tags.push(`\\3c${hexToASSColor(ov.emphasisBg)}`);
-            }
-
-            // Font overrides (from per-word styleOverrides)
-            if (ov?.fontFamily) {
-              tags.push(`\\fn${resolveAvailableFontFamily(ov.fontFamily)}`);
-            }
-            if (ov?.fontSize) {
-              tags.push(`\\fs${Math.round((ov.scale || 1) * ov.fontSize * fontSizeMultiplier)}`);
-            } else if (ov?.scale && ov.scale !== 1) {
-              tags.push(`\\fs${Math.round(fontSize * ov.scale)}`);
-            }
-            if (ov?.fontWeight && ov.fontWeight >= 700) {
-              tags.push('\\b1');
-            }
-            if (ov?.letterSpacing != null) {
-              tags.push(`\\fsp${ov.letterSpacing}`);
-            }
+            tags.push(`\\c${isWordActive ? activeColor : color}`);
 
             text += `{${tags.join('')}}${wordText}`;
             if (j < gw.length - 1) text += ' \\h';

@@ -7,46 +7,51 @@ import {
   spring,
 } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { DefinitionTooltipProps } from './schema';
 
 /* ── DotGrid SVG background ─────────────────────────────────────────── */
 const DotGrid: React.FC<{ color: string; opacity: number }> = ({
   color,
   opacity,
-}) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, opacity }}
-  >
-    <defs>
-      <pattern
-        id="dotgrid"
-        x="0"
-        y="0"
-        width="30"
-        height="30"
-        patternUnits="userSpaceOnUse"
-      >
-        <circle cx="15" cy="15" r="1.5" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#dotgrid)" />
-  </svg>
-);
+}) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, opacity }}
+    >
+      <defs>
+        <pattern
+          id="dotgrid"
+          x="0"
+          y="0"
+          width={s(30)}
+          height={s(30)}
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx={s(15)} cy={s(15)} r={s(1.5)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#dotgrid)" />
+    </svg>
+  );
+};
 
 /* ── Main component ──────────────────────────────────────────────────── */
 const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
   const { FONTS, SPRING_CONFIG } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   /* ── Animation timeline ───────────────────────────────────────────── */
 
   // 0-15: Background fade in
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 15-35: Card container scales in (spring)
@@ -158,27 +163,27 @@ const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 80,
+          padding: s(80),
         }}
       >
         <div
           style={{
             position: 'relative',
             width: '100%',
-            maxWidth: 820,
+            maxWidth: s(820),
             backgroundColor: theme.cardBg,
-            borderRadius: 20,
+            borderRadius: s(20),
             border: `1px solid ${theme.border}`,
-            padding: '56px 64px',
+            padding: `${s(56)}px ${s(64)}px`,
             display: 'flex',
             flexDirection: 'column',
-            gap: 20,
+            gap: s(20),
             opacity: combinedCardOpacity,
             transform: `scale(${combinedCardScale})`,
             boxShadow:
               props.background === 'dark'
-                ? `0 30px 80px rgba(0, 0, 0, 0.5), 0 0 0 1px ${theme.border}`
-                : '0 20px 60px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0,0,0,0.04)',
+                ? `0 ${s(30)}px ${s(80)}px rgba(0, 0, 0, 0.5), 0 0 0 1px ${theme.border}`
+                : `0 ${s(20)}px ${s(60)}px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0,0,0,0.04)`,
           }}
         >
           {/* Left accent line */}
@@ -187,11 +192,11 @@ const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
               position: 'absolute',
               left: 0,
               top: '50%',
-              width: 4,
+              width: s(4),
               height: `${accentLineHeight}%`,
               transform: 'translateY(-50%)',
               backgroundColor: props.accentColor,
-              borderRadius: '0 4px 4px 0',
+              borderRadius: `0 ${s(4)}px ${s(4)}px 0`,
             }}
           />
 
@@ -199,7 +204,7 @@ const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
           <div
             style={{
               fontFamily: FONTS.headline,
-              fontSize: 72,
+              fontSize: s(72),
               fontWeight: 700,
               color: theme.text,
               lineHeight: 1.1,
@@ -215,7 +220,7 @@ const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 16,
+              gap: s(16),
               flexWrap: 'wrap',
             }}
           >
@@ -223,7 +228,7 @@ const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 26,
+                fontSize: s(26),
                 fontWeight: 400,
                 fontStyle: 'italic',
                 color: theme.textMuted,
@@ -238,13 +243,13 @@ const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
             <span
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 18,
+                fontSize: s(18),
                 fontWeight: 600,
                 color: props.accentColor,
                 backgroundColor: `${props.accentColor}18`,
-                padding: '4px 16px',
-                borderRadius: 20,
-                letterSpacing: 1.5,
+                padding: `${s(4)}px ${s(16)}px`,
+                borderRadius: s(20),
+                letterSpacing: s(1.5),
                 textTransform: 'uppercase',
                 opacity: posBadgeOpacity,
                 transform: `scale(${posBadgeScale})`,
@@ -269,7 +274,7 @@ const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
           <div
             style={{
               fontFamily: FONTS.body,
-              fontSize: 30,
+              fontSize: s(30),
               fontWeight: 400,
               color: theme.text,
               lineHeight: 1.6,
@@ -285,12 +290,12 @@ const DefinitionTooltip: React.FC<DefinitionTooltipProps> = (props) => {
             <div
               style={{
                 fontFamily: FONTS.body,
-                fontSize: 24,
+                fontSize: s(24),
                 fontWeight: 400,
                 fontStyle: 'italic',
                 color: theme.textMuted,
                 lineHeight: 1.5,
-                paddingLeft: 20,
+                paddingLeft: s(20),
                 borderLeft: `3px solid ${props.accentColor}40`,
                 opacity: exampleOpacity,
                 transform: `translateY(${exampleSlideY}px)`,

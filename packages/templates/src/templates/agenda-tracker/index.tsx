@@ -7,30 +7,34 @@ import {
   spring,
 } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { AgendaTrackerProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  Dot-grid SVG background pattern                                    */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', top: 0, left: 0 }}
-  >
-    <defs>
-      <pattern
-        id="agenda-dot-grid"
-        width="32"
-        height="32"
-        patternUnits="userSpaceOnUse"
-      >
-        <circle cx="2" cy="2" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#agenda-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', top: 0, left: 0 }}
+    >
+      <defs>
+        <pattern
+          id="agenda-dot-grid"
+          width={s(32)}
+          height={s(32)}
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx={s(2)} cy={s(2)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#agenda-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  SVG Checkmark icon                                                 */
@@ -76,42 +80,45 @@ const ProgressDots: React.FC<ProgressDotsProps> = ({
   accentColor,
   mutedColor,
   textColor,
-}) => (
-  <div
-    style={{
-      display: 'flex',
-      flexDirection: 'row',
-      gap: 12,
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}
-  >
-    {Array.from({ length: total }).map((_, i) => {
-      let bg: string;
-      if (i < completed) {
-        bg = accentColor;
-      } else if (i === activeIndex) {
-        bg = accentColor;
-      } else {
-        bg = mutedColor;
-      }
-      return (
-        <div
-          key={i}
-          style={{
-            width: i === activeIndex ? 14 : 10,
-            height: i === activeIndex ? 14 : 10,
-            borderRadius: '50%',
-            backgroundColor: bg,
-            transition: 'all 0.2s',
-            boxShadow:
-              i === activeIndex ? `0 0 12px ${accentColor}80` : 'none',
-          }}
-        />
-      );
-    })}
-  </div>
-);
+}) => {
+  const s = useScale();
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        gap: s(12),
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {Array.from({ length: total }).map((_, i) => {
+        let bg: string;
+        if (i < completed) {
+          bg = accentColor;
+        } else if (i === activeIndex) {
+          bg = accentColor;
+        } else {
+          bg = mutedColor;
+        }
+        return (
+          <div
+            key={i}
+            style={{
+              width: i === activeIndex ? s(14) : s(10),
+              height: i === activeIndex ? s(14) : s(10),
+              borderRadius: '50%',
+              backgroundColor: bg,
+              transition: 'all 0.2s',
+              boxShadow:
+                i === activeIndex ? `0 0 ${s(12)}px ${accentColor}80` : 'none',
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Single agenda item row                                             */
@@ -145,6 +152,7 @@ const AgendaItem: React.FC<AgendaItemProps> = ({
   activeProgress,
   checkProgress,
 }) => {
+  const s = useScale();
   const translateX = interpolate(enterProgress, [0, 1], [80, 0]);
   const opacity = interpolate(enterProgress, [0, 1], [0, 1]);
 
@@ -160,7 +168,7 @@ const AgendaItem: React.FC<AgendaItemProps> = ({
         ? mutedColor
         : `${mutedColor}99`;
 
-  const fontSize = state === 'active' ? 38 : 32;
+  const fontSize = state === 'active' ? s(38) : s(32);
   const fontWeight = state === 'active' ? 700 : 500;
 
   const numberColor =
@@ -176,14 +184,14 @@ const AgendaItem: React.FC<AgendaItemProps> = ({
         display: 'flex',
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 24,
+        gap: s(24),
         opacity,
         transform: `translateX(${translateX}px) scale(${scale})`,
         transformOrigin: 'left center',
-        paddingLeft: 16,
-        paddingRight: 24,
-        paddingTop: 14,
-        paddingBottom: 14,
+        paddingLeft: s(16),
+        paddingRight: s(24),
+        paddingTop: s(14),
+        paddingBottom: s(14),
         position: 'relative',
       }}
     >
@@ -194,19 +202,19 @@ const AgendaItem: React.FC<AgendaItemProps> = ({
           left: 0,
           top: 0,
           bottom: 0,
-          width: 5,
-          borderRadius: 3,
+          width: s(5),
+          borderRadius: s(3),
           backgroundColor: accentColor,
           opacity: borderOpacity,
-          boxShadow: `0 0 16px ${accentColor}80, 0 0 32px ${accentColor}40`,
+          boxShadow: `0 0 ${s(16)}px ${accentColor}80, 0 0 ${s(32)}px ${accentColor}40`,
         }}
       />
 
       {/* Number / Checkmark */}
       <div
         style={{
-          width: 44,
-          height: 44,
+          width: s(44),
+          height: s(44),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -214,13 +222,13 @@ const AgendaItem: React.FC<AgendaItemProps> = ({
         }}
       >
         {state === 'completed' && checkProgress > 0 ? (
-          <Checkmark color={accentColor} size={28} opacity={checkProgress} />
+          <Checkmark color={accentColor} size={s(28)} opacity={checkProgress} />
         ) : (
           <div
             style={{
               fontFamily: headlineFont,
               fontWeight: 700,
-              fontSize: 22,
+              fontSize: s(22),
               color: numberColor,
               lineHeight: 1,
             }}
@@ -252,6 +260,7 @@ const AgendaItem: React.FC<AgendaItemProps> = ({
 const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const { FONTS } = getConstants(props);
   const theme = BACKGROUNDS[props.background] ?? BACKGROUNDS.dark;
 
@@ -281,7 +290,7 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
   /*  Global intro / outro opacity                                     */
   /* ---------------------------------------------------------------- */
   const introOpacity = interpolate(frame, [0, BG_FADE_END], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
   const outroOpacity = interpolate(
     frame,
@@ -378,7 +387,7 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
           bottom: 0,
           display: 'flex',
           flexDirection: 'column',
-          padding: '72px 80px',
+          padding: `${s(72)}px ${s(80)}px`,
         }}
       >
         {/* Title */}
@@ -386,13 +395,13 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
           style={{
             fontFamily: FONTS.headline,
             fontWeight: 800,
-            fontSize: 44,
+            fontSize: s(44),
             color: props.accentColor,
-            letterSpacing: 6,
+            letterSpacing: s(6),
             textTransform: 'uppercase',
             opacity: titleOpacity,
             transform: `translateY(${titleY}px)`,
-            marginBottom: 16,
+            marginBottom: s(16),
           }}
         >
           {props.title}
@@ -401,12 +410,12 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
         {/* Thin accent line under title */}
         <div
           style={{
-            width: 80,
-            height: 3,
+            width: s(80),
+            height: s(3),
             backgroundColor: props.accentColor,
-            borderRadius: 2,
+            borderRadius: s(2),
             opacity: titleOpacity,
-            marginBottom: 48,
+            marginBottom: s(48),
           }}
         />
 
@@ -415,7 +424,7 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 20,
+            gap: s(20),
             flex: 1,
             justifyContent: 'center',
           }}
@@ -491,7 +500,7 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
           style={{
             display: 'flex',
             flexDirection: 'column',
-            gap: 20,
+            gap: s(20),
             opacity: progressBarEntrance,
             transform: `translateY(${interpolate(progressBarEntrance, [0, 1], [20, 0])}px)`,
           }}
@@ -500,9 +509,9 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
           <div
             style={{
               width: '100%',
-              height: 6,
+              height: s(6),
               backgroundColor: `${theme.textMuted}33`,
-              borderRadius: 3,
+              borderRadius: s(3),
               overflow: 'hidden',
             }}
           >
@@ -511,8 +520,8 @@ const AgendaTracker: React.FC<AgendaTrackerProps> = (props) => {
                 width: `${progressRatio * 100}%`,
                 height: '100%',
                 backgroundColor: props.accentColor,
-                borderRadius: 3,
-                boxShadow: `0 0 12px ${props.accentColor}60`,
+                borderRadius: s(3),
+                boxShadow: `0 0 ${s(12)}px ${props.accentColor}60`,
               }}
             />
           </div>

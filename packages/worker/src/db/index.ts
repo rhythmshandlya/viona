@@ -67,6 +67,7 @@ export const jobs = pgTable('jobs', {
   status: varchar('status', { length: 50 }).notNull().default('pending'),
   progress: integer('progress').default(0).notNull(),
   progressMessage: varchar('progress_message', { length: 500 }),
+  progressMeta: jsonb('progress_meta').$type<Record<string, unknown>>(),
   error: text('error'),
   metrics: jsonb('metrics'),
   logs: text('logs').array(),
@@ -76,6 +77,20 @@ export const jobs = pgTable('jobs', {
   } | null>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   completedAt: timestamp('completed_at'),
+});
+
+export const projectAssets = pgTable('project_assets', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  filename: varchar('filename', { length: 255 }).notNull(),
+  label: varchar('label', { length: 255 }),
+  storageKey: varchar('storage_key', { length: 500 }).notNull(),
+  contentType: varchar('content_type', { length: 100 }).notNull(),
+  fileSize: integer('file_size'),
+  durationMs: integer('duration_ms'),
+  width: integer('width'),
+  height: integer('height'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
 export const visuals = pgTable('visuals', {
@@ -99,5 +114,5 @@ const pool = new pg.Pool({
 });
 
 export const db = drizzle(pool, {
-  schema: { projects, tracks, timelineItems, transcripts, jobs, visuals },
+  schema: { projects, tracks, timelineItems, transcripts, jobs, projectAssets, visuals },
 });

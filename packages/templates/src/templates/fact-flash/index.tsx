@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { FactFlashProps } from './schema';
 
@@ -7,11 +8,12 @@ const FactFlash: React.FC<FactFlashProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
   const facts = props.facts;
   const factCount = facts.length;
 
-  const introOpacity = interpolate(frame, [0, 12], [0, 1], { extrapolateRight: 'clamp' });
+  const introOpacity = interpolate(frame, [0, 12], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
   const outroOpacity = interpolate(frame, [durationInFrames - 25, durationInFrames], [1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' });
 
   // Tagline
@@ -31,12 +33,12 @@ const FactFlash: React.FC<FactFlashProps> = (props) => {
   return (
     <AbsoluteFill style={{ ...bgStyle, opacity: introOpacity * outroOpacity }}>
       {/* Tagline */}
-      <div style={{ position: 'absolute', top: 80, left: 0, right: 0, textAlign: 'center', opacity: taglineOpacity }}>
+      <div style={{ position: 'absolute', top: s(80), left: 0, right: 0, textAlign: 'center', opacity: taglineOpacity }}>
         <span style={{
           fontFamily: FONTS.body,
-          fontSize: 20,
+          fontSize: s(20),
           fontWeight: 600,
-          letterSpacing: 4,
+          letterSpacing: s(4),
           color: props.accentColor,
           textTransform: 'uppercase',
         }}>{props.tagline}</span>
@@ -70,25 +72,25 @@ const FactFlash: React.FC<FactFlashProps> = (props) => {
           <div key={i} style={{
             position: 'absolute', inset: 0,
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            gap: 16, padding: '0 80px',
+            gap: s(16), padding: `0 ${s(80)}px`,
             opacity: exitOpacity, transform: `scale(${exitScale})`,
           }}>
             {/* Big number */}
             <span style={{
               fontFamily: FONTS.headline,
-              fontSize: 140,
+              fontSize: s(140),
               fontWeight: 900,
               color: props.accentColor,
               lineHeight: 1,
               opacity: numOpacity,
               transform: `scale(${numDisplayScale})`,
-              textShadow: `0 0 40px ${props.accentColor}30`,
+              textShadow: `0 0 ${s(40)}px ${props.accentColor}30`,
             }}>{fact.number}</span>
 
             {/* Label */}
             <span style={{
               fontFamily: FONTS.headline,
-              fontSize: 36,
+              fontSize: s(36),
               fontWeight: 700,
               color: theme.text,
               opacity: labelOpacity,
@@ -99,12 +101,12 @@ const FactFlash: React.FC<FactFlashProps> = (props) => {
             {fact.context && (
               <span style={{
                 fontFamily: FONTS.body,
-                fontSize: 22,
+                fontSize: s(22),
                 fontWeight: 400,
                 color: theme.textMuted,
                 textAlign: 'center',
                 opacity: contextOpacity,
-                maxWidth: 600,
+                maxWidth: s(600),
               }}>{fact.context}</span>
             )}
           </div>
@@ -113,12 +115,12 @@ const FactFlash: React.FC<FactFlashProps> = (props) => {
 
       {/* Progress dots */}
       {frame >= factsStart && (
-        <div style={{ position: 'absolute', bottom: 60, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 10 }}>
+        <div style={{ position: 'absolute', bottom: s(60), left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: s(10) }}>
           {facts.map((_, i) => (
             <div key={i} style={{
-              width: i === currentFactIdx ? 24 : 8,
-              height: 8,
-              borderRadius: 4,
+              width: i === currentFactIdx ? s(24) : s(8),
+              height: s(8),
+              borderRadius: s(4),
               backgroundColor: i === currentFactIdx ? props.accentColor : `${theme.text}20`,
             }} />
           ))}

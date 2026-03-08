@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 // -------------------------------------------------------------------
 // Types (mirrors queue.ts)
 // -------------------------------------------------------------------
-type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+type VisualsLayoutMode = 'pip' | 'stacked';
 
 interface VisualsDimensions {
   width: number;
@@ -45,7 +45,7 @@ function computeSceneEffectiveDimensions(
   canvasHeight: number,
   pipEffective: VisualsDimensions,
 ): { effectiveWidth: number; effectiveHeight: number; displayMode: string } {
-  const dm = displayMode || 'pip';
+  const dm = displayMode || 'default';
   if (dm === 'fullscreen' || dm === 'overlay') {
     return { effectiveWidth: canvasWidth, effectiveHeight: canvasHeight, displayMode: dm };
   }
@@ -62,7 +62,7 @@ function enrichScenesWithDimensions(
   pipEffective: VisualsDimensions,
 ): Array<Record<string, unknown>> {
   return scenes.map((scene) => {
-    const dm = (scene.displayMode as string) || 'pip';
+    const dm = (scene.displayMode as string) || 'default';
     if (dm === 'fullscreen' || dm === 'overlay') {
       return { ...scene, effectiveDimensions: { width: canvasWidth, height: canvasHeight } };
     }
@@ -95,16 +95,10 @@ describe('pipEffective computation for each layout mode', () => {
     expect(pipEff).toEqual({ width: 1080, height: 1920 });
   });
 
-  it('split-horizontal — pipEffective is top half (full width, half height)', () => {
+  it('stacked — pipEffective is top half (full width, half height)', () => {
     const pipEff: VisualsDimensions = { width: 1080, height: 960 };
     const resolved = resolvePipEffective(pipEff, canvas.width, canvas.height);
     expect(resolved).toEqual({ width: 1080, height: 960 });
-  });
-
-  it('split-vertical — pipEffective is left half (half width, full height)', () => {
-    const pipEff: VisualsDimensions = { width: 540, height: 1920 };
-    const resolved = resolvePipEffective(pipEff, canvas.width, canvas.height);
-    expect(resolved).toEqual({ width: 540, height: 1920 });
   });
 });
 
@@ -113,11 +107,11 @@ describe('computeSceneEffectiveDimensions', () => {
   const canvasH = 1920;
   const pipEff: VisualsDimensions = { width: 1080, height: 960 };
 
-  it('pip scenes use pipEffective dimensions', () => {
-    const result = computeSceneEffectiveDimensions('pip', canvasW, canvasH, pipEff);
+  it('default scenes use pipEffective dimensions', () => {
+    const result = computeSceneEffectiveDimensions('default', canvasW, canvasH, pipEff);
     expect(result.effectiveWidth).toBe(1080);
     expect(result.effectiveHeight).toBe(960);
-    expect(result.displayMode).toBe('pip');
+    expect(result.displayMode).toBe('default');
   });
 
   it('fullscreen scenes use full canvas dimensions', () => {
@@ -134,9 +128,9 @@ describe('computeSceneEffectiveDimensions', () => {
     expect(result.displayMode).toBe('overlay');
   });
 
-  it('missing displayMode defaults to pip', () => {
+  it('missing displayMode defaults to default', () => {
     const result = computeSceneEffectiveDimensions(undefined, canvasW, canvasH, pipEff);
-    expect(result.displayMode).toBe('pip');
+    expect(result.displayMode).toBe('default');
     expect(result.effectiveWidth).toBe(pipEff.width);
     expect(result.effectiveHeight).toBe(pipEff.height);
   });
@@ -147,8 +141,8 @@ describe('scene enrichment (enrichScenesWithDimensions)', () => {
   const canvasH = 1920;
   const pipEff: VisualsDimensions = { width: 540, height: 1920 };
 
-  it('enriches pip scenes with pipEffective dimensions', () => {
-    const scenes = [{ id: 1, displayMode: 'pip', title: 'Intro' }];
+  it('enriches default scenes with pipEffective dimensions', () => {
+    const scenes = [{ id: 1, displayMode: 'default', title: 'Intro' }];
     const enriched = enrichScenesWithDimensions(scenes, canvasW, canvasH, pipEff);
     expect(enriched[0].effectiveDimensions).toEqual({ width: 540, height: 1920 });
   });
@@ -167,20 +161,20 @@ describe('scene enrichment (enrichScenesWithDimensions)', () => {
 
   it('handles mixed displayModes correctly', () => {
     const scenes = [
-      { id: 1, displayMode: 'pip' },
+      { id: 1, displayMode: 'default' },
       { id: 2, displayMode: 'fullscreen' },
       { id: 3, displayMode: 'overlay' },
-      { id: 4, displayMode: 'pip' },
+      { id: 4, displayMode: 'default' },
     ];
     const enriched = enrichScenesWithDimensions(scenes, canvasW, canvasH, pipEff);
 
-    expect(enriched[0].effectiveDimensions).toEqual({ width: 540, height: 1920 }); // pip
+    expect(enriched[0].effectiveDimensions).toEqual({ width: 540, height: 1920 }); // default
     expect(enriched[1].effectiveDimensions).toEqual({ width: 1080, height: 1920 }); // fullscreen
     expect(enriched[2].effectiveDimensions).toEqual({ width: 1080, height: 1920 }); // overlay
-    expect(enriched[3].effectiveDimensions).toEqual({ width: 540, height: 1920 }); // pip
+    expect(enriched[3].effectiveDimensions).toEqual({ width: 540, height: 1920 }); // default
   });
 
-  it('defaults missing displayMode to pip', () => {
+  it('defaults missing displayMode to default', () => {
     const scenes = [{ id: 1, title: 'No displayMode set' }];
     const enriched = enrichScenesWithDimensions(scenes, canvasW, canvasH, pipEff);
     expect(enriched[0].effectiveDimensions).toEqual({ width: 540, height: 1920 });
@@ -188,7 +182,7 @@ describe('scene enrichment (enrichScenesWithDimensions)', () => {
 
   it('missing pipEffective defaults to full canvas', () => {
     const fullCanvasPip = resolvePipEffective(undefined, canvasW, canvasH);
-    const scenes = [{ id: 1, displayMode: 'pip' }];
+    const scenes = [{ id: 1, displayMode: 'default' }];
     const enriched = enrichScenesWithDimensions(scenes, canvasW, canvasH, fullCanvasPip);
     expect(enriched[0].effectiveDimensions).toEqual({ width: 1080, height: 1920 });
   });
@@ -202,7 +196,7 @@ describe('timeline item creation (effective dimensions per scene)', () => {
     scene: { displayMode?: string; startMs: number; endMs: number; description?: string; transition?: unknown },
     pipEffective: VisualsDimensions,
   ) {
-    const sceneDm = scene.displayMode || 'pip';
+    const sceneDm = scene.displayMode || 'default';
     const sceneEffectiveW = (sceneDm === 'fullscreen' || sceneDm === 'overlay')
       ? canvasW : pipEffective.width;
     const sceneEffectiveH = (sceneDm === 'fullscreen' || sceneDm === 'overlay')
@@ -224,17 +218,17 @@ describe('timeline item creation (effective dimensions per scene)', () => {
     };
   }
 
-  it('pip scene in split-horizontal stores correct effective dimensions', () => {
+  it('default scene in stacked layout stores correct effective dimensions', () => {
     const pipEff: VisualsDimensions = { width: 1080, height: 960 };
     const item = buildTimelineItemData(
-      { displayMode: 'pip', startMs: 0, endMs: 5000 },
+      { displayMode: 'default', startMs: 0, endMs: 5000 },
       pipEff,
     );
     expect(item.data.effectiveWidth).toBe(1080);
     expect(item.data.effectiveHeight).toBe(960);
     expect(item.data.width).toBe(1080); // full canvas always stored
     expect(item.data.height).toBe(1920);
-    expect(item.data.displayMode).toBe('pip');
+    expect(item.data.displayMode).toBe('default');
   });
 
   it('fullscreen scene always stores full canvas dimensions', () => {
@@ -259,13 +253,13 @@ describe('timeline item creation (effective dimensions per scene)', () => {
     expect(item.data.displayMode).toBe('overlay');
   });
 
-  it('missing displayMode defaults to pip with pipEffective', () => {
+  it('missing displayMode defaults to default with pipEffective', () => {
     const pipEff: VisualsDimensions = { width: 540, height: 1920 };
     const item = buildTimelineItemData(
       { startMs: 0, endMs: 3000 },
       pipEff,
     );
-    expect(item.data.displayMode).toBe('pip');
+    expect(item.data.displayMode).toBe('default');
     expect(item.data.effectiveWidth).toBe(540);
     expect(item.data.effectiveHeight).toBe(1920);
   });
@@ -277,7 +271,7 @@ describe('timeline item creation (effective dimensions per scene)', () => {
       exit: { type: 'cut', durationMs: 0 },
     };
     const item = buildTimelineItemData(
-      { displayMode: 'pip', startMs: 0, endMs: 5000, transition },
+      { displayMode: 'default', startMs: 0, endMs: 5000, transition },
       pipEff,
     );
     expect(item.data.transition).toEqual(transition);
@@ -291,7 +285,7 @@ describe('audio projects always use full canvas', () => {
     // Audio projects never provide pipEffective
     const pipEff = resolvePipEffective(undefined, canvasW, canvasH);
 
-    const pip = computeSceneEffectiveDimensions('pip', canvasW, canvasH, pipEff);
+    const pip = computeSceneEffectiveDimensions('default', canvasW, canvasH, pipEff);
     const fullscreen = computeSceneEffectiveDimensions('fullscreen', canvasW, canvasH, pipEff);
     const overlay = computeSceneEffectiveDimensions('overlay', canvasW, canvasH, pipEff);
 
@@ -317,7 +311,7 @@ describe('edge cases', () => {
 
   it('very large canvas dimensions are handled', () => {
     const result = computeSceneEffectiveDimensions(
-      'pip', 3840, 2160, { width: 1920, height: 2160 },
+      'default', 3840, 2160, { width: 1920, height: 2160 },
     );
     expect(result.effectiveWidth).toBe(1920);
     expect(result.effectiveHeight).toBe(2160);
@@ -327,7 +321,7 @@ describe('edge cases', () => {
     const canvasW = 1080;
     const canvasH = 1080;
     const pipEff: VisualsDimensions = { width: 540, height: 1080 };
-    const result = computeSceneEffectiveDimensions('pip', canvasW, canvasH, pipEff);
+    const result = computeSceneEffectiveDimensions('default', canvasW, canvasH, pipEff);
     expect(result.effectiveWidth).toBe(540);
     expect(result.effectiveHeight).toBe(1080);
   });

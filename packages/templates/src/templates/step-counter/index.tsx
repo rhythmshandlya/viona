@@ -7,30 +7,34 @@ import {
   Easing,
 } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { StepCounterProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  DotGrid SVG background                                            */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern
-        id="step-dot-grid"
-        width="32"
-        height="32"
-        patternUnits="userSpaceOnUse"
-      >
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#step-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern
+          id="step-dot-grid"
+          width={s(32)}
+          height={s(32)}
+          patternUnits="userSpaceOnUse"
+        >
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#step-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  SVG arc helper (same approach as stat-progress)                   */
@@ -59,10 +63,6 @@ function describeArc(
 /* ------------------------------------------------------------------ */
 /*  Progress Ring with centered step number                           */
 /* ------------------------------------------------------------------ */
-const RING_SIZE = 320;
-const RING_RADIUS = 130;
-const RING_STROKE = 14;
-
 const ProgressRing: React.FC<{
   stepNumber: number;
   totalSteps: number;
@@ -80,6 +80,10 @@ const ProgressRing: React.FC<{
   textColor,
   headlineFont,
 }) => {
+  const s = useScale();
+  const RING_SIZE = s(320);
+  const RING_RADIUS = s(130);
+  const RING_STROKE = s(14);
   const cx = RING_SIZE / 2;
   const cy = RING_SIZE / 2;
   const sweepAngle = progress * 360;
@@ -132,7 +136,7 @@ const ProgressRing: React.FC<{
         <span
           style={{
             fontFamily: headlineFont,
-            fontSize: 96,
+            fontSize: s(96),
             fontWeight: 800,
             color: textColor,
             lineHeight: 1,
@@ -143,10 +147,10 @@ const ProgressRing: React.FC<{
         <span
           style={{
             fontFamily: headlineFont,
-            fontSize: 22,
+            fontSize: s(22),
             fontWeight: 500,
             color: `${textColor}80`,
-            marginTop: 4,
+            marginTop: s(4),
           }}
         >
           of {totalSteps}
@@ -159,9 +163,6 @@ const ProgressRing: React.FC<{
 /* ------------------------------------------------------------------ */
 /*  Dot indicators at bottom                                          */
 /* ------------------------------------------------------------------ */
-const DOT_SIZE = 16;
-const DOT_GAP = 20;
-
 const StepDots: React.FC<{
   totalSteps: number;
   currentStep: number; // 0-indexed
@@ -169,6 +170,9 @@ const StepDots: React.FC<{
   inactiveColor: string;
   completedColor: string;
 }> = ({ totalSteps, currentStep, accentColor, inactiveColor, completedColor }) => {
+  const s = useScale();
+  const DOT_SIZE = s(16);
+  const DOT_GAP = s(20);
   return (
     <div
       style={{
@@ -201,7 +205,7 @@ const StepDots: React.FC<{
                     ? completedColor
                     : inactiveColor
               }`,
-              boxShadow: isCurrent ? `0 0 12px ${accentColor}80` : 'none',
+              boxShadow: isCurrent ? `0 0 ${s(12)}px ${accentColor}80` : 'none',
               transition: 'all 0.2s ease',
             }}
           />
@@ -218,6 +222,7 @@ const StepCounter: React.FC<StepCounterProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const steps = props.steps;
@@ -268,7 +273,7 @@ const StepCounter: React.FC<StepCounterProps> = (props) => {
   // --- Fade transitions ---
   // Background fade in: 0-15
   const introOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // Fade out: 330-360
@@ -365,7 +370,7 @@ const StepCounter: React.FC<StepCounterProps> = (props) => {
           justifyContent: 'center',
           width: '100%',
           height: '100%',
-          padding: 60,
+          padding: s(60),
         }}
       >
         {/* "STEP X OF Y" header text */}
@@ -373,15 +378,15 @@ const StepCounter: React.FC<StepCounterProps> = (props) => {
           style={{
             opacity: headerOpacity,
             transform: `translateY(${headerSlideY}px)`,
-            marginBottom: 32,
+            marginBottom: s(32),
           }}
         >
           <span
             style={{
               fontFamily: FONTS.body,
-              fontSize: 24,
+              fontSize: s(24),
               fontWeight: 600,
-              letterSpacing: 6,
+              letterSpacing: s(6),
               color: theme.textMuted,
               textTransform: 'uppercase',
             }}
@@ -395,7 +400,7 @@ const StepCounter: React.FC<StepCounterProps> = (props) => {
           style={{
             opacity: ringEntranceOpacity,
             transform: `scale(${ringEntrance})`,
-            marginBottom: 40,
+            marginBottom: s(40),
           }}
         >
           <ProgressRing
@@ -415,14 +420,14 @@ const StepCounter: React.FC<StepCounterProps> = (props) => {
             opacity: labelOpacity * stepTransitionIn,
             transform: `translateY(${stepTransitionSlideY}px)`,
             textAlign: 'center',
-            maxWidth: 700,
-            marginBottom: 56,
+            maxWidth: s(700),
+            marginBottom: s(56),
           }}
         >
           <span
             style={{
               fontFamily: FONTS.headline,
-              fontSize: 44,
+              fontSize: s(44),
               fontWeight: 700,
               color: theme.text,
               lineHeight: 1.3,

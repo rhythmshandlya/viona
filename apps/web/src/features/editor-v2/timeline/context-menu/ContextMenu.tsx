@@ -77,11 +77,13 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     copyItems,
     duplicateItems,
     deleteItems,
+    deleteTimeRange,
     pasteItems,
     updateTrack,
     select,
     requestAIEdit,
     updateVisualDisplayMode,
+    changeDisplayModeWithAI,
     openTransitionPicker,
   } = useEditorActions();
 
@@ -216,9 +218,9 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
                   label: 'Display Mode',
                   items: [
                     {
-                      label: 'PiP (speaker in corner)',
-                      action: withSelection(() => updateVisualDisplayMode(itemId, 'pip')),
-                      checked: ((item.data as VisualItemData).displayMode || 'pip') === 'pip',
+                      label: 'Standard',
+                      action: withSelection(() => updateVisualDisplayMode(itemId, 'default')),
+                      checked: ((item.data as VisualItemData).displayMode || 'default') === 'default' || ((item.data as VisualItemData).displayMode as string) === 'pip',
                     },
                     {
                       label: 'Fullscreen (animation only)',
@@ -233,7 +235,28 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
                   ],
                 },
                 {
-                  label: 'Change Transition…',
+                  type: 'submenu' as const,
+                  label: 'Change & AI Adapt',
+                  items: [
+                    {
+                      label: 'Standard + Adapt',
+                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'default')),
+                      disabled: ((item.data as VisualItemData).displayMode || 'default') === 'default' || ((item.data as VisualItemData).displayMode as string) === 'pip',
+                    },
+                    {
+                      label: 'Fullscreen + Adapt',
+                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'fullscreen')),
+                      disabled: (item.data as VisualItemData).displayMode === 'fullscreen',
+                    },
+                    {
+                      label: 'Overlay + Adapt',
+                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'overlay')),
+                      disabled: (item.data as VisualItemData).displayMode === 'overlay',
+                    },
+                  ],
+                },
+                {
+                  label: 'Change Transition\u2026',
                   action: withSelection(() => openTransitionPicker(itemId)),
                 },
                 {
@@ -246,10 +269,20 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
         ];
       }
 
-      // "Edit with AI" entry shown when a time range is selected (from ruler Alt+drag)
+      // Range entries shown when a time range is selected (from ruler Alt+drag)
       const rangeEditEntries: MenuEntry[] = selectedTimeRange
         ? [
             { type: 'separator' as const },
+            {
+              label: 'Delete Range',
+              shortcut: 'Del',
+              action: () => deleteTimeRange(selectedTimeRange.startMs, selectedTimeRange.endMs, false),
+            },
+            {
+              label: 'Ripple Delete Range',
+              shortcut: '⇧Del',
+              action: () => deleteTimeRange(selectedTimeRange.startMs, selectedTimeRange.endMs, true),
+            },
             {
               label: 'Edit with AI',
               shortcut: 'E',
@@ -297,6 +330,8 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       updateTrack,
       requestAIEdit,
       updateVisualDisplayMode,
+      changeDisplayModeWithAI,
+      openTransitionPicker,
     ]
   );
 

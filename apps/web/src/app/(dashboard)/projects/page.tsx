@@ -220,8 +220,7 @@ function ProjectCard({
   return (
     <Link
       href={`/project/${project.id}`}
-      className={`group block bg-white rounded-2xl shadow-card hover:shadow-card-hover
-                  transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden ${className || ""}`}
+      className={`group block bg-white rounded-2xl shadow-card cursor-pointer overflow-hidden ${className || ""}`}
     >
       {/* Thumbnail Area */}
       <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-50 relative overflow-hidden">
@@ -528,9 +527,9 @@ function startJobMonitor(opts: {
     wsClient.subscribeToJob(jid);
   }
 
-  // --- HTTP polling fallback (every 3s) ---
+  // --- HTTP polling fallback ---
   // Catches cases where WS events are missed (subscription race, reconnect, etc.)
-  pollTimer = setInterval(async () => {
+  async function pollJobs() {
     if (cleaned) return;
     try {
       for (const jid of jobIds) {
@@ -560,10 +559,29 @@ function startJobMonitor(opts: {
           }
         }
       }
-    } catch {
-      // Polling errors are non-fatal; WS may still deliver events
+
+      // Fallback: if all tracked jobs are done but checkAllComplete hasn't
+      // fired (e.g., totalJobs mismatch), check project status directly
+      if (!cleaned && completedJobs.size > 0 && completedJobs.size < totalJobs) {
+        try {
+          const project = await api.getProject(projectId);
+          if (project.status === "ready") {
+            cleanup();
+            onAllComplete();
+          }
+        } catch {
+          // Project status check is best-effort
+        }
+      }
+    } catch (err) {
+      // Log polling errors — silent swallowing can hide auth/network issues
+      console.warn("Job poll error (will retry):", err);
     }
-  }, 3000);
+  }
+
+  // Run first poll immediately, then every 3 seconds
+  pollJobs();
+  pollTimer = setInterval(pollJobs, 3000);
 
   return cleanup;
 }
@@ -628,9 +646,9 @@ function NewProjectModal({
         wsClient.connect(projectId);
 
         // Step 4: Start processing
-        const { transcribeJobId, enhanceJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
-        const totalJobs = serverTotalJobs || (enhanceJobId ? 2 : 1);
-        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : [])];
+        const { transcribeJobId, enhanceJobId, headTrackJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
+        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : []), ...(headTrackJobId ? [headTrackJobId] : [])];
+        const totalJobs = serverTotalJobs || jobIds.length;
 
         // Step 5: Monitor jobs via WS + polling fallback
         cleanupRef.current = startJobMonitor({
@@ -740,9 +758,9 @@ function EmptyState() {
 
         wsClient.connect(projectId);
 
-        const { transcribeJobId, enhanceJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
-        const totalJobs = serverTotalJobs || (enhanceJobId ? 2 : 1);
-        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : [])];
+        const { transcribeJobId, enhanceJobId, headTrackJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
+        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : []), ...(headTrackJobId ? [headTrackJobId] : [])];
+        const totalJobs = serverTotalJobs || jobIds.length;
 
         cleanupRef.current = startJobMonitor({
           projectId,

@@ -1,10 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import { eq, inArray, or, and } from 'drizzle-orm';
-import { db, projects, tracks, timelineItems, jobs, transcripts, visuals } from '../db/index.js';
-import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, publishJobCancel } from '../services/queue.js';
+import { eq, inArray, or, and, desc } from 'drizzle-orm';
+import { db, projects, tracks, timelineItems, jobs, transcripts, visuals, projectAssets } from '../db/index.js';
+import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix, deleteObject } from '../services/minio.js';
+import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
 
@@ -33,6 +33,12 @@ const updateProjectSchema = z.object({
   })).optional(),
   // IDs of all caption items currently in the editor — DB items not in this list are deleted
   captionItemIds: z.array(z.string()).optional(),
+  // IDs of all visual items currently in the editor — DB items not in this list are deleted
+  visualItemIds: z.array(z.string()).optional(),
+  // IDs of all video items currently in the editor — DB items not in this list are deleted
+  videoItemIds: z.array(z.string()).optional(),
+  // IDs of all audio items currently in the editor — DB items not in this list are deleted
+  audioItemIds: z.array(z.string()).optional(),
   videoSettings: z.record(z.unknown()).optional(),
 });
 
@@ -194,6 +200,56 @@ export async function projectRoutes(fastify: FastifyInstance) {
         }
       } catch (err) {
         fastify.log.warn({ err, audioKey: project.audioKey }, 'Failed to generate presigned URL for audio');
+      }
+    }
+
+    // Auto-create audio track + item if a video project has no audio track yet
+    if (project.videoKey && project.projectType !== 'audio') {
+      const hasAudioTrack = projectTracks.some(t => t.type === 'audio');
+      if (!hasAudioTrack) {
+        try {
+          // Find the video track/item to copy timing from
+          const videoTrack = projectTracks.find(t => t.type === 'video');
+          const videoItem = videoTrack
+            ? items.find(i => i.trackId === videoTrack.id && i.type === 'video')
+            : null;
+
+          const startMs = videoItem ? videoItem.startMs : 0;
+          const endMs = videoItem ? videoItem.endMs : (project.durationMs || 0);
+
+          if (endMs > startMs) {
+            // Store a stable API path as src — the frontend resolves it with the API_URL
+            const stableSrc = `/api/projects/${id}/video`;
+
+            const [audioTrack] = await db.insert(tracks).values({
+              projectId: id,
+              type: 'audio',
+              name: 'Audio',
+              position: projectTracks.length,
+              locked: false,
+              visible: true,
+            }).returning();
+
+            const [audioItem] = await db.insert(timelineItems).values({
+              trackId: audioTrack.id,
+              type: 'audio',
+              startMs,
+              endMs,
+              data: {
+                src: stableSrc,
+                originalSrc: stableSrc,
+                isEnhanced: false,
+                sourceVideoItemId: videoItem?.id || '',
+                volume: 1,
+              },
+            }).returning();
+
+            projectTracks.push(audioTrack);
+            items.push(audioItem);
+          }
+        } catch (err) {
+          fastify.log.warn({ err, projectId: id }, 'Failed to auto-create audio track (non-critical)');
+        }
       }
     }
 
@@ -449,6 +505,152 @@ export async function projectRoutes(fastify: FastifyInstance) {
       }
     }
 
+    // Delete visual items that no longer exist in the editor (removed by split)
+    if (body.visualItemIds) {
+      const trackIds = (await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      })).map(t => t.id);
+
+      if (trackIds.length > 0) {
+        // Find all visual items in the project
+        const existingVisualItems = await db.select({ id: timelineItems.id }).from(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, trackIds),
+            eq(timelineItems.type, 'visual')
+          ));
+
+        // Delete items not in the editor's current list
+        const visualIdsToDelete = existingVisualItems
+          .map(i => i.id)
+          .filter(dbId => !body.visualItemIds!.includes(dbId));
+
+        if (visualIdsToDelete.length > 0) {
+          await db.delete(timelineItems).where(inArray(timelineItems.id, visualIdsToDelete));
+          fastify.log.info({ deletedCount: visualIdsToDelete.length }, 'Deleted orphaned visual items from split');
+        }
+      }
+
+      // Sync visuals.timestamps from current timeline state
+      const visual = await db.query.visuals.findFirst({
+        where: eq(visuals.projectId, id),
+      });
+
+      if (visual?.timestamps) {
+        const originalTimestamps = visual.timestamps as Array<{
+          startMs: number;
+          endMs: number;
+          type: string;
+          description: string;
+          sourceSceneId?: number;
+          elements?: Array<{ id: string; name: string; type: string; x: string; y: string; width: string; height: string }>;
+        }>;
+
+        // Get all current visual items sorted by startMs
+        const trackIds2 = (await db.query.tracks.findMany({
+          where: eq(tracks.projectId, id),
+        })).map(t => t.id);
+
+        const currentVisualItems = trackIds2.length > 0
+          ? await db.select().from(timelineItems)
+              .where(and(
+                inArray(timelineItems.trackId, trackIds2),
+                eq(timelineItems.type, 'visual')
+              ))
+          : [];
+
+        currentVisualItems.sort((a, b) => a.startMs - b.startMs);
+
+        // Rebuild timestamps array from current timeline items
+        const newTimestamps = currentVisualItems.map((item) => {
+          const data = item.data as Record<string, unknown>;
+          const itemSourceSceneId = data.sourceSceneId as number | undefined;
+
+          // Match to original timestamp: prefer sourceSceneId, fall back to time overlap
+          let matched: typeof originalTimestamps[0] | undefined;
+          if (itemSourceSceneId) {
+            matched = originalTimestamps.find(t => (t.sourceSceneId || 0) === itemSourceSceneId)
+              || originalTimestamps[itemSourceSceneId - 1];
+          }
+          if (!matched) {
+            // Time-overlap matching: find the original timestamp with most overlap
+            let bestOverlap = 0;
+            for (const t of originalTimestamps) {
+              const overlapStart = Math.max(item.startMs, t.startMs);
+              const overlapEnd = Math.min(item.endMs, t.endMs);
+              const overlap = Math.max(0, overlapEnd - overlapStart);
+              if (overlap > bestOverlap) {
+                bestOverlap = overlap;
+                matched = t;
+              }
+            }
+          }
+
+          return {
+            startMs: item.startMs,
+            endMs: item.endMs,
+            type: matched?.type || (data.type as string) || 'visual',
+            description: matched?.description || (data.description as string) || '',
+            sourceSceneId: itemSourceSceneId || matched?.sourceSceneId,
+            elements: matched?.elements,
+          };
+        });
+
+        // Update visuals.timestamps in DB
+        await db.update(visuals)
+          .set({ timestamps: newTimestamps })
+          .where(eq(visuals.id, visual.id));
+        fastify.log.info({ projectId: id, sceneCount: newTimestamps.length }, 'Synced visuals.timestamps from timeline state');
+      }
+    }
+
+    // Delete video items that no longer exist in the editor (removed by split/delete)
+    if (body.videoItemIds) {
+      const trackIds = (await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      })).map(t => t.id);
+
+      if (trackIds.length > 0) {
+        const existingVideoItems = await db.select({ id: timelineItems.id }).from(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, trackIds),
+            eq(timelineItems.type, 'video')
+          ));
+
+        const videoIdsToDelete = existingVideoItems
+          .map(i => i.id)
+          .filter(dbId => !body.videoItemIds!.includes(dbId));
+
+        if (videoIdsToDelete.length > 0) {
+          await db.delete(timelineItems).where(inArray(timelineItems.id, videoIdsToDelete));
+          fastify.log.info({ deletedCount: videoIdsToDelete.length }, 'Deleted orphaned video items from split');
+        }
+      }
+    }
+
+    // Delete audio items that no longer exist in the editor (removed by split/delete)
+    if (body.audioItemIds) {
+      const trackIds = (await db.query.tracks.findMany({
+        where: eq(tracks.projectId, id),
+      })).map(t => t.id);
+
+      if (trackIds.length > 0) {
+        const existingAudioItems = await db.select({ id: timelineItems.id }).from(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, trackIds),
+            eq(timelineItems.type, 'audio')
+          ));
+
+        const audioIdsToDelete = existingAudioItems
+          .map(i => i.id)
+          .filter(dbId => !body.audioItemIds!.includes(dbId));
+
+        if (audioIdsToDelete.length > 0) {
+          await db.delete(timelineItems).where(inArray(timelineItems.id, audioIdsToDelete));
+          fastify.log.info({ deletedCount: audioIdsToDelete.length }, 'Deleted orphaned audio items from split');
+        }
+      }
+    }
+
     // Update project fields
     const updateData: { updatedAt: Date; title?: string; videoSettings?: unknown } = { updatedAt: new Date() };
     if (body.title !== undefined) {
@@ -464,7 +666,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     return { success: true };
   });
 
-  // Start processing (transcription + audio enhancement in parallel)
+  // Start processing (transcription + head-tracking in parallel)
   fastify.post('/projects/:id/process', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -523,34 +725,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
       };
     }
 
-    // Video projects: transcribe + enhance-audio in parallel
-    // Create audio track, timeline item, and enhancement job
-    const [audioTrack] = await db.insert(tracks).values({
+    // Video projects: transcribe + head-tracking in parallel
+    const [headTrackJob] = await db.insert(jobs).values({
       projectId: id,
-      type: 'audio',
-      name: 'Audio',
-      position: 2,
-    }).returning();
-
-    const [audioItem] = await db.insert(timelineItems).values({
-      trackId: audioTrack.id,
-      type: 'audio',
-      startMs: 0,
-      endMs: project.durationMs || 0, // Updated by worker after probing
-      data: {
-        src: '',
-        originalSrc: '',
-        isEnhanced: false,
-        sourceVideoItemId: '',
-        volume: 1,
-        enhancementStatus: 'processing',
-        enhancementProgress: 0,
-      },
-    }).returning();
-
-    const [enhanceJob] = await db.insert(jobs).values({
-      projectId: id,
-      type: 'enhance-audio',
+      type: 'head-tracking',
       status: 'pending',
     }).returning();
 
@@ -559,27 +737,24 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'processing' })
       .where(eq(projects.id, id));
 
-    // Queue both jobs in parallel
     await Promise.all([
       queueTranscribeJob({
         projectId: id,
         jobId: transcribeJob.id,
         videoKey: mediaKey,
       }),
-      queueEnhanceAudioJob({
+      queueHeadTrackingJob({
         projectId: id,
-        jobId: enhanceJob.id,
+        jobId: headTrackJob.id,
         videoKey: mediaKey,
-        audioTrackId: audioTrack.id,
-        audioItemId: audioItem.id,
-        videoItemId: '',
       }),
     ]);
 
     return {
       jobId: transcribeJob.id,
       transcribeJobId: transcribeJob.id,
-      enhanceJobId: enhanceJob.id,
+      enhanceJobId: null,
+      headTrackJobId: headTrackJob.id,
       totalJobs: 2,
     };
   });
@@ -618,7 +793,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }> } || {};
+    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -645,13 +820,45 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job with layout settings and fullscreen segments for exact preview match
+    // Queue the job with layout settings, fullscreen segments, and visual display data for exact preview match
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
       projectType: project.projectType || 'video',
       layoutSettings: body.layoutSettings,
       fullscreenSegments: body.fullscreenSegments,
+      visualDisplayData: body.visualDisplayData,
+    });
+
+    return { jobId: job.id };
+  });
+
+  // Generate AI caption styles — LLM analyzes transcript and generates per-caption style overrides
+  fastify.post('/projects/:id/generate-caption-styles', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    // Create job record
+    const [job] = await db.insert(jobs).values({
+      projectId: id,
+      type: 'generate-caption-styles',
+      status: 'pending',
+    }).returning();
+
+    await queueGenerateCaptionStylesJob({
+      projectId: id,
+      jobId: job.id,
     });
 
     return { jobId: job.id };
@@ -662,7 +869,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = z.object({
       stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'apple', 'google', 'studio']),
-      layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
+      layoutMode: z.enum(['pip', 'stacked']),
       dimensions: z.object({
         width: z.number().int().min(100).max(4096),
         height: z.number().int().min(100).max(4096),
@@ -865,6 +1072,150 @@ export async function projectRoutes(fastify: FastifyInstance) {
       fastify.log.error(err, 'Failed to upload image');
       return reply.status(500).send({ error: 'Failed to upload image' });
     }
+  });
+
+  // Upload a project media asset (logo, icon, brand image)
+  fastify.post('/projects/:id/media', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    try {
+      const data = await request.file();
+      if (!data) {
+        return reply.status(400).send({ error: 'No file uploaded' });
+      }
+
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml'];
+      if (!allowedTypes.includes(data.mimetype)) {
+        return reply.status(400).send({
+          error: 'Invalid file type. Allowed: PNG, JPEG, WebP, GIF, SVG'
+        });
+      }
+
+      // Read label from multipart fields
+      const label = (data.fields?.label as any)?.value as string | undefined;
+
+      const ext = data.mimetype === 'image/svg+xml' ? 'svg'
+        : data.mimetype.split('/')[1].replace('jpeg', 'jpg');
+      const storageKey = `assets/${id}/${nanoid()}.${ext}`;
+
+      await uploadStream('uploads', storageKey, data.file, undefined, data.mimetype);
+
+      // Validate file size AFTER stream consumption (bytesRead is 0 before)
+      const maxSize = 10 * 1024 * 1024; // 10MB
+      if (data.file.bytesRead > maxSize) {
+        // Clean up the already-uploaded file
+        try { await deleteObject('uploads', storageKey); } catch {}
+        return reply.status(413).send({ error: 'File too large (max 10MB)' });
+      }
+
+      const [asset] = await db.insert(projectAssets).values({
+        projectId: id,
+        filename: data.filename,
+        label: label || null,
+        storageKey,
+        contentType: data.mimetype,
+        fileSize: data.file.bytesRead || null,
+      }).returning();
+
+      const url = await getPresignedDownloadUrl('uploads', storageKey);
+
+      return {
+        id: asset.id,
+        filename: asset.filename,
+        label: asset.label,
+        mimeType: asset.contentType,
+        fileSize: asset.fileSize,
+        url,
+        createdAt: asset.createdAt.toISOString(),
+      };
+    } catch (err) {
+      fastify.log.error(err, 'Failed to upload media asset');
+      return reply.status(500).send({ error: 'Failed to upload media asset' });
+    }
+  });
+
+  // List project media assets
+  fastify.get('/projects/:id/media', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const assets = await db.select().from(projectAssets)
+      .where(eq(projectAssets.projectId, id))
+      .orderBy(desc(projectAssets.createdAt));
+
+    const assetsWithUrls = await Promise.all(assets.map(async (asset) => {
+      const url = await getPresignedDownloadUrl('uploads', asset.storageKey);
+      return {
+        id: asset.id,
+        filename: asset.filename,
+        label: asset.label,
+        mimeType: asset.contentType,
+        fileSize: asset.fileSize,
+        url,
+        createdAt: asset.createdAt.toISOString(),
+      };
+    }));
+
+    return { assets: assetsWithUrls };
+  });
+
+  // Delete a project media asset
+  fastify.delete('/projects/:id/media/:assetId', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id, assetId } = request.params as { id: string; assetId: string };
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const asset = await db.query.projectAssets.findFirst({
+      where: and(eq(projectAssets.id, assetId), eq(projectAssets.projectId, id)),
+    });
+
+    if (!asset) {
+      return reply.status(404).send({ error: 'Asset not found' });
+    }
+
+    // Delete from storage and DB
+    try {
+      await deleteObject('uploads', asset.storageKey);
+    } catch (err) {
+      fastify.log.warn({ err, storageKey: asset.storageKey }, 'Failed to delete asset from storage');
+    }
+
+    await db.delete(projectAssets).where(eq(projectAssets.id, assetId));
+
+    return { success: true };
   });
 
   // Create SVG animation from uploaded image
@@ -1176,13 +1527,21 @@ export async function projectRoutes(fastify: FastifyInstance) {
         return reply.status(403).send({ error: 'Access denied' });
       }
 
+      // Delete related jobs (plan + generation) so stale planJobIds aren't referenced
+      await db.delete(jobs).where(eq(jobs.projectId, id));
+
+      // Reset project status and clear stale outputKey
+      await db.update(projects)
+        .set({ status: 'ready' as ProjectStatus, outputKey: null })
+        .where(eq(projects.id, id));
+
       // Get all visuals for this project
       const projectVisuals = await db.query.visuals.findMany({
         where: eq(visuals.projectId, id),
       });
 
       if (projectVisuals.length === 0) {
-        return { message: 'No visuals to delete', deleted: 0 };
+        return { message: 'No visuals to delete (plan and jobs cleared)', deleted: 0 };
       }
 
       // Delete visual timeline items from all tracks
@@ -1199,21 +1558,27 @@ export async function projectRoutes(fastify: FastifyInstance) {
         }
       }
 
+      // Delete MinIO storage files (bundles + sources) for each visual
+      const storageCleanup: Promise<unknown>[] = [];
+      for (const visual of projectVisuals) {
+        const compId = visual.compositionId;
+        storageCleanup.push(
+          deleteObjectsByPrefix('outputs', `bundles/${compId}/`).catch(err =>
+            fastify.log.warn({ compositionId: compId, err }, 'Failed to delete bundle files from storage')
+          ),
+          deleteObjectsByPrefix('outputs', `sources/${compId}/`).catch(err =>
+            fastify.log.warn({ compositionId: compId, err }, 'Failed to delete source files from storage')
+          ),
+        );
+      }
+      await Promise.all(storageCleanup);
+
       // Delete visuals from database
       await db.delete(visuals).where(eq(visuals.projectId, id));
-
-      // Delete related jobs (plan + generation) so stale planJobIds aren't referenced
-      await db.delete(jobs).where(eq(jobs.projectId, id));
-
-      // Reset project status to allow re-generation
-      await db.update(projects)
-        .set({ status: 'ready' as ProjectStatus })
-        .where(eq(projects.id, id));
 
       return {
         message: 'Visuals deleted successfully',
         deleted: projectVisuals.length,
-        bundleUrls: projectVisuals.map(v => v.bundleUrl),
       };
     } catch (err) {
       fastify.log.error(err, 'Failed to delete visuals');
@@ -1221,12 +1586,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }
   });
 
-  // Separate audio from video and enhance
+  // Separate audio from video (returns video source as audio track — no enhancement)
   fastify.post('/projects/:id/separate-audio', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = z.object({
-      videoItemId: z.string(),
-    }).parse(request.body);
+    const { videoItemId } = request.body as { videoItemId?: string };
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -1236,62 +1599,66 @@ export async function projectRoutes(fastify: FastifyInstance) {
       return reply.status(404).send({ error: 'Project not found' });
     }
 
-    // Check ownership
     if (!checkProjectOwnership(project.userId, request.user?.id)) {
       return reply.status(403).send({ error: 'Access denied' });
     }
 
     if (!project.videoKey) {
-      return reply.status(400).send({ error: 'No video uploaded' });
+      return reply.status(400).send({ error: 'Project has no video' });
     }
 
-    // Create audio track
+    // Check if audio track already exists
+    const existingTracks = await db.query.tracks.findMany({
+      where: eq(tracks.projectId, id),
+    });
+    if (existingTracks.some(t => t.type === 'audio')) {
+      return reply.status(409).send({ error: 'Audio track already exists' });
+    }
+
+    // Get video item timing
+    const videoTrack = existingTracks.find(t => t.type === 'video');
+    let startMs = 0;
+    let endMs = project.durationMs || 0;
+    if (videoTrack) {
+      const videoItems = await db.select().from(timelineItems).where(
+        and(eq(timelineItems.trackId, videoTrack.id), eq(timelineItems.type, 'video'))
+      );
+      if (videoItems[0]) {
+        startMs = videoItems[0].startMs;
+        endMs = videoItems[0].endMs;
+      }
+    }
+
+    const stableSrc = `/api/projects/${id}/video`;
+
+    // Persist to database
     const [audioTrack] = await db.insert(tracks).values({
       projectId: id,
       type: 'audio',
       name: 'Audio',
-      position: 2,
+      position: existingTracks.length,
+      locked: false,
+      visible: true,
     }).returning();
 
-    // Create audio timeline item (spans full video duration)
     const [audioItem] = await db.insert(timelineItems).values({
       trackId: audioTrack.id,
       type: 'audio',
-      startMs: 0,
-      endMs: project.durationMs || 0,
+      startMs,
+      endMs,
       data: {
-        src: '',
-        originalSrc: '',
+        src: stableSrc,
+        originalSrc: stableSrc,
         isEnhanced: false,
-        sourceVideoItemId: body.videoItemId,
+        sourceVideoItemId: videoItemId || '',
         volume: 1,
-        enhancementStatus: 'processing',
-        enhancementProgress: 0,
       },
     }).returning();
 
-    // Create job record
-    const [job] = await db.insert(jobs).values({
-      projectId: id,
-      type: 'enhance-audio',
-      status: 'pending',
-    }).returning();
+    // Return presigned URL for immediate playback
+    const src = await getPresignedDownloadUrl('uploads', project.videoKey);
 
-    // Queue the enhancement job
-    await queueEnhanceAudioJob({
-      projectId: id,
-      jobId: job.id,
-      videoKey: project.videoKey,
-      audioTrackId: audioTrack.id,
-      audioItemId: audioItem.id,
-      videoItemId: body.videoItemId,
-    });
-
-    return {
-      jobId: job.id,
-      trackId: audioTrack.id,
-      itemId: audioItem.id,
-    };
+    return { trackId: audioTrack.id, itemId: audioItem.id, src };
   });
 
   // Get download URL
@@ -1448,6 +1815,103 @@ export async function projectRoutes(fastify: FastifyInstance) {
     reply.header('Content-Length', totalSize);
     reply.header('Accept-Ranges', 'bytes');
     return reply.send(stream);
+  });
+
+  // Update plan scenes (manual edits from the frontend)
+  fastify.patch('/projects/:id/plan/:planJobId', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id, planJobId } = request.params as { id: string; planJobId: string };
+
+    const updatePlanScenesSchema = z.object({
+      scenes: z.array(z.object({
+        id: z.number(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        displayMode: z.enum(['default', 'fullscreen', 'overlay']).optional(),
+      })),
+    });
+
+    const body = updatePlanScenesSchema.parse(request.body);
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const planJob = await db.query.jobs.findFirst({
+      where: and(eq(jobs.id, planJobId), eq(jobs.projectId, id)),
+    });
+
+    if (!planJob || !planJob.planData) {
+      return reply.status(404).send({ error: 'Plan job not found or has no plan data' });
+    }
+
+    if (planJob.status !== 'complete') {
+      return reply.status(409).send({ error: 'Plan is still being generated. Wait for it to complete before editing.' });
+    }
+
+    const planData = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+    const scenesObj = planData.scenes as Record<string, unknown>;
+    const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+
+    // Apply partial updates
+    for (const update of body.scenes) {
+      const scene = scenesArray.find((s: any) => s.id === update.id) as Record<string, unknown> | undefined;
+      if (!scene) continue;
+
+      if (update.title !== undefined) {
+        scene.name = update.title;
+      }
+      if (update.description !== undefined) {
+        scene.visual = update.description;
+      }
+      if (update.displayMode !== undefined) {
+        scene.displayMode = update.displayMode;
+      }
+    }
+
+    // Rebuild markdown from scenes (same logic as update_plan tool)
+    const updatedMarkdown = scenesArray.map((s: any) => {
+      const startS = (s.timestampRange?.[0] ?? 0).toFixed(1);
+      const endS = (s.timestampRange?.[1] ?? 0).toFixed(1);
+      return `### Scene ${s.id}: ${s.name} (${startS}s – ${endS}s)\n**Visual**: ${s.visual || ''}\n**Emotion**: ${s.emotion || ''}`;
+    }).join('\n\n');
+
+    // Save back to DB
+    const updatedPlanData = {
+      scenePlan: updatedMarkdown,
+      scenes: { ...scenesObj, scenes: scenesArray, totalScenes: scenesArray.length },
+    };
+    await db.update(jobs).set({ planData: updatedPlanData }).where(eq(jobs.id, planJobId));
+
+    // Return updated scenes in widget format
+    const widgetScenes = scenesArray.map((s: any) => ({
+      startMs: Math.round((s.timestampRange?.[0] || 0) * 1000),
+      endMs: Math.round((s.timestampRange?.[1] || 0) * 1000),
+      title: s.name || `Scene ${s.id}`,
+      description: s.visual || s.emotion || '',
+      emotion: s.emotion || '',
+      keySync: s.keySync ? {
+        word: s.keySync.word,
+        timestamp: s.keySync.timestamp,
+        visualEvent: s.keySync.visualEvent,
+      } : undefined,
+      buildsFrom: s.buildsFrom || null,
+      connectsTo: s.connectsTo || null,
+      layout: s.layout || null,
+      frames: s.frames || null,
+      icons: s.icons || [],
+      displayMode: s.displayMode || 'default',
+      transition: s.transition || undefined,
+    }));
+
+    return { success: true, scenes: widgetScenes };
   });
 
   // Get job status

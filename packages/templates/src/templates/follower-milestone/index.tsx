@@ -1,23 +1,27 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, Easing } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { FollowerMilestoneProps } from './schema';
 
 // ── DotGrid SVG background ─────────────────────────────────────────────
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="fm-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#fm-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="fm-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#fm-dot-grid)" />
+    </svg>
+  );
+};
 
 // ── Format number with commas ───────────────────────────────────────────
 function formatWithCommas(n: number): string {
@@ -88,15 +92,17 @@ const ConfettiParticles: React.FC<{
   particles: Particle[];
   frame: number;
   burstFrame: number;
-}> = ({ particles, frame, burstFrame }) => {
+  width: number;
+  height: number;
+}> = ({ particles, frame, burstFrame, width, height }) => {
   if (frame < burstFrame) return null;
 
   const elapsed = frame - burstFrame;
 
   return (
     <svg
-      width="1080"
-      height="1080"
+      width={width}
+      height={height}
       style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
     >
       {particles.map((p) => {
@@ -154,6 +160,8 @@ const ConfettiParticles: React.FC<{
 const FollowerMilestone: React.FC<FollowerMilestoneProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const particles = React.useMemo(
@@ -163,7 +171,7 @@ const FollowerMilestone: React.FC<FollowerMilestoneProps> = (props) => {
 
   // ── Background fade in (0-15) ───────────────────────────────────────
   const bgOpacity = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // ── Brand name fade in (10-25) ──────────────────────────────────────
@@ -245,8 +253,8 @@ const FollowerMilestone: React.FC<FollowerMilestoneProps> = (props) => {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: 500,
-          height: 500,
+          width: s(500),
+          height: s(500),
           borderRadius: '50%',
           background: `radial-gradient(circle, ${props.accentColor}40 0%, transparent 70%)`,
           opacity: glowOpacity,
@@ -258,7 +266,7 @@ const FollowerMilestone: React.FC<FollowerMilestoneProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          top: 180,
+          top: s(180),
           left: 0,
           right: 0,
           display: 'flex',
@@ -270,9 +278,9 @@ const FollowerMilestone: React.FC<FollowerMilestoneProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.body,
-            fontSize: 28,
+            fontSize: s(28),
             fontWeight: 500,
-            letterSpacing: 4,
+            letterSpacing: s(4),
             color: theme.textMuted,
             textTransform: 'uppercase',
           }}
@@ -298,11 +306,11 @@ const FollowerMilestone: React.FC<FollowerMilestoneProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 130,
+            fontSize: s(130),
             fontWeight: 900,
             color: theme.text,
             lineHeight: 1.1,
-            letterSpacing: -2,
+            letterSpacing: s(-2),
             transform: `scale(${pulseScale})`,
             textShadow:
               glowOpacity > 0.1
@@ -317,12 +325,12 @@ const FollowerMilestone: React.FC<FollowerMilestoneProps> = (props) => {
         <span
           style={{
             fontFamily: FONTS.body,
-            fontSize: 36,
+            fontSize: s(36),
             fontWeight: 600,
-            letterSpacing: 8,
+            letterSpacing: s(8),
             color: props.accentColor,
             textTransform: 'uppercase',
-            marginTop: 20,
+            marginTop: s(20),
             opacity: labelOpacity,
             transform: `translateY(${labelSlideY}px)`,
           }}
@@ -336,6 +344,8 @@ const FollowerMilestone: React.FC<FollowerMilestoneProps> = (props) => {
         particles={particles}
         frame={frame}
         burstFrame={180}
+        width={width}
+        height={height}
       />
     </AbsoluteFill>
   );

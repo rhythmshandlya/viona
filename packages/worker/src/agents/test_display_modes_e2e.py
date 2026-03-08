@@ -221,8 +221,7 @@ async def main():
 
     test_cases = [
         ("pip", None, None, "pip layout, no source dims"),
-        ("split-horizontal", 1920, 1080, "split-horizontal + 16:9 source on 9:16 canvas (conservative)"),
-        ("split-vertical", 1080, 1920, "split-vertical + 9:16 source on 9:16 canvas (flexible)"),
+        ("stacked", 1920, 1080, "stacked + 16:9 source on 9:16 canvas (conservative)"),
     ]
 
     results = {}

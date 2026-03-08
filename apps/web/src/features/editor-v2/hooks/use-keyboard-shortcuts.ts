@@ -4,7 +4,8 @@
  *
  * Shortcuts:
  *   Space          – Play / Pause
- *   Delete/Backsp  – Delete selected items
+ *   Delete/Backsp  – Delete selected items / delete time range
+ *   Shift+Delete   – Ripple delete time range
  *   Ctrl+A         – Select all
  *   Ctrl+Z         – Undo
  *   Ctrl+Shift+Z/Y – Redo
@@ -13,6 +14,7 @@
  *   Ctrl+D         – Duplicate selected items
  *   Home           – Seek to start (0 ms)
  *   End            – Seek to duration end
+ *   I              – Toggle element inspect mode
  *   S              – Toggle split mode
  *   T              – Toggle transcript/captions panel
  *   1 / 2 / 3      – Switch caption display mode
@@ -20,7 +22,7 @@
  *   ArrowRight     – (selection) Nudge right +100 ms; (shift) +1 frame; (none) frame-step forward
  *   [              – Trim selected items start inward by 100 ms
  *   ]              – Trim selected items end outward by 100 ms
- *   Escape         – Exit split mode first, then close panel
+ *   Escape         – Exit inspect mode / deselect element / exit split mode / close panel
  */
 
 'use client';
@@ -28,6 +30,7 @@
 import { useEffect, useCallback } from 'react';
 import {
   useEditorActions,
+  useEditorStore,
   useSelectedIds,
   useCanUndo,
   useCanRedo,
@@ -36,6 +39,8 @@ import {
   useFps,
   useSplitMode,
   useClipboard,
+  useInspectModeEnabled,
+  useSelectedElement,
 } from '../store/use-editor-store';
 import type { CaptionDisplayMode } from '../store/types';
 
@@ -44,14 +49,17 @@ export interface KeyboardShortcutOptions {
   onToggleTranscript?: () => void;
   /** Callback invoked when Escape is pressed (after split mode check) to close the right panel. */
   onClosePanel?: () => void;
+  /** Callback invoked when the I key is pressed to toggle element inspect mode. */
+  onToggleInspectMode?: () => void;
 }
 
 export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
-  const { onToggleTranscript, onClosePanel } = options;
+  const { onToggleTranscript, onClosePanel, onToggleInspectMode } = options;
 
   const {
     togglePlayback,
     deleteItems,
+    deleteTimeRange,
     selectAll,
     clearSelection,
     undo,
@@ -78,6 +86,8 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
   const fps = useFps();
   const splitMode = useSplitMode();
   const clipboard = useClipboard();
+  const inspectModeEnabled = useInspectModeEnabled();
+  const selectedElement = useSelectedElement();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -102,11 +112,19 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         return;
       }
 
-      // Delete/Backspace: Delete selected items
-      if ((e.code === 'Delete' || e.code === 'Backspace') && selectedIds.length > 0) {
-        e.preventDefault();
-        deleteItems(selectedIds);
-        return;
+      // Delete/Backspace: Delete selected items or time range
+      if (e.code === 'Delete' || e.code === 'Backspace') {
+        if (selectedIds.length > 0) {
+          e.preventDefault();
+          deleteItems(selectedIds);
+          return;
+        }
+        const timeRange = useEditorStore.getState().selectedTimeRange;
+        if (timeRange) {
+          e.preventDefault();
+          deleteTimeRange(timeRange.startMs, timeRange.endMs, e.shiftKey);
+          return;
+        }
       }
 
       // Cmd/Ctrl + A: Select all
@@ -116,10 +134,26 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         return;
       }
 
-      // Escape: Exit split mode first, then close panel
+      // Escape: Exit inspect mode / deselect element / exit split mode / close panel
       if (e.code === 'Escape') {
         e.preventDefault();
-        if (splitMode) {
+        if (inspectModeEnabled) {
+          // In inspect mode: if element selected, deselect it; otherwise exit inspect mode
+          if (selectedElement) {
+            useEditorStore.setState({
+              selectedElement: null,
+              elementPickerEnabled: false,
+            });
+          } else {
+            useEditorStore.setState({ inspectModeEnabled: false });
+          }
+        } else if (selectedElement) {
+          // Element selected from spotlight — clear it
+          useEditorStore.setState({
+            selectedElement: null,
+            elementPickerEnabled: false,
+          });
+        } else if (splitMode) {
           setSplitMode(false);
         } else {
           onClosePanel?.();
@@ -186,6 +220,13 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
       if (e.code === 'End') {
         e.preventDefault();
         seek(duration);
+        return;
+      }
+
+      // I: Toggle element inspect mode
+      if (e.code === 'KeyI' && !cmdOrCtrl && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        onToggleInspectMode?.();
         return;
       }
 
@@ -264,6 +305,7 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
     [
       togglePlayback,
       deleteItems,
+      deleteTimeRange,
       selectAll,
       clearSelection,
       undo,
@@ -286,6 +328,9 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
       updateAllCaptionStyles,
       onToggleTranscript,
       onClosePanel,
+      onToggleInspectMode,
+      inspectModeEnabled,
+      selectedElement,
     ]
   );
 

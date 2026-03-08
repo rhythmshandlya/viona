@@ -1,25 +1,29 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { RatingDisplayProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  DotGrid SVG background                                            */
 /* ------------------------------------------------------------------ */
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="rating-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#rating-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="rating-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#rating-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Star SVG (filled / outline)                                       */
@@ -88,16 +92,17 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   const STAR_COUNT = 5;
-  const STAR_SIZE = 72;
-  const STAR_GAP = 16;
+  const STAR_SIZE = s(72);
+  const STAR_GAP = s(16);
 
   /* ---- Global fades ---- */
   // 0-15: Background fade in
   const bgFadeIn = interpolate(frame, [0, 15], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // 310-340: Elements fade out
@@ -197,7 +202,7 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
     frame % 90,
     [0, 45, 90],
     [0.8, 1.2, 0.8],
-    { extrapolateRight: 'clamp' }
+    { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
   );
 
   const glowScale = interpolate(frame, [20, 50], [0, 1], {
@@ -226,10 +231,10 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
           position: 'absolute',
           top: '50%',
           left: '50%',
-          width: 360,
-          height: 360,
-          marginTop: -260,
-          marginLeft: -180,
+          width: s(360),
+          height: s(360),
+          marginTop: s(-260),
+          marginLeft: s(-180),
           borderRadius: '50%',
           background: `radial-gradient(circle, ${props.accentColor}${props.background === 'dark' ? '55' : '30'} 0%, transparent 70%)`,
           opacity: theme.glowOpacity * glowPulse * glowScale * elementsFadeOut,
@@ -245,7 +250,7 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 24,
+          gap: s(24),
           opacity: elementsFadeOut,
         }}
       >
@@ -253,7 +258,7 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.headline,
-            fontSize: 160,
+            fontSize: s(160),
             fontWeight: 800,
             color: theme.text,
             lineHeight: 1,
@@ -269,11 +274,11 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.body,
-            fontSize: 26,
+            fontSize: s(26),
             fontWeight: 400,
             color: theme.textMuted,
             opacity: scoreOpacity,
-            marginTop: -12,
+            marginTop: s(-12),
           }}
         >
           out of {props.maxScore}
@@ -287,7 +292,7 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
               flexDirection: 'row',
               alignItems: 'center',
               gap: STAR_GAP,
-              marginTop: 12,
+              marginTop: s(12),
             }}
           >
             {starFills.map((star, i) => (
@@ -316,12 +321,12 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
         <div
           style={{
             fontFamily: FONTS.body,
-            fontSize: 28,
+            fontSize: s(28),
             fontWeight: 500,
             color: theme.textMuted,
             opacity: labelOpacity,
             transform: `translateY(${labelSlideY}px)`,
-            marginTop: 20,
+            marginTop: s(20),
           }}
         >
           {props.reviewCount}
@@ -332,14 +337,14 @@ const RatingDisplay: React.FC<RatingDisplayProps> = (props) => {
           <div
             style={{
               fontFamily: FONTS.body,
-              fontSize: 22,
+              fontSize: s(22),
               fontWeight: 600,
-              letterSpacing: 3,
+              letterSpacing: s(3),
               textTransform: 'uppercase' as const,
               color: props.accentColor,
               opacity: sourceOpacity,
               transform: `translateY(${sourceSlideY}px)`,
-              marginTop: 4,
+              marginTop: s(4),
             }}
           >
             {props.source}

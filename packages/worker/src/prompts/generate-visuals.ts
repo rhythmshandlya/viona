@@ -217,6 +217,34 @@ Style: Google (Material Design 3)
 - Slide-up motion: translateY(16→0) with fade
 - Cards rise into view with subtle shadow growth
 - Emphasize spatial relationships — elements come from where they "live"`,
+
+  'kinetic-typography': `
+Style: Kinetic Typography (Bold Text Cards — Apple Ad Style)
+
+**CONCEPT:** Full-screen text cards synced to narration. Every word the narrator says
+appears as large bold text on solid colored backgrounds. Words grouped into short
+phrases (2-8 words per card). One emphasis word per card gets a hand-drawn doodle
+annotation (underline, circle, arrow, or checkmark).
+
+**COLOR PALETTE:**
+- Accent: #00E556 (neon green)
+- Dark: #000000 (black)
+- Light: #EBEBEB (light gray)
+- Rotate through these 3 as backgrounds, never 3x same in a row
+- Text: white on dark backgrounds, black on light backgrounds
+
+**TYPOGRAPHY:**
+- Font: Inter Black (900 weight), 60-120px
+- Fewer words = larger font size
+- All text centered on screen
+- No data visualizations, no charts — ONLY text cards
+
+**ANIMATION:**
+- Phrase mode: scale 0.7→1 with spring({ damping: 12, stiffness: 100 })
+- Word-by-word mode: each word scale 0.5→1 synced to timestamps
+- Doodles: SVG stroke-draw animation, appear 6 frames after text
+- Hard cuts between cards — NO dissolves or fades
+- Pacing: 0.6-4 seconds per card`,
 };
 
 /**
@@ -306,7 +334,7 @@ interface PromptOptions {
   fps: number;
   width: number;
   height: number;
-  layoutMode: 'pip' | 'split-horizontal' | 'split-vertical';
+  layoutMode: 'pip' | 'stacked';
 }
 
 export function buildGenerateVisualsPrompt(options: PromptOptions): string {
@@ -317,9 +345,7 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
 
   const layoutContext = layoutMode === 'pip'
     ? 'Full-screen visuals (1080×1920) - video overlaid as small PiP window. Use full vertical space.'
-    : layoutMode === 'split-horizontal'
-      ? `Top portion of 50/50 horizontal split (${width}×${height}) - REDUCED HEIGHT. Stack elements tightly, use smaller fonts.`
-      : `Left portion of 50/50 vertical split (${width}×${height}) - REDUCED WIDTH. Avoid wide layouts, stack vertically.`;
+    : `Stacked layout (${width}×${height}) - REDUCED HEIGHT. Stack elements tightly, use smaller fonts.`;
 
   const referenceExamples = buildReferenceExamplesSection(projectId);
   const adMotionSection = (stylePreset === 'apple' || stylePreset === 'google') ? `\n\n${AD_MOTION_UTILITIES}\n` : '';
@@ -387,8 +413,7 @@ Your visuals must adapt to different layout configurations:
 | Layout Mode | Dimensions | Aspect Ratio | Constraint |
 |-------------|------------|--------------|------------|
 | **pip** | 1080×1920 | 9:16 portrait | Full screen - visuals behind PiP video |
-| **split-horizontal** | 1080×960 (50%) | Wide/short | Top half only - less vertical space |
-| **split-vertical** | 540×1920 (50%) | Narrow/tall | Left half only - less horizontal space |
+| **stacked** | 1080×960 (50%) | Wide/short | Top half only - less vertical space |
 
 **CRITICAL:** Hardcoded pixels will break across layout modes. Use relative sizing:
 
@@ -535,6 +560,9 @@ const minDim = Math.min(width, height);
     gap: minDim * 0.025,
     boxSizing: 'border-box',  // CRITICAL: Prevents overflow
   }}>
+    {/* TITLE ZONE — For intro/hook scenes, the title should START large and centered
+        (filling the visual zone) then animate to this fixed position when content appears.
+        See "Title Fill Pattern" in animation patterns. */}
     {/* TITLE ZONE - Fixed height, always centered */}
     <div data-element-name="title" style={{
       flex: '0 0 auto',
@@ -615,8 +643,7 @@ Use names that match the layout keys from scenes.json (primary, secondary, title
 | Missing \`boxSizing: 'border-box'\` | Always include on main container |
 
 ### Layout Mode Considerations
-- **split-horizontal (1080×960):** Less vertical space - reduce title size, tighter gaps
-- **split-vertical (540×1920):** Less horizontal space - stack elements vertically, avoid wide layouts
+- **stacked (1080×960):** Less vertical space - reduce title size, tighter gaps
 - **pip (1080×1920):** Full space - can use more elaborate layouts
 
 ---
@@ -667,7 +694,7 @@ Before designing ANY visual, ask: **"What is the speaker trying to convey?"**
 **If your animation doesn't EXPLAIN or ENHANCE the spoken content, it's decoration. Cut it.**
 
 ### When Static is Better Than Animated
-- Intro title cards → Clean, professional, readable
+- Intro title cards → Title fills viewport centrally, then springs to top. Professional and screen-filling.
 - Topic transitions → Brief pause with clear label
 - Complex diagrams → Let viewer absorb before animating
 - After making a point → Hold for emphasis
@@ -709,11 +736,14 @@ const eliminatedNodes = 128 - remainingNodes;
 // Visual: highlight remaining path, fade out eliminated branches
 \`\`\`
 
-**For INTRO_HOOK scenes** - Keep it simple:
+**For INTRO_HOOK scenes** - Title fills screen, then settles:
 \`\`\`tsx
-// Just a clean fade-in, no fancy animations
-const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
-// That's it. No bouncing. No particles. Just readable text.
+// Intro/hook: Title FILLS the screen centrally, then animates to top when content appears
+const titleScale = interpolate(frame, [0, 15, 60, 75], [0, 1.6, 1.6, 1], { extrapolateRight: 'clamp' });
+const titleY = interpolate(frame, [0, 60, 75], [0.5, 0.5, 0.08], { extrapolateRight: 'clamp' });
+// Title fades in large and centered, holds, then shrinks to top position
+// Supporting elements (icon, subtitle) fade in after title settles
+const supportOpacity = interpolate(frame, [70, 85], [0, 1], { extrapolateRight: 'clamp' });
 \`\`\`
 
 ---
@@ -781,7 +811,7 @@ Before writing ANY code, analyze EACH transcript segment and determine the RIGHT
 ### Content Types Reference
 | Type | Visual Approach | Animation Level |
 |------|-----------------|-----------------|
-| INTRO_HOOK | Title card + icon | Minimal (fade-in) |
+| INTRO_HOOK | Title fills screen centrally, then animates to top | Medium (scale + position spring) |
 | PROBLEM_STATEMENT | Demonstrate the struggle | High (show scale, chaos) |
 | SOLUTION_INTRODUCTION | Before→After transition | Medium-High (transformation) |
 | CONCEPT_EXPLANATION | Visual proof/demonstration | High (show WHY it works) |

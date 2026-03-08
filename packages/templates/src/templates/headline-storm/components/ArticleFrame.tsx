@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useVideoConfig } from 'remotion';
+import { useScale } from '../../../use-scale';
 import type { Article } from '../schema';
 
 interface ArticleFrameProps {
@@ -101,8 +102,8 @@ const ArticleFrame: React.FC<ArticleFrameProps> = ({
   blurEnabled,
   blurIntensity,
 }) => {
-  const { width, height } = useVideoConfig();
-  const s = width / 1080;
+  const { height } = useVideoConfig();
+  const s = useScale();
 
   const bg = '#FAF9F6';
   const textPrimary = '#1C1C1C';
@@ -112,8 +113,8 @@ const ArticleFrame: React.FC<ArticleFrameProps> = ({
   const sourceAccent = SOURCE_ACCENTS[article.source] || '#1C1C1C';
 
   // All sizes scaled by Z for the zoomed-in feel
-  const px = 44 * s * Z;
-  const bodyFontSize = 23 * s * Z;
+  const px = s(44) * Z;
+  const bodyFontSize = s(23) * Z;
   const bodyLH = 1.75;
   const lineHeightPx = bodyFontSize * bodyLH;
 
@@ -128,19 +129,19 @@ const ArticleFrame: React.FC<ArticleFrameProps> = ({
           position: 'absolute',
           left: px,
           right: px,
-          bottom: height - bodyY + 14 * s * Z,
+          bottom: height - bodyY + s(14) * Z,
         }}
       >
         {/* Source name — large, newspaper masthead style */}
         <div
           style={{
             fontFamily: headlineFont,
-            fontSize: 16 * s * Z,
+            fontSize: s(16) * Z,
             fontWeight: 400,
             fontStyle: 'italic',
             color: textSecondary,
             letterSpacing: '0.02em',
-            marginBottom: 6 * s * Z,
+            marginBottom: s(6) * Z,
           }}
         >
           {article.source}
@@ -151,14 +152,14 @@ const ArticleFrame: React.FC<ArticleFrameProps> = ({
           style={{
             display: 'inline-block',
             fontFamily: bodyFont,
-            fontSize: 9 * s * Z,
+            fontSize: s(9) * Z,
             fontWeight: 700,
             color: sourceAccent,
             textTransform: 'uppercase',
             letterSpacing: '0.12em',
-            borderBottom: `${2 * s * Z}px solid ${sourceAccent}`,
-            paddingBottom: 2 * s * Z,
-            marginBottom: 14 * s * Z,
+            borderBottom: `${s(2) * Z}px solid ${sourceAccent}`,
+            paddingBottom: s(2) * Z,
+            marginBottom: s(14) * Z,
           }}
         >
           {article.section}
@@ -168,30 +169,30 @@ const ArticleFrame: React.FC<ArticleFrameProps> = ({
         <div
           style={{
             fontFamily: headlineFont,
-            fontSize: (article.headline.length > 55 ? 28 : 34) * s * Z,
+            fontSize: s(article.headline.length > 55 ? 28 : 34) * Z,
             fontWeight: 700,
             color: textPrimary,
             lineHeight: 1.18,
             letterSpacing: '-0.015em',
-            marginBottom: 10 * s * Z,
+            marginBottom: s(10) * Z,
           }}
         >
-          {highlightBrand(article.headline, brandName, highlightColor, s * Z, bodyFont)}
+          {highlightBrand(article.headline, brandName, highlightColor, s(1) * Z, bodyFont)}
         </div>
 
         {/* Byline — thin, understated */}
         <div
           style={{
             fontFamily: bodyFont,
-            fontSize: 10 * s * Z,
+            fontSize: s(10) * Z,
             fontWeight: 400,
             color: textMuted,
             letterSpacing: '0.01em',
-            marginBottom: 14 * s * Z,
+            marginBottom: s(14) * Z,
           }}
         >
           {article.author}
-          <span style={{ margin: `0 ${6 * s * Z}px`, color: '#CCC' }}>|</span>
+          <span style={{ margin: `0 ${s(6) * Z}px`, color: '#CCC' }}>|</span>
           {article.date}
         </div>
 
@@ -220,7 +221,7 @@ const ArticleFrame: React.FC<ArticleFrameProps> = ({
           letterSpacing: '0.005em',
         }}
       >
-        {highlightBrand(article.body, brandName, highlightColor, s * Z, bodyFont)}
+        {highlightBrand(article.body, brandName, highlightColor, s(1) * Z, bodyFont)}
       </div>
 
       {/* ── Paper texture overlay ── */}
@@ -228,7 +229,7 @@ const ArticleFrame: React.FC<ArticleFrameProps> = ({
         style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E")`,
           backgroundRepeat: 'repeat',
-          backgroundSize: `${256 * s}px`,
+          backgroundSize: `${s(256)}px`,
           pointerEvents: 'none',
           mixBlendMode: 'multiply',
           zIndex: 2,

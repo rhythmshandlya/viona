@@ -168,6 +168,10 @@ COPY --from=builder /app/packages/worker/scripts ./packages/worker/scripts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/renderer/dist ./packages/renderer/dist
 COPY --from=builder /app/packages/templates/dist ./packages/templates/dist
+# Copy template source files for studio preset template copying at runtime
+COPY --from=builder /app/packages/templates/src/templates ./packages/templates/src/templates
+COPY --from=builder /app/packages/templates/src/use-scale.ts ./packages/templates/src/use-scale.ts
+COPY --from=builder /app/packages/templates/src/fonts.ts ./packages/templates/src/fonts.ts
 # Copy renderer source files for Remotion bundler (remotion-entry.tsx, components, animations)
 # Remotion's bundle() needs the original TSX files to create the browser bundle
 COPY --from=builder /app/packages/renderer/src ./packages/renderer/src

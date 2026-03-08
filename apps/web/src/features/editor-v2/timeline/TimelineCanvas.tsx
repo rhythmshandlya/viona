@@ -52,6 +52,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   const [dragPreviews, setDragPreviews] = useState<DragPreview[]>([]);
   const [snapLines, setSnapLines] = useState<{ position: number; type: SnapTarget['type'] }[]>([]);
   const [splitCursorTimeMs, setSplitCursorTimeMs] = useState<number>(0);
+  const [splitHoveredItemId, setSplitHoveredItemId] = useState<string | null>(null);
 
   // State
   const tracks = useTracks();
@@ -95,8 +96,9 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       snapLines,
       splitMode,
       splitCursorTimeMs,
+      splitHoveredItemId,
     }),
-    [tracks, items, itemIds, selectedIds, currentTimeMs, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs]
+    [tracks, items, itemIds, selectedIds, currentTimeMs, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs, splitHoveredItemId]
   );
 
   // Keep render state in a ref so the ResizeObserver callback always has the latest
@@ -278,7 +280,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       const hitTester = hitTesterRef.current;
       const dragManager = dragManagerRef.current;
 
-      // Split mode: show crosshair cursor and update split cursor time
+      // Split mode: show crosshair cursor, update split cursor time, find hovered item
       if (splitMode) {
         if (canvasRef.current) {
           canvasRef.current.style.cursor = 'crosshair';
@@ -287,6 +289,16 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         const splitTool = splitToolRef.current;
         splitTool.setCursorTime(timeMs);
         setSplitCursorTimeMs(timeMs);
+
+        // Find item under cursor for highlight
+        const hit = hitTester.hitTest(x, y, {
+          tracks,
+          items,
+          itemIds,
+          viewport,
+          currentTimeMs,
+        });
+        setSplitHoveredItemId(hit.type === 'item' && hit.itemId ? hit.itemId : null);
         return;
       }
 

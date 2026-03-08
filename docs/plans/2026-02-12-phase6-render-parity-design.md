@@ -190,13 +190,13 @@ Both client and server import from shared packages:
 
 ```typescript
 // In apps/web/src/features/editor-v2/player/Composition.tsx
-import { calculatePositionStyles } from '@reelify/shared/position-utils';
-import { effectsToCss } from '@reelify/shared/effects-utils';
-import { resolveAnimation } from '@reelify/renderer/animations';
+import { calculatePositionStyles } from '@viona/shared/position-utils';
+import { effectsToCss } from '@viona/shared/effects-utils';
+import { resolveAnimation } from '@viona/renderer/animations';
 
 // In packages/renderer/src/components/AnimatedSubtitle.tsx
-import { calculatePositionStyles } from '@reelify/shared/position-utils';
-import { effectsToCss } from '@reelify/shared/effects-utils';
+import { calculatePositionStyles } from '@viona/shared/position-utils';
+import { effectsToCss } from '@viona/shared/effects-utils';
 import { resolveAnimation } from '../animations';
 ```
 

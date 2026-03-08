@@ -8,6 +8,7 @@ import {
   useEditorActions,
 } from '../store/use-editor-store';
 import type { CaptionItemData, CaptionStyle, CaptionPosition } from '../store/types';
+import { anchorToFreeCoords } from '../store/types';
 
 // --- Types ---
 
@@ -19,7 +20,7 @@ interface BoundingBox {
 }
 
 type HandlePosition = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w';
-type DragMode = 'move' | 'resize' | 'rotate';
+type DragMode = 'move' | 'resize-font' | 'resize-width' | 'rotate';
 
 interface DragState {
   mode: DragMode;
@@ -28,19 +29,33 @@ interface DragState {
   startY: number;
   startBox: BoundingBox;
   startFontSize: number;
+  startWidth: number;
   startPosition: CaptionPosition;
+}
+
+interface SnapState {
+  snappedVertical: number | null;   // x guide line (vertical line on canvas)
+  snappedHorizontal: number | null; // y guide line (horizontal line on canvas)
 }
 
 // --- Constants ---
 
-const HANDLE_SIZE = 8;
+const HANDLE_SIZE = 10;
+const HANDLE_HIT_AREA = 24;
 const ROTATION_HANDLE_DISTANCE = 30;
-const ROTATION_HANDLE_SIZE = 10;
+const ROTATION_HANDLE_SIZE = 12;
 const MIN_FONT_SIZE = 16;
-const MAX_OFFSET = 80;
+const MIN_WIDTH = 20;
+const MAX_WIDTH = 100;
 
-const SNAP_THRESHOLD = 1; // % offset snap-to-center threshold
-const ROTATION_SNAP_THRESHOLD = 3; // degrees snap-to-zero threshold
+const SNAP_THRESHOLD_PX = 8; // pixels on screen for snap detection
+const ROTATION_SNAP_THRESHOLD = 3;
+
+// Snap guide positions (percentage of canvas)
+const SNAP_GUIDES = [0, 25, 33.33, 50, 66.67, 75, 100];
+
+const ACCENT_COLOR = '#6366f1'; // Indigo-500
+const ACCENT_COLOR_ALPHA = 'rgba(99, 102, 241, 0.7)';
 
 function getRotatedCursor(handle: HandlePosition, rotationDeg: number): string {
   const baseAngles: Record<HandlePosition, number> = {
@@ -102,6 +117,25 @@ function resolvePosition(position: CaptionPosition | string): CaptionPosition {
   };
 }
 
+// Determine drag mode based on handle position
+function getDragModeForHandle(handle: HandlePosition): DragMode {
+  // E/W handles = width resize
+  if (handle === 'e' || handle === 'w') return 'resize-width';
+  // N/S and corner handles = font size resize
+  return 'resize-font';
+}
+
+// Find nearest snap guide for a given percentage value
+function findSnap(value: number, canvasSizePx: number, guides: number[] = SNAP_GUIDES): number | null {
+  const thresholdPercent = (SNAP_THRESHOLD_PX / canvasSizePx) * 100;
+  for (const guide of guides) {
+    if (Math.abs(value - guide) <= thresholdPercent) {
+      return guide;
+    }
+  }
+  return null;
+}
+
 // --- Component ---
 
 interface CaptionDragOverlayProps {
@@ -118,7 +152,10 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
 
   const [box, setBox] = useState<BoundingBox | null>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [isSelected, setIsSelected] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [snapState, setSnapState] = useState<SnapState>({ snappedVertical: null, snappedHorizontal: null });
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const rafRef = useRef<number>(0);
   const lastBoxRef = useRef<BoundingBox | null>(null);
@@ -152,7 +189,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
 
     const captionEl = container.querySelector('[data-caption-overlay]') as HTMLElement | null;
     if (!captionEl) {
-      // Keep last known box briefly so it doesn't flash during word transitions
       if (!lastBoxRef.current) setBox(null);
       return;
     }
@@ -160,7 +196,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
     const containerRect = container.getBoundingClientRect();
     const captionRect = captionEl.getBoundingClientRect();
 
-    // Account for CSS zoom on the container
     const zoom = parseFloat(getComputedStyle(container).zoom || '1');
 
     const newBox: BoundingBox = {
@@ -170,7 +205,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       height: captionRect.height / zoom,
     };
 
-    // Only update if changed meaningfully (avoid thrashing)
     const prev = lastBoxRef.current;
     if (
       !prev ||
@@ -184,11 +218,12 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
     }
   }, [containerRef]);
 
-  // Poll for bounding box changes (caption content changes with playback)
+  // Poll for bounding box changes
   useEffect(() => {
     if (!showCaptions || captionItems.length === 0) {
       setBox(null);
       lastBoxRef.current = null;
+      setIsSelected(false);
       return;
     }
 
@@ -211,6 +246,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       const style = getCaptionStyle();
       if (!style || !box) return;
 
+      const pos = resolvePosition(style.position);
+
       dragRef.current = {
         mode,
         handle,
@@ -218,9 +255,11 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         startY: e.clientY,
         startBox: { ...box },
         startFontSize: style.fontSize,
-        startPosition: resolvePosition(style.position),
+        startWidth: pos.width ?? 90,
+        startPosition: pos,
       };
       setIsDragging(true);
+      setSnapState({ snappedVertical: null, snappedHorizontal: null });
     },
     [getCaptionStyle, box]
   );
@@ -230,9 +269,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       if (!dragRef.current) return;
       e.preventDefault();
 
-      const { mode, handle, startX, startY, startBox, startFontSize, startPosition } = dragRef.current;
+      const { mode, handle, startX, startY, startBox, startFontSize, startWidth, startPosition } = dragRef.current;
 
-      // Get zoom factor from container
       const container = containerRef.current;
       const zoom = container ? parseFloat(getComputedStyle(container).zoom || '1') : 1;
 
@@ -240,25 +278,95 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       const dy = (e.clientY - startY) / zoom;
 
       if (mode === 'move') {
-        // Convert pixel delta to percentage of canvas
-        const deltaOffsetX = (dx / canvasWidth) * 100;
-        const deltaOffsetY = (dy / canvasHeight) * 100;
+        // Auto-convert anchor mode to free mode on first drag
+        const isAnchorMode = startPosition.mode !== 'free';
 
-        const newOffsetX = clamp(startPosition.offsetX + deltaOffsetX, -MAX_OFFSET, MAX_OFFSET);
-        const newOffsetY = clamp(startPosition.offsetY + deltaOffsetY, -MAX_OFFSET, MAX_OFFSET);
+        let baseX: number;
+        let baseY: number;
 
-        const finalOffsetX = Math.abs(newOffsetX) <= SNAP_THRESHOLD ? 0 : Math.round(newOffsetX * 10) / 10;
-        const finalOffsetY = Math.abs(newOffsetY) <= SNAP_THRESHOLD ? 0 : Math.round(newOffsetY * 10) / 10;
+        if (isAnchorMode) {
+          // Convert current anchor position to free coords
+          const freeCoords = anchorToFreeCoords(startPosition);
+          baseX = freeCoords.x;
+          baseY = freeCoords.y;
+        } else {
+          baseX = startPosition.x ?? 50;
+          baseY = startPosition.y ?? 85;
+        }
+
+        const deltaX = (dx / canvasWidth) * 100;
+        const deltaY = (dy / canvasHeight) * 100;
+
+        let newX = clamp(baseX + deltaX, 0, 100);
+        let newY = clamp(baseY + deltaY, 0, 100);
+
+        // Snap to guides
+        const captionW = startPosition.width ?? 90;
+        const leftEdge = newX - captionW / 2;
+        const rightEdge = newX + captionW / 2;
+
+        // Check center snap
+        let snappedV = findSnap(newX, canvasWidth);
+        // Also check left/right edge snaps
+        if (snappedV == null) {
+          const leftSnap = findSnap(leftEdge, canvasWidth);
+          if (leftSnap != null) {
+            newX = leftSnap + captionW / 2;
+            snappedV = leftSnap;
+          }
+        }
+        if (snappedV == null) {
+          const rightSnap = findSnap(rightEdge, canvasWidth);
+          if (rightSnap != null) {
+            newX = rightSnap - captionW / 2;
+            snappedV = rightSnap;
+          }
+        }
+        if (snappedV != null) {
+          // Re-derive newX from the center snap if it was a center snap
+          if (snappedV === findSnap(newX, canvasWidth)) {
+            newX = snappedV;
+          }
+        }
+
+        const snappedH = findSnap(newY, canvasHeight);
+        if (snappedH != null) {
+          newY = snappedH;
+        }
+
+        setSnapState({ snappedVertical: snappedV, snappedHorizontal: snappedH });
+        setDragPosition({ x: Math.round(newX * 10) / 10, y: Math.round(newY * 10) / 10 });
 
         updateStyle({
           position: {
             ...startPosition,
-            offsetX: finalOffsetX,
-            offsetY: finalOffsetY,
+            mode: 'free',
+            x: Math.round(newX * 10) / 10,
+            y: Math.round(newY * 10) / 10,
           },
         });
-      } else if (mode === 'resize' && handle) {
-        // Calculate scale factor from handle drag
+      } else if (mode === 'resize-width' && handle) {
+        // E/W handles change caption width
+        const deltaPercent = (dx / canvasWidth) * 100;
+        let newWidth: number;
+
+        if (handle === 'e') {
+          // Dragging right edge: width increases with positive dx
+          newWidth = startWidth + deltaPercent * 2; // *2 because centered
+        } else {
+          // Dragging left edge: width increases with negative dx
+          newWidth = startWidth - deltaPercent * 2;
+        }
+
+        newWidth = Math.round(clamp(newWidth, MIN_WIDTH, MAX_WIDTH));
+
+        updateStyle({
+          position: {
+            ...startPosition,
+            width: newWidth,
+          },
+        });
+      } else if (mode === 'resize-font' && handle) {
         let scaleX = 1;
         let scaleY = 1;
 
@@ -267,22 +375,18 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         if (handle.includes('s')) scaleY = (startBox.height + dy) / startBox.height;
         if (handle.includes('n')) scaleY = (startBox.height - dy) / startBox.height;
 
-        // Use the dominant axis for uniform scaling
+        // Corner handles: uniform scale; N/S edge handles: use vertical axis
         const scale = handle.length === 2
-          ? (Math.abs(dx) > Math.abs(dy) ? scaleX : scaleY)  // Corner: use dominant axis
-          : (handle === 'e' || handle === 'w' ? scaleX : scaleY); // Edge: use that axis
+          ? (Math.abs(dx) > Math.abs(dy) ? scaleX : scaleY)
+          : scaleY;
 
         const newFontSize = Math.round(clamp(startFontSize * scale, MIN_FONT_SIZE, 200));
         updateStyle({ fontSize: newFontSize });
       } else if (mode === 'rotate') {
-        // Calculate angle from box center to current pointer position
         const centerX = startBox.left + startBox.width / 2;
         const centerY = startBox.top + startBox.height / 2;
-
         const currentX = centerX + dx;
         const currentY = centerY + dy;
-
-        // Angle in degrees, 0 = straight up
         const angle = Math.atan2(currentX - centerX, -(currentY - centerY)) * (180 / Math.PI);
         const snappedAngle = Math.round(angle);
         const clampedAngle = clamp(snappedAngle, -180, 180);
@@ -308,6 +412,8 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
       }
       dragRef.current = null;
       setIsDragging(false);
+      setSnapState({ snappedVertical: null, snappedHorizontal: null });
+      setDragPosition(null);
     }
   }, []);
 
@@ -315,15 +421,75 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
 
   if (!box || !showCaptions || captionItems.length === 0) return null;
 
-  const currentRotation = resolvePosition(getCaptionStyle()?.position ?? 'bottom').rotation;
+  const currentStyle = getCaptionStyle();
+  const currentPosition = resolvePosition(currentStyle?.position ?? 'bottom');
+  const currentRotation = currentPosition.rotation;
+
+  // Show box + handles when a caption is selected, hovered, or being dragged
+  const hasCaptionSelected = selectedIds.length > 0 && captionItems.some((item) => selectedIds.includes(item.id));
+  const isActive = isHovered || isSelected || isDragging || hasCaptionSelected;
 
   return (
     <div
       className="absolute inset-0 z-20"
-      style={{ pointerEvents: isDragging ? 'auto' : 'none' }}
+      style={{ pointerEvents: isSelected || isDragging ? 'auto' : 'none' }}
+      onPointerDown={(e) => {
+        // Click on background (not a child) to deselect
+        if (e.target === e.currentTarget && !isDragging) {
+          setIsSelected(false);
+        }
+      }}
       onPointerMove={isDragging ? handlePointerMove : undefined}
       onPointerUp={isDragging ? handlePointerUp : undefined}
     >
+      {/* Snap guide lines */}
+      {isDragging && snapState.snappedVertical != null && (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${snapState.snappedVertical}%`,
+            top: 0,
+            bottom: 0,
+            width: 0,
+            borderLeft: `1px dashed ${ACCENT_COLOR}`,
+            opacity: 0.6,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+      )}
+      {isDragging && snapState.snappedHorizontal != null && (
+        <div
+          style={{
+            position: 'absolute',
+            top: `${snapState.snappedHorizontal}%`,
+            left: 0,
+            right: 0,
+            height: 0,
+            borderTop: `1px dashed ${ACCENT_COLOR}`,
+            opacity: 0.6,
+            pointerEvents: 'none',
+            zIndex: 0,
+          }}
+        />
+      )}
+
+      {/* Expanded hover zone — covers bounding box + handle hit areas + rotation handle.
+          This prevents handles from disappearing when the cursor moves from the box to a handle. */}
+      <div
+        style={{
+          position: 'absolute',
+          left: box.left - HANDLE_HIT_AREA / 2,
+          top: box.top - ROTATION_HANDLE_DISTANCE - ROTATION_HANDLE_SIZE,
+          width: box.width + HANDLE_HIT_AREA,
+          height: box.height + HANDLE_HIT_AREA / 2 + ROTATION_HANDLE_DISTANCE + ROTATION_HANDLE_SIZE,
+          pointerEvents: 'auto',
+          cursor: 'default',
+        }}
+        onPointerEnter={() => setIsHovered(true)}
+        onPointerLeave={() => !isDragging && setIsHovered(false)}
+      />
+
       {/* Bounding box + move area */}
       <div
         style={{
@@ -332,45 +498,87 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
           top: box.top,
           width: box.width,
           height: box.height,
-          border: isHovered || isDragging ? '1px dashed rgba(139, 92, 246, 0.7)' : '1px dashed transparent',
+          border: isActive ? `1.5px solid ${ACCENT_COLOR_ALPHA}` : '1.5px solid transparent',
           cursor: 'move',
           pointerEvents: 'auto',
           transition: isDragging ? 'none' : 'border-color 0.15s',
         }}
-        onPointerEnter={() => setIsHovered(true)}
-        onPointerLeave={() => !isDragging && setIsHovered(false)}
-        onPointerDown={(e) => handlePointerDown(e, 'move')}
+        onPointerDown={(e) => {
+          setIsSelected(true);
+          handlePointerDown(e, 'move');
+        }}
       />
 
-      {/* Resize handles — only show when hovered or dragging */}
-      {(isHovered || isDragging) &&
+      {/* Position readout tooltip during drag */}
+      {isDragging && dragPosition && dragRef.current?.mode === 'move' && (
+        <div
+          style={{
+            position: 'absolute',
+            left: box.left + box.width / 2,
+            top: box.top - 28,
+            transform: 'translateX(-50%)',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            color: '#fff',
+            fontSize: 10,
+            fontFamily: 'monospace',
+            padding: '2px 6px',
+            borderRadius: 4,
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            zIndex: 10,
+          }}
+        >
+          x: {dragPosition.x}% y: {dragPosition.y}%
+        </div>
+      )}
+
+      {/* Resize handles */}
+      {isActive &&
         HANDLE_POSITIONS.map((handle) => {
           const offset = getHandleOffset(handle, box);
+          const dragMode = getDragModeForHandle(handle);
+          const isWidthHandle = dragMode === 'resize-width';
+          const isCorner = handle.length === 2;
+
+          // Width handles (E/W): taller rectangles, Font handles: squares
+          const handleW = isWidthHandle ? 6 : HANDLE_SIZE;
+          const handleH = isWidthHandle ? 16 : HANDLE_SIZE;
+
           return (
             <div
               key={handle}
               style={{
                 position: 'absolute',
-                left: box.left + offset.x - HANDLE_SIZE / 2,
-                top: box.top + offset.y - HANDLE_SIZE / 2,
-                width: HANDLE_SIZE,
-                height: HANDLE_SIZE,
-                backgroundColor: '#ffffff',
-                border: '1.5px solid #8b5cf6',
-                borderRadius: 1,
-                cursor: getRotatedCursor(handle, currentRotation),
+                left: box.left + offset.x - HANDLE_HIT_AREA / 2,
+                top: box.top + offset.y - HANDLE_HIT_AREA / 2,
+                width: HANDLE_HIT_AREA,
+                height: HANDLE_HIT_AREA,
+                cursor: isWidthHandle ? 'ew-resize' : getRotatedCursor(handle, currentRotation),
                 pointerEvents: 'auto',
                 zIndex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
-              onPointerDown={(e) => handlePointerDown(e, 'resize', handle)}
-            />
+              onPointerDown={(e) => handlePointerDown(e, dragMode, handle)}
+            >
+              <div
+                style={{
+                  width: handleW,
+                  height: handleH,
+                  backgroundColor: '#ffffff',
+                  border: `1.5px solid ${ACCENT_COLOR}`,
+                  borderRadius: isCorner ? 2 : (isWidthHandle ? 2 : 1),
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }}
+              />
+            </div>
           );
         })}
 
-      {/* Rotation handle — circle above top-center */}
-      {(isHovered || isDragging) && (
+      {/* Rotation handle */}
+      {isActive && (
         <>
-          {/* Connecting line */}
           <div
             style={{
               position: 'absolute',
@@ -378,11 +586,10 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
               top: box.top - ROTATION_HANDLE_DISTANCE,
               width: 1,
               height: ROTATION_HANDLE_DISTANCE,
-              backgroundColor: 'rgba(139, 92, 246, 0.5)',
+              backgroundColor: ACCENT_COLOR_ALPHA,
               pointerEvents: 'none',
             }}
           />
-          {/* Rotation circle */}
           <div
             style={{
               position: 'absolute',
@@ -391,11 +598,12 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
               width: ROTATION_HANDLE_SIZE,
               height: ROTATION_HANDLE_SIZE,
               backgroundColor: '#ffffff',
-              border: '1.5px solid #8b5cf6',
+              border: `1.5px solid ${ACCENT_COLOR}`,
               borderRadius: '50%',
               cursor: 'grab',
               pointerEvents: 'auto',
               zIndex: 1,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
             }}
             onPointerDown={(e) => handlePointerDown(e, 'rotate')}
           />

@@ -743,7 +743,7 @@ describe('Scene Planning', () => {
 
 **Step 2: Run tests to verify**
 
-Run: `cd /c/Users/armaa/Documents/cllipify && pnpm --filter @reelify/worker test`
+Run: `cd /c/Users/armaa/Documents/cllipify && pnpm --filter @viona/worker test`
 
 Expected: All new tests pass
 
@@ -760,19 +760,19 @@ git commit -m "test(worker): add tests for Animation Philosophy and Scene Planni
 
 **Step 1: Run full test suite**
 
-Run: `cd /c/Users/armaa/Documents/cllipify && pnpm --filter @reelify/worker test`
+Run: `cd /c/Users/armaa/Documents/cllipify && pnpm --filter @viona/worker test`
 
 Expected: All tests pass
 
 **Step 2: Type check the worker package**
 
-Run: `cd /c/Users/armaa/Documents/cllipify && pnpm --filter @reelify/worker typecheck`
+Run: `cd /c/Users/armaa/Documents/cllipify && pnpm --filter @viona/worker typecheck`
 
 Expected: No type errors
 
 **Step 3: Build the worker package**
 
-Run: `cd /c/Users/armaa/Documents/cllipify && pnpm --filter @reelify/worker build`
+Run: `cd /c/Users/armaa/Documents/cllipify && pnpm --filter @viona/worker build`
 
 Expected: Build succeeds
 

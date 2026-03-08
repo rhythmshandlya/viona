@@ -262,11 +262,13 @@ export function useLayoutMode(): LayoutMode {
   return useEditorStore((state) => state.layoutSettings.mode);
 }
 
+
 export function useLayoutActions() {
   return useEditorStore(
     useShallow((state) => ({
       updateLayoutSettings: state.updateLayoutSettings,
       updatePiPSettings: state.updatePiPSettings,
+      updatePiPCrop: state.updatePiPCrop,
       updateSplitSettings: state.updateSplitSettings,
       setLayoutPreset: state.setLayoutPreset,
       setLayoutMode: state.setLayoutMode,
@@ -317,12 +319,20 @@ export function useElementPickerEnabled() {
   return useEditorStore((state) => state.elementPickerEnabled);
 }
 
+export function useInspectModeEnabled() {
+  return useEditorStore((state) => state.inspectModeEnabled);
+}
+
 // ============================================
 // AI Edit Request Selectors
 // ============================================
 
 export function useAIEditRequested() {
   return useEditorStore((state) => state.aiEditRequested);
+}
+
+export function usePendingAIMessage() {
+  return useEditorStore((state) => state.pendingAIMessage);
 }
 
 export function useTransitionPickerItemId() {
@@ -482,7 +492,11 @@ export function useEditorActions() {
 
       // Split
       splitItem: state.splitItem,
+      splitAllAtPlayhead: state.splitAllAtPlayhead,
       setSplitMode: state.setSplitMode,
+
+      // Range delete
+      deleteTimeRange: state.deleteTimeRange,
 
       // Clipboard
       copyItems: state.copyItems,
@@ -513,11 +527,19 @@ export function useEditorActions() {
       // Element picker
       setElementPickerEnabled: state.setElementPickerEnabled,
 
+      // Element inspect mode
+      setInspectModeEnabled: state.setInspectModeEnabled,
+
       // AI edit request
       requestAIEdit: state.requestAIEdit,
 
+      // Pending AI message
+      setPendingAIMessage: state.setPendingAIMessage,
+      changeDisplayModeWithAI: state.changeDisplayModeWithAI,
+
       // Visual display mode
       updateVisualDisplayMode: state.updateVisualDisplayMode,
+      updateOverlayOpacity: state.updateOverlayOpacity,
       updateVisualTransition: state.updateVisualTransition,
       openTransitionPicker: state.openTransitionPicker,
       closeTransitionPicker: state.closeTransitionPicker,

@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate, Easing } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants } from './constants';
 import type { WatercolorMapProps, Coord } from './schema';
 import {
@@ -26,9 +27,6 @@ import DistanceCounter from './components/DistanceCounter';
 import ProgressBar from './components/ProgressBar';
 import CompassRose from './components/CompassRose';
 
-const WIDTH = 1080;
-const HEIGHT = 1080;
-
 /**
  * Animation timeline (360 frames / 12s @ 30fps).
  * Each animation type has its own phase timing — see the camera/content
@@ -37,6 +35,8 @@ const HEIGHT = 1080;
 const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
   const { COLORS, FONTS } = getConstants(props);
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const s = useScale();
   const styleConfig = MAP_STYLES[props.mapStyle];
   const animationType = props.animationType;
 
@@ -49,7 +49,7 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
   let multiViewport: MultiPointViewport | null = null;
 
   if (isMultiPoint) {
-    multiViewport = computeMultiPointViewport(allCoords, WIDTH, HEIGHT, props.mapPadding);
+    multiViewport = computeMultiPointViewport(allCoords, width, height, props.mapPadding);
     // Build a compatible Viewport from the multi-point result for MapTileGrid
     viewport = {
       zoom: multiViewport.zoom,
@@ -64,8 +64,8 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
       props.startCoord.lng,
       props.endCoord.lat,
       props.endCoord.lng,
-      WIDTH,
-      HEIGHT,
+      width,
+      height,
       props.mapPadding
     );
   }
@@ -127,26 +127,26 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
   const camera = (() => {
     switch (animationType) {
       case 'zoomReveal':
-        return getZoomRevealCamera(frame);
+        return getZoomRevealCamera(frame, width, height);
       case 'kenBurns':
-        return getKenBurnsCamera(frame);
+        return getKenBurnsCamera(frame, width, height);
       case 'hubAndSpoke':
         return getStaticCamera();
       case 'multiStop':
-        return getFollowDrawCamera(frame, getMultiStopTip(), { x: routeCenterX, y: routeCenterY }, zoomOutT);
+        return getFollowDrawCamera(frame, getMultiStopTip(), { x: routeCenterX, y: routeCenterY }, zoomOutT, width, height);
       case 'airplaneArc':
       case 'followDraw':
       default:
-        return getFollowDrawCamera(frame, tip, { x: routeCenterX, y: routeCenterY }, zoomOutT);
+        return getFollowDrawCamera(frame, tip, { x: routeCenterX, y: routeCenterY }, zoomOutT, width, height);
     }
   })();
 
   // ── Tile margin ─────────────────────────────────────────────────
-  const tileMargin = (animationType === 'hubAndSpoke' || animationType === 'zoomReveal') ? 0 : WIDTH / 2;
+  const tileMargin = (animationType === 'hubAndSpoke' || animationType === 'zoomReveal') ? 0 : width / 2;
 
   // ── Map fade in ─────────────────────────────────────────────────
   const mapOpacity = interpolate(frame, [0, 30], [0, 1], {
-    extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
 
   // ── Global fade out ─────────────────────────────────────────────
@@ -228,8 +228,8 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
           lineWidth={props.lineWidth}
           lineStyle={props.lineStyle}
           curveIntensity={props.curveIntensity}
-          width={WIDTH}
-          height={HEIGHT}
+          width={width}
+          height={height}
         />
       ));
     }
@@ -254,8 +254,8 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
           lineWidth={props.lineWidth}
           lineStyle={props.lineStyle}
           curveIntensity={props.curveIntensity}
-          width={WIDTH}
-          height={HEIGHT}
+          width={width}
+          height={height}
         />
       ));
     }
@@ -273,8 +273,8 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
         lineWidth={props.lineWidth}
         lineStyle={props.lineStyle}
         curveIntensity={props.curveIntensity}
-        width={WIDTH}
-        height={HEIGHT}
+        width={width}
+        height={height}
       />
     );
   }
@@ -340,7 +340,7 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
             enterFrame={labelEnter}
             font={FONTS.headline}
             color={labelColor}
-            viewportWidth={WIDTH}
+            viewportWidth={width}
             darkMap={styleConfig.darkMap}
           />
         );
@@ -358,7 +358,7 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
             enterFrame={labelEnter}
             font={FONTS.headline}
             color={labelColor}
-            viewportWidth={WIDTH}
+            viewportWidth={width}
             darkMap={styleConfig.darkMap}
           />
         )}
@@ -371,7 +371,7 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
             enterFrame={labelEnter}
             font={FONTS.headline}
             color={labelColor}
-            viewportWidth={WIDTH}
+            viewportWidth={width}
             darkMap={styleConfig.darkMap}
           />
         )}
@@ -386,16 +386,16 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
         style={{
           transform: `translate(${camera.translateX}px, ${camera.translateY}px) scale(${camera.scale})`,
           transformOrigin: '0 0',
-          width: WIDTH,
-          height: HEIGHT,
+          width,
+          height,
           position: 'absolute',
         }}
       >
         <div style={{ opacity: mapOpacity, position: 'absolute', inset: 0 }}>
           <MapTileGrid
             viewport={viewport}
-            width={WIDTH}
-            height={HEIGHT}
+            width={width}
+            height={height}
             mapStyle={props.mapStyle}
             margin={tileMargin}
           />
@@ -409,7 +409,7 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
             x={tip.x}
             y={tip.y}
             angle={getTangentAngle()}
-            size={28}
+            size={s(28)}
             color={props.lineColor}
           />
         )}

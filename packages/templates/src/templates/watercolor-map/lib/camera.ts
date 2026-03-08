@@ -6,9 +6,6 @@ export interface CameraState {
   scale: number;
 }
 
-const WIDTH = 1080;
-const HEIGHT = 1080;
-
 /**
  * Follow-draw camera: zooms in at 2x following the drawing tip,
  * then zooms out to show the full route.
@@ -17,7 +14,9 @@ export function getFollowDrawCamera(
   frame: number,
   tip: { x: number; y: number },
   routeCenter: { x: number; y: number },
-  zoomOutT: number
+  zoomOutT: number,
+  width: number,
+  height: number
 ): CameraState {
   const CAMERA_ZOOM = 2;
 
@@ -26,8 +25,8 @@ export function getFollowDrawCamera(
   const scale = interpolate(zoomOutT, [0, 1], [CAMERA_ZOOM, 1]);
 
   return {
-    translateX: WIDTH / 2 - cameraX * scale,
-    translateY: HEIGHT / 2 - cameraY * scale,
+    translateX: width / 2 - cameraX * scale,
+    translateY: height / 2 - cameraY * scale,
     scale,
   };
 }
@@ -36,7 +35,7 @@ export function getFollowDrawCamera(
  * Zoom-reveal camera: starts zoomed out at 0.45x, zooms to 1x over frames 0–90,
  * then stays static.
  */
-export function getZoomRevealCamera(frame: number): CameraState {
+export function getZoomRevealCamera(frame: number, width: number, height: number): CameraState {
   const scale = interpolate(frame, [0, 90], [0.45, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
@@ -44,12 +43,12 @@ export function getZoomRevealCamera(frame: number): CameraState {
   });
 
   // Center the camera on the viewport center
-  const cameraX = WIDTH / 2;
-  const cameraY = HEIGHT / 2;
+  const cameraX = width / 2;
+  const cameraY = height / 2;
 
   return {
-    translateX: WIDTH / 2 - cameraX * scale,
-    translateY: HEIGHT / 2 - cameraY * scale,
+    translateX: width / 2 - cameraX * scale,
+    translateY: height / 2 - cameraY * scale,
     scale,
   };
 }
@@ -58,7 +57,7 @@ export function getZoomRevealCamera(frame: number): CameraState {
  * Ken Burns camera: slow drift with slight zoom.
  * Scale stays at 1.12, panX/panY interpolate over 360 frames.
  */
-export function getKenBurnsCamera(frame: number): CameraState {
+export function getKenBurnsCamera(frame: number, width: number, height: number): CameraState {
   const scale = 1.12;
 
   const panX = interpolate(frame, [0, 360], [0, 30], {
@@ -68,12 +67,12 @@ export function getKenBurnsCamera(frame: number): CameraState {
     extrapolateRight: 'clamp',
   });
 
-  const cameraX = WIDTH / 2 + panX;
-  const cameraY = HEIGHT / 2 + panY;
+  const cameraX = width / 2 + panX;
+  const cameraY = height / 2 + panY;
 
   return {
-    translateX: WIDTH / 2 - cameraX * scale,
-    translateY: HEIGHT / 2 - cameraY * scale,
+    translateX: width / 2 - cameraX * scale,
+    translateY: height / 2 - cameraY * scale,
     scale,
   };
 }

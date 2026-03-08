@@ -192,7 +192,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
 
 **Step 6: Build shared package**
 
-Run: `pnpm --filter @reelify/shared build`
+Run: `pnpm --filter @viona/shared build`
 Expected: Build succeeds with new types exported.
 
 **Step 7: Commit**
@@ -853,7 +853,7 @@ entry: ['src/index.ts', 'src/remotion-entry.tsx', 'src/animations/index.ts'],
 
 **Step 9: Build renderer**
 
-Run: `pnpm --filter @reelify/renderer build`
+Run: `pnpm --filter @viona/renderer build`
 Expected: Build succeeds.
 
 **Step 10: Commit**
@@ -933,7 +933,7 @@ const Word: React.FC<WordProps> = ({ word, style, isActive, hasAppeared, current
 
 **Step 2: Build renderer**
 
-Run: `pnpm --filter @reelify/renderer build`
+Run: `pnpm --filter @viona/renderer build`
 Expected: Build succeeds.
 
 **Step 3: Commit**
@@ -954,7 +954,7 @@ git commit -m "feat: integrate V2 animation engine into AnimatedSubtitle rendere
 
 The `CaptionRenderer` function (line 186) currently has inline animation logic (scale for pop/highlight, opacity for fade). Replace it to import and use `resolveAnimation`, `isAnimationConfig`, `migrateAnimation` from the renderer package (or copy the pure functions locally to avoid import issues in the Next.js client bundle).
 
-The approach: import the animation functions from `@reelify/renderer` since they're pure TypeScript with no Node.js dependencies.
+The approach: import the animation functions from `@viona/renderer` since they're pure TypeScript with no Node.js dependencies.
 
 Key changes to `CaptionRenderer`:
 - For each word, compute `WordTimingContext` from `relativeTimeMs` and call `resolveAnimation()`
@@ -1023,7 +1023,7 @@ git commit -m "feat: expand subtitle presets from 6 to 12 with V2 animation conf
 In `editor-store.ts`, when converting API captions to editor format (the for loop at line 176), after merging with `DEFAULT_CAPTION_STYLE`, check if `captionStyle.animation` is a string and migrate it:
 
 ```typescript
-import { migrateAnimation, isAnimationConfig } from '@reelify/renderer';
+import { migrateAnimation, isAnimationConfig } from '@viona/renderer';
 
 // Inside convertApiProject, after line 188:
 // Migrate legacy animation string to V2 config
@@ -1336,7 +1336,7 @@ The `AnimatedSubtitle` component already handles the new `AnimationConfig` and `
 
 **Step 2: Build and verify**
 
-Run: `pnpm --filter @reelify/renderer build`
+Run: `pnpm --filter @viona/renderer build`
 Expected: Build succeeds.
 
 **Step 3: Commit**

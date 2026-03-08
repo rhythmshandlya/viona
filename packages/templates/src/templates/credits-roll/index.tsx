@@ -1,17 +1,19 @@
 import React from 'react';
-import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
 import { getConstants, BACKGROUNDS } from './constants';
+import { useScale } from '../../use-scale';
 import type { CreditsRollProps } from './schema';
 
 /* ------------------------------------------------------------------ */
 /*  SVG sub-components                                                 */
 /* ------------------------------------------------------------------ */
 
-const DotGrid: React.FC<{ color: string; opacity: number }> = ({ color, opacity }) => {
+const DotGrid: React.FC<{ color: string; opacity: number; size: number }> = ({ color, opacity, size }) => {
+  const s = useScale();
   const dots: React.ReactNode[] = [];
-  const spacing = 40;
-  const cols = Math.ceil(1080 / spacing);
-  const rows = Math.ceil(1080 / spacing);
+  const spacing = s(40);
+  const cols = Math.ceil(size / spacing);
+  const rows = Math.ceil(size / spacing);
 
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
@@ -20,7 +22,7 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({ color, opacity 
           key={`${r}-${c}`}
           cx={c * spacing + spacing / 2}
           cy={r * spacing + spacing / 2}
-          r={1.5}
+          r={s(1.5)}
           fill={color}
         />
       );
@@ -29,9 +31,9 @@ const DotGrid: React.FC<{ color: string; opacity: number }> = ({ color, opacity 
 
   return (
     <svg
-      width={1080}
-      height={1080}
-      viewBox="0 0 1080 1080"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
       style={{ position: 'absolute', top: 0, left: 0, opacity, pointerEvents: 'none' }}
     >
       {dots}
@@ -56,19 +58,19 @@ const TOP_PADDING = 120;
 /*  Height calculation                                                 */
 /* ------------------------------------------------------------------ */
 
-function calculateContentHeight(credits: CreditsRollProps['credits']): number {
-  let height = TOP_PADDING + TITLE_FONT_SIZE + TITLE_MARGIN_BOTTOM;
+function calculateContentHeight(credits: CreditsRollProps['credits'], s: (px: number) => number): number {
+  let height = s(TOP_PADDING) + s(TITLE_FONT_SIZE) + s(TITLE_MARGIN_BOTTOM);
 
   for (let i = 0; i < credits.length; i++) {
     const entry = credits[i];
     // Role label height
-    height += ROLE_MARGIN_TOP + ROLE_FONT_SIZE + SECTION_GAP;
+    height += s(ROLE_MARGIN_TOP) + s(ROLE_FONT_SIZE) + s(SECTION_GAP);
     // Names height
-    height += entry.names.length * NAME_LINE_HEIGHT;
+    height += entry.names.length * s(NAME_LINE_HEIGHT);
   }
 
   // Bottom padding so last item scrolls fully off
-  height += 120;
+  height += s(120);
 
   return height;
 }
@@ -80,10 +82,12 @@ function calculateContentHeight(credits: CreditsRollProps['credits']): number {
 const CreditsRoll: React.FC<CreditsRollProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
+  const { width, height } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
-  const contentHeight = calculateContentHeight(props.credits);
-  const viewportHeight = 1080;
+  const contentHeight = calculateContentHeight(props.credits, s);
+  const viewportHeight = height;
 
   /* ---- Animation values ---- */
 
@@ -111,6 +115,7 @@ const CreditsRoll: React.FC<CreditsRollProps> = (props) => {
       <DotGrid
         color={props.background === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)'}
         opacity={1}
+        size={width}
       />
 
       {/* Scrolling credits container */}
@@ -124,20 +129,20 @@ const CreditsRoll: React.FC<CreditsRollProps> = (props) => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            paddingTop: TOP_PADDING,
+            paddingTop: s(TOP_PADDING),
           }}
         >
           {/* Title */}
           <div
             style={{
               fontFamily: FONTS.headline,
-              fontSize: TITLE_FONT_SIZE,
+              fontSize: s(TITLE_FONT_SIZE),
               fontWeight: 700,
               color: props.accentColor,
-              letterSpacing: 8,
+              letterSpacing: s(8),
               textTransform: 'uppercase',
               textAlign: 'center',
-              marginBottom: TITLE_MARGIN_BOTTOM,
+              marginBottom: s(TITLE_MARGIN_BOTTOM),
             }}
           >
             {props.title}
@@ -151,20 +156,20 @@ const CreditsRoll: React.FC<CreditsRollProps> = (props) => {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                marginTop: ROLE_MARGIN_TOP,
+                marginTop: s(ROLE_MARGIN_TOP),
               }}
             >
               {/* Role label */}
               <div
                 style={{
                   fontFamily: FONTS.headline,
-                  fontSize: ROLE_FONT_SIZE,
+                  fontSize: s(ROLE_FONT_SIZE),
                   fontWeight: 700,
                   color: props.accentColor,
-                  letterSpacing: 4,
+                  letterSpacing: s(4),
                   textTransform: 'uppercase',
                   textAlign: 'center',
-                  marginBottom: SECTION_GAP,
+                  marginBottom: s(SECTION_GAP),
                 }}
               >
                 {entry.role}
@@ -176,12 +181,12 @@ const CreditsRoll: React.FC<CreditsRollProps> = (props) => {
                   key={nameIdx}
                   style={{
                     fontFamily: FONTS.body,
-                    fontSize: NAME_FONT_SIZE,
+                    fontSize: s(NAME_FONT_SIZE),
                     fontWeight: 400,
                     color: theme.text,
-                    lineHeight: `${NAME_LINE_HEIGHT}px`,
+                    lineHeight: `${s(NAME_LINE_HEIGHT)}px`,
                     textAlign: 'center',
-                    letterSpacing: 1,
+                    letterSpacing: s(1),
                   }}
                 >
                   {name}

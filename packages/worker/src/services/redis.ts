@@ -69,11 +69,13 @@ export async function publishJobProgress(
   extras?: Record<string, unknown>,
 ) {
   // Update progress in DB so frontend polling can see it
+  const meta = extras?.meta as Record<string, unknown> | undefined;
   try {
     await db.update(jobs)
       .set({
         progress,
         ...(message ? { progressMessage: message } : {}),
+        ...(meta ? { progressMeta: meta } : {}),
       })
       .where(eq(jobs.id, jobId));
   } catch (err) {

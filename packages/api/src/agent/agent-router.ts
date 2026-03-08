@@ -1,6 +1,6 @@
 import { PassThrough } from 'stream';
 import { FastifyInstance } from 'fastify';
-import { query, type SDKPartialAssistantMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, type SDKPartialAssistantMessage, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { BetaRawContentBlockDeltaEvent } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs';
 import { eq, or, and } from 'drizzle-orm';
 import { db, projects, transcripts, visuals, jobs } from '../db/index.js';
@@ -16,6 +16,7 @@ import {
   updateMessageContent,
   getConversationWithMessages,
   deleteConversation,
+  updateConversationSessionId,
 } from './conversation-store.js';
 
 // Per-project event buffer for Last-Event-ID resumption
@@ -66,7 +67,7 @@ function formatConversationHistory(
   if (storedMessages.length === 0) return '';
 
   const lines = storedMessages.map((m) => {
-    const contentBlocks = m.content as Array<{ type: string; text?: string; widget?: { kind?: string; planJobId?: string } }>;
+    const contentBlocks = m.content as Array<{ type: string; text?: string; widget?: { kind?: string; planJobId?: string }; response?: unknown }>;
     const parts: string[] = [];
 
     for (const b of contentBlocks) {
@@ -78,6 +79,10 @@ function formatConversationHistory(
           parts.push(`[Shown scene plan widget — planJobId: ${b.widget.planJobId}]`);
         } else if (b.widget.kind) {
           parts.push(`[Shown ${b.widget.kind} widget]`);
+        }
+        // Include widget responses so the agent knows what the user picked (for retry context)
+        if (b.response !== undefined) {
+          parts.push(`[User responded: ${JSON.stringify(b.response)}]`);
         }
       }
     }
@@ -335,6 +340,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
         }
       },
       signal: abortController.signal,
+      userMessage: userText,
     });
 
     // Periodically save accumulated content so refreshes don't lose text.
@@ -345,38 +351,123 @@ export async function agentRoutes(fastify: FastifyInstance) {
       }
     }, 2_000);
 
-    try {
-      fastify.log.info({ projectId }, 'Starting SDK query...');
-      for await (const message of query({
-        prompt: userText,
-        options: {
-          mcpServers: { 'creative-director': mcpServer },
-          allowedTools: TOOL_NAMES,
-          systemPrompt: systemPrompt + conversationHistoryText,
-          includePartialMessages: true,
-          permissionMode: 'bypassPermissions',
-          allowDangerouslySkipPermissions: true,
-          model: config.anthropic.model,
-          abortController,
-          tools: [],
-          maxTurns: 10,
-          thinking: { type: 'enabled', budgetTokens: 8000 },
-          persistSession: false,
-          env: { ...process.env, CLAUDECODE: undefined },
-          stderr: (data: string) => fastify.log.warn({ stderr: data }, 'SDK stderr'),
-        },
-      })) {
+    // --- Stream processing helper ---
+    // Extracted so we can call it for both the primary path and resume-fallback
+    // without duplicating the for-await loop.
+    let capturedSessionId: string | null = null;
+
+    async function processStream(queryIterator: AsyncIterable<SDKMessage>) {
+      let hasEmittedText = false;
+      let lastEventWasToolUse = false;
+
+      for await (const message of queryIterator) {
+        // Capture session_id from the first message that carries one
+        if (!capturedSessionId && message.session_id) {
+          capturedSessionId = message.session_id;
+        }
+
         if (message.type === 'stream_event') {
           const partial = message as SDKPartialAssistantMessage;
           const evt = partial.event as BetaRawContentBlockDeltaEvent;
+
+          // Detect content block boundaries for turn separation
+          const rawEvt = evt as { type: string; content_block?: { type: string } };
+          if (rawEvt.type === 'content_block_start') {
+            if (rawEvt.content_block?.type === 'tool_use') {
+              lastEventWasToolUse = true;
+            } else if (rawEvt.content_block?.type === 'text' && hasEmittedText && lastEventWasToolUse) {
+              // New text block after a tool call — inject paragraph break
+              sendSSE('text', { text: '\n\n' });
+              pendingText += '\n\n';
+            }
+          }
+
           if (evt?.type === 'content_block_delta') {
             const delta = evt.delta as { type: string; text?: string };
             if (delta.type === 'text_delta' && delta.text) {
               sendSSE('text', { text: delta.text });
               pendingText += delta.text;
+              hasEmittedText = true;
             }
           }
         }
+      }
+    }
+
+    // --- Build SDK options ---
+    const hasExistingSession = !!conversation.sdkSessionId;
+
+    function buildQueryOptions(useResume: boolean) {
+      const base = {
+        mcpServers: { 'creative-director': mcpServer },
+        allowedTools: TOOL_NAMES,
+        includePartialMessages: true,
+        permissionMode: 'bypassPermissions' as const,
+        allowDangerouslySkipPermissions: true,
+        model: config.anthropic.model,
+        abortController,
+        tools: [] as string[],
+        maxTurns: 15,
+        thinking: { type: 'adaptive' as const },
+        persistSession: true,
+        env: { ...process.env, CLAUDECODE: undefined },
+        stderr: (data: string) => fastify.log.warn({ stderr: data }, 'SDK stderr'),
+      };
+
+      if (useResume && conversation.sdkSessionId) {
+        // Resume: SDK replays full structured conversation history — no text blob needed
+        return {
+          ...base,
+          systemPrompt: systemPrompt,
+          resume: conversation.sdkSessionId,
+        };
+      }
+
+      // First message or fallback: include conversation history as text
+      return {
+        ...base,
+        systemPrompt: systemPrompt + conversationHistoryText,
+      };
+    }
+
+    try {
+      fastify.log.info({ projectId, hasExistingSession }, 'Starting SDK query...');
+
+      if (hasExistingSession) {
+        // Try to resume the existing session
+        try {
+          const iter = query({ prompt: userText, options: buildQueryOptions(true) });
+          await processStream(iter);
+        } catch (resumeErr) {
+          // Resume failed (stale session, deleted file, etc.) — clear and retry without resume
+          fastify.log.warn({ err: resumeErr, sessionId: conversation.sdkSessionId }, 'Session resume failed, falling back to text-based history');
+
+          // Don't retry if client already disconnected
+          if (abortController.signal.aborted) throw resumeErr;
+
+          await updateConversationSessionId(conversation.id, null);
+          capturedSessionId = null;
+
+          // Tell frontend to clear any partial text from the failed attempt
+          sendSSE('reset', {});
+
+          // Reset content state for the retry
+          contentBlocks.length = 0;
+          pendingText = '';
+          await updateMessageContent(assistantRow.id, []);
+
+          const iter = query({ prompt: userText, options: buildQueryOptions(false) });
+          await processStream(iter);
+        }
+      } else {
+        // First message — no session to resume
+        const iter = query({ prompt: userText, options: buildQueryOptions(false) });
+        await processStream(iter);
+      }
+
+      // Save the captured session ID so future messages can resume
+      if (capturedSessionId && capturedSessionId !== conversation.sdkSessionId) {
+        await updateConversationSessionId(conversation.id, capturedSessionId);
       }
 
       // 8. Flush all pending content to DB before signalling completion
@@ -468,14 +559,17 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // Filter out stale/completed jobs — completed jobs or those older than threshold are ignored
     const activeJob = activeJobRow && isJobFresh(activeJobRow, STALE_JOB_MS) ? activeJobRow : null;
 
+    const activeJobMeta = activeJob?.progressMeta as Record<string, unknown> | null;
     const jobPayload = activeJob
       ? {
           id: activeJob.id,
           type: activeJob.type,
           progress: activeJob.progress,
           message: normalizeProgressMessage(activeJob.type, activeJob.progress, activeJob.progressMessage || undefined),
-          phase: derivePhase(activeJob.type, activeJob.progress),
+          phase: activeJobMeta?.phase || derivePhase(activeJob.type, activeJob.progress),
+          phaseName: activeJobMeta?.phaseName || undefined,
           jobType: activeJob.type,
+          progressMeta: activeJobMeta || undefined,
         }
       : null;
 

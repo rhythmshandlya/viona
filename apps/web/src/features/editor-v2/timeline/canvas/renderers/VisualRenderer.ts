@@ -5,10 +5,10 @@ import { roundRect } from './canvasUtils';
 
 // Color scheme per displayMode
 const DISPLAY_MODE_COLORS: Record<
-  'pip' | 'fullscreen' | 'overlay',
+  'default' | 'fullscreen' | 'overlay',
   { gradStart: string; gradEnd: string; accent: string }
 > = {
-  pip: {
+  default: {
     gradStart: 'rgba(59, 130, 246, 0.4)',
     gradEnd: 'rgba(96, 165, 250, 0.25)',
     accent: '#3b82f6',
@@ -38,8 +38,8 @@ export class VisualRenderer extends BaseRenderer {
     const data = item.data as VisualItemData;
     const { x, y, width, height } = rect;
 
-    // Resolve displayMode, defaulting to 'pip' for backwards compatibility
-    const displayMode = data.displayMode || 'pip';
+    // Resolve displayMode, defaulting to 'default' for backwards compatibility
+    const displayMode = ((data.displayMode as string) === 'pip' ? 'default' : data.displayMode) || 'default';
     const colors = DISPLAY_MODE_COLORS[displayMode];
 
     // Clip to rounded rect

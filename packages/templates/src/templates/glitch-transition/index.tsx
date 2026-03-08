@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { GlitchTransitionProps } from './schema';
 
@@ -10,20 +11,23 @@ function seededRandom(seed: number): number {
 }
 
 // ── DotGrid SVG background ──
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="glitch-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#glitch-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="glitch-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#glitch-dot-grid)" />
+    </svg>
+  );
+};
 
 // ── Scan Lines overlay ──
 const ScanLines: React.FC<{ opacity: number; color: string }> = ({ opacity, color }) => (
@@ -58,18 +62,21 @@ const CorruptionBlocks: React.FC<{
   intensity: number;
   glitchAmount: number;
   accentColor: string;
-}> = ({ frame, intensity, glitchAmount, accentColor }) => {
+  canvasWidth: number;
+  canvasHeight: number;
+  s: (px: number) => number;
+}> = ({ frame, intensity, glitchAmount, accentColor, canvasWidth, canvasHeight, s }) => {
   const blocks = useMemo<CorruptionBlockData[]>(() => {
     const result: CorruptionBlockData[] = [];
     const count = 8;
     for (let i = 0; i < count; i++) {
       const seed = i * 7 + 31;
       result.push({
-        x: seededRandom(seed) * 1080,
-        y: seededRandom(seed + 1) * 1080,
-        w: 60 + seededRandom(seed + 2) * 300,
-        h: 4 + seededRandom(seed + 3) * 40,
-        offsetX: (seededRandom(seed + 4) - 0.5) * 80 * intensity,
+        x: seededRandom(seed) * canvasWidth,
+        y: seededRandom(seed + 1) * canvasHeight,
+        w: s(60) + seededRandom(seed + 2) * s(300),
+        h: s(4) + seededRandom(seed + 3) * s(40),
+        offsetX: (seededRandom(seed + 4) - 0.5) * s(80) * intensity,
         color:
           seededRandom(seed + 5) > 0.5
             ? accentColor
@@ -80,7 +87,7 @@ const CorruptionBlocks: React.FC<{
       });
     }
     return result;
-  }, [intensity, accentColor]);
+  }, [intensity, accentColor, canvasWidth, canvasHeight, s]);
 
   if (glitchAmount <= 0) return null;
 
@@ -93,8 +100,8 @@ const CorruptionBlocks: React.FC<{
         if (!visible) return null;
 
         // Jitter position each frame
-        const jitterX = (seededRandom(frame * 3 + i * 13) - 0.5) * 20 * intensity;
-        const jitterY = (seededRandom(frame * 5 + i * 17) - 0.5) * 10 * intensity;
+        const jitterX = (seededRandom(frame * 3 + i * 13) - 0.5) * s(20) * intensity;
+        const jitterY = (seededRandom(frame * 5 + i * 17) - 0.5) * s(10) * intensity;
 
         return (
           <div
@@ -117,18 +124,18 @@ const CorruptionBlocks: React.FC<{
 };
 
 // ── Digital Noise texture overlay ──
-const DigitalNoise: React.FC<{ frame: number; opacity: number }> = ({ frame, opacity }) => {
+const DigitalNoise: React.FC<{ frame: number; opacity: number; canvasHeight: number }> = ({ frame, opacity, canvasHeight }) => {
   const noiseLines = useMemo(() => {
     const lines: { top: number; height: number; opacity: number }[] = [];
     for (let i = 0; i < 20; i++) {
       lines.push({
-        top: seededRandom(i * 11 + 3) * 1080,
+        top: seededRandom(i * 11 + 3) * canvasHeight,
         height: 1 + seededRandom(i * 11 + 7) * 3,
         opacity: 0.1 + seededRandom(i * 11 + 9) * 0.3,
       });
     }
     return lines;
-  }, []);
+  }, [canvasHeight]);
 
   if (opacity <= 0) return null;
 
@@ -161,7 +168,8 @@ const DigitalNoise: React.FC<{ frame: number; opacity: number }> = ({ frame, opa
 const GlitchTransition: React.FC<GlitchTransitionProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
   const intensity = props.intensity;
 
@@ -231,14 +239,14 @@ const GlitchTransition: React.FC<GlitchTransitionProps> = (props) => {
   const scanOpacity = Math.max(preGlitchScan, glitchAmount * 0.6, cleanHoldScan) * intensity;
 
   // ── RGB Split offset ──
-  const rgbOffset = glitchAmount * 12;
+  const rgbOffset = glitchAmount * s(12);
 
   // Frame-based jitter for RGB split during glitch
   const rgbJitterX = glitchAmount > 0.1
-    ? (seededRandom(frame * 13) - 0.5) * 8 * glitchAmount * intensity
+    ? (seededRandom(frame * 13) - 0.5) * s(8) * glitchAmount * intensity
     : 0;
   const rgbJitterY = glitchAmount > 0.1
-    ? (seededRandom(frame * 17) - 0.5) * 4 * glitchAmount * intensity
+    ? (seededRandom(frame * 17) - 0.5) * s(4) * glitchAmount * intensity
     : 0;
 
   // ── White flash (peaks at frame 75-85, brief) ──
@@ -270,10 +278,10 @@ const GlitchTransition: React.FC<GlitchTransitionProps> = (props) => {
 
   // Text glitch jitter during intense phases
   const textJitterX = glitchAmount > 0.3
-    ? (seededRandom(frame * 19 + 7) - 0.5) * 16 * glitchAmount
+    ? (seededRandom(frame * 19 + 7) - 0.5) * s(16) * glitchAmount
     : 0;
   const textJitterY = glitchAmount > 0.3
-    ? (seededRandom(frame * 23 + 11) - 0.5) * 8 * glitchAmount
+    ? (seededRandom(frame * 23 + 11) - 0.5) * s(8) * glitchAmount
     : 0;
 
   // ── Overall opacity ──
@@ -337,10 +345,13 @@ const GlitchTransition: React.FC<GlitchTransitionProps> = (props) => {
         intensity={intensity}
         glitchAmount={glitchAmount}
         accentColor={props.accentColor}
+        canvasWidth={width}
+        canvasHeight={height}
+        s={s}
       />
 
       {/* ── Digital Noise ── */}
-      <DigitalNoise frame={frame} opacity={glitchAmount * 0.5} />
+      <DigitalNoise frame={frame} opacity={glitchAmount * 0.5} canvasHeight={height} />
 
       {/* ── Center Text ── */}
       {props.text && (
@@ -361,14 +372,14 @@ const GlitchTransition: React.FC<GlitchTransitionProps> = (props) => {
             <h1
               style={{
                 fontFamily: FONTS.headline,
-                fontSize: 96,
+                fontSize: s(96),
                 fontWeight: 900,
                 color: theme.text,
-                letterSpacing: 6,
+                letterSpacing: s(6),
                 textTransform: 'uppercase',
                 textAlign: 'center',
                 margin: 0,
-                padding: '0 80px',
+                padding: `0 ${s(80)}px`,
                 textShadow: glitchAmount > 0.1
                   ? `${rgbOffset * 0.5}px 0 ${props.accentColor}, ${-rgbOffset * 0.5}px 0 #FF0040`
                   : 'none',
@@ -383,16 +394,16 @@ const GlitchTransition: React.FC<GlitchTransitionProps> = (props) => {
               style={{
                 display: 'flex',
                 justifyContent: 'center',
-                marginTop: 20,
+                marginTop: s(20),
               }}
             >
               <div
                 style={{
-                  width: interpolate(textSpring, [0, 1], [0, 200]),
-                  height: 4,
+                  width: interpolate(textSpring, [0, 1], [0, s(200)]),
+                  height: s(4),
                   backgroundColor: props.accentColor,
                   opacity: textOpacity * textExitOpacity,
-                  boxShadow: `0 0 20px ${props.accentColor}`,
+                  boxShadow: `0 0 ${s(20)}px ${props.accentColor}`,
                 }}
               />
             </div>
@@ -416,7 +427,7 @@ const GlitchTransition: React.FC<GlitchTransitionProps> = (props) => {
           {[0.15, 0.35, 0.55, 0.75, 0.9].map((pos, i) => {
             const visible = seededRandom(frame * 3 + i * 41) > 0.5;
             if (!visible) return null;
-            const tearOffset = (seededRandom(frame * 7 + i * 53) - 0.5) * 40 * glitchAmount * intensity;
+            const tearOffset = (seededRandom(frame * 7 + i * 53) - 0.5) * s(40) * glitchAmount * intensity;
             return (
               <div
                 key={i}
@@ -425,7 +436,7 @@ const GlitchTransition: React.FC<GlitchTransitionProps> = (props) => {
                   left: 0,
                   top: `${pos * 100}%`,
                   width: '100%',
-                  height: 2,
+                  height: s(2),
                   backgroundColor: 'rgba(255,255,255,0.12)',
                   transform: `translateX(${tearOffset}px)`,
                 }}

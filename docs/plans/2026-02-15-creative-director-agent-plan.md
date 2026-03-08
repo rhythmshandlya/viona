@@ -227,7 +227,7 @@ interface ProjectContext {
 }
 
 export function buildSystemPrompt(ctx: ProjectContext): string {
-  return `You are the Creative Director for Clipify — an AI that helps users create and refine visual animations for their talking-head explainer videos.
+  return `You are the Creative Director for Viona — an AI that helps users create and refine visual animations for their talking-head explainer videos.
 
 PROJECT CONTEXT:
 - Project: ${ctx.title || 'Untitled'}

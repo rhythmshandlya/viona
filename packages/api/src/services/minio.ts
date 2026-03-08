@@ -197,3 +197,14 @@ export async function listObjects(prefix: 'uploads' | 'outputs' | 'templates', k
     stream.on('end', () => resolve(objects));
   });
 }
+
+/**
+ * Delete all objects under a given prefix (e.g. bundles/{compositionId}/ or sources/{compositionId}/).
+ */
+export async function deleteObjectsByPrefix(prefix: 'uploads' | 'outputs' | 'templates', keyPrefix: string): Promise<number> {
+  const keys = await listObjects(prefix, keyPrefix);
+  for (const key of keys) {
+    await deleteObject(prefix, key);
+  }
+  return keys.length;
+}

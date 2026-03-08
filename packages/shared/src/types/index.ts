@@ -319,7 +319,7 @@ export interface VisualData {
 // ============================================
 
 /** How a visual item composites with the speaker video */
-export type DisplayMode = 'pip' | 'fullscreen' | 'overlay';
+export type DisplayMode = 'default' | 'fullscreen' | 'overlay';
 
 /** Transition type for layout segment boundaries */
 export type LayoutTransitionType = 'cut' | 'fade' | 'zoom-in' | 'zoom-out';

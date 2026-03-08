@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+import { useScale } from '../../use-scale';
 import { getConstants, BACKGROUNDS } from './constants';
 import type { SubscribeNudgeProps } from './schema';
 
@@ -7,20 +8,23 @@ import type { SubscribeNudgeProps } from './schema';
 /*  SVG background                                                     */
 /* ------------------------------------------------------------------ */
 
-const DotGrid: React.FC<{ color: string }> = ({ color }) => (
-  <svg
-    width="100%"
-    height="100%"
-    style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
-  >
-    <defs>
-      <pattern id="sn-dot-grid" width="32" height="32" patternUnits="userSpaceOnUse">
-        <circle cx="16" cy="16" r="1" fill={color} />
-      </pattern>
-    </defs>
-    <rect width="100%" height="100%" fill="url(#sn-dot-grid)" />
-  </svg>
-);
+const DotGrid: React.FC<{ color: string }> = ({ color }) => {
+  const s = useScale();
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+    >
+      <defs>
+        <pattern id="sn-dot-grid" width={s(32)} height={s(32)} patternUnits="userSpaceOnUse">
+          <circle cx={s(16)} cy={s(16)} r={s(1)} fill={color} />
+        </pattern>
+      </defs>
+      <rect width="100%" height="100%" fill="url(#sn-dot-grid)" />
+    </svg>
+  );
+};
 
 /* ------------------------------------------------------------------ */
 /*  Inline SVG icons                                                   */
@@ -66,6 +70,7 @@ const SubscribeNudge: React.FC<SubscribeNudgeProps> = (props) => {
   const { FONTS } = getConstants(props);
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
+  const s = useScale();
   const theme = BACKGROUNDS[props.background];
 
   /* ---- global fades ---- */
@@ -140,8 +145,8 @@ const SubscribeNudge: React.FC<SubscribeNudgeProps> = (props) => {
   }
 
   /* ---- styles ---- */
-  const cardWidth = 680;
-  const cardHeight = 200;
+  const cardWidth = s(680);
+  const cardHeight = s(200);
 
   return (
     <AbsoluteFill
@@ -157,7 +162,7 @@ const SubscribeNudge: React.FC<SubscribeNudgeProps> = (props) => {
       <div
         style={{
           position: 'absolute',
-          bottom: 180,
+          bottom: s(180),
           left: '50%',
           transform: `translateX(-50%) translateY(${cardY}px)`,
           opacity: cardOpacity,
@@ -165,25 +170,25 @@ const SubscribeNudge: React.FC<SubscribeNudgeProps> = (props) => {
           height: cardHeight,
           background: theme.cardBg,
           border: `1px solid ${theme.cardBorder}`,
-          borderRadius: 24,
+          borderRadius: s(24),
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: 20,
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+          gap: s(20),
+          boxShadow: `0 ${s(20)}px ${s(60)}px rgba(0, 0, 0, 0.3)`,
         }}
       >
         {/* Channel name */}
         <span
           style={{
             fontFamily: FONTS.body,
-            fontSize: 22,
+            fontSize: s(22),
             fontWeight: 500,
             color: theme.textMuted,
-            letterSpacing: 1.5,
+            letterSpacing: s(1.5),
             textTransform: 'uppercase',
           }}
         >
@@ -195,7 +200,7 @@ const SubscribeNudge: React.FC<SubscribeNudgeProps> = (props) => {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 24,
+            gap: s(24),
           }}
         >
           {/* Subscribe button */}
@@ -208,22 +213,22 @@ const SubscribeNudge: React.FC<SubscribeNudgeProps> = (props) => {
             <div
               style={{
                 backgroundColor: props.accentColor,
-                borderRadius: 50,
-                padding: '14px 40px',
+                borderRadius: s(50),
+                padding: `${s(14)}px ${s(40)}px`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                boxShadow: `0 4px 20px ${props.accentColor}66`,
+                boxShadow: `0 ${s(4)}px ${s(20)}px ${props.accentColor}66`,
               }}
             >
               <span
                 style={{
                   fontFamily: FONTS.headline,
-                  fontSize: 24,
+                  fontSize: s(24),
                   fontWeight: 700,
                   color: '#FFFFFF',
-                  letterSpacing: 1,
+                  letterSpacing: s(1),
                   textTransform: 'uppercase',
                 }}
               >
@@ -241,14 +246,14 @@ const SubscribeNudge: React.FC<SubscribeNudgeProps> = (props) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 56,
-                height: 56,
+                width: s(56),
+                height: s(56),
                 borderRadius: '50%',
                 background: theme.cardBg,
                 border: `1px solid ${theme.cardBorder}`,
               }}
             >
-              <ThumbsUpIcon size={28} color={theme.text} />
+              <ThumbsUpIcon size={s(28)} color={theme.text} />
             </div>
           )}
 
@@ -261,14 +266,14 @@ const SubscribeNudge: React.FC<SubscribeNudgeProps> = (props) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 56,
-                height: 56,
+                width: s(56),
+                height: s(56),
                 borderRadius: '50%',
                 background: theme.cardBg,
                 border: `1px solid ${theme.cardBorder}`,
               }}
             >
-              <BellIcon size={28} color={theme.text} />
+              <BellIcon size={s(28)} color={theme.text} />
             </div>
           )}
         </div>
