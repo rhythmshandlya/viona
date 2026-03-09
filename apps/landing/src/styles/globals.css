@@ -285,6 +285,15 @@ details > div {
   min-width: 44px;
 }
 
+/* Ensure footer links meet WCAG touch target guidelines on mobile */
+@media (max-width: 639px) {
+  footer a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

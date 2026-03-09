@@ -4,7 +4,7 @@ import { siteConfig } from "@/data/site";
 
 <header class="fixed top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
-    <nav class="flex items-center justify-between h-16">
+    <nav class="flex items-center justify-between h-16" aria-label="Main navigation">
       <!-- Logo -->
       <a href="/" class="flex items-center gap-2">
         <div class="flex items-center">
@@ -47,6 +47,8 @@ import { siteConfig } from "@/data/site";
           id="mobile-menu-btn"
           class="md:hidden p-3 -mr-2 text-muted-foreground hover:text-foreground"
           aria-label="Open menu"
+          aria-expanded="false"
+          aria-controls="mobile-menu"
         >
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
@@ -82,7 +84,9 @@ import { siteConfig } from "@/data/site";
   const menu = document.getElementById('mobile-menu');
 
   btn?.addEventListener('click', () => {
+    const isOpen = !menu?.classList.contains('hidden');
     menu?.classList.toggle('hidden');
+    btn?.setAttribute('aria-expanded', String(!isOpen));
   });
 
   // Close menu when clicking a link

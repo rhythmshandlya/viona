@@ -22,6 +22,7 @@ import CTA from "@/components/sections/CTA.astro";
       </div>
 
       <!-- Pricing cards -->
+      <h2 class="sr-only">Choose Your Plan</h2>
       <div class="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
         {pricingTiers.map((tier) => (
           <div class={`card-elevated p-8 ${tier.popular ? 'ring-2 ring-primary' : ''}`}>
