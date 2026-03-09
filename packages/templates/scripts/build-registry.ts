@@ -39,6 +39,7 @@ interface RegistryCatalogItem {
   type: string;
   description: string;
   categories: string[];
+  tags: string[];
   meta: Record<string, unknown>;
 }
 
@@ -91,7 +92,6 @@ for (const dir of readdirSync(TEMPLATES_DIR, { withFileTypes: true }).sort((a, b
   }
 
   const tags = (meta.tags as string[]) || [];
-  if (!tags.includes('studio-theme')) continue;
 
   const templateDir = join(TEMPLATES_DIR, dir.name);
   const filePaths = readDirRecursive(templateDir);
@@ -127,6 +127,7 @@ for (const dir of readdirSync(TEMPLATES_DIR, { withFileTypes: true }).sort((a, b
     type: 'registry:component',
     description: (meta.description as string) || '',
     categories: [meta.category as string].filter(Boolean),
+    tags,
     meta: {
       stylePreset: meta.stylePreset,
       aspectRatio: meta.aspectRatio,
