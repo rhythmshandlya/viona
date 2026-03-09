@@ -93,17 +93,6 @@ export const config = {
     batchSize: parseInt(process.env.WHISPER_BATCH_SIZE || '16', 10),
   },
 
-  enhance: {
-    scriptPath: process.env.ENHANCE_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'enhance_audio.py'),
-    // Set AUDIO_ENHANCEMENT_ENABLED=false to skip the enhancement pipeline
-    enabled: process.env.AUDIO_ENHANCEMENT_ENABLED !== 'false',
-    // Inverse of enabled for backwards compatibility
-    get disabled() {
-      return !this.enabled;
-    },
-  },
-
-
   wordStyleAnalysis: {
     // Set WORD_STYLE_ANALYSIS_ENABLED=false to skip LLM word analysis
     enabled: process.env.WORD_STYLE_ANALYSIS_ENABLED === 'true',
@@ -122,6 +111,10 @@ export const config = {
 
   pexels: {
     apiKey: process.env.PEXELS_API_KEY || '',
+  },
+
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY || '',
   },
 
   remotion: {

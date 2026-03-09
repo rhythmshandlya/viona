@@ -12,9 +12,7 @@
     "setup:auth": "python src/agents/setup_claude_auth.py",
     "whisperx:setup": "bash ./scripts/setup-whisperx.sh",
     "whisperx:setup:win": ".\\scripts\\setup-whisperx.bat",
-    "enhance:setup": "bash ./scripts/setup-enhance.sh",
-    "enhance:setup:win": ".\\scripts\\setup-enhance.bat",
-    "upload-template": "tsx scripts/upload-template.ts",
+"upload-template": "tsx scripts/upload-template.ts",
     "download-template": "tsx scripts/download-template.ts",
     "push-tokens": "node scripts/push-claude-tokens.js"
   },
