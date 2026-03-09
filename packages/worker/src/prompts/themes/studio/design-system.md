@@ -5,9 +5,9 @@ Templates are **source code you own**. Like shadcn/ui, you copy the source into 
 scene file and customize freely — they are NOT imported as black-box packages.
 
 ### Template Location
-Each template lives in `src/.templates/{{slug}}/` with:
+Each template lives in `src/.templates/{slug}/` with:
 - `index.tsx` — Main component
-- `schema.ts` — Zod props schema (self-defaults via `schema.parse({{}})`)
+- `schema.ts` — Zod props schema (self-defaults via `schema.parse({})`)
 - `constants.ts` — BACKGROUNDS object + `getConstants()` for colors/fonts
 - `components/` — Reusable sub-components (CardShell, TrendBadge, etc.)
 
@@ -21,7 +21,7 @@ Each template lives in `src/.templates/{{slug}}/` with:
 
 The Director's `colorPalette` in scenes.json is a **topic hint only**. Your constants.ts MUST use these exact studio theme values:
 ```tsx
-export const THEME = {{{{
+export const THEME = {{
   background: '{background}',
   text: '{text}',
   textMuted: '{textMuted}',
@@ -30,7 +30,7 @@ export const THEME = {{{{
   cardBorder: '{cardBorder}',
   accent: '{accentDefault}',
   secondary: '{secondaryDefault}',
-}}}};
+}};
 ```
 
 If you skip this step, your scenes will look generic and off-brand. Templates show you **what good looks like** — the DotGrid, the glass cards, the spring entrances, the font system, the accent glow conventions. Internalize these patterns before you write a single line.
@@ -38,7 +38,7 @@ If you skip this step, your scenes will look generic and off-brand. Templates sh
 ### Workflow
 1. **Read 3+ templates** to absorb the studio design language (MANDATORY — see above)
 2. Check `suggestedTemplates` in `scenes.json` for each scene
-3. Read suggested template source — `src/.templates/{{slug}}/index.tsx` (and `components/`)
+3. Read suggested template source — `src/.templates/{slug}/index.tsx` (and `components/`)
 4. Implement scene — use template patterns (DotGrid, cards, springs, fonts) whether copying or going custom
 5. When adapting template code, use **`BACKGROUNDS.{variant}`** for theme colors
 
@@ -60,7 +60,7 @@ Templates use `useScale()` from `../../use-scale` for ALL pixel values.
 Base canvas: 1080px wide. `s(32)` = 32px at 1080w, scales proportionally.
 
 ```tsx
-import {{{{ useScale }}}} from '../../use-scale';
+import {{ useScale }} from '../../use-scale';
 const s = useScale();
 // Use s() for ALL numeric values:
 fontSize: s(48),  padding: s(56),  borderRadius: s(32),  gap: s(20)
@@ -73,7 +73,7 @@ will break on non-1080 canvases.
 
 Import from shared fonts module — do NOT use raw font-family strings:
 ```tsx
-import {{{{ FONT_PAIRS }}}} from '../../fonts';
+import {{ FONT_PAIRS }} from '../../fonts';
 const FONTS = FONT_PAIRS['boldImpact']; // or cleanMinimal, modernTech, etc.
 // Then use: fontFamily: FONTS.headline, fontFamily: FONTS.body
 ```
@@ -97,14 +97,14 @@ Scenes with `displayMode: "overlay"` skip the background (they render over video
 
 ```tsx
 // MANDATORY: Add this to every non-overlay scene
-<div style={{{{{{ position: 'absolute', inset: 0, background: '{background}' }}}}}} />
-<DotGrid color="{gridColor}" s={{{{s}}}} />
+<div style={{{ position: 'absolute', inset: 0, background: '{background}' }}} />
+<DotGrid color="{gridColor}" s={{s}} />
 
-const DotGrid: React.FC<{{{{ color: string; s: (px: number) => number }}}}> = ({{{{ color, s }}}}) => (
-  <svg width="100%" height="100%" style={{{{{{ position: 'absolute', inset: 0, pointerEvents: 'none' }}}}}}>
+const DotGrid: React.FC<{{ color: string; s: (px: number) => number }}> = ({{ color, s }}) => (
+  <svg width="100%" height="100%" style={{{ position: 'absolute', inset: 0, pointerEvents: 'none' }}}>
     <defs>
-      <pattern id="dot-grid" width={{{{s(80)}}}} height={{{{s(80)}}}} patternUnits="userSpaceOnUse">
-        <circle cx={{{{s(40)}}}} cy={{{{s(40)}}}} r={{{{s(3)}}}} fill={{{{color}}}} />
+      <pattern id="dot-grid" width={{s(80)}} height={{s(80)}} patternUnits="userSpaceOnUse">
+        <circle cx={{s(40)}} cy={{s(40)}} r={{s(3)}} fill={{color}} />
       </pattern>
     </defs>
     <rect width="100%" height="100%" fill="url(#dot-grid)" />
@@ -121,11 +121,11 @@ These 8 rules separate professional motion design from AI slop. Violating any ru
 **RULE 1: Combine opacity + scale + slide (NEVER animate one dimension alone)**
 WRONG:
 ```tsx
-style={{{{{{ opacity: fadeIn }}}}}}
+style={{{ opacity: fadeIn }}}
 ```
 RIGHT:
 ```tsx
-style={{{{{{ opacity: fadeIn, transform: `scale(${{{{popScale}}}}) translateY(${{{{slideY}}}}px)` }}}}}}
+style={{{ opacity: fadeIn, transform: `scale(${{popScale}}) translateY(${{slideY}}px)` }}}
 ```
 
 **RULE 2: Vary animation types across staggered elements**
@@ -133,8 +133,8 @@ WRONG: all items use identical `spring()` + opacity with only delay offset.
 RIGHT: item 0 pops with snappy spring, item 1 slides from left, item 2 scales up from below. Each element has its own animation character.
 
 **RULE 3: Spring config MUST match animation intent**
-- Impact/pop: `{{{{ damping: 10, stiffness: 200, mass: 1.4 }}}}` — bouncy overshoot
-- Smooth settle: `{{{{ damping: 26, stiffness: 120, mass: 1.0 }}}}` — no overshoot
+- Impact/pop: `{{ damping: 10, stiffness: 200, mass: 1.4 }}` — bouncy overshoot
+- Smooth settle: `{{ damping: 26, stiffness: 120, mass: 1.0 }}` — no overshoot
 - Connecting lines/paths: use `Easing.out(Easing.cubic)` not springs
 - WRONG: every animation uses the same spring config
 
@@ -144,14 +144,14 @@ Emoji (e.g. stars, icons, symbols) is placeholder thinking. Use custom SVG `<pat
 **RULE 5: No placeholder SVG shapes**
 WRONG:
 ```tsx
-<ellipse cx={{{{50}}}} cy={{{{50}}}} rx={{{{40}}}} ry={{{{40}}}} fill="blue" />
+<ellipse cx={{50}} cy={{50}} rx={{40}} ry={{40}} fill="blue" />
 ```
 RIGHT: Use detailed `<path d="...">` with curves, or use Iconify/Freepik MCP tools for professional icons. Simple geometric primitives without detail look AI-generated.
 
 **RULE 6: Glow/shadow intensity must match narrative moments**
 Glow should INTENSIFY at key sync points, not remain constant.
 ```tsx
-textShadow: `0 0 ${{{{s(glowRadius)}}}}px ${{{{accentColor}}}}88, 0 0 ${{{{s(glowRadius * 2)}}}}px ${{{{accentColor}}}}44, 0 0 ${{{{s(glowRadius * 3)}}}}px ${{{{accentColor}}}}22`
+textShadow: `0 0 ${{s(glowRadius)}}px ${{accentColor}}88, 0 0 ${{s(glowRadius * 2)}}px ${{accentColor}}44, 0 0 ${{s(glowRadius * 3)}}px ${{accentColor}}22`
 ```
 Use 3 layered opacity tiers (88/44/22) for depth. Animate `glowRadius` to peak at sync points.
 
@@ -246,27 +246,27 @@ Text gets simple fade+scale. Save dramatic animation for GRAPHICS.
 
 Glass card (default):
 ```tsx
-{{{{
+{{
   background: '{cardBg}',
   backdropFilter: 'blur(20px)',
   WebkitBackdropFilter: 'blur(20px)',
   border: '1px solid {cardBorder}',
   borderRadius: s(32),
-  padding: `${{{{s(56)}}}}px ${{{{s(64)}}}}px`,
+  padding: `${{s(56)}}px ${{s(64)}}px`,
   maxWidth: s(900),
-  boxShadow: `0 ${{{{s(8)}}}}px ${{{{s(32)}}}}px rgba(0, 0, 0, 0.2)`,
-}}}}
+  boxShadow: `0 ${{s(8)}}px ${{s(32)}}px rgba(0, 0, 0, 0.2)`,
+}}
 ```
-Variants: solid (opaque bg), gradient (`linear-gradient(135deg, ${{{{accentColor}}}}18 0%, {cardBg} 100%)`), outline (transparent + border only).
+Variants: solid (opaque bg), gradient (`linear-gradient(135deg, ${{accentColor}}18 0%, {cardBg} 100%)`), outline (transparent + border only).
 
 ### ACCENT COLOR TRANSPARENCY CONVENTION
 
 When using accent colors for glows, tints, and overlays, append hex alpha:
-- `${{{{accentColor}}}}18` — 9% opacity (subtle tint, gradient bg)
-- `${{{{accentColor}}}}30` — 19% (medium tint)
-- `${{{{accentColor}}}}44` — 27% (radial glow)
-- `${{{{accentColor}}}}66` — 40% (text shadow glow)
-- `${{{{accentColor}}}}88` — 53% (strong glow)
+- `${{accentColor}}18` — 9% opacity (subtle tint, gradient bg)
+- `${{accentColor}}30` — 19% (medium tint)
+- `${{accentColor}}44` — 27% (radial glow)
+- `${{accentColor}}66` — 40% (text shadow glow)
+- `${{accentColor}}88` — 53% (strong glow)
 
 ### ANIMATION LIFECYCLE (every scene MUST follow)
 
@@ -282,12 +282,12 @@ When using accent colors for glows, tints, and overlays, append hex alpha:
 
 | Element Type | Motion | Code Pattern |
 |---|---|---|
-| Cards/containers | Gentle Y float | `translateY(${{Math.sin(frame * 0.03) * 3}}px)` — 3px amplitude, slow |
-| Hero numbers | Scale breathing | `scale(${{1 + Math.sin(frame * 0.04) * 0.01}})` — 1.0 to 1.01 |
-| Icons | Gentle rotation | `rotate(${{Math.sin(frame * 0.02) * 2}}deg)` — 2 degrees |
+| Cards/containers | Gentle Y float | `translateY(${Math.sin(frame * 0.03) * 3}px)` — 3px amplitude, slow |
+| Hero numbers | Scale breathing | `scale(${1 + Math.sin(frame * 0.04) * 0.01})` — 1.0 to 1.01 |
+| Icons | Gentle rotation | `rotate(${Math.sin(frame * 0.02) * 2}deg)` — 2 degrees |
 | Accent borders | Glow pulse | `boxShadow` opacity varies 0.3 to 0.45 via Math.sin |
 | Progress bars | Shimmer | Moving gradient highlight across the filled area |
-| Background grid | Slow drift | `backgroundPosition: ${{frame * 0.1}}px ${{frame * 0.05}}px` |
+| Background grid | Slow drift | `backgroundPosition: ${frame * 0.1}px ${frame * 0.05}px` |
 
 IMPORTANT: Math.sin/cos is ALLOWED for these subtle ambient motions on non-text elements
 or on text SCALE only (not text position). Amplitude must be tiny: 2-5px drift, 0.01-0.02
@@ -295,16 +295,16 @@ scale, 1-3 degree rotation. Large amplitudes or text-position sin = JITTER = BRO
 
 ### SPRING CONFIGS (from templates)
 
-- Card entrance: `{{{{ damping: 20, stiffness: 120, mass: 0.8 }}}}` — smooth settle
-- Hero text reveal: `{{{{ damping: 20, stiffness: 170 }}}}` — snappy
-- Gentle slide: `{{{{ damping: 20, stiffness: 90, mass: 1 }}}}` — standard
+- Card entrance: `{{ damping: 20, stiffness: 120, mass: 0.8 }}` — smooth settle
+- Hero text reveal: `{{ damping: 20, stiffness: 170 }}` — snappy
+- Gentle slide: `{{ damping: 20, stiffness: 90, mass: 1 }}` — standard
 - **NEVER** damping < 10 (too bouncy) or > 26 (overdamped)
 
 ### RENDERING RULES
 
-- Pure inline styles ONLY: `style={{{{{{...}}}}}}`. No CSS files, no CSS-in-JS.
+- Pure inline styles ONLY: `style={{{...}}}`. No CSS files, no CSS-in-JS.
 - All graphics via inline SVG (charts, icons, shapes). No image imports.
-- Every `interpolate()` MUST have `{{{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}}}`
+- Every `interpolate()` MUST have `{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}`
 - Never use `Math.sin/cos` on text positions (causes jitter)
 - `backdropFilter` always paired with `WebkitBackdropFilter`
 - Stagger minimum 6 frames between elements
