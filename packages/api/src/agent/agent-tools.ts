@@ -7,6 +7,23 @@ import { queueGenerateVisualsJob, queueEditVisualsJob, queuePlanVisualsJob } fro
 import { youtubeSearchService } from '../services/youtube-search.js';
 import { nanoid } from 'nanoid';
 
+interface ScenePlanScene {
+  id: number;
+  name: string;
+  visual: string;
+  emotion: string;
+  timestampRange: [number, number];
+  frames: [number, number];
+  displayMode?: string;
+  transition?: string;
+  keySync?: Record<string, unknown>;
+  layout?: Record<string, unknown>;
+  buildsFrom?: string | null;
+  connectsTo?: string | null;
+  requires3D?: boolean;
+  icons?: string[];
+}
+
 const MCP_SERVER_NAME = 'creative-director';
 
 // Tool names as Claude SDK will reference them: mcp__{server}__{tool}
@@ -474,7 +491,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
           const planData = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
           const scenesObj = planData.scenes as Record<string, unknown>;
-          let scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+          let scenesArray = (scenesObj.scenes as ScenePlanScene[]) || [];
 
           const changeLog: string[] = [];
 
@@ -483,14 +500,14 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
           for (const op of sorted) {
             const action = op.action || 'update';
-            const idx = scenesArray.findIndex((s: any) => s.id === op.sceneId);
+            const idx = scenesArray.findIndex((s) => s.id === op.sceneId);
 
             if (idx === -1 && action !== 'update') {
               changeLog.push(`Scene ${op.sceneId} not found, skipped`);
               continue;
             }
 
-            const scene = scenesArray[idx] as any;
+            const scene = scenesArray[idx];
 
             switch (action) {
               case 'update': {
@@ -506,7 +523,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
               case 'split': {
                 if (!scene) break;
-                const range = scene.timestampRange as [number, number];
+                const range = scene.timestampRange;
                 const splitAt = op.splitAtMs != null
                   ? op.splitAtMs / 1000
                   : (range[0] + range[1]) / 2; // Default: midpoint
@@ -516,7 +533,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                   break;
                 }
 
-                const first: Record<string, unknown> = {
+                const first: ScenePlanScene = {
                   ...scene,
                   id: scene.id,
                   name: op.firstHalf?.name || `${scene.name} (Part 1)`,
@@ -524,7 +541,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                   timestampRange: [range[0], splitAt],
                 };
 
-                const second: Record<string, unknown> = {
+                const second: ScenePlanScene = {
                   ...scene,
                   id: 90000 + Math.floor(Math.random() * 10000),
                   name: op.secondHalf?.name || `${scene.name} (Part 2)`,
@@ -544,16 +561,16 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                   changeLog.push(`Merge requires mergeWithSceneId for Scene ${op.sceneId}`);
                   break;
                 }
-                const otherIdx = scenesArray.findIndex((s: any) => s.id === op.mergeWithSceneId);
+                const otherIdx = scenesArray.findIndex((s) => s.id === op.mergeWithSceneId);
                 if (otherIdx === -1) {
                   changeLog.push(`Merge target Scene ${op.mergeWithSceneId} not found`);
                   break;
                 }
-                const other = scenesArray[otherIdx] as any;
-                const rangeA = scene.timestampRange as [number, number];
-                const rangeB = other.timestampRange as [number, number];
+                const other = scenesArray[otherIdx];
+                const rangeA = scene.timestampRange;
+                const rangeB = other.timestampRange;
 
-                const merged: Record<string, unknown> = {
+                const merged: ScenePlanScene = {
                   ...scene,
                   name: op.mergedName || `${scene.name} + ${other.name}`,
                   visual: op.mergedVisual || `${scene.visual}; ${other.visual}`,
@@ -562,7 +579,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
                 // Remove both, insert merged at the earlier position
                 const minIdx = Math.min(idx, otherIdx);
-                scenesArray = scenesArray.filter((_: any, i: number) => i !== idx && i !== otherIdx);
+                scenesArray = scenesArray.filter((_, i) => i !== idx && i !== otherIdx);
                 scenesArray.splice(minIdx, 0, merged);
                 changeLog.push(`Merged "${scene.name}" and "${other.name}" into "${merged.name}"`);
                 break;

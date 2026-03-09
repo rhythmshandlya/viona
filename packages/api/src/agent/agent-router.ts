@@ -173,7 +173,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
 
     // Check project ownership
-    if (project.userId && project.userId !== (request as any).user?.id) {
+    if (project.userId && project.userId !== request.user?.id) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
@@ -548,7 +548,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       where: eq(projects.id, projectId),
     });
     if (!project) return reply.code(404).send({ error: 'Project not found' });
-    if (project.userId && project.userId !== (request as any).user?.id) {
+    if (project.userId && project.userId !== request.user?.id) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
@@ -605,7 +605,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       where: eq(projects.id, projectId),
     });
     if (!project) return reply.code(404).send({ error: 'Project not found' });
-    if (project.userId && project.userId !== (request as any).user?.id) {
+    if (project.userId && project.userId !== request.user?.id) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
@@ -627,7 +627,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
         where: eq(projects.id, projectId),
       });
       if (!project) return reply.code(404).send({ error: 'Project not found' });
-      if (project.userId && project.userId !== (request as any).user?.id) {
+      if (project.userId && project.userId !== request.user?.id) {
         return reply.code(403).send({ error: 'Forbidden' });
       }
 
