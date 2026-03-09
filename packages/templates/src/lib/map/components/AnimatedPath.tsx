@@ -51,8 +51,8 @@ const AnimatedPath: React.FC<AnimatedPathProps> = ({
   // Perpendicular offset
   const offset = curveIntensity * dist * 0.4;
   // Normal vector (perpendicular to the line, pointing "up/left")
-  const nx = -dy / dist;
-  const ny = dx / dist;
+  const nx = dist > 0 ? -dy / dist : 0;
+  const ny = dist > 0 ? dx / dist : 0;
   const cx = midX + nx * offset;
   const cy = midY + ny * offset;
 

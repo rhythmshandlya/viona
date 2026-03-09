@@ -206,8 +206,8 @@ export function computeBezierControl(
   const dy = y2 - y1;
   const dist = Math.sqrt(dx * dx + dy * dy);
   const offset = curveIntensity * dist * 0.4;
-  const nx = -dy / dist;
-  const ny = dx / dist;
+  const nx = dist > 0 ? -dy / dist : 0;
+  const ny = dist > 0 ? dx / dist : 0;
   return { cx: midX + nx * offset, cy: midY + ny * offset };
 }
 
