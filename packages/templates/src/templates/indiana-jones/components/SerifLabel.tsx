@@ -1,5 +1,6 @@
 import React from 'react';
 import { spring, useVideoConfig } from 'remotion';
+import { useScale } from '../../../use-scale';
 
 interface SerifLabelProps {
   x: number;
@@ -25,6 +26,7 @@ const SerifLabel: React.FC<SerifLabelProps> = ({
   color,
 }) => {
   const { fps } = useVideoConfig();
+  const s = useScale();
 
   const progress = spring({
     frame: frame - enterFrame,
@@ -39,11 +41,11 @@ const SerifLabel: React.FC<SerifLabelProps> = ({
       style={{
         position: 'absolute',
         left: x,
-        top: y + 18,
+        top: y + s(18),
         transform: `translate(-50%, 0) scale(${0.7 + progress * 0.3})`,
         opacity: progress,
         fontFamily: font,
-        fontSize: 16,
+        fontSize: s(16),
         fontWeight: 600,
         color,
         textShadow: '1px 1px 3px rgba(0, 0, 0, 0.4)',
