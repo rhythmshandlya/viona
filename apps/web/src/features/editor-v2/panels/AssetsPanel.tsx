@@ -14,7 +14,7 @@ import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItem
 interface AssetsPanelProps {
   className?: string;
   onEditWithAI?: (asset: ExtractedAsset) => void;
-  onYouTubeClipAdded?: (clip: { templateId: string; templateProps: Record<string, unknown>; durationFrames: number }) => void;
+  onYouTubeClipAdded?: (clip: { clipId: string; duration: number; clipUrl: string; sourceTitle?: string; frameStyle?: string; startSeconds: number; endSeconds: number; sourceUrl: string }) => void;
 }
 
 // Icon mapping for asset types
