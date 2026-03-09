@@ -4,9 +4,9 @@ import { logger } from './logger.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
 import { processRenderJob, RenderJobData } from './processors/render/index.js';
 
-import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
-import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals.js';
-import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation.js';
+import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals/index.js';
+import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals/index.js';
+import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation/index.js';
 import { processPreloadProjectJob, PreloadProjectJobData } from './processors/preload-project.js';
 import { processPlanVisualsJob, PlanVisualsJobData } from './processors/plan-visuals.js';
 import { processHeadTrackingJob, HeadTrackingJobData } from './processors/head-tracking.js';
