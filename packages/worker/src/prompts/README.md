@@ -10,7 +10,6 @@ prompts/
 ├── loader.py                    # Python: load_prompt(), load_template()
 ├── animator/                    # Phase 2: Remotion code generation
 ├── director/                    # Phase 1: Scene planning
-├── assistant-director/          # Phase 0: Creative brief
 ├── generate-visuals/            # TS visual generation pipeline
 ├── references/                  # Few-shot code examples
 ├── motion/                      # Animation utility snippets
@@ -39,7 +38,7 @@ msg = load_template('director/user-template', transcript='...', fps=30)
 
 Both loaders cache files in memory. Use `{{variable}}` syntax for template placeholders.
 
-> **Python note:** Python prompt builders (`animator.py`, `director.py`, `assistant_director.py`) live alongside their `.md` files in this directory. They import via `prompts._loader` which re-exports from `loader.py`. Some prompts use Python `.format()` with `{var}` syntax — those are loaded with `load_prompt()` and formatted by the caller, not by `load_template()`.
+> **Python note:** Python prompt builders (`animator.py`, `director.py`) live alongside their `.md` files in this directory. They import via `prompts._loader` which re-exports from `loader.py`. Some prompts use Python `.format()` with `{var}` syntax — those are loaded with `load_prompt()` and formatted by the caller, not by `load_template()`.
 
 ---
 
@@ -49,22 +48,13 @@ The video generation pipeline runs through 5 phases, each using different prompt
 
 ```mermaid
 graph TB
-    subgraph "Phase 0: Assistant Director"
-        AD_SYS["assistant-director/system.md"]
-        AD_USER["build_assistant_director_message()"]
-        AD_SYS --> AD_CALL["Haiku LLM Call"]
-        AD_USER --> AD_CALL
-        AD_CALL --> BRIEF["CREATIVE_BRIEF.md"]
-    end
-
     subgraph "Phase 1: Director"
         DIR_SYS["director/system.md"]
         DIR_USER["build_director_user_message()"]
-        DIR_STYLE["director/studio-style-template.md"]
+        DIR_STYLE["get_theme(style_preset)"]
         DIR_DISPLAY["director/display-mode-table.md"]
         DIR_STYLE --> DIR_USER
         DIR_DISPLAY --> DIR_USER
-        BRIEF --> DIR_USER
         DIR_SYS --> DIR_CALL["Opus LLM Call"]
         DIR_USER --> DIR_CALL
         DIR_CALL --> PLAN["SCENE_PLAN.md + scenes.json"]
@@ -72,7 +62,7 @@ graph TB
 
     subgraph "Phase 2: Animator"
         ANIM_SYS["animator/system.md"]
-        STUDIO["animator/studio-design-system.md"]
+        STUDIO["get_theme(style_preset)<br/>design system from themes.json"]
         YT_CLIP["animator/youtube-clip-section.md"]
         ANIM_USER["build_animator_user_message()"]
         PLAN --> ANIM_USER
@@ -94,27 +84,10 @@ graph TB
         VERIFY_CALL -->|"pass"| DONE["Final Output"]
     end
 
-    style BRIEF fill:#f3e8ff,stroke:#7c3aed
     style PLAN fill:#e0f2fe,stroke:#0284c7
     style CODE fill:#dcfce7,stroke:#16a34a
     style DONE fill:#fef9c3,stroke:#ca8a04
 ```
-
----
-
-## Phase 0: Assistant Director (Creative Brief)
-
-**Purpose:** Classify tone, choose color palette, font pairing, and visual asset strategy.
-
-| Component | Source |
-|-----------|--------|
-| System prompt | `assistant-director/system.md` |
-| User message | `build_assistant_director_message()` in `assistant_director.py` |
-| Model | Haiku (fast classification) |
-| Tools | `Write` only |
-| Output | `CREATIVE_BRIEF.md` |
-
-The Creative Brief feeds downstream to the Director as advisory guidance.
 
 ---
 
@@ -144,8 +117,8 @@ graph LR
     end
 
     DM["director/display-mode-table.md"] --> LAYOUT
-    SST["director/studio-style-template.md"] --> STYLE
-    THEMES["STUDIO_THEMES dict"] --> STYLE
+    SST["get_theme(style_preset)<br/>from themes.json"] --> STYLE
+    THEMES["themes.json registry"] --> STYLE
 
     CANVAS --> MSG["Final User Message"]
     LAYOUT --> MSG
@@ -156,7 +129,7 @@ graph LR
 ```
 
 **Conditional injections:**
-- `director/studio-style-template.md` — only if `style_preset` starts with `"studio"`
+- `get_theme(style_preset)` — only if theme exists for the given preset
 - `director/display-mode-table.md` — always included (defines overlay/fullscreen/default modes)
 - Coverage tier guidance — only if source video dimensions are known
 
@@ -176,7 +149,7 @@ Used for smaller projects. One agent implements all scenes.
 graph TB
     subgraph "System Prompt Assembly"
         BASE["animator/system.md<br/>(core Remotion rules)"]
-        STUDIO_SEC["animator/studio-design-system.md<br/>(theme colors, DotGrid)"]
+        STUDIO_SEC["get_theme(style_preset)<br/>(theme colors, DotGrid)"]
         YT_SEC["animator/youtube-clip-section.md<br/>(clip-specific rules)"]
         LIBS["Remotion libraries guide<br/>(in-code)"]
         SKILLS["Condensed animation skills<br/>(in-code)"]
@@ -294,7 +267,7 @@ The TS pipeline in `generate-visuals.ts` and `visual-generator.ts` uses a differ
 ```mermaid
 graph TB
     subgraph "buildGenerateVisualsPrompt()"
-        STYLE_G["generate-visuals/style-studio-dark.md<br/>or style-studio-light.md"]
+        STYLE_G["get_theme(style_preset)<br/>from themes.json"]
         SCENE_P["generate-visuals/scene-patterns.md<br/>(AutoAE composition patterns)"]
         REFS["buildReferenceExamplesSection()"]
         COMMON["references/common-patterns.md"]
@@ -317,9 +290,9 @@ graph TB
     PROMPT --> SDK["Claude Agent SDK Call"]
 ```
 
-**`STYLE_GUIDELINES`** map (loaded from `.md` files):
-- `studio-dark` → `generate-visuals/style-studio-dark.md` — dark mode color tokens, DotGrid background, card layouts
-- `studio-light` → `generate-visuals/style-studio-light.md` — light mode equivalent
+**`STYLE_GUIDELINES`** map (loaded via theme loader):
+- `studio-dark` → `getTheme('studio-dark')` — dark mode color tokens, DotGrid background, card layouts
+- `studio-light` → `getTheme('studio-light')` — light mode equivalent
 
 **`buildReferenceExamplesSection(projectId)`** composes few-shot examples:
 1. `references/common-patterns.md` — shared responsive sizing, spring configs, physics helpers
@@ -348,10 +321,10 @@ Each reference file uses `{{projectId}}` template variable, substituted via `loa
 
 | Section | Condition | Injected Into |
 |---------|-----------|---------------|
-| Studio design system | `style_preset.startswith("studio")` | Animator system prompt |
+| Studio design system | `get_theme(style_preset)` | Animator system prompt |
 | YouTube clip rules | Any scene has `type=="youtube-clip"` | Animator system prompt |
 | Display mode table | Always | Director user message |
-| Studio style template | `style_preset.startswith("studio")` | Director user message |
+| Studio style template | `get_theme(style_preset)` | Director user message |
 | Overlay rules | `displayMode=="overlay"` | Per-scene subagent prompt |
 | Fullscreen rules | `displayMode=="fullscreen"` | Per-scene subagent prompt |
 | User assets | `user_assets.json` exists | Animator system prompt |
