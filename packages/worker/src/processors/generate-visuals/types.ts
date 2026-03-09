@@ -50,7 +50,7 @@ export interface VideoSelection {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'studio-dark' | 'studio-light';
+  stylePreset: string;
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** Effective dimensions for default scenes in stacked layout */

@@ -35,7 +35,7 @@ const runningProcesses = new Map<string, ChildProcess>();
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'studio-dark' | 'studio-light';
+  stylePreset: string;
   layoutMode: 'pip' | 'stacked';
   dimensions: {
     width: number;
