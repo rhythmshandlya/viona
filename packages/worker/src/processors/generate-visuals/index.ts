@@ -18,6 +18,7 @@ import { logger } from '../../logger.js';
 import { getWorkspacePath, createProjectDir } from '../../workspace.js';
 import { uploadFile } from '../../services/minio.js';
 import { buildStudioTemplateCatalog } from '../../prompts/studio-templates.js';
+import { getTheme } from '../../prompts/theme-loader.js';
 import type { GenerateVisualsJobData, HeadTrackingFrame, VisualMetadata, JobMetrics } from './types.js';
 import { findPackagesRoot, copyDirRecursive, computeSpeakerGrid, extractAssets, injectUserAssets, prepareVideoAssets } from './validation.js';
 import { uploadBundleToStorage, uploadSourceToStorage } from './storage.js';
@@ -253,7 +254,7 @@ registerRoot(RemotionRoot);
     }
 
     // Write categorized template catalog for Director prompt (no bulk copy — resolution happens after Director)
-    if (stylePreset === 'studio-dark' || stylePreset === 'studio-light') {
+    if (getTheme(stylePreset)) {
       await publishJobProgress(jobId, 13, 'Preparing template catalog...');
       try {
         const srcDir = join(workspacePath, 'src');
