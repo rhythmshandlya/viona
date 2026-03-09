@@ -34,6 +34,11 @@ _src_dir = str(Path(__file__).parent.parent)
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
+# Add packages/mcp-servers to Python path for registry loader
+_MCP_SERVERS_PKG = Path(__file__).resolve().parent.parent.parent.parent / "mcp-servers"
+sys.path.insert(0, str(_MCP_SERVERS_PKG))
+from registry import load_mcp_registry, validate_mcp_registry
+
 # Claude Agent SDK imports
 try:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
@@ -237,79 +242,35 @@ _MCP_REMOTE_JS = str(_NODE_MODULES / "mcp-remote" / "dist" / "proxy.js")
 _BETTER_ICONS_JS = str(_NODE_MODULES / "better-icons" / "dist" / "index.js")
 _MCP_SERVERS_DIST = _WORKER_PKG_ROOT.parent / "mcp-servers" / "dist"
 
+# Registry variable bindings (paths resolved at module load)
+_REGISTRY_VARS = {
+    "dist": str(_MCP_SERVERS_DIST),
+    "mcp-remote": _MCP_REMOTE_JS,
+    "better-icons": _BETTER_ICONS_JS,
+}
+
 
 def build_mcp_servers(workspace: str) -> dict[str, Any]:
-    """Build MCP server configuration using pre-installed local packages.
+    """Build MCP server configuration from the JSON registry.
 
-    All MCP servers are invoked as `node <entry.js>` so they work reliably
-    on Windows without .CMD shim issues. No npx download needed at runtime.
+    Reads packages/mcp-servers/mcp-servers.json and resolves all template
+    variables including the runtime workspace path.
     """
-    return {
-        "freepik": {
-            "type": "stdio",
-            "command": "node",
-            "args": [
-                _MCP_REMOTE_JS,
-                "https://api.freepik.com/mcp",
-                "--header",
-                f"x-freepik-api-key:{os.environ.get('FREEPIK_API_KEY', '')}",
-            ],
-        },
-        "better-icons": {
-            "type": "stdio",
-            "command": "node",
-            "args": [_BETTER_ICONS_JS],
-        },
-        "assets": {
-            "type": "stdio",
-            "command": "node",
-            "args": [
-                str(_MCP_SERVERS_DIST / "asset-server.js"),
-                "--workspace", workspace,
-            ],
-            "env": {
-                "UNSPLASH_ACCESS_KEY": os.environ.get("UNSPLASH_ACCESS_KEY", ""),
-                "PEXELS_API_KEY": os.environ.get("PEXELS_API_KEY", ""),
-            },
-        },
-        "viewport": {
-            "type": "stdio",
-            "command": "node",
-            "args": [
-                str(_MCP_SERVERS_DIST / "viewport-server.js"),
-                "--workspace", workspace,
-            ],
-        },
-    }
+    return load_mcp_registry({**_REGISTRY_VARS, "workspace": workspace})
 
 
 def validate_mcp_servers() -> None:
     """Validate that all MCP server entry-points exist on startup.
 
-    Raises FileNotFoundError if a required file is missing, so the worker
-    fails fast instead of timing out minutes into a generation job.
+    Reads the registry and checks that resolved file paths exist.
+    Raises FileNotFoundError if a required file is missing.
     """
-    checks = {
-        "mcp-remote (proxy.js)": _MCP_REMOTE_JS,
-        "better-icons (index.js)": _BETTER_ICONS_JS,
-        "asset-server (dist)": str(_MCP_SERVERS_DIST / "asset-server.js"),
-        "viewport-server (dist)": str(_MCP_SERVERS_DIST / "viewport-server.js"),
-    }
-    # Also check that node is available
     node_path = shutil.which("node")
     if not node_path:
-        checks["node"] = None  # type: ignore
-
-    missing = []
-    for name, fpath in checks.items():
-        if fpath is None or not Path(fpath).exists():
-            missing.append(f"  {name}: {fpath or '(not found in PATH)'}")
-    if missing:
         raise FileNotFoundError(
-            "MCP server files missing — run `pnpm install` in packages/worker:\n"
-            + "\n".join(missing)
+            "node is not available in PATH — required to run MCP servers"
         )
-    safe_print(f"[MCP] All server entry-points verified: mcp-remote, better-icons, node")
+    validate_mcp_registry(_REGISTRY_VARS)
 
 
 # Validate on module load so we fail fast
