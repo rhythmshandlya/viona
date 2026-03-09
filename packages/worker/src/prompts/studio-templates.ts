@@ -1,11 +1,13 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { findPackagesRoot } from '../processors/generate-visuals/validation.js';
+import { getTemplateTags } from './theme-loader.js';
 
 interface RegistryCatalogItem {
   name: string;
   description: string;
   categories: string[];
+  tags?: string[];
   meta: { stylePreset?: string; aspectRatio?: string; estimatedDuration?: string };
 }
 
@@ -30,13 +32,25 @@ const CATEGORY_LABELS: Record<string, string> = {
   'entertainment': 'Entertainment',
 };
 
-export function buildStudioTemplateCatalog(): string {
+/**
+ * Build a categorized template catalog for the given theme preset.
+ * Filters registry items by the preset's templateTags.
+ */
+export function buildTemplateCatalog(preset: string): string {
   const registryPath = join(findPackagesRoot(), 'templates', 'registry.json');
   const registry: Registry = JSON.parse(readFileSync(registryPath, 'utf-8'));
 
+  const themeTags = getTemplateTags(preset);
+
+  // Filter items that match the theme's tags
+  const filtered = registry.items.filter(item => {
+    const itemTags = item.tags || [];
+    return themeTags.some(tag => itemTags.includes(tag));
+  });
+
   // Group by category
   const groups = new Map<string, RegistryCatalogItem[]>();
-  for (const item of registry.items) {
+  for (const item of filtered) {
     const cat = item.categories[0] || 'other';
     if (!groups.has(cat)) groups.set(cat, []);
     groups.get(cat)!.push(item);
@@ -57,4 +71,9 @@ ${sections.join('\n\n')}
 **How to use:** Select templates by slug in scenes.json \`"templates"\` field. The Animator will receive their full source code.
 If no template fits a scene, use an empty array — the Animator will create custom visuals.
 `;
+}
+
+/** @deprecated Use buildTemplateCatalog(preset) instead */
+export function buildStudioTemplateCatalog(): string {
+  return buildTemplateCatalog('studio-dark');
 }

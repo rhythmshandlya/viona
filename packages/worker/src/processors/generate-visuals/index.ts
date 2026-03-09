@@ -17,7 +17,7 @@ import { config } from '../../config.js';
 import { logger } from '../../logger.js';
 import { getWorkspacePath, createProjectDir } from '../../workspace.js';
 import { uploadFile } from '../../services/minio.js';
-import { buildStudioTemplateCatalog } from '../../prompts/studio-templates.js';
+import { buildTemplateCatalog } from '../../prompts/studio-templates.js';
 import { getTheme } from '../../prompts/theme-loader.js';
 import type { GenerateVisualsJobData, HeadTrackingFrame, VisualMetadata, JobMetrics } from './types.js';
 import { findPackagesRoot, copyDirRecursive, computeSpeakerGrid, extractAssets, injectUserAssets, prepareVideoAssets } from './validation.js';
@@ -258,7 +258,7 @@ registerRoot(RemotionRoot);
       await publishJobProgress(jobId, 13, 'Preparing template catalog...');
       try {
         const srcDir = join(workspacePath, 'src');
-        const catalog = buildStudioTemplateCatalog();
+        const catalog = buildTemplateCatalog(stylePreset);
         await writeFile(join(srcDir, 'STUDIO_TEMPLATES.md'), catalog, 'utf-8');
         logger.info('Studio template catalog written to workspace');
       } catch (err) {
