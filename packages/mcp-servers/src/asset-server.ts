@@ -21,6 +21,8 @@ import { writeFile, mkdir, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { URL } from "node:url";
 import { Open as unzipOpen } from "unzipper";
+import { parseWorkspace } from "./lib/parse-args.js";
+import { errorMessage } from "./lib/errors.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,10 +72,7 @@ interface GridResult {
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
-const args = process.argv.slice(2);
-const wsIdx = args.indexOf("--workspace");
-const WORKSPACE: string =
-  wsIdx !== -1 && args[wsIdx + 1] ? args[wsIdx + 1] : process.cwd();
+const WORKSPACE = parseWorkspace();
 const ASSETS_DIR: string = path.join(WORKSPACE, "public", "assets");
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
@@ -217,11 +216,6 @@ async function safeFetch(
   } finally {
     clearTimeout(timer);
   }
-}
-
-/** Helper to extract error message from unknown catch values. */
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
 }
 
 // ---------------------------------------------------------------------------

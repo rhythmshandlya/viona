@@ -16,6 +16,8 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
+import { parseWorkspace } from "./lib/parse-args.js";
+import { errorMessage } from "./lib/errors.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,19 +72,11 @@ interface ValidationResult {
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
-const args = process.argv.slice(2);
-const wsIdx = args.indexOf("--workspace");
-const WORKSPACE: string =
-  wsIdx !== -1 && args[wsIdx + 1] ? args[wsIdx + 1] : process.cwd();
+const WORKSPACE = parseWorkspace();
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Helper to extract error message from unknown catch values. */
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
 
 /**
  * Find scenes.json in the workspace. It could be at:
