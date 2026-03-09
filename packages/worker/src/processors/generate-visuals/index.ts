@@ -18,7 +18,6 @@ import { logger } from '../../logger.js';
 import { getWorkspacePath, createProjectDir } from '../../workspace.js';
 import { uploadFile } from '../../services/minio.js';
 import { buildStudioTemplateCatalog } from '../../prompts/studio-templates.js';
-import { listTemplates } from '@viona/templates';
 import type { GenerateVisualsJobData, HeadTrackingFrame, VisualMetadata, JobMetrics } from './types.js';
 import { findPackagesRoot, copyDirRecursive, computeSpeakerGrid, extractAssets, injectUserAssets, prepareVideoAssets } from './validation.js';
 import { uploadBundleToStorage, uploadSourceToStorage } from './storage.js';
@@ -253,37 +252,16 @@ registerRoot(RemotionRoot);
       logger.warn({ error: e }, 'Failed to update Root.tsx/index.ts — self-heal will fix it');
     }
 
-    // Write Studio template catalog + source files to workspace when studio style is selected
+    // Write categorized template catalog for Director prompt (no bulk copy — resolution happens after Director)
     if (stylePreset === 'studio-dark' || stylePreset === 'studio-light') {
-      await publishJobProgress(jobId, 13, 'Loading studio templates...');
+      await publishJobProgress(jobId, 13, 'Preparing template catalog...');
       try {
         const srcDir = join(workspacePath, 'src');
-        const templatesDir = join(srcDir, '.templates');
-        await mkdir(templatesDir, { recursive: true });
-
-        // Write template catalog markdown
         const catalog = buildStudioTemplateCatalog();
         await writeFile(join(srcDir, 'STUDIO_TEMPLATES.md'), catalog, 'utf-8');
-
-        // Copy template source files so the Animator agent can read them.
-        // Read directly from the monorepo source tree instead of using getTemplateFiles()
-        // which is broken after bundling (import.meta.url resolves to dist/ on Windows).
-        const templatesSrcRoot = join(findPackagesRoot(), 'templates', 'src', 'templates');
-        const studioTemplates = listTemplates({ theme: 'studio' });
-        for (const t of studioTemplates) {
-          const tDir = join(templatesDir, t.meta.slug);
-          await mkdir(tDir, { recursive: true });
-          try {
-            const tSrcDir = join(templatesSrcRoot, t.meta.slug);
-            await copyDirRecursive(tSrcDir, tDir);
-          } catch (err) {
-            logger.warn({ slug: t.meta.slug, err }, 'Failed to copy template files');
-          }
-        }
-
-        logger.info({ templateCount: studioTemplates.length, templatesDir }, 'Studio templates written to workspace');
+        logger.info('Studio template catalog written to workspace');
       } catch (err) {
-        logger.warn({ err }, 'Failed to write studio templates to workspace (non-fatal)');
+        logger.warn({ err }, 'Failed to write studio template catalog (non-fatal)');
       }
     }
 
