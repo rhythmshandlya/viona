@@ -8,37 +8,7 @@ maintaining a TODO list and logging reasoning for each scene.
 import json
 
 from prompts._loader import load_prompt
-
-
-# ---------------------------------------------------------------------------
-# Studio Design System — injected when style_preset starts with "studio"
-# Single source of truth for studio-dark / studio-light theme colors.
-# ---------------------------------------------------------------------------
-
-STUDIO_THEMES = {
-    "studio-dark": {
-        "variant": "dark",
-        "background": "#0B0F1A",
-        "text": "#FFFFFF",
-        "textMuted": "rgba(255,255,255,0.45)",
-        "gridColor": "rgba(255,255,255,0.04)",
-        "cardBg": "rgba(255,255,255,0.06)",
-        "cardBorder": "rgba(255,255,255,0.10)",
-        "accentDefault": "#6366F1",
-        "secondaryDefault": "#EC4899",
-    },
-    "studio-light": {
-        "variant": "light",
-        "background": "#F8F9FB",
-        "text": "#111827",
-        "textMuted": "rgba(0,0,0,0.45)",
-        "gridColor": "rgba(0,0,0,0.04)",
-        "cardBg": "rgba(0,0,0,0.04)",
-        "cardBorder": "rgba(0,0,0,0.08)",
-        "accentDefault": "#6366F1",
-        "secondaryDefault": "#EC4899",
-    },
-}
+from prompts._themes import STUDIO_THEMES
 
 _STUDIO_DESIGN_SYSTEM_TEMPLATE = load_prompt('animator/studio-design-system')
 
@@ -783,7 +753,6 @@ def build_scene_task_prompt(
     scene_prompt = ANIMATOR_SCENE_PROMPT_TEMPLATE.format(
         scene_number=scene_number,
         display_mode_rules=mode_rules,
-        project_id=project_id,
     )
     scene_json_str = json.dumps(scene_data, indent=2)
 
