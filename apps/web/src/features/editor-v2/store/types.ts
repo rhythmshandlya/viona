@@ -587,6 +587,7 @@ export interface EditorState {
 
   // UI state
   isSaving: boolean;
+  isDirty: boolean;
 
   // Caption style toggle
   applyStyleToAll: boolean;

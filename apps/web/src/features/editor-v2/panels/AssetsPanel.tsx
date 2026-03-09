@@ -14,6 +14,7 @@ import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItem
 interface AssetsPanelProps {
   className?: string;
   onEditWithAI?: (asset: ExtractedAsset) => void;
+  onYouTubeClipAdded?: (clip: { templateId: string; templateProps: Record<string, unknown>; durationFrames: number }) => void;
 }
 
 // Icon mapping for asset types
@@ -46,7 +47,7 @@ const mimeTypeBadge = (mime: string) => {
   return { label: 'IMG', color: 'text-gray-400 bg-gray-400/10' };
 };
 
-export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) {
+export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }: AssetsPanelProps) {
   const [assets, setAssets] = useState<ExtractedAsset[]>([]);
   const [sceneTimings, setSceneTimings] = useState<Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>>(new Map());
   const [loading, setLoading] = useState(false);
