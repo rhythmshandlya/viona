@@ -25,6 +25,8 @@ const CATEGORY_LABELS: Record<string, string> = {
   'media': 'Media & Video',
   'marketing': 'Marketing',
   'education': 'Education',
+  'social': 'Social',
+  'corporate': 'Corporate',
   'entertainment': 'Entertainment',
 };
 

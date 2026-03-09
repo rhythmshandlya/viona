@@ -1,0 +1,786 @@
+{
+  "name": "viona-templates",
+  "homepage": "https://viona.app",
+  "items": [
+    {
+      "name": "agenda-tracker",
+      "type": "registry:component",
+      "description": "Video outline showing progress through agenda items",
+      "categories": [
+        "timeline-process"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "alert-banner",
+      "type": "registry:component",
+      "description": "Full-width alert banner with icon and attention-grabbing color",
+      "categories": [
+        "intro-outro"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "audience-question",
+      "type": "registry:component",
+      "description": "Bold question prompt to drive viewer engagement and comments",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "bar-chart-race",
+      "type": "registry:component",
+      "description": "Ranked horizontal bars that reorder over time — perfect for GDP rankings, brand battles, and trending data",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "before-after-reveal",
+      "type": "registry:component",
+      "description": "Split-screen before vs after comparison with animated wipe divider — perfect for transformations, results, and growth stories",
+      "categories": [
+        "comparison"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "bullet-stack",
+      "type": "registry:component",
+      "description": "Cascading bullet-point list with animated checkmarks",
+      "categories": [
+        "text-typography"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "channel-intro",
+      "type": "registry:component",
+      "description": "Animated channel branding intro with floating geometric elements",
+      "categories": [
+        "intro-outro"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "chapter-card",
+      "type": "registry:component",
+      "description": "Full-screen chapter transition with number and title",
+      "categories": [
+        "intro-outro"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "comment-highlight",
+      "type": "registry:component",
+      "description": "Social media comment bubble overlay with avatar and reactions",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "countdown-reveal",
+      "type": "registry:component",
+      "description": "Top 5 countdown with dramatic item reveals — perfect for rankings, product launches, and listicles",
+      "categories": [
+        "intro-outro"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "country-highlight",
+      "type": "registry:component",
+      "description": "Highlight a country on a satellite map with animated zoom, colored overlay, and location labels",
+      "categories": [
+        "geographic"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "coupon-badge",
+      "type": "registry:component",
+      "description": "Discount code stamp with shimmer effect",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "credits-roll",
+      "type": "registry:component",
+      "description": "Classic scrolling credits with roles and names",
+      "categories": [
+        "intro-outro"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "definition-tooltip",
+      "type": "registry:component",
+      "description": "Dictionary-style tooltip with term, pronunciation, and definition",
+      "categories": [
+        "text-typography"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "emoji-burst",
+      "type": "registry:component",
+      "description": "Floating emoji reactions rising from bottom of screen",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "friendlyTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "emoji-slider-poll",
+      "type": "registry:component",
+      "description": "Instagram-style emoji slider poll with animated result",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "friendlyTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "end-screen",
+      "type": "registry:component",
+      "description": "YouTube-style end screen with video placeholders and subscribe button",
+      "categories": [
+        "intro-outro"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "event-announce",
+      "type": "registry:component",
+      "description": "Bold event announcement with date, location, and call-to-action",
+      "categories": [
+        "social"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "fact-flash",
+      "type": "registry:component",
+      "description": "Rapid-fire animated facts with big numbers and context — perfect for 'Did You Know' content and industry stats",
+      "categories": [
+        "education"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "feature-list",
+      "type": "registry:component",
+      "description": "Cascading feature list with icons and descriptions",
+      "categories": [
+        "marketing"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "follower-milestone",
+      "type": "registry:component",
+      "description": "Animated subscriber count reaching a milestone with celebration effects",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "formula-display",
+      "type": "registry:component",
+      "description": "Mathematical formula with step-by-step reveal animation",
+      "categories": [
+        "text-typography"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "glitch-transition",
+      "type": "registry:component",
+      "description": "Digital glitch effect with RGB split, scan lines, and corruption blocks",
+      "categories": [
+        "entertainment"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "guest-intro-card",
+      "type": "registry:component",
+      "description": "Guest introduction card with avatar, name, title, and bio",
+      "categories": [
+        "intro-outro"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "headline-storm",
+      "type": "registry:component",
+      "description": "Text match cut effect — rapidly cycling news articles with the brand name always at center, highlighted",
+      "categories": [
+        "text-typography"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "15s"
+      }
+    },
+    {
+      "name": "keyword-pop",
+      "type": "registry:component",
+      "description": "Bold keyword slam animation with impact effect",
+      "categories": [
+        "text-typography"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "kinetic-caption",
+      "type": "registry:component",
+      "description": "Word-by-word animated captions with highlight effects",
+      "categories": [
+        "text-typography"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "link-callout",
+      "type": "registry:component",
+      "description": "Animated callout with arrow pointing to link or resource",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "location-tag",
+      "type": "registry:component",
+      "description": "Map pin location overlay with name and coordinates",
+      "categories": [
+        "geographic"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "logo-stinger",
+      "type": "registry:component",
+      "description": "Branded logo reveal with geometric motion graphics — perfect for video intros, outros, and bumpers",
+      "categories": [
+        "intro-outro"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "news-ticker",
+      "type": "registry:component",
+      "description": "Scrolling broadcast-style ticker tape with breaking badge",
+      "categories": [
+        "text-typography"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "number-ticker",
+      "type": "registry:component",
+      "description": "Large animated counter with prefix and suffix overlay",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "poll-battle",
+      "type": "registry:component",
+      "description": "Animated poll results racing to fill — options compete visually with a winner crowned at the end",
+      "categories": [
+        "comparison"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "popup-fact",
+      "type": "registry:component",
+      "description": "Notification-style popup cards with surprising facts",
+      "categories": [
+        "education"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "process-flow",
+      "type": "registry:component",
+      "description": "Step-by-step workflow with animated connecting arrows — ideal for funnels, how-to guides, and onboarding flows",
+      "categories": [
+        "timeline-process"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "product-card",
+      "type": "registry:component",
+      "description": "Floating product showcase card with price, rating, and description",
+      "categories": [
+        "marketing"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "pros-cons",
+      "type": "registry:component",
+      "description": "Two-column pros and cons comparison with animated icons",
+      "categories": [
+        "comparison"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "qr-code-reveal",
+      "type": "registry:component",
+      "description": "Animated QR code that builds itself with scan prompt",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "quote-pulse",
+      "type": "registry:component",
+      "description": "Kinetic typography with dramatic word-by-word reveals — perfect for quotes, taglines, and key messages",
+      "categories": [
+        "social"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "rating-display",
+      "type": "registry:component",
+      "description": "Animated star rating with score counter and review count",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "score-meter",
+      "type": "registry:component",
+      "description": "Animated semicircular gauge with sweeping needle and score",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "social-handle-bar",
+      "type": "registry:component",
+      "description": "Animated social media handles with platform icons",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "source-cite",
+      "type": "registry:component",
+      "description": "Editorial reference card for citing sources and quotes",
+      "categories": [
+        "education"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "speaker-id",
+      "type": "registry:component",
+      "description": "Animated lower-third name tag with name, title, and affiliation",
+      "categories": [
+        "social"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "split-stat",
+      "type": "registry:component",
+      "description": "Side-by-side stat comparison with VS divider and fill bars",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-bar-chart",
+      "type": "registry:component",
+      "description": "Horizontal bars growing with staggered spring animation — ideal for channel breakdowns and rankings",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-comparison",
+      "type": "registry:component",
+      "description": "Two numbers side-by-side with animated arrow and change indicator — perfect for year-over-year and before/after comparisons",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-counter",
+      "type": "registry:component",
+      "description": "Big animated number counting up with trend badge — perfect for revenue, users, or growth metrics",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-donut",
+      "type": "registry:component",
+      "description": "SVG donut chart with animated arc drawing — great for revenue breakdowns and distribution data",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-line-chart",
+      "type": "registry:component",
+      "description": "SVG line graph drawn progressively with gradient fill — perfect for growth trends and time series",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-progress",
+      "type": "registry:component",
+      "description": "Multiple progress bars filling with staggered spring animation — ideal for objectives, KPIs, and completion tracking",
+      "categories": [
+        "data-visualization"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "step-counter",
+      "type": "registry:component",
+      "description": "Step indicator with progress ring for tutorials and how-tos",
+      "categories": [
+        "timeline-process"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "subscribe-nudge",
+      "type": "registry:component",
+      "description": "Animated subscribe, like, and bell notification overlay",
+      "categories": [
+        "social-engagement"
+      ],
+      "meta": {
+        "stylePreset": "friendlyTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "swipe-wipe",
+      "type": "registry:component",
+      "description": "Bold geometric shape transition wipe with optional text",
+      "categories": [
+        "entertainment"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "testimonial-card",
+      "type": "registry:component",
+      "description": "Animated testimonial/review card with quote, rating, and author",
+      "categories": [
+        "social"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "tier-board",
+      "type": "registry:component",
+      "description": "Animated tier list ranking with items snapping into S/A/B/C/D rows — viral format for rankings and opinions",
+      "categories": [
+        "comparison"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "timeline-cascade",
+      "type": "registry:component",
+      "description": "Vertical timeline with animated milestone nodes — ideal for company history, project roadmaps, and event sequences",
+      "categories": [
+        "timeline-process"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "topic-title",
+      "type": "registry:component",
+      "description": "Bold animated section title with subtitle and accent underline",
+      "categories": [
+        "social"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "versus-screen",
+      "type": "registry:component",
+      "description": "Dramatic split-screen VS comparison with attributes",
+      "categories": [
+        "comparison"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "watercolor-map",
+      "type": "registry:component",
+      "description": "Animated travel route between two locations on a watercolor-style map with markers and a connecting line",
+      "categories": [
+        "geographic"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    }
+  ]
+}

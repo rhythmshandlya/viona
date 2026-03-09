@@ -664,7 +664,8 @@ class ClaudeVisualGenerator:
             result = subprocess.run(
                 ["npx", "tsx", str(resolve_script), str(scenes_path), str(self.workspace / "src")],
                 capture_output=True, text=True, timeout=30,
-                cwd=str(Path(__file__).parent.parent.parent)
+                cwd=str(Path(__file__).parent.parent.parent),
+                shell=IS_WINDOWS,
             )
             if result.returncode == 0:
                 resolve_data = json.loads(result.stdout)
