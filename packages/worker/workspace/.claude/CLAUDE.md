@@ -43,16 +43,6 @@ import { Background } from './components/Background';
 - NEVER use R3F's `useFrame()` hook - breaks video rendering
 - For 3D: use `<ThreeCanvas>` from @remotion/three, NOT R3F `<Canvas>`
 
-## Anti-Slop Animation Rules
-- NEVER animate with opacity alone — combine opacity + scale + translateY at minimum
-- NEVER use the same spring config for all animations — match config to intent
-- NEVER use emoji as content — use SVG paths or Iconify/Freepik MCP tools
-- NEVER use bare ellipse/rect SVG — use custom paths or professional icons
-- ALWAYS tie glow/shadow intensity to narrative sync points
-- ALWAYS vary animation types across staggered elements (pop, slide, scale, rotate)
-- ALWAYS ensure every sync point has a corresponding visual change
-- ALWAYS use `useScale()` and `FONT_PAIRS` (studio preset)
-
 ## Available Skills
 
 ### Core Animation & Video

@@ -165,13 +165,14 @@
       "Bash(tail:*)",
       "WebFetch(domain:docs.freepik.com)",
       "Bash(PGPASSWORD=postgres psql:*)",
-      "Bash(xxd:*)"
+      "Bash(xxd:*)",
+      "Bash(pnpm:*)"
     ]
   },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "freepik",
     "motion-dev",
     "better-icons"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
