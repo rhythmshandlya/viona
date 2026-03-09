@@ -183,7 +183,7 @@ COPY packages/worker ./packages/worker
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @reelify/worker build
+RUN pnpm --filter @viona/worker build
 
 # Startup script
 COPY packages/worker/scripts/entrypoint.sh /entrypoint.sh
@@ -227,7 +227,7 @@ COPY packages/shared ./packages/shared
 COPY packages/api ./packages/api
 
 RUN pnpm install --frozen-lockfile
-RUN pnpm --filter @reelify/api build
+RUN pnpm --filter @viona/api build
 
 CMD ["node", "packages/api/dist/index.js"]
 ```
@@ -307,7 +307,7 @@ export async function transcribe(audioPath: string): Promise<Transcript> {
 # scripts/setup-dev.sh
 set -e
 
-echo "=== Cllipify Dev Setup ==="
+echo "=== Viona Dev Setup ==="
 
 pnpm install
 docker-compose up -d
@@ -324,7 +324,7 @@ docker-compose exec -T minio mc mb local/outputs --ignore-existing
 docker-compose exec -T minio mc mb local/templates --ignore-existing
 
 # Upload template
-pnpm --filter @reelify/worker upload-template
+pnpm --filter @viona/worker upload-template
 
 # Python setup (optional)
 if [ "$SKIP_PYTHON" != "true" ]; then

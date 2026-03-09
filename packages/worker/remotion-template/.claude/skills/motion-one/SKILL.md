@@ -1,181 +1,122 @@
 ---
-name: motion-one
-description: Use when implementing Disney's 12 animation principles with Motion One (modern, lightweight animation library)
+name: animation-timing
+description: Animation timing, easing, and Disney's 12 principles applied to Remotion. Use when choosing spring configs, stagger timing, or designing motion choreography.
 ---
 
-# Motion One Animation Principles
+# Animation Timing & Easing for Remotion
 
-Implement all 12 Disney animation principles using Motion One's performant Web Animations API wrapper.
+Apply animation principles using `spring()` and `interpolate()` from `'remotion'`. No external libraries.
 
-## 1. Squash and Stretch
+## Disney's 12 Principles in Remotion
 
-```javascript
-import { animate } from "motion";
-
-animate(".ball",
-  { scaleX: [1, 1.2, 1], scaleY: [1, 0.8, 1] },
-  { duration: 0.3, easing: "ease-in-out" }
-);
+### 1. Squash & Stretch
+```tsx
+const bounce = spring({ frame: frame - hitFrame, fps, config: { damping: 12, stiffness: 200, mass: 0.8 } });
+const scaleX = interpolate(bounce, [0, 0.5, 1], [1, 1.2, 1]);
+const scaleY = interpolate(bounce, [0, 0.5, 1], [1, 0.8, 1]);
 ```
 
-## 2. Anticipation
-
-```javascript
-import { timeline } from "motion";
-
-timeline([
-  [".character", { y: 10, scaleY: 0.9 }, { duration: 0.2 }],
-  [".character", { y: -200 }, { duration: 0.4, easing: "ease-out" }]
-]);
+### 2. Anticipation
+```tsx
+// Wind up before the main action
+const antic = interpolate(frame, [0, 8], [0, -10], { extrapolateRight: 'clamp' });
+const action = spring({ frame: frame - 8, fps, config: { damping: 18, stiffness: 150, mass: 0.9 } });
+const y = frame < 8 ? antic : interpolate(action, [0, 1], [-10, -200]);
 ```
 
-## 3. Staging
-
-```javascript
-animate(".background", { filter: "blur(3px)", opacity: 0.6 });
-animate(".hero", { scale: 1.1 });
+### 3. Staging — Focus attention
+```tsx
+// Blur/dim background, scale up hero element
+const bgBlur = interpolate(frame, [0, 15], [0, 5], { extrapolateRight: 'clamp' });
+const heroScale = spring({ frame, fps, config: { damping: 26, stiffness: 120, mass: 1.0 } });
 ```
 
-## 4. Straight Ahead / Pose to Pose
-
-```javascript
-animate(".element", {
-  x: [0, 100, 200, 300],
-  y: [0, -50, 0, -30]
-}, { duration: 1 });
+### 4. Follow-Through & Overlapping Action
+```tsx
+// Main element stops, secondary elements overshoot
+const main = spring({ frame, fps, config: { damping: 26, stiffness: 120, mass: 1.0 } });
+const trail = spring({ frame: frame - 3, fps, config: { damping: 14, stiffness: 80, mass: 1.1 } }); // lower damping = overshoot
 ```
 
-## 5. Follow Through and Overlapping Action
-
-```javascript
-timeline([
-  [".body", { x: 200 }, { duration: 0.5 }],
-  [".hair", { x: 200 }, { duration: 0.5, at: "-0.45" }],
-  [".cape", { x: 200 }, { duration: 0.6, at: "-0.5" }]
-]);
+### 5. Slow In / Slow Out
+```tsx
+// Use Easing for non-spring interpolation
+import { Easing } from 'remotion';
+const progress = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: 'clamp', easing: Easing.inOut(Easing.ease) });
 ```
 
-## 6. Slow In and Slow Out
-
-```javascript
-animate(".element", { x: 300 }, {
-  duration: 0.6,
-  easing: [0.42, 0, 0.58, 1] // cubic-bezier ease-in-out
-});
-// Or: "ease-in", "ease-out", "ease-in-out"
-// Or spring: { easing: spring({ stiffness: 100, damping: 15 }) }
+### 6. Arcs — Natural curved motion
+```tsx
+const t = interpolate(frame, [0, 45], [0, 1], { extrapolateRight: 'clamp' });
+const x = interpolate(t, [0, 1], [0, 300]);
+const y = interpolate(t, [0, 0.5, 1], [0, -120, 0]); // parabolic arc
 ```
 
-## 7. Arc
-
-```javascript
-animate(".ball", {
-  x: [0, 100, 200],
-  y: [0, -100, 0]
-}, { duration: 1, easing: "ease-in-out" });
-
-// Or with offset path
-animate(".element", {
-  offsetDistance: ["0%", "100%"]
-}, { duration: 1 });
-// CSS: offset-path: path('M0,100 Q100,0 200,100');
+### 7. Exaggeration
+```tsx
+// Low damping = overshoot for dramatic effect
+const dramatic = spring({ frame, fps, config: { damping: 10, stiffness: 200, mass: 0.7 } });
+const scale = interpolate(dramatic, [0, 1], [0, 1.5]);
 ```
 
-## 8. Secondary Action
+## Spring Config Guide
 
-```javascript
-const button = document.querySelector(".button");
-button.addEventListener("mouseenter", () => {
-  animate(button, { scale: 1.05 }, { duration: 0.2 });
-  animate(".icon", { rotate: 15 }, { duration: 0.15 });
-});
+| Feel | damping | stiffness | mass | Use for |
+|------|---------|-----------|------|---------|
+| SNAPPY | 18 | 180 | 0.8 | Hero reveals, card entrances |
+| SMOOTH | 26 | 120 | 1.0 | Default — premium settle |
+| BOUNCY | 12 | 200 | 1.0 | Playful, energetic pops |
+| HEAVY | 20 | 150 | 1.5 | Text slams, big numbers |
+| STIFF | 24 | 300 | 0.6 | Micro-interactions, fast snaps |
+| GENTLE | 14 | 80 | 1.2 | Background, ambient elements |
+
+**Rule**: Never use damping < 10 (too bouncy for video).
+
+## Easing Functions
+
+```tsx
+import { Easing } from 'remotion';
+
+// Available easings for interpolate():
+Easing.linear
+Easing.ease           // default CSS ease
+Easing.in(Easing.ease)
+Easing.out(Easing.ease)
+Easing.inOut(Easing.ease)
+Easing.bezier(0.25, 0.1, 0.25, 1)  // custom cubic-bezier
+Easing.circle         // circular easing
+Easing.back(1.5)      // overshoot
+Easing.elastic(1)     // elastic bounce
+Easing.bounce         // bounce at end
 ```
 
-## 9. Timing
+## Stagger Timing Patterns
 
-```javascript
-import { spring } from "motion";
+```tsx
+const STAGGER = 6;  // Standard: 6 frames between items
 
-// Fast snap
-animate(".fast", { x: 100 }, { duration: 0.15 });
+// Fast cascade (icons, small items)
+const FAST_STAGGER = 4;
 
-// Spring physics
-animate(".spring", { x: 100 }, {
-  easing: spring({ stiffness: 300, damping: 20 })
-});
+// Slow reveal (large cards, paragraphs)
+const SLOW_STAGGER = 10;
 
-// Slow dramatic
-animate(".slow", { x: 100 }, { duration: 0.8, easing: "ease-out" });
+// Accelerating stagger (items appear faster over time)
+const delay = i * Math.max(3, STAGGER - i);
 ```
 
-## 10. Exaggeration
+## Choreography Pattern
 
-```javascript
-import { spring } from "motion";
+```tsx
+// Phase 1: Background/container (frame 0)
+// Phase 2: Title (frame 0, fills screen)
+// Phase 3: Title settles + content appears (frame keySync)
+// Phase 4: Details stagger in (frame keySync + 8, +14, +20...)
+// Phase 5: Exit (last 15 frames of scene)
 
-animate(".element", { scale: 1.5, rotate: 720 }, {
-  easing: spring({ stiffness: 200, damping: 10 }) // overshoot
-});
+const PHASES = {
+  titleSettle: TIMING.sceneNKeySync,
+  contentStart: TIMING.sceneNKeySync + 8,
+  exitStart: sceneDuration - 15,
+};
 ```
-
-## 11. Solid Drawing
-
-```javascript
-animate(".box", {
-  rotateX: 45,
-  rotateY: 30
-}, { duration: 0.5 });
-// Set perspective in CSS: perspective: 1000px;
-```
-
-## 12. Appeal
-
-```javascript
-animate(".card", {
-  scale: 1.02,
-  boxShadow: "0 20px 40px rgba(0,0,0,0.2)"
-}, { duration: 0.3, easing: "ease-out" });
-```
-
-## Stagger Animation
-
-```javascript
-import { stagger } from "motion";
-
-animate(".item",
-  { opacity: [0, 1], y: [20, 0] },
-  { delay: stagger(0.1) }
-);
-```
-
-## Scroll Animations
-
-```javascript
-import { scroll, animate } from "motion";
-
-scroll(
-  animate(".parallax", { y: [0, 100] }),
-  { target: document.querySelector(".container") }
-);
-```
-
-## In-View Animations
-
-```javascript
-import { inView } from "motion";
-
-inView(".section", ({ target }) => {
-  animate(target, { opacity: 1, y: 0 }, { duration: 0.5 });
-});
-```
-
-## Key Motion One Features
-
-- `animate()` - Single animation
-- `timeline()` - Sequence with `at` positioning
-- `stagger()` - Offset delays
-- `spring()` - Physics-based easing
-- `scroll()` - Scroll-linked animations
-- `inView()` - Intersection observer wrapper
-- Uses Web Animations API (hardware accelerated)
-- Tiny bundle size (~3kb)

@@ -1,6 +1,10 @@
 import { Client } from 'minio';
 import { config } from '../config.js';
 
+// Public endpoint for presigned URLs (browsers need public access)
+const publicEndpoint = process.env.BUCKET_PUBLIC_ENDPOINT || process.env.RAILWAY_SERVICE_STORAGE_URL;
+const isInternalEndpoint = config.storage.endpoint.includes('.railway.internal');
+
 // Build MinIO client configuration for internal operations
 const clientConfig: {
   endPoint: string;
@@ -24,23 +28,18 @@ if (config.storage.port) {
 
 export const minioClient = new Client(clientConfig);
 
-// Public endpoint for presigned URLs (browsers need public access)
-const publicEndpoint = process.env.BUCKET_PUBLIC_ENDPOINT || process.env.RAILWAY_SERVICE_STORAGE_URL;
-const isInternalEndpoint = config.storage.endpoint.includes('.railway.internal');
-
-/**
- * Convert internal presigned URL to public URL for browser access
- */
-function toPublicUrl(url: string): string {
-  if (!isInternalEndpoint || !publicEndpoint) {
-    return url;
-  }
-  // Replace internal endpoint with public endpoint
-  // Internal: http://storage.railway.internal:9000/...
-  // Public: https://storage-production-xxxx.up.railway.app/...
-  const internalPattern = new RegExp(`http://${config.storage.endpoint}:${config.storage.port || 9000}`);
-  return url.replace(internalPattern, `https://${publicEndpoint}`);
-}
+// Create a separate client for presigned URLs that uses the public endpoint
+// This is needed because presigned URL signatures include the hostname
+// If we sign with internal hostname and serve from public hostname, signature fails
+const presignedClient = (isInternalEndpoint && publicEndpoint)
+  ? new Client({
+      endPoint: publicEndpoint,
+      useSSL: true, // Public endpoint always uses HTTPS
+      accessKey: config.storage.accessKey,
+      secretKey: config.storage.secretKey,
+      region: config.storage.region,
+    })
+  : minioClient;
 
 // Single bucket name
 const BUCKET = config.storage.bucket;
@@ -86,8 +85,9 @@ export async function getPresignedUploadUrl(
   expirySeconds = 3600
 ): Promise<string> {
   const fullKey = `${PREFIXES[prefix]}${key}`;
-  const url = await minioClient.presignedPutObject(BUCKET, fullKey, expirySeconds);
-  return toPublicUrl(url);
+  // Use presignedClient which is configured with public endpoint for correct signatures
+  const url = await presignedClient.presignedPutObject(BUCKET, fullKey, expirySeconds);
+  return url;
 }
 
 export async function getPresignedDownloadUrl(
@@ -96,8 +96,9 @@ export async function getPresignedDownloadUrl(
   expirySeconds = 3600
 ): Promise<string> {
   const fullKey = `${PREFIXES[prefix]}${key}`;
-  const url = await minioClient.presignedGetObject(BUCKET, fullKey, expirySeconds);
-  return toPublicUrl(url);
+  // Use presignedClient which is configured with public endpoint for correct signatures
+  const url = await presignedClient.presignedGetObject(BUCKET, fullKey, expirySeconds);
+  return url;
 }
 
 export async function deleteObject(prefix: 'uploads' | 'outputs' | 'templates', key: string): Promise<void> {
@@ -105,7 +106,7 @@ export async function deleteObject(prefix: 'uploads' | 'outputs' | 'templates', 
   await minioClient.removeObject(BUCKET, fullKey);
 }
 
-export async function objectExists(prefix: 'uploads' | 'outputs' | 'templates', key: string): Promise<boolean> {
+export async function objectExists(prefix: 'uploads' | 'outputs' | 'templates' | 'sources', key: string): Promise<boolean> {
   try {
     const fullKey = `${PREFIXES[prefix]}${key}`;
     await minioClient.statObject(BUCKET, fullKey);
@@ -115,7 +116,7 @@ export async function objectExists(prefix: 'uploads' | 'outputs' | 'templates', 
   }
 }
 
-export async function getObjectStream(prefix: 'uploads' | 'outputs' | 'templates', key: string) {
+export async function getObjectStream(prefix: 'uploads' | 'outputs' | 'templates' | 'sources', key: string) {
   const fullKey = `${PREFIXES[prefix]}${key}`;
   return minioClient.getObject(BUCKET, fullKey);
 }
@@ -144,9 +145,9 @@ export async function getPresignedUploadUrlLegacy(
   key: string,
   expirySeconds = 3600
 ): Promise<string> {
-  // Determine prefix from key or default to uploads
-  const url = await minioClient.presignedPutObject(BUCKET, key, expirySeconds);
-  return toPublicUrl(url);
+  // Use presignedClient which is configured with public endpoint for correct signatures
+  const url = await presignedClient.presignedPutObject(BUCKET, key, expirySeconds);
+  return url;
 }
 
 export async function getPresignedDownloadUrlLegacy(
@@ -154,8 +155,9 @@ export async function getPresignedDownloadUrlLegacy(
   key: string,
   expirySeconds = 3600
 ): Promise<string> {
-  const url = await minioClient.presignedGetObject(BUCKET, key, expirySeconds);
-  return toPublicUrl(url);
+  // Use presignedClient which is configured with public endpoint for correct signatures
+  const url = await presignedClient.presignedGetObject(BUCKET, key, expirySeconds);
+  return url;
 }
 
 /**
@@ -164,11 +166,45 @@ export async function getPresignedDownloadUrlLegacy(
 export async function uploadStream(
   prefix: 'uploads' | 'outputs' | 'templates',
   key: string,
-  stream: NodeJS.ReadableStream,
+  stream: import('stream').Readable | Buffer | string,
   size?: number,
   contentType?: string
 ): Promise<void> {
   const fullKey = `${PREFIXES[prefix]}${key}`;
   const metaData = contentType ? { 'Content-Type': contentType } : {};
   await minioClient.putObject(BUCKET, fullKey, stream, size, metaData);
+}
+
+/**
+ * List all objects with a given prefix.
+ * @param prefix - The prefix type ('uploads', 'outputs', 'templates')
+ * @param keyPrefix - Additional prefix within the bucket prefix
+ */
+export async function listObjects(prefix: 'uploads' | 'outputs' | 'templates', keyPrefix: string): Promise<string[]> {
+  const fullPrefix = `${PREFIXES[prefix]}${keyPrefix}`;
+
+  const objects: string[] = [];
+  const stream = minioClient.listObjects(BUCKET, fullPrefix, true);
+
+  return new Promise((resolve, reject) => {
+    stream.on('data', (obj) => {
+      if (obj.name) {
+        // Remove the bucket prefix to get relative path
+        objects.push(obj.name.replace(PREFIXES[prefix], ''));
+      }
+    });
+    stream.on('error', reject);
+    stream.on('end', () => resolve(objects));
+  });
+}
+
+/**
+ * Delete all objects under a given prefix (e.g. bundles/{compositionId}/ or sources/{compositionId}/).
+ */
+export async function deleteObjectsByPrefix(prefix: 'uploads' | 'outputs' | 'templates', keyPrefix: string): Promise<number> {
+  const keys = await listObjects(prefix, keyPrefix);
+  for (const key of keys) {
+    await deleteObject(prefix, key);
+  }
+  return keys.length;
 }

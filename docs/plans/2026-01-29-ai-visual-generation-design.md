@@ -8,7 +8,7 @@
 
 ## Overview
 
-Add AI-powered visual generation to Reelify. Users upload a talking-head video, the system transcribes it, then Claude Code analyzes the transcript and generates contextual Remotion animations that overlay on the video.
+Add AI-powered visual generation to Viona. Users upload a talking-head video, the system transcribes it, then Claude Code analyzes the transcript and generates contextual Remotion animations that overlay on the video.
 
 **Core flow:**
 ```
@@ -76,7 +76,7 @@ Upload → Transcribe → Claude Code generates visuals → Bundle → Preview i
 │                                                                     │
 │ visuals:                                                            │
 │   id               -> unique visual ID                              │
-│   projectId        -> links to Clipify project                      │
+│   projectId        -> links to Viona project                      │
 │   compositionId    -> "proj_abc123"                                 │
 │   bundleUrl        -> "/bundles/<projectId>/index.js"               │
 │   durationFrames   -> 300                                           │
@@ -123,7 +123,7 @@ getTranscript(projectId: string): Promise<{
     words: Array<{ text: string; startMs: number; endMs: number }>
   }>
 }>
-// Fetches transcript from Clipify API/database
+// Fetches transcript from Viona API/database
 // Returns: timestamped transcript for Claude to analyze
 ```
 
@@ -510,7 +510,7 @@ C:\Users\armaa\test\
 │       └── components/                 # Reusable parts
 ```
 
-### Clipify Changes
+### Viona Changes
 
 ```
 C:\Users\armaa\Documents\cllipify\

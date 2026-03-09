@@ -3,6 +3,28 @@ import { ItemRect, RenderItemState } from './types';
 import { TimelineItem, VisualItemData } from '../../../store/types';
 import { roundRect } from './canvasUtils';
 
+// Color scheme per displayMode
+const DISPLAY_MODE_COLORS: Record<
+  'default' | 'fullscreen' | 'overlay',
+  { gradStart: string; gradEnd: string; accent: string }
+> = {
+  default: {
+    gradStart: 'rgba(59, 130, 246, 0.4)',
+    gradEnd: 'rgba(96, 165, 250, 0.25)',
+    accent: '#3b82f6',
+  },
+  fullscreen: {
+    gradStart: 'rgba(139, 92, 246, 0.4)',
+    gradEnd: 'rgba(168, 85, 247, 0.25)',
+    accent: '#8b5cf6',
+  },
+  overlay: {
+    gradStart: 'rgba(249, 115, 22, 0.4)',
+    gradEnd: 'rgba(251, 146, 60, 0.25)',
+    accent: '#f97316',
+  },
+};
+
 export class VisualRenderer extends BaseRenderer {
   draw(
     ctx: CanvasRenderingContext2D,
@@ -16,15 +38,19 @@ export class VisualRenderer extends BaseRenderer {
     const data = item.data as VisualItemData;
     const { x, y, width, height } = rect;
 
+    // Resolve displayMode, defaulting to 'default' for backwards compatibility
+    const displayMode = ((data.displayMode as string) === 'pip' ? 'default' : data.displayMode) || 'default';
+    const colors = DISPLAY_MODE_COLORS[displayMode];
+
     // Clip to rounded rect
     ctx.save();
     roundRect(ctx, x + 1, y + 1, width - 2, height - 2, 5);
     ctx.clip();
 
-    // Purple gradient background for visuals
+    // Color-coded gradient background based on displayMode
     const grad = ctx.createLinearGradient(x, y, x + width, y + height);
-    grad.addColorStop(0, 'rgba(139, 92, 246, 0.4)'); // Purple-500
-    grad.addColorStop(1, 'rgba(168, 85, 247, 0.25)'); // Purple-400
+    grad.addColorStop(0, colors.gradStart);
+    grad.addColorStop(1, colors.gradEnd);
     ctx.fillStyle = grad;
     ctx.fillRect(x, y, width, height);
 
@@ -47,19 +73,31 @@ export class VisualRenderer extends BaseRenderer {
 
     ctx.restore();
 
-    // Purple accent line on top edge
-    ctx.fillStyle = '#8b5cf6';
+    // Color-coded accent line on top edge (2px)
+    ctx.fillStyle = colors.accent;
     roundRect(ctx, x, y, width, 2, 0);
     ctx.fill();
 
-    // Label showing visual type/description
+    // Label showing visual type/description with mode prefix
     if (width > 80) {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
       ctx.font = 'bold 10px system-ui, sans-serif';
       ctx.textBaseline = 'middle';
-      const label = data.type || 'Visual';
+      const typeLabel = data.type || 'Visual';
+      let label: string;
+      switch (displayMode) {
+        case 'fullscreen':
+          label = `[FULLSCREEN] ${typeLabel}`;
+          break;
+        case 'overlay':
+          label = `[OVERLAY] ${typeLabel}`;
+          break;
+        default:
+          label = typeLabel;
+          break;
+      }
       const maxLabelWidth = width - 16;
-      ctx.fillText(label.substring(0, 20), x + 8, y + height / 2, maxLabelWidth);
+      ctx.fillText(label.substring(0, 30), x + 8, y + height / 2, maxLabelWidth);
     }
   }
 }

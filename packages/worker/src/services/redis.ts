@@ -1,6 +1,8 @@
 import Redis from 'ioredis';
+import { eq } from 'drizzle-orm';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
+import { db, jobs } from '../db/index.js';
 
 export const redis = new Redis(config.redis.url);
 const subscriber = new Redis(config.redis.url);
@@ -41,15 +43,53 @@ subscriber.on('message', (channel, message) => {
   }
 });
 
+// Cache jobId → projectId so we don't need a DB query per progress event.
+// A job's projectId never changes, so this is safe to cache indefinitely.
+const jobProjectIdCache = new Map<string, string>();
+
+/**
+ * Register a job's projectId in the cache so publishJobProgress can include it
+ * in Redis payloads without a DB lookup. Call this once at the start of each processor.
+ */
+export function setJobProjectId(jobId: string, projectId: string): void {
+  jobProjectIdCache.set(jobId, projectId);
+}
+
+/**
+ * Clear a job's cached projectId (call on job completion/failure).
+ */
+export function clearJobProjectId(jobId: string): void {
+  jobProjectIdCache.delete(jobId);
+}
+
 export async function publishJobProgress(
   jobId: string,
   progress: number,
   message?: string,
   extras?: Record<string, unknown>,
 ) {
+  // Update progress in DB so frontend polling can see it
+  const meta = extras?.meta as Record<string, unknown> | undefined;
+  try {
+    await db.update(jobs)
+      .set({
+        progress,
+        ...(message ? { progressMessage: message } : {}),
+        ...(meta ? { progressMeta: meta } : {}),
+      })
+      .where(eq(jobs.id, jobId));
+  } catch (err) {
+    logger.warn({ jobId, progress, err }, 'Failed to update job progress in DB');
+  }
+
+  // Include projectId so the WebSocket handler can match by project
+  // (not just by subscribed jobId). This makes progress delivery reliable
+  // even when WebSocket connections reconnect and lose their subscriptions.
+  const projectId = jobProjectIdCache.get(jobId);
+
   await redis.publish(
     `job:${jobId}:progress`,
-    JSON.stringify({ jobId, progress, message, ...extras })
+    JSON.stringify({ jobId, projectId, progress, message, ...extras })
   );
 }
 
@@ -58,6 +98,7 @@ export async function publishJobComplete(
   projectId: string,
   extras?: Record<string, unknown>,
 ) {
+  clearJobProjectId(jobId);
   await redis.publish(
     `job:${jobId}:complete`,
     JSON.stringify({ jobId, projectId, ...extras })
@@ -69,6 +110,7 @@ export async function publishJobError(
   error: string,
   extras?: Record<string, unknown>,
 ) {
+  clearJobProjectId(jobId);
   await redis.publish(
     `job:${jobId}:error`,
     JSON.stringify({ jobId, error, ...extras })

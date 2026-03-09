@@ -6,13 +6,17 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Subtitles, MousePointerClick, Scissors } from 'lucide-react';
 import {
   useCurrentTimeMs,
   useIsPlaying,
   useDuration,
   useEditorActions,
+  useShowCaptions,
+  useInspectModeEnabled,
+  useSplitMode,
 } from '../store/use-editor-store';
+import { sharedPlayerRef } from '../player/player-ref';
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -26,7 +30,10 @@ export function PlaybackBar() {
   const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const duration = useDuration();
-  const { togglePlayback, seek } = useEditorActions();
+  const { togglePlayback, seek, setShowCaptions, setInspectModeEnabled, pause, splitAllAtPlayhead } = useEditorActions();
+  const showCaptions = useShowCaptions();
+  const inspectModeEnabled = useInspectModeEnabled();
+  const splitMode = useSplitMode();
   const scrubberRef = useRef<HTMLDivElement>(null);
 
   const progress = duration > 0 ? (currentTimeMs / duration) * 100 : 0;
@@ -61,64 +68,125 @@ export function PlaybackBar() {
   };
 
   return (
-    <div className="h-10 flex items-center gap-3 px-4 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
+    <div className="h-12 flex items-center justify-center gap-4 px-6 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
+      {/* Time display - left */}
+      <span className="text-sm font-mono text-[var(--editor-text-secondary)] w-20 text-right tabular-nums" style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}>
+        {formatTime(currentTimeMs)}
+      </span>
+
+      {/* Scrubber - increased hit area */}
+      <div
+        ref={scrubberRef}
+        onClick={handleScrubberClick}
+        onMouseMove={handleScrubberDrag}
+        className="flex-1 max-w-lg h-6 flex items-center cursor-pointer group"
+      >
+        <div className="w-full h-1.5 bg-[var(--editor-border-subtle)] rounded-full relative">
+          <div
+            className="h-full bg-[var(--editor-accent)] rounded-full relative transition-all"
+            style={{ width: `${progress}%` }}
+          >
+            {/* Scrubber handle */}
+            <div
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2
+                         w-3.5 h-3.5 bg-white border-2 border-[var(--editor-accent)] rounded-full
+                         shadow-md transition-transform group-hover:scale-125"
+              style={{ boxShadow: 'var(--editor-shadow-sm), 0 0 0 2px var(--editor-accent-soft)' }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Time display - right */}
+      <span className="text-sm font-mono text-[var(--editor-text-muted)] w-20 tabular-nums" style={{ fontVariantNumeric: 'tabular-nums lining-nums' }}>
+        {formatTime(duration)}
+      </span>
+
       {/* Play controls */}
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-2 ml-4">
         <button
           onClick={handleSkipBack}
-          className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
+          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all"
           aria-label="Skip to start"
         >
-          <SkipBack className="w-3.5 h-3.5 text-[var(--editor-text-secondary)]" />
+          <SkipBack className="w-4 h-4 text-[var(--editor-text-secondary)]" />
         </button>
 
         <button
-          onClick={togglePlayback}
-          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+          onClickCapture={(e) => {
+            const player = sharedPlayerRef.current;
+            if (player) {
+              if (isPlaying) {
+                player.pause();
+              } else {
+                player.play(e);
+              }
+            }
+            togglePlayback();
+          }}
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-[var(--editor-accent)] text-white
+                     hover:bg-[var(--editor-accent-hover)] active:scale-95 transition-all shadow-sm"
           aria-label={isPlaying ? 'Pause' : 'Play'}
         >
           {isPlaying ? (
-            <Pause className="w-4 h-4 text-[var(--editor-text-primary)]" />
+            <Pause className="w-4.5 h-4.5" />
           ) : (
-            <Play className="w-4 h-4 text-[var(--editor-text-primary)]" />
+            <Play className="w-4.5 h-4.5 ml-0.5" />
           )}
         </button>
 
         <button
           onClick={handleSkipForward}
-          className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
+          className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all"
           aria-label="Skip to end"
         >
-          <SkipForward className="w-3.5 h-3.5 text-[var(--editor-text-secondary)]" />
+          <SkipForward className="w-4 h-4 text-[var(--editor-text-secondary)]" />
         </button>
-      </div>
 
-      {/* Time display */}
-      <div className="flex items-center gap-1.5 text-xs font-mono">
-        <span className="text-[var(--editor-text-primary)]">{formatTime(currentTimeMs)}</span>
-        <span className="text-[var(--editor-text-muted)]">/</span>
-        <span className="text-[var(--editor-text-muted)]">{formatTime(duration)}</span>
-      </div>
+        <div className="w-px h-5 bg-[var(--editor-border-subtle)] mx-1" />
 
-      {/* Scrubber */}
-      <div
-        ref={scrubberRef}
-        onClick={handleScrubberClick}
-        onMouseMove={handleScrubberDrag}
-        className="flex-1 h-1.5 bg-[var(--editor-bg-hover)] rounded-full cursor-pointer group"
-      >
-        <div
-          className="h-full bg-[var(--editor-accent)] rounded-full relative transition-all"
-          style={{ width: `${progress}%` }}
+        <button
+          onClick={() => splitAllAtPlayhead()}
+          className={`p-2 rounded-md active:scale-[0.97] transition-all ${
+            splitMode
+              ? 'text-[var(--editor-accent)] bg-[var(--editor-accent-muted)]'
+              : 'text-[var(--editor-text-muted)] hover:bg-[var(--editor-bg-hover)]'
+          }`}
+          aria-label="Split at Playhead (S)"
+          title="Split at Playhead (S)"
         >
-          {/* Scrubber handle */}
-          <div
-            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2
-                       w-3 h-3 bg-[var(--editor-accent)] rounded-full
-                       opacity-0 group-hover:opacity-100 transition-opacity
-                       shadow-md"
-          />
-        </div>
+          <Scissors className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => setShowCaptions(!showCaptions)}
+          className={`p-2 rounded-md active:scale-[0.97] transition-all ${
+            showCaptions
+              ? 'text-[var(--editor-accent)] bg-[var(--editor-accent-muted)]'
+              : 'text-[var(--editor-text-muted)] hover:bg-[var(--editor-bg-hover)]'
+          }`}
+          aria-label={showCaptions ? 'Hide captions' : 'Show captions'}
+          title={showCaptions ? 'Hide captions' : 'Show captions'}
+        >
+          <Subtitles className="w-4 h-4" />
+        </button>
+
+        <button
+          onClick={() => {
+            const next = !inspectModeEnabled;
+            setInspectModeEnabled(next);
+            if (next && isPlaying) pause();
+          }}
+          className={`p-2 rounded-md active:scale-[0.97] transition-all ${
+            inspectModeEnabled
+              ? 'text-[var(--editor-accent)] bg-[var(--editor-accent-muted)]'
+              : 'text-[var(--editor-text-muted)] hover:bg-[var(--editor-bg-hover)]'
+          }`}
+          aria-label={inspectModeEnabled ? 'Exit inspect mode' : 'Inspect elements (I)'}
+          title={inspectModeEnabled ? 'Exit inspect mode' : 'Inspect elements (I)'}
+        >
+          <MousePointerClick className="w-4 h-4" />
+        </button>
       </div>
     </div>
   );

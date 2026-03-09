@@ -1,70 +1,34 @@
 import { Worker } from 'bullmq';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { homedir } from 'os';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
 import { processRenderJob, RenderJobData } from './processors/render.js';
-import { processEnhanceAudioJob, EnhanceAudioJobData } from './processors/enhance-audio.js';
+
 import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
+import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals.js';
+import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation.js';
+import { processPreloadProjectJob, PreloadProjectJobData } from './processors/preload-project.js';
+import { processPlanVisualsJob, PlanVisualsJobData } from './processors/plan-visuals.js';
+import { processHeadTrackingJob, HeadTrackingJobData } from './processors/head-tracking.js';
+import { processGenerateReframeJob } from './processors/generate-reframe.js';
+import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from './processors/generate-caption-styles.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
+import { redisConnection } from './utils/redis.js';
+import { eq, or, and, lt } from 'drizzle-orm';
+import { db, jobs } from './db/index.js';
+import { publishJobError } from './services/redis.js';
 
-/**
- * Create Claude credentials file from environment variables.
- * The Claude CLI reads credentials from ~/.claude/.credentials.json
- */
-function setupClaudeCredentials(): void {
-  const accessToken = process.env.CLAUDE_OAUTH_ACCESS_TOKEN;
-  if (!accessToken) {
-    logger.info('No CLAUDE_OAUTH_ACCESS_TOKEN set, skipping credentials setup');
-    return;
-  }
-
-  const claudeDir = join(homedir(), '.claude');
-  const credentialsPath = join(claudeDir, '.credentials.json');
-
-  // Create .claude directory if needed
-  if (!existsSync(claudeDir)) {
-    mkdirSync(claudeDir, { recursive: true });
-  }
-
-  // Build credentials object
-  const credentials = {
-    claudeAiOauth: {
-      accessToken,
-      refreshToken: process.env.CLAUDE_OAUTH_REFRESH_TOKEN || null,
-      expiresAt: process.env.CLAUDE_OAUTH_EXPIRES_AT
-        ? parseInt(process.env.CLAUDE_OAUTH_EXPIRES_AT, 10)
-        : null,
-      scopes: ['user:inference', 'user:profile'],
-      subscriptionType: process.env.CLAUDE_SUBSCRIPTION_TYPE || 'max',
-    },
-  };
-
-  writeFileSync(credentialsPath, JSON.stringify(credentials, null, 2));
-  logger.info({ credentialsPath }, 'Claude credentials file created from environment variables');
-}
-
-// Parse Redis URL for BullMQ connection
-function parseRedisUrl(url: string) {
-  const parsed = new URL(url);
-  return {
-    host: parsed.hostname,
-    port: parseInt(parsed.port || '6379', 10),
-    password: parsed.password || undefined,
-  };
-}
-
-const connection = parseRedisUrl(config.redis.url);
+const connection = redisConnection;
 
 async function main() {
   const workerId = getWorkerId();
-  logger.info({ workerId }, 'Starting Reelify worker...');
+  logger.info({ workerId }, 'Starting Viona worker...');
 
-  // Setup Claude credentials from environment variables (for Railway deployment)
-  setupClaudeCredentials();
+  // Auth: Claude Agent SDK reads CLAUDE_CODE_OAUTH_TOKEN from env (long-lived token from `claude setup-token`)
+  if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    logger.warn('CLAUDE_CODE_OAUTH_TOKEN not set — visual generation will not work in production. Run `claude setup-token` to generate one.');
+  }
 
   // Ensure remotion template is available (downloads from S3 in prod)
   logger.info({ workerId }, 'Ensuring remotion template is available...');
@@ -92,6 +56,31 @@ async function main() {
     logger.info('Visual generation environment validated');
   }
 
+  // Sweep orphaned jobs — if the worker crashed, DB jobs may still be 'processing'
+  // or 'pending'. Mark them as failed so the frontend doesn't show a stuck progress bar.
+  // Only sweep jobs older than 2 minutes to avoid marking freshly-queued jobs that
+  // BullMQ hasn't picked up yet.
+  try {
+    const cutoff = new Date(Date.now() - 2 * 60 * 1000);
+    const orphaned = await db.update(jobs)
+      .set({ status: 'failed', error: 'Worker restarted — job was interrupted. You can retry.' })
+      .where(and(
+        or(eq(jobs.status, 'processing'), eq(jobs.status, 'pending')),
+        lt(jobs.createdAt, cutoff),
+      ))
+      .returning({ id: jobs.id, projectId: jobs.projectId });
+
+    if (orphaned.length > 0) {
+      logger.info({ count: orphaned.length, jobIds: orphaned.map(j => j.id) }, 'Marked orphaned jobs as failed on startup');
+      // Notify any listening frontends
+      for (const j of orphaned) {
+        await publishJobError(j.id, 'Worker restarted — job was interrupted. You can retry.');
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, 'Failed to sweep orphaned jobs on startup (non-fatal)');
+  }
+
   // Transcribe worker
   const transcribeWorker = new Worker<TranscribeJobData>(
     'transcribe',
@@ -102,6 +91,9 @@ async function main() {
     {
       connection,
       concurrency: 1, // Process one transcription at a time (CPU/GPU intensive)
+      lockDuration: 10 * 60 * 1000, // 10 minutes — large-v2 on CPU can take a while
+      stalledInterval: 5 * 60 * 1000, // Check for stalls every 5 minutes
+      maxStalledCount: 2,
     }
   );
 
@@ -113,7 +105,8 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Transcribe job failed');
   });
 
-  // Render worker
+  // Render worker — lockDuration must be long enough for Remotion SSR renders
+  // (can take 2+ minutes). Default 30s causes BullMQ to declare job as stalled.
   const renderWorker = new Worker<RenderJobData>(
     'render',
     async (job) => {
@@ -122,7 +115,9 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1, // Process one render at a time (CPU/GPU intensive)
+      concurrency: 2,
+      lockDuration: 10 * 60 * 1000, // 10 minutes — renders can take a while
+      stalledInterval: 5 * 60 * 1000, // Check for stalls every 5 minutes
     }
   );
 
@@ -134,27 +129,6 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Render job failed');
   });
 
-  // Enhance audio worker
-  const enhanceAudioWorker = new Worker<EnhanceAudioJobData>(
-    'enhance-audio',
-    async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing enhance-audio job');
-      await processEnhanceAudioJob(job);
-    },
-    {
-      connection,
-      concurrency: 1,
-    }
-  );
-
-  enhanceAudioWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Enhance-audio job completed');
-  });
-
-  enhanceAudioWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err }, 'Enhance-audio job failed');
-  });
-
   // Generate visuals worker
   const generateVisualsWorker = new Worker<GenerateVisualsJobData>(
     'generate-visuals',
@@ -164,7 +138,10 @@ async function main() {
     },
     {
       connection,
-      concurrency: 1, // One at a time (AI + render intensive)
+      concurrency: 3,
+      lockDuration: 90 * 60 * 1000,   // 90 min — matches subprocess timeout
+      stalledInterval: 10 * 60 * 1000, // Check every 10 min (generous buffer for lock extender)
+      maxStalledCount: 0,              // Never re-queue stalled jobs
     }
   );
 
@@ -172,24 +149,209 @@ async function main() {
     logger.info({ jobId: job.id }, 'Generate-visuals job completed');
   });
 
-  generateVisualsWorker.on('failed', (job, err) => {
+  generateVisualsWorker.on('failed', async (job, err) => {
     logger.error({ jobId: job?.id, err }, 'Generate-visuals job failed');
+    // Ensure DB is updated even if processor catch block didn't run (e.g. OOM kill)
+    if (job?.data?.jobId) {
+      try {
+        await db.update(jobs)
+          .set({ status: 'failed', error: err?.message || 'Generation failed' })
+          .where(eq(jobs.id, job.data.jobId));
+        await publishJobError(job.data.jobId, err?.message || 'Generation failed');
+      } catch { /* best-effort */ }
+    }
+  });
+
+  // Plan visuals worker - Director phase only (creates scene plan for approval)
+  const planVisualsWorker = new Worker<PlanVisualsJobData>(
+    'plan-visuals',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing plan-visuals job');
+      await processPlanVisualsJob(job);
+    },
+    {
+      connection,
+      concurrency: 1,
+      lockDuration: 15 * 60 * 1000,  // 15 min — Director runs 5-12 min
+      stalledInterval: 10 * 60 * 1000,
+      maxStalledCount: 0,
+    }
+  );
+
+  planVisualsWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Plan-visuals job completed');
+  });
+
+  planVisualsWorker.on('failed', async (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Plan-visuals job failed');
+    if (job?.data?.jobId) {
+      try {
+        await db.update(jobs)
+          .set({ status: 'failed', error: err?.message || 'Planning failed' })
+          .where(eq(jobs.id, job.data.jobId));
+        await publishJobError(job.data.jobId, err?.message || 'Planning failed');
+      } catch { /* best-effort */ }
+    }
+  });
+
+  // Edit visuals worker - for continuing to edit existing compositions
+  const editVisualsWorker = new Worker<EditVisualsJobData>(
+    'edit-visuals',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId, prompt: job.data.prompt.slice(0, 50) }, 'Processing edit-visuals job');
+      await processEditVisualsJob(job);
+    },
+    {
+      connection,
+      concurrency: 1,
+      lockDuration: 20 * 60 * 1000,  // 20 min — edit jobs run 5-15 min
+      stalledInterval: 10 * 60 * 1000,
+      maxStalledCount: 0,
+    }
+  );
+
+  editVisualsWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Edit-visuals job completed');
+  });
+
+  editVisualsWorker.on('failed', async (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Edit-visuals job failed');
+    if (job?.data?.jobId) {
+      try {
+        await db.update(jobs)
+          .set({ status: 'failed', error: err?.message || 'Edit failed' })
+          .where(eq(jobs.id, job.data.jobId));
+        await publishJobError(job.data.jobId, err?.message || 'Edit failed');
+      } catch { /* best-effort */ }
+    }
+  });
+
+  // SVG Animation worker - converts images to animated SVG compositions
+  const svgAnimationWorker = new Worker<SvgAnimationJobData>(
+    'svg-animation',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing svg-animation job');
+      await processSvgAnimationJob(job);
+    },
+    {
+      connection,
+      concurrency: 1, // One at a time (AI + render intensive)
+    }
+  );
+
+  svgAnimationWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'SVG-animation job completed');
+  });
+
+  svgAnimationWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'SVG-animation job failed');
+  });
+
+  // Preload project worker - warms up workspace when editor opens
+  const preloadProjectWorker = new Worker<PreloadProjectJobData>(
+    'preload-project',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing preload-project job');
+      await processPreloadProjectJob(job);
+    },
+    {
+      connection,
+      concurrency: 2, // Can preload multiple projects in parallel
+    }
+  );
+
+  preloadProjectWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Preload-project job completed');
+  });
+
+  preloadProjectWorker.on('failed', (job, err) => {
+    // Preload failures are non-critical
+    logger.warn({ jobId: job?.id, err }, 'Preload-project job failed (non-critical)');
+  });
+
+  // Head tracking worker — ML speaker detection
+  const headTrackingWorker = new Worker<HeadTrackingJobData>(
+    'head-tracking',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing head-tracking job');
+      await processHeadTrackingJob(job);
+    },
+    {
+      connection,
+      concurrency: 1,
+    }
+  );
+
+  headTrackingWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Head-tracking job completed');
+  });
+
+  headTrackingWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Head-tracking job failed');
+  });
+
+  // Generate reframe worker — auto-queued by head-tracking completion
+  const generateReframeWorker = new Worker(
+    'generate-reframe',
+    async (job) => {
+      logger.info({ jobId: job.id }, 'Processing generate-reframe job');
+      await processGenerateReframeJob(job);
+    },
+    {
+      connection,
+      concurrency: 1,
+    }
+  );
+
+  generateReframeWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Generate-reframe job completed');
+  });
+
+  generateReframeWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Generate-reframe job failed');
+  });
+
+  // Generate caption styles worker — AI-powered per-caption styling
+  const generateCaptionStylesWorker = new Worker<GenerateCaptionStylesJobData>(
+    'generate-caption-styles',
+    async (job) => {
+      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing generate-caption-styles job');
+      await processGenerateCaptionStylesJob(job);
+    },
+    {
+      connection,
+      concurrency: 2,
+    }
+  );
+
+  generateCaptionStylesWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Generate-caption-styles job completed');
+  });
+
+  generateCaptionStylesWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Generate-caption-styles job failed');
   });
 
   logger.info('Worker started, waiting for jobs...');
 
-  // Graceful shutdown
-  const shutdown = async () => {
-    logger.info('Shutting down worker...');
-    await transcribeWorker.close();
-    await renderWorker.close();
-    await enhanceAudioWorker.close();
-    await generateVisualsWorker.close();
+  // Graceful shutdown — close all workers in parallel, waiting for in-progress
+  // jobs to finish. This prevents stalled jobs on deploys/restarts.
+  const allWorkers = [
+    transcribeWorker, renderWorker,
+    generateVisualsWorker, planVisualsWorker, editVisualsWorker,
+    svgAnimationWorker, preloadProjectWorker,
+    headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
+  ];
+
+  const shutdown = async (signal: string) => {
+    logger.info({ signal }, 'Received shutdown signal, closing workers...');
+    await Promise.allSettled(allWorkers.map(w => w.close()));
+    logger.info('All workers closed');
     process.exit(0);
   };
 
-  process.on('SIGTERM', shutdown);
-  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main().catch((err) => {

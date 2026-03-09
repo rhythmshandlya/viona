@@ -75,7 +75,7 @@ export async function initializeWorkspace(): Promise<void> {
 
   // Always sync .claude/ directory from template (skills, CLAUDE.md)
   // This ensures skills are always up-to-date even if workspace already exists
-  syncClaudeDirectory(templatePath, workspacePath);
+  await syncClaudeDirectory(templatePath, workspacePath);
 
   // Install dependencies if node_modules doesn't exist
   if (!existsSync(nodeModulesPath)) {
@@ -110,7 +110,7 @@ export async function initializeWorkspace(): Promise<void> {
  * workspace-specific files like settings.local.json (which contains permissions).
  * CLAUDE.md is also copied to the workspace root for better visibility.
  */
-function syncClaudeDirectory(templatePath: string, workspacePath: string): void {
+async function syncClaudeDirectory(templatePath: string, workspacePath: string): Promise<void> {
   const templateClaudePath = join(templatePath, '.claude');
   const workspaceClaudePath = join(workspacePath, '.claude');
 
@@ -142,8 +142,25 @@ function syncClaudeDirectory(templatePath: string, workspacePath: string): void 
   const workspaceSkillsPath = join(workspaceClaudePath, 'skills');
   if (existsSync(templateSkillsPath)) {
     // Remove existing skills directory to ensure clean sync
+    // Use retry logic to handle filesystem race conditions
     if (existsSync(workspaceSkillsPath)) {
-      rmSync(workspaceSkillsPath, { recursive: true, force: true });
+      let attempts = 0;
+      const maxAttempts = 3;
+      while (attempts < maxAttempts) {
+        try {
+          rmSync(workspaceSkillsPath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+          break;
+        } catch (err) {
+          attempts++;
+          if (attempts >= maxAttempts) {
+            console.warn(`[Workspace] Could not remove skills directory after ${maxAttempts} attempts, continuing anyway`);
+            // If we can't remove it, try to proceed anyway - copyDirSync will overwrite files
+            break;
+          }
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
     }
     copyDirSync(templateSkillsPath, workspaceSkillsPath);
     console.log('[Workspace] Synced skills/ from template');

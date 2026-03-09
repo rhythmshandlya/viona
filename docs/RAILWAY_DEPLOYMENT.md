@@ -1,6 +1,6 @@
 # Railway Deployment Guide
 
-This guide covers deploying Cllipify to Railway with 3 services (Web, API, Worker) and supporting infrastructure.
+This guide covers deploying Viona to Railway with 3 services (Web, API, Worker) and supporting infrastructure.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ This guide covers deploying Cllipify to Railway with 3 services (Web, API, Worke
 
 1. Go to Railway Dashboard → New Project
 2. Select "Empty Project"
-3. Name it (e.g., "cllipify")
+3. Name it (e.g., "viona")
 
 ## Step 2: Add Infrastructure Services
 
@@ -119,7 +119,7 @@ pnpm run upload-template
 export DATABASE_URL=postgresql://...
 
 # Run migrations
-pnpm --filter @reelify/api db:migrate
+pnpm --filter @viona/api db:migrate
 ```
 
 ## Environment Variables Reference

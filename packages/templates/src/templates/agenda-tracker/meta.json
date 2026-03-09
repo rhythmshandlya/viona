@@ -1,0 +1,32 @@
+{
+  "slug": "agenda-tracker",
+  "name": "Agenda Tracker",
+  "description": "Video outline showing progress through agenda items",
+  "category": "corporate",
+  "tags": [
+    "agenda",
+    "chapters",
+    "index",
+    "meeting",
+    "milestones",
+    "navigation",
+    "outline",
+    "overview",
+    "presentation",
+    "progress",
+    "roadmap",
+    "schedule",
+    "sections",
+    "structure",
+    "studio-theme",
+    "table-of-contents",
+    "timeline",
+    "topics",
+    "tracker"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

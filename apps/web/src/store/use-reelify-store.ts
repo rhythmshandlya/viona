@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { api, Project } from "@/lib/api";
 import { projectToDesignComboFormat, designComboToProjectUpdates } from "@/lib/project-converter";
 
-interface ReelifyStore {
+interface VionaStore {
   // Project data
   project: Project | null;
   projectId: string | null;
@@ -32,7 +32,7 @@ interface ReelifyStore {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export const useReelifyStore = create<ReelifyStore>((set, get) => ({
+export const useVionaStore = create<VionaStore>((set, get) => ({
   // Initial state
   project: null,
   projectId: null,
@@ -50,7 +50,7 @@ export const useReelifyStore = create<ReelifyStore>((set, get) => ({
     try {
       // Load project from API
       const project = await api.getProject(projectId);
-      console.log('[ReelifyStore] Project loaded:', {
+      console.log('[VionaStore] Project loaded:', {
         id: project.id,
         status: project.status,
         itemCount: project.items?.length,

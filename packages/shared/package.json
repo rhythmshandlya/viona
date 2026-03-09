@@ -1,5 +1,5 @@
 {
-  "name": "@reelify/shared",
+  "name": "@viona/shared",
   "version": "0.1.0",
   "private": true,
   "main": "./dist/index.js",

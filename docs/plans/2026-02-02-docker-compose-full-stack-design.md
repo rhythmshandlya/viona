@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-Currently, running Clipify requires manual setup of multiple services:
+Currently, running Viona requires manual setup of multiple services:
 - Infrastructure (PostgreSQL, Redis, MinIO) via existing `docker-compose.yml`
 - Web app, API, and worker running natively with `pnpm dev`
 - Python environment with WhisperX for transcription
@@ -375,7 +375,7 @@ RUN pnpm install --frozen-lockfile
 # Stage 2: Build
 FROM base AS builder
 COPY . .
-RUN pnpm --filter @reelify/api build
+RUN pnpm --filter @viona/api build
 
 # Stage 3: Production (minimal)
 FROM node:20-alpine AS runner

@@ -1,0 +1,32 @@
+{
+  "slug": "emoji-burst",
+  "name": "Emoji Burst",
+  "description": "Floating emoji reactions rising from bottom of screen",
+  "category": "entertainment",
+  "tags": [
+    "animation",
+    "applause",
+    "burst",
+    "celebration",
+    "chat",
+    "confetti",
+    "emoji",
+    "engagement",
+    "expression",
+    "festive",
+    "fun",
+    "happiness",
+    "live",
+    "overlay",
+    "particles",
+    "positive",
+    "reaction",
+    "stream",
+    "studio-theme"
+  ],
+  "stylePreset": "friendlyTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

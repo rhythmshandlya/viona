@@ -1,0 +1,31 @@
+{
+  "slug": "end-screen",
+  "name": "End Screen",
+  "description": "YouTube-style end screen with video placeholders and subscribe button",
+  "category": "social",
+  "tags": [
+    "CTA",
+    "branding",
+    "channel",
+    "closing",
+    "end-screen",
+    "engagement",
+    "final-screen",
+    "next-video",
+    "outro",
+    "playlist",
+    "recommendation",
+    "retention",
+    "studio-theme",
+    "subscribe",
+    "thumbnails",
+    "watch-more",
+    "watch-next",
+    "youtube"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

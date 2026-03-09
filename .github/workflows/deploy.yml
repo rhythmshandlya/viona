@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.ACTION_DEPLOY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -37,7 +37,7 @@ jobs:
 
       - name: Run migrations
         run: |
-          railway link -p cllipify -s api -e production
+          railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s api -e production
           railway run pnpm --filter @reelify/api db:migrate
 
   deploy-landing:
@@ -45,7 +45,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.ACTION_DEPLOY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
 
       - name: Deploy Landing
         run: |
-          railway link -p cllipify -s landing -e production
+          railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s landing -e production
           railway up -d
         working-directory: ./apps/landing
 
@@ -65,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.ACTION_DEPLOY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,7 +75,8 @@ jobs:
 
       - name: Deploy Web
         run: |
-          railway link -p cllipify -s web -e production
+          cp apps/web/railway.toml railway.toml
+          railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s web -e production
           railway up -d
 
   deploy-api:
@@ -84,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.ACTION_DEPLOY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -94,7 +95,8 @@ jobs:
 
       - name: Deploy API
         run: |
-          railway link -p cllipify -s api -e production
+          cp packages/api/railway.toml railway.toml
+          railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s api -e production
           railway up -d
 
   deploy-worker:
@@ -103,7 +105,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     env:
-      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      RAILWAY_TOKEN: ${{ secrets.ACTION_DEPLOY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -113,5 +115,6 @@ jobs:
 
       - name: Deploy Worker
         run: |
-          railway link -p cllipify -s worker -e production
+          cp packages/worker/railway.toml railway.toml
+          railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s worker -e production
           railway up -d

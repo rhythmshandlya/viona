@@ -34,6 +34,7 @@ export interface RenderState {
   // Split tool state
   splitMode?: boolean;
   splitCursorTimeMs?: number;
+  splitHoveredItemId?: string | null;
 }
 
 export interface CanvasRendererOptions {
@@ -49,6 +50,7 @@ export interface CanvasRendererOptions {
     text: string;
     image: string;
     visual: string;
+    broll: string;
   };
   selectedBorderColor: string;
   playheadColor: string;
@@ -66,27 +68,29 @@ export interface CanvasRendererOptions {
 const DEFAULT_OPTIONS: CanvasRendererOptions = {
   trackHeaderWidth: 0, // No track headers in this version
   rulerHeight: 0, // Ruler is separate component
-  backgroundColor: '#18181b', // zinc-900
-  trackBackgroundColor: '#27272a', // zinc-800
-  trackBorderColor: '#3f3f46', // zinc-700
+  // Light theme colors
+  backgroundColor: '#FAFAFA', // warm light gray
+  trackBackgroundColor: '#FFFFFF', // white
+  trackBorderColor: '#E5E5E5', // light gray border
   itemColors: {
     video: '#3b82f6', // blue-500
     audio: '#22c55e', // green-500
-    caption: '#a855f7', // purple-500
-    text: '#f59e0b', // amber-500
+    caption: '#7C3AED', // violet (brand color)
+    text: '#A78BFA', // violet-400
     image: '#ec4899', // pink-500
-    visual: '#06b6d4', // cyan-500
+    visual: '#8b5cf6', // purple-500
+    broll: '#06b6d4', // cyan-500
   },
-  selectedBorderColor: '#ffffff',
-  playheadColor: '#ef4444', // red-500
-  selectionBoxColor: 'rgba(59, 130, 246, 0.3)', // blue with opacity
-  textColor: '#fafafa', // zinc-50
+  selectedBorderColor: '#7C3AED', // violet for selection
+  playheadColor: '#7C3AED', // violet playhead
+  selectionBoxColor: 'rgba(124, 58, 237, 0.15)', // violet with opacity
+  textColor: '#1A1A1A', // dark text
   // Phase 2: Snap and preview colors
   snapLineColor: '#22c55e', // green-500
-  snapLinePlayheadColor: '#ef4444', // red-500
+  snapLinePlayheadColor: '#7C3AED', // violet
   previewOpacity: 0.5,
   invalidPreviewColor: '#ef4444', // red-500
-  resizeHandleColor: '#ffffff',
+  resizeHandleColor: '#FFFFFF',
   resizeHandleSize: 6,
 };
 
@@ -191,6 +195,7 @@ export class CanvasRenderer {
     const { ctx, options } = this;
     const width = this.getWidth();
     const { viewport, tracks } = state;
+    const canvasHeight = this.getHeight();
 
     let y = -viewport.scrollY;
 
@@ -200,7 +205,7 @@ export class CanvasRenderer {
         continue;
       }
 
-      if (y > this.getHeight()) {
+      if (y > canvasHeight) {
         break;
       }
 
@@ -229,12 +234,7 @@ export class CanvasRenderer {
     const visibleEndMs = (viewport.scrollX + width) / viewport.zoom;
 
     // Build track position map
-    const trackYMap = new Map<string, number>();
-    let y = -viewport.scrollY;
-    for (const track of tracks) {
-      trackYMap.set(track.id, y);
-      y += track.height;
-    }
+    const trackYMap = this.buildTrackYMap(state);
 
     // Draw each visible item
     for (const itemId of itemIds) {
@@ -483,11 +483,26 @@ export class CanvasRenderer {
   }
 
   /**
-   * Draw split line indicator — vertical dashed red/orange line at cursor time position
+   * Build a track Y position map.
+   */
+  private buildTrackYMap(state: RenderState): Map<string, number> {
+    const { viewport, tracks } = state;
+    const trackYMap = new Map<string, number>();
+    let y = -viewport.scrollY;
+    for (const track of tracks) {
+      trackYMap.set(track.id, y);
+      y += track.height;
+    }
+    return trackYMap;
+  }
+
+  /**
+   * Draw split line indicator — vertical dashed violet line at cursor time position
+   * with item highlight overlay and time label pill.
    */
   private drawSplitLine(state: RenderState): void {
     const { ctx } = this;
-    const { viewport, splitCursorTimeMs } = state;
+    const { viewport, splitCursorTimeMs, splitHoveredItemId, items, tracks } = state;
     const height = this.getHeight();
 
     if (splitCursorTimeMs === undefined) return;
@@ -500,9 +515,37 @@ export class CanvasRenderer {
       return;
     }
 
-    // Draw vertical dashed line in red/orange
+    // Highlight the item under cursor with subtle violet overlay + border
+    if (splitHoveredItemId) {
+      const item = items[splitHoveredItemId];
+      if (item) {
+        const trackYMap = this.buildTrackYMap(state);
+        const trackY = trackYMap.get(item.trackId);
+        const track = tracks.find((t) => t.id === item.trackId);
+        if (trackY !== undefined && track) {
+          const ix = item.startMs * viewport.zoom - viewport.scrollX;
+          const iw = (item.endMs - item.startMs) * viewport.zoom;
+          const iy = trackY + 4;
+          const ih = track.height - 8;
+
+          ctx.save();
+          // Violet overlay
+          ctx.fillStyle = 'rgba(124, 58, 237, 0.10)';
+          this.roundRect(ix, iy, iw, ih, 4);
+          ctx.fill();
+          // Violet border
+          ctx.strokeStyle = 'rgba(124, 58, 237, 0.5)';
+          ctx.lineWidth = 1.5;
+          this.roundRect(ix, iy, iw, ih, 4);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    // Draw vertical dashed line
     ctx.save();
-    ctx.strokeStyle = '#f97316'; // orange-500
+    ctx.strokeStyle = '#7C3AED'; // violet-500
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 4]);
     ctx.beginPath();
@@ -510,6 +553,32 @@ export class CanvasRenderer {
     ctx.lineTo(x, height);
     ctx.stroke();
     ctx.setLineDash([]);
+
+    // Draw time label pill at the top of the split line
+    const totalSeconds = splitCursorTimeMs / 1000;
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = Math.floor(totalSeconds % 60);
+    const ms = Math.floor((splitCursorTimeMs % 1000) / 10);
+    const label = `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+
+    ctx.font = '10px ui-monospace, SFMono-Regular, monospace';
+    const textMetrics = ctx.measureText(label);
+    const pillW = textMetrics.width + 10;
+    const pillH = 18;
+    const pillX = x - pillW / 2;
+    const pillY = 4;
+
+    // Pill background
+    ctx.fillStyle = '#7C3AED';
+    this.roundRect(pillX, pillY, pillW, pillH, 4);
+    ctx.fill();
+
+    // Pill text
+    ctx.fillStyle = '#FFFFFF';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, pillY + pillH / 2);
+
     ctx.restore();
   }
 
@@ -574,12 +643,7 @@ export class CanvasRenderer {
     if (!dragPreviews) return;
 
     // Build track position map
-    const trackYMap = new Map<string, number>();
-    let y = -viewport.scrollY;
-    for (const track of tracks) {
-      trackYMap.set(track.id, y);
-      y += track.height;
-    }
+    const trackYMap = this.buildTrackYMap(state);
 
     ctx.save();
     ctx.globalAlpha = options.previewOpacity;
@@ -680,12 +744,7 @@ export class CanvasRenderer {
     if (!item) return;
 
     // Build track position map
-    const trackYMap = new Map<string, number>();
-    let y = -viewport.scrollY;
-    for (const track of tracks) {
-      trackYMap.set(track.id, y);
-      y += track.height;
-    }
+    const trackYMap = this.buildTrackYMap(state);
 
     const trackY = trackYMap.get(item.trackId);
     if (trackY === undefined) return;

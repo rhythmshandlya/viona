@@ -7,7 +7,7 @@
 // Timeline Item Types
 // ============================================
 
-export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual';
+export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll';
 
 export interface TimelineItem {
   id: string;
@@ -21,7 +21,7 @@ export interface TimelineItem {
     endMs: number;
   };
   // Type-specific data
-  data: VideoItemData | AudioItemData | CaptionItemData | TextItemData | ImageItemData | VisualItemData;
+  data: VideoItemData | AudioItemData | CaptionItemData | TextItemData | ImageItemData | VisualItemData | BrollItemData;
 }
 
 export interface VideoItemData {
@@ -52,13 +52,115 @@ export interface CaptionItemData {
   words: CaptionWord[];
   style: CaptionStyle;
   styleOverrides?: Partial<CaptionStyle>;
+  aiWordOverrides?: Record<number, WordStyleOverrides>;
 }
 
 export interface WordStyleOverrides {
   color?: string;
+  activeColor?: string;
   fontWeight?: number;
+  fontFamily?: string;
+  fontSize?: number;
   scale?: number;
+  letterSpacing?: number;
+  textTransform?: 'none' | 'uppercase' | 'lowercase';
   emphasisBg?: string;
+}
+
+// Stroke style for text outline
+export interface StrokeStyle {
+  width: number;     // 0-10px
+  color: string;     // hex color
+}
+
+// ============================================
+// Effects System (Phase 3)
+// ============================================
+
+// Individual shadow definition
+export interface ShadowEffect {
+  offsetX: number;    // -20 to +20 px
+  offsetY: number;    // -20 to +20 px
+  blur: number;       // 0 to 30 px
+  color: string;      // hex color
+  opacity: number;    // 0 to 1
+}
+
+// Glow effect (rendered as layered shadows)
+export interface GlowEffect {
+  enabled: boolean;
+  color: string;      // hex color
+  intensity: number;  // 0 to 1 (affects opacity)
+  size: number;       // 5 to 50 px (blur radius)
+}
+
+// Complete effects configuration
+export interface CaptionEffects {
+  // Primary shadow (most common use case)
+  shadow: ShadowEffect | null;
+
+  // Optional secondary shadow (for depth/glitch effects)
+  shadowSecondary: ShadowEffect | null;
+
+  // Glow effect (renders as multiple blurred shadows)
+  glow: GlowEffect | null;
+}
+
+export const DEFAULT_SHADOW: ShadowEffect = {
+  offsetX: 2,
+  offsetY: 2,
+  blur: 4,
+  color: '#000000',
+  opacity: 0.8,
+};
+
+export const DEFAULT_GLOW: GlowEffect = {
+  enabled: false,
+  color: '#00ffff',
+  intensity: 0.7,
+  size: 20,
+};
+
+export const DEFAULT_CAPTION_EFFECTS: CaptionEffects = {
+  shadow: DEFAULT_SHADOW,
+  shadowSecondary: null,
+  glow: null,
+};
+
+// Migration function for legacy textShadow string
+export function migrateTextShadow(legacy: string | undefined): CaptionEffects {
+  if (!legacy) {
+    return { shadow: null, shadowSecondary: null, glow: null };
+  }
+
+  // Parse "2px 2px 4px rgba(0, 0, 0, 0.8)" format
+  const match = legacy.match(
+    /(-?\d+)px\s+(-?\d+)px\s+(\d+)px\s+rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/
+  );
+
+  if (!match) {
+    // Fallback for other formats
+    return {
+      shadow: { ...DEFAULT_SHADOW },
+      shadowSecondary: null,
+      glow: null,
+    };
+  }
+
+  const [, x, y, blur, r, g, b, a] = match;
+  const color = `#${parseInt(r).toString(16).padStart(2, '0')}${parseInt(g).toString(16).padStart(2, '0')}${parseInt(b).toString(16).padStart(2, '0')}`;
+
+  return {
+    shadow: {
+      offsetX: parseInt(x),
+      offsetY: parseInt(y),
+      blur: parseInt(blur),
+      color,
+      opacity: a ? parseFloat(a) : 1,
+    },
+    shadowSecondary: null,
+    glow: null,
+  };
 }
 
 export interface CaptionWord {
@@ -70,18 +172,123 @@ export interface CaptionWord {
 
 export type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
 
+// Legacy position type (for backward compatibility)
+export type CaptionPositionLegacy = 'top' | 'center' | 'bottom';
+
+// V2/V3 Position System
+export interface CaptionPosition {
+  // Anchor point (where the caption "attaches")
+  anchor: 'top' | 'center' | 'bottom';
+
+  // Offset from anchor (percentage of canvas)
+  // X: -50 to +50 (0 = centered)
+  // Y: -50 to +50 (0 = at anchor)
+  offsetX: number;
+  offsetY: number;
+
+  // Rotation in degrees (-180 to +180)
+  rotation: number;
+
+  // Text alignment within caption box
+  textAlign: 'left' | 'center' | 'right';
+
+  // V3 additions (all optional — existing data works unchanged)
+  mode?: 'anchor' | 'free';  // undefined = 'anchor' (legacy)
+  x?: number;     // 0-100% of canvas (center of caption box)
+  y?: number;     // 0-100% of canvas (center of caption box)
+  width?: number;  // 20-100% of canvas (default 90)
+}
+
+// Safe zone definitions for different platforms
+export interface SafeZone {
+  top: number;      // % from top to avoid
+  bottom: number;   // % from bottom to avoid
+  left: number;     // % from left to avoid
+  right: number;    // % from right to avoid
+}
+
+export const PLATFORM_SAFE_ZONES: Record<string, SafeZone> = {
+  'tiktok': { top: 15, bottom: 25, left: 5, right: 5 },
+  'instagram-reels': { top: 12, bottom: 20, left: 5, right: 5 },
+  'youtube-shorts': { top: 10, bottom: 18, left: 5, right: 5 },
+  'universal': { top: 10, bottom: 15, left: 5, right: 5 },
+  'none': { top: 0, bottom: 0, left: 0, right: 0 },
+};
+
+export const DEFAULT_CAPTION_POSITION: CaptionPosition = {
+  anchor: 'bottom',
+  offsetX: 0,
+  offsetY: 0,
+  rotation: 0,
+  textAlign: 'center',
+};
+
+// Convert anchor-mode position to free x,y coordinates
+export function anchorToFreeCoords(pos: CaptionPosition): { x: number; y: number } {
+  let x = 50 + (pos.offsetX || 0);
+  let y: number;
+
+  switch (pos.anchor) {
+    case 'top':
+      y = 10 + (pos.offsetY || 0);
+      break;
+    case 'center':
+      y = 50 + (pos.offsetY || 0);
+      break;
+    case 'bottom':
+    default:
+      y = 85 + (pos.offsetY || 0);
+      break;
+  }
+
+  return {
+    x: Math.max(0, Math.min(100, x)),
+    y: Math.max(0, Math.min(100, y)),
+  };
+}
+
+// Migration function for legacy position format
+export function migratePosition(style: { position?: CaptionPosition | CaptionPositionLegacy; offsetY?: number; textAlign?: 'left' | 'center' | 'right' }): CaptionPosition {
+  // If already new format (object with anchor)
+  if (style.position && typeof style.position === 'object' && 'anchor' in style.position) {
+    return style.position;
+  }
+
+  // Migrate from old format
+  return {
+    anchor: (typeof style.position === 'string' ? style.position : 'bottom') as 'top' | 'center' | 'bottom',
+    offsetX: 0,
+    offsetY: style.offsetY || 0,
+    rotation: 0,
+    textAlign: style.textAlign || 'center',
+  };
+}
+
 // Legacy animation type kept for backward compat
 export type CaptionAnimationLegacy = 'none' | 'pop' | 'fade' | 'highlight';
 
 // V2 animation types
 export type AnimationType =
   | 'none'
+  // Viral
   | 'elastic-pop' | 'bounce-up' | 'shake' | 'color-wipe'
-  | '3d-flip' | 'punch'
-  | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
-  | 'underline-wipe';
+  | '3d-flip' | 'punch' | 'scale-bounce' | 'slide-up' | 'weight-shift' | 'float'
+  | 'rotate-bounce' | 'constant-wiggle' | 'slam-down' | 'shake-entry'
+  | 'bubble-pop' | 'wiggle'
+  // Cinematic
+  | 'fade' | 'fade-rise' | 'typewriter' | 'smooth-slide' | 'soft-scale'
+  | 'underline-wipe' | 'scan-line' | 'hand-draw' | 'underline-sweep'
+  // Ad / Premium
+  | 'apple-fade' | 'google-slide' | 'clean-scale' | 'letter-cascade' | 'smooth-reveal'
+  | 'slide-left'
+  // Motion (AutoAE-inspired)
+  | 'spotlight-reveal' | 'film-burn' | 'glitch' | 'spin-reveal'
+  | 'drop-slam' | 'wave' | 'blur-zoom' | 'chromatic-split'
+  | 'elastic-horizontal' | 'speed-blur' | 'particle-explode' | 'gather'
+  | 'blob-morph' | 'newspaper-rotate' | 'chrome-reflect' | 'brutal-slam'
+  | 'neon-buzz' | 'flicker';
 
-export type EasingType = 'linear' | 'ease-out' | 'spring' | 'elastic' | 'bounce';
+export type EasingType = 'linear' | 'ease-out' | 'ease-in-out' | 'spring' | 'elastic' | 'bounce';
 
 export interface AnimationConfig {
   in: AnimationType;
@@ -104,6 +311,8 @@ export interface CaptionStyle {
   fontWeight: number;
   letterSpacing?: number;
   textTransform?: 'none' | 'uppercase' | 'lowercase';
+  opacity?: number;       // 0-1, default 1
+  lineHeight?: number;    // 1.0-2.5, default 1.4
 
   // Colors
   color: string;
@@ -112,17 +321,17 @@ export interface CaptionStyle {
   activeBackgroundColor: string;
 
   // Effects
-  textStroke?: string;
-  textShadow?: string;
+  stroke?: StrokeStyle | null;  // Text outline (replaces textStroke)
+  textStroke?: string;          // @deprecated - use stroke instead
+  textShadow?: string;          // @deprecated - use effects instead
+  effects?: CaptionEffects;     // V3: Full effects system
 
   // Background box
   backgroundPadding?: { x: number; y: number };
   backgroundRadius?: number;
 
-  // Position
-  position: 'top' | 'center' | 'bottom';
-  offsetY: number;
-  textAlign: 'left' | 'center' | 'right';
+  // Position - V2: CaptionPosition object, V1: string (migrated at load)
+  position: CaptionPosition | CaptionPositionLegacy;
 
   // Preset reference
   presetId?: string;
@@ -152,6 +361,8 @@ export interface ImageItemData {
   opacity: number;
 }
 
+export type VisualDisplayMode = 'default' | 'fullscreen' | 'overlay';
+
 export interface VisualItemData {
   visualId: string;
   compositionId: string;
@@ -162,6 +373,33 @@ export interface VisualItemData {
   width: number;
   height: number;
   fps: number;
+  /** Original 1-indexed scene file ID (scenes/SceneN.tsx). Survives timeline splits. */
+  sourceSceneId?: number;
+  /** Effective viewport width for this scene (may differ from width for pip-in-split) */
+  effectiveWidth?: number;
+  /** Effective viewport height for this scene (may differ from height for pip-in-split) */
+  effectiveHeight?: number;
+  /** How this visual composites with speaker video. Defaults to 'default' for standard layout behavior. */
+  displayMode?: VisualDisplayMode;
+  /** Enter/exit transitions at segment boundaries */
+  transition?: {
+    enter: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
+    exit: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
+  };
+  /** Opacity for overlay mode (0-1). Default 0.85. Only used when displayMode === 'overlay'. */
+  overlayOpacity?: number;
+  /** Speaker face bounding box for overlay masking (0-1 fractions of canvas). */
+  speakerBbox?: { x: number; y: number; w: number; h: number };
+}
+
+export interface BrollItemData {
+  sourceType: 'upload' | 'pexels';
+  src: string;
+  filename?: string;
+  photographer?: string;
+  previewUrl?: string;
+  volume: number;
+  fileSize?: number;
 }
 
 // ============================================
@@ -199,9 +437,13 @@ export interface VideoSettings {
 
 export interface Project {
   id: string;
+  title: string | null;
   status: string;
+  projectType?: 'video' | 'audio';
   videoKey: string | null;
+  audioKey?: string | null;
   videoUrl: string | null;
+  audioUrl?: string | null;
   outputKey: string | null;
   durationMs: number;
   fps: number;
@@ -319,6 +561,9 @@ export interface EditorState {
   // Caption style toggle
   applyStyleToAll: boolean;
 
+  // Caption visibility in player
+  showCaptions: boolean;
+
   // Clipboard and split mode
   clipboard: TimelineItem[] | null;
   splitMode: boolean;
@@ -326,6 +571,34 @@ export interface EditorState {
   // Layout settings (video + visuals arrangement)
   layoutSettings: LayoutSettings;
   layoutPresetId: LayoutPresetId;
+
+  // Scene selection for AI editing
+  selectedSceneId: number | null;
+  selectedTimeRange: { startMs: number; endMs: number } | null;
+  selectedElement: SelectedElement | null;
+
+  // Element picker mode
+  elementPickerEnabled: boolean;
+
+  // Element inspect mode (hover/click on canvas to select elements)
+  inspectModeEnabled: boolean;
+
+  // AI edit request (set when user triggers "Edit with AI" from context menu)
+  aiEditRequested: boolean;
+
+  // Pending AI message (auto-sent by AI panel, e.g. from "Change & AI Adapt")
+  pendingAIMessage: string | null;
+
+  // Transition picker (set when user triggers "Change Transition" from context menu)
+  transitionPickerItemId: string | null;
+
+  // Safe zone settings
+  safeZonePlatform: string;  // 'tiktok' | 'instagram-reels' | etc.
+  showSafeZone: boolean;
+
+  // Visual scene regeneration tracking (not persisted to DB)
+  regeneratingVisualItemIds: Set<string>;
+  splitJobToItems: Record<string, [string, string]>;  // jobId -> [leftId, rightId]
 }
 
 // ============================================
@@ -335,6 +608,7 @@ export interface EditorState {
 export interface EditorActions {
   // Project actions
   loadProject: (projectId: string) => Promise<void>;
+  reloadVisuals: (projectId: string) => Promise<void>;
   saveProject: () => Promise<void>;
   setProject: (project: Project) => void;
 
@@ -346,6 +620,7 @@ export interface EditorActions {
   updateSelectedCaptionStyles: (ids: string[], style: Partial<CaptionStyle>) => void;
   updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => void;
   setApplyStyleToAll: (value: boolean) => void;
+  setShowCaptions: (value: boolean) => void;
   selectAllCaptionsOnTrack: (trackId: string) => void;
 
   // Item actions
@@ -399,7 +674,11 @@ export interface EditorActions {
 
   // Split
   splitItem: (itemId: string, atMs: number) => void;
+  splitAllAtPlayhead: () => void;
   setSplitMode: (active: boolean) => void;
+
+  // Range delete
+  deleteTimeRange: (startMs: number, endMs: number, ripple?: boolean) => Promise<void>;
 
   // Clipboard
   copyItems: (ids: string[]) => void;
@@ -418,9 +697,45 @@ export interface EditorActions {
   // Layout actions
   updateLayoutSettings: (settings: Partial<LayoutSettings>) => void;
   updatePiPSettings: (settings: Partial<PiPSettings>) => void;
+  updatePiPCrop: (crop: Partial<PiPCrop>) => void;
   updateSplitSettings: (settings: Partial<SplitSettings>) => void;
   setLayoutPreset: (presetId: LayoutPresetId) => void;
   setLayoutMode: (mode: LayoutMode) => void;
+
+  // Scene selection for AI editing
+  setSelectedScene: (sceneId: number | null) => void;
+  setSelectedTimeRange: (range: { startMs: number; endMs: number } | null) => void;
+  setSelectedElement: (element: SelectedElement | null) => void;
+
+  // Element picker mode
+  setElementPickerEnabled: (enabled: boolean) => void;
+
+  // Element inspect mode
+  setInspectModeEnabled: (enabled: boolean) => void;
+
+  // AI edit request
+  requestAIEdit: (item: TimelineItem) => void;
+
+  // Pending AI message
+  setPendingAIMessage: (message: string | null) => void;
+  changeDisplayModeWithAI: (itemId: string, newDisplayMode: VisualDisplayMode) => void;
+
+  // Visual display mode
+  updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => void;
+  updateOverlayOpacity: (itemId: string, opacity: number) => void;
+  updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => void;
+
+  // Transition picker
+  openTransitionPicker: (itemId: string) => void;
+  closeTransitionPicker: () => void;
+
+  // Safe zone actions
+  setSafeZonePlatform: (platform: string) => void;
+  setShowSafeZone: (show: boolean) => void;
+
+  // Scene split regeneration
+  clearRegeneratingItems: (itemIds: string[]) => void;
+  removeSplitJob: (jobId: string) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;
@@ -457,20 +772,22 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
   fontWeight: 800,
   letterSpacing: 0,
   textTransform: 'none',
+  opacity: 1,
+  lineHeight: 1.4,
 
   color: '#ffffff',
   activeColor: '#ffff00',
   backgroundColor: 'transparent',
   activeBackgroundColor: 'transparent',
 
-  textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',
+  stroke: null,
+  textShadow: '2px 2px 4px rgba(0, 0, 0, 0.8)',  // Legacy fallback
+  effects: DEFAULT_CAPTION_EFFECTS,
 
   backgroundPadding: { x: 4, y: 2 },
   backgroundRadius: 8,
 
-  position: 'bottom',
-  offsetY: 0,
-  textAlign: 'center',
+  position: DEFAULT_CAPTION_POSITION,
 
   presetId: 'mrbeast-bold',
 };
@@ -489,7 +806,21 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
 // ============================================
 
 // Layout modes for arranging video and visuals
-export type LayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+export type LayoutMode = 'pip' | 'stacked';
+
+// Normalize legacy layout mode values from saved projects
+export function normalizeLayoutMode(mode: string): LayoutMode {
+  if (mode === 'split-horizontal' || mode === 'split-vertical') return 'stacked';
+  if (mode === 'pip' || mode === 'stacked') return mode;
+  return 'stacked'; // default
+}
+
+// Normalize legacy per-scene display mode values
+export function normalizeDisplayMode(dm: string | undefined): VisualDisplayMode {
+  if (dm === 'pip') return 'default';
+  if (dm === 'default' || dm === 'fullscreen' || dm === 'overlay') return dm;
+  return 'default'; // default
+}
 
 // Split position (which content is on top/left)
 export type SplitPosition = 'visuals-first' | 'video-first';
@@ -498,6 +829,18 @@ export type SplitPosition = 'visuals-first' | 'video-first';
 export type PiPPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 export type PiPSize = 'small' | 'medium' | 'large' | 'custom';
 export type PiPShape = 'square' | 'circle' | 'rounded';
+
+export interface PiPCrop {
+  cropX: number;  // 0-100, horizontal pan (50 = center)
+  cropY: number;  // 0-100, vertical pan (50 = center)
+  zoom: number;   // 1.0 = fill frame (cover), up to 3.0
+}
+
+export const DEFAULT_PIP_CROP: PiPCrop = {
+  cropX: 50,
+  cropY: 50,
+  zoom: 1.0,
+};
 
 export interface PiPSettings {
   // Position
@@ -513,6 +856,9 @@ export interface PiPSettings {
   shape: PiPShape;
   borderRadius: number;
 
+  // Transform
+  rotation: number; // degrees, -180 to 180
+
   // Styling
   borderWidth: number;
   borderColor: string;
@@ -520,6 +866,9 @@ export interface PiPSettings {
   shadowColor: string;
   shadowBlur: number;
   opacity: number;
+
+  // Video framing inside the PiP bubble
+  crop: PiPCrop;
 }
 
 export interface SplitSettings {
@@ -541,7 +890,7 @@ export interface LayoutSettings {
 }
 
 // Pre-designed layout presets
-export type LayoutPresetId = 'pip-tutorial' | 'pip-podcast' | 'pip-minimal' | 'pip-gaming' | 'split-equal' | 'split-visuals-large' | 'split-video-large' | 'custom';
+export type LayoutPresetId = 'pip-tutorial' | 'pip-podcast' | 'pip-minimal' | 'pip-gaming' | 'stacked-equal' | 'stacked-visuals-large' | 'stacked-video-large' | 'custom';
 
 export interface LayoutPreset {
   id: LayoutPresetId;
@@ -557,13 +906,15 @@ export const DEFAULT_PIP_SETTINGS: PiPSettings = {
   size: 'medium',
   customSize: 25,
   shape: 'rounded',
-  borderRadius: 12,
+  borderRadius: 20,
+  rotation: 0,
   borderWidth: 2,
   borderColor: 'rgba(255, 255, 255, 0.2)',
   shadowEnabled: true,
   shadowColor: 'rgba(0, 0, 0, 0.5)',
   shadowBlur: 20,
   opacity: 1,
+  crop: DEFAULT_PIP_CROP,
 };
 
 export const DEFAULT_SPLIT_SETTINGS: SplitSettings = {
@@ -573,39 +924,39 @@ export const DEFAULT_SPLIT_SETTINGS: SplitSettings = {
 };
 
 export const DEFAULT_LAYOUT_SETTINGS: LayoutSettings = {
-  mode: 'pip',
+  mode: 'stacked',
   pip: DEFAULT_PIP_SETTINGS,
   split: DEFAULT_SPLIT_SETTINGS,
 };
 
 export const LAYOUT_PRESETS: LayoutPreset[] = [
-  // Split presets
+  // Stacked presets
   {
-    id: 'split-equal',
-    name: '50/50 Split',
+    id: 'stacked-equal',
+    name: '50/50 Stacked',
     description: 'Equal split between visuals and video',
     settings: {
-      mode: 'split-horizontal',
+      mode: 'stacked',
       pip: DEFAULT_PIP_SETTINGS,
       split: { position: 'visuals-first', ratio: 50, gap: 0 },
     },
   },
   {
-    id: 'split-visuals-large',
+    id: 'stacked-visuals-large',
     name: '70/30 Visuals',
     description: 'Visuals dominant, small video',
     settings: {
-      mode: 'split-horizontal',
+      mode: 'stacked',
       pip: DEFAULT_PIP_SETTINGS,
       split: { position: 'visuals-first', ratio: 70, gap: 0 },
     },
   },
   {
-    id: 'split-video-large',
+    id: 'stacked-video-large',
     name: '30/70 Video',
     description: 'Video dominant, small visuals',
     settings: {
-      mode: 'split-horizontal',
+      mode: 'stacked',
       pip: DEFAULT_PIP_SETTINGS,
       split: { position: 'video-first', ratio: 30, gap: 0 },
     },
@@ -624,13 +975,15 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         size: 'medium',
         customSize: 25,
         shape: 'rounded',
-        borderRadius: 12,
+        borderRadius: 20,
+        rotation: 0,
         borderWidth: 2,
         borderColor: 'rgba(255, 255, 255, 0.2)',
         shadowEnabled: true,
         shadowColor: 'rgba(0, 0, 0, 0.5)',
         shadowBlur: 20,
         opacity: 1,
+        crop: DEFAULT_PIP_CROP,
       },
       split: DEFAULT_SPLIT_SETTINGS,
     },
@@ -649,12 +1002,14 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         customSize: 35,
         shape: 'circle',
         borderRadius: 9999,
+        rotation: 0,
         borderWidth: 4,
         borderColor: 'rgba(255, 255, 255, 0.3)',
         shadowEnabled: true,
         shadowColor: 'rgba(0, 0, 0, 0.6)',
         shadowBlur: 30,
         opacity: 1,
+        crop: DEFAULT_PIP_CROP,
       },
       split: DEFAULT_SPLIT_SETTINGS,
     },
@@ -673,12 +1028,14 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         customSize: 18,
         shape: 'circle',
         borderRadius: 9999,
+        rotation: 0,
         borderWidth: 0,
         borderColor: 'transparent',
         shadowEnabled: true,
         shadowColor: 'rgba(0, 0, 0, 0.3)',
         shadowBlur: 10,
         opacity: 0.95,
+        crop: DEFAULT_PIP_CROP,
       },
       split: DEFAULT_SPLIT_SETTINGS,
     },
@@ -697,12 +1054,14 @@ export const LAYOUT_PRESETS: LayoutPreset[] = [
         customSize: 22,
         shape: 'rounded',
         borderRadius: 8,
+        rotation: 0,
         borderWidth: 3,
         borderColor: '#a855f7',
         shadowEnabled: true,
         shadowColor: 'rgba(168, 85, 247, 0.4)',
         shadowBlur: 15,
         opacity: 1,
+        crop: DEFAULT_PIP_CROP,
       },
       split: DEFAULT_SPLIT_SETTINGS,
     },
@@ -722,3 +1081,34 @@ export const PIP_SIZE_MAP: Record<PiPSize, number> = {
   large: 35,
   custom: 25,
 };
+
+// ============================================
+// Element Selection (for AI editing)
+// ============================================
+
+export interface SelectedElement {
+  name: string;
+  type: string;
+  sceneId: number;
+  description?: string;
+  position?: { x: string; y: string };
+  size?: { width: string; height: string };
+}
+
+// ============================================
+// AI Editing Context (for AI Assistant Panel)
+// ============================================
+
+export interface AIEditingContext {
+  type: 'element' | 'item' | 'scene' | 'composition';
+  element?: SelectedElement;
+  item?: {
+    id: string;
+    type: TimelineItemType;
+    name: string;
+    description?: string;
+  };
+  sceneId?: number;
+  displayName: string;
+  displayDescription?: string;
+}

@@ -1,0 +1,31 @@
+{
+  "slug": "credits-roll",
+  "name": "Credits Roll",
+  "description": "Classic scrolling credits with roles and names",
+  "category": "corporate",
+  "tags": [
+    "acknowledgment",
+    "appreciation",
+    "cast",
+    "closing",
+    "contributors",
+    "credits",
+    "end",
+    "film",
+    "final",
+    "names",
+    "outro",
+    "production",
+    "roles",
+    "roll",
+    "scroll",
+    "studio-theme",
+    "team",
+    "thank-you",
+    "video-end"
+  ],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

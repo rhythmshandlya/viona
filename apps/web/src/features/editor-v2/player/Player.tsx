@@ -6,7 +6,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Player as RemotionPlayer, PlayerRef, CallbackListener } from '@remotion/player';
+import { Player as RemotionPlayer, CallbackListener } from '@remotion/player';
 import { Composition } from './Composition';
 import {
   useProject,
@@ -15,14 +15,17 @@ import {
   useCurrentTimeMs,
   useIsPlaying,
   useEditorActions,
+  useSafeZonePlatform,
 } from '../store/use-editor-store';
+import { SafeZoneOverlay } from '../components/SafeZoneOverlay';
+import { sharedPlayerRef } from './player-ref';
 
 interface PlayerProps {
   className?: string;
 }
 
 export function Player({ className }: PlayerProps) {
-  const playerRef = useRef<PlayerRef>(null);
+  const playerRef = sharedPlayerRef;
   const isInternalUpdate = useRef(false);
 
   // State
@@ -31,6 +34,7 @@ export function Player({ className }: PlayerProps) {
   const fps = useFps();
   const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
+  const safeZonePlatform = useSafeZonePlatform();
 
   // Actions
   const { setCurrentTime, play, pause } = useEditorActions();
@@ -115,21 +119,25 @@ export function Player({ className }: PlayerProps) {
   const compositionHeight = project.videoSettings?.canvasHeight || 1920;
 
   return (
-    <RemotionPlayer
-      ref={playerRef}
-      component={Composition}
-      durationInFrames={durationInFrames}
-      compositionWidth={compositionWidth}
-      compositionHeight={compositionHeight}
-      fps={fps}
-      className={`w-full h-full ${className || ''}`}
-      style={{
-        width: '100%',
-        height: '100%',
-      }}
-      controls={false}
-      loop={false}
-      clickToPlay={false}
-    />
+    <div className={`relative w-full h-full ${className || ''}`}>
+      <RemotionPlayer
+        ref={playerRef}
+        component={Composition}
+        durationInFrames={durationInFrames}
+        compositionWidth={compositionWidth}
+        compositionHeight={compositionHeight}
+        fps={fps}
+        className="w-full h-full"
+        style={{
+          width: '100%',
+          height: '100%',
+        }}
+        controls={false}
+        loop={false}
+        clickToPlay={false}
+        acknowledgeRemotionLicense
+      />
+      <SafeZoneOverlay platform={safeZonePlatform} />
+    </div>
   );
 }

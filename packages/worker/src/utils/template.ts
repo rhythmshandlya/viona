@@ -7,7 +7,7 @@ import { join } from 'path';
 import { existsSync, mkdirSync, createReadStream } from 'fs';
 import { rm } from 'fs/promises';
 import { pipeline } from 'stream/promises';
-import { getStorage } from '@reelify/shared/storage';
+import { getStorage } from '@viona/shared/storage';
 import { config } from '../config.js';
 import unzipper from 'unzipper';
 
@@ -51,7 +51,7 @@ export async function ensureTemplate(): Promise<void> {
   if (!exists) {
     throw new Error(
       `Template not found in storage: ${templateName}\n` +
-      'Run: pnpm --filter @reelify/worker run upload-template'
+      'Run: pnpm --filter @viona/worker run upload-template'
     );
   }
 

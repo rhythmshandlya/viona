@@ -1,0 +1,31 @@
+{
+  "slug": "pros-cons",
+  "name": "Pros & Cons",
+  "description": "Two-column pros and cons comparison with animated icons",
+  "category": "social",
+  "tags": [
+    "advantages",
+    "analysis",
+    "assessment",
+    "balanced-view",
+    "checklist",
+    "comparison",
+    "cons",
+    "decision",
+    "disadvantages",
+    "evaluation",
+    "product-review",
+    "pros",
+    "review",
+    "studio-theme",
+    "thumbs-down",
+    "thumbs-up",
+    "tradeoffs",
+    "two-column",
+    "weighing"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

@@ -1,52 +1,118 @@
 ---
-const articles = [
+import { siteConfig } from "@/data/site";
+
+const features = [
   {
-    title: "How AI Visuals Boost Viewer Retention",
-    image: "from-amber-100 to-amber-200",
+    tag: "Captions",
+    title: "20+ Creator-Grade Caption Styles",
+    description: "From MrBeast's bold green highlights to Ali Abdaal's word-by-word fades. Pick a viral style, customize fonts, colors, animations, and glow effects — or build your own from scratch.",
+    gradient: "from-violet-500/10 to-purple-500/10",
+    border: "border-violet-200",
+    items: ["MrBeast, Hormozi, Ali Abdaal presets", "Word-by-word & karaoke modes", "Stroke, shadow & neon glow effects", "200+ Google Fonts"],
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>`,
   },
   {
-    title: "Filler Words: Why Removing Them Matters",
-    image: "from-rose-100 to-rose-200",
+    tag: "AI Visuals",
+    title: "Auto-Generated Visual Compositions",
+    description: "Describe a process? You get a flowchart. Mention data? A chart appears. Our AI listens to your narration and generates contextual graphics — not generic stock footage.",
+    gradient: "from-fuchsia-500/10 to-pink-500/10",
+    border: "border-fuchsia-200",
+    items: ["Flowcharts, timelines & diagrams", "Charts, stats & comparisons", "PiP, split-screen & fullscreen layouts", "4 visual themes to choose from"],
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>`,
   },
   {
-    title: "Subtitle Styles That Go Viral",
-    image: "from-blue-100 to-blue-200",
+    tag: "Multi-Platform",
+    title: "One Video, Every Platform",
+    description: "Export in 9:16 for TikTok & Reels, 16:9 for YouTube, 1:1 for Instagram, or 4:5 for ads. Built-in safe zone overlays show you exactly what viewers will see.",
+    gradient: "from-blue-500/10 to-cyan-500/10",
+    border: "border-blue-200",
+    items: ["TikTok, Reels & Shorts safe zones", "Crop, pan & zoom controls", "Platform-specific preview mockups", "Export in any aspect ratio"],
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>`,
+  },
+  {
+    tag: "Audio & B-Roll",
+    title: "Clean Audio & B-Roll Integration",
+    description: "AI removes filler words like 'um' and 'uh' automatically. Enhance audio clarity in one click. Upload your own B-roll or pull from Pexels stock — drag it right onto the timeline.",
+    gradient: "from-emerald-500/10 to-teal-500/10",
+    border: "border-emerald-200",
+    items: ["Auto filler word removal", "One-click audio enhancement", "Pexels stock footage integration", "Multi-track timeline editing"],
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>`,
+  },
+  {
+    tag: "AI Assistant",
+    title: "Edit With Natural Language",
+    description: "Just tell the AI what you want. \"Make the background darker\", \"Change the layout to split-screen\", \"Use warmer colors\". It understands your project and makes the changes live.",
+    gradient: "from-amber-500/10 to-orange-500/10",
+    border: "border-amber-200",
+    items: ["Conversational editing interface", "Context-aware of your project", "Theme & layout suggestions", "Real-time visual updates"],
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`,
+  },
+  {
+    tag: "Timeline",
+    title: "Full Timeline Control",
+    description: "A multi-track timeline with video, audio, captions, visuals, and B-roll tracks. Trim clips, adjust timing, reorder scenes, control volume per-track — everything a pro editor needs, without the complexity.",
+    gradient: "from-rose-500/10 to-red-500/10",
+    border: "border-rose-200",
+    items: ["Multi-track video & audio", "Drag-and-drop clip editing", "Per-item volume & timing", "Keyboard shortcuts for speed"],
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>`,
   },
 ];
 ---
 
-<section class="py-12 sm:py-16 lg:py-20">
+<section id="capabilities" class="py-12 sm:py-16 lg:py-24">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6 sm:mb-8 lg:mb-12">
-      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold">
-        Tips for Better
-        <br /><span class="text-orange">Explainer Videos</span>
+    <div class="text-center mb-10 sm:mb-14 lg:mb-16">
+      <p class="text-sm font-semibold text-primary mb-3 tracking-wide uppercase">Everything You Need</p>
+      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold leading-tight mb-4">
+        One Studio. <span class="text-brand">Every Tool.</span>
       </h2>
-      <div class="hidden sm:flex items-center gap-2">
-        <button class="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-border flex items-center justify-center hover:bg-muted">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-          </svg>
-        </button>
-        <button class="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-      </div>
+      <p class="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
+        From transcription to export, Viona handles the entire workflow. No plugins, no switching tabs, no complexity.
+      </p>
     </div>
 
-    <!-- Blog cards - horizontal scroll on mobile -->
-    <div class="flex gap-4 overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 md:grid-cols-3 sm:gap-6 sm:overflow-visible sm:pb-0">
-      {articles.map((article) => (
-        <a href="#" class="blog-card group flex-shrink-0 w-[280px] sm:w-auto">
-          <div class={`bg-gradient-to-br ${article.image} aspect-[4/3]`}></div>
-          <div class="p-4 sm:p-6">
-            <h3 class="font-semibold text-sm sm:text-base group-hover:text-primary">{article.title}</h3>
+    <!-- Feature grid -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+      {features.map((feature) => (
+        <div class={`group relative bg-gradient-to-br ${feature.gradient} rounded-2xl border ${feature.border} p-5 sm:p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1`}>
+          <!-- Tag + Icon -->
+          <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-white/80 border border-white flex items-center justify-center text-primary">
+              <Fragment set:html={feature.icon} />
+            </div>
+            <span class="text-xs font-semibold text-primary tracking-wide uppercase">{feature.tag}</span>
           </div>
-        </a>
+
+          <!-- Title -->
+          <h3 class="text-base sm:text-lg font-semibold mb-2 leading-snug">{feature.title}</h3>
+
+          <!-- Description -->
+          <p class="text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed">{feature.description}</p>
+
+          <!-- Feature list -->
+          <ul class="space-y-1.5">
+            {feature.items.map((item) => (
+              <li class="flex items-start gap-2 text-xs sm:text-sm text-foreground/80">
+                <svg class="w-4 h-4 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
+    </div>
+
+    <!-- Bottom CTA -->
+    <div class="text-center mt-10 sm:mt-14">
+      <a href={siteConfig.appUrl} class="inline-flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors">
+        Try All Features Free
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
+        </svg>
+      </a>
     </div>
   </div>
 </section>

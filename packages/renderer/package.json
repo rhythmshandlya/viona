@@ -1,5 +1,5 @@
 {
-  "name": "@reelify/renderer",
+  "name": "@viona/renderer",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -21,12 +21,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@reelify/shared": "workspace:*",
-    "@remotion/bundler": "^4.0.0",
-    "@remotion/renderer": "^4.0.0",
-    "remotion": "^4.0.0",
+    "@viona/shared": "workspace:*",
+    "@remotion/bundler": "4.0.422",
+    "@remotion/google-fonts": "4.0.422",
+    "@remotion/renderer": "4.0.422",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "remotion": "4.0.422"
   },
   "devDependencies": {
     "@types/node": "^20.10.6",

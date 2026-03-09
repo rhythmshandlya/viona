@@ -43,10 +43,14 @@ export async function setupWebSocket(fastify: FastifyInstance) {
       for (const [socket, conn] of connections) {
         if (socket.readyState !== WebSocket.OPEN) continue;
 
-        // Check if this connection is interested in this message
-        const isRelevant =
-          (data.projectId && conn.projectId === data.projectId) ||
-          (data.jobId && conn.jobIds.has(data.jobId));
+        // Check if this connection is interested in this message.
+        // Job events require explicit subscription (subscribe:job) to prevent
+        // plan-visuals completion events from triggering false "visuals ready" messages.
+        // Project-level events (project:updated) still use projectId matching.
+        const isJobEvent = type.startsWith('job:');
+        const isRelevant = isJobEvent
+          ? (data.jobId && conn.jobIds.has(data.jobId))
+          : (data.projectId && conn.projectId === data.projectId);
 
         if (isRelevant) {
           socket.send(JSON.stringify({ type, payload: data }));
@@ -107,8 +111,8 @@ export async function setupWebSocket(fastify: FastifyInstance) {
       return;
     }
 
-    // Allow access if project has no owner (legacy) or user owns it
-    if (project.userId && project.userId !== user.id) {
+    // Reject if no owner (legacy) or wrong owner
+    if (!project.userId || project.userId !== user.id) {
       socket.close(4005, 'Access denied');
       return;
     }

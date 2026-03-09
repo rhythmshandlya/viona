@@ -1,0 +1,31 @@
+{
+  "slug": "guest-intro-card",
+  "name": "Guest Intro Card",
+  "description": "Guest introduction card with avatar, name, title, and bio",
+  "category": "social",
+  "tags": [
+    "appearance",
+    "bio",
+    "co-host",
+    "collaboration",
+    "credentials",
+    "expert",
+    "featured",
+    "guest",
+    "host",
+    "interview",
+    "intro",
+    "name-card",
+    "panelist",
+    "photo",
+    "podcast",
+    "profile",
+    "speaker",
+    "studio-theme",
+    "title"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

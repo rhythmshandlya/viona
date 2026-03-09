@@ -1,0 +1,33 @@
+{
+  "slug": "tier-board",
+  "name": "Tier Board",
+  "description": "Animated tier list ranking with items snapping into S/A/B/C/D rows — viral format for rankings and opinions",
+  "category": "entertainment",
+  "tags": [
+    "S-tier",
+    "best-to-worst",
+    "category",
+    "classification",
+    "comparison",
+    "debate",
+    "entertainment",
+    "grid",
+    "list",
+    "meme",
+    "opinion",
+    "ranking",
+    "rating",
+    "snap",
+    "studio-theme",
+    "tier",
+    "tier-list",
+    "trending",
+    "viral",
+    "youtube"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

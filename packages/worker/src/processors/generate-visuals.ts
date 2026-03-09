@@ -7,23 +7,257 @@
 
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { mkdir, rm, writeFile, readFile, readdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { existsSync } from 'fs';
+import { mkdir, rm, writeFile, readFile, readdir, stat } from 'fs/promises';
+import { join, dirname, resolve } from 'path';
 import { tmpdir } from 'os';
 import { fileURLToPath } from 'url';
 import { spawn, ChildProcess } from 'child_process';
-import { db, projects, tracks, timelineItems, transcripts, jobs, visuals } from '../db/index.js';
-import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler } from '../services/redis.js';
+import { db, projects, tracks, timelineItems, transcripts, jobs, visuals, projectAssets } from '../db/index.js';
+import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler, setJobProjectId } from '../services/redis.js';
+import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
 import { config } from '../config.js';
 import { logger } from '../logger.js';
 import { getWorkspacePath, createProjectDir } from '../workspace.js';
-import { uploadFile } from '../services/minio.js';
+import { uploadFile, downloadFile } from '../services/minio.js';
+import { buildStudioTemplateCatalog } from '../prompts/studio-templates.js';
+import { listTemplates } from '@viona/templates';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Track running processes for cancellation
 const runningProcesses = new Map<string, ChildProcess>();
+
+// Find the packages/ root by walking up from __dirname to find the worker's
+// package.json, then taking its parent. Works in both local dev and Docker:
+//   Local:  src/processors/ → 2 parents to packages/worker
+//   Docker: dist/           → 1 parent to packages/worker
+function findPackagesRoot(): string {
+  let dir = __dirname;
+  for (let i = 0; i < 5; i++) {
+    if (existsSync(join(dir, 'package.json'))) {
+      return dirname(dir); // parent of packages/worker = packages/
+    }
+    dir = dirname(dir);
+  }
+  return resolve(__dirname, '..', '..', '..');
+}
+
+// ---------------------------------------------------------------------------
+// Recursively copy a directory tree (used for template source files)
+// ---------------------------------------------------------------------------
+async function copyDirRecursive(src: string, dest: string): Promise<void> {
+  const entries = await readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+    if (entry.isDirectory()) {
+      await mkdir(destPath, { recursive: true });
+      await copyDirRecursive(srcPath, destPath);
+    } else {
+      const content = await readFile(srcPath, 'utf-8');
+      await writeFile(destPath, content, 'utf-8');
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Speaker grid computation (mirrors asset-server.js get_speaker_grid logic)
+// ---------------------------------------------------------------------------
+
+interface HeadTrackingFrame {
+  timestamp_ms: number;
+  face?: { bbox?: { x: number; y: number; width: number; height: number } };
+}
+
+interface SpeakerGrid {
+  grid: number[][];
+  occupancy: string;
+  safePlacement: string[];
+}
+
+/**
+ * Compute a 6x6 speaker occupancy grid for a time range from head tracking data.
+ * Cells are marked 1 if the speaker's face overlaps them in >30% of frames.
+ *
+ * videoWidth/videoHeight are the source video pixel dimensions, used to normalize
+ * the pixel-coordinate bboxes from detect_head.py into 0-1 fractions.
+ */
+function computeSpeakerGrid(
+  headTrackingData: { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } },
+  startMs: number,
+  endMs: number,
+  rows = 6,
+  cols = 6,
+): SpeakerGrid {
+  const frames = headTrackingData.frames || [];
+  const videoW = headTrackingData.video?.width || 1;
+  const videoH = headTrackingData.video?.height || 1;
+
+  // Filter frames by time range, only those with a face bbox
+  const filtered = frames.filter(
+    (f) => f.timestamp_ms >= startMs && f.timestamp_ms <= endMs && f.face?.bbox,
+  );
+
+  if (filtered.length === 0) {
+    return {
+      grid: Array.from({ length: rows }, () => Array(cols).fill(0)),
+      occupancy: '0%',
+      safePlacement: ['entire frame'],
+    };
+  }
+
+  // Build grid: project each face bbox onto the grid
+  const cellHits = Array.from({ length: rows }, () => Array(cols).fill(0) as number[]);
+
+  for (const frame of filtered) {
+    const b = frame.face!.bbox!;
+    // Normalize pixel-coordinate bbox to 0-1 fractions
+    const bx1 = b.x / videoW;
+    const by1 = b.y / videoH;
+    const bx2 = (b.x + b.width) / videoW;
+    const by2 = (b.y + b.height) / videoH;
+
+    for (let r = 0; r < rows; r++) {
+      const cellY1 = r / rows;
+      const cellY2 = (r + 1) / rows;
+      for (let c = 0; c < cols; c++) {
+        const cellX1 = c / cols;
+        const cellX2 = (c + 1) / cols;
+        if (bx1 < cellX2 && bx2 > cellX1 && by1 < cellY2 && by2 > cellY1) {
+          cellHits[r][c]++;
+        }
+      }
+    }
+  }
+
+  // Mark cells occupied if speaker present in >30% of filtered frames
+  const threshold = filtered.length * 0.3;
+  const grid = cellHits.map((row) => row.map((count) => (count >= threshold ? 1 : 0)));
+
+  // Compute occupancy
+  const totalCells = rows * cols;
+  const occupiedCells = grid.flat().filter((v) => v === 1).length;
+  const occupancy = `${Math.round((occupiedCells / totalCells) * 100)}%`;
+
+  // Compute safe placement regions
+  const safePlacement: string[] = [];
+  const midRow = Math.floor(rows / 2);
+  const midCol = Math.floor(cols / 2);
+
+  const regions: Record<string, () => boolean> = {
+    'top-left':     () => grid.slice(0, midRow).flatMap((r) => r.slice(0, midCol)).every((v) => v === 0),
+    'top-right':    () => grid.slice(0, midRow).flatMap((r) => r.slice(midCol)).every((v) => v === 0),
+    'bottom-left':  () => grid.slice(midRow).flatMap((r) => r.slice(0, midCol)).every((v) => v === 0),
+    'bottom-right': () => grid.slice(midRow).flatMap((r) => r.slice(midCol)).every((v) => v === 0),
+    'top':          () => grid[0].every((v) => v === 0),
+    'bottom':       () => grid[rows - 1].every((v) => v === 0),
+    'left':         () => grid.every((r) => r[0] === 0),
+    'right':        () => grid.every((r) => r[cols - 1] === 0),
+  };
+
+  for (const [name, check] of Object.entries(regions)) {
+    if (check()) safePlacement.push(name);
+  }
+
+  return { grid, occupancy, safePlacement };
+}
+
+/**
+ * Asset type for extracted components
+ */
+interface ExtractedAsset {
+  id: string;
+  name: string;
+  type: 'component' | 'element' | 'text' | 'shape' | 'icon' | 'background';
+  sceneId: number;
+  sceneName: string;
+  description: string;
+  position?: { x: string; y: string };
+  size?: { width: string; height: string };
+}
+
+/**
+ * Extract assets from the generated composition.
+ * Reads scenes.json and parses layout information to create a list of editable assets.
+ */
+async function extractAssets(projectDir: string): Promise<ExtractedAsset[]> {
+  const assets: ExtractedAsset[] = [];
+
+  try {
+    // Read scenes.json
+    const scenesPath = join(projectDir, 'scenes.json');
+    const scenesContent = await readFile(scenesPath, 'utf-8');
+    const scenesData = JSON.parse(scenesContent);
+
+    if (!scenesData.scenes || !Array.isArray(scenesData.scenes)) {
+      logger.warn({ projectDir }, 'No scenes found in scenes.json');
+      return assets;
+    }
+
+    // Extract assets from each scene's layout
+    for (const scene of scenesData.scenes) {
+      const sceneId = scene.id;
+      const sceneName = scene.name || `Scene ${sceneId}`;
+
+      if (scene.layout && typeof scene.layout === 'object') {
+        for (const [key, value] of Object.entries(scene.layout as Record<string, any>)) {
+          // Skip background elements
+          if (key === 'background') continue;
+
+          // Determine asset type based on name
+          let assetType: ExtractedAsset['type'] = 'element';
+          const lowerKey = key.toLowerCase();
+          if (lowerKey.includes('text') || lowerKey.includes('title') || lowerKey.includes('label')) {
+            assetType = 'text';
+          } else if (lowerKey.includes('icon')) {
+            assetType = 'icon';
+          } else if (lowerKey.includes('shape') || lowerKey.includes('circle') || lowerKey.includes('rect')) {
+            assetType = 'shape';
+          } else if (lowerKey.includes('particle') || lowerKey.includes('bg')) {
+            assetType = 'background';
+          }
+
+          assets.push({
+            id: `scene${sceneId}-${key}`,
+            name: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim(),
+            type: assetType,
+            sceneId,
+            sceneName,
+            description: scene.visual || sceneName,
+            position: value?.x || value?.y ? { x: value.x || 'center', y: value.y || '50%' } : undefined,
+            size: value?.width || value?.height ? { width: value.width || 'auto', height: value.height || 'auto' } : undefined,
+          });
+        }
+      }
+
+      // Also check for icons array
+      if (scene.icons && Array.isArray(scene.icons)) {
+        for (const icon of scene.icons) {
+          assets.push({
+            id: `scene${sceneId}-icon-${icon.name || icon}`,
+            name: typeof icon === 'string' ? icon : icon.name,
+            type: 'icon',
+            sceneId,
+            sceneName,
+            description: `Icon in ${sceneName}`,
+          });
+        }
+      }
+    }
+
+    // Write assets.json to project directory
+    const assetsPath = join(projectDir, 'assets.json');
+    await writeFile(assetsPath, JSON.stringify({ assets, extractedAt: new Date().toISOString() }, null, 2));
+    logger.info({ projectDir, assetCount: assets.length }, 'Extracted assets from composition');
+
+  } catch (error) {
+    logger.warn({ projectDir, error }, 'Failed to extract assets from composition');
+  }
+
+  return assets;
+}
 
 // Environment validation results (cached after first check)
 let environmentValidated = false;
@@ -127,7 +361,45 @@ async function uploadBundleToStorage(bundleDir: string, compositionId: string): 
   logger.info({ compositionId, bundleDir }, 'Bundle uploaded to S3');
 }
 
-export type VisualsLayoutMode = 'pip' | 'split-horizontal' | 'split-vertical';
+/**
+ * Upload source project directory to S3 storage.
+ * Uploads ALL source files to outputs/sources/{compositionId}/ including:
+ * - SCENE_PLAN.md - Director's visual story plan
+ * - IMPLEMENTATION_LOG.md - Implementation decisions and reasoning
+ * - scenes.json - Scene definitions with timing
+ * - metadata.json - Composition metadata
+ * - index.tsx - Main composition code
+ * - constants.ts - Colors, timing, spring configs
+ * - components/*.tsx - Reusable components (Background, etc.)
+ * - scenes/*.tsx - Individual scene components
+ *
+ * This preserves the full AI context so users can continue editing later.
+ */
+async function uploadSourceToStorage(projectDir: string, compositionId: string): Promise<string> {
+  const files = await readdir(projectDir, { recursive: true, withFileTypes: true });
+
+  for (const file of files) {
+    if (file.isFile()) {
+      // Get relative path from project dir
+      const parentPath = file.parentPath || file.path;
+      const relativePath = parentPath.replace(projectDir, '').replace(/^[\\/]/, '');
+      const fileName = file.name;
+      const relativeFilePath = relativePath ? `${relativePath}/${fileName}` : fileName;
+
+      // Upload to S3: outputs/sources/{compositionId}/{relativePath}
+      const s3Key = `sources/${compositionId}/${relativeFilePath}`.replace(/\\/g, '/');
+      const localPath = join(parentPath, fileName);
+
+      await uploadFile('outputs', s3Key, localPath);
+    }
+  }
+
+  const sourceUrl = `/api/sources/${compositionId}`;
+  logger.info({ compositionId, projectDir, sourceUrl }, 'Source project files uploaded to S3');
+  return sourceUrl;
+}
+
+export type VisualsLayoutMode = 'pip' | 'stacked';
 
 export interface VisualsDimensions {
   width: number;
@@ -137,13 +409,17 @@ export interface VisualsDimensions {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic';
+  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
+  /** Effective dimensions for default scenes in stacked layout */
+  pipEffective?: VisualsDimensions;
   /** User-provided style/layout guidance for the Director agent */
   styleGuide?: string;
   /** Enable verbose logging for debugging */
   verbose?: boolean;
+  /** If set, skip Director phase and run Animator only using plan from this job */
+  planJobId?: string;
 }
 
 interface VisualMetadata {
@@ -157,6 +433,11 @@ interface VisualMetadata {
     endMs: number;
     type: string;
     description: string;
+    displayMode?: 'default' | 'fullscreen' | 'overlay';
+    transition?: {
+      enter: { type: string; durationMs: number };
+      exit: { type: string; durationMs: number };
+    };
   }>;
 }
 
@@ -181,9 +462,66 @@ interface ClaudeCodeResult {
   status: string;
 }
 
+/**
+ * Inject user-uploaded assets into the workspace for the Animator to use.
+ * Downloads from MinIO → public/assets/user/ and writes user_assets.json manifest.
+ */
+async function injectUserAssets(projectId: string, projectDir: string): Promise<number> {
+  const workspacePath = getWorkspacePath();
+  const assets = await db.select().from(projectAssets)
+    .where(eq(projectAssets.projectId, projectId));
+
+  if (assets.length === 0) return 0;
+
+  const userAssetsDir = join(workspacePath, 'public', 'assets', 'user');
+  await mkdir(userAssetsDir, { recursive: true });
+
+  const manifest: { assets: Array<{ filename: string; label: string; contentType: string; remotionPath: string }> } = { assets: [] };
+
+  for (const asset of assets) {
+    // Sanitize filename for safe staticFile() paths, add ID suffix to prevent collisions
+    const extMatch = asset.filename.match(/\.[^.]+$/);
+    const extPart = extMatch ? extMatch[0] : '';
+    const basePart = asset.filename.replace(/\.[^.]+$/, '').replace(/[^\w.-]/g, '_');
+    const safeFilename = `${basePart}_${asset.id.slice(0, 8)}${extPart}`;
+    const destPath = join(userAssetsDir, safeFilename);
+    try {
+      await downloadFile('uploads', asset.storageKey, destPath);
+      manifest.assets.push({
+        filename: safeFilename,
+        label: asset.label || asset.filename.replace(/\.[^.]+$/, ''),
+        contentType: asset.contentType,
+        remotionPath: `assets/user/${safeFilename}`,
+      });
+    } catch (err) {
+      logger.warn({ err, assetId: asset.id, storageKey: asset.storageKey }, 'Failed to download user asset');
+    }
+  }
+
+  // Write manifest to project src dir so the Animator can read it
+  const manifestPath = join(projectDir, 'user_assets.json');
+  await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+  logger.info({ projectId, assetCount: manifest.assets.length }, 'Injected user assets into workspace');
+
+  return manifest.assets.length;
+}
+
 export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>) {
   const { projectId, jobId, stylePreset, layoutMode, dimensions, styleGuide } = job.data;
+  setJobProjectId(jobId, projectId);
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
+
+  // Proactive lock extension — prevents BullMQ from marking 30-min jobs as stalled
+  const lockExtender = setInterval(async () => {
+    try {
+      await job.extendLock(job.token!, 120_000);
+    } catch (err) {
+      logger.error({ jobId, err }, 'Lock extension failed');
+    }
+  }, 55_000);
+
+  // Declared outside try so catch block can stop it on failure
+  let heartbeat: { stop: () => void; raiseWaterMark: (p: number) => void } | null = null;
 
   try {
     // Update job status
@@ -228,11 +566,191 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       logger.debug({ srcDir, error: e }, 'Could not clean old compositions (may not exist yet)');
     }
 
-    // Create project directory in workspace
-    const projectDir = createProjectDir(compositionId);
-    logger.info({ projectDir, compositionId }, 'Created project directory');
+    // Check if previous attempt left any artifacts worth preserving for checkpoint resume.
+    // If scenes.json exists, preserve the directory — the Python agent's checkpoint logic
+    // will detect what phase to resume from (scenes only, setup+scenes, full pipeline, etc.).
+    const projectDir = join(workspacePath, 'src', compositionId);
+    const scenesJsonPath = join(projectDir, 'scenes.json');
+    let hasExistingSources = false;
+    try {
+      await readFile(scenesJsonPath);
+      hasExistingSources = true;
+      logger.info({ projectDir }, 'Previous scenes.json found — preserving for checkpoint resume');
+    } catch {
+      // No artifacts worth preserving — clean and start fresh
+      try {
+        await rm(projectDir, { recursive: true, force: true });
+        logger.info({ projectDir }, 'Cleaned stale project directory');
+      } catch {
+        // Directory may not exist yet — that's fine
+      }
+    }
+    createProjectDir(compositionId); // mkdir -p is idempotent
+    logger.info({ projectDir, compositionId, hasExistingSources }, 'Project directory ready');
+
+    // Write head tracking data for spatial overlay awareness
+    if (project.headTrackingData) {
+      const htPath = join(projectDir, 'head_tracking.json');
+      await writeFile(htPath, JSON.stringify(project.headTrackingData), 'utf-8');
+      logger.info({ projectDir }, 'Wrote head_tracking.json for spatial overlay');
+    }
+
+    // Inject user-uploaded assets (logos, icons, brand images) into workspace
+    const userAssetCount = await injectUserAssets(projectId, projectDir);
+    if (userAssetCount > 0) {
+      logger.info({ projectId, userAssetCount }, 'User assets injected into workspace');
+    }
+
+    // If this is an Animator-only run (plan was created separately), write plan files to project dir
+    // Also enrich scenes.json with per-scene effectiveDimensions
+    const canvasWidth = dimensions?.width || 1080;
+    const canvasHeight = dimensions?.height || 1920;
+    const pipEffective = job.data.pipEffective || { width: canvasWidth, height: canvasHeight };
+
+    if (job.data.planJobId) {
+      // Detect if the plan changed (e.g. after "start over") by comparing the planJobId
+      // to a marker file. If it changed, old generation artifacts (constants.ts, Scene*.tsx,
+      // index.tsx) are stale and must be cleaned to prevent the checkpoint system from
+      // resuming with scene files that don't match the new plan.
+      const planMarkerPath = join(projectDir, '.plan_job_id');
+      if (hasExistingSources) {
+        let planChanged = false;
+        try {
+          const existingPlanJobId = (await readFile(planMarkerPath, 'utf-8')).trim();
+          planChanged = existingPlanJobId !== job.data.planJobId;
+        } catch {
+          // No marker file → assume plan changed (safe default)
+          planChanged = true;
+        }
+        if (planChanged) {
+          logger.info({ projectDir, planJobId: job.data.planJobId }, 'Plan changed — cleaning stale generation artifacts');
+          const scenesDir = join(projectDir, 'scenes');
+          await rm(scenesDir, { recursive: true, force: true }).catch(() => {});
+          for (const f of ['constants.ts', 'index.tsx', 'metadata.json']) {
+            await rm(join(projectDir, f), { force: true }).catch(() => {});
+          }
+        }
+      }
+      await writeFile(planMarkerPath, job.data.planJobId, 'utf-8');
+
+      const planJob = await db.query.jobs.findFirst({ where: eq(jobs.id, job.data.planJobId) });
+      if (planJob?.planData) {
+        const pd = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
+        // Write plan files to projectDir (workspace/src/{compositionId}) — the Python
+        // generator receives compositionId as --project-id, so it looks there.
+        const scenePlanPath = join(projectDir, 'SCENE_PLAN.md');
+        await writeFile(scenePlanPath, pd.scenePlan, 'utf-8');
+
+        // Enrich scenes with per-scene effectiveDimensions before writing
+        const scenesObj = pd.scenes as Record<string, unknown>;
+        const scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+        const fps = project.fps || 30;
+        for (const scene of scenesArray) {
+          const dm = (scene.displayMode as string) || 'default';
+          if (dm === 'fullscreen' || dm === 'overlay') {
+            scene.effectiveDimensions = { width: canvasWidth, height: canvasHeight };
+          } else {
+            scene.effectiveDimensions = { width: pipEffective.width, height: pipEffective.height };
+          }
+
+          // Pre-inject speaker grid for overlay scenes so the animator doesn't need to call a tool
+          if (dm === 'overlay' && project.headTrackingData) {
+            const frames = scene.frames as [number, number] | undefined;
+            if (frames) {
+              const startMs = (frames[0] / fps) * 1000;
+              const endMs = (frames[1] / fps) * 1000;
+              scene.speakerGrid = computeSpeakerGrid(
+                project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } },
+                startMs,
+                endMs,
+              );
+            }
+          }
+        }
+        await writeFile(scenesJsonPath, JSON.stringify({ ...scenesObj, scenes: scenesArray }, null, 2), 'utf-8');
+        logger.info({ projectDir, planJobId: job.data.planJobId, sceneCount: scenesArray.length }, 'Wrote enriched plan files from plan job for Animator-only run');
+      } else {
+        logger.warn({ planJobId: job.data.planJobId }, 'Plan job not found or has no planData');
+      }
+    }
+
+    // Update workspace Root.tsx and index.ts to import from the correct project ID.
+    // This prevents TypeScript import errors and eliminates the self-healing cycle.
+    const compositionIdDashed = compositionId.replace(/_/g, '-'); // e.g. proj-abc-def
+    const rootTsx = join(workspacePath, 'src', 'Root.tsx');
+    const indexTs = join(workspacePath, 'src', 'index.ts');
+    try {
+      const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
+      await writeFile(rootTsx, `import "./index.css";
+import { Composition } from "remotion";
+import MainComposition from "./${compositionId}";
+
+export const RemotionRoot: React.FC = () => {
+  return (
+    <>
+      <Composition
+        id="${compositionIdDashed}"
+        component={MainComposition}
+        durationInFrames={${durationFrames}}
+        fps={${project.fps || 30}}
+        width={${dimensions?.width || 1080}}
+        height={${dimensions?.height || 1920}}
+      />
+    </>
+  );
+};
+`, 'utf-8');
+      await writeFile(indexTs, `import { registerRoot } from "remotion";
+import { RemotionRoot } from "./${compositionId}/index";
+
+registerRoot(RemotionRoot);
+`, 'utf-8');
+      logger.info({ compositionId }, 'Updated Root.tsx and index.ts with correct project imports');
+    } catch (e) {
+      logger.warn({ error: e }, 'Failed to update Root.tsx/index.ts — self-heal will fix it');
+    }
+
+    // Write Studio template catalog + source files to workspace when studio style is selected
+    if (stylePreset === 'studio') {
+      await publishJobProgress(jobId, 13, 'Loading studio templates...');
+      try {
+        const srcDir = join(workspacePath, 'src');
+        const templatesDir = join(srcDir, '.templates');
+        await mkdir(templatesDir, { recursive: true });
+
+        // Write template catalog markdown
+        const catalog = buildStudioTemplateCatalog();
+        await writeFile(join(srcDir, 'STUDIO_TEMPLATES.md'), catalog, 'utf-8');
+
+        // Copy template source files so the Animator agent can read them.
+        // Read directly from the monorepo source tree instead of using getTemplateFiles()
+        // which is broken after bundling (import.meta.url resolves to dist/ on Windows).
+        const templatesSrcRoot = join(findPackagesRoot(), 'templates', 'src', 'templates');
+        const studioTemplates = listTemplates({ theme: 'studio' });
+        for (const t of studioTemplates) {
+          const tDir = join(templatesDir, t.meta.slug);
+          await mkdir(tDir, { recursive: true });
+          try {
+            const tSrcDir = join(templatesSrcRoot, t.meta.slug);
+            await copyDirRecursive(tSrcDir, tDir);
+          } catch (err) {
+            logger.warn({ slug: t.meta.slug, err }, 'Failed to copy template files');
+          }
+        }
+
+        logger.info({ templateCount: studioTemplates.length, templatesDir }, 'Studio templates written to workspace');
+      } catch (err) {
+        logger.warn({ err }, 'Failed to write studio templates to workspace (non-fatal)');
+      }
+    }
 
     await publishJobProgress(jobId, 15, 'Starting Claude Code generator...');
+
+    // Start heartbeat progress to prevent stall detection during long SDK calls.
+    // The exponential decay curve fills gaps between Python PROGRESS: lines (15→68 over ~20 min).
+    // Python's specific checkpoints (19, 35, 55, etc.) override the heartbeat when they fire,
+    // and pollJobProgress's highWaterMark ensures the frontend only sees monotonic increases.
+    heartbeat = startHeartbeatProgress(jobId, 15, 68, 20 * 60 * 1000);
 
     // Calculate duration in frames
     const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
@@ -252,11 +770,15 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       words,  // Always pass words for two-phase pipeline
       durationFrames,
       fps: project.fps || 30,
-      width: dimensions?.width || 1080,
-      height: dimensions?.height || 1920,
+      width: canvasWidth,
+      height: canvasHeight,
       stylePreset: stylePreset || 'modern',
       layoutMode: layoutMode || 'pip',
       styleGuide,
+      planJobId: job.data.planJobId,
+      pipWidth: pipEffective.width,
+      pipHeight: pipEffective.height,
+      onProgress: (percent) => heartbeat?.raiseWaterMark(percent),
     });
 
     // Store metrics in job (no token cost for OAuth)
@@ -279,10 +801,23 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
 
     logger.info({ projectId, jobMetrics }, 'Job metrics recorded');
 
+    heartbeat?.stop();
+
+    // Always upload sources immediately after agent completes — even if bundling fails later.
+    // This preserves the AI-generated code so retries can pick up where we left off.
+    const earlyBundleCompositionId = compositionId.replace(/_/g, '-');
+    try {
+      await uploadSourceToStorage(projectDir, earlyBundleCompositionId);
+      logger.info({ projectId }, 'Sources uploaded (pre-bundle) for failure recovery');
+    } catch (err) {
+      logger.warn({ projectId, err }, 'Pre-bundle source upload failed (non-fatal)');
+    }
+
     await publishJobProgress(jobId, 70, 'Reading metadata...');
 
     // Read metadata file that the agent should have created
     const metadataPath = join(projectDir, 'metadata.json');
+    const scenesPath = join(projectDir, 'scenes.json');
     let metadata: VisualMetadata;
 
     try {
@@ -291,6 +826,57 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
 
       if (!metadata.compositionId || typeof metadata.durationInFrames !== 'number') {
         throw new Error('Invalid metadata.json: missing required fields');
+      }
+
+      // Try to read scenes.json for detailed scene information
+      try {
+        const scenesContent = await readFile(scenesPath, 'utf-8');
+        const scenesData = JSON.parse(scenesContent);
+
+        if (scenesData.scenes && Array.isArray(scenesData.scenes) && scenesData.scenes.length > 0) {
+          // Convert scenes.json format to timestamps format for the database
+          metadata.visuals = scenesData.scenes.map((scene: any) => {
+            // Extract elements from layout if present
+            const elements: Array<{
+              id: string;
+              name: string;
+              type: string;
+              x: string;
+              y: string;
+              width: string;
+              height: string;
+            }> = [];
+
+            if (scene.layout && typeof scene.layout === 'object') {
+              Object.entries(scene.layout).forEach(([key, value]: [string, any]) => {
+                if (value && typeof value === 'object') {
+                  elements.push({
+                    id: `scene${scene.id}-${key}`,
+                    name: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize
+                    type: key,
+                    x: value.x || 'center',
+                    y: value.y || '50%',
+                    width: value.width || '100%',
+                    height: value.height || '100%',
+                  });
+                }
+              });
+            }
+
+            return {
+              startMs: Math.round(scene.timestampRange[0] * 1000),
+              endMs: Math.round(scene.timestampRange[1] * 1000),
+              type: scene.name || `Scene ${scene.id}`,
+              description: scene.visual || scene.emotion || '',
+              displayMode: scene.displayMode || undefined,
+              transition: scene.transition || undefined,
+              elements: elements.length > 0 ? elements : undefined,
+            };
+          });
+          logger.info({ projectId, sceneCount: metadata.visuals.length }, 'Loaded scenes from scenes.json');
+        }
+      } catch (scenesErr) {
+        logger.warn({ projectId, error: scenesErr }, 'Could not read scenes.json, falling back to metadata.visuals');
       }
 
       if (!metadata.visuals || !Array.isArray(metadata.visuals)) {
@@ -326,8 +912,8 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
         compositionId,
         durationInFrames: durationFrames,
         fps: project.fps || 30,
-        width: dimensions?.width || 1920,
-        height: dimensions?.height || 1080,
+        width: canvasWidth,
+        height: canvasHeight,
         visuals: [{
           startMs: 0,
           endMs: project.durationMs || 60000,
@@ -355,124 +941,213 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     await publishJobProgress(jobId, 82, 'Uploading bundle to storage...');
     await uploadBundleToStorage(bundleDir, bundleCompositionId);
 
+    // Sources already uploaded pre-bundle (for failure recovery).
+    const sourceUrl = `/api/sources/${bundleCompositionId}`;
+
+    // Extract assets from composition for frontend selection
+    await publishJobProgress(jobId, 84, 'Extracting assets...');
+    const extractedAssets = await extractAssets(projectDir);
+
+    // Upload assets.json to S3 as well
+    const assetsPath = join(projectDir, 'assets.json');
+    try {
+      await uploadFile('outputs', `sources/${bundleCompositionId}/assets.json`, assetsPath);
+      logger.info({ projectId, assetCount: extractedAssets.length }, 'Assets uploaded to storage');
+    } catch (err) {
+      logger.warn({ projectId, error: err }, 'Failed to upload assets.json');
+    }
+
     // Bundle URL points to API route that serves from S3
     const bundleUrl = `/api/bundles/${bundleCompositionId}/index.html`;
 
     await publishJobProgress(jobId, 85, 'Registering visual...');
 
-    // Clean up old visuals for this project
-    const existingVisuals = await db.select().from(visuals).where(eq(visuals.projectId, projectId));
-    if (existingVisuals.length > 0) {
-      logger.info({ projectId, count: existingVisuals.length }, 'Cleaning up existing visuals');
+    // Wrap DB completion in a transaction — ensures frontend is never notified
+    // before DB is consistent.
+    await db.transaction(async (tx) => {
+      // Clean up old visuals for this project
+      const existingVisuals = await tx.select().from(visuals).where(eq(visuals.projectId, projectId));
+      if (existingVisuals.length > 0) {
+        logger.info({ projectId, count: existingVisuals.length }, 'Cleaning up existing visuals');
 
-      for (const oldVisual of existingVisuals) {
-        const allItems = await db.select().from(timelineItems);
-        for (const item of allItems) {
-          if (item.type === 'visual' && (item.data as any)?.visualId === oldVisual.id) {
-            await db.delete(timelineItems).where(eq(timelineItems.id, item.id));
+        for (const oldVisual of existingVisuals) {
+          const allItems = await tx.select().from(timelineItems);
+          for (const item of allItems) {
+            if (item.type === 'visual' && (item.data as any)?.visualId === oldVisual.id) {
+              await tx.delete(timelineItems).where(eq(timelineItems.id, item.id));
+            }
+          }
+
+          if (oldVisual.compositionId) {
+            const oldBundleDir = join(config.remotion.bundleOutputDir, oldVisual.compositionId);
+            try {
+              await rm(oldBundleDir, { recursive: true, force: true });
+            } catch {
+              // Ignore cleanup errors
+            }
           }
         }
 
-        if (oldVisual.compositionId) {
-          const oldBundleDir = join(config.remotion.bundleOutputDir, oldVisual.compositionId);
-          try {
-            await rm(oldBundleDir, { recursive: true, force: true });
-          } catch {
-            // Ignore cleanup errors
-          }
-        }
+        await tx.delete(visuals).where(eq(visuals.projectId, projectId));
       }
 
-      await db.delete(visuals).where(eq(visuals.projectId, projectId));
-    }
+      // Enrich timestamps with sourceSceneId (1-indexed scene file mapping)
+      const timestampsWithSourceId = metadata.visuals.map((v, i) => ({
+        ...v,
+        sourceSceneId: i + 1,
+      }));
 
-    // Insert into visuals table
-    const [insertedVisual] = await db.insert(visuals).values({
-      projectId,
-      compositionId: metadata.compositionId,
-      bundleUrl,
-      durationFrames: metadata.durationInFrames,
-      fps: metadata.fps,
-      width: metadata.width,
-      height: metadata.height,
-      stylePreset,
-      llmModel,
-      timestamps: metadata.visuals,
-    }).returning({ id: visuals.id });
-    const visualId = insertedVisual.id;
-
-    await publishJobProgress(jobId, 90, 'Creating timeline items...');
-
-    // Find or create visuals track
-    const existingTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
-    let visualsTrack = existingTracks.find(t => t.type === 'visual');
-
-    if (!visualsTrack) {
-      const [newTrack] = await db.insert(tracks).values({
+      // Insert into visuals table
+      const [insertedVisual] = await tx.insert(visuals).values({
         projectId,
-        type: 'visual',
-        name: 'Visuals',
-        position: existingTracks.length,
-      }).returning();
-      visualsTrack = newTrack;
-    }
-
-    // Create timeline item for the full composition
-    const fullDurationMs = Math.round((metadata.durationInFrames / metadata.fps) * 1000);
-    const visualTypes = metadata.visuals.map(v => v.type).filter(Boolean).join(', ');
-    const visualDescriptions = metadata.visuals.map(v => v.description).filter(Boolean).join('; ');
-
-    await db.insert(timelineItems).values({
-      trackId: visualsTrack.id,
-      type: 'visual',
-      startMs: 0,
-      endMs: fullDurationMs,
-      data: {
-        visualId,
         compositionId: metadata.compositionId,
         bundleUrl,
-        type: visualTypes || 'visual',
-        description: visualDescriptions || 'AI-generated visual',
+        sourceUrl, // Source project files for AI context restoration
+        durationFrames: metadata.durationInFrames,
+        fps: metadata.fps,
         width: metadata.width,
         height: metadata.height,
-        fps: metadata.fps,
-      },
+        stylePreset,
+        llmModel,
+        timestamps: timestampsWithSourceId,
+      }).returning({ id: visuals.id });
+      const visualId = insertedVisual.id;
+
+      // Find or create visuals track
+      const existingTracks = await tx.select().from(tracks).where(eq(tracks.projectId, projectId));
+      let visualsTrack = existingTracks.find(t => t.type === 'visual');
+
+      if (!visualsTrack) {
+        const [newTrack] = await tx.insert(tracks).values({
+          projectId,
+          type: 'visual',
+          name: 'Visuals',
+          position: existingTracks.length,
+        }).returning();
+        visualsTrack = newTrack;
+      }
+
+      // Create one timeline item per scene so they appear as separate blocks on the track
+      for (let sceneIndex = 0; sceneIndex < metadata.visuals.length; sceneIndex++) {
+        const scene = metadata.visuals[sceneIndex];
+        // Compute per-scene effective dimensions
+        const sceneDm = scene.displayMode || 'default';
+        const sceneEffectiveW = (sceneDm === 'fullscreen' || sceneDm === 'overlay')
+          ? canvasWidth : pipEffective.width;
+        const sceneEffectiveH = (sceneDm === 'fullscreen' || sceneDm === 'overlay')
+          ? canvasHeight : pipEffective.height;
+
+        // Compute speaker bbox for overlay scenes (for player-level face masking)
+        let speakerBbox: { x: number; y: number; w: number; h: number } | undefined;
+        if (sceneDm === 'overlay' && project.headTrackingData) {
+          const htData = project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } };
+          const videoW = htData.video?.width || 1;
+          const videoH = htData.video?.height || 1;
+          const htFrames = (htData.frames || []).filter(
+            (f) => f.timestamp_ms >= scene.startMs && f.timestamp_ms <= scene.endMs && f.face?.bbox,
+          );
+          if (htFrames.length > 0) {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            for (const f of htFrames) {
+              const b = f.face!.bbox!;
+              minX = Math.min(minX, b.x / videoW);
+              minY = Math.min(minY, b.y / videoH);
+              maxX = Math.max(maxX, (b.x + b.width) / videoW);
+              maxY = Math.max(maxY, (b.y + b.height) / videoH);
+            }
+            speakerBbox = {
+              x: Math.max(0, minX),
+              y: Math.max(0, minY),
+              w: Math.min(1, maxX) - Math.max(0, minX),
+              h: Math.min(1, maxY) - Math.max(0, minY),
+            };
+          }
+        }
+
+        // sourceSceneId: 1-indexed scene ID mapping to scenes/SceneN.tsx
+        // Survives timeline splits so the agent can target the correct file
+        const sourceSceneId = sceneIndex + 1;
+
+        await tx.insert(timelineItems).values({
+          trackId: visualsTrack.id,
+          type: 'visual',
+          startMs: scene.startMs,
+          endMs: scene.endMs,
+          data: {
+            visualId,
+            compositionId: metadata.compositionId,
+            bundleUrl,
+            type: scene.type || 'visual',
+            description: scene.description || 'AI-generated visual',
+            width: canvasWidth,
+            height: canvasHeight,
+            fps: metadata.fps,
+            effectiveWidth: sceneEffectiveW,
+            effectiveHeight: sceneEffectiveH,
+            displayMode: sceneDm,
+            transition: scene.transition || undefined,
+            sourceSceneId,
+            ...(speakerBbox ? { speakerBbox } : {}),
+          },
+        });
+      }
+
+      // Update job and project status
+      await tx.update(jobs)
+        .set({
+          status: 'complete',
+          progress: 100,
+          completedAt: new Date(),
+        })
+        .where(eq(jobs.id, jobId));
+
+      // Persist layoutMode into project videoSettings so the editor/export
+      // uses the same layout the user selected at generation time.
+      const existingVideoSettings = (project.videoSettings as Record<string, unknown>) || {};
+      const existingLayoutSettings = (existingVideoSettings.layoutSettings as Record<string, unknown>) || {};
+      await tx.update(projects)
+        .set({
+          status: 'ready',
+          outputKey: null,
+          updatedAt: new Date(),
+          videoSettings: {
+            ...existingVideoSettings,
+            layoutSettings: {
+              ...existingLayoutSettings,
+              mode: layoutMode,
+            },
+          },
+        })
+        .where(eq(projects.id, projectId));
     });
 
-    // Update job and project status
-    await db.update(jobs)
-      .set({
-        status: 'complete',
-        progress: 100,
-        completedAt: new Date(),
-      })
-      .where(eq(jobs.id, jobId));
-
-    await db.update(projects)
-      .set({ status: 'ready', updatedAt: new Date() })
-      .where(eq(projects.id, projectId));
-
+    // Only AFTER transaction succeeds — notify frontend
     await publishJobProgress(jobId, 100, 'Complete');
     await publishJobComplete(jobId, projectId);
 
     logger.info({ projectId, compositionId, model: llmModel }, 'Visual generation complete');
 
   } catch (error) {
+    heartbeat?.stop();
     logger.error({ projectId, err: error }, 'Visual generation failed');
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    await db.update(jobs)
-      .set({ status: 'failed', error: errorMessage })
-      .where(eq(jobs.id, jobId));
+    await db.transaction(async (tx) => {
+      await tx.update(jobs)
+        .set({ status: 'failed', error: errorMessage })
+        .where(eq(jobs.id, jobId));
 
-    await db.update(projects)
-      .set({ status: 'failed' })
-      .where(eq(projects.id, projectId));
+      await tx.update(projects)
+        .set({ status: 'failed' })
+        .where(eq(projects.id, projectId));
+    });
 
     await publishJobError(jobId, errorMessage);
 
     throw error;
+  } finally {
+    clearInterval(lockExtender);
   }
 }
 
@@ -493,6 +1168,13 @@ interface ClaudeCodeOptions {
   stylePreset: string;
   layoutMode: string;
   styleGuide?: string;
+  /** If set, run only the Animator phase (plan already exists in project dir) */
+  planJobId?: string;
+  /** Effective pip dimensions for per-scene dimension-aware generation */
+  pipWidth?: number;
+  pipHeight?: number;
+  /** Callback to raise heartbeat water mark when Python emits PROGRESS checkpoints */
+  onProgress?: (percent: number) => void;
 }
 
 /**
@@ -504,7 +1186,7 @@ interface ClaudeCodeOptions {
 async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide } = options;
+  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId, pipWidth, pipHeight, onProgress } = options;
 
   const pythonPath = config.pythonPath;
   const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
@@ -564,8 +1246,20 @@ async function runClaudeCodeGenerator(
       args.push('--style-guide', styleGuidePath);
     }
 
-    // Two-phase pipeline is always used
-    logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
+    // Add pip effective dimensions for per-scene dimension-aware generation
+    if (pipWidth && pipHeight) {
+      args.push('--pip-width', String(pipWidth));
+      args.push('--pip-height', String(pipHeight));
+    }
+
+    // If planJobId is set, skip Director and run Animator only
+    if (planJobId) {
+      args.push('--phase', 'animator');
+      logger.info({ projectId, planJobId }, 'Using Animator-only mode (plan provided from plan job)');
+    } else {
+      // Two-phase pipeline is always used
+      logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
+    }
 
     const subprocess = spawn(pythonPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -593,14 +1287,47 @@ async function runClaudeCodeGenerator(
     subprocess.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stdout += text;
-      // Log more output for debugging
+
+      const lines = text.split('\n');
+      for (const line of lines) {
+        // Parse PROGRESS:XX:message or PROGRESS:XX:message|{json_metadata}
+        const progressMatch = line.match(/^PROGRESS:(\d+):(.+?)(?:\|(.+))?$/);
+        if (progressMatch) {
+          const percent = parseInt(progressMatch[1], 10);
+          const message = progressMatch[2];
+          const metaJson = progressMatch[3];
+          let meta: Record<string, unknown> | undefined;
+          if (metaJson) {
+            try { meta = JSON.parse(metaJson); } catch { /* ignore malformed meta */ }
+          }
+          // Raise heartbeat water mark so it doesn't regress below this checkpoint
+          onProgress?.(percent);
+          publishJobProgress(jobId, percent, message, meta ? { meta } : undefined);
+          logger.info({ projectId, percent, message, meta }, 'Claude generator progress');
+          continue;
+        }
+      }
+
       logger.info({ projectId, output: text.slice(0, 500) }, 'Claude generator stdout');
     });
+
+    let fatalStderrDetected = false;
 
     subprocess.stderr?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stderr += text;
       logger.error({ projectId, stderr: text.slice(0, 1000) }, 'Claude generator stderr');
+      // Detect fatal crashes: unhandled rejections mean the CLI is likely hung
+      if (
+        text.includes('unhandled') ||
+        text.includes('UnhandledPromiseRejection') ||
+        text.includes('rejecting a promise which was not handled') ||
+        text.includes('uncaughtException')
+      ) {
+        logger.error({ projectId, stderr: text.slice(0, 500) }, 'Claude generator fatal error detected, killing subprocess');
+        fatalStderrDetected = true;
+        subprocess.kill('SIGTERM');
+      }
     });
 
     // Wait for completion with timeout
@@ -610,6 +1337,11 @@ async function runClaudeCodeGenerator(
         setTimeout(() => {
           if (!subprocess.killed) {
             subprocess.kill('SIGKILL');
+            setTimeout(() => {
+              if (!subprocess.killed) {
+                logger.error({ jobId }, 'CRITICAL: subprocess survived SIGKILL — potential zombie');
+              }
+            }, 5000);
           }
         }, 10000);
         reject(new Error(`Claude Agent generator timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
@@ -617,10 +1349,15 @@ async function runClaudeCodeGenerator(
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
-        if (code === 0) {
+        runningProcesses.delete(jobId);
+        unregisterCancelHandler(jobId);
+        if (fatalStderrDetected) {
+          // OOM and other crashes — retryable (sources may be partially written)
+          reject(new Error(`Claude generator crashed: ${stderr.slice(-500)}`));
+        } else if (code === 0) {
           resolve();
         } else {
-          // Include both stderr and last part of stdout for debugging
+          // Non-zero exit — may be retryable (transient API errors, etc.)
           const errorOutput = stderr || stdout.slice(-1000);
           reject(new Error(`Claude Code generator exited with code ${code}: ${errorOutput}`));
         }
@@ -628,6 +1365,8 @@ async function runClaudeCodeGenerator(
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
+        runningProcesses.delete(jobId);
+        unregisterCancelHandler(jobId);
         reject(err);
       });
     });
@@ -729,23 +1468,23 @@ async function runClaudeCodeGenerator(
 
     try {
       await rm(transcriptPath);
-    } catch {
-      // Ignore cleanup errors
+    } catch (err) {
+      logger.warn({ jobId, path: transcriptPath, err }, 'Failed to clean temp file');
     }
 
     if (wordsPath) {
       try {
         await rm(wordsPath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        logger.warn({ jobId, path: wordsPath, err }, 'Failed to clean temp file');
       }
     }
 
     if (styleGuidePath) {
       try {
         await rm(styleGuidePath);
-      } catch {
-        // Ignore cleanup errors
+      } catch (err) {
+        logger.warn({ jobId, path: styleGuidePath, err }, 'Failed to clean temp file');
       }
     }
   }

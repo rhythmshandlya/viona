@@ -26,7 +26,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/api/package.json ./packages/api/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --filter @reelify/api...
+RUN pnpm install --frozen-lockfile --filter @viona/api...
 
 # ============================================
 # Build stage
@@ -44,8 +44,8 @@ COPY packages/shared ./packages/shared
 COPY packages/api ./packages/api
 
 # Build shared first, then api
-RUN pnpm --filter @reelify/shared build && \
-    pnpm --filter @reelify/api build
+RUN pnpm --filter @viona/shared build && \
+    pnpm --filter @viona/api build
 
 # ============================================
 # Production stage
@@ -63,15 +63,26 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/api/package.json ./packages/api/
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --filter @reelify/api... --prod
+RUN pnpm install --frozen-lockfile --filter @viona/api... --prod
+
+# Install Claude Code CLI for Creative Director agent (Agent SDK spawns claude subprocess)
+RUN npm install -g @anthropic-ai/claude-code
 
 # Copy built files
 COPY --from=builder /app/packages/api/dist ./packages/api/dist
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
+# Copy migration files for auto-migration on startup
+COPY --from=builder /app/packages/api/drizzle ./packages/api/drizzle
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 api
+
+# Create home directory for claude CLI cache
+RUN mkdir -p /home/api && chown -R api:nodejs /home/api
+ENV HOME="/home/api"
+
 USER api
 
 WORKDIR /app/packages/api

@@ -1,6 +1,12 @@
 import 'dotenv/config';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { hostname } from 'os';
+
+// Worker package root (packages/worker/) — used for resolving relative script paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const WORKER_ROOT = resolve(__dirname, '..');
 
 export const config = {
   // Worker identification and workspace
@@ -23,13 +29,13 @@ export const config = {
   // Claude Agent SDK visual generator (uses OAuth authentication)
   claudeAgent: {
     // Model for visual generation
-    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-5-20251101',
+    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-6',
     // Extended thinking tokens for planning
     maxThinkingTokens: parseInt(process.env.CLAUDE_AGENT_MAX_THINKING_TOKENS || '10000', 10),
     // Maximum agent turns
     maxTurns: parseInt(process.env.CLAUDE_AGENT_MAX_TURNS || '100', 10),
-    // Timeout for generation (45 minutes default - includes Director + Animator + retries)
-    timeoutSeconds: parseInt(process.env.CLAUDE_AGENT_TIMEOUT || '2700', 10),
+    // Timeout for generation (90 minutes default - includes Director + Animator + verification + retries)
+    timeoutSeconds: parseInt(process.env.CLAUDE_AGENT_TIMEOUT || '5400', 10),
     // Maximum retries on failure (more for transient API errors)
     maxRetries: parseInt(process.env.CLAUDE_AGENT_MAX_RETRIES || '4', 10),
   },
@@ -42,9 +48,9 @@ export const config = {
     url: process.env.REDIS_URL || 'redis://localhost:6379',
   },
 
-  // Storage configuration is now handled by @reelify/shared StorageService
+  // Storage configuration is now handled by @viona/shared StorageService
   // This config is kept for backwards compatibility with existing code
-  // Use: import { getStorage } from '@reelify/shared/storage';
+  // Use: import { getStorage } from '@viona/shared/storage';
   storage: (() => {
     // Railway Bucket vars take precedence (auto-injected in prod)
     const endpoint = process.env.BUCKET_ENDPOINT || process.env.S3_ENDPOINT || 'localhost';
@@ -56,7 +62,7 @@ export const config = {
       accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
       secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
       useSSL: !isInternalConnection && (!!process.env.BUCKET_ENDPOINT || process.env.S3_USE_SSL === 'true'),
-      bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'cllipify',
+      bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'viona',
       region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
       // Prefixes for organizing objects within single bucket
       prefixes: {
@@ -79,7 +85,7 @@ export const config = {
   },
 
   whisperx: {
-    scriptPath: process.env.WHISPERX_SCRIPT_PATH || './scripts/whisperx_transcribe.py',
+    scriptPath: process.env.WHISPERX_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'whisperx_transcribe.py'),
     model: process.env.WHISPER_MODEL || 'base',
     language: process.env.WHISPER_LANGUAGE || 'en',
     device: process.env.WHISPER_DEVICE || 'auto',
@@ -88,13 +94,34 @@ export const config = {
   },
 
   enhance: {
-    scriptPath: process.env.ENHANCE_SCRIPT_PATH || './scripts/enhance_audio.py',
+    scriptPath: process.env.ENHANCE_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'enhance_audio.py'),
     // Set AUDIO_ENHANCEMENT_ENABLED=false to skip the enhancement pipeline
     enabled: process.env.AUDIO_ENHANCEMENT_ENABLED !== 'false',
     // Inverse of enabled for backwards compatibility
     get disabled() {
       return !this.enabled;
     },
+  },
+
+
+  wordStyleAnalysis: {
+    // Set WORD_STYLE_ANALYSIS_ENABLED=false to skip LLM word analysis
+    enabled: process.env.WORD_STYLE_ANALYSIS_ENABLED === 'true',
+    model: process.env.WORD_STYLE_ANALYSIS_MODEL || 'gpt-4o-mini',
+  },
+
+  freepik: {
+    apiKey: process.env.FREEPIK_API_KEY || '',
+  },
+
+  // Stock photo API keys (optional — passed to asset MCP server)
+  unsplash: {
+    accessKey: process.env.UNSPLASH_ACCESS_KEY || '',
+  },
+
+
+  pexels: {
+    apiKey: process.env.PEXELS_API_KEY || '',
   },
 
   remotion: {

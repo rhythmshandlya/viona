@@ -1,6 +1,6 @@
 # Local Development Setup
 
-Complete guide for setting up Cllipify on your local machine (Windows, macOS, or Linux).
+Complete guide for setting up Viona on your local machine (Windows, macOS, or Linux).
 
 ## Prerequisites
 
@@ -17,8 +17,8 @@ Complete guide for setting up Cllipify on your local machine (Windows, macOS, or
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/your-org/cllipify.git
-cd cllipify
+git clone https://github.com/your-org/viona.git
+cd viona
 pnpm install
 
 # 2. Start infrastructure
@@ -59,7 +59,7 @@ pnpm --version  # Should be >= 9.0.0
 ### Step 2: Install Dependencies
 
 ```bash
-cd cllipify
+cd viona
 pnpm install
 ```
 
@@ -88,7 +88,7 @@ docker-compose logs -f
 
 ### Step 4: MinIO Bucket (Auto-Created)
 
-The `cllipify` bucket is **automatically created** when the API starts for the first time.
+The `viona` bucket is **automatically created** when the API starts for the first time.
 
 You can view it in the MinIO Console:
 1. Open http://localhost:9001
@@ -139,8 +139,8 @@ The worker requires Python for the Claude Agent SDK which powers AI visual gener
 # Install Miniconda from https://docs.conda.io/en/latest/miniconda.html
 
 # Create environment
-conda create -n cllipify python=3.10 -y
-conda activate cllipify
+conda create -n viona python=3.10 -y
+conda activate viona
 
 # Install dependencies
 cd packages/worker
@@ -151,10 +151,10 @@ Set the Python path in your `.env`:
 
 ```bash
 # Windows
-PYTHON_PATH=C:\Users\<you>\miniconda3\envs\cllipify\python.exe
+PYTHON_PATH=C:\Users\<you>\miniconda3\envs\viona\python.exe
 
 # macOS/Linux
-PYTHON_PATH=/Users/<you>/miniconda3/envs/cllipify/bin/python
+PYTHON_PATH=/Users/<you>/miniconda3/envs/viona/bin/python
 ```
 
 ### Using venv (Alternative)
@@ -276,7 +276,7 @@ S3_PORT=9000
 S3_ACCESS_KEY=reelify
 S3_SECRET_KEY=reelify123
 S3_USE_SSL=false
-S3_BUCKET=cllipify
+S3_BUCKET=viona
 S3_REGION=us-east-1
 ```
 
@@ -293,7 +293,7 @@ S3_PORT=9000
 S3_ACCESS_KEY=reelify
 S3_SECRET_KEY=reelify123
 S3_USE_SSL=false
-S3_BUCKET=cllipify
+S3_BUCKET=viona
 ```
 
 ### Worker `.env`
@@ -308,7 +308,7 @@ S3_PORT=9000
 S3_ACCESS_KEY=reelify
 S3_SECRET_KEY=reelify123
 S3_USE_SSL=false
-S3_BUCKET=cllipify
+S3_BUCKET=viona
 
 # Transcription
 TRANSCRIPTION_MODE=local
@@ -348,10 +348,10 @@ Set `PYTHON_PATH` in `packages/worker/.env`:
 
 ```bash
 # Windows (Miniconda)
-PYTHON_PATH=C:\Users\<you>\miniconda3\envs\cllipify\python.exe
+PYTHON_PATH=C:\Users\<you>\miniconda3\envs\viona\python.exe
 
 # macOS/Linux (Miniconda)
-PYTHON_PATH=/Users/<you>/miniconda3/envs/cllipify/bin/python
+PYTHON_PATH=/Users/<you>/miniconda3/envs/viona/bin/python
 ```
 
 ### WhisperX CUDA Errors
@@ -433,9 +433,9 @@ pnpm dev
 pnpm build
 
 # Build specific package
-pnpm --filter @reelify/shared build
-pnpm --filter @reelify/api build
-pnpm --filter @reelify/worker build
+pnpm --filter @viona/shared build
+pnpm --filter @viona/api build
+pnpm --filter @viona/worker build
 pnpm --filter web build
 ```
 
@@ -464,35 +464,43 @@ pnpm db:migrate
 ## File Structure
 
 ```
-cllipify/
+viona/
 ├── .env                          # Root environment
 ├── .env.example                  # Template
 ├── docker-compose.yml            # Infrastructure
 ├── .minio-data/                  # MinIO data (gitignored)
 │
 ├── apps/
-│   └── web/                      # Next.js frontend
-│       ├── .env.local            # Frontend env
-│       └── src/
+│   ├── web/                      # Next.js 15 frontend
+│   │   ├── .env.local            # Frontend env
+│   │   └── src/
+│   │
+│   ├── landing/                  # Astro landing page
+│   │
+│   └── templates/                # Template builder app
 │
 ├── packages/
 │   ├── api/                      # Fastify backend
 │   │   ├── .env                  # API env
+│   │   ├── agent/                # Creative Director agent
 │   │   └── src/
 │   │
 │   ├── worker/                   # Job processor
 │   │   ├── .env                  # Worker env
+│   │   ├── agents/               # AI agents (visual generator, etc.)
 │   │   ├── remotion-template/    # Template files
 │   │   ├── workspace/            # Generated projects
 │   │   ├── bundles/              # Output bundles
 │   │   └── src/
 │   │
-│   ├── shared/                   # Shared types & utilities
-│   └── renderer/                 # Remotion components
+│   ├── shared/                   # Shared types & storage
+│   ├── renderer/                 # Remotion components
+│   └── templates/                # Template registry & definitions
 │
 └── docs/
     ├── LOCAL_SETUP.md            # This file
-    └── RAILWAY_DEPLOYMENT.md     # Production deployment
+    ├── RAILWAY_DEPLOYMENT.md     # Production deployment
+    └── plans/                    # Feature & architecture plans
 ```
 
 ---

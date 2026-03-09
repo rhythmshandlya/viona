@@ -1,6 +1,7 @@
 import { Client } from 'minio';
-import { createWriteStream, createReadStream } from 'fs';
+import { createWriteStream, createReadStream, mkdirSync, existsSync } from 'fs';
 import { pipeline } from 'stream/promises';
+import { join, dirname } from 'path';
 import { config } from '../config.js';
 
 // Build client config - only add port for local MinIO
@@ -72,4 +73,92 @@ export async function getObjectStream(prefix: string, key: string) {
     : `${prefix}/${key}`;
 
   return minioClient.getObject(BUCKET, fullKey);
+}
+
+/**
+ * List all objects with a given prefix.
+ * @param prefix - The prefix type ('uploads', 'outputs', 'templates')
+ * @param keyPrefix - Additional prefix within the bucket prefix
+ */
+export async function listObjects(prefix: string, keyPrefix: string): Promise<string[]> {
+  const fullPrefix = PREFIXES[prefix as keyof typeof PREFIXES]
+    ? `${PREFIXES[prefix as keyof typeof PREFIXES]}${keyPrefix}`
+    : `${prefix}/${keyPrefix}`;
+
+  const objects: string[] = [];
+  const stream = minioClient.listObjects(BUCKET, fullPrefix, true);
+
+  return new Promise((resolve, reject) => {
+    stream.on('data', (obj) => {
+      if (obj.name) {
+        // Remove the bucket prefix to get relative path
+        const basePrefix = PREFIXES[prefix as keyof typeof PREFIXES] || `${prefix}/`;
+        objects.push(obj.name.replace(basePrefix, ''));
+      }
+    });
+    stream.on('error', reject);
+    stream.on('end', () => resolve(objects));
+  });
+}
+
+/**
+ * Check if an object exists in storage.
+ * @param prefix - The prefix type ('uploads', 'outputs', 'templates')
+ * @param key - The object key (without prefix)
+ */
+export async function objectExists(prefix: string, key: string): Promise<boolean> {
+  const fullKey = PREFIXES[prefix as keyof typeof PREFIXES]
+    ? `${PREFIXES[prefix as keyof typeof PREFIXES]}${key}`
+    : `${prefix}/${key}`;
+
+  try {
+    await minioClient.statObject(BUCKET, fullKey);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Download all source files for a composition from storage to local workspace.
+ * Restores the full AI context (plans, code, configs) for continued editing.
+ *
+ * @param compositionId - The composition ID (e.g., "proj-abc123")
+ * @param destDir - Local destination directory (e.g., workspace/src/proj_abc123)
+ * @returns List of downloaded files
+ */
+export async function downloadSourceFromStorage(compositionId: string, destDir: string): Promise<string[]> {
+  // List all source files for this composition
+  const sourcePrefix = `sources/${compositionId}/`;
+  const files = await listObjects('outputs', sourcePrefix);
+
+  if (files.length === 0) {
+    throw new Error(`No source files found for composition: ${compositionId}. This project may have been created before source file saving was enabled. Please regenerate visuals to enable AI editing.`);
+  }
+
+  // Create destination directory if it doesn't exist
+  if (!existsSync(destDir)) {
+    mkdirSync(destDir, { recursive: true });
+  }
+
+  const downloadedFiles: string[] = [];
+
+  for (const file of files) {
+    // file is like "sources/proj-xxx/index.tsx" or "sources/proj-xxx/scenes/Scene1.tsx"
+    // We need to extract the relative path after the compositionId
+    const relativePath = file.replace(sourcePrefix, '');
+    const localPath = join(destDir, relativePath);
+
+    // Create subdirectories if needed (e.g., for scenes/Scene1.tsx)
+    const localDir = dirname(localPath);
+    if (!existsSync(localDir)) {
+      mkdirSync(localDir, { recursive: true });
+    }
+
+    // Download the file
+    await downloadFile('outputs', file, localPath);
+    downloadedFiles.push(relativePath);
+  }
+
+  return downloadedFiles;
 }

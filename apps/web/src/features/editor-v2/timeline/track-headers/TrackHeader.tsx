@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Film, Volume2, MessageSquare, Type, Image, Lock, Unlock, Eye, EyeOff, ChevronRight, ChevronDown } from 'lucide-react';
+import { Film, Volume2, MessageSquare, Type, Image, Lock, Unlock, Eye, EyeOff, ChevronRight, ChevronDown, Sparkles } from 'lucide-react';
 import { Track } from '../../store/types';
 import { useEditorActions } from '../../store/use-editor-store';
 
@@ -16,6 +16,7 @@ const TRACK_ICONS: Record<string, React.ComponentType<any>> = {
   caption: MessageSquare,
   text: Type,
   overlay: Image,
+  visual: Sparkles,
 };
 
 export function TrackHeader({ track }: TrackHeaderProps) {

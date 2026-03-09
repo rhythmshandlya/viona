@@ -1,4 +1,4 @@
-import { Geist_Mono, Geist, DM_Sans, Outfit } from "next/font/google";
+import { Geist_Mono, Geist, Inter } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { baseUrl, createMetadata } from "@/utils/metadata";
 import {
@@ -7,7 +7,8 @@ import {
 } from "@/components/store-initializer";
 import { QueryProvider } from "@/components/query-provider";
 import { StytchProvider } from "@/components/stytch-provider";
-import { Analytics } from "@vercel/analytics/react";
+
+import { ClarityScript } from "@/components/clarity";
 
 import "./globals.css";
 
@@ -22,22 +23,19 @@ const geist = Geist({
   weight: ["300", "400", "500", "600", "700"]
 });
 
-const outfit = Outfit({
-  variable: "--font-outfit",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"]
 });
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"]
-});
+// Prevent static prerendering — all pages require StytchProvider at runtime
+export const dynamic = "force-dynamic";
 
 export const metadata = createMetadata({
   title: {
-    template: "%s | Cllipify",
-    default: "Cllipify"
+    template: "%s | Viona Studio",
+    default: "Viona Studio"
   },
   description: "Transform your explainer videos with AI-generated visuals, auto-transcription, and animated subtitles.",
   metadataBase: baseUrl
@@ -51,7 +49,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistMono.variable} ${geist.variable} ${outfit.variable} ${dmSans.variable} antialiased font-sans bg-background`}
+        className={`${geistMono.variable} ${geist.variable} ${inter.variable} antialiased font-sans bg-background`}
         suppressHydrationWarning
       >
         <StytchProvider>
@@ -62,7 +60,7 @@ export default async function RootLayout({
             <Toaster />
           </QueryProvider>
         </StytchProvider>
-        <Analytics />
+        <ClarityScript />
       </body>
     </html>
   );

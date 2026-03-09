@@ -1,0 +1,33 @@
+{
+  "slug": "stat-line-chart",
+  "name": "Stat Line Chart",
+  "description": "SVG line graph drawn progressively with gradient fill — perfect for growth trends and time series",
+  "category": "marketing",
+  "tags": [
+    "KPI",
+    "analytics",
+    "chart",
+    "dashboard",
+    "data-visualization",
+    "graph",
+    "growth",
+    "line",
+    "metrics",
+    "month-over-month",
+    "performance",
+    "progress",
+    "revenue",
+    "sparkline",
+    "stats",
+    "studio-theme",
+    "time-series",
+    "trajectory",
+    "trend",
+    "year-over-year"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

@@ -609,7 +609,7 @@ const Word: React.FC<WordProps> = ({ word, style, currentTimeMs, globalStartMs }
 
 Keep the main `AnimatedSubtitle` component structure (position logic) but pass `currentTimeMs` down to Word.
 
-**Step 2:** Build renderer: `pnpm --filter @reelify/renderer build`
+**Step 2:** Build renderer: `pnpm --filter @viona/renderer build`
 
 **Step 3:** Commit.
 
@@ -628,7 +628,7 @@ git commit -m "feat(subtitles): integrate V2 animation engine into AnimatedSubti
 **Step 1:** If the editor's `Composition.tsx` has inline animation logic for captions (scale/opacity/color for pop/fade/highlight), replace it with imports from the animation engine:
 
 ```typescript
-import { resolveAnimation, isAnimationConfig, migrateAnimation } from '@reelify/renderer';
+import { resolveAnimation, isAnimationConfig, migrateAnimation } from '@viona/renderer';
 ```
 
 Apply the same pattern as Task 10 — use `resolveAnimation()` for each word instead of manual switch.
@@ -652,8 +652,8 @@ git commit -m "feat(subtitles): use V2 animation engine in editor preview compos
 **Step 1:** In `convertApiProject`, after merging caption style with defaults (around line 187), migrate legacy animation strings:
 
 ```typescript
-import { migrateAnimation } from '@reelify/renderer';
-import { isAnimationConfig } from '@reelify/renderer';
+import { migrateAnimation } from '@viona/renderer';
+import { isAnimationConfig } from '@viona/renderer';
 
 // After: const captionStyle = { ...DEFAULT_CAPTION_STYLE, ...(apiCaptionStyle as Partial<CaptionStyle>) };
 // Add:

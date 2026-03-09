@@ -1,9 +1,7 @@
 'use client';
 
 import { Slider } from '@/components/ui/slider';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import {
   Circle,
   Square,
@@ -17,6 +15,9 @@ import {
   PictureInPicture,
   Video,
   Sparkles,
+  Crosshair,
+  Expand,
+  Crop,
 } from 'lucide-react';
 import {
   useLayoutSettings,
@@ -28,46 +29,99 @@ import {
   PiPPosition,
   PiPShape,
   LayoutMode,
-  LayoutPresetId,
+  DEFAULT_PIP_CROP,
 } from '../store/types';
 import { cn } from '@/lib/utils';
+
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--editor-text-muted)]">
+      {children}
+    </span>
+  );
+}
+
+function FieldLabel({ children, value }: { children: React.ReactNode; value?: string | number }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs text-[var(--editor-text-secondary)]">{children}</span>
+      {value !== undefined && (
+        <span className="text-[11px] tabular-nums text-[var(--editor-text-muted)]">{value}</span>
+      )}
+    </div>
+  );
+}
+
+function ToggleButton({
+  active,
+  onClick,
+  children,
+  title,
+  className,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  title?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={cn(
+        'flex items-center justify-center gap-1.5 rounded-md text-xs font-medium transition-all',
+        'border',
+        active
+          ? 'bg-primary text-white border-primary shadow-sm'
+          : 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)] border-[var(--editor-border-subtle)] hover:border-[var(--editor-border-default)] hover:text-[var(--editor-text-primary)]',
+        className
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 export function PiPControlPanel() {
   const layoutSettings = useLayoutSettings();
   const presetId = useLayoutPresetId();
-  const { updatePiPSettings, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
-
+  const { updatePiPSettings, updatePiPCrop, updateSplitSettings, setLayoutPreset, setLayoutMode } = useLayoutActions();
   const { mode, pip, split } = layoutSettings;
 
-  // Layout mode options
+  const crop = pip.crop || DEFAULT_PIP_CROP;
+
+  const cropPresets = [
+    { label: 'Fit', icon: <Expand className="w-3 h-3" />, crop: { cropX: 50, cropY: 50, zoom: 1.0 } },
+    { label: 'Face', icon: <Crosshair className="w-3 h-3" />, crop: { cropX: 50, cropY: 30, zoom: 1.3 } },
+    { label: 'Top', icon: <Crop className="w-3 h-3" />, crop: { cropX: 50, cropY: 25, zoom: 1.0 } },
+  ];
+
   const layoutModes: { value: LayoutMode; icon: React.ReactNode; label: string }[] = [
-    { value: 'split-horizontal', icon: <Rows className="w-4 h-4" />, label: 'Split' },
+    { value: 'stacked', icon: <Rows className="w-4 h-4" />, label: 'Stacked' },
     { value: 'pip', icon: <PictureInPicture className="w-4 h-4" />, label: 'PiP' },
   ];
 
-  // PiP position options
   const positionOptions: { value: PiPPosition; icon: React.ReactNode; label: string }[] = [
-    { value: 'top-left', icon: <CornerLeftUp className="w-4 h-4" />, label: 'Top Left' },
-    { value: 'top-right', icon: <CornerRightUp className="w-4 h-4" />, label: 'Top Right' },
-    { value: 'bottom-left', icon: <CornerLeftDown className="w-4 h-4" />, label: 'Bottom Left' },
-    { value: 'bottom-right', icon: <CornerRightDown className="w-4 h-4" />, label: 'Bottom Right' },
+    { value: 'top-left', icon: <CornerLeftUp className="w-3.5 h-3.5" />, label: 'Top Left' },
+    { value: 'top-right', icon: <CornerRightUp className="w-3.5 h-3.5" />, label: 'Top Right' },
+    { value: 'bottom-left', icon: <CornerLeftDown className="w-3.5 h-3.5" />, label: 'Bottom Left' },
+    { value: 'bottom-right', icon: <CornerRightDown className="w-3.5 h-3.5" />, label: 'Bottom Right' },
   ];
 
-  // PiP shape options
   const shapeOptions: { value: PiPShape; icon: React.ReactNode; label: string }[] = [
-    { value: 'circle', icon: <Circle className="w-4 h-4" />, label: 'Circle' },
-    { value: 'rounded', icon: <RectangleHorizontal className="w-4 h-4" />, label: 'Rounded' },
-    { value: 'square', icon: <Square className="w-4 h-4" />, label: 'Square' },
+    { value: 'circle', icon: <Circle className="w-3.5 h-3.5" />, label: 'Circle' },
+    { value: 'rounded', icon: <RectangleHorizontal className="w-3.5 h-3.5" />, label: 'Rounded' },
+    { value: 'square', icon: <Square className="w-3.5 h-3.5" />, label: 'Square' },
   ];
 
-  // PiP size options
   const sizeOptions = [
     { value: 'small', label: 'S', size: 18 },
     { value: 'medium', label: 'M', size: 25 },
     { value: 'large', label: 'L', size: 35 },
   ] as const;
 
-  // Split ratio presets
   const splitRatios = [
     { label: '30/70', ratio: 30 },
     { label: '50/50', ratio: 50 },
@@ -75,108 +129,67 @@ export function PiPControlPanel() {
   ];
 
   return (
-    <div className="p-4 space-y-6">
-      {/* Layout Mode Selector */}
+    <div className="p-4 space-y-5">
+      {/* Layout Mode */}
       <div className="space-y-2">
-        <Label className="text-sm text-zinc-400">Layout Mode</Label>
-        <div className="grid grid-cols-2 gap-2">
+        <SectionLabel>Layout Mode</SectionLabel>
+        <div className="grid grid-cols-2 gap-1.5">
           {layoutModes.map((opt) => (
-            <Button
+            <ToggleButton
               key={opt.value}
-              variant={mode === opt.value ? 'default' : 'outline'}
-              size="sm"
+              active={mode === opt.value}
               onClick={() => setLayoutMode(opt.value)}
-              className={cn(
-                'h-10 flex items-center justify-center gap-2',
-                mode === opt.value && 'bg-purple-600 hover:bg-purple-700'
-              )}
               title={opt.label}
+              className="h-9 px-3"
             >
               {opt.icon}
-              <span className="text-sm">{opt.label}</span>
-            </Button>
+              <span>{opt.label}</span>
+            </ToggleButton>
           ))}
         </div>
       </div>
 
       {/* Quick Presets */}
       <div className="space-y-2">
-        <Label className="text-sm text-zinc-400">Quick Presets</Label>
-        <div className="grid grid-cols-2 gap-2">
+        <SectionLabel>Presets</SectionLabel>
+        <div className="grid grid-cols-2 gap-1.5">
           {LAYOUT_PRESETS.filter(p => p.id !== 'custom').map((preset) => (
-            <Button
+            <ToggleButton
               key={preset.id}
-              variant={presetId === preset.id ? 'default' : 'outline'}
-              size="sm"
+              active={presetId === preset.id}
               onClick={() => setLayoutPreset(preset.id)}
-              className={cn(
-                'text-xs h-auto py-2 px-2 justify-start',
-                presetId === preset.id && 'bg-purple-600 hover:bg-purple-700'
-              )}
               title={preset.description}
+              className="h-8 px-2.5 text-[11px]"
             >
               {preset.name}
-            </Button>
+            </ToggleButton>
           ))}
         </div>
       </div>
 
-      {/* Split Mode Controls */}
-      {(mode === 'split-horizontal' || mode === 'split-vertical') && (
-        <div className="space-y-4 pt-2 border-t border-zinc-700">
-          <Label className="text-sm text-zinc-400">Split Settings</Label>
+      {/* Divider */}
+      <div className="border-t border-[var(--editor-border-subtle)]" />
 
-          {/* Split Direction */}
-          <div className="space-y-2">
-            <span className="text-xs text-zinc-500">Direction</span>
-            <div className="flex gap-2">
-              <Button
-                variant={mode === 'split-horizontal' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setLayoutMode('split-horizontal')}
-                className={cn(
-                  'flex-1 gap-1',
-                  mode === 'split-horizontal' && 'bg-purple-600 hover:bg-purple-700'
-                )}
-              >
-                <Rows className="w-4 h-4" />
-                Top/Bottom
-              </Button>
-              <Button
-                variant={mode === 'split-vertical' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setLayoutMode('split-vertical')}
-                className={cn(
-                  'flex-1 gap-1',
-                  mode === 'split-vertical' && 'bg-purple-600 hover:bg-purple-700'
-                )}
-              >
-                <Columns className="w-4 h-4" />
-                Left/Right
-              </Button>
-            </div>
-          </div>
+      {/* Stacked Mode Controls */}
+      {mode === 'stacked' && (
+        <div className="space-y-4">
+          <SectionLabel>Stacked Settings</SectionLabel>
 
-          {/* Split Ratio */}
+          {/* Ratio */}
           <div className="space-y-2">
-            <div className="flex justify-between">
-              <span className="text-xs text-zinc-500">Visuals / Video Ratio</span>
-              <span className="text-xs text-zinc-400">{split.ratio}% / {100 - split.ratio}%</span>
-            </div>
-            <div className="flex gap-2 mb-2">
+            <FieldLabel value={`${split.ratio}% / ${100 - split.ratio}%`}>
+              Ratio
+            </FieldLabel>
+            <div className="grid grid-cols-3 gap-1.5">
               {splitRatios.map((opt) => (
-                <Button
+                <ToggleButton
                   key={opt.ratio}
-                  variant={split.ratio === opt.ratio ? 'default' : 'outline'}
-                  size="sm"
+                  active={split.ratio === opt.ratio}
                   onClick={() => updateSplitSettings({ ratio: opt.ratio })}
-                  className={cn(
-                    'flex-1 text-xs',
-                    split.ratio === opt.ratio && 'bg-purple-600 hover:bg-purple-700'
-                  )}
+                  className="h-7 text-[11px]"
                 >
                   {opt.label}
-                </Button>
+                </ToggleButton>
               ))}
             </div>
             <Slider
@@ -185,38 +198,30 @@ export function PiPControlPanel() {
               max={80}
               step={5}
               onValueChange={([v]) => updateSplitSettings({ ratio: v })}
-              className="py-1"
+              className="pt-1"
             />
           </div>
 
-          {/* Which is on top/left */}
-          <div className="space-y-2">
-            <span className="text-xs text-zinc-500">{mode === 'split-horizontal' ? 'Top' : 'Left'} Content</span>
-            <div className="flex gap-2">
-              <Button
-                variant={split.position === 'visuals-first' ? 'default' : 'outline'}
-                size="sm"
+          {/* Content Order */}
+          <div className="space-y-1.5">
+            <FieldLabel>Top Content</FieldLabel>
+            <div className="grid grid-cols-2 gap-1.5">
+              <ToggleButton
+                active={split.position === 'visuals-first'}
                 onClick={() => updateSplitSettings({ position: 'visuals-first' })}
-                className={cn(
-                  'flex-1 gap-1',
-                  split.position === 'visuals-first' && 'bg-purple-600 hover:bg-purple-700'
-                )}
+                className="h-8 px-2"
               >
-                <Sparkles className="w-4 h-4" />
-                Visuals
-              </Button>
-              <Button
-                variant={split.position === 'video-first' ? 'default' : 'outline'}
-                size="sm"
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Visuals</span>
+              </ToggleButton>
+              <ToggleButton
+                active={split.position === 'video-first'}
                 onClick={() => updateSplitSettings({ position: 'video-first' })}
-                className={cn(
-                  'flex-1 gap-1',
-                  split.position === 'video-first' && 'bg-purple-600 hover:bg-purple-700'
-                )}
+                className="h-8 px-2"
               >
-                <Video className="w-4 h-4" />
-                Video
-              </Button>
+                <Video className="w-3.5 h-3.5" />
+                <span>Video</span>
+              </ToggleButton>
             </div>
           </div>
         </div>
@@ -224,60 +229,48 @@ export function PiPControlPanel() {
 
       {/* PiP Mode Controls */}
       {mode === 'pip' && (
-        <div className="space-y-4 pt-2 border-t border-zinc-700">
-          <Label className="text-sm text-zinc-400">PiP Settings</Label>
+        <div className="space-y-4">
+          <SectionLabel>PiP Settings</SectionLabel>
 
           {/* Position */}
-          <div className="space-y-2">
-            <span className="text-xs text-zinc-500">Position</span>
-            <div className="grid grid-cols-4 gap-2">
+          <div className="space-y-1.5">
+            <FieldLabel>Position</FieldLabel>
+            <div className="grid grid-cols-4 gap-1.5">
               {positionOptions.map((opt) => (
-                <Button
+                <ToggleButton
                   key={opt.value}
-                  variant={pip.position === opt.value ? 'default' : 'outline'}
-                  size="sm"
+                  active={pip.position === opt.value}
                   onClick={() => updatePiPSettings({ position: opt.value })}
-                  className={cn(
-                    'h-9 px-2',
-                    pip.position === opt.value && 'bg-purple-600 hover:bg-purple-700'
-                  )}
                   title={opt.label}
+                  className="h-8"
                 >
                   {opt.icon}
-                </Button>
+                </ToggleButton>
               ))}
             </div>
           </div>
 
           {/* Size */}
-          <div className="space-y-2">
-            <span className="text-xs text-zinc-500">Size</span>
-            <div className="flex gap-2">
+          <div className="space-y-1.5">
+            <FieldLabel>Size</FieldLabel>
+            <div className="grid grid-cols-4 gap-1.5">
               {sizeOptions.map((opt) => (
-                <Button
+                <ToggleButton
                   key={opt.value}
-                  variant={pip.size === opt.value ? 'default' : 'outline'}
-                  size="sm"
+                  active={pip.size === opt.value}
                   onClick={() => updatePiPSettings({ size: opt.value, customSize: opt.size })}
-                  className={cn(
-                    'flex-1 h-9',
-                    pip.size === opt.value && 'bg-purple-600 hover:bg-purple-700'
-                  )}
+                  className="h-8"
                 >
                   {opt.label}
-                </Button>
+                </ToggleButton>
               ))}
-              <Button
-                variant={pip.size === 'custom' ? 'default' : 'outline'}
-                size="sm"
+              <ToggleButton
+                active={pip.size === 'custom'}
                 onClick={() => updatePiPSettings({ size: 'custom' })}
-                className={cn(
-                  'flex-1 h-9',
-                  pip.size === 'custom' && 'bg-purple-600 hover:bg-purple-700'
-                )}
+                className="h-8 text-[11px]"
               >
                 Custom
-              </Button>
+              </ToggleButton>
             </div>
             {pip.size === 'custom' && (
               <Slider
@@ -286,74 +279,76 @@ export function PiPControlPanel() {
                 max={50}
                 step={1}
                 onValueChange={([v]) => updatePiPSettings({ customSize: v })}
-                className="py-2"
+                className="pt-1"
               />
             )}
           </div>
 
           {/* Shape */}
-          <div className="space-y-2">
-            <span className="text-xs text-zinc-500">Shape</span>
-            <div className="flex gap-2">
+          <div className="space-y-1.5">
+            <FieldLabel>Shape</FieldLabel>
+            <div className="grid grid-cols-3 gap-1.5">
               {shapeOptions.map((opt) => (
-                <Button
+                <ToggleButton
                   key={opt.value}
-                  variant={pip.shape === opt.value ? 'default' : 'outline'}
-                  size="sm"
+                  active={pip.shape === opt.value}
                   onClick={() => updatePiPSettings({ shape: opt.value })}
-                  className={cn(
-                    'flex-1 h-9 gap-1',
-                    pip.shape === opt.value && 'bg-purple-600 hover:bg-purple-700'
-                  )}
+                  className="h-8"
                 >
                   {opt.icon}
-                  <span className="text-xs">{opt.label}</span>
-                </Button>
+                  <span>{opt.label}</span>
+                </ToggleButton>
               ))}
             </div>
           </div>
 
-          {/* Advanced: Border & Shadow */}
-          <div className="space-y-3 pt-2 border-t border-zinc-700/50">
-            <span className="text-xs text-zinc-500">Style</span>
+          {/* Style */}
+          <div className="border-t border-[var(--editor-border-subtle)]" />
+
+          <div className="space-y-3">
+            <SectionLabel>Style</SectionLabel>
 
             {/* Border */}
-            <div className="space-y-1">
-              <div className="flex justify-between">
-                <span className="text-xs text-zinc-500">Border</span>
-                <span className="text-xs text-zinc-400">{pip.borderWidth}px</span>
-              </div>
+            <div className="space-y-1.5">
+              <FieldLabel value={`${pip.borderWidth}px`}>Border</FieldLabel>
               <Slider
                 value={[pip.borderWidth]}
                 min={0}
                 max={6}
                 step={1}
                 onValueChange={([v]) => updatePiPSettings({ borderWidth: v })}
-                className="py-1"
               />
             </div>
 
-            {/* Corner Radius (for rounded) */}
+            {/* Corner Radius */}
             {pip.shape === 'rounded' && (
-              <div className="space-y-1">
-                <div className="flex justify-between">
-                  <span className="text-xs text-zinc-500">Corners</span>
-                  <span className="text-xs text-zinc-400">{pip.borderRadius}px</span>
-                </div>
+              <div className="space-y-1.5">
+                <FieldLabel value={`${pip.borderRadius}px`}>Corners</FieldLabel>
                 <Slider
                   value={[pip.borderRadius]}
                   min={0}
-                  max={40}
+                  max={50}
                   step={2}
                   onValueChange={([v]) => updatePiPSettings({ borderRadius: v })}
-                  className="py-1"
                 />
               </div>
             )}
 
+            {/* Rotation */}
+            <div className="space-y-1.5">
+              <FieldLabel value={`${pip.rotation || 0}°`}>Rotation</FieldLabel>
+              <Slider
+                value={[pip.rotation || 0]}
+                min={-180}
+                max={180}
+                step={1}
+                onValueChange={([v]) => updatePiPSettings({ rotation: v })}
+              />
+            </div>
+
             {/* Shadow */}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-zinc-500">Shadow</span>
+              <span className="text-xs text-[var(--editor-text-secondary)]">Shadow</span>
               <Switch
                 checked={pip.shadowEnabled}
                 onCheckedChange={(v) => updatePiPSettings({ shadowEnabled: v })}
@@ -361,29 +356,91 @@ export function PiPControlPanel() {
             </div>
 
             {/* Opacity */}
-            <div className="space-y-1">
-              <div className="flex justify-between">
-                <span className="text-xs text-zinc-500">Opacity</span>
-                <span className="text-xs text-zinc-400">{Math.round(pip.opacity * 100)}%</span>
-              </div>
+            <div className="space-y-1.5">
+              <FieldLabel value={`${Math.round(pip.opacity * 100)}%`}>Opacity</FieldLabel>
               <Slider
                 value={[pip.opacity]}
                 min={0.5}
                 max={1}
                 step={0.05}
                 onValueChange={([v]) => updatePiPSettings({ opacity: v })}
-                className="py-1"
               />
             </div>
+          </div>
+
+          {/* Video Framing */}
+          <div className="border-t border-[var(--editor-border-subtle)]" />
+
+          <div className="space-y-3">
+            <SectionLabel>Video Framing</SectionLabel>
+
+            {/* Quick Presets */}
+            <div className="grid grid-cols-3 gap-1.5">
+              {cropPresets.map((preset) => (
+                <ToggleButton
+                  key={preset.label}
+                  active={
+                    crop.cropX === preset.crop.cropX &&
+                    crop.cropY === preset.crop.cropY &&
+                    crop.zoom === preset.crop.zoom
+                  }
+                  onClick={() => updatePiPCrop(preset.crop)}
+                  className="h-8"
+                >
+                  {preset.icon}
+                  <span>{preset.label}</span>
+                </ToggleButton>
+              ))}
+            </div>
+
+            {/* Horizontal Pan */}
+            <div className="space-y-1.5">
+              <FieldLabel value={Math.round(crop.cropX)}>Horizontal Pan</FieldLabel>
+              <Slider
+                value={[crop.cropX]}
+                min={0}
+                max={100}
+                step={1}
+                onValueChange={([v]) => updatePiPCrop({ cropX: v })}
+              />
+            </div>
+
+            {/* Vertical Pan */}
+            <div className="space-y-1.5">
+              <FieldLabel value={Math.round(crop.cropY)}>Vertical Pan</FieldLabel>
+              <Slider
+                value={[crop.cropY]}
+                min={0}
+                max={100}
+                step={1}
+                onValueChange={([v]) => updatePiPCrop({ cropY: v })}
+              />
+            </div>
+
+            {/* Zoom */}
+            <div className="space-y-1.5">
+              <FieldLabel value={`${crop.zoom.toFixed(1)}x`}>Zoom</FieldLabel>
+              <Slider
+                value={[crop.zoom]}
+                min={1.0}
+                max={3.0}
+                step={0.1}
+                onValueChange={([v]) => updatePiPCrop({ zoom: v })}
+              />
+            </div>
+
+            <p className="text-[10px] text-[var(--editor-text-muted)]">
+              Alt+drag on PiP to pan. Scroll to zoom.
+            </p>
           </div>
         </div>
       )}
 
-      {/* Info */}
-      <div className="pt-4 border-t border-zinc-700">
-        <p className="text-xs text-zinc-500">
-          {mode === 'pip' && 'Talking head overlays the AI visuals. Customize position, size, and style.'}
-          {(mode === 'split-horizontal' || mode === 'split-vertical') && 'Split screen between visuals and video. Adjust the ratio to your preference.'}
+      {/* Hint */}
+      <div className="pt-3 border-t border-[var(--editor-border-subtle)]">
+        <p className="text-[11px] leading-relaxed text-[var(--editor-text-muted)]">
+          {mode === 'pip' && 'Drag PiP to reposition. Alt+drag to pan video inside. Scroll to zoom.'}
+          {mode === 'stacked' && 'Stacked layout with visuals and video. Adjust the ratio to your preference.'}
         </p>
       </div>
     </div>

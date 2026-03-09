@@ -1,4 +1,4 @@
-# Contributing to Clipify
+# Contributing to Viona
 
 Thanks for your interest in contributing! This guide will help you get the project running locally on Windows, macOS, or Linux.
 
@@ -19,8 +19,8 @@ Before you begin, ensure you have the following installed:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/clipify.git
-cd clipify
+git clone https://github.com/your-org/viona.git
+cd viona
 
 # 2. Install dependencies
 pnpm install
@@ -52,8 +52,8 @@ This starts:
 **PowerShell setup:**
 ```powershell
 # Clone and enter directory
-git clone https://github.com/your-org/clipify.git
-cd clipify
+git clone https://github.com/your-org/viona.git
+cd viona
 
 # Install dependencies
 pnpm install
@@ -89,8 +89,8 @@ PYTHON_PATH=./scripts/.venv/Scripts/python.exe
 **Bash setup:**
 ```bash
 # Clone and enter directory
-git clone https://github.com/your-org/clipify.git
-cd clipify
+git clone https://github.com/your-org/viona.git
+cd viona
 
 # Install dependencies
 pnpm install
@@ -171,11 +171,12 @@ sudo dnf install ffmpeg
 ## Project Structure
 
 ```
-clipify/
+viona/
 ├── apps/
-│   └── web/                 # Next.js 15 frontend
+│   ├── web/                 # Next.js 15 frontend
+│   └── landing/             # Landing page
 ├── packages/
-│   ├── api/                 # Fastify REST API
+│   ├── api/                 # Fastify REST API + Creative Director agent
 │   ├── worker/              # Background job processors
 │   ├── renderer/            # Remotion compositions
 │   └── shared/              # Shared TypeScript types

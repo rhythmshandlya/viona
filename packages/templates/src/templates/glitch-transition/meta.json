@@ -1,0 +1,32 @@
+{
+  "slug": "glitch-transition",
+  "name": "Glitch Transition",
+  "description": "Digital glitch effect with RGB split, scan lines, and corruption blocks",
+  "category": "entertainment",
+  "tags": [
+    "VHS",
+    "breaking",
+    "cinematic",
+    "corruption",
+    "cyberpunk",
+    "digital",
+    "distortion",
+    "dramatic",
+    "effect",
+    "error",
+    "glitch",
+    "noise",
+    "retro",
+    "rgb",
+    "scene-change",
+    "studio-theme",
+    "tech",
+    "transition",
+    "visual-effect"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

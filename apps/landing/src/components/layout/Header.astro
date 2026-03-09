@@ -91,4 +91,16 @@ import { siteConfig } from "@/data/site";
       menu?.classList.add('hidden');
     });
   });
+
+  // Header shadow on scroll
+  const header = document.querySelector('header');
+  if (header) {
+    window.addEventListener('scroll', () => {
+      if (window.scrollY > 10) {
+        header.classList.add('header-scrolled');
+      } else {
+        header.classList.remove('header-scrolled');
+      }
+    }, { passive: true });
+  }
 </script>

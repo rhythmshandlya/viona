@@ -24,16 +24,10 @@ echo "📎 Linking to cllipify project..."
 railway link --project $PROJECT_ID --environment production 2>/dev/null || true
 
 # Run database migrations
+# WARNING: Never hardcode credentials here — use `railway run` to inject env vars from Railway
 echo ""
 echo "🗄️  Running database migrations..."
-DATABASE_URL=$(railway variables get DATABASE_PUBLIC_URL --service Postgres 2>/dev/null || echo "")
-
-if [ -z "$DATABASE_URL" ]; then
-    echo "⚠️  Could not get DATABASE_URL, using public URL..."
-    DATABASE_URL="postgresql://postgres:UPYDklWeXyInLXekDNkXYzORMmYsTRxK@mainline.proxy.rlwy.net:34837/railway"
-fi
-
-DATABASE_URL="$DATABASE_URL" pnpm db:migrate
+railway run pnpm db:migrate
 echo "✅ Migrations complete"
 
 # Deploy services

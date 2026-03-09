@@ -10,3 +10,8 @@ aiohttp>=3.9.0
 
 # Type hints
 typing-extensions>=4.0.0
+
+# Head tracking (MediaPipe Holistic for face + body detection)
+mediapipe>=0.10.0
+opencv-python>=4.8.0
+numpy>=1.24.0

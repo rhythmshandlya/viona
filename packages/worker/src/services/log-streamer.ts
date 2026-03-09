@@ -386,7 +386,11 @@ export class LogStreamer {
 
     // Log individual errors
     for (const err of errors.slice(0, this.verbose ? 20 : 5)) {
-      this.debug(`  ${err.file || ''}:${err.line || ''} - ${err.message || err}`);
+      if (typeof err === 'string') {
+        this.debug(`  ${err}`);
+      } else {
+        this.debug(`  ${err.file || ''}:${err.line || ''} - ${err.message || ''}`);
+      }
     }
   }
 

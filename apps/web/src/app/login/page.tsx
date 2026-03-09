@@ -28,8 +28,8 @@ const stytchStyles = {
     width: "100%",
   },
   colors: {
-    primary: "#F97316",
-    secondary: "#EA580C",
+    primary: "#7C3AED",
+    secondary: "#6D28D9",
     success: "#22c55e",
     error: "#ef4444",
   },
@@ -69,7 +69,7 @@ export default function LoginPage() {
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-bold tracking-tight">
-            <span className="text-primary">Cllipify</span>
+            <span className="text-primary">Viona</span> <span className="text-muted-foreground font-medium text-2xl">Studio</span>
           </h1>
           <p className="text-muted-foreground">
             Sign in to start creating amazing video content

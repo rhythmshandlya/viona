@@ -1,4 +1,4 @@
-# Clipify
+# Viona
 
 A full-stack video editing platform for creating short-form social media content with AI-generated visuals, automated transcription, and professional subtitle styling.
 
@@ -20,10 +20,11 @@ A full-stack video editing platform for creating short-form social media content
 
 ## Overview
 
-Clipify is a modern video editor designed for creating Instagram Reels, TikTok videos, and YouTube Shorts. It combines:
+Viona is a modern video editor designed for creating Instagram Reels, TikTok videos, and YouTube Shorts. It combines:
 
 - **Automated Transcription**: Word-level speech-to-text using WhisperX
-- **AI Visual Generation**: Animated diagrams, charts, and infographics using LLMs + Remotion
+- **AI Visual Generation**: Animated diagrams, charts, and infographics using Claude Agent SDK + Remotion
+- **Creative Director Agent**: Conversational AI assistant for planning and editing visuals
 - **Professional Subtitles**: 15+ animation presets with word-level styling
 - **Audio Enhancement**: Loudness normalization and noise reduction
 - **Real-time Progress**: WebSocket-based job tracking
@@ -36,42 +37,50 @@ Clipify is a modern video editor designed for creating Instagram Reels, TikTok v
 
 ```mermaid
 graph TB
-    subgraph Frontend ["Frontend (Next.js 15)"]
-        WEB[Web App<br/>React 19 + TypeScript]
-        PLAYER[Remotion Player]
-        EDITOR[Video Editor UI]
+    subgraph Frontend ["Frontend"]
+        WEB[Web App<br/>Next.js 15 + React 19]
+        LANDING[Landing Page<br/>Astro]
     end
 
     subgraph Backend ["Backend Services"]
         API[Fastify API<br/>Port 4000]
-        WORKER[Worker Process<br/>Job Processors]
+        AGENT[Creative Director<br/>Agent SSE]
+        WORKER[Worker Process<br/>15 Job Processors]
     end
 
     subgraph Infrastructure ["Infrastructure"]
         PG[(PostgreSQL)]
         REDIS[(Redis)]
-        MINIO[(MinIO<br/>Object Storage)]
+        MINIO[(MinIO / Railway<br/>Object Storage)]
     end
 
-    subgraph External ["External Services"]
+    subgraph AI ["AI Layer"]
+        CLAUDE_SDK[Claude Agent SDK<br/>Visual Generation]
+        CLAUDE_CLI[Claude CLI<br/>Subprocess]
+        MCP[MCP Servers<br/>Assets + Viewport]
+    end
+
+    subgraph Processing ["Processing"]
         WHISPER[WhisperX<br/>Transcription]
-        LLM[OpenRouter<br/>Gemini Flash]
         REMOTION[Remotion<br/>Video Rendering]
+        FFMPEG[FFmpeg<br/>Audio/Video]
     end
 
     WEB --> API
     WEB -.WebSocket.-> API
+    WEB -.SSE.-> AGENT
     API --> PG
     API --> REDIS
     API --> MINIO
+    AGENT --> CLAUDE_SDK
     REDIS --> WORKER
     WORKER --> PG
     WORKER --> MINIO
     WORKER --> WHISPER
-    WORKER --> LLM
+    WORKER --> CLAUDE_CLI
+    CLAUDE_CLI --> MCP
     WORKER --> REMOTION
-    PLAYER --> WEB
-    EDITOR --> WEB
+    WORKER --> FFMPEG
 ```
 
 ### Request Flow
@@ -124,92 +133,119 @@ sequenceDiagram
 ## Tech Stack
 
 ### Frontend
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Next.js | 15.3.2 | React framework |
-| React | 19.0.0 | UI library |
-| TypeScript | 5 | Type safety |
-| Tailwind CSS | 4 | Styling |
-| Zustand | 5.0.4 | State management |
-| Remotion | 4.0.315 | Video composition |
-| Radix UI | - | Accessible components |
+| Technology | Purpose |
+|------------|---------|
+| Next.js 15 | React framework (App Router) |
+| React 19 | UI library |
+| Astro | Landing page |
+| TypeScript 5 | Type safety |
+| Tailwind CSS 4 | Styling |
+| Zustand | State management |
+| Remotion | Video composition & preview |
+| Radix UI | Accessible components |
 
 ### Backend
-| Technology | Version | Purpose |
-|------------|---------|---------|
-| Fastify | 4.25.2 | HTTP server |
-| Drizzle ORM | 0.29.3 | Database ORM |
-| BullMQ | 5.1.0 | Job queue |
-| PostgreSQL | 16 | Database |
-| Redis | 7 | Cache & queue |
-| MinIO | - | Object storage |
+| Technology | Purpose |
+|------------|---------|
+| Fastify | HTTP server + WebSocket + SSE |
+| Drizzle ORM | Database ORM & migrations |
+| BullMQ | Job queue (15 processor types) |
+| PostgreSQL 16 | Database |
+| Redis 7 | Cache, queue & pub/sub |
+| MinIO / Railway Bucket | S3-compatible object storage |
+| Stytch | Authentication (JWT) |
 
 ### AI & Processing
 | Technology | Purpose |
 |------------|---------|
+| Claude Agent SDK | Creative Director agent (API-side) |
+| Claude CLI | Visual generation subprocess (Worker-side) |
+| MCP Servers | Asset serving & viewport tools |
 | WhisperX | Speech-to-text with word alignment |
-| Claude Max / OpenRouter | LLM for visual generation |
-| OpenHands | AI agent framework |
 | FFmpeg | Audio/video processing |
 | Remotion | Programmatic video rendering |
+| Freepik / Pexels | Stock image & video APIs |
 
 ---
 
 ## Monorepo Structure
 
 ```
-clipify/
+viona/
 ├── apps/
-│   └── web/                    # Next.js frontend application
-│       ├── src/
-│       │   ├── app/            # Next.js app router
-│       │   ├── features/
-│       │   │   └── editor-v2/  # Main video editor
-│       │   ├── components/     # Shared UI components
-│       │   ├── lib/            # Utilities & API client
-│       │   └── store/          # Zustand stores
-│       └── package.json
+│   ├── web/                    # Next.js 15 frontend (main editor)
+│   │   ├── src/
+│   │   │   ├── app/            # App Router pages
+│   │   │   ├── features/
+│   │   │   │   └── editor-v2/  # Video editor feature
+│   │   │   ├── components/     # UI components (60+)
+│   │   │   ├── hooks/          # Custom React hooks
+│   │   │   ├── lib/            # Utilities & API client
+│   │   │   ├── store/          # Zustand stores
+│   │   │   └── utils/          # Helper functions
+│   │   └── package.json
+│   │
+│   ├── landing/                # Astro landing page
+│   └── templates/              # Template builder app
 │
 ├── packages/
-│   ├── api/                    # Fastify REST API
+│   ├── api/                    # Fastify REST API + Agent
 │   │   ├── src/
-│   │   │   ├── routes/         # API endpoints
-│   │   │   ├── services/       # MinIO, Redis, Queue
+│   │   │   ├── routes/         # REST endpoints (projects, users)
+│   │   │   ├── agent/          # Creative Director agent
+│   │   │   │   ├── agent-router.ts      # SSE streaming endpoint
+│   │   │   │   ├── agent-tools.ts       # Agent tool definitions
+│   │   │   │   ├── agent-system-prompt.ts
+│   │   │   │   └── conversation-store.ts
+│   │   │   ├── services/       # MinIO, Redis, Queue, Stytch
+│   │   │   ├── middleware/     # Auth middleware
 │   │   │   ├── db/             # Drizzle schema & migrations
 │   │   │   └── ws/             # WebSocket handler
 │   │   └── package.json
 │   │
 │   ├── worker/                 # Background job processors
 │   │   ├── src/
-│   │   │   ├── processors/     # Job handlers
+│   │   │   ├── processors/     # 15 job processors
 │   │   │   │   ├── transcribe.ts
-│   │   │   │   ├── render.ts
+│   │   │   │   ├── render.ts           # 119KB - main render pipeline
+│   │   │   │   ├── generate-visuals.ts  # AI visual generation
+│   │   │   │   ├── plan-visuals.ts      # Visual planning/scenes
+│   │   │   │   ├── edit-visuals.ts      # Conversational editing
+│   │   │   │   ├── svg-animation.ts     # SVG animation gen
 │   │   │   │   ├── enhance-audio.ts
-│   │   │   │   └── generate-visuals.ts
-│   │   │   ├── services/       # MinIO, Redis clients
-│   │   │   └── prompts/        # LLM prompt builders
+│   │   │   │   ├── generate-broll.ts
+│   │   │   │   ├── generate-caption-styles.ts
+│   │   │   │   ├── generate-reframe.ts
+│   │   │   │   ├── head-tracking.ts
+│   │   │   │   └── preload-project.ts
+│   │   │   ├── agents/          # AI agent integration
+│   │   │   │   ├── claude-sdk/  # Claude Agent SDK (TS)
+│   │   │   │   ├── mcp-servers/ # MCP servers (assets, viewport)
+│   │   │   │   ├── prompts/     # Python system prompts
+│   │   │   │   └── claude_visual_generator.py
+│   │   │   ├── services/       # Freepik, Pexels, MinIO, logging
+│   │   │   ├── prompts/        # TypeScript prompt builders
+│   │   │   └── utils/          # Template, heartbeat, Python utils
 │   │   └── package.json
 │   │
 │   ├── renderer/               # Remotion composition library
 │   │   ├── src/
 │   │   │   ├── components/     # Video & subtitle components
-│   │   │   └── animations/     # Animation presets
+│   │   │   └── animations/     # Animation presets & easing
 │   │   └── package.json
 │   │
-│   └── shared/                 # Shared TypeScript types
-│       └── src/types/
-│
-├── docker/
-│   ├── openhands-sandbox/      # AI agent Docker image
-│   │   ├── visual_generator.py # Main generation script
-│   │   ├── config.toml         # LLM configuration
-│   │   ├── skills/             # OpenHands skills
-│   │   └── tools/              # Custom tools
+│   ├── shared/                 # Shared types & storage abstraction
+│   │   └── src/
+│   │       ├── types/          # TypeScript type definitions
+│   │       └── storage.ts      # S3 storage service
 │   │
-│   └── remotion-sandbox/       # Rendering Docker image
+│   └── templates/              # Template registry & definitions
+│       └── src/
+│           ├── registry.ts     # Template lookup
+│           ├── fonts.ts        # Font definitions
+│           └── templates/      # Template implementations
 │
-├── bundles/                    # Generated Remotion bundles
-├── docker-compose.yml          # Local infrastructure
+├── docker-compose.yml          # Local infrastructure (PG, Redis, MinIO)
 ├── package.json                # Root workspace config
 └── pnpm-workspace.yaml
 ```
@@ -255,33 +291,42 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph Input
-        T[Transcript] --> P[Build Prompt]
-        S[Style Preset] --> P
-        D[Dimensions] --> P
+        T[Transcript] --> PLAN
+        S[Style / Template] --> PLAN
+        D[Dimensions] --> PLAN
     end
 
-    subgraph Generation ["OpenHands Agent"]
-        P --> LLM[Gemini Flash LLM]
-        LLM --> CODE[Generate React/TSX]
+    subgraph Planning ["Phase 1: Director"]
+        PLAN[Plan Visuals] --> SCENES[Scene Breakdown]
+        SCENES --> LAYOUT[Layout & Timing]
+    end
+
+    subgraph Generation ["Phase 2: Animator (Claude CLI)"]
+        LAYOUT --> WORKSPACE[Create Workspace]
+        WORKSPACE --> CODE[Generate React/TSX]
         CODE --> VAL{TypeScript Valid?}
         VAL -->|No| FIX[Self-Heal]
         FIX --> VAL
-        VAL -->|Yes| SCREEN[Take Screenshots]
+        VAL -->|Yes| SCREEN[Screenshot via MCP]
     end
 
     subgraph Evaluation
         SCREEN --> EVAL[Visual Evaluation]
-        EVAL --> SCORE{Score >= 70?}
-        SCORE -->|No| IMPROVE[Iterate & Improve]
+        EVAL --> SCORE{Acceptable?}
+        SCORE -->|No| IMPROVE[Iterate]
         IMPROVE --> CODE
         SCORE -->|Yes| BUNDLE[Bundle Code]
     end
 
     subgraph Output
-        BUNDLE --> CJS[CommonJS Module]
-        BUNDLE --> MP4[Render Video]
-        CJS --> BROWSER[Browser Loading]
-        MP4 --> TIMELINE[Timeline Item]
+        BUNDLE --> S3[Upload to S3]
+        S3 --> BROWSER[Browser Preview]
+        S3 --> RENDER[Render Pipeline]
+    end
+
+    subgraph Editing ["Conversational Editing"]
+        BROWSER --> EDIT[Edit Visuals]
+        EDIT --> CODE
     end
 ```
 
@@ -329,25 +374,34 @@ flowchart LR
         CREATE --> QUEUE[Add to Queue]
     end
 
-    subgraph Redis
-        QUEUE --> TQ[transcribe queue]
-        QUEUE --> RQ[render queue]
-        QUEUE --> AQ[enhance-audio queue]
-        QUEUE --> VQ[generate-visuals queue]
+    subgraph Redis ["Redis Queues"]
+        QUEUE --> TQ[transcribe]
+        QUEUE --> RQ[render]
+        QUEUE --> AQ[enhance-audio]
+        QUEUE --> VQ[generate-visuals]
+        QUEUE --> PQ[plan-visuals]
+        QUEUE --> EQ[edit-visuals]
+        QUEUE --> SQ[svg-animation]
+        QUEUE --> BQ[generate-broll]
+        QUEUE --> CQ[generate-caption-styles]
+        QUEUE --> HQ[head-tracking]
     end
 
-    subgraph Workers ["Worker Processes"]
-        TQ --> TW[Transcribe Worker]
-        RQ --> RW[Render Worker]
-        AQ --> AW[Audio Worker]
-        VQ --> VW[Visuals Worker]
+    subgraph Workers ["Worker Processors"]
+        TQ --> TW[Transcribe]
+        RQ --> RW[Render]
+        AQ --> AW[Audio]
+        VQ --> VW[Visuals]
+        PQ --> PW[Planner]
+        EQ --> EW[Editor]
+        SQ --> SW[SVG Anim]
+        BQ --> BW[B-Roll]
+        CQ --> CW[Captions]
+        HQ --> HW[Head Track]
     end
 
     subgraph Progress
-        TW --> PUB[Publish Progress]
-        RW --> PUB
-        AW --> PUB
-        VW --> PUB
+        TW & RW & VW & PW --> PUB[Redis Pub/Sub]
         PUB --> WS[WebSocket]
         WS --> CLIENT[Browser]
     end
@@ -357,15 +411,26 @@ flowchart LR
 
 ```mermaid
 erDiagram
+    USERS ||--o{ PROJECTS : owns
     PROJECTS ||--o{ TRACKS : has
     PROJECTS ||--o{ JOBS : has
     PROJECTS ||--o| TRANSCRIPTS : has
     PROJECTS ||--o{ VISUALS : has
+    PROJECTS ||--o{ PROJECT_ASSETS : has
+    PROJECTS ||--o{ CONVERSATIONS : has
     TRACKS ||--o{ TIMELINE_ITEMS : contains
+    CONVERSATIONS ||--o{ CONVERSATION_MESSAGES : contains
+
+    USERS {
+        uuid id PK
+        varchar stytchUserId UK
+        varchar email
+        timestamp createdAt
+    }
 
     PROJECTS {
         uuid id PK
-        uuid userId
+        uuid userId FK
         varchar status
         varchar videoKey
         varchar outputKey
@@ -435,6 +500,30 @@ erDiagram
         jsonb timestamps
         timestamp createdAt
     }
+
+    PROJECT_ASSETS {
+        uuid id PK
+        uuid projectId FK
+        varchar key
+        varchar type
+        timestamp createdAt
+    }
+
+    CONVERSATIONS {
+        uuid id PK
+        uuid projectId FK
+        timestamp createdAt
+        timestamp updatedAt
+    }
+
+    CONVERSATION_MESSAGES {
+        uuid id PK
+        uuid conversationId FK
+        varchar role
+        text content
+        jsonb toolCalls
+        timestamp createdAt
+    }
 ```
 
 ### Project Status Lifecycle
@@ -462,15 +551,15 @@ stateDiagram-v2
 - **Node.js** >= 20.0.0
 - **pnpm** >= 9.0.0
 - **Docker** & Docker Compose
-- **Python** 3.10+ (for Claude Agent SDK)
+- **Python** 3.10+ (for WhisperX transcription)
 - **FFmpeg** (for audio/video processing)
 
 ### Quick Start
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/cllipify.git
-cd cllipify
+git clone https://github.com/your-org/viona.git
+cd viona
 
 # 2. Install dependencies
 pnpm install
@@ -536,7 +625,7 @@ S3_PORT=9000
 S3_ACCESS_KEY=reelify
 S3_SECRET_KEY=reelify123
 S3_USE_SSL=false
-S3_BUCKET=cllipify
+S3_BUCKET=viona
 S3_REGION=us-east-1
 ```
 
@@ -552,7 +641,7 @@ S3_PORT=9000
 S3_ACCESS_KEY=reelify
 S3_SECRET_KEY=reelify123
 S3_USE_SSL=false
-S3_BUCKET=cllipify
+S3_BUCKET=viona
 
 # Transcription: "local" (WhisperX) or "api" (OpenAI Whisper API)
 TRANSCRIPTION_MODE=local
@@ -618,14 +707,11 @@ pnpm docker:down  # Stop infrastructure
 ```bash
 # Run worker tests
 cd packages/worker && pnpm test
-
-# Run Python tests (dimension validation)
-cd docker/openhands-sandbox && python -m pytest tests/ -v
 ```
 
 ### Project Structure Conventions
 
-1. **Package naming**: `@reelify/{package-name}`
+1. **Package naming**: `@viona/{package-name}`
 2. **Imports**: Use `@/` alias for src directory
 3. **Types**: Define in `packages/shared/src/types`
 4. **API routes**: RESTful naming in `packages/api/src/routes`
@@ -639,12 +725,16 @@ cd docker/openhands-sandbox && python -m pytest tests/ -v
 
 | Table | Description |
 |-------|-------------|
+| `users` | User accounts (Stytch authentication) |
 | `projects` | Video projects with status and settings |
 | `tracks` | Timeline tracks (video, audio, caption, visual) |
 | `timeline_items` | Items on tracks with type-specific data |
 | `transcripts` | Word-level transcriptions from WhisperX |
-| `jobs` | Background job records with progress |
-| `visuals` | AI-generated visual compositions |
+| `jobs` | Background job records with progress, metrics, and logs |
+| `visuals` | AI-generated visual compositions with bundle URLs |
+| `project_assets` | Uploaded media files associated with projects |
+| `conversations` | Creative Director agent conversation sessions |
+| `conversation_messages` | Messages within agent conversations |
 
 ---
 
@@ -654,15 +744,32 @@ cd docker/openhands-sandbox && python -m pytest tests/ -v
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| GET | `/api/projects` | List all user projects |
 | POST | `/api/projects` | Create new project |
 | GET | `/api/projects/:id` | Get project with tracks & items |
-| PATCH | `/api/projects/:id` | Update tracks and items |
-| POST | `/api/projects/:id/process` | Start transcription |
-| POST | `/api/projects/:id/render` | Start video render |
+| PUT | `/api/projects/:id` | Update project (tracks, items, settings) |
+| DELETE | `/api/projects/:id` | Delete project |
+| POST | `/api/projects/:id/upload-url` | Get presigned upload URL |
+| POST | `/api/projects/:id/transcribe` | Start transcription job |
+| POST | `/api/projects/:id/render` | Start video render job |
 | POST | `/api/projects/:id/generate-visuals` | Generate AI visuals |
 | POST | `/api/projects/:id/separate-audio` | Extract audio track |
 | GET | `/api/projects/:id/download` | Get download URL |
 | GET | `/api/projects/:id/video` | Stream video (range support) |
+
+### Creative Director Agent
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/agent/chat` | Send message to agent (SSE streaming) |
+| GET | `/api/agent/conversations/:id` | Get conversation history |
+
+### Bundles & Sources
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/bundles/:compositionId/*` | Serve Remotion bundle files from S3 |
+| GET | `/api/sources/:compositionId/*` | Serve source project files (for AI context) |
 
 ### Jobs
 
@@ -717,6 +824,7 @@ Connect to `ws://localhost:4000/ws?projectId={id}` for real-time updates:
 - **Picture-in-Picture**: Visuals fullscreen, video as overlay
 - **Split Horizontal**: Visuals top, video bottom
 - **Split Vertical**: Visuals left, video right
+- **Spatial Overlay**: Visuals composited over video with per-scene display modes
 - **Video Only**: No visuals shown
 
 ---

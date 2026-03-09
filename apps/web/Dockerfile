@@ -34,11 +34,16 @@ RUN pnpm install --frozen-lockfile --filter web...
 # ============================================
 FROM base AS builder
 
-# Set build-time env vars (can be overridden)
+# Set build-time env vars
+# NEXT_PUBLIC_URL has a production default since Railway may not pass it as a build arg
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_WS_URL
+ARG NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN
+ARG NEXT_PUBLIC_URL=https://studio.viona.app
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
+ENV NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN=${NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN}
+ENV NEXT_PUBLIC_URL=${NEXT_PUBLIC_URL}
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
@@ -52,9 +57,12 @@ COPY packages/shared ./packages/shared
 COPY packages/renderer ./packages/renderer
 COPY apps/web ./apps/web
 
+# Cache bust to ensure build args are re-evaluated
+ARG CACHEBUST=1
+
 # Build packages in order
-RUN pnpm --filter @reelify/shared build && \
-    pnpm --filter @reelify/renderer build && \
+RUN pnpm --filter @viona/shared build && \
+    pnpm --filter @viona/renderer build && \
     pnpm --filter web build
 
 # ============================================

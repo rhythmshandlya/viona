@@ -58,8 +58,12 @@ export async function userRoutes(fastify: FastifyInstance) {
 
     return userProjects.map(project => ({
       id: project.id,
+      title: project.title,
       status: project.status,
+      projectType: project.projectType,
       videoKey: project.videoKey,
+      audioKey: project.audioKey,
+      thumbnailKey: project.thumbnailKey,
       durationMs: project.durationMs,
       createdAt: project.createdAt,
       updatedAt: project.updatedAt,

@@ -1,0 +1,32 @@
+{
+  "slug": "comment-highlight",
+  "name": "Comment Highlight",
+  "description": "Social media comment bubble overlay with avatar and reactions",
+  "category": "social",
+  "tags": [
+    "appreciation",
+    "bubble",
+    "chat",
+    "comment",
+    "community",
+    "engagement",
+    "fan-comment",
+    "feedback",
+    "interaction",
+    "likes",
+    "message",
+    "profile-pic",
+    "reply",
+    "response",
+    "shoutout",
+    "social",
+    "studio-theme",
+    "user-generated",
+    "viewer"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

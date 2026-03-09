@@ -1,5 +1,5 @@
 {
-  "name": "@reelify/api",
+  "name": "@viona/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,12 +14,15 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.42",
+    "@anthropic-ai/sdk": "^0.74.0",
     "@fastify/cookie": "^9.4.0",
     "@fastify/cors": "^9.0.1",
     "@fastify/multipart": "^8.3.1",
+    "@fastify/rate-limit": "^9.1.0",
     "@fastify/static": "^7.0.4",
     "@fastify/websocket": "^10.0.1",
-    "@reelify/shared": "workspace:*",
+    "@viona/shared": "workspace:*",
     "bullmq": "^5.1.0",
     "dotenv": "^16.3.1",
     "drizzle-orm": "^0.29.3",

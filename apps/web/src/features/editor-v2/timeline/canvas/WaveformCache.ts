@@ -16,6 +16,10 @@ class WaveformCache {
     return entry ? entry.peaks : null;
   }
 
+  isPending(src: string): boolean {
+    return this.pending.has(src);
+  }
+
   requestWaveform(src: string, callback: () => void): void {
     if (this.cache.has(src) || this.pending.has(src) || !src) return;
 

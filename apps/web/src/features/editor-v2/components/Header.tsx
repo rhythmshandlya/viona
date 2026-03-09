@@ -7,7 +7,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Columns2, Command, MessageSquare, MoreHorizontal, Sparkles, Terminal } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Terminal, Undo2, Redo2, Download } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useProject, useEditorActions, useIsSaving } from '../store/use-editor-store';
 import { api } from '@/lib/api';
+import { CanvasFormatSelector } from './CanvasFormatSelector';
 
 interface HeaderProps {
   onOpenCommandPalette?: () => void;
@@ -25,15 +26,12 @@ interface HeaderProps {
   isTranscriptActive?: boolean;
   layout?: 'stacked' | 'side-by-side';
   onToggleLayout?: () => void;
-  onGenerateVisuals?: () => void;
-  isGeneratingVisuals?: boolean;
-  hasTranscript?: boolean;
   onToggleLogs?: () => void;
   isLogsActive?: boolean;
   hasActiveJob?: boolean;
 }
 
-export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive, layout, onToggleLayout, onGenerateVisuals, isGeneratingVisuals, hasTranscript, onToggleLogs, isLogsActive, hasActiveJob }: HeaderProps) {
+export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive, layout, onToggleLayout, onToggleLogs, isLogsActive, hasActiveJob }: HeaderProps) {
   const router = useRouter();
   const project = useProject();
   const { saveProject } = useEditorActions();
@@ -42,9 +40,18 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [title, setTitle] = useState('Untitled Project');
   const inputRef = useRef<HTMLInputElement>(null);
+  const savedRef = useRef(false);
+
+  // Sync title with project data
+  useEffect(() => {
+    if (project?.title) {
+      setTitle(project.title);
+    }
+  }, [project?.title]);
 
   useEffect(() => {
     if (isEditingTitle && inputRef.current) {
+      savedRef.current = false;
       inputRef.current.focus();
       inputRef.current.select();
     }
@@ -54,8 +61,9 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
     setIsEditingTitle(true);
   };
 
-  const handleTitleBlur = () => {
-    setIsEditingTitle(false);
+  const saveTitle = () => {
+    if (savedRef.current) return;
+    savedRef.current = true;
     if (project && title.trim()) {
       api.updateProject(project.id, { title: title.trim() }).catch(() => {
         // Silently fail — title is cosmetic
@@ -63,8 +71,15 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
     }
   };
 
+  const handleTitleBlur = () => {
+    setIsEditingTitle(false);
+    saveTitle();
+  };
+
   const handleTitleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
+      e.preventDefault();
+      saveTitle();
       setIsEditingTitle(false);
     }
     if (e.key === 'Escape') {
@@ -77,17 +92,25 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
   };
 
   return (
-    <header className="h-12 flex items-center justify-between px-3 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-base)]">
-      {/* Left section: Back + Title */}
-      <div className="flex items-center gap-2">
+    <header className="h-12 grid grid-cols-[auto_1fr_auto] items-center px-4 border-b border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)]">
+      {/* Left section: Back */}
+      <div className="flex items-center gap-3">
         <button
           onClick={handleBack}
-          className="editor-btn-ghost p-2 rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors"
+          className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]"
           aria-label="Go back"
         >
-          <ArrowLeft className="w-4 h-4 text-[var(--editor-text-secondary)]" />
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-sm font-medium">Projects</span>
         </button>
 
+        <div className="w-px h-5 bg-[var(--editor-border-subtle)]" />
+
+        <CanvasFormatSelector />
+      </div>
+
+      {/* Center section: Title */}
+      <div className="flex items-center justify-center gap-2 min-w-0">
         {isEditingTitle ? (
           <input
             ref={inputRef}
@@ -96,16 +119,15 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleTitleBlur}
             onKeyDown={handleTitleKeyDown}
-            className="bg-transparent text-[var(--editor-text-primary)] text-sm font-medium
-                       border border-[var(--editor-border-default)] rounded px-2 py-1
-                       focus:outline-none focus:border-[var(--editor-border-focus)]"
+            className="bg-[var(--editor-bg-elevated)] text-[var(--editor-text-primary)] text-sm font-medium
+                       border border-[var(--editor-border-default)] rounded-md px-3 py-1
+                       focus:outline-none focus:border-[var(--editor-border-focus)] focus:ring-2 focus:ring-[var(--editor-accent-soft)]"
           />
         ) : (
           <button
             onClick={handleTitleClick}
-            className="text-[var(--editor-text-primary)] text-sm font-medium px-2 py-1
-                       rounded hover:bg-[var(--editor-bg-hover)] transition-colors
-                       border border-transparent hover:border-[var(--editor-border-default)]"
+            className="text-[var(--editor-text-primary)] text-sm font-medium px-3 py-1
+                       rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors truncate max-w-[300px]"
           >
             {title}
           </button>
@@ -116,41 +138,23 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
         )}
       </div>
 
-      {/* Right section: Transcript toggle + Command palette hint + Export + Menu */}
+      {/* Right section: Undo/Redo + Preview + Export */}
       <div className="flex items-center gap-2">
-        {/* Transcript toggle */}
-        <button
-          onClick={() => onToggleTranscript?.()}
-          className={`p-2 rounded-md transition-colors ${
-            isTranscriptActive
-              ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)]'
-              : 'hover:bg-[var(--editor-bg-hover)]'
-          }`}
-          title="Toggle Transcript (T)"
-        >
-          <MessageSquare className={`w-4 h-4 ${
-            isTranscriptActive
-              ? 'text-[var(--editor-accent)]'
-              : 'text-[var(--editor-text-secondary)]'
-          }`} />
-        </button>
-
-        {/* Layout toggle */}
-        <button
-          onClick={() => onToggleLayout?.()}
-          title="Toggle side-by-side layout (L)"
-          className={`p-2 rounded-md transition-colors ${
-            layout === 'side-by-side'
-              ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)]'
-              : 'hover:bg-[var(--editor-bg-hover)]'
-          }`}
-        >
-          <Columns2 className={`w-4 h-4 ${
-            layout === 'side-by-side'
-              ? 'text-[var(--editor-accent)]'
-              : 'text-[var(--editor-text-secondary)]'
-          }`} />
-        </button>
+        {/* Undo/Redo buttons */}
+        <div className="flex items-center gap-1">
+          <button
+            className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] disabled:opacity-40"
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            className="p-2 rounded-md hover:bg-[var(--editor-bg-hover)] active:scale-[0.97] transition-all text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] disabled:opacity-40"
+            title="Redo (Ctrl+Shift+Z)"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+        </div>
 
         {/* Logs toggle - only show when there's an active job or logs are open */}
         {(hasActiveJob || isLogsActive) && (
@@ -160,53 +164,12 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
             className={`relative p-2 rounded-md transition-colors ${
               isLogsActive
                 ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)]'
-                : 'hover:bg-[var(--editor-bg-hover)]'
+                : 'hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-secondary)]'
             }`}
           >
-            <Terminal className={`w-4 h-4 ${
-              isLogsActive
-                ? 'text-[var(--editor-accent)]'
-                : 'text-[var(--editor-text-secondary)]'
-            }`} />
+            <Terminal className="w-4 h-4" />
             {hasActiveJob && !isLogsActive && (
               <span className="absolute top-1 right-1 w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-            )}
-          </button>
-        )}
-
-        {/* Command palette hint */}
-        <button
-          onClick={onOpenCommandPalette}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md
-                     text-[var(--editor-text-muted)] text-xs
-                     hover:bg-[var(--editor-bg-hover)] hover:text-[var(--editor-text-secondary)]
-                     transition-colors"
-        >
-          <Command className="w-3 h-3" />
-          <span>K</span>
-        </button>
-
-        {/* Generate Visuals button - only show when transcript exists */}
-        {hasTranscript && (
-          <button
-            onClick={onGenerateVisuals}
-            disabled={isGeneratingVisuals}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium
-                       bg-gradient-to-r from-purple-500 to-cyan-500 text-white
-                       hover:from-purple-600 hover:to-cyan-600 transition-all
-                       disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Generate AI Visuals"
-          >
-            {isGeneratingVisuals ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Generating...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                <span>AI Visuals</span>
-              </>
             )}
           </button>
         )}
@@ -214,10 +177,11 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
         {/* Export button */}
         <button
           onClick={onExport}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium
-                     bg-[var(--editor-accent)] text-[var(--editor-bg-base)]
-                     hover:bg-[var(--editor-accent-hover)] transition-colors"
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-md text-sm font-medium
+                     bg-[var(--editor-accent)] text-white shadow-sm
+                     hover:bg-[var(--editor-accent-hover)] active:scale-[0.97] transition-all"
         >
+          <Download className="w-4 h-4" />
           <span>Export</span>
         </button>
 
@@ -233,7 +197,7 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="end"
-            className="w-48 bg-[var(--editor-bg-elevated)] border-[var(--editor-border-default)]"
+            className="w-48 bg-[var(--editor-bg-surface)] border border-[var(--editor-border-default)] shadow-lg"
           >
             <DropdownMenuItem
               onClick={saveProject}

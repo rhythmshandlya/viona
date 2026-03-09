@@ -1,0 +1,31 @@
+{
+  "slug": "testimonial-card",
+  "name": "Testimonial Card",
+  "description": "Animated testimonial/review card with quote, rating, and author",
+  "category": "social",
+  "tags": [
+    "avatar",
+    "card",
+    "client",
+    "customer",
+    "endorsement",
+    "feedback",
+    "quote",
+    "rating",
+    "recommendation",
+    "review",
+    "social proof",
+    "social-proof",
+    "star-rating",
+    "studio-theme",
+    "success-story",
+    "testimonial",
+    "trust",
+    "user-review"
+  ],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

@@ -142,14 +142,14 @@ export async function requirePython(): Promise<string> {
 2. Install Miniconda (check "Add to PATH" option)
 
 3. Open a new terminal and run:
-   conda create -n cllipify python=${REQUIRED_PYTHON_VERSION}
-   conda activate cllipify
+   conda create -n viona python=${REQUIRED_PYTHON_VERSION}
+   conda activate viona
 
 4. Install dependencies:
    pip install claude-agent-sdk anthropic
 
 5. Set PYTHON_PATH in your .env file:
-   PYTHON_PATH=C:\\Users\\<you>\\miniconda3\\envs\\cllipify\\python.exe
+   PYTHON_PATH=C:\\Users\\<you>\\miniconda3\\envs\\viona\\python.exe
 `);
   } else {
     console.error(`
@@ -160,14 +160,14 @@ export async function requirePython(): Promise<string> {
    bash Miniconda3-latest-*.sh
 
 3. Create environment:
-   conda create -n cllipify python=${REQUIRED_PYTHON_VERSION}
-   conda activate cllipify
+   conda create -n viona python=${REQUIRED_PYTHON_VERSION}
+   conda activate viona
 
 4. Install dependencies:
    pip install claude-agent-sdk anthropic
 
 5. Set PYTHON_PATH in your .env file:
-   PYTHON_PATH=$HOME/miniconda3/envs/cllipify/bin/python
+   PYTHON_PATH=$HOME/miniconda3/envs/viona/bin/python
 `);
   }
 

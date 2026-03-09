@@ -1,0 +1,32 @@
+{
+  "slug": "news-ticker",
+  "name": "News Ticker",
+  "description": "Scrolling broadcast-style ticker tape with breaking badge",
+  "category": "social",
+  "tags": [
+    "alert",
+    "banner",
+    "breaking",
+    "broadcast",
+    "bulletin",
+    "crawl",
+    "feed",
+    "headline",
+    "information",
+    "live",
+    "lower-third",
+    "marquee",
+    "news",
+    "real-time",
+    "scrolling",
+    "stream",
+    "studio-theme",
+    "ticker",
+    "update"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

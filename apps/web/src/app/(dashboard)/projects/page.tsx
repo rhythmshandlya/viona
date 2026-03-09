@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useDropzone } from "react-dropzone";
 import { api, UserProject } from "@/lib/api";
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload, JobErrorPayload } from "@/lib/ws";
@@ -30,10 +31,12 @@ import {
   Trash2,
   Upload,
   FileVideo,
+  FileAudio,
   CheckCircle,
   AlertCircle,
   Sparkles,
   Play,
+  Music,
 } from "lucide-react";
 
 // ============================================
@@ -129,6 +132,76 @@ function DeleteDialog({
 }
 
 // ============================================
+// Thumbnails
+// ============================================
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+function ThumbnailImage({ projectId, alt, hasVideoKey }: { projectId: string; alt: string; hasVideoKey: boolean }) {
+  const [error, setError] = useState(false);
+
+  if (error && hasVideoKey) {
+    return <VideoThumbnail projectId={projectId} alt={alt} />;
+  }
+
+  if (error) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <Video className="w-8 h-8 text-primary/60" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={api.getThumbnailUrl(projectId)}
+      alt={alt}
+      className="w-full h-full object-cover"
+      onError={() => setError(true)}
+    />
+  );
+}
+
+function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) {
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState(false);
+
+  if (error) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+          <Video className="w-8 h-8 text-primary/60" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+      )}
+      <video
+        src={`${API_URL}/api/projects/${projectId}/video`}
+        muted
+        playsInline
+        preload="metadata"
+        className={`w-full h-full object-cover transition-opacity duration-300 ${loaded ? "opacity-100" : "opacity-0"}`}
+        onLoadedData={(e) => {
+          (e.target as HTMLVideoElement).currentTime = 1;
+        }}
+        onSeeked={() => setLoaded(true)}
+        onError={() => setError(true)}
+      />
+    </>
+  );
+}
+
+// ============================================
 // Project Card
 // ============================================
 
@@ -141,24 +214,26 @@ function ProjectCard({
   onDelete: (project: UserProject) => void;
   className?: string;
 }) {
-  const router = useRouter();
   const status = getStatusConfig(project.status);
   const projectName = project.title || project.videoKey?.split("/").pop() || `Project ${project.id.slice(0, 8)}`;
 
   return (
-    <div
-      className={`group bg-white rounded-2xl shadow-card hover:shadow-card-hover
-                  transition-all duration-300 hover:-translate-y-1 cursor-pointer overflow-hidden ${className || ""}`}
-      onClick={() => router.push(`/project/${project.id}`)}
+    <Link
+      href={`/project/${project.id}`}
+      className={`group block bg-white rounded-2xl shadow-card cursor-pointer overflow-hidden ${className || ""}`}
     >
       {/* Thumbnail Area */}
-      <div className="aspect-video bg-gradient-to-br from-orange-50 to-amber-50 relative overflow-hidden">
+      <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-50 relative overflow-hidden">
         {project.thumbnailKey ? (
-          <img
-            src={api.getThumbnailUrl(project.id)}
-            alt={projectName}
-            className="w-full h-full object-cover"
-          />
+          <ThumbnailImage projectId={project.id} alt={projectName} hasVideoKey={!!project.videoKey} />
+        ) : project.projectType === 'audio' ? (
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-violet-50 to-purple-50">
+            <div className="w-16 h-16 rounded-2xl bg-violet-500/10 flex items-center justify-center">
+              <Music className="w-8 h-8 text-violet-500/60" />
+            </div>
+          </div>
+        ) : project.videoKey ? (
+          <VideoThumbnail projectId={project.id} alt={projectName} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -182,15 +257,16 @@ function ProjectCard({
         {/* Three Dot Menu */}
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <DropdownMenu>
-            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuTrigger asChild onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
               <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/90 hover:bg-white shadow-sm">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="shadow-card-hover" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuContent align="end" className="shadow-card-hover" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
               <DropdownMenuItem
                 className="text-destructive focus:text-destructive cursor-pointer"
                 onClick={(e) => {
+                  e.preventDefault();
                   e.stopPropagation();
                   onDelete(project);
                 }}
@@ -210,7 +286,7 @@ function ProjectCard({
           {formatDate(project.createdAt)}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
 
@@ -257,6 +333,11 @@ function UploadZone({
       "video/mp4": [".mp4"],
       "video/quicktime": [".mov"],
       "video/webm": [".webm"],
+      "audio/mpeg": [".mp3"],
+      "audio/mp4": [".m4a"],
+      "audio/wav": [".wav"],
+      "audio/ogg": [".ogg"],
+      "audio/flac": [".flac"],
     },
     maxFiles: 1,
     disabled: uploadState !== "idle",
@@ -308,10 +389,10 @@ function UploadZone({
             </div>
             <div className="space-y-2">
               <p className="text-lg font-medium">
-                {isDragActive ? "Drop your video here" : "Drag & drop your video"}
+                {isDragActive ? "Drop your file here" : "Drag & drop your video or audio"}
               </p>
               <p className="text-sm text-muted-foreground">
-                or click to browse • MP4, MOV, WebM
+                or click to browse • MP4, MOV, WebM, MP3, M4A, WAV
               </p>
             </div>
           </div>
@@ -375,6 +456,137 @@ function UploadZone({
 }
 
 // ============================================
+// Job monitoring: WebSocket + HTTP polling fallback
+// ============================================
+
+/**
+ * Starts monitoring jobs via WebSocket events with HTTP polling fallback.
+ * Returns a cleanup function that stops polling and removes the WS handler.
+ */
+function startJobMonitor(opts: {
+  projectId: string;
+  jobIds: string[];
+  totalJobs: number;
+  jobProgressRef: React.MutableRefObject<Record<string, number>>;
+  setProgress: (p: number) => void;
+  setStatusMessage: (m: string) => void;
+  onAllComplete: () => void;
+  onError: (error: string) => void;
+}): () => void {
+  const { projectId, jobIds, totalJobs, jobProgressRef, setProgress, setStatusMessage, onAllComplete, onError } = opts;
+  const completedJobs = new Set<string>();
+  let cleaned = false;
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+  function cleanup() {
+    if (cleaned) return;
+    cleaned = true;
+    if (pollTimer) clearInterval(pollTimer);
+    removeHandler();
+  }
+
+  function checkAllComplete() {
+    if (completedJobs.size >= totalJobs) {
+      cleanup();
+      onAllComplete();
+      return true;
+    }
+    return false;
+  }
+
+  // --- WebSocket handler (primary) ---
+  const removeHandler = wsClient.addHandler((message: WSMessage) => {
+    if (cleaned) return;
+
+    if (message.type === "job:progress") {
+      const payload = message.payload as JobProgressPayload;
+      jobProgressRef.current[payload.jobId] = payload.progress;
+      const values = Object.values(jobProgressRef.current);
+      const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
+      setProgress(avg);
+      if (payload.message) {
+        setStatusMessage(payload.message);
+      }
+    } else if (message.type === "job:complete") {
+      const payload = message.payload as JobCompletePayload;
+      completedJobs.add(payload.jobId);
+      jobProgressRef.current[payload.jobId] = 100;
+
+      if (!checkAllComplete()) {
+        setStatusMessage("Finishing up...");
+      }
+    } else if (message.type === "job:error") {
+      const payload = message.payload as JobErrorPayload;
+      cleanup();
+      onError(payload.error);
+    }
+  });
+
+  // Subscribe to job events
+  for (const jid of jobIds) {
+    wsClient.subscribeToJob(jid);
+  }
+
+  // --- HTTP polling fallback ---
+  // Catches cases where WS events are missed (subscription race, reconnect, etc.)
+  async function pollJobs() {
+    if (cleaned) return;
+    try {
+      for (const jid of jobIds) {
+        if (completedJobs.has(jid)) continue;
+        const job = await api.getJob(jid);
+
+        if (job.status === "complete") {
+          completedJobs.add(jid);
+          jobProgressRef.current[jid] = 100;
+          if (checkAllComplete()) return;
+          setStatusMessage("Finishing up...");
+        } else if (job.status === "failed") {
+          cleanup();
+          onError(job.error || "Job failed");
+          return;
+        } else {
+          // Update progress from HTTP if higher than what we have
+          const current = jobProgressRef.current[jid] || 0;
+          if (job.progress > current) {
+            jobProgressRef.current[jid] = job.progress;
+            const values = Object.values(jobProgressRef.current);
+            const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
+            setProgress(avg);
+            if (job.progressMessage) {
+              setStatusMessage(job.progressMessage);
+            }
+          }
+        }
+      }
+
+      // Fallback: if all tracked jobs are done but checkAllComplete hasn't
+      // fired (e.g., totalJobs mismatch), check project status directly
+      if (!cleaned && completedJobs.size > 0 && completedJobs.size < totalJobs) {
+        try {
+          const project = await api.getProject(projectId);
+          if (project.status === "ready") {
+            cleanup();
+            onAllComplete();
+          }
+        } catch {
+          // Project status check is best-effort
+        }
+      }
+    } catch (err) {
+      // Log polling errors — silent swallowing can hide auth/network issues
+      console.warn("Job poll error (will retry):", err);
+    }
+  }
+
+  // Run first poll immediately, then every 3 seconds
+  pollJobs();
+  pollTimer = setInterval(pollJobs, 3000);
+
+  return cleanup;
+}
+
+// ============================================
 // New Project Modal
 // ============================================
 
@@ -392,8 +604,11 @@ function NewProjectModal({
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const jobProgressRef = useRef<Record<string, number>>({});
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   const resetState = () => {
+    cleanupRef.current?.();
+    cleanupRef.current = null;
     setProjectName("");
     setUploadState("idle");
     setProgress(0);
@@ -414,65 +629,51 @@ function NewProjectModal({
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
 
         // Step 1: Create project
-        const { projectId } = await api.createProject(file.name, title);
-        setStatusMessage("Uploading video...");
+        const { projectId, projectType } = await api.createProject(file.name, title);
+        const isAudio = projectType === "audio";
+        setStatusMessage(isAudio ? "Uploading audio..." : "Uploading video...");
 
         // Step 2: Upload file
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage("Processing video...");
+        setStatusMessage(isAudio ? "Processing audio..." : "Processing video...");
         setUploadState("processing");
         setProgress(0);
 
         // Step 3: Connect WebSocket and start processing
         wsClient.connect(projectId);
 
-        const completedJobs = new Set<string>();
-        const totalJobs = 2;
-
-        const removeHandler = wsClient.addHandler((message: WSMessage) => {
-          if (message.type === "job:progress") {
-            const payload = message.payload as JobProgressPayload;
-            jobProgressRef.current[payload.jobId] = payload.progress;
-            const values = Object.values(jobProgressRef.current);
-            const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
-            setProgress(avg);
-            if (payload.message) {
-              setStatusMessage(payload.message);
-            }
-          } else if (message.type === "job:complete") {
-            const payload = message.payload as JobCompletePayload;
-            completedJobs.add(payload.jobId);
-            jobProgressRef.current[payload.jobId] = 100;
-
-            if (completedJobs.size >= totalJobs) {
-              setUploadState("complete");
-              setStatusMessage("Processing complete!");
-              setProgress(100);
-              removeHandler();
-
-              setTimeout(() => {
-                onOpenChange(false);
-                resetState();
-                router.push(`/project/${payload.projectId}`);
-              }, 800);
-            } else {
-              setStatusMessage("Finishing up...");
-            }
-          } else if (message.type === "job:error") {
-            const payload = message.payload as JobErrorPayload;
-            setUploadState("error");
-            setError(payload.error);
-            removeHandler();
-          }
-        });
-
         // Step 4: Start processing
-        const { transcribeJobId, enhanceJobId } = await api.processProject(projectId);
-        wsClient.subscribeToJob(transcribeJobId);
-        wsClient.subscribeToJob(enhanceJobId);
+        const { transcribeJobId, enhanceJobId, headTrackJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
+        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : []), ...(headTrackJobId ? [headTrackJobId] : [])];
+        const totalJobs = serverTotalJobs || jobIds.length;
+
+        // Step 5: Monitor jobs via WS + polling fallback
+        cleanupRef.current = startJobMonitor({
+          projectId,
+          jobIds,
+          totalJobs,
+          jobProgressRef,
+          setProgress,
+          setStatusMessage,
+          onAllComplete: () => {
+            setUploadState("complete");
+            setStatusMessage("Processing complete!");
+            setProgress(100);
+
+            setTimeout(() => {
+              onOpenChange(false);
+              resetState();
+              router.push(`/project/${projectId}`);
+            }, 800);
+          },
+          onError: (errMsg) => {
+            setUploadState("error");
+            setError(errMsg);
+          },
+        });
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -521,8 +722,11 @@ function EmptyState() {
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const jobProgressRef = useRef<Record<string, number>>({});
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   const resetState = () => {
+    cleanupRef.current?.();
+    cleanupRef.current = null;
     setProjectName("");
     setUploadState("idle");
     setProgress(0);
@@ -540,60 +744,45 @@ function EmptyState() {
 
       try {
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
-        const { projectId } = await api.createProject(file.name, title);
-        setStatusMessage("Uploading video...");
+        const { projectId, projectType } = await api.createProject(file.name, title);
+        const isAudio = projectType === "audio";
+        setStatusMessage(isAudio ? "Uploading audio..." : "Uploading video...");
 
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage("Processing video...");
+        setStatusMessage(isAudio ? "Processing audio..." : "Processing video...");
         setUploadState("processing");
         setProgress(0);
 
         wsClient.connect(projectId);
 
-        const completedJobs = new Set<string>();
-        const totalJobs = 2;
+        const { transcribeJobId, enhanceJobId, headTrackJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
+        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : []), ...(headTrackJobId ? [headTrackJobId] : [])];
+        const totalJobs = serverTotalJobs || jobIds.length;
 
-        const removeHandler = wsClient.addHandler((message: WSMessage) => {
-          if (message.type === "job:progress") {
-            const payload = message.payload as JobProgressPayload;
-            jobProgressRef.current[payload.jobId] = payload.progress;
-            const values = Object.values(jobProgressRef.current);
-            const avg = Math.round(values.reduce((a, b) => a + b, 0) / totalJobs);
-            setProgress(avg);
-            if (payload.message) {
-              setStatusMessage(payload.message);
-            }
-          } else if (message.type === "job:complete") {
-            const payload = message.payload as JobCompletePayload;
-            completedJobs.add(payload.jobId);
-            jobProgressRef.current[payload.jobId] = 100;
+        cleanupRef.current = startJobMonitor({
+          projectId,
+          jobIds,
+          totalJobs,
+          jobProgressRef,
+          setProgress,
+          setStatusMessage,
+          onAllComplete: () => {
+            setUploadState("complete");
+            setStatusMessage("Processing complete!");
+            setProgress(100);
 
-            if (completedJobs.size >= totalJobs) {
-              setUploadState("complete");
-              setStatusMessage("Processing complete!");
-              setProgress(100);
-              removeHandler();
-
-              setTimeout(() => {
-                router.push(`/project/${payload.projectId}`);
-              }, 800);
-            } else {
-              setStatusMessage("Finishing up...");
-            }
-          } else if (message.type === "job:error") {
-            const payload = message.payload as JobErrorPayload;
+            setTimeout(() => {
+              router.push(`/project/${projectId}`);
+            }, 800);
+          },
+          onError: (errMsg) => {
             setUploadState("error");
-            setError(payload.error);
-            removeHandler();
-          }
+            setError(errMsg);
+          },
         });
-
-        const { transcribeJobId, enhanceJobId } = await api.processProject(projectId);
-        wsClient.subscribeToJob(transcribeJobId);
-        wsClient.subscribeToJob(enhanceJobId);
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -614,7 +803,7 @@ function EmptyState() {
         Create your first project
       </h1>
       <p className="text-muted-foreground text-lg max-w-md mb-8 animate-fade-in-up stagger-2">
-        Upload a video and let AI generate stunning visuals
+        Upload a video or audio file and let AI generate stunning visuals
       </p>
 
       {/* Upload Zone */}

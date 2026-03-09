@@ -1,4 +1,5 @@
 import { buildReferenceExamplesSection } from './visual-references.js';
+import { AD_MOTION_UTILITIES } from './motion-utilities.js';
 
 /**
  * Style guidelines with SPECIFIC design tokens.
@@ -50,10 +51,11 @@ Style: Modern (Vibrant & Dynamic)
 **LAYOUT (CRITICAL - avoid overlapping):**
 - Stack elements vertically with clear separation
 - Title/heading at TOP (first 15% of height)
-- Main visual in MIDDLE (next 60% of height)
-- Labels/captions at BOTTOM (last 25% of height)
+- Main visual in MIDDLE (next 70% of height)
+- Keep bottom 15% CLEAR for subtitle overlay (rendered separately)
 - Use flexbox with RESPONSIVE gap: display: 'flex', flexDirection: 'column', gap: minDim * 0.03
 - NEVER place text directly on top of diagrams
+- NEVER add captions or subtitle text — subtitles are handled by a separate system
 
 **ANIMATION:**
 - Use spring({ damping: 12, stiffness: 80 }) - bouncy, satisfying
@@ -121,7 +123,201 @@ Style: Classic (Trustworthy & Educational)
 - Smooth fades over 30 frames
 - Smooth fades, professional transitions, no gimmicks
 - Understated motion, nothing flashy`,
+
+  apple: `
+Style: Apple (Premium Minimalism)
+
+**COLOR PALETTE:**
+- Background: #000000 (pure black) or #ffffff (pure white)
+- Accent: #0071e3 (Apple blue)
+- Text: #f5f5f7 (on dark) or #1d1d1f (on light)
+- No gradients — flat, clean surfaces
+
+**DESIGN:**
+- Extreme minimalism, maximum whitespace
+- One focal element at a time
+- Typography-driven: product name + one line of copy
+- No borders, no shadows, no ornaments
+- Max 3 visible elements at any moment
+
+**ANIMATION:**
+- Use spring({ damping: 30, stiffness: 40 }) - slow, deliberate, premium
+- Stagger elements by 30 frames (one second apart)
+- Fade + blur transitions: opacity 0→1 with filter blur(4px→0)
+- Scale 0.95→1.0 (subtle settle, never overshoot)
+- Hold each element for at least 60 frames before transitioning
+- Movement should feel like breathing — unhurried, confident`,
+
+  studio: `
+Style: Studio (Polished Card Animations)
+
+**DESIGN SYSTEM — DotGrid Theme:**
+This style has a complete template library. When possible, USE EXISTING TEMPLATES as building blocks (see template catalog below). Copy their code into the workspace, customize props, and compose them into scenes.
+
+**DESIGN:**
+- Polished card-based layouts floating on dot-grid backgrounds
+- Centered content containers with generous padding and rounded corners
+- Dark/light mode support with consistent color tokens
+- Clean typography hierarchy using Google Font pairs
+
+**COLOR PALETTE:**
+- Dark mode: Background #0B0F1A, text #FFFFFF, muted #94A3B8, grid #FFFFFF08
+- Light mode: Background #F8FAFC, text #0F172A, muted #64748B, grid #0F172A08
+- Accent: Indigo #6366F1 (primary), customizable per-scene
+
+**BACKGROUND:**
+Every scene MUST include a DotGrid SVG background layer:
+\`\`\`tsx
+<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
+  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1" fill={gridColor} />
+  </pattern>
+  <rect width="100%" height="100%" fill={bg} />
+  <rect width="100%" height="100%" fill="url(#dots)" />
+</svg>
+\`\`\`
+
+**TYPOGRAPHY (FONT_PAIRS):**
+Use Google Fonts pairs. Default: boldImpact (Oswald + Inter).
+Available: modernTech (Space Grotesk + IBM Plex Mono), friendlyTech (Nunito + Source Code Pro), strongReadable (Bebas Neue + Open Sans), elegantEditorial (Cormorant Garamond + Lato), cleanMinimal (Plus Jakarta Sans + JetBrains Mono).
+
+**CARD LAYOUT:**
+Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background.
+
+**ANIMATION:**
+- Use spring({ damping: 14, stiffness: 80 }) for card entrances
+- Stagger elements by 8-12 frames
+- Standard timeline: fade-in (0-15 frames), content animate (20-260), hold (280-330), fade-out (330-360)
+- Progress bars, counters, charts use smooth interpolate over 100+ frames
+
+**MANDATORY: { extrapolateRight: 'clamp' } on ALL interpolate calls**
+`,
+
+  google: `
+Style: Google (Material Design 3)
+
+**COLOR PALETTE:**
+- Background: #ffffff or #f8f9fa (light gray)
+- Primary: #1a73e8 (Google Blue)
+- Secondary: #34a853 (Google Green)
+- Tertiary: #ea4335 (Google Red)
+- Accent: #fbbc04 (Google Yellow)
+- Text: #202124 (dark gray)
+
+**DESIGN:**
+- Material Design 3 principles: card-based, elevation shadows
+- Rounded corners (28px on cards, pill-shaped buttons)
+- Colorful but balanced — use Google's 4-color palette purposefully
+- Elevation: cards float with box-shadow 0 2px 8px rgba(0,0,0,0.1)
+- Clean iconography, product-grade UI elements
+
+**ANIMATION:**
+- Use spring({ damping: 18, stiffness: 100 }) - snappy, responsive, Material motion
+- Stagger elements by 12 frames (fast, cascading)
+- Slide-up motion: translateY(16→0) with fade
+- Cards rise into view with subtle shadow growth
+- Emphasize spatial relationships — elements come from where they "live"`,
+
+  'kinetic-typography': `
+Style: Kinetic Typography (Bold Text Cards — Apple Ad Style)
+
+**CONCEPT:** Full-screen text cards synced to narration. Every word the narrator says
+appears as large bold text on solid colored backgrounds. Words grouped into short
+phrases (2-8 words per card). One emphasis word per card gets a hand-drawn doodle
+annotation (underline, circle, arrow, or checkmark).
+
+**COLOR PALETTE:**
+- Accent: #00E556 (neon green)
+- Dark: #000000 (black)
+- Light: #EBEBEB (light gray)
+- Rotate through these 3 as backgrounds, never 3x same in a row
+- Text: white on dark backgrounds, black on light backgrounds
+
+**TYPOGRAPHY:**
+- Font: Inter Black (900 weight), 60-120px
+- Fewer words = larger font size
+- All text centered on screen
+- No data visualizations, no charts — ONLY text cards
+
+**ANIMATION:**
+- Phrase mode: scale 0.7→1 with spring({ damping: 12, stiffness: 100 })
+- Word-by-word mode: each word scale 0.5→1 synced to timestamps
+- Doodles: SVG stroke-draw animation, appear 6 frames after text
+- Hard cuts between cards — NO dissolves or fades
+- Pacing: 0.6-4 seconds per card`,
 };
+
+/**
+ * AutoAE-inspired scene composition patterns.
+ * Teaches the AI about motion graphics templates for different content types.
+ */
+const AUTOAE_SCENE_PATTERNS = `
+## 🎬 SCENE COMPOSITION PATTERNS (AutoAE-Inspired)
+
+Use these composition templates when the transcript content matches. These are proven motion graphics patterns that create professional, engaging visuals.
+
+### 1. Versus Comparison
+**When:** Speaker compares two options, approaches, or technologies ("X vs Y", "unlike", "compared to")
+- Split screen with two sides, each with an icon/visual + label
+- Dramatic divider line between sides (animated, glowing)
+- Staggered reveal: left side appears, then divider, then right side
+- Use contrasting accent colors (e.g., blue vs red)
+- Optional: one side pulses/scales slightly to indicate the "winner"
+
+### 2. Podium Ranking
+**When:** Speaker ranks items, lists "top 3", or establishes a hierarchy
+- Three pedestals at different heights (1st tallest, centered)
+- Items reveal from 3rd → 2nd → 1st with spring physics
+- Each podium slot has an icon + label + optional number
+- Gold/silver/bronze accent colors for ranking emphasis
+- Final state: all three visible with the winner highlighted
+
+### 3. Hub & Orbit
+**When:** Speaker describes a central concept with related features/properties ("X has these benefits", "core principle with...")
+- Central element (larger, glowing) with orbiting satellite elements
+- Satellites appear one by one, each with a connection line to hub
+- Gentle rotation animation for the orbit ring
+- Use for: frameworks, architectures, ecosystems, feature sets
+
+### 4. Card Flip Reveal
+**When:** Speaker reveals information, answers a question, or does a "before/after" ("the answer is...", "turns out...")
+- Card element that rotates 180° on Y-axis to reveal back side
+- Front shows question/teaser, back shows answer/solution
+- Use perspective transform for 3D depth
+- Pause briefly before flip for dramatic tension
+
+### 5. Process Steps
+**When:** Speaker walks through a sequence ("first... then... finally", step-by-step instructions)
+- Horizontal or vertical step chain with numbered nodes
+- Each step appears with a connecting arrow/line animation
+- Active step is highlighted, previous steps are dimmed
+- Progress bar or connecting line fills between steps
+- Use warm transition effects between step reveals
+
+### 6. Spotlight Feature
+**When:** Speaker highlights a single important item/feature/concept
+- Dark background with a single illuminated element
+- Radial gradient "spotlight" that draws attention to center
+- Element scales up slightly with a subtle glow
+- Supporting details fade in around the spotlight area
+- Use for: key stats, hero features, important takeaways
+
+### 7. Graph Draw
+**When:** Speaker mentions data, growth, trends, metrics
+- Animated line graph or bar chart that draws progressively
+- Axis labels and values animate in sync with the drawing
+- Key data points get a pulse/glow when reached
+- Use smooth interpolation for the drawing animation
+- Optional: counter that shows current value as line progresses
+
+### 8. Speech Bubble
+**When:** Speaker quotes someone, presents dialogue, or shows audience reactions
+- Rounded bubble frame with a tail pointing to source
+- Text types in or fades in within the bubble
+- Multiple bubbles can stack in a conversation flow
+- Bubbles can have different colors for different speakers
+- Use spring physics for bubble entrance (scale from 0)
+`;
 
 interface TranscriptWord {
   text: string;
@@ -138,7 +334,7 @@ interface PromptOptions {
   fps: number;
   width: number;
   height: number;
-  layoutMode: 'pip' | 'split-horizontal' | 'split-vertical';
+  layoutMode: 'pip' | 'stacked';
 }
 
 export function buildGenerateVisualsPrompt(options: PromptOptions): string {
@@ -149,11 +345,10 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
 
   const layoutContext = layoutMode === 'pip'
     ? 'Full-screen visuals (1080×1920) - video overlaid as small PiP window. Use full vertical space.'
-    : layoutMode === 'split-horizontal'
-      ? `Top portion of 50/50 horizontal split (${width}×${height}) - REDUCED HEIGHT. Stack elements tightly, use smaller fonts.`
-      : `Left portion of 50/50 vertical split (${width}×${height}) - REDUCED WIDTH. Avoid wide layouts, stack vertically.`;
+    : `Stacked layout (${width}×${height}) - REDUCED HEIGHT. Stack elements tightly, use smaller fonts.`;
 
   const referenceExamples = buildReferenceExamplesSection(projectId);
+  const adMotionSection = (stylePreset === 'apple' || stylePreset === 'google') ? `\n\n${AD_MOTION_UTILITIES}\n` : '';
 
   return `You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
 
@@ -179,6 +374,23 @@ You're creating visuals using **Remotion** (React-based video framework) that wi
 
 ---
 
+## 🚫 PURE VISUAL STORYTELLING — NO TEXT OVERLAYS
+
+**Subtitles/captions are handled by a SEPARATE subtitle system that renders on top of your visuals.** Your animations must NEVER include:
+- Captions, subtitles, or any text that duplicates what the speaker is saying
+- "Caption zones" or bottom-of-screen text that mirrors the transcript
+- Title cards with the spoken words written out
+- Any text element whose purpose is to show what's being said
+
+**What IS allowed:**
+- Short labels on diagram elements (e.g., "Queue", "Server", "O(log n)")
+- Data values inside visualizations (e.g., numbers in nodes, axis labels on charts)
+- Concept names as part of the visual (e.g., "Priority Queue" as a heading on a diagram)
+
+**The rule:** If removing the text would make the VISUAL less understandable, keep it. If the text just repeats what the viewer will hear, DELETE it. Subtitles handle all text the speaker says — your job is to create stunning VISUAL explanations.
+
+---
+
 ## ⛔ CRITICAL CONSTRAINTS (Read First!)
 
 These rules are NON-NEGOTIABLE. Violating them causes runtime errors.
@@ -201,8 +413,7 @@ Your visuals must adapt to different layout configurations:
 | Layout Mode | Dimensions | Aspect Ratio | Constraint |
 |-------------|------------|--------------|------------|
 | **pip** | 1080×1920 | 9:16 portrait | Full screen - visuals behind PiP video |
-| **split-horizontal** | 1080×960 (50%) | Wide/short | Top half only - less vertical space |
-| **split-vertical** | 540×1920 (50%) | Narrow/tall | Left half only - less horizontal space |
+| **stacked** | 1080×960 (50%) | Wide/short | Top half only - less vertical space |
 
 **CRITICAL:** Hardcoded pixels will break across layout modes. Use relative sizing:
 
@@ -316,7 +527,7 @@ ${transcriptText}
 
 **Style: ${stylePreset}**
 ${styleGuidelines}
-
+${adMotionSection}
 ---
 
 ## 📐 Video Specifications
@@ -349,8 +560,11 @@ const minDim = Math.min(width, height);
     gap: minDim * 0.025,
     boxSizing: 'border-box',  // CRITICAL: Prevents overflow
   }}>
+    {/* TITLE ZONE — For intro/hook scenes, the title should START large and centered
+        (filling the visual zone) then animate to this fixed position when content appears.
+        See "Title Fill Pattern" in animation patterns. */}
     {/* TITLE ZONE - Fixed height, always centered */}
-    <div style={{
+    <div data-element-name="title" style={{
       flex: '0 0 auto',
       display: 'flex',
       justifyContent: 'center',
@@ -365,7 +579,7 @@ const minDim = Math.min(width, height);
     </div>
 
     {/* VISUAL ZONE - Expands to fill, centers content */}
-    <div style={{
+    <div data-element-name="visual" style={{
       flex: 1,
       display: 'flex',
       justifyContent: 'center',
@@ -384,27 +598,41 @@ const minDim = Math.min(width, height);
       </div>
     </div>
 
-    {/* CAPTION ZONE - Fixed height (optional) */}
-    <div style={{
-      flex: '0 0 auto',
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      minHeight: height * 0.06,
-    }}>
-      <p style={{ fontSize: height * 0.022, textAlign: 'center', margin: 0 }}>Caption</p>
-    </div>
+    {/* NO CAPTION ZONE — subtitles are rendered by a separate system */}
+    {/* Leave bottom ~15% of canvas clear for subtitle overlay */}
   </div>
 </AbsoluteFill>
 \`\`\`
+
+### 🏷️ MANDATORY: data-element-name Attributes
+Every distinct visual element (title, diagram, icon group, label, sidebar, etc.) MUST include a \`data-element-name\` attribute on its outermost wrapper. This enables the editor to highlight selected elements.
+
+\`\`\`tsx
+// ✅ CORRECT — each zone/element is tagged
+<div data-element-name="title" style={{...}}>Title</div>
+<div data-element-name="diagram" style={{...}}>Chart content</div>
+<div data-element-name="icon-group" style={{...}}>Icons</div>
+
+// ✅ For mapped items, use semantic names
+{steps.map((step, i) => (
+  <div key={i} data-element-name={\`step-\${i + 1}\`} style={{...}}>{step}</div>
+))}
+
+// ❌ WRONG — missing data-element-name
+<div style={{...}}>Title</div>
+\`\`\`
+
+Use names that match the layout keys from scenes.json (primary, secondary, title, center, header, etc.) or describe the semantic purpose (diagram, icon-row, label, sidebar).
 
 ### Alignment Rules (STRICT)
 | Element | Container Style | Content Style |
 |---------|-----------------|---------------|
 | Titles | \`display: 'flex', justifyContent: 'center', alignItems: 'center'\` | \`textAlign: 'center', margin: 0\` |
 | Diagrams | \`flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center'\` | \`maxWidth: '85%', maxHeight: '90%'\` |
-| Labels | Same as titles | \`fontSize: height * 0.022\` |
+| Diagram labels | Same as titles | \`fontSize: height * 0.022\` |
 | Multi-element rows | \`display: 'flex', justifyContent: 'center', gap: minDim * 0.03\` | Each item centered |
+
+**⚠️ Leave bottom ~15% clear** — subtitles render there. Keep visuals in the top 85% of the canvas.
 
 ### Common Alignment Mistakes
 | ❌ Wrong | ✅ Correct |
@@ -415,8 +643,7 @@ const minDim = Math.min(width, height);
 | Missing \`boxSizing: 'border-box'\` | Always include on main container |
 
 ### Layout Mode Considerations
-- **split-horizontal (1080×960):** Less vertical space - reduce title size, tighter gaps
-- **split-vertical (540×1920):** Less horizontal space - stack elements vertically, avoid wide layouts
+- **stacked (1080×960):** Less vertical space - reduce title size, tighter gaps
 - **pip (1080×1920):** Full space - can use more elaborate layouts
 
 ---
@@ -467,7 +694,7 @@ Before designing ANY visual, ask: **"What is the speaker trying to convey?"**
 **If your animation doesn't EXPLAIN or ENHANCE the spoken content, it's decoration. Cut it.**
 
 ### When Static is Better Than Animated
-- Intro title cards → Clean, professional, readable
+- Intro title cards → Title fills viewport centrally, then springs to top. Professional and screen-filling.
 - Topic transitions → Brief pause with clear label
 - Complex diagrams → Let viewer absorb before animating
 - After making a point → Hold for emphasis
@@ -509,11 +736,14 @@ const eliminatedNodes = 128 - remainingNodes;
 // Visual: highlight remaining path, fade out eliminated branches
 \`\`\`
 
-**For INTRO_HOOK scenes** - Keep it simple:
+**For INTRO_HOOK scenes** - Title fills screen, then settles:
 \`\`\`tsx
-// Just a clean fade-in, no fancy animations
-const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
-// That's it. No bouncing. No particles. Just readable text.
+// Intro/hook: Title FILLS the screen centrally, then animates to top when content appears
+const titleScale = interpolate(frame, [0, 15, 60, 75], [0, 1.6, 1.6, 1], { extrapolateRight: 'clamp' });
+const titleY = interpolate(frame, [0, 60, 75], [0.5, 0.5, 0.08], { extrapolateRight: 'clamp' });
+// Title fades in large and centered, holds, then shrinks to top position
+// Supporting elements (icon, subtitle) fade in after title settles
+const supportOpacity = interpolate(frame, [70, 85], [0, 1], { extrapolateRight: 'clamp' });
 \`\`\`
 
 ---
@@ -581,7 +811,7 @@ Before writing ANY code, analyze EACH transcript segment and determine the RIGHT
 ### Content Types Reference
 | Type | Visual Approach | Animation Level |
 |------|-----------------|-----------------|
-| INTRO_HOOK | Title card + icon | Minimal (fade-in) |
+| INTRO_HOOK | Title fills screen centrally, then animates to top | Medium (scale + position spring) |
 | PROBLEM_STATEMENT | Demonstrate the struggle | High (show scale, chaos) |
 | SOLUTION_INTRODUCTION | Before→After transition | Medium-High (transformation) |
 | CONCEPT_EXPLANATION | Visual proof/demonstration | High (show WHY it works) |
@@ -669,22 +899,28 @@ Pre-built components at \`./components/\` are available as **time-savers**, not 
 
 ---
 
-## 🎬 WHAT TO VISUALIZE
+## 🎬 WHAT TO VISUALIZE — PREMIUM EXPLAINER ANIMATIONS
+
+Think **3Blue1Brown meets Apple keynote**. Every frame should feel polished, intentional, and beautiful.
 
 | Transcript Content | Visual to Create |
 |-------------------|------------------|
-| Steps/Process | Animated flowchart, nodes appear sequentially |
-| Statistics/Numbers | Animated bar chart, counters, progress rings |
-| Comparisons | Side-by-side graphics, VS animations |
-| Concepts/Frameworks | Diagrams, mind maps, Venn diagrams |
-| Hierarchies | Org charts, tree structures |
-| Relationships | Connection lines animating between nodes |
+| Steps/Process | Animated flowchart with smooth transitions, nodes appear with spring physics |
+| Statistics/Numbers | Animated bar charts, counters with easing, progress rings with glow effects |
+| Comparisons | Side-by-side with animated reveals, morphing transitions |
+| Concepts/Frameworks | Elegant diagrams, animated mind maps with flowing connections |
+| Hierarchies | Tree structures with expanding animations, depth-based lighting |
+| Relationships | Animated connection lines with particle trails between nodes |
 
-**IMPORTANT:** Don't just put text on screen. CREATE A VISUAL REPRESENTATION.
+**IMPORTANT:** PURE VISUAL STORYTELLING. Never put caption/subtitle text on screen — that's handled separately. CREATE BEAUTIFUL VISUAL REPRESENTATIONS that explain concepts through motion, color, and spatial relationships. Every animation should make the viewer think "this looks premium".
 
 ---
 
 ${referenceExamples}
+
+---
+
+${AUTOAE_SCENE_PATTERNS}
 
 ---
 

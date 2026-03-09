@@ -1,0 +1,32 @@
+{
+  "slug": "subscribe-nudge",
+  "name": "Subscribe Nudge",
+  "description": "Animated subscribe, like, and bell notification overlay",
+  "category": "social",
+  "tags": [
+    "animated",
+    "audience-retention",
+    "bell",
+    "button",
+    "channel",
+    "cta",
+    "engagement",
+    "follow",
+    "growth",
+    "like",
+    "notification",
+    "overlay",
+    "reminder",
+    "ring-bell",
+    "smash-like",
+    "social",
+    "studio-theme",
+    "subscribe",
+    "youtube"
+  ],
+  "stylePreset": "friendlyTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

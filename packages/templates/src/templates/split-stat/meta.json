@@ -1,0 +1,32 @@
+{
+  "slug": "split-stat",
+  "name": "Split Stat",
+  "description": "Side-by-side stat comparison with VS divider and fill bars",
+  "category": "social",
+  "tags": [
+    "KPI",
+    "bar-fill",
+    "benchmark",
+    "comparison",
+    "contrast",
+    "data-visualization",
+    "dual-metric",
+    "head-to-head",
+    "matchup",
+    "metric-pair",
+    "numbers",
+    "percentage",
+    "proportion",
+    "relative",
+    "side-by-side",
+    "split",
+    "stat",
+    "studio-theme",
+    "versus"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

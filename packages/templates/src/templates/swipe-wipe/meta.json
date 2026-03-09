@@ -1,0 +1,31 @@
+{
+  "slug": "swipe-wipe",
+  "name": "Swipe Wipe",
+  "description": "Bold geometric shape transition wipe with optional text",
+  "category": "entertainment",
+  "tags": [
+    "animation",
+    "clean",
+    "cover",
+    "diagonal",
+    "direction",
+    "dynamic",
+    "geometric",
+    "left-to-right",
+    "mask",
+    "motion",
+    "reveal",
+    "scene-transition",
+    "shape",
+    "slider",
+    "smooth",
+    "studio-theme",
+    "swipe",
+    "transition",
+    "wipe"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

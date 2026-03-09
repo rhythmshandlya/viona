@@ -19,6 +19,10 @@ build/
 *.swp
 *.swo
 
+# Claude Code
+.claude/*
+!.claude/skills/
+
 # OS
 .DS_Store
 Thumbs.db
@@ -65,3 +69,5 @@ packages/worker/bundles/
 
 # Conda environments
 conda-env/
+
+bundles/

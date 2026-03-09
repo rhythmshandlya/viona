@@ -152,10 +152,10 @@ curl http://localhost:3456/health
 ```bash
 # With Claude Max (proxy must be running)
 claude-max-api &
-LLM_PROVIDER=claude-max pnpm --filter @reelify/worker dev
+LLM_PROVIDER=claude-max pnpm --filter @viona/worker dev
 
 # With OpenRouter (default)
-LLM_PROVIDER=openrouter pnpm --filter @reelify/worker dev
+LLM_PROVIDER=openrouter pnpm --filter @viona/worker dev
 ```
 
 ### Docker

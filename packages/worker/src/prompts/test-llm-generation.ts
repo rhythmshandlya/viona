@@ -111,8 +111,8 @@ async function testGeneration() {
       headers: {
         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://clipify.dev',
-        'X-Title': 'Clipify Visual Generation Test',
+        'HTTP-Referer': 'https://viona.com',
+        'X-Title': 'Viona Visual Generation Test',
       },
       body: JSON.stringify({
         model: selectedModel.id,
@@ -132,7 +132,7 @@ async function testGeneration() {
       throw new Error(`API error: ${response.status} - ${error}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { usage?: { prompt_tokens?: number; completion_tokens?: number }; choices?: Array<{ message?: { content?: string } }> };
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
 
     const inputTokens = data.usage?.prompt_tokens || 0;
