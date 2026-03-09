@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Thumbnail } from "@remotion/player";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { TemplateRegistryEntry } from "@viona/templates";
 import { cn } from "@/lib/cn";
 import { Clock, Play } from "lucide-react";
@@ -37,11 +37,11 @@ export function TemplateCard({ template, index = 0 }: TemplateCardProps) {
   const previewFrame = Math.min(Math.round(fps), durationInFrames - 1);
 
   // Cycle through frames on hover for animated preview
-  const previewFrames = [
+  const previewFrames = useMemo(() => [
     previewFrame,
     Math.min(Math.round(fps * 3), durationInFrames - 1),
     Math.min(Math.round(fps * 6), durationInFrames - 1),
-  ];
+  ], [previewFrame, fps, durationInFrames]);
 
   const handleMouseEnter = useCallback(() => {
     setIsHovering(true);
