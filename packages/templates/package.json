@@ -9,10 +9,13 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    }
+    },
+    "./registry.json": "./registry.json",
+    "./r/*": "./r/*"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsx scripts/build-registry.ts",
+    "build:registry": "tsx scripts/build-registry.ts",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
@@ -30,6 +33,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "tsup": "^8.0.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.3.3"
   }
 }
