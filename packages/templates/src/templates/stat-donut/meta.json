@@ -2,7 +2,7 @@
   "slug": "stat-donut",
   "name": "Stat Donut",
   "description": "SVG donut chart with animated arc drawing — great for revenue breakdowns and distribution data",
-  "category": "marketing",
+  "category": "data-visualization",
   "tags": [
     "KPI",
     "breakdown",

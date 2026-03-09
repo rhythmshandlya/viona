@@ -2,7 +2,7 @@
   "slug": "location-tag",
   "name": "Location Tag",
   "description": "Map pin location overlay with name and coordinates",
-  "category": "social",
+  "category": "geographic",
   "tags": [
     "GPS",
     "address",

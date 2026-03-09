@@ -2,7 +2,7 @@
   "slug": "definition-tooltip",
   "name": "Definition Tooltip",
   "description": "Dictionary-style tooltip with term, pronunciation, and definition",
-  "category": "education",
+  "category": "text-typography",
   "tags": [
     "annotation",
     "clarification",

@@ -1,0 +1,23 @@
+{
+  "slug": "choropleth-race",
+  "name": "Choropleth Race",
+  "description": "Racing bubble chart map with growing data bubbles and live ranking sidebar showing competition over time",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "choropleth",
+    "race",
+    "data",
+    "ranking",
+    "visualization",
+    "growth",
+    "statistics",
+    "comparison",
+    "animated"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "16:9",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

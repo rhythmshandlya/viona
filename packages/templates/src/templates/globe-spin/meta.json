@@ -1,0 +1,24 @@
+{
+  "slug": "globe-spin",
+  "name": "Globe Spin",
+  "description": "3D rotating globe with a glowing arc connecting two cities, cinematic camera orbit and zoom",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "3d",
+    "globe",
+    "world",
+    "international",
+    "flight",
+    "arc",
+    "cinematic",
+    "travel",
+    "earth",
+    "animation"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

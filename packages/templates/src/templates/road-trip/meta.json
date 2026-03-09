@@ -1,0 +1,28 @@
+{
+  "slug": "road-trip",
+  "name": "Road Trip",
+  "description": "Retro Americana road trip with isometric 3D vehicle, animated odometer, highway sign waypoints, and vintage grain overlay",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "road-trip",
+    "driving",
+    "car",
+    "van",
+    "journey",
+    "highway",
+    "adventure",
+    "travel",
+    "route",
+    "distance",
+    "retro",
+    "americana",
+    "route-66",
+    "vintage"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "16:9",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

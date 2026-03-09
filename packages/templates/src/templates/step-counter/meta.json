@@ -2,7 +2,7 @@
   "slug": "step-counter",
   "name": "Step Counter",
   "description": "Step indicator with progress ring for tutorials and how-tos",
-  "category": "education",
+  "category": "timeline-process",
   "tags": [
     "circle",
     "counter",

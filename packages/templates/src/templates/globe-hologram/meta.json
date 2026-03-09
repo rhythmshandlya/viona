@@ -1,0 +1,24 @@
+{
+  "slug": "globe-hologram",
+  "name": "Hologram Globe",
+  "description": "Transparent wireframe globe with cyberpunk neon arcs, scanline overlay and typewriter labels",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "3d",
+    "globe",
+    "world",
+    "hologram",
+    "wireframe",
+    "cyberpunk",
+    "neon",
+    "sci-fi",
+    "animation",
+    "earth"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

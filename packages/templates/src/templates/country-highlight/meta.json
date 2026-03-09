@@ -2,7 +2,7 @@
   "slug": "country-highlight",
   "name": "Country Highlight",
   "description": "Highlight a country on a satellite map with animated zoom, colored overlay, and location labels",
-  "category": "social",
+  "category": "geographic",
   "tags": [
     "animation",
     "border",

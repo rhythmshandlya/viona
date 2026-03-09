@@ -2,7 +2,7 @@
   "slug": "rating-display",
   "name": "Rating Display",
   "description": "Animated star rating with score counter and review count",
-  "category": "social",
+  "category": "data-visualization",
   "tags": [
     "5-star",
     "app-rating",

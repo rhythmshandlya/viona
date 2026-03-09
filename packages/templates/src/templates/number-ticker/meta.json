@@ -2,7 +2,7 @@
   "slug": "number-ticker",
   "name": "Number Ticker",
   "description": "Large animated counter with prefix and suffix overlay",
-  "category": "social",
+  "category": "data-visualization",
   "tags": [
     "KPI",
     "animated",

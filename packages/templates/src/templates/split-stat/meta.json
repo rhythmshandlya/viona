@@ -2,7 +2,7 @@
   "slug": "split-stat",
   "name": "Split Stat",
   "description": "Side-by-side stat comparison with VS divider and fill bars",
-  "category": "social",
+  "category": "data-visualization",
   "tags": [
     "KPI",
     "bar-fill",

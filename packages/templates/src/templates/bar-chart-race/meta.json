@@ -2,7 +2,7 @@
   "slug": "bar-chart-race",
   "name": "Bar Chart Race",
   "description": "Ranked horizontal bars that reorder over time — perfect for GDP rankings, brand battles, and trending data",
-  "category": "education",
+  "category": "data-visualization",
   "tags": [
     "GDP",
     "animated",

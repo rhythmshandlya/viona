@@ -2,7 +2,7 @@
   "slug": "stat-bar-chart",
   "name": "Stat Bar Chart",
   "description": "Horizontal bars growing with staggered spring animation — ideal for channel breakdowns and rankings",
-  "category": "marketing",
+  "category": "data-visualization",
   "tags": [
     "KPI",
     "bar",
