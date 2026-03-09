@@ -235,6 +235,7 @@ _NODE_MODULES = _WORKER_PKG_ROOT / "node_modules"
 # JS entry-points (resolved from each package's bin field)
 _MCP_REMOTE_JS = str(_NODE_MODULES / "mcp-remote" / "dist" / "proxy.js")
 _BETTER_ICONS_JS = str(_NODE_MODULES / "better-icons" / "dist" / "index.js")
+_MCP_SERVERS_DIST = _WORKER_PKG_ROOT.parent / "mcp-servers" / "dist"
 
 
 def build_mcp_servers(workspace: str) -> dict[str, Any]:
@@ -243,7 +244,6 @@ def build_mcp_servers(workspace: str) -> dict[str, Any]:
     All MCP servers are invoked as `node <entry.js>` so they work reliably
     on Windows without .CMD shim issues. No npx download needed at runtime.
     """
-    agents_dir = Path(__file__).parent
     return {
         "freepik": {
             "type": "stdio",
@@ -264,7 +264,7 @@ def build_mcp_servers(workspace: str) -> dict[str, Any]:
             "type": "stdio",
             "command": "node",
             "args": [
-                str(agents_dir / "mcp-servers" / "asset-server.js"),
+                str(_MCP_SERVERS_DIST / "asset-server.js"),
                 "--workspace", workspace,
             ],
             "env": {
@@ -276,7 +276,7 @@ def build_mcp_servers(workspace: str) -> dict[str, Any]:
             "type": "stdio",
             "command": "node",
             "args": [
-                str(agents_dir / "mcp-servers" / "viewport-server.js"),
+                str(_MCP_SERVERS_DIST / "viewport-server.js"),
                 "--workspace", workspace,
             ],
         },
@@ -292,6 +292,8 @@ def validate_mcp_servers() -> None:
     checks = {
         "mcp-remote (proxy.js)": _MCP_REMOTE_JS,
         "better-icons (index.js)": _BETTER_ICONS_JS,
+        "asset-server (dist)": str(_MCP_SERVERS_DIST / "asset-server.js"),
+        "viewport-server (dist)": str(_MCP_SERVERS_DIST / "viewport-server.js"),
     }
     # Also check that node is available
     node_path = shutil.which("node")
@@ -857,813 +859,34 @@ async def configure_sdk_auth_async() -> None:
 # =============================================================================
 
 
-def get_condensed_skills() -> str:
+def get_skills_directive() -> str:
     """
-    Return condensed, essential skill content to inject directly into prompt.
-    Agents don't reliably read skill files, so we inject critical patterns directly.
+    Return a short directive telling the agent to use skills for animation patterns.
+    Skills are loaded via setting_sources=["project"] and the Skill tool.
     """
     return """
-## REQUIRED ANIMATION PATTERNS (USE THESE EXACTLY)
+## SKILLS (MANDATORY)
 
-### Spring Configuration (ALWAYS import from constants.ts)
-```tsx
-import { SPRINGS, STAGGER } from '../constants';
-// Usage:
-const progress = spring({frame: frame - startFrame, fps, config: SPRINGS.SMOOTH}); // { damping: 26, stiffness: 120, mass: 1.0 }
-const heroProgress = spring({frame, fps, config: SPRINGS.SNAPPY}); // { damping: 18, stiffness: 180, mass: 0.8 }
-```
+Before writing ANY scene code, use the Skill tool to read these skills:
+1. `framer-motion` — Reusable components (GlassCard, ParticleEmitter, AnimatedCounter, FlowingStream, ProbabilityGate), animation patterns, prohibited patterns
+2. `motion-one` — Spring configs (SMOOTH, SNAPPY, BOUNCY, HEAVY), Disney's 12 principles, stagger timing
+3. `video-engagement` — Hook techniques, retention, color palettes, scene structure, visual metaphors
+4. `remotion-best-practices` — Official Remotion patterns (read specific rules/ for @remotion/shapes, @remotion/noise, @remotion/paths, @remotion/transitions)
 
-### Stagger Pattern (REQUIRED for multiple elements)
-```tsx
-// NEVER animate all elements at once. Always stagger by 6+ frames:
-{items.map((item, i) => (
-  <Element key={i} delay={i * 6} />
-))}
-```
-
-### Glassmorphism (for cards/containers)
-```tsx
-const glassStyle = {
-  background: 'rgba(255, 255, 255, 0.1)',
-  backdropFilter: 'blur(20px)',
-  WebkitBackdropFilter: 'blur(20px)',
-  border: '1px solid rgba(255, 255, 255, 0.2)',
-  borderRadius: 16,
-  boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-};
-```
-
-### Flowing Particles (for streams/rivers)
-```tsx
-const FlowingParticles: React.FC = () => {
-  const frame = useCurrentFrame();
-  const {width, height} = useVideoConfig();
-  return (
-    <>
-      {Array.from({length: 30}).map((_, i) => {
-        const x = ((frame * 2 + i * 50) % (width + 100)) - 50;
-        const y = (height * 0.4) + Math.sin((frame + i * 20) * 0.03) * 50;
-        return (
-          <div key={i} style={{
-            position: 'absolute', left: x, top: y,
-            width: 16, height: 16, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
-            opacity: 0.7,
-          }} />
-        );
-      })}
-    </>
-  );
-};
-```
-
-### Particle Emitter (for explosion/radial effects)
-```tsx
-const ParticleEmitter: React.FC<{count: number, startFrame: number}> = ({count, startFrame}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  return (
-    <>
-      {Array.from({length: count}).map((_, i) => {
-        const delay = i * 6;
-        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 26, stiffness: 120}});
-        const angle = (i / count) * Math.PI * 2;
-        const radius = progress * 100;
-        return (
-          <div key={i} style={{
-            position: 'absolute',
-            left: `calc(50% + ${Math.cos(angle) * radius}px)`,
-            top: `calc(50% + ${Math.sin(angle) * radius}px)`,
-            width: 8, height: 8,
-            borderRadius: '50%',
-            background: '#8b5cf6',
-            opacity: interpolate(progress, [0, 0.8, 1], [0, 1, 0]),
-          }} />
-        );
-      })}
-    </>
-  );
-};
-```
-
-### Counter Animation (for numbers)
-```tsx
-const Counter: React.FC<{target: number, start: number}> = ({target, start}) => {
-  const frame = useCurrentFrame();
-  const value = Math.round(interpolate(
-    frame - start, [0, 45], [0, target], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
-  ));
-  return <span style={{fontVariantNumeric: 'tabular-nums'}}>{value}</span>;
-};
-```
-
-### Scale Entrance (for appearing elements)
-```tsx
-const ScaleIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({startFrame, children}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const scale = spring({frame: frame - startFrame, fps, config: {damping: 26, stiffness: 120}});
-  return <div style={{transform: `scale(${scale})`}}>{children}</div>;
-};
-```
-
-### Fade In Animation
-```tsx
-const FadeIn: React.FC<{startFrame: number, children: React.ReactNode}> = ({startFrame, children}) => {
-  const frame = useCurrentFrame();
-  const opacity = interpolate(
-    frame - startFrame,
-    [0, 20],
-    [0, 1],
-    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
-  );
-  return <div style={{opacity}}>{children}</div>;
-};
-```
-
-## PROHIBITED PATTERNS (NEVER DO THESE)
-
-- EMPTY FRAMES with just background (WORST OFFENSE - kills retention)
-- Missing key prop on children arrays (causes React warnings)
-- Math.sin() or Math.cos() on text rotation/position (causes jittery text)
-- damping < 20 in spring config (too bouncy)
-- All elements animating at the same time (no stagger)
-- Plain colored circles instead of proper visuals
-- Instant teleportation (no animation)
-- Static backgrounds with no motion
-- Missing extrapolateLeft/extrapolateRight: 'clamp' in interpolate() — BOTH are required
-- Scenes with no visual metaphor (just text on background)
-- Gaps between scenes (no animation happening)
-
-## REACT KEYS (MANDATORY)
-Every element in a children array needs a unique key:
-```tsx
-// CORRECT:
-<AbsoluteFill>
-  <AnimatedBackground key="bg" />
-  <Sequence key="scene1" from={0}>...</Sequence>
-  <Sequence key="scene2" from={90}>...</Sequence>
-</AbsoluteFill>
-
-// WRONG (missing keys):
-<AbsoluteFill>
-  <AnimatedBackground />
-  <Sequence from={0}>...</Sequence>
-  <Sequence from={90}>...</Sequence>
-</AbsoluteFill>
-```
+Copy technique implementations from skills directly. Do NOT reinvent or simplify them.
 """
 
 
-def get_instagram_design_guide() -> str:
-    """
-    Return Instagram-worthy design principles and guidance.
-    Teaches agents how to create scroll-stopping, visually stunning content.
-    """
-    return '''
-## INSTAGRAM-WORTHY DESIGN GUIDE
+# get_instagram_design_guide() — REMOVED: content moved to video-engagement skill
 
-### THE HOOK (FIRST 3 SECONDS = EVERYTHING)
-Your video has 0.5-3 seconds to stop the scroll. The opening MUST be visually striking.
 
-**Hook Techniques (USE AT LEAST ONE):**
-1. **Bold Statement** - Large, animated text that makes a provocative claim
-2. **Visual Paradox** - Something unexpected (e.g., data flowing backwards, impossible shapes)
-3. **Dramatic Reveal** - Start zoomed in, pull back to reveal context
-4. **Motion Explosion** - Particles/elements bursting from center
-5. **Question Hook** - Animated question mark or "Did you know...?"
+# TECHNIQUE_CODE_EXAMPLES — REMOVED: content moved to framer-motion skill
 
-```tsx
-// EXAMPLE: Motion Explosion Hook (first 45 frames)
-const HookScene: React.FC = () => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
 
-  // Dramatic scale-in for main element
-  const scale = spring({frame, fps, config: {damping: 12, stiffness: 100}});
+# get_remotion_libraries_guide() — REMOVED: content covered by remotion-best-practices skill rules/
 
-  // Particle burst behind it
-  const particles = Array.from({length: 20}).map((_, i) => {
-    const angle = (i / 20) * Math.PI * 2;
-    const distance = spring({frame: frame - 5, fps, config: {damping: 18}}) * 150;
-    return (
-      <div key={i} style={{
-        position: 'absolute',
-        left: `calc(50% + ${Math.cos(angle) * distance}px)`,
-        top: `calc(50% + ${Math.sin(angle) * distance}px)`,
-        width: 12, height: 12, borderRadius: '50%',
-        background: 'linear-gradient(135deg, #ff6b6b, #feca57)',
-        opacity: interpolate(frame, [0, 30], [1, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
-      }} />
-    );
-  });
 
-  return (
-    <>
-      {particles}
-      <div style={{transform: `scale(${scale})`, textAlign: 'center'}}>
-        <h1 style={{fontSize: 72, fontWeight: 900}}>🤯 Mind = Blown</h1>
-      </div>
-    </>
-  );
-};
-```
-
-### RETENTION TECHNIQUES (KEEP THEM WATCHING)
-
-1. **Progressive Revelation** - Don't show everything at once. Build understanding.
-2. **Visual Payoff Every 3-5 Seconds** - New animation, new element, new insight
-3. **Anticipation Loops** - Show something partially, then reveal fully
-4. **Counter/Progress Indicators** - Numbers counting, progress bars filling
-5. **Pattern Interrupts** - Just when viewer expects X, do Y
-
-### COLOR PALETTES (2024-2025 TRENDS)
-
-**Palette 1: Electric Sunset (HIGH ENERGY)**
-```tsx
-const COLORS = {
-  primary: '#ff6b6b',      // Coral red
-  secondary: '#feca57',    // Golden yellow
-  accent: '#ff9ff3',       // Pink
-  dark: '#1a1a2e',         // Deep navy
-  light: '#ffffff',
-};
-const GRADIENT = 'linear-gradient(135deg, #ff6b6b 0%, #feca57 50%, #ff9ff3 100%)';
-```
-
-**Palette 2: Cyber Neon (TECH/DATA)**
-```tsx
-const COLORS = {
-  primary: '#00f5d4',      // Cyan
-  secondary: '#7b2cbf',    // Purple
-  accent: '#f72585',       // Magenta
-  dark: '#0a0a0f',         // Near black
-  light: '#e0e0e0',
-};
-const GRADIENT = 'linear-gradient(135deg, #00f5d4 0%, #7b2cbf 50%, #f72585 100%)';
-```
-
-**Palette 3: Soft Gradient (CALM/EDUCATIONAL)**
-```tsx
-const COLORS = {
-  primary: '#667eea',      // Soft indigo
-  secondary: '#764ba2',    // Soft purple
-  accent: '#66a6ff',       // Sky blue
-  dark: '#1e1e2f',         // Dark purple-gray
-  light: '#f8f9fa',
-};
-const GRADIENT = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-```
-
-**Palette 4: Forest Tech (NATURE + TECH)**
-```tsx
-const COLORS = {
-  primary: '#00b894',      // Mint green
-  secondary: '#0984e3',    // Ocean blue
-  accent: '#fdcb6e',       // Soft gold
-  dark: '#0c1618',         // Deep forest
-  light: '#dfe6e9',
-};
-const GRADIENT = 'linear-gradient(135deg, #00b894 0%, #0984e3 100%)';
-```
-
-### MOBILE-FIRST TYPOGRAPHY (1080x1920 VERTICAL)
-
-```tsx
-// Mobile text sizes (for 1080x1920)
-const TYPOGRAPHY = {
-  hero: {fontSize: 96, fontWeight: 900, lineHeight: 1.1},     // Main hook text
-  title: {fontSize: 64, fontWeight: 800, lineHeight: 1.2},    // Section titles
-  subtitle: {fontSize: 48, fontWeight: 600, lineHeight: 1.3}, // Supporting text
-  body: {fontSize: 36, fontWeight: 500, lineHeight: 1.5},     // Explanatory text
-  caption: {fontSize: 28, fontWeight: 400, lineHeight: 1.4},  // Small labels
-};
-
-// For 1920x1080 horizontal, use 75% of these values
-```
-
-### MOTION DESIGN TRENDS
-
-1. **Morphing Shapes** - Elements that smoothly transform into other shapes
-2. **Liquid Motion** - Blob-like, organic movements
-3. **Kinetic Typography** - Text that moves with meaning (words bouncing when saying "bounce")
-4. **3D Depth** - Parallax layers, perspective transforms
-5. **Micro-interactions** - Small details that reward attention
-
-### SCENE STRUCTURE FOR ENGAGEMENT
-
-```
-Scene 1 (0-3s): THE HOOK - Stop the scroll, create curiosity
-Scene 2 (3-8s): THE SETUP - Establish the problem/question
-Scene 3 (8-15s): THE BUILD - Progressive revelation of concept
-Scene 4 (15-22s): THE PAYOFF - Visual climax, "aha" moment
-Scene 5 (22-28s): THE REINFORCE - Solidify understanding
-Scene 6 (28-30s): THE CTA - Call to action, loop point
-```
-
-### BACKGROUNDS THAT POP
-
-Never use plain solid colors. Always add depth:
-
-```tsx
-// Animated gradient background
-const AnimatedBackground: React.FC = () => {
-  const frame = useCurrentFrame();
-  const gradientAngle = interpolate(frame, [0, 300], [135, 225]);
-  return (
-    <AbsoluteFill style={{
-      background: `linear-gradient(${gradientAngle}deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)`,
-    }}>
-      {/* Add floating particles or subtle grid */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,0.1) 1px, transparent 0)',
-        backgroundSize: '40px 40px',
-      }} />
-    </AbsoluteFill>
-  );
-};
-```
-
-### VISUAL METAPHORS (MAKE ABSTRACT CONCRETE)
-
-| Abstract Concept | Visual Metaphor |
-|------------------|-----------------|
-| Data flow | River of glowing particles |
-| Algorithm | Assembly line / conveyor belt |
-| Recursion | Mirrors reflecting mirrors |
-| API call | Package being delivered |
-| Cache | Drawer/filing cabinet |
-| Memory | Grid of glowing boxes |
-| Process | Gears turning together |
-| Network | Connected nodes with pulses |
-| Error | Red warning flash + shake |
-| Success | Green checkmark + confetti |
-'''
-
-
-TECHNIQUE_CODE_EXAMPLES = {
-    "particle-emitter": '''
-// ParticleEmitter - Use for particle effects
-const ParticleEmitter: React.FC<{count: number, startFrame: number}> = ({count, startFrame}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  return (
-    <>
-      {Array.from({length: count}).map((_, i) => {
-        const delay = i * 6;
-        const progress = spring({frame: frame - startFrame - delay, fps, config: {damping: 26, stiffness: 120}});
-        const angle = (i / count) * Math.PI * 2;
-        const radius = progress * 100;
-        return (
-          <div key={i} style={{
-            position: 'absolute',
-            left: `calc(50% + ${Math.cos(angle) * radius}px)`,
-            top: `calc(50% + ${Math.sin(angle) * radius}px)`,
-            width: 8, height: 8,
-            borderRadius: '50%',
-            background: '#8b5cf6',
-            opacity: interpolate(progress, [0, 0.8, 1], [0, 1, 0]),
-          }} />
-        );
-      })}
-    </>
-  );
-};''',
-    "glass-morphism": '''
-// GlassCard - Glassmorphism container
-const GlassCard: React.FC<{children: React.ReactNode}> = ({children}) => (
-  <div style={{
-    background: 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    borderRadius: 16,
-    padding: 24,
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-  }}>
-    {children}
-  </div>
-);''',
-    "flowing-river": '''
-// FlowingRiver - Animated data stream
-const FlowingRiver: React.FC<{startFrame: number}> = ({startFrame}) => {
-  const frame = useCurrentFrame();
-  const {width, height} = useVideoConfig();
-  const particles = Array.from({length: 50}).map((_, i) => {
-    const speed = 2 + (i % 3);
-    const yOffset = (i * 40) % height;
-    const x = ((frame - startFrame) * speed + i * 30) % (width + 100) - 50;
-    const y = yOffset + Math.sin((frame + i * 10) * 0.02) * 30;
-    return (
-      <div key={i} style={{
-        position: 'absolute', left: x, top: y,
-        width: 12 + (i % 8), height: 12 + (i % 8),
-        borderRadius: '50%',
-        background: `linear-gradient(135deg, #3b82f6, #8b5cf6)`,
-        opacity: 0.6 + (i % 4) * 0.1,
-      }} />
-    );
-  });
-  return <>{particles}</>;
-};''',
-    "probability-gate": '''
-// ProbabilityGate - Dice/spinner for random chance visualization
-const ProbabilityGate: React.FC<{n: number, startFrame: number}> = ({n, startFrame}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const spinProgress = spring({frame: frame - startFrame, fps, config: {damping: 15, stiffness: 80}});
-  const rotation = interpolate(spinProgress, [0, 1], [0, 720]);
-  return (
-    <div style={{
-      width: 80, height: 80,
-      background: 'linear-gradient(135deg, #22c55e, #3b82f6)',
-      borderRadius: 12,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      transform: `rotate(${rotation}deg)`,
-      boxShadow: '0 4px 20px rgba(34, 197, 94, 0.4)',
-    }}>
-      <span style={{fontSize: 24, fontWeight: 'bold', color: 'white'}}>1/{n}</span>
-    </div>
-  );
-};''',
-    "scale-spring": '''
-// Scale spring entrance animation
-const scaleEntrance = (frame: number, startFrame: number, fps: number) => {
-  const progress = spring({
-    frame: frame - startFrame,
-    fps,
-    config: { damping: 26, stiffness: 120, mass: 1.0 }
-  });
-  return progress;
-};
-// Usage: transform: `scale(${scaleEntrance(frame, 15, fps)})`''',
-    "counter-animation": '''
-// AnimatedCounter - Number counting up
-const AnimatedCounter: React.FC<{target: number, startFrame: number, duration?: number}> = ({target, startFrame, duration = 45}) => {
-  const frame = useCurrentFrame();
-  const progress = interpolate(frame - startFrame, [0, duration], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'});
-  const value = Math.round(progress * target);
-  return (
-    <span style={{fontVariantNumeric: 'tabular-nums'}}>{value.toLocaleString()}</span>
-  );
-};''',
-    "staggered-list": '''
-// StaggeredList - Animated list with staggered entries
-const StaggeredList: React.FC<{items: string[], startFrame: number}> = ({items, startFrame}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  return (
-    <div>
-      {items.map((item, i) => {
-        const delay = i * 6; // 6 frame stagger
-        const progress = spring({
-          frame: frame - startFrame - delay,
-          fps,
-          config: { damping: 26, stiffness: 120, mass: 1.0 }
-        });
-        return (
-          <div key={i} style={{
-            opacity: progress,
-            transform: `translateY(${interpolate(progress, [0, 1], [20, 0])}px)`
-          }}>
-            {item}
-          </div>
-        );
-      })}
-    </div>
-  );
-};''',
-}
-
-
-def get_remotion_libraries_guide() -> str:
-    """
-    Return examples of Remotion's official libraries for advanced effects.
-    These are npm packages that can be imported for sophisticated visuals.
-    """
-    return '''
-## REMOTION LIBRARIES (ADVANCED EFFECTS)
-
-These are official Remotion packages available in the workspace. Use them for sophisticated effects.
-
-### @remotion/shapes - SVG Shape Primitives
-```tsx
-import {Pie, Triangle, Circle, Rect, Star, Polygon} from '@remotion/shapes';
-
-// Animated pie chart
-const AnimatedPie: React.FC<{progress: number}> = ({progress}) => (
-  <Pie
-    radius={100}
-    progress={progress}
-    fill="#667eea"
-    stroke="#764ba2"
-    strokeWidth={4}
-  />
-);
-
-// Star rating animation
-const StarRating: React.FC<{rating: number, startFrame: number}> = ({rating, startFrame}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-
-  return (
-    <div style={{display: 'flex', gap: 8}}>
-      {[1, 2, 3, 4, 5].map((i) => {
-        const delay = (i - 1) * 6;
-        const scale = spring({frame: frame - startFrame - delay, fps, config: {damping: 15}});
-        const isFilled = i <= rating;
-        return (
-          <div key={i} style={{transform: `scale(${scale})`}}>
-            <Star
-              points={5}
-              innerRadius={20}
-              outerRadius={40}
-              fill={isFilled ? '#feca57' : 'transparent'}
-              stroke="#feca57"
-              strokeWidth={2}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-```
-
-### @remotion/noise - Procedural Noise
-```tsx
-import {noise2D, noise3D} from '@remotion/noise';
-
-// Organic floating particles using noise
-const NoiseParticles: React.FC = () => {
-  const frame = useCurrentFrame();
-
-  return (
-    <>
-      {Array.from({length: 30}).map((_, i) => {
-        const seed = i * 100;
-        const x = noise2D(seed, frame * 0.01, 0) * 400 + 540;
-        const y = noise2D(seed + 1000, frame * 0.01, 0) * 400 + 960;
-        const scale = noise2D(seed + 2000, frame * 0.02, 0) * 0.5 + 0.75;
-
-        return (
-          <div key={i} style={{
-            position: 'absolute',
-            left: x, top: y,
-            width: 20, height: 20,
-            borderRadius: '50%',
-            background: 'rgba(102, 126, 234, 0.6)',
-            transform: `scale(${scale})`,
-          }} />
-        );
-      })}
-    </>
-  );
-};
-
-// Wavy text using noise
-const WavyText: React.FC<{text: string}> = ({text}) => {
-  const frame = useCurrentFrame();
-
-  return (
-    <div style={{display: 'flex'}}>
-      {text.split('').map((char, i) => {
-        const y = noise2D(i, frame * 0.05, 0) * 20;
-        return (
-          <span key={i} style={{
-            display: 'inline-block',
-            transform: `translateY(${y}px)`,
-            fontSize: 64, fontWeight: 700,
-          }}>
-            {char}
-          </span>
-        );
-      })}
-    </div>
-  );
-};
-```
-
-### @remotion/paths - SVG Path Animation
-```tsx
-import {
-  getLength,
-  getPointAtLength,
-  evolvePath,
-  translatePath,
-  scalePath,
-} from '@remotion/paths';
-
-// Draw-on line animation
-const AnimatedPath: React.FC<{startFrame: number}> = ({startFrame}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-
-  const path = 'M 100 200 Q 300 100 500 200 T 900 200';
-  const length = getLength(path);
-  const progress = spring({frame: frame - startFrame, fps, config: {damping: 20}});
-
-  const strokeDasharray = length;
-  const strokeDashoffset = length * (1 - progress);
-
-  return (
-    <svg width="1000" height="400" viewBox="0 0 1000 400">
-      <path
-        d={path}
-        stroke="url(#gradient)"
-        strokeWidth={8}
-        fill="none"
-        strokeDasharray={strokeDasharray}
-        strokeDashoffset={strokeDashoffset}
-        strokeLinecap="round"
-      />
-      <defs>
-        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#667eea" />
-          <stop offset="100%" stopColor="#f72585" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-};
-
-// Moving element along path
-const ElementOnPath: React.FC<{progress: number}> = ({progress}) => {
-  const path = 'M 0 100 Q 250 0 500 100 T 1000 100';
-  const length = getLength(path);
-  const point = getPointAtLength(path, progress * length);
-
-  return (
-    <div style={{
-      position: 'absolute',
-      left: point.x, top: point.y,
-      width: 30, height: 30,
-      borderRadius: '50%',
-      background: '#00f5d4',
-      transform: 'translate(-50%, -50%)',
-      boxShadow: '0 0 20px #00f5d4',
-    }} />
-  );
-};
-```
-
-### @remotion/animated-emoji - Animated Emojis
-```tsx
-import {AnimatedEmoji} from '@remotion/animated-emoji';
-
-// Use animated emojis for visual interest
-const EmojiReaction: React.FC<{emoji: string, startFrame: number}> = ({emoji, startFrame}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-  const scale = spring({frame: frame - startFrame, fps, config: {damping: 12}});
-
-  return (
-    <div style={{transform: `scale(${scale})`}}>
-      <AnimatedEmoji emoji={emoji} />
-    </div>
-  );
-};
-
-// Available animated emojis: 🔥 ❤️ 👍 👎 😂 😮 😢 😡 🎉 💡 ✅ ❌
-```
-
-### @remotion/transitions - Scene Transitions
-```tsx
-import {
-  TransitionSeries,
-  springTiming,
-  linearTiming,
-} from '@remotion/transitions';
-import {slide} from '@remotion/transitions/slide';
-import {fade} from '@remotion/transitions/fade';
-import {wipe} from '@remotion/transitions/wipe';
-
-// Use TransitionSeries for smooth scene changes
-const ScenesWithTransitions: React.FC = () => {
-  const {fps} = useVideoConfig();
-
-  return (
-    <TransitionSeries>
-      <TransitionSeries.Sequence durationInFrames={90}>
-        <Scene1 />
-      </TransitionSeries.Sequence>
-
-      <TransitionSeries.Transition
-        presentation={slide({direction: 'from-right'})}
-        timing={springTiming({config: {damping: 200}, durationInFrames: 30})}
-      />
-
-      <TransitionSeries.Sequence durationInFrames={90}>
-        <Scene2 />
-      </TransitionSeries.Sequence>
-
-      <TransitionSeries.Transition
-        presentation={fade()}
-        timing={linearTiming({durationInFrames: 20})}
-      />
-
-      <TransitionSeries.Sequence durationInFrames={90}>
-        <Scene3 />
-      </TransitionSeries.Sequence>
-    </TransitionSeries>
-  );
-};
-```
-
-### COMBINING LIBRARIES FOR ADVANCED EFFECTS
-
-```tsx
-// Data visualization with noise, shapes, and paths
-const DataVisualization: React.FC<{startFrame: number}> = ({startFrame}) => {
-  const frame = useCurrentFrame();
-  const {fps} = useVideoConfig();
-
-  const progress = spring({frame: frame - startFrame, fps, config: {damping: 20}});
-
-  // Use noise for organic data variation
-  const dataPoints = [65, 78, 82, 91, 87, 95].map((value, i) => ({
-    value,
-    noise: noise2D(i, frame * 0.02, 0) * 3, // Subtle organic motion
-  }));
-
-  return (
-    <div style={{display: 'flex', alignItems: 'flex-end', gap: 24, height: 300}}>
-      {dataPoints.map((point, i) => {
-        const delay = i * 8;
-        const barProgress = spring({
-          frame: frame - startFrame - delay,
-          fps,
-          config: {damping: 18}
-        });
-        const height = (point.value + point.noise) * 2.5 * barProgress;
-
-        return (
-          <div key={i} style={{
-            width: 60,
-            height,
-            background: `linear-gradient(180deg, #667eea 0%, #764ba2 100%)`,
-            borderRadius: '8px 8px 0 0',
-            boxShadow: '0 0 20px rgba(102, 126, 234, 0.5)',
-          }}>
-            <span style={{
-              position: 'absolute', top: -30,
-              left: '50%', transform: 'translateX(-50%)',
-              fontSize: 24, fontWeight: 700, color: '#fff',
-              opacity: barProgress,
-            }}>
-              {Math.round(point.value * barProgress)}%
-            </span>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
-```
-'''
-
-
-def extract_technique_examples(transcript: str) -> str:
-    """
-    Extract relevant code examples based on transcript content.
-    Analyzes transcript for keywords that suggest certain techniques would be useful.
-    """
-    transcript_lower = transcript.lower()
-    examples = []
-
-    # Keywords that suggest certain techniques
-    technique_keywords = {
-        "particle-emitter": ["particle", "explosion", "burst", "radial", "scatter", "emit"],
-        "glass-morphism": ["card", "container", "panel", "box", "glass", "blur", "overlay"],
-        "flowing-river": ["flow", "stream", "river", "data", "continuous", "pipeline", "process"],
-        "probability-gate": ["probability", "chance", "random", "dice", "spin", "lottery", "odds"],
-        "scale-spring": ["appear", "pop", "enter", "show", "reveal", "intro"],
-        "counter-animation": ["count", "number", "statistic", "metric", "percentage", "value"],
-        "staggered-list": ["list", "item", "bullet", "point", "step", "sequence"],
-    }
-
-    for technique, keywords in technique_keywords.items():
-        if any(kw in transcript_lower for kw in keywords):
-            if technique in TECHNIQUE_CODE_EXAMPLES:
-                examples.append(f"### {technique.replace('-', ' ').title()}\n```tsx{TECHNIQUE_CODE_EXAMPLES[technique]}\n```")
-
-    # Always include basic patterns
-    if "scale-spring" not in [e.split("\n")[0] for e in examples]:
-        examples.append(f"### Scale Spring Entrance\n```tsx{TECHNIQUE_CODE_EXAMPLES['scale-spring']}\n```")
-
-    if not examples:
-        return ""
-
-    return f"""
-## CODE EXAMPLES - COPY THESE DIRECTLY
-
-Based on your transcript content, these techniques are likely useful:
-
-{chr(10).join(examples)}
-
-**IMPORTANT**: Copy these implementations directly. Do NOT simplify them.
-"""
+# extract_technique_examples() — REMOVED: agent reads technique components from framer-motion skill
 
 
 # =============================================================================
@@ -2588,15 +1811,11 @@ class ClaudeVisualGenerator:
         duration_frames: int,
         fps: int,
     ) -> str:
-        """Build the user message with transcript, specs, and injected skills/examples."""
+        """Build the user message with transcript, specs, and skills directive."""
         duration_seconds = duration_frames / fps
 
-        # Get all guides and examples to inject directly
-        # (Agents don't reliably read skill files, so we inject everything)
-        instagram_guide = get_instagram_design_guide()
-        remotion_libraries = get_remotion_libraries_guide()
-        condensed_skills = get_condensed_skills()
-        technique_examples = extract_technique_examples(transcript)
+        # Skills directive (agent reads full content via Skill tool on demand)
+        skills_directive = get_skills_directive()
 
         # Composition ID must use dashes (Remotion requirement), folder uses underscores
         composition_id = self.project_id.replace("_", "-")
@@ -2612,9 +1831,7 @@ class ClaudeVisualGenerator:
             transcript=transcript,
         )
 
-        # Inject everything directly into prompt
-        # Order: Design guide first (sets mindset), then libraries, then patterns, then task
-        return f"{instagram_guide}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{technique_examples}\n\n{base_message}"
+        return f"{skills_directive}\n\n{base_message}"
 
     def _write_security_settings(self) -> Path:
         """Write security settings to a temporary file."""
@@ -3670,7 +2887,7 @@ Output PASS or FAIL with numbered issues.
                 issues=issues_str,
             )
 
-            remotion_libraries = get_remotion_libraries_guide()
+            skills_directive = get_skills_directive()
 
             try:
                 fix_client = ClaudeSDKClient(
@@ -3680,11 +2897,11 @@ Output PASS or FAIL with numbered issues.
                         system_prompt={
                             "type": "preset",
                             "preset": "claude_code",
-                            "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}",
+                            "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}",
                         },
                         cwd=str(self.workspace),
                         max_turns=15,
-                        allowed_tools=["Read", "Edit", "Bash", "Glob"],
+                        allowed_tools=["Read", "Edit", "Bash", "Glob", "Skill"],
                         permission_mode="bypassPermissions",
                         cli_path=CLAUDE_CLI_PATH,
                     )
@@ -4410,9 +3627,8 @@ Output PASS or FAIL with numbered issues.
 
         print(f"[ClaudeGenerator] Phase 2: Animator implementing scenes...")
 
-        # Get condensed skills and guides for Animator
-        remotion_libraries = get_remotion_libraries_guide()
-        condensed_skills = get_condensed_skills()
+        # Skills directive (agent reads full content via Skill tool on demand)
+        skills_directive = get_skills_directive()
 
         # Check if any scene has type "youtube-clip" for conditional section
         has_youtube_clip_scenes = False
@@ -4425,10 +3641,10 @@ Output PASS or FAIL with numbered issues.
             except Exception as e:
                 print(f"[ClaudeGenerator] Warning: Failed to check scenes for youtube-clip type: {e}")
 
-        # Build full system prompt with skills (+ studio design system only when studio preset)
+        # Build full system prompt with skills directive (+ studio design system only when studio preset)
         studio_section = get_studio_section(style_preset)
         youtube_clip_section = get_youtube_clip_section(has_youtube_clip_scenes)
-        full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}{studio_section}{youtube_clip_section}\n\n{remotion_libraries}\n\n{condensed_skills}"
+        full_system_prompt = f"{ANIMATOR_SYSTEM_PROMPT}{studio_section}{youtube_clip_section}\n\n{skills_directive}"
 
         # Inject user-provided assets summary so the AI knows about them immediately
         user_assets_path = self.src_dir / "user_assets.json"
@@ -5339,9 +4555,8 @@ export default MainComposition;
         elif setup_exists:
             print(f"[ClaudeGenerator] CHECKPOINT RESUME: Setup done, no scenes yet")
 
-        # Get remotion libraries and condensed skills (same as monolithic)
-        remotion_libraries = get_remotion_libraries_guide()
-        condensed_skills = get_condensed_skills()
+        # Skills directive (agent reads full content via Skill tool on demand)
+        skills_directive = get_skills_directive()
 
         # MCP servers config (uses pre-installed local binaries)
         mcp_servers = build_mcp_servers(str(self.workspace))
@@ -5374,7 +4589,7 @@ export default MainComposition;
             )
         else:
             emit_progress(38, "Setting up project foundation...", {"phase": "workspace", "phaseName": "Setting up workspace"})
-            setup_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{ANIMATOR_SETUP_PROMPT}{user_assets_section}"
+            setup_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}\n\n{ANIMATOR_SETUP_PROMPT}{user_assets_section}"
             setup_message = build_setup_user_message(self.project_id)
 
             # Inject template catalog for studio preset
