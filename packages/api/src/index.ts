@@ -18,6 +18,7 @@ import { agentRoutes } from './agent/agent-router.js';
 import { waitlistRoutes } from './routes/waitlist.js';
 import { youtubeClipRoutes } from './routes/youtube-clips.js';
 import { setupWebSocket } from './ws/handler.js';
+import { authMiddleware } from './middleware/auth.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -85,7 +86,10 @@ async function main() {
 
   // Production bundle serving from S3
   // Route: /api/bundles/:compositionId/*
-  fastify.get('/api/bundles/:compositionId/*', async (request, reply) => {
+  // Auth required: these are user-generated Remotion bundles. The Remotion SSR renderer
+  // uses local file paths (not this endpoint), so auth won't break rendering.
+  // Browser clients send cookies automatically with fetch() and asset requests.
+  fastify.get('/api/bundles/:compositionId/*', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { compositionId } = request.params as { compositionId: string };
     const filePath = (request.params as { '*': string })['*'] || 'index.html';
 
@@ -134,7 +138,7 @@ async function main() {
   // Production source files serving from S3
   // Route: /api/sources/:compositionId/*
   // These are the source project files (index.tsx, metadata.json, etc.) for AI context restoration
-  fastify.get('/api/sources/:compositionId/*', async (request, reply) => {
+  fastify.get('/api/sources/:compositionId/*', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { compositionId } = request.params as { compositionId: string };
     const filePath = (request.params as { '*': string })['*'] || 'index.tsx';
 
@@ -173,7 +177,7 @@ async function main() {
   });
 
   // List all source files for a composition (for restoring AI context)
-  fastify.get('/api/sources/:compositionId', async (request, reply) => {
+  fastify.get('/api/sources/:compositionId', { preHandler: [authMiddleware] }, async (request, reply) => {
     const { compositionId } = request.params as { compositionId: string };
 
     try {
@@ -218,25 +222,27 @@ async function main() {
   // Health check
   fastify.get('/health', async () => ({ status: 'ok' }));
 
-  // Debug: test claude subprocess
-  fastify.get('/debug/claude-test', async (_request, reply) => {
-    const { spawn } = await import('child_process');
-    return new Promise((resolve) => {
-      const proc = spawn('claude', ['-p', 'say hello in 5 words', '--output-format', 'text'], {
-        env: { ...process.env, CLAUDECODE: undefined },
-        stdio: ['pipe', 'pipe', 'pipe'],
+  // Debug: test claude subprocess (dev-only — spawns Claude CLI with no auth)
+  if (!isProduction) {
+    fastify.get('/debug/claude-test', async (_request, reply) => {
+      const { spawn } = await import('child_process');
+      return new Promise((resolve) => {
+        const proc = spawn('claude', ['-p', 'say hello in 5 words', '--output-format', 'text'], {
+          env: { ...process.env, CLAUDECODE: undefined },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+        proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
+        proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+        proc.on('close', (code: number) => {
+          reply.send({ code, stdout: stdout.slice(0, 500), stderr: stderr.slice(0, 500) });
+          resolve(undefined);
+        });
+        setTimeout(() => { proc.kill(); reply.send({ error: 'timeout', stderr: stderr.slice(0, 500) }); resolve(undefined); }, 30000);
       });
-      let stdout = '';
-      let stderr = '';
-      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-      proc.on('close', (code: number) => {
-        reply.send({ code, stdout: stdout.slice(0, 500), stderr: stderr.slice(0, 500) });
-        resolve(undefined);
-      });
-      setTimeout(() => { proc.kill(); reply.send({ error: 'timeout', stderr: stderr.slice(0, 500) }); resolve(undefined); }, 30000);
     });
-  });
+  }
 
   // Register routes
   await fastify.register(projectRoutes, { prefix: '/api' });
