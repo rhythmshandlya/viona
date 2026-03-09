@@ -141,6 +141,30 @@ function computeSpeakerGrid(
   const occupiedCells = grid.flat().filter((v) => v === 1).length;
   const occupancy = `${Math.round((occupiedCells / totalCells) * 100)}%`;
 
+  // Fallback: if occupancy is very low but we had frames, assume center-column speaker
+  // Low occupancy likely means face detection was inconsistent
+  if (occupiedCells < totalCells * 0.10 && filtered.length > 10) {
+    const centerColStart = Math.floor(cols * 0.25);
+    const centerColEnd = Math.floor(cols * 0.75);
+    const centerRowStart = Math.floor(rows * 0.10);
+    const centerRowEnd = Math.floor(rows * 0.60);
+
+    for (let r = centerRowStart; r < centerRowEnd; r++) {
+      for (let c = centerColStart; c < centerColEnd; c++) {
+        grid[r][c] = 1;
+      }
+    }
+
+    const fallbackOccupied = grid.flat().filter((v) => v === 1).length;
+    const fallbackOccupancy = `${Math.round((fallbackOccupied / totalCells) * 100)}%`;
+
+    return {
+      grid,
+      occupancy: fallbackOccupancy,
+      safePlacement: ['top', 'bottom', 'bottom-left', 'bottom-right'],
+    };
+  }
+
   // Compute safe placement regions using fractional boundaries
   // With 24x24 grid, we check meaningful regions (top/bottom strips, left/right halves, quadrants)
   const safePlacement: string[] = [];

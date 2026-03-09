@@ -3211,6 +3211,40 @@ class ClaudeVisualGenerator:
         print(f"[ClaudeGenerator] Copied {copied} studio templates to {target_dir}")
         return copied
 
+    def _validate_metadata(self, canvas_width: int, canvas_height: int) -> bool:
+        """Validate and fix metadata.json dimensions if they don't match expected canvas."""
+        metadata_path = self.src_dir / "metadata.json"
+        if not metadata_path.exists():
+            print(f"[ClaudeGenerator] WARNING: metadata.json not found at {metadata_path}")
+            return False
+
+        import json as json_mod
+        metadata = json_mod.loads(metadata_path.read_text(encoding="utf-8"))
+
+        # Support both key formats
+        w_key = "compositionWidth" if "compositionWidth" in metadata else "width"
+        h_key = "compositionHeight" if "compositionHeight" in metadata else "height"
+        meta_w = metadata.get(w_key, 0)
+        meta_h = metadata.get(h_key, 0)
+
+        # Check for dimension flip (portrait should have width < height)
+        if canvas_width < canvas_height and meta_w > meta_h:
+            print(f"[ClaudeGenerator] FIXING metadata dimension flip: {meta_w}x{meta_h} -> {canvas_width}x{canvas_height}")
+            metadata[w_key] = canvas_width
+            metadata[h_key] = canvas_height
+            metadata_path.write_text(json_mod.dumps(metadata, indent=2), encoding="utf-8")
+            return True
+
+        # Check for general mismatch
+        if meta_w != canvas_width or meta_h != canvas_height:
+            print(f"[ClaudeGenerator] FIXING metadata dimensions: {meta_w}x{meta_h} -> {canvas_width}x{canvas_height}")
+            metadata[w_key] = canvas_width
+            metadata[h_key] = canvas_height
+            metadata_path.write_text(json_mod.dumps(metadata, indent=2), encoding="utf-8")
+            return True
+
+        return False
+
     def _validate_interpolate_clamping(self) -> list[str]:
         """Check all scene files for interpolate() calls missing extrapolateLeft/Right: 'clamp'.
 
@@ -6013,6 +6047,9 @@ Report which scenes were created.
                     with open(metadata_json, "w", encoding="utf-8") as f:
                         json.dump(fallback_metadata, f, indent=2)
 
+                # Validate metadata dimensions (catches dimension flips)
+                self._validate_metadata(width, height)
+
                 # Fix composition ID (must use dashes, not underscores - Remotion requirement)
                 index_tsx = self.src_dir / "index.tsx"
                 composition_id_with_dashes = self.project_id.replace("_", "-")
@@ -6428,6 +6465,9 @@ async def main():
             }
             with open(metadata_json, "w", encoding="utf-8") as f:
                 json.dump(fallback_metadata, f, indent=2)
+
+        # Validate metadata dimensions (catches dimension flips)
+        generator._validate_metadata(args.width, args.height)
 
         # Fix composition ID
         index_tsx = generator.src_dir / "index.tsx"

@@ -169,11 +169,12 @@ RHYTHM PATTERN (example for 6-scene, 60s video):
   Scene 5 (Proof):   10s — evidence, data, results
   Scene 6 (Payoff):  7s  — fast, satisfying close
 
-SYNC POINT CADENCE:
-- Within each scene, plan 1 visual event every 3-4 seconds (research shows this matches
-  the attention rhythm of short-form viewers)
-- A 10-second scene should have 3-4 sync points
-- Maximum 5 seconds between any two consecutive sync points within a scene — if there's a longer gap, you need more sync points or the scene should be split
+SYNC POINT CADENCE (HARD RULE):
+- Every scene MUST have a visual change every 3 seconds (90 frames at 30fps) — no exceptions
+- This is the "Pattern Interrupt" rule: viewers scroll away after 3 seconds of visual stagnation
+- A 10-second scene MUST have 3-4 sync points minimum
+- Maximum 3 seconds (90 frames) between any two consecutive sync points — if there's a longer gap, add intermediate visual beats (icon entrance, text highlight, counter tick, progress update)
+- Types of visual change: new element entering, element transforming, color/glow shift at sync word, data updating, stagger cascade completing
 - This is what turns "slides with narration" into a DYNAMIC video
 
 SHORT VIDEOS (under 20 seconds total):
@@ -277,7 +278,7 @@ Before finishing, verify your plan passes these tests:
 [ ] HOOK TEST: Does Scene 1 have motion from frame 0 and a striking visual in <3 seconds?
 [ ] PACING TEST: Are scene durations varied (not all the same length)?
 [ ] DURATION TEST: Is every scene under 15 seconds (450 frames)? If not, SPLIT it.
-[ ] SYNC GAP TEST: Is the max gap between any two consecutive sync points within a scene under 5 seconds?
+[ ] SYNC GAP TEST: Is the max gap between any two consecutive sync points within a scene under 3 seconds (90 frames)?
 [ ] ANCHOR TEST: Does each scene specify what carries in from previous and out to next?
 [ ] LAYER TEST: Does each visual description address background, primary element, and motion?
 [ ] OVERLAY ZONE TEST: For every overlay scene, are layout.primary.y and layout.secondary.y in safe zones (0-15% or 58-85%)? NEVER in 15-58%.

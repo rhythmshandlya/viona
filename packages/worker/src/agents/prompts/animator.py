@@ -5081,7 +5081,7 @@ When done, respond: "SCENE {scene_number} COMPLETE"
 
 
 OVERLAY_RULES = """
-## OVERLAY MODE — 1080×1920 (portrait, TRANSPARENT background, speaker visible behind)
+## OVERLAY MODE — {ew}×{eh} (portrait, TRANSPARENT background, speaker visible behind)
 
 This is a SPECIAL mode: the speaker's face video plays full-screen, and your visual elements
 float ON TOP of the speaker. Think: lower-third graphics, corner annotations, floating labels.
@@ -5171,7 +5171,7 @@ Use `interpolate()` with `Easing.out(Easing.ease)` or gentle `spring()` for moti
 Total animation time per element: 15-30 frames. Elements should appear
 smoothly, then remain still. Speaker is always the star.
 
-**Overlay uses full canvas dimensions** — EW=1080, EH=1920 (same as fullscreen).
+**Overlay uses full canvas dimensions** — EW={ew}, EH={eh} (same as fullscreen).
 Use these for positioning, but elements must avoid the speaker's grid cells.
 
 ### Overlay Layout Example (speaker in center-top):
@@ -5526,7 +5526,7 @@ A visual review of the rendered screenshot found these issues:
 def get_display_mode_rules(display_mode: str, ew: int = 1080, eh: int = 960) -> str:
     """Get display-mode-specific rules to inject into scene prompt."""
     if display_mode == "overlay":
-        return OVERLAY_RULES
+        return OVERLAY_RULES.replace("{ew}", str(ew)).replace("{eh}", str(eh))
     elif display_mode == "fullscreen":
         return FULLSCREEN_RULES
     else:
