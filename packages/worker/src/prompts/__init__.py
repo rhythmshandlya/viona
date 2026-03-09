@@ -6,8 +6,8 @@ Contains system prompts and message builders for:
 - Animator agent: Implements plan scene-by-scene
 """
 
-from .director import DIRECTOR_SYSTEM_PROMPT, build_director_user_message
-from .animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message, get_studio_section
+from .director.director import DIRECTOR_SYSTEM_PROMPT, build_director_user_message
+from .animator.animator import ANIMATOR_SYSTEM_PROMPT, build_animator_user_message, get_studio_section
 
 __all__ = [
     "DIRECTOR_SYSTEM_PROMPT",

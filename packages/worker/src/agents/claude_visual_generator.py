@@ -29,6 +29,11 @@ _agents_dir = Path(__file__).parent
 if str(_agents_dir) not in sys.path:
     sys.path.insert(0, str(_agents_dir))
 
+# Add src directory to path so `prompts` package resolves to src/prompts/
+_src_dir = str(Path(__file__).parent.parent)
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
 # Claude Agent SDK imports
 try:
     from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
