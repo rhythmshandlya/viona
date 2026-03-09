@@ -158,7 +158,7 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         fps: project.fps || 30,
         width: dimensions?.width || 1080,
         height: dimensions?.height || 1920,
-        stylePreset: stylePreset || 'modern',
+        stylePreset: stylePreset || 'studio-dark',
         layoutMode: layoutMode || 'pip',
         styleGuide,
         sourceWidth: job.data.sourceWidth,
