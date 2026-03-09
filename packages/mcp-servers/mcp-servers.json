@@ -1,0 +1,44 @@
+{
+  "$schema": "./mcp-servers.schema.json",
+  "variables": {
+    "dist": "Resolved path to packages/mcp-servers/dist/",
+    "workspace": "Remotion workspace path (passed at runtime per job)",
+    "mcp-remote": "Path to mcp-remote proxy.js entry point",
+    "better-icons": "Path to better-icons index.js entry point"
+  },
+  "servers": {
+    "assets": {
+      "description": "Download files, search stock photos, read speaker grid for overlay placement",
+      "type": "stdio",
+      "command": "node",
+      "args": ["{dist}/asset-server.js", "--workspace", "{workspace}"],
+      "env": {
+        "UNSPLASH_ACCESS_KEY": { "isRequired": false, "isSecret": true },
+        "PEXELS_API_KEY": { "isRequired": false, "isSecret": true }
+      }
+    },
+    "viewport": {
+      "description": "Read scene dimensions from scenes.json, validate scene code against spec",
+      "type": "stdio",
+      "command": "node",
+      "args": ["{dist}/viewport-server.js", "--workspace", "{workspace}"],
+      "env": {}
+    },
+    "freepik": {
+      "description": "Freepik image generation and stock asset search via MCP remote proxy",
+      "type": "stdio",
+      "command": "node",
+      "args": ["{mcp-remote}", "https://api.freepik.com/mcp", "--header", "x-freepik-api-key:{env.FREEPIK_API_KEY}"],
+      "env": {
+        "FREEPIK_API_KEY": { "isRequired": false, "isSecret": true }
+      }
+    },
+    "better-icons": {
+      "description": "Search and retrieve icons from 200+ icon libraries via Iconify",
+      "type": "stdio",
+      "command": "node",
+      "args": ["{better-icons}"],
+      "env": {}
+    }
+  }
+}
