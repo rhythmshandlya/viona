@@ -1,11 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Easing } from 'remotion';
 import { useScale } from '../../use-scale';
 import { getConstants } from './constants';
 import type { IndianaJonesProps, Coord } from './schema';
 import {
   computeViewport,
-  MAP_STYLES,
+
   computeBezierControl,
   getPointOnQuadBezier,
   getFollowDrawCamera,
@@ -35,7 +35,6 @@ const IndianaJones: React.FC<IndianaJonesProps> = (props) => {
   const frame = useCurrentFrame();
   const { width, height, fps } = useVideoConfig();
   const s = useScale();
-  const styleConfig = MAP_STYLES[props.mapStyle];
 
   // ── Build the full list of points ────────────────────────────────
   const allCoords: Coord[] = [props.startCoord, ...props.waypoints, props.endCoord];
@@ -128,7 +127,7 @@ const IndianaJones: React.FC<IndianaJonesProps> = (props) => {
   }
 
   // ── Total distance ──────────────────────────────────────────────
-  const totalKm = (() => {
+  const totalKm = useMemo(() => {
     let km = 0;
     for (let i = 0; i < allCoords.length - 1; i++) {
       km += haversineDistance(
@@ -137,18 +136,18 @@ const IndianaJones: React.FC<IndianaJonesProps> = (props) => {
       );
     }
     return km;
-  })();
+  }, [props.startCoord, props.waypoints, props.endCoord]);
 
   // ── Distance counter animation ──────────────────────────────────
   const distanceEnterProgress = spring({
-    frame: frame - drawStartFrame,
+    frame: Math.max(0, frame - drawStartFrame),
     fps,
     config: { damping: 26, stiffness: 120, mass: 1.0 },
   });
 
   // ── Compass rotation ────────────────────────────────────────────
   const compassEnterProgress = spring({
-    frame: frame - 15,
+    frame: Math.max(0, frame - 15),
     fps,
     config: { damping: 26, stiffness: 120, mass: 1.0 },
   });
