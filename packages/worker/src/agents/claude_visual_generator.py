@@ -33,6 +33,7 @@ if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
 # Infrastructure imports (OAuth, SDK config, MCP, security)
+from prompts.theme_loader import get_theme
 from oauth import get_token_manager
 from sdk_config import (
     IS_WINDOWS,
@@ -652,7 +653,7 @@ class ClaudeVisualGenerator:
         Sets self._resolved_templates_md with the markdown content.
         """
         self._resolved_templates_md = ""
-        if not style_preset.startswith("studio"):
+        if not get_theme(style_preset):
             return
 
         scenes_path = self.src_dir / "scenes.json"
@@ -709,6 +710,118 @@ class ClaudeVisualGenerator:
             return True
 
         return False
+
+    # ------------------------------------------------------------------
+    # Structured verdict parsing (for verification agents)
+    # ------------------------------------------------------------------
+
+    def _parse_verdict_from_response(
+        self,
+        messages: list,
+        label: str = "Verify",
+    ) -> tuple[bool, list[str]]:
+        """Parse structured verdict from agent response messages.
+
+        Prefers submit_verdict tool results (structured JSON).
+        Falls back to regex PASS/FAIL parsing for backwards compatibility.
+
+        Args:
+            messages: List of SDK message objects collected during response
+            label: Label for logging (e.g. "SceneVerify3", "CompVerify")
+
+        Returns:
+            (passed, issues_list)
+        """
+        # 1. Check for submit_verdict tool use in messages
+        for msg in messages:
+            if not hasattr(msg, "content"):
+                continue
+            for block in msg.content:
+                block_type = type(block).__name__
+
+                # Check ToolUseBlock for submit_verdict calls (input contains the verdict)
+                if block_type == "ToolUseBlock" and hasattr(block, "name"):
+                    if "submit_verdict" in getattr(block, "name", "") and hasattr(block, "input"):
+                        inp = block.input
+                        if isinstance(inp, dict) and "passed" in inp:
+                            passed = bool(inp["passed"])
+                            issues = list(inp.get("issues", []))
+                            criteria = list(inp.get("acceptance_criteria", []))
+                            if criteria:
+                                issues.append("ACCEPTANCE CRITERIA: " + " | ".join(criteria))
+                            print(f"[{label}] Structured verdict: {'PASS' if passed else 'FAIL'} ({len(issues)} issues)")
+                            return passed, issues
+
+                # Check ToolResultBlock for JSON verdict in tool output
+                if block_type == "ToolResultBlock" and hasattr(block, "content"):
+                    try:
+                        content_str = ""
+                        if isinstance(block.content, str):
+                            content_str = block.content
+                        elif isinstance(block.content, list):
+                            for item in block.content:
+                                if isinstance(item, dict) and item.get("type") == "text":
+                                    content_str = item["text"]
+                                    break
+                        if content_str:
+                            data = json.loads(content_str)
+                            if "passed" in data:
+                                passed = bool(data["passed"])
+                                issues = list(data.get("issues", []))
+                                criteria = list(data.get("acceptance_criteria", []))
+                                if criteria:
+                                    issues.append("ACCEPTANCE CRITERIA: " + " | ".join(criteria))
+                                print(f"[{label}] Structured verdict (tool result): {'PASS' if passed else 'FAIL'} ({len(issues)} issues)")
+                                return passed, issues
+                    except (json.JSONDecodeError, TypeError, KeyError):
+                        pass
+
+        # 2. Fallback: regex parsing of response text
+        response_text = ""
+        for msg in messages:
+            if not hasattr(msg, "content"):
+                continue
+            for block in msg.content:
+                block_type = type(block).__name__
+                if block_type == "TextBlock" and hasattr(block, "text"):
+                    response_text += block.text
+
+        print(f"[{label}] No structured verdict found, falling back to text parsing")
+        return self._parse_verdict_text_fallback(response_text)
+
+    def _parse_verdict_text_fallback(
+        self,
+        response_text: str,
+    ) -> tuple[bool, list[str]]:
+        """Legacy fallback: parse PASS/FAIL from free text."""
+        lines = response_text.split("\n")
+        verdict = None
+        verdict_line_idx = -1
+
+        for idx, line in enumerate(lines):
+            stripped = line.strip().upper()
+            if stripped == "PASS" or stripped.startswith("PASS:") or stripped.startswith("PASS.") or stripped.startswith("PASS -"):
+                verdict = "PASS"
+            elif stripped in ("FAIL", "ISSUES") or any(
+                stripped.startswith(p) for p in ("FAIL:", "FAIL.", "FAIL -", "ISSUES:", "ISSUES.", "ISSUES -")
+            ):
+                verdict = "FAIL"
+                verdict_line_idx = idx
+
+        if verdict == "PASS":
+            return True, []
+
+        if verdict == "FAIL" and verdict_line_idx >= 0:
+            issues: list[str] = []
+            for line in lines[verdict_line_idx + 1:]:
+                stripped = line.strip()
+                m = re.match(r'^\d+[.)]\s+(.+)', stripped)
+                if m:
+                    issues.append(m.group(1))
+            return False, issues
+
+        # Ambiguous — no clear verdict, treat as pass
+        return True, []
 
     def _validate_interpolate_clamping(self) -> list[str]:
         """Check all scene files for interpolate() calls missing extrapolateLeft/Right: 'clamp'.
@@ -971,10 +1084,11 @@ Review ALL screenshots against the plan and scene data:
 - **Key sync frame**: Check main content is present and correctly laid out
 - **Late frame**: Check exit/outro phase (elements may be fading, content still visible)
 
-Output PASS or FAIL with numbered issues.
+After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool with your verdict.
 """
 
         try:
+            mcp_servers_config = build_mcp_servers(str(self.workspace))
             client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
                     model=self.model,
@@ -986,54 +1100,27 @@ Output PASS or FAIL with numbered issues.
                     },
                     cwd=str(self.workspace),
                     max_turns=5,
-                    allowed_tools=["Read"],
+                    allowed_tools=["Read", "mcp__viewport__submit_verdict"],
+                    mcp_servers={"viewport": mcp_servers_config["viewport"]},
                     permission_mode="bypassPermissions",
                     cli_path=CLAUDE_CLI_PATH,
                 )
             )
 
-            response_text = ""
+            messages = []
             async with client:
                 await client.query(user_msg)
 
                 async for msg in client.receive_response():
+                    messages.append(msg)
                     msg_type = type(msg).__name__
                     if msg_type == "AssistantMessage" and hasattr(msg, "content"):
                         for block in msg.content:
                             block_type = type(block).__name__
-                            if block_type == "TextBlock" and hasattr(block, "text"):
-                                response_text += block.text
-                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                            if block_type == "ToolUseBlock" and hasattr(block, "name"):
                                 print(f"\n[VisualVerify{scene_num} Tool: {block.name}]", flush=True)
 
-            # Parse response
-            if "PASS" in response_text and "FAIL" not in response_text:
-                return True, []
-
-            # Extract numbered issues and acceptance criteria from FAIL response
-            issues: list[str] = []
-            acceptance_criteria: list[str] = []
-            for line in response_text.split("\n"):
-                stripped = line.strip()
-                # Capture numbered issues (1. ..., 2) ...)
-                m = re.match(r'^\d+[.)]\s+(.+)', stripped)
-                if m:
-                    issues.append(m.group(1))
-                # Capture acceptance criteria checklist items (- [ ] ...)
-                m2 = re.match(r'^-\s*\[[ x]\]\s+(.+)', stripped)
-                if m2:
-                    acceptance_criteria.append(m2.group(1))
-            # Fallback: capture text after FAIL if no numbered issues parsed
-            if not issues:
-                fail_idx = response_text.find("FAIL")
-                if fail_idx >= 0:
-                    remaining = response_text[fail_idx + 4:].strip()
-                    if remaining:
-                        issues.append(remaining[:500])
-            # Append acceptance criteria to issues so the fix agent receives them
-            if acceptance_criteria:
-                issues.append("ACCEPTANCE CRITERIA: " + " | ".join(acceptance_criteria))
-            return False, issues
+            return self._parse_verdict_from_response(messages, f"VisualVerify{scene_num}")
 
         except Exception as e:
             print(f"[ClaudeGenerator] Scene {scene_num} visual verify error: {e}")
@@ -1444,7 +1531,7 @@ Output PASS or FAIL with numbered issues.
 
         # For studio style: inject template catalog directly into the Director prompt
         # so it can plan scenes around available templates without needing to discover files
-        if style_preset.startswith("studio"):
+        if get_theme(style_preset):
             catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
             if catalog_path.exists():
                 catalog_content = catalog_path.read_text(encoding="utf-8")
@@ -1764,9 +1851,11 @@ Display mode: `{display_mode}`
 ```
 
 Read the scene file and verify it against the plan and scene data.
+After your analysis, call the `mcp__viewport__submit_verdict` tool with your verdict.
 """
 
         try:
+            mcp_servers_config = build_mcp_servers(str(self.workspace))
             client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
                     model=self.model,
@@ -1778,54 +1867,27 @@ Read the scene file and verify it against the plan and scene data.
                     },
                     cwd=str(self.workspace),
                     max_turns=10,
-                    allowed_tools=["Read", "Bash"],
+                    allowed_tools=["Read", "Bash", "mcp__viewport__submit_verdict"],
+                    mcp_servers={"viewport": mcp_servers_config["viewport"]},
                     permission_mode="bypassPermissions",
                     cli_path=CLAUDE_CLI_PATH,
                 )
             )
 
-            response_text = ""
+            messages = []
             async with client:
                 await client.query(user_msg)
 
                 async for msg in client.receive_response():
+                    messages.append(msg)
                     msg_type = type(msg).__name__
                     if msg_type == "AssistantMessage" and hasattr(msg, "content"):
                         for block in msg.content:
                             block_type = type(block).__name__
-                            if block_type == "TextBlock" and hasattr(block, "text"):
-                                response_text += block.text
-                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
-                                print(f"\n[SceneVerify Tool: {block.name}]", flush=True)
+                            if block_type == "ToolUseBlock" and hasattr(block, "name"):
+                                print(f"\n[SceneVerify{scene_num} Tool: {block.name}]", flush=True)
 
-            # Parse response — look for PASS/FAIL as standalone verdict lines
-            lines = response_text.split("\n")
-            verdict = None
-            fail_line_idx = -1
-            for idx, line in enumerate(lines):
-                stripped = line.strip().upper()
-                if stripped == "PASS" or stripped.startswith("PASS:") or stripped.startswith("PASS.") or stripped.startswith("PASS -"):
-                    verdict = "PASS"
-                elif stripped == "FAIL" or stripped.startswith("FAIL:") or stripped.startswith("FAIL.") or stripped.startswith("FAIL -"):
-                    verdict = "FAIL"
-                    fail_line_idx = idx
-
-            if verdict == "PASS":
-                return True, []
-
-            if verdict == "FAIL" and fail_line_idx >= 0:
-                # Only extract numbered issues from lines AFTER the FAIL verdict
-                issues: list[str] = []
-                for line in lines[fail_line_idx + 1:]:
-                    stripped = line.strip()
-                    m = re.match(r'^\d+[.)]\s+(.+)', stripped)
-                    if m:
-                        issues.append(m.group(1))
-                return False, issues
-
-            # Ambiguous response — no clear PASS/FAIL verdict. Treat as pass
-            # to avoid false-negative blocking on verbose but correct responses.
-            return True, []
+            return self._parse_verdict_from_response(messages, f"SceneVerify{scene_num}")
 
         except Exception as e:
             print(f"[ClaudeGenerator] Scene {scene_num} verify error: {e}")
@@ -2092,9 +2154,11 @@ Scene count: {scene_count}
 
 Verify all scenes exist, constants match, and TypeScript compiles.
 Fix any issues you can.
+After your analysis, call the `mcp__viewport__submit_verdict` tool with your verdict.
 """
 
         try:
+            mcp_servers_config = build_mcp_servers(str(self.workspace))
             client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
                     model=self.model,
@@ -2106,52 +2170,27 @@ Fix any issues you can.
                     },
                     cwd=str(self.workspace),
                     max_turns=15,
-                    allowed_tools=["Read", "Bash", "Edit", "Glob"],
+                    allowed_tools=["Read", "Bash", "Edit", "Glob", "mcp__viewport__submit_verdict"],
+                    mcp_servers={"viewport": mcp_servers_config["viewport"]},
                     permission_mode="bypassPermissions",
                     cli_path=CLAUDE_CLI_PATH,
                 )
             )
 
-            response_text = ""
+            messages = []
             async with client:
                 await client.query(user_msg)
 
                 async for msg in client.receive_response():
+                    messages.append(msg)
                     msg_type = type(msg).__name__
                     if msg_type == "AssistantMessage" and hasattr(msg, "content"):
                         for block in msg.content:
                             block_type = type(block).__name__
-                            if block_type == "TextBlock" and hasattr(block, "text"):
-                                response_text += block.text
-                            elif block_type == "ToolUseBlock" and hasattr(block, "name"):
+                            if block_type == "ToolUseBlock" and hasattr(block, "name"):
                                 print(f"\n[CompVerify Tool: {block.name}]", flush=True)
 
-            # Parse response — look for PASS/ISSUES as standalone verdict lines
-            lines = response_text.split("\n")
-            verdict = None
-            issues_line_idx = -1
-            for idx, line in enumerate(lines):
-                stripped = line.strip().upper()
-                if stripped == "PASS" or stripped.startswith("PASS:") or stripped.startswith("PASS.") or stripped.startswith("PASS -"):
-                    verdict = "PASS"
-                elif stripped == "ISSUES" or stripped.startswith("ISSUES:") or stripped.startswith("ISSUES.") or stripped.startswith("ISSUES -"):
-                    verdict = "ISSUES"
-                    issues_line_idx = idx
-
-            if verdict == "PASS":
-                return True, []
-
-            if verdict == "ISSUES" and issues_line_idx >= 0:
-                issues: list[str] = []
-                for line in lines[issues_line_idx + 1:]:
-                    stripped = line.strip()
-                    m = re.match(r'^\d+[.)]\s+(.+)', stripped)
-                    if m:
-                        issues.append(m.group(1))
-                return False, issues
-
-            # Ambiguous response — no clear verdict. Treat as pass.
-            return True, []
+            return self._parse_verdict_from_response(messages, "CompVerify")
 
         except Exception as e:
             print(f"[ClaudeGenerator] Composition verify error: {e}")
@@ -2485,7 +2524,7 @@ export default MainComposition;
             setup_message = build_setup_user_message(self.project_id)
 
             # Inject resolved template source for studio preset
-            if style_preset.startswith("studio") and self._resolved_templates_md:
+            if get_theme(style_preset) and self._resolved_templates_md:
                 setup_message += f"\n\n{self._resolved_templates_md}"
                 safe_print(f"[ClaudeGenerator] Injected {len(self._resolved_templates_md)} chars of resolved template source into Setup prompt")
 
@@ -2660,13 +2699,13 @@ Report which scenes were created.
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
-                        "append": "You are an animation coordinator. Your ONLY job is to dispatch scene-generator subagents via the Task tool in batches. You must NOT implement scenes yourself. Do NOT use Write, Edit, or any MCP tools. ONLY use the Task tool to delegate work. Dispatch each batch in a single response, then wait for all tasks in that batch to complete before starting the next batch.",
+                        "append": f"You are an animation coordinator. Your ONLY job is to dispatch scene-generator subagents via the Task tool in batches. You must NOT implement scenes yourself. Do NOT use Write or Edit. After each batch completes, use Glob to verify the expected scene files were created (e.g., `src/{self.project_id}/scenes/Scene*.tsx`). If any are missing, report which ones failed. Dispatch each batch in a single response, then wait for all tasks in that batch to complete before starting the next batch.",
                     },
                     cwd=str(self.workspace),
                     max_turns=scenes_to_dispatch + num_batches * 2 + 4,
                     max_buffer_size=10 * 1024 * 1024,  # 10MB — subagent results can be large
                     permission_mode="bypassPermissions",
-                    allowed_tools=["Bash", "Task"],
+                    allowed_tools=["Bash", "Task", "Read", "Glob"],
                     agents=agents,
                     mcp_servers=mcp_servers,
                     hooks={
@@ -2736,7 +2775,7 @@ Report which scenes were created.
                     display_mode=display_mode,
                 )
                 # Inject resolved template source for studio preset retries
-                if style_preset.startswith("studio") and self._resolved_templates_md:
+                if get_theme(style_preset) and self._resolved_templates_md:
                     scene_user_msg += f"\n\n{self._resolved_templates_md}"
                 print(f"[ClaudeGenerator] Retrying Scene {scene_num} individually...")
                 await self._run_scene_agent(
@@ -2922,6 +2961,48 @@ Report which scenes were created.
         Returns:
             dict with success status and bundle URL
         """
+        try:
+            return await asyncio.wait_for(
+                self._generate_two_phase_inner(
+                    transcript=transcript,
+                    words=words,
+                    width=width,
+                    height=height,
+                    duration_frames=duration_frames,
+                    fps=fps,
+                    max_retries=max_retries,
+                    style_preset=style_preset,
+                    layout_mode=layout_mode,
+                    style_guide=style_guide,
+                    source_width=source_width,
+                    source_height=source_height,
+                    safe_placement=safe_placement,
+                ),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            raise RuntimeError(
+                f"Pipeline timed out after {timeout_seconds}s ({timeout_seconds // 60} minutes). "
+                f"Check for hung SDK clients or MCP server deadlocks."
+            )
+
+    async def _generate_two_phase_inner(
+        self,
+        transcript: str,
+        words: list[dict] | None,
+        width: int,
+        height: int,
+        duration_frames: int,
+        fps: int,
+        max_retries: int,
+        style_preset: str,
+        layout_mode: str,
+        style_guide: str | None,
+        source_width: int | None,
+        source_height: int | None,
+        safe_placement: list[str] | None,
+    ) -> dict[str, Any]:
+        """Inner implementation of generate_two_phase (without timeout wrapper)."""
         from transcript_formatter import format_transcript_with_key_moments
 
         # Ensure OAuth token is valid before starting (auto-refreshes if needed)
