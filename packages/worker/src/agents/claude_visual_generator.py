@@ -2101,41 +2101,33 @@ const panX = interpolate(frame, [0, durationInFrames], [0, -30], {{{{ extrapolat
 - Never use raw unprocessed photos as full backgrounds — too visually noisy
 - Prefer landscape-oriented photos for horizontal video, portrait for vertical
 
-### OVERLAY MODE — SPATIAL AWARENESS
+### OVERLAY MODE — CENTERED LAYOUT
 
 When implementing a scene with `displayMode: "overlay"`, you MUST:
 
-1. Call `mcp__assets__get_speaker_grid` with the scene's startMs and endMs
-2. The tool returns a 6x6 grid where 1 = speaker present, 0 = safe zone
-3. Design your composition to place elements ONLY in safe (0) cells
-4. Use TRANSPARENT backgrounds — no opaque fills, no solid color backgrounds
-5. Think of overlay as floating annotations on top of the speaker
+1. Use TRANSPARENT backgrounds — no opaque fills, no solid color backgrounds
+2. ALL content must be **horizontally centered** in designated zones
+3. Think of overlay as clean, centered annotations above/below the speaker
 
-**Reading the grid:**
-```
-Grid:  0 0 0 0 1 1      <- speaker is on the right side
-       0 0 0 1 1 1
-       0 0 0 1 1 1      1-cell buffer around speaker = avoid column 3 too
-       0 0 0 1 1 1
-       0 0 0 0 1 1
-       0 0 0 0 0 0
+**GOLDEN RULE: ALL overlay content MUST be horizontally centered and placed in designated
+zones (top strip or lower-third). NEVER scatter small elements at random positions.**
 
--> Safe: left half, bottom row
--> Place title text top-left, stats stacked on left, annotation arrows pointing toward speaker
-```
+**Placement zones (both horizontally centered):**
+- **Lower-third (60-85% from top)** — main content zone. Use:
+  `position: 'absolute', left: 0, right: 0, bottom: EH * 0.15, display: 'flex', flexDirection: 'column', alignItems: 'center'`
+- **Top strip (0-15%)** — short titles/labels only. Use:
+  `position: 'absolute', left: 0, right: 0, top: EH * 0.03, display: 'flex', justifyContent: 'center'`
 
 **Rules:**
 - Background MUST be `transparent` or `rgba(0,0,0,0)` — NEVER a solid color
-- Place text, icons, charts in safe zones (0 cells) only
-- Leave a 1-cell buffer around occupied cells for breathing room
-- Use opacity 0.8-0.9 on overlay elements — slightly see-through
-- Prefer edges/corners away from the speaker
-- If occupancy > 50%, use minimal floating annotations only (small labels, corner icons)
-- If `get_speaker_grid` returns an error, design centered with generous margins on all sides
+- NEVER use absolute left/top pixel positioning to scatter elements at random spots
+- All elements at **full opacity (1.0)** — no ghosting
+- Minimum text size: fontSize ≥ EH * 0.025 (48px on 1920 canvas)
+- Minimum container width: ≥ EW * 0.6 (except icons within a container)
+- Left/right placement ONLY when speaker is clearly on one side with enough space
 
 **Overlay uses full canvas dimensions** — the scene's `effectiveDimensions` will be the full
-canvas size (same as fullscreen). Use these dimensions for positioning, but remember elements
-must avoid the speaker's grid cells.
+canvas size (same as fullscreen).
 </assets_and_visuals>
 
 <web_search>
@@ -3111,7 +3103,29 @@ class ClaudeVisualGenerator:
                     f"after last sync point. Scene end may feel stale."
                 )
 
+        # ── Check: Last scene must have substantive content ──
+        last_scene = scenes[-1]
+        visual_desc = (last_scene.get("visual") or "").lower()
+        empty_outro_keywords = ["ambient", "particles fade", "subtle background", "fade to black", "gentle fade", "minimal visual"]
+        if any(kw in visual_desc for kw in empty_outro_keywords) and len(visual_desc) < 120:
+            warnings.append(
+                f"Last scene '{last_scene.get('name', '?')}' may lack substantive content. "
+                f"Outro scenes need Layer 1 content (summary stat, takeaway, callback), "
+                f"not just ambient effects."
+            )
+
+        # ── Check: Adjacent scene archetype variety ──
+        for i in range(1, len(scenes)):
+            prev_arch = scenes[i - 1].get("archetype", "")
+            curr_arch = scenes[i].get("archetype", "")
+            if prev_arch and curr_arch and prev_arch == curr_arch:
+                warnings.append(
+                    f"Scenes {scenes[i-1]['id']} and {scenes[i]['id']} share archetype "
+                    f"'{curr_arch}'. Adjacent scenes should use different archetypes for variety."
+                )
+
         # ── Enforce effectiveDimensions per scene ──
+        # displayModes: "default" (pip area), "fullscreen" / "overlay" (full canvas)
         eff_pip_w = pip_width or canvas_width
         eff_pip_h = pip_height or canvas_height
 
@@ -3278,7 +3292,7 @@ When done, respond: "SELF-HEAL COMPLETE"
         try:
             client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-sonnet-4-20250514",  # Use Sonnet for speed
+                    model=self.model,
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
@@ -3286,7 +3300,7 @@ When done, respond: "SELF-HEAL COMPLETE"
                     },
                     cwd=str(self.workspace),
                     max_turns=20,
-                    max_thinking_tokens=3000,
+                    max_thinking_tokens=self.max_thinking_tokens,
                     setting_sources=["project"],  # Load skills from .claude/skills/
                     allowed_tools=["Read", "Edit", "Bash", "Glob", "Skill"],
                     permission_mode="bypassPermissions",
@@ -3464,7 +3478,8 @@ Output PASS or FAIL with numbered issues.
         try:
             client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-sonnet-4-20250514",
+                    model=self.model,
+                    max_thinking_tokens=self.max_thinking_tokens,
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
@@ -3531,7 +3546,7 @@ Output PASS or FAIL with numbered issues.
         scene_data: dict,
         plan_content: str,
         composition_id: str,
-        style_preset: str = "modern",
+        style_preset: str = "studio-dark",
     ) -> None:
         """Per-scene verify → fix → re-verify loop.
 
@@ -3621,7 +3636,8 @@ Output PASS or FAIL with numbered issues.
             try:
                 fix_client = ClaudeSDKClient(
                     options=ClaudeAgentOptions(
-                        model="claude-sonnet-4-20250514",
+                        model=self.model,
+                        max_thinking_tokens=self.max_thinking_tokens,
                         system_prompt={
                             "type": "preset",
                             "preset": "claude_code",
@@ -3656,7 +3672,7 @@ Output PASS or FAIL with numbered issues.
         composition_id: str,
         scenes_data: dict,
         plan_content: str,
-        style_preset: str = "modern",
+        style_preset: str = "studio-dark",
     ) -> None:
         """Top-level orchestrator for Phase 2e visual verification.
 
@@ -3867,7 +3883,7 @@ Output PASS or FAIL with numbered issues.
     async def _run_assistant_director(
         self,
         formatted_transcript: str,
-        style_preset: str = "modern",
+        style_preset: str = "studio-dark",
     ) -> dict[str, Any]:
         """
         Phase 0: Run the Assistant Director agent to create a Creative Brief.
@@ -3882,8 +3898,7 @@ Output PASS or FAIL with numbered issues.
 
         Args:
             formatted_transcript: Transcript with word-level timestamps.
-            style_preset: Visual style preset (minimal, modern, playful,
-                          bold, classic, studio).
+            style_preset: Visual style preset (studio-dark, studio-light).
 
         Returns:
             dict with success status and brief file path (or error details).
@@ -4045,13 +4060,14 @@ Output PASS or FAIL with numbered issues.
         height: int,
         duration_frames: int,
         fps: int,
-        style_preset: str = "modern",
+        style_preset: str = "studio-dark",
         layout_mode: str = "pip",
         style_guide: str | None = None,
         source_width: int | None = None,
         source_height: int | None = None,
         pip_width: int | None = None,
         pip_height: int | None = None,
+        safe_placement: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         Phase 1: Run the Director agent to create the scene plan.
@@ -4066,7 +4082,7 @@ Output PASS or FAIL with numbered issues.
             height: Full canvas height
             duration_frames: Total frames
             fps: Frames per second
-            style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
+            style_preset: Visual style preset (studio-dark, studio-light)
             layout_mode: Layout mode (pip, stacked)
             style_guide: Optional user-provided style/layout guidance
             source_width: Source video width (for coverage-tier display mode guidance)
@@ -4097,11 +4113,12 @@ Output PASS or FAIL with numbered issues.
             source_height=source_height,
             pip_width=pip_width,
             pip_height=pip_height,
+            safe_placement=safe_placement,
         )
 
         # For studio style: inject template catalog directly into the Director prompt
         # so it can plan scenes around available templates without needing to discover files
-        if style_preset == "studio":
+        if style_preset.startswith("studio"):
             catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
             if catalog_path.exists():
                 catalog_content = catalog_path.read_text(encoding="utf-8")
@@ -4109,11 +4126,6 @@ Output PASS or FAIL with numbered issues.
                 safe_print(f"[ClaudeGenerator] Injected studio template catalog ({len(catalog_content)} chars) into Director prompt")
             else:
                 safe_print("[ClaudeGenerator] WARNING: STUDIO_TEMPLATES.md not found, Director will plan without template catalog")
-
-        # For kinetic-typography: log that style is active.
-        # No special injection needed — Director and Animator prompts handle it.
-        if style_preset == "kinetic-typography":
-            safe_print("[ClaudeGenerator] Kinetic typography style active — Director will output text-card segments")
 
         # Write restricted security settings for the Director — only allow writes
         # within the project directory (src_dir). This prevents Claude from writing
@@ -4148,12 +4160,12 @@ Output PASS or FAIL with numbered issues.
         with open(director_settings_dir / "settings.local.json", "w", encoding="utf-8") as f:
             json.dump(director_settings, f, indent=2)
 
-        # Director uses Sonnet for fast planning.
+        # Director uses configured model (Opus) for high-quality planning.
         # cwd is set to src_dir so Claude writes SCENE_PLAN.md and scenes.json
         # directly in the project directory — prevents misplaced files at workspace root.
         client = ClaudeSDKClient(
             options=ClaudeAgentOptions(
-                model="claude-sonnet-4-20250514",
+                model=self.model,
                 system_prompt={
                     "type": "preset",
                     "preset": "claude_code",
@@ -4161,7 +4173,7 @@ Output PASS or FAIL with numbered issues.
                 },
                 cwd=str(self.src_dir),
                 max_turns=50,  # Enough turns for research + planning + writing
-                max_thinking_tokens=5000,
+                max_thinking_tokens=self.max_thinking_tokens,
                 allowed_tools=["Read", "Write", "Grep", "Glob", "WebSearch", "TodoWrite"],
                 permission_mode="bypassPermissions",
                 cli_path=CLAUDE_CLI_PATH,
@@ -4335,7 +4347,7 @@ Output PASS or FAIL with numbered issues.
         height: int,
         duration_frames: int,
         fps: int,
-        style_preset: str = "modern",
+        style_preset: str = "studio-dark",
     ) -> dict[str, Any]:
         """
         Phase 2: Run the Animator agent to implement the scene plan.
@@ -4396,7 +4408,7 @@ Output PASS or FAIL with numbered issues.
         animator_message = build_animator_user_message(self.project_id, style_preset=style_preset)
 
         # Inject template catalog for studio preset
-        if style_preset == "studio":
+        if style_preset.startswith("studio"):
             catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
             if catalog_path.exists():
                 catalog_content = catalog_path.read_text(encoding="utf-8")
@@ -4610,7 +4622,8 @@ Read the scene file and verify it against the plan and scene data.
         try:
             client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-sonnet-4-20250514",
+                    model=self.model,
+                    max_thinking_tokens=self.max_thinking_tokens,
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
@@ -4671,6 +4684,89 @@ Read the scene file and verify it against the plan and scene data.
             print(f"[ClaudeGenerator] Scene {scene_num} verify error: {e}")
             return True, []  # Don't block on verify failures
 
+    def _validate_overlay_placement(
+        self,
+        scene_num: int,
+        scene_data: dict,
+        scene_code: str,
+    ) -> list[str]:
+        """Statically verify overlay scene code against the 24x24 speaker grid.
+
+        Checks:
+        1. Elements are positioned in safe zones (not overlapping speaker grid cells)
+        2. No opacity multiplication / reduced max opacity on elements
+        3. No opaque backgrounds
+
+        Returns list of issues (empty = all good).
+        """
+        issues: list[str] = []
+        display_mode = scene_data.get("displayMode", "default")
+        if display_mode != "overlay":
+            return issues
+
+        speaker_grid = scene_data.get("speakerGrid")
+        ew = scene_data.get("effectiveDimensions", {}).get("width", 1080)
+        eh = scene_data.get("effectiveDimensions", {}).get("height", 1920)
+
+        # ── Check 1: Opacity violations ──
+        # Look for patterns that reduce max opacity below 1.0
+        opacity_patterns = [
+            # opacity: X where X < 1.0 and is a literal (not interpolate/spring result)
+            (r'opacity:\s*(0\.\d+)\b', "Literal opacity {val} < 1.0 — overlay elements must reach full opacity (1.0) at rest"),
+            # opacity * fraction patterns (e.g., progress * 0.6)
+            (r'opacity:\s*\w+\s*\*\s*(0\.\d+)', "Opacity multiplied by {val} — elements will look ghostly. Use full opacity (1.0) at rest"),
+        ]
+        for pattern, msg_template in opacity_patterns:
+            for m in re.finditer(pattern, scene_code):
+                val = float(m.group(1))
+                # Allow opacity: 0 (hidden state for animation) and values >= 0.95 (close enough)
+                if val < 0.95 and val > 0.0:
+                    # Check if this is inside an interpolate (animation) — those are OK for entrance/exit
+                    # Look at surrounding context (100 chars before)
+                    start = max(0, m.start() - 100)
+                    context = scene_code[start:m.start()]
+                    if 'interpolate(' not in context and 'spring(' not in context:
+                        issues.append(msg_template.format(val=val))
+
+        # ── Check 2: Background violations ──
+        # Only flag OPAQUE scene-level backgrounds (solid hex colors, opaque rgb).
+        # Semi-transparent rgba, gradients on cards/badges are fine for overlay elements.
+        bg_patterns = [
+            (r"backgroundColor:\s*['\"]#[0-9a-fA-F]{3,8}['\"]", "Overlay scene has solid backgroundColor — must be transparent"),
+            (r"backgroundColor:\s*['\"]rgb\(\s*\d", "Overlay scene has opaque rgb backgroundColor — use rgba with alpha or transparent"),
+        ]
+        for pattern, msg in bg_patterns:
+            if re.search(pattern, scene_code):
+                issues.append(msg)
+
+        if issues:
+            print(f"[ClaudeGenerator] Scene {scene_num} overlay validation: {len(issues)} issues found")
+        else:
+            print(f"[ClaudeGenerator] Scene {scene_num} overlay validation: PASS")
+
+        return issues
+
+    def _validate_dotgrid(self, scene_num: int, scene_code: str) -> list[str]:
+        """Check for invisible DotGrid parameters."""
+        issues = []
+        # Check for tiny dot radius in pattern context
+        for m in re.finditer(r'r[=:]\s*[\{(]?\s*[s(]*(\d+)\s*[)}\s]', scene_code):
+            val = int(m.group(1))
+            if val < 2:
+                start = max(0, m.start() - 200)
+                context = scene_code[start:m.end()].lower()
+                if 'pattern' in context or 'dot' in context or 'grid' in context:
+                    issues.append(f"Scene {scene_num}: DotGrid radius r={val} is too small (invisible). Use r=3 minimum.")
+        # Check for too-tight spacing
+        for m in re.finditer(r'spacing[=:]\s*[\{(]?\s*(\d+)', scene_code):
+            val = int(m.group(1))
+            if val < 60:
+                start = max(0, m.start() - 100)
+                context = scene_code[start:m.end()].lower()
+                if 'dot' in context or 'grid' in context or 'pattern' in context:
+                    issues.append(f"Scene {scene_num}: DotGrid spacing={val} is too tight (dots merge). Use spacing=80 minimum.")
+        return issues
+
     async def _verify_and_fix_scene_code(
         self,
         scene_num: int,
@@ -4689,6 +4785,14 @@ Read the scene file and verify it against the plan and scene data.
         if not scene_file.exists():
             return True, []
 
+        # Run static overlay validation (positioning, opacity, backgrounds)
+        scene_code = scene_file.read_text(encoding="utf-8")
+        overlay_issues = self._validate_overlay_placement(scene_num, scene_data, scene_code)
+
+        # Run DotGrid validation
+        dotgrid_issues = self._validate_dotgrid(scene_num, scene_code)
+        overlay_issues.extend(dotgrid_issues)
+
         passed, issues = await self._run_scene_verify(
             scene_num=scene_num,
             scene_data=scene_data,
@@ -4696,6 +4800,11 @@ Read the scene file and verify it against the plan and scene data.
             display_mode=scene_data.get("displayMode", "default"),
             constants_content=constants_content,
         )
+
+        # Merge overlay issues into the Sonnet verify issues
+        if overlay_issues:
+            issues = overlay_issues + issues
+            passed = False
 
         if passed:
             print(f"[ClaudeGenerator] Scene {scene_num} passed verification")
@@ -4708,12 +4817,26 @@ Read the scene file and verify it against the plan and scene data.
 
         from prompts.animator import ANIMATOR_BASE_PROMPT
 
-        # Targeted Sonnet fix agent
+        # Targeted fix agent
         feedback_msg = "\n".join(f"- {iss}" for iss in issues)
+
+        # Include speaker grid context for overlay fix agents
+        grid_context = ""
+        if scene_data.get("displayMode") == "overlay" and scene_data.get("speakerGrid"):
+            sg = scene_data["speakerGrid"]
+            grid_context = f"""
+
+## OVERLAY LAYOUT RULES
+Canvas: {scene_data.get('effectiveDimensions', {}).get('width', 1080)}x{scene_data.get('effectiveDimensions', {}).get('height', 1920)}
+ALL overlay elements must be horizontally centered (left: 0, right: 0 with centered flex).
+Place content in top strip (0-15% from top) or lower-third (60-85% from top).
+NEVER scatter elements at random absolute positions.
+All overlay elements must have opacity 1.0 at rest — no ghosting.
+"""
         fix_prompt = f"""Fix these issues in src/{self.project_id}/scenes/Scene{scene_num}.tsx:
 
 {feedback_msg}
-
+{grid_context}
 Read the scene file and fix the listed issues.
 Do NOT modify constants.ts or other scene files.
 Do NOT run tsc — TypeScript will be validated after all scenes are verified.
@@ -4722,7 +4845,8 @@ When done, respond: "FIX COMPLETE"
         try:
             fix_client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-sonnet-4-20250514",
+                    model=self.model,
+                    max_thinking_tokens=self.max_thinking_tokens,
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
@@ -4747,6 +4871,10 @@ When done, respond: "FIX COMPLETE"
                                 print(f"\n[SceneFix{scene_num} Tool: {block.name}]", flush=True)
 
             # Re-verify (accept regardless after 1 retry)
+            # Re-run overlay validation on fixed code
+            fixed_code = scene_file.read_text(encoding="utf-8")
+            overlay_issues2 = self._validate_overlay_placement(scene_num, scene_data, fixed_code)
+
             passed2, issues2 = await self._run_scene_verify(
                 scene_num=scene_num,
                 scene_data=scene_data,
@@ -4754,6 +4882,10 @@ When done, respond: "FIX COMPLETE"
                 display_mode=scene_data.get("displayMode", "default"),
                 constants_content=constants_content,
             )
+            if overlay_issues2:
+                issues2 = overlay_issues2 + issues2
+                passed2 = False
+
             if passed2:
                 print(f"[ClaudeGenerator] Scene {scene_num} passed verification after fix")
                 return True, []
@@ -4818,7 +4950,8 @@ Fix any issues you can.
         try:
             client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-sonnet-4-20250514",
+                    model=self.model,
+                    max_thinking_tokens=self.max_thinking_tokens,
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
@@ -4918,18 +5051,15 @@ import {{
   spring,
   interpolate,
 }} from 'remotion';
-import {{ COLORS, TIMING, OVERLAY_RANGES }} from './constants';
-import {{ Background }} from './components/Background';
+import {{ COLORS, TIMING }} from './constants';
 {scene_imports}
 
 const MainComposition: React.FC = () => {{
-  const frame = useCurrentFrame();
-  // During overlay frames, skip Background so the composition is transparent.
-  const isOverlay = OVERLAY_RANGES.some(([s, e]) => frame >= s && frame < e);
-
   return (
-    <AbsoluteFill style={{isOverlay ? undefined : {{ backgroundColor: COLORS.background }}}}>
-      {{!isOverlay && <Background key="bg" />}}
+    <AbsoluteFill>
+      {{/* NO global background here. Each non-overlay scene renders its own
+          Background component internally. Overlay scenes are transparent.
+          The editor uses screen blend mode to composite overlays on video. */}}
 {sequence_blocks}
     </AbsoluteFill>
   );
@@ -5092,7 +5222,7 @@ export default MainComposition;
         height: int,
         duration_frames: int,
         fps: int,
-        style_preset: str = "modern",
+        style_preset: str = "studio-dark",
     ) -> dict[str, Any]:
         """
         Phase 2 (Parallel): Implement scenes via SDK subagents.
@@ -5209,17 +5339,18 @@ export default MainComposition;
             setup_message = build_setup_user_message(self.project_id)
 
             # Inject template catalog for studio preset
-            if style_preset == "studio":
+            if style_preset.startswith("studio"):
                 catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
                 if catalog_path.exists():
                     catalog_content = catalog_path.read_text(encoding="utf-8")
                     setup_message += f"\n\n## AVAILABLE STUDIO TEMPLATES\n\n{catalog_content}"
                     print(f"[ClaudeGenerator] Injected studio template catalog into Setup prompt")
 
-            # Spawn setup agent (Sonnet for speed)
+            # Spawn setup agent (Opus for quality)
             setup_client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-sonnet-4-20250514",
+                    model=self.model,
+                    max_thinking_tokens=self.max_thinking_tokens,
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
@@ -5386,7 +5517,8 @@ Report which scenes were created.
             # See: platform.claude.com/docs/en/agent-sdk/permissions
             coordinator_client = ClaudeSDKClient(
                 options=ClaudeAgentOptions(
-                    model="claude-sonnet-4-20250514",
+                    model=self.model,
+                    max_thinking_tokens=2000,  # Coordinator only dispatches tasks
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
@@ -5466,7 +5598,7 @@ Report which scenes were created.
                     display_mode=display_mode,
                 )
                 # Inject template catalog for studio preset
-                if style_preset == "studio":
+                if style_preset.startswith("studio"):
                     catalog_path = self.workspace / "src" / "STUDIO_TEMPLATES.md"
                     if catalog_path.exists():
                         catalog_content = catalog_path.read_text(encoding="utf-8")
@@ -5535,14 +5667,6 @@ Report which scenes were created.
                     missing_timing.append(key)
         if missing_timing:
             print(f"[ClaudeGenerator] WARNING: constants.ts missing TIMING keys: {missing_timing}")
-
-        # Verify OVERLAY_RANGES matches overlay scenes
-        overlay_scene_nums = [
-            i + 1 for i, s in enumerate(scenes)
-            if s.get("displayMode") == "overlay"
-        ]
-        if overlay_scene_nums and "OVERLAY_RANGES" not in constants_text:
-            print(f"[ClaudeGenerator] WARNING: Overlay scenes {overlay_scene_nums} but no OVERLAY_RANGES in constants.ts")
 
         # Verify scene exports
         for i in range(total_scenes):
@@ -5632,11 +5756,12 @@ Report which scenes were created.
         fps: int = 30,
         timeout_seconds: int = 2400,  # 40 minutes for two phases
         max_retries: int = 2,
-        style_preset: str = "modern",
+        style_preset: str = "studio-dark",
         layout_mode: str = "pip",
         style_guide: str | None = None,
         source_width: int | None = None,
         source_height: int | None = None,
+        safe_placement: list[str] | None = None,
     ) -> dict[str, Any]:
         """
         Generate video using two-phase pipeline: Director + Animator.
@@ -5653,7 +5778,7 @@ Report which scenes were created.
             fps: Frames per second
             timeout_seconds: Total timeout for both phases
             max_retries: Retry attempts per phase
-            style_preset: Visual style preset (minimal, modern, playful, bold, classic, studio)
+            style_preset: Visual style preset (studio-dark, studio-light)
             layout_mode: Layout mode (pip, stacked)
             style_guide: Optional user-provided style/layout guidance
             source_width: Source video width (for coverage-tier display mode guidance)
@@ -5728,7 +5853,7 @@ Report which scenes were created.
                     assets_dir.mkdir(parents=True, exist_ok=True)
 
                     # Copy studio templates to workspace if using studio preset
-                    if style_preset == "studio":
+                    if style_preset.startswith("studio"):
                         self._copy_studio_templates()
 
                     # Format transcript with timestamps if available
@@ -5764,6 +5889,7 @@ Report which scenes were created.
                         style_guide=style_guide,
                         source_width=source_width,
                         source_height=source_height,
+                        safe_placement=safe_placement,
                     )
 
                     if not director_result["success"]:
@@ -6011,7 +6137,7 @@ async def main():
     parser.add_argument("--transcript", required=True, help="Transcript text or file path")
     parser.add_argument("--words-json", help="Path to words JSON file with timestamps")
     parser.add_argument("--style-guide", help="Path to user style guide text file")
-    parser.add_argument("--style-preset", default="modern", help="Visual style preset (minimal, modern, playful, bold, classic, studio)")
+    parser.add_argument("--style-preset", default="studio-dark", help="Visual style preset (studio-dark, studio-light)")
     parser.add_argument("--layout-mode", default="pip", help="Layout mode (pip, stacked)")
     parser.add_argument("--width", type=int, default=1080, help="Video width")
     parser.add_argument("--height", type=int, default=1920, help="Video height")
@@ -6022,6 +6148,8 @@ async def main():
     parser.add_argument("--source-height", type=int, default=None, help="Source video height (for coverage-aware layout)")
     parser.add_argument("--pip-width", type=int, default=None, help="Effective pip width for stacked layout")
     parser.add_argument("--pip-height", type=int, default=None, help="Effective pip height for stacked layout")
+    parser.add_argument("--safe-placement", type=str, default="[]",
+                        help="JSON array of safe placement zones from head tracking")
     parser.add_argument("--phase", choices=["assistant-director", "director", "animator"], default=None,
                         help="Run only a specific phase (assistant-director, director, or animator). Default: all.")
 
@@ -6074,7 +6202,7 @@ async def main():
 
         ad_result = await generator._run_assistant_director(
             formatted_transcript=formatted,
-            style_preset=args.style_preset if hasattr(args, 'style_preset') else "modern",
+            style_preset=args.style_preset if hasattr(args, 'style_preset') else "studio-dark",
         )
         result = {
             "success": ad_result["success"],
@@ -6106,7 +6234,7 @@ async def main():
         assets_dir.mkdir(parents=True, exist_ok=True)
 
         # Copy studio templates to workspace if using studio preset
-        if args.style_preset == "studio":
+        if args.style_preset.startswith("studio"):
             generator._copy_studio_templates()
 
         # Format transcript with timestamps if available
@@ -6116,6 +6244,9 @@ async def main():
             formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
         emit_progress(18, "Director planning scenes...", {"phase": "plan", "phaseName": "Planning scenes"})
+
+        import json as json_mod
+        safe_placement = json_mod.loads(args.safe_placement) if hasattr(args, 'safe_placement') else []
 
         director_result = await generator._run_director(
             formatted_transcript=formatted_transcript,
@@ -6130,6 +6261,7 @@ async def main():
             source_height=args.source_height,
             pip_width=args.pip_width,
             pip_height=args.pip_height,
+            safe_placement=safe_placement,
         )
 
         if not director_result["success"]:
@@ -6188,7 +6320,7 @@ async def main():
             sys.exit(1)
 
         # Copy studio templates to workspace if using studio preset
-        if args.style_preset == "studio":
+        if args.style_preset.startswith("studio"):
             generator._copy_studio_templates()
 
         emit_progress(38, "Animator implementing scenes...", {"phase": "animate", "phaseName": "Animating scenes"})
@@ -6325,6 +6457,9 @@ async def main():
     else:
         # Default: both phases via generate_two_phase (existing behavior)
         print("[ClaudeGenerator] Using two-phase pipeline (Director + Animator)")
+        import json as json_mod
+        safe_placement_full = json_mod.loads(args.safe_placement) if hasattr(args, 'safe_placement') else []
+
         result = await generator.generate_two_phase(
             transcript=transcript,
             words=words,
@@ -6337,6 +6472,7 @@ async def main():
             style_guide=style_guide,
             source_width=args.source_width,
             source_height=args.source_height,
+            safe_placement=safe_placement_full,
         )
 
     print(json.dumps(result, indent=2))

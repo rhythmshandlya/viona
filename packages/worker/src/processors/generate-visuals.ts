@@ -88,8 +88,8 @@ function computeSpeakerGrid(
   headTrackingData: { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } },
   startMs: number,
   endMs: number,
-  rows = 6,
-  cols = 6,
+  rows = 24,
+  cols = 24,
 ): SpeakerGrid {
   const frames = headTrackingData.frames || [];
   const videoW = headTrackingData.video?.width || 1;
@@ -119,15 +119,15 @@ function computeSpeakerGrid(
     const bx2 = (b.x + b.width) / videoW;
     const by2 = (b.y + b.height) / videoH;
 
-    for (let r = 0; r < rows; r++) {
-      const cellY1 = r / rows;
-      const cellY2 = (r + 1) / rows;
-      for (let c = 0; c < cols; c++) {
-        const cellX1 = c / cols;
-        const cellX2 = (c + 1) / cols;
-        if (bx1 < cellX2 && bx2 > cellX1 && by1 < cellY2 && by2 > cellY1) {
-          cellHits[r][c]++;
-        }
+    // Convert to grid cell range (clamped)
+    const colStart = Math.max(0, Math.floor(bx1 * cols));
+    const colEnd = Math.min(cols - 1, Math.floor(bx2 * cols));
+    const rowStart = Math.max(0, Math.floor(by1 * rows));
+    const rowEnd = Math.min(rows - 1, Math.floor(by2 * rows));
+
+    for (let r = rowStart; r <= rowEnd; r++) {
+      for (let c = colStart; c <= colEnd; c++) {
+        cellHits[r][c]++;
       }
     }
   }
@@ -141,20 +141,34 @@ function computeSpeakerGrid(
   const occupiedCells = grid.flat().filter((v) => v === 1).length;
   const occupancy = `${Math.round((occupiedCells / totalCells) * 100)}%`;
 
-  // Compute safe placement regions
+  // Compute safe placement regions using fractional boundaries
+  // With 24x24 grid, we check meaningful regions (top/bottom strips, left/right halves, quadrants)
   const safePlacement: string[] = [];
+
+  // Helper: check if a rectangular region of the grid is entirely unoccupied
+  const isRegionSafe = (r1: number, r2: number, c1: number, c2: number): boolean => {
+    for (let r = r1; r < r2; r++) {
+      for (let c = c1; c < c2; c++) {
+        if (grid[r][c] === 1) return false;
+      }
+    }
+    return true;
+  };
+
   const midRow = Math.floor(rows / 2);
   const midCol = Math.floor(cols / 2);
+  // Top/bottom strips: ~17% of canvas height (4 rows out of 24)
+  const stripRows = Math.round(rows / 6);
 
   const regions: Record<string, () => boolean> = {
-    'top-left':     () => grid.slice(0, midRow).flatMap((r) => r.slice(0, midCol)).every((v) => v === 0),
-    'top-right':    () => grid.slice(0, midRow).flatMap((r) => r.slice(midCol)).every((v) => v === 0),
-    'bottom-left':  () => grid.slice(midRow).flatMap((r) => r.slice(0, midCol)).every((v) => v === 0),
-    'bottom-right': () => grid.slice(midRow).flatMap((r) => r.slice(midCol)).every((v) => v === 0),
-    'top':          () => grid[0].every((v) => v === 0),
-    'bottom':       () => grid[rows - 1].every((v) => v === 0),
-    'left':         () => grid.every((r) => r[0] === 0),
-    'right':        () => grid.every((r) => r[cols - 1] === 0),
+    'top-left':     () => isRegionSafe(0, midRow, 0, midCol),
+    'top-right':    () => isRegionSafe(0, midRow, midCol, cols),
+    'bottom-left':  () => isRegionSafe(midRow, rows, 0, midCol),
+    'bottom-right': () => isRegionSafe(midRow, rows, midCol, cols),
+    'top':          () => isRegionSafe(0, stripRows, 0, cols),
+    'bottom':       () => isRegionSafe(rows - stripRows, rows, 0, cols),
+    'left':         () => isRegionSafe(0, rows, 0, stripRows),
+    'right':        () => isRegionSafe(0, rows, cols - stripRows, cols),
   };
 
   for (const [name, check] of Object.entries(regions)) {
@@ -422,7 +436,7 @@ export interface VideoSelection {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
+  stylePreset: 'studio-dark' | 'studio-light';
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** Effective dimensions for default scenes in stacked layout */
@@ -569,6 +583,22 @@ async function prepareVideoAssets(
   }
 
   if (manifest.videos.length > 0) {
+    // Pre-fetch proxy URLs so the editor can play videos immediately
+    const apiBaseUrl = process.env.API_URL || 'http://localhost:4000';
+    for (const entry of manifest.videos) {
+      try {
+        const resp = await fetch(`${apiBaseUrl}/api/youtube/refresh-stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: entry.sourceUrl }),
+        });
+        if (resp.ok) {
+          const { streamUrl } = (await resp.json()) as { streamUrl: string };
+          entry.proxyUrl = `${apiBaseUrl}${streamUrl}`;
+        }
+      } catch { /* proxyUrl stays undefined, frontend refresh will handle it */ }
+    }
+
     // Write manifest for render phase
     const manifestPath = join(projectDir, 'video_assets.json');
     await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
@@ -665,6 +695,16 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       const htPath = join(projectDir, 'head_tracking.json');
       await writeFile(htPath, JSON.stringify(project.headTrackingData), 'utf-8');
       logger.info({ projectDir }, 'Wrote head_tracking.json for spatial overlay');
+    }
+
+    // Compute full-video speaker grid for Director overlay awareness
+    let directorSafePlacement: string[] = [];
+    if (project.headTrackingData) {
+      const htData = project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } };
+      const totalMs = (project.durationFrames || 900) / (project.fps || 30) * 1000;
+      const fullGrid = computeSpeakerGrid(htData, 0, totalMs);
+      directorSafePlacement = fullGrid.safePlacement;
+      logger.info({ safePlacement: directorSafePlacement, occupancy: fullGrid.occupancy }, 'Pre-computed speaker grid for Director');
     }
 
     // Inject user-uploaded assets (logos, icons, brand images) into workspace
@@ -794,7 +834,7 @@ registerRoot(RemotionRoot);
     }
 
     // Write Studio template catalog + source files to workspace when studio style is selected
-    if (stylePreset === 'studio') {
+    if (stylePreset === 'studio-dark' || stylePreset === 'studio-light') {
       await publishJobProgress(jobId, 13, 'Loading studio templates...');
       try {
         const srcDir = join(workspacePath, 'src');
@@ -855,12 +895,13 @@ registerRoot(RemotionRoot);
       fps: project.fps || 30,
       width: canvasWidth,
       height: canvasHeight,
-      stylePreset: stylePreset || 'modern',
+      stylePreset: stylePreset || 'studio-dark',
       layoutMode: layoutMode || 'pip',
       styleGuide,
       planJobId: job.data.planJobId,
       pipWidth: pipEffective.width,
       pipHeight: pipEffective.height,
+      safePlacement: directorSafePlacement,
       onProgress: (percent) => heartbeat?.raiseWaterMark(percent),
     });
 
@@ -1198,12 +1239,12 @@ registerRoot(RemotionRoot);
               templateId: 'youtube-clip',
               templateProps: {
                 clipUrl: '', // Filled by render.ts during export; preview uses videoUrl
-                frame: (scene as any).frameStyle || 'browser',
+                frame: (scene as any).frameStyle || 'none',
                 trimStartSeconds: sceneVideo?.trimStart ?? 0,
                 trimEndSeconds: sceneVideo?.trimEnd ?? 30,
                 backgroundColor: '#000000',
-                muted: false,
-                volume: 1,
+                muted: true,
+                volume: 0,
               },
             } : {}),
             // Video clip URLs for preview and export
@@ -1310,6 +1351,8 @@ interface ClaudeCodeOptions {
   /** Effective pip dimensions for per-scene dimension-aware generation */
   pipWidth?: number;
   pipHeight?: number;
+  /** Safe placement zones from head tracking for Director overlay awareness */
+  safePlacement?: string[];
   /** Callback to raise heartbeat water mark when Python emits PROGRESS checkpoints */
   onProgress?: (percent: number) => void;
 }
@@ -1323,7 +1366,7 @@ interface ClaudeCodeOptions {
 async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId, pipWidth, pipHeight, onProgress } = options;
+  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId, pipWidth, pipHeight, safePlacement, onProgress } = options;
 
   const pythonPath = config.pythonPath;
   const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
@@ -1387,6 +1430,11 @@ async function runClaudeCodeGenerator(
     if (pipWidth && pipHeight) {
       args.push('--pip-width', String(pipWidth));
       args.push('--pip-height', String(pipHeight));
+    }
+
+    // Pass speaker safe-placement zones for Director overlay awareness
+    if (safePlacement && safePlacement.length > 0) {
+      args.push('--safe-placement', JSON.stringify(safePlacement));
     }
 
     // If planJobId is set, skip Director and run Animator only
