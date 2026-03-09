@@ -16,7 +16,7 @@ export const schema = z.object({
   showCompass: z.boolean().default(true),
   showDistance: z.boolean().default(true),
   mapStyle: z
-    .enum(['satellite', 'watercolor', 'toner', 'tonerLite', 'terrain', 'osm'])
+    .enum(['satellite', 'watercolor', 'toner', 'tonerLite', 'terrain', 'osm', 'darkMatter', 'voyager', 'positron'])
     .default('terrain'),
   mapPadding: z.number().min(50).max(300).default(150),
   curveIntensity: z.number().min(0).max(1).default(0.3),

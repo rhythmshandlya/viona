@@ -215,6 +215,7 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
       return multiViewport.points.slice(1).map((pt, i) => (
         <AnimatedPath
           key={`spoke-${i}`}
+          maskId={`spoke-${i}`}
           x1={center.x}
           y1={center.y}
           x2={pt.x}
@@ -241,6 +242,7 @@ const WatercolorMap: React.FC<WatercolorMapProps> = (props) => {
       return pts.slice(0, -1).map((pt, i) => (
         <AnimatedPath
           key={`seg-${i}`}
+          maskId={`seg-${i}`}
           x1={pt.x}
           y1={pt.y}
           x2={pts[i + 1].x}
