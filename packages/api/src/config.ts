@@ -62,4 +62,9 @@ export const config = {
     projectId: process.env.STYTCH_PROJECT_ID || '',
     secret: process.env.STYTCH_SECRET || '',
   },
+
+  // YouTube Data API
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY || '',
+  },
 } as const;
