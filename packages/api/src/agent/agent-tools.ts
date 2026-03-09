@@ -526,7 +526,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
                 const second: Record<string, unknown> = {
                   ...scene,
-                  id: scene.id + 1,
+                  id: 90000 + Math.floor(Math.random() * 10000),
                   name: op.secondHalf?.name || `${scene.name} (Part 2)`,
                   visual: op.secondHalf?.visual || scene.visual,
                   timestampRange: [splitAt, range[1]],
