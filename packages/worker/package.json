@@ -9,7 +9,6 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
-    "setup:auth": "python src/agents/setup_claude_auth.py",
     "whisperx:setup": "bash ./scripts/setup-whisperx.sh",
     "whisperx:setup:win": ".\\scripts\\setup-whisperx.bat",
 "upload-template": "tsx scripts/upload-template.ts",
