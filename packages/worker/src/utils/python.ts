@@ -175,18 +175,3 @@ export async function requirePython(): Promise<string> {
 
   throw new Error(`Python ${REQUIRED_PYTHON_VERSION}+ is required but not found. See instructions above.`);
 }
-
-/**
- * Check if we're running in production (Docker/Railway)
- * In prod, Python should be available at /opt/venv/bin/python
- */
-export function isProductionEnvironment(): boolean {
-  return process.env.NODE_ENV === 'production' || !!process.env.RAILWAY_ENVIRONMENT;
-}
-
-/**
- * Get production Python path
- */
-export function getProductionPythonPath(): string {
-  return '/opt/venv/bin/python';
-}

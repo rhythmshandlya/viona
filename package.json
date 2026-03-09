@@ -43,10 +43,5 @@
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "claude-max-api-proxy@1.0.0": "patches/claude-max-api-proxy.patch"
-    }
   }
 }
