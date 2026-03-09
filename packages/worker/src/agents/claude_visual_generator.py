@@ -36,7 +36,8 @@ if _src_dir not in sys.path:
 
 # Add packages/mcp-servers to Python path for registry loader
 _MCP_SERVERS_PKG = Path(__file__).resolve().parent.parent.parent.parent / "mcp-servers"
-sys.path.insert(0, str(_MCP_SERVERS_PKG))
+if str(_MCP_SERVERS_PKG) not in sys.path:
+    sys.path.insert(0, str(_MCP_SERVERS_PKG))
 from registry import load_mcp_registry, validate_mcp_registry
 
 # Claude Agent SDK imports
