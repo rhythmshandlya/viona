@@ -1,14 +1,15 @@
 import { buildReferenceExamplesSection } from './visual-references.js';
 import { loadPrompt } from './loader.js';
+import { getStyleGuide, getTheme } from './theme-loader.js';
 
 /**
- * Style guidelines with SPECIFIC design tokens.
- * Each style includes exact CSS values the AI should use.
+ * Style guidelines loaded from theme manifest.
+ * Falls back to empty string for unknown presets.
  */
-export const STYLE_GUIDELINES: Record<string, string> = {
-  'studio-dark': loadPrompt('generate-visuals/style-studio-dark'),
-  'studio-light': loadPrompt('generate-visuals/style-studio-light'),
-};
+export function getStyleGuidelines(stylePreset: string): string {
+  if (!getTheme(stylePreset)) return '';
+  return getStyleGuide(stylePreset);
+}
 
 /**
  * AutoAE-inspired scene composition patterns.
@@ -45,7 +46,6 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
     : `Stacked layout (${width}×${height}) - REDUCED HEIGHT. Stack elements tightly, use smaller fonts.`;
 
   const referenceExamples = buildReferenceExamplesSection(projectId);
-  const adMotionSection = '';
 
   return `You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
 
@@ -224,7 +224,7 @@ ${transcriptText}
 
 **Style: ${stylePreset}**
 ${styleGuidelines}
-${adMotionSection}
+
 ---
 
 ## 📐 Video Specifications
