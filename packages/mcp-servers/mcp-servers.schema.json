@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "mcp-servers.schema.json",
+  "title": "MCP Server Registry",
+  "description": "Registry of MCP servers available to the visual generation agent. Template variables use {name} syntax for path/runtime variables and {env.VAR} for environment variable references.",
+  "type": "object",
+  "required": ["servers"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "variables": {
+      "type": "object",
+      "description": "Documentation of available template variables. Keys are variable names, values are human-readable descriptions.",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "servers": {
+      "type": "object",
+      "description": "Map of server name to server configuration.",
+      "additionalProperties": {
+        "$ref": "#/$defs/server"
+      }
+    }
+  },
+  "$defs": {
+    "server": {
+      "type": "object",
+      "required": ["description", "type", "command", "args"],
+      "additionalProperties": false,
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what this server provides."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["stdio"],
+          "description": "Transport type. Currently only stdio is supported."
+        },
+        "command": {
+          "type": "string",
+          "description": "Executable command to run (e.g. 'node')."
+        },
+        "args": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Command arguments. May contain {variable} templates resolved at runtime."
+        },
+        "env": {
+          "type": "object",
+          "description": "Environment variables to pass to the server process.",
+          "additionalProperties": {
+            "$ref": "#/$defs/envVar"
+          }
+        }
+      }
+    },
+    "envVar": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "isRequired": {
+          "type": "boolean",
+          "description": "Whether this variable must be set. Default false."
+        },
+        "isSecret": {
+          "type": "boolean",
+          "description": "Whether this variable contains sensitive data (API keys, tokens). Default false."
+        }
+      }
+    }
+  }
+}
