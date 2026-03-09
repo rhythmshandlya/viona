@@ -1,0 +1,36 @@
+{
+  "themes": {
+    "studio-dark": {
+      "family": "studio",
+      "variant": "dark",
+      "label": "Studio Dark",
+      "templateTags": ["studio-theme"],
+      "colors": {
+        "background": "#0B0F1A",
+        "text": "#FFFFFF",
+        "textMuted": "rgba(255,255,255,0.45)",
+        "gridColor": "rgba(255,255,255,0.04)",
+        "cardBg": "rgba(255,255,255,0.06)",
+        "cardBorder": "rgba(255,255,255,0.10)",
+        "accentDefault": "#6366F1",
+        "secondaryDefault": "#EC4899"
+      }
+    },
+    "studio-light": {
+      "family": "studio",
+      "variant": "light",
+      "label": "Studio Light",
+      "templateTags": ["studio-theme"],
+      "colors": {
+        "background": "#F8F9FB",
+        "text": "#111827",
+        "textMuted": "rgba(0,0,0,0.45)",
+        "gridColor": "rgba(0,0,0,0.04)",
+        "cardBg": "rgba(0,0,0,0.04)",
+        "cardBorder": "rgba(0,0,0,0.08)",
+        "accentDefault": "#6366F1",
+        "secondaryDefault": "#EC4899"
+      }
+    }
+  }
+}
