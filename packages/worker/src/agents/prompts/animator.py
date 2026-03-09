@@ -656,7 +656,7 @@ def get_display_mode_rules(display_mode: str, ew: int = 1080, eh: int = 960) -> 
     if display_mode == "overlay":
         return OVERLAY_RULES.replace("{ew}", str(ew)).replace("{eh}", str(eh))
     elif display_mode == "fullscreen":
-        return FULLSCREEN_RULES
+        return FULLSCREEN_RULES.replace("{ew}", str(ew)).replace("{eh}", str(eh))
     else:
         return _build_default_rules(ew, eh)
 
