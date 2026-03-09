@@ -8,7 +8,7 @@
 import { existsSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
-import { config } from './config';
+import { config } from './config.js';
 
 /**
  * Copy directory recursively, excluding node_modules.
