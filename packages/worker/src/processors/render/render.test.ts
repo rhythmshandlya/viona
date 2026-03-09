@@ -3,11 +3,17 @@ import {
   formatASSTime,
   hexToASSColor,
   getASSAlignment,
-  escapePathForFilter,
-  resolveAvailableFontFamily,
-  buildVideoCropFilter,
   convertToSubtitles,
-} from './render';
+} from './subtitles.js';
+import {
+  buildVideoCropFilter,
+} from './ffmpeg.js';
+import {
+  escapePathForFilter,
+} from './types.js';
+import {
+  resolveAvailableFontFamily,
+} from './fonts.js';
 
 // =============================================================================
 // formatASSTime

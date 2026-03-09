@@ -2,7 +2,7 @@ import { Worker } from 'bullmq';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
-import { processRenderJob, RenderJobData } from './processors/render.js';
+import { processRenderJob, RenderJobData } from './processors/render/index.js';
 
 import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
 import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals.js';
