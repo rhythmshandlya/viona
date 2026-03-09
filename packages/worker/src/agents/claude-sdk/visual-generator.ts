@@ -666,7 +666,7 @@ function getAgentDefinitions(
   height: number,
   fps: number
 ): Record<string, AgentDefinition> {
-  const styleGuideline = STYLE_GUIDELINES[stylePreset] || STYLE_GUIDELINES['modern'] || '';
+  const styleGuideline = STYLE_GUIDELINES[stylePreset] || STYLE_GUIDELINES['studio-dark'] || '';
 
   return {
     'visual-planner': {

@@ -89,8 +89,8 @@ const projectId = 'proj_bloom_filter_test';
 const prompt = buildGenerateVisualsPrompt({
   transcript: testTranscript,
   projectId,
-  stylePreset: 'modern',
-  styleGuidelines: STYLE_GUIDELINES.modern,
+  stylePreset: 'studio-dark',
+  styleGuidelines: STYLE_GUIDELINES['studio-dark'],
   durationMs: 15000,
   fps: 30,
   width: 1080,

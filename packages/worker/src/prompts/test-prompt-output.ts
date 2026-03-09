@@ -33,8 +33,8 @@ const testTranscript = [
 const prompt = buildGenerateVisualsPrompt({
   transcript: testTranscript,
   projectId: 'proj_bloom_filter_demo',
-  stylePreset: 'modern',
-  styleGuidelines: STYLE_GUIDELINES.modern,
+  stylePreset: 'studio-dark',
+  styleGuidelines: STYLE_GUIDELINES['studio-dark'],
   durationMs: 15000,
   fps: 30,
   width: 1080,

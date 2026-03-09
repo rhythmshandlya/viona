@@ -179,7 +179,7 @@ def build_director_user_message(
     height: int,
     duration_frames: int,
     fps: int,
-    style_preset: str = "modern",
+    style_preset: str = "studio-dark",
     layout_mode: str = "pip",
     style_guide: str | None = None,
     output_dir: str | None = None,

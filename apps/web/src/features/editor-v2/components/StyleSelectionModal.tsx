@@ -30,98 +30,24 @@ interface StyleOption {
 
 const STYLE_OPTIONS: StyleOption[] = [
   {
-    id: 'minimal',
-    name: 'Minimal',
-    description: 'Clean lines, whitespace, monochrome with single accent',
-    colors: ['#1a1a1a', '#ffffff', '#3b82f6'],
+    id: 'studio-dark',
+    name: 'Studio Dark',
+    description: 'Polished card animations on dark navy dot-grid, glassmorphic cards',
+    colors: ['#0B0F1A', '#E2E8F0', '#6366F1'],
     preview: (
-      <div className="w-full h-full bg-white flex items-center justify-center">
-        <div className="w-12 h-1 bg-zinc-900 rounded" />
+      <div className="w-full h-full bg-[#0B0F1A] flex items-center justify-center">
+        <div className="w-10 h-7 bg-white/10 backdrop-blur border border-white/20 rounded-lg" />
       </div>
     ),
   },
   {
-    id: 'modern',
-    name: 'Modern',
-    description: 'Gradients, rounded corners, vibrant colors',
-    colors: ['#6366f1', '#8b5cf6', '#06b6d4'],
+    id: 'studio-light',
+    name: 'Studio Light',
+    description: 'Same card system on clean light background',
+    colors: ['#F8F9FB', '#1E293B', '#6366F1'],
     preview: (
-      <div className="w-full h-full bg-gradient-to-br from-indigo-500 via-purple-500 to-cyan-500 flex items-center justify-center">
-        <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl" />
-      </div>
-    ),
-  },
-  {
-    id: 'playful',
-    name: 'Playful',
-    description: 'Bright colors, bouncy animations, friendly feel',
-    colors: ['#7C3AED', '#eab308', '#22c55e'],
-    preview: (
-      <div className="w-full h-full bg-amber-100 flex items-center justify-center gap-1">
-        <div className="w-3 h-3 bg-violet-500 rounded-full" />
-        <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-        <div className="w-3 h-3 bg-green-500 rounded-full" />
-      </div>
-    ),
-  },
-  {
-    id: 'bold',
-    name: 'Bold',
-    description: 'High contrast, large text, dramatic impact',
-    colors: ['#000000', '#ffffff', '#ef4444'],
-    preview: (
-      <div className="w-full h-full bg-black flex items-center justify-center">
-        <span className="text-white font-black text-lg">AB</span>
-      </div>
-    ),
-  },
-  {
-    id: 'classic',
-    name: 'Classic',
-    description: 'Traditional charts, serif fonts, professional tones',
-    colors: ['#1e3a5f', '#d4af37', '#f5f5dc'],
-    preview: (
-      <div className="w-full h-full bg-[#f5f5dc] flex items-end justify-center gap-1 p-2">
-        <div className="w-2 h-4 bg-[#1e3a5f]" />
-        <div className="w-2 h-6 bg-[#1e3a5f]" />
-        <div className="w-2 h-8 bg-[#d4af37]" />
-        <div className="w-2 h-5 bg-[#1e3a5f]" />
-      </div>
-    ),
-  },
-  {
-    id: 'apple',
-    name: 'Apple',
-    description: 'Premium minimalism, fade+blur, pure black/white',
-    colors: ['#000000', '#ffffff', '#0071e3'],
-    preview: (
-      <div className="w-full h-full bg-black flex items-center justify-center">
-        <div className="w-8 h-8 bg-white rounded-lg" />
-      </div>
-    ),
-  },
-  {
-    id: 'google',
-    name: 'Google',
-    description: 'Material Design 3, cards, Google color palette',
-    colors: ['#ffffff', '#1a73e8', '#34a853'],
-    preview: (
-      <div className="w-full h-full bg-white flex items-center justify-center gap-1.5">
-        <div className="w-2.5 h-2.5 bg-[#1a73e8] rounded-full" />
-        <div className="w-2.5 h-2.5 bg-[#ea4335] rounded-full" />
-        <div className="w-2.5 h-2.5 bg-[#fbbc04] rounded-full" />
-        <div className="w-2.5 h-2.5 bg-[#34a853] rounded-full" />
-      </div>
-    ),
-  },
-  {
-    id: 'kinetic-typography',
-    name: 'Kinetic Text',
-    description: 'Bold text cards with hand-drawn doodle annotations',
-    colors: ['#00E556', '#000000', '#EBEBEB'],
-    preview: (
-      <div className="w-full h-full bg-[#00E556] flex items-center justify-center">
-        <span className="text-black font-black text-base leading-none">Aa</span>
+      <div className="w-full h-full bg-[#F8F9FB] flex items-center justify-center">
+        <div className="w-10 h-7 bg-white border border-gray-200 rounded-lg shadow-sm" />
       </div>
     ),
   },
@@ -187,36 +113,18 @@ export function StyleSelectionModal({
   canvasWidth = 1080,
   canvasHeight = 1920,
 }: StyleSelectionModalProps) {
-  const [selectedStyle, setSelectedStyle] = useState<StylePreset>('modern');
+  const [selectedStyle, setSelectedStyle] = useState<StylePreset>('studio-dark');
   const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('stacked');
   const [splitRatio, setSplitRatio] = useState(50); // Percentage for visuals
   const [styleGuide, setStyleGuide] = useState('');
-  const [brandColors, setBrandColors] = useState({
-    accent: '#00E556',
-    dark: '#000000',
-    light: '#EBEBEB',
-  });
-
   const dimensions = calculateVisualsDimensions(canvasWidth, canvasHeight, layoutMode, splitRatio);
 
   const handleGenerate = () => {
-    let finalStyleGuide = styleGuide.trim() || undefined;
-
-    if (selectedStyle === 'kinetic-typography') {
-      const colorData = JSON.stringify({
-        kineticTypography: true,
-        brandColors: brandColors,
-      });
-      finalStyleGuide = finalStyleGuide
-        ? `${colorData}\n\n${finalStyleGuide}`
-        : colorData;
-    }
-
     onSelect({
       stylePreset: selectedStyle,
       layoutMode,
       dimensions,
-      styleGuide: finalStyleGuide,
+      styleGuide: styleGuide.trim() || undefined,
     });
   };
 
@@ -347,7 +255,7 @@ export function StyleSelectionModal({
               <p className="text-sm text-gray-600 mb-3">Try again with a different style:</p>
 
               {/* Compact style selector */}
-              <div className="grid grid-cols-5 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {STYLE_OPTIONS.map((style) => (
                   <button
                     key={style.id}
@@ -536,31 +444,6 @@ export function StyleSelectionModal({
             ))}
           </div>
         </div>
-
-        {/* Brand Colors — only for kinetic-typography */}
-        {selectedStyle === 'kinetic-typography' && (
-          <div className="space-y-3 py-2 border-t border-gray-200">
-            <label className="text-sm font-medium text-gray-700">Brand Colors</label>
-            <div className="grid grid-cols-3 gap-3">
-              {(['accent', 'dark', 'light'] as const).map((key) => (
-                <div key={key} className="flex flex-col items-center gap-1.5">
-                  <label
-                    className="relative w-10 h-10 rounded-lg border border-gray-300 cursor-pointer overflow-hidden"
-                    style={{ backgroundColor: brandColors[key] }}
-                  >
-                    <input
-                      type="color"
-                      value={brandColors[key]}
-                      onChange={(e) => setBrandColors((prev) => ({ ...prev, [key]: e.target.value }))}
-                      className="absolute inset-0 opacity-0 cursor-pointer"
-                    />
-                  </label>
-                  <span className="text-xs text-gray-500 capitalize">{key}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Style Guide Input */}
         <div className="space-y-2 py-2 border-t border-gray-200">

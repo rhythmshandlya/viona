@@ -131,7 +131,7 @@ export interface SeparateAudioResponse {
   src: string;
 }
 
-export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
+export type StylePreset = 'studio-dark' | 'studio-light';
 
 export type VisualsLayoutMode = 'pip' | 'stacked';
 
