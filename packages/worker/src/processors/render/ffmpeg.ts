@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { downloadFile, listObjects } from '../../services/minio.js';
 import { config } from '../../config.js';
 import { logger } from '../../logger.js';
+import { getWorkspacePath } from '../../workspace.js';
 import type { SubtitleItem } from '@viona/renderer';
 import { renderMedia, selectComposition, getCompositions } from '@remotion/renderer';
 import { bundle } from '@remotion/bundler';
@@ -513,13 +514,13 @@ registerRoot(RemotionRoot);
 
   logger.info({ entryPath, srcDir }, 'Created entry point for bundle');
 
-  // Symlink node_modules from the remotion-template so webpack can resolve
+  // Symlink node_modules from the workspace so webpack can resolve
   // packages like @remotion/google-fonts that generated scenes may import.
-  const templateNodeModules = join(config.worker.templatePath, 'node_modules');
+  const workspaceNodeModules = join(getWorkspacePath(), 'node_modules');
   try {
-    await symlink(templateNodeModules, join(tempDir, 'node_modules'));
+    await symlink(workspaceNodeModules, join(tempDir, 'node_modules'));
   } catch (err) {
-    logger.warn({ err, templateNodeModules }, 'Could not symlink node_modules, bundle may fail');
+    logger.warn({ err, workspaceNodeModules }, 'Could not symlink node_modules, bundle may fail');
   }
 
   // Use Remotion's bundle() to create a proper bundle
