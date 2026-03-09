@@ -16,6 +16,7 @@ import { projectRoutes } from './routes/projects.js';
 import { userRoutes } from './routes/users.js';
 import { agentRoutes } from './agent/agent-router.js';
 import { waitlistRoutes } from './routes/waitlist.js';
+import { youtubeClipRoutes } from './routes/youtube-clips.js';
 import { setupWebSocket } from './ws/handler.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
@@ -242,6 +243,7 @@ async function main() {
   await fastify.register(userRoutes, { prefix: '/api' });
   await fastify.register(agentRoutes, { prefix: '/api' });
   await fastify.register(waitlistRoutes, { prefix: '/api' });
+  await fastify.register(youtubeClipRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);
