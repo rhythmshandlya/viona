@@ -10,12 +10,11 @@
 
 import { Job } from 'bullmq';
 import { eq } from 'drizzle-orm';
-import { readFile, readdir, stat, writeFile as writeFileAsync, copyFile } from 'fs/promises';
+import { readFile, readdir, stat, writeFile, copyFile, mkdir } from 'fs/promises';
 import { join, dirname } from 'path';
 import { existsSync } from 'fs';
 import { spawn, ChildProcess, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { mkdir, writeFile } from 'fs/promises';
 import { db, projects, jobs, visuals, projectAssets } from '../db/index.js';
 import { publishJobProgress, publishJobComplete, publishJobError, registerCancelHandler, unregisterCancelHandler, setJobProjectId } from '../services/redis.js';
 import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
@@ -49,7 +48,6 @@ interface ExtractedAsset {
  */
 async function extractAssets(projectDir: string): Promise<ExtractedAsset[]> {
   const assets: ExtractedAsset[] = [];
-  const { writeFile } = await import('fs/promises');
 
   try {
     const scenesPath = join(projectDir, 'scenes.json');
@@ -357,7 +355,7 @@ async function autoFixProjectFiles(projectDir: string): Promise<void> {
     );
 
     if (content !== original) {
-      await writeFileAsync(filePath, content);
+      await writeFile(filePath, content);
       fixedCount++;
       logger.info({ filePath }, 'Auto-fixed descending interpolate ranges');
     }
@@ -939,6 +937,16 @@ SCOPE RESTRICTION (MANDATORY):
       runningProcesses.delete(jobId);
       unregisterCancelHandler(jobId);
       subprocess.kill('SIGTERM');
+      setTimeout(() => {
+        if (!subprocess.killed) {
+          subprocess.kill('SIGKILL');
+          setTimeout(() => {
+            if (!subprocess.killed) {
+              logger.error({ jobId }, 'CRITICAL: subprocess survived SIGKILL — potential zombie');
+            }
+          }, 5000);
+        }
+      }, 10_000);
       reject(new Error(`Claude editor timed out after ${config.claudeAgent.timeoutSeconds} seconds`));
     }, config.claudeAgent.timeoutSeconds * 1000);
 
