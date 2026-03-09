@@ -6,22 +6,20 @@ scene-by-scene animation plans that sync precisely with narration.
 """
 
 
-from prompts._loader import load_prompt
-DIRECTOR_SYSTEM_PROMPT = load_prompt('director/system')
+from prompts._loader import load_prompt, load_shared_modules
+DIRECTOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('director/system')
 
 
 import math
 
-from prompts._themes import STUDIO_THEMES
-
-_STUDIO_STYLE_TEMPLATE = load_prompt('director/studio-style-template')
+from prompts.theme_loader import get_director_style, get_theme
 
 
 def get_style_description(style_preset: str) -> str:
-    """Get the style description for the given preset, filled with theme colors."""
-    theme = STUDIO_THEMES.get(style_preset, STUDIO_THEMES["studio-dark"])
-    variant_label = "Dark mode" if theme["variant"] == "dark" else "Light mode"
-    return _STUDIO_STYLE_TEMPLATE.format(variant_label=variant_label, **theme)
+    """Get the style description for the given preset from theme manifest."""
+    if not get_theme(style_preset):
+        return get_director_style("studio-dark")
+    return get_director_style(style_preset)
 
 
 # Backward compat — some code may still reference this dict
@@ -317,7 +315,7 @@ For each scene's "visual" field, describe in layers:
 ### Step 6: Self-Verification (MANDATORY before writing scenes.json)
 Compute these values for EVERY planned scene and create the Verification Table:
 - Duration in frames and seconds (must be 210-450 frames / 7-15 seconds)
-- Max gap between consecutive sync points (must be under 150 frames / 5 seconds)
+- Max gap between consecutive sync points (must be under 90 frames / 3 seconds)
 - Contiguity check (each scene starts where previous ends)
 - Total frame coverage (first scene starts at 0, last ends at total_frames)
 
@@ -346,10 +344,10 @@ Compute these values for EVERY scene and verify they pass. If any row FAILS, fix
 | Scene | Frames | Duration | Status | Max Sync Gap | Gap Status | Sync Count |
 |-------|--------|----------|--------|--------------|------------|------------|
 | 1     | 0-360  | 12.0s    | OK     | 2.9s         | OK         | 5          |
-| 2     | 360-630| 9.0s     | OK     | 4.1s         | OK         | 3          |
+| 2     | 360-630| 9.0s     | OK     | 2.8s         | OK         | 3          |
 | ...   | ...    | ...      | ...    | ...          | ...        | ...        |
 
-Duration rules: min 7s, max 15s. Max sync gap: 5s. Min sync points: 2.
+Duration rules: min 7s, max 15s. Max sync gap: 3s (90 frames). Min sync points: 2.
 Total frames: X / Y (must match exactly)
 Contiguous: YES/NO (each scene must start where previous ends)
 ```
@@ -482,7 +480,7 @@ Before responding "PLANNING COMPLETE":
 {display_mode_checklist}6. [ ] Scenes are contiguous — no gaps between any two consecutive scenes
 7. [ ] Scene 1 starts at frame 0, last scene ends at frame {duration_frames}
 8. [ ] Every scene is 210-450 frames (7-15 seconds) — verified in the table
-9. [ ] Max sync gap within any scene is under 150 frames (5 seconds) — verified in the table
+9. [ ] Max sync gap within any scene is under 90 frames (3 seconds) — verified in the table
 10. [ ] SCENE_PLAN.md written BEFORE scenes.json (verification must happen first)
 
 **You MUST write both files using the Write tool. The Animator cannot proceed without them.**
