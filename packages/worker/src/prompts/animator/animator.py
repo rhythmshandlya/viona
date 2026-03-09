@@ -7,19 +7,15 @@ maintaining a TODO list and logging reasoning for each scene.
 
 import json
 
-from prompts._loader import load_prompt
-from prompts._themes import STUDIO_THEMES
-
-_STUDIO_DESIGN_SYSTEM_TEMPLATE = load_prompt('animator/studio-design-system')
+from prompts._loader import load_prompt, load_shared_modules
+from prompts.theme_loader import get_design_system, get_theme
 
 
 def get_studio_section(style_preset: str) -> str:
-    """Return the Studio design system prompt for the given theme, or empty string."""
-    theme = STUDIO_THEMES.get(style_preset)
-    if not theme:
+    """Return the design system prompt for the given theme, or empty string."""
+    if not get_theme(style_preset):
         return ""
-    variant_label = "Dark mode" if theme["variant"] == "dark" else "Light mode"
-    return _STUDIO_DESIGN_SYSTEM_TEMPLATE.format(variant_label=variant_label, **theme)
+    return get_design_system(style_preset)
 
 
 # ---------------------------------------------------------------------------
@@ -50,7 +46,7 @@ def get_youtube_clip_section(has_youtube_clip_scenes: bool) -> str:
     return ""
 
 
-ANIMATOR_SYSTEM_PROMPT = load_prompt('animator/system')
+ANIMATOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('animator/system')
 
 
 def build_animator_user_message(project_id: str, style_preset: str = "studio-dark") -> str:
@@ -180,7 +176,7 @@ export const SPRINGS = {{
   SNAPPY:  {{ damping: 18, stiffness: 180, mass: 0.8 }},  // Hero reveals, card entrances (~12 frames)
   SMOOTH:  {{ damping: 26, stiffness: 120, mass: 1.0 }},  // Apple "smooth" equivalent — premium settle (~18 frames)
   BOUNCY:  {{ damping: 12, stiffness: 200, mass: 1.0 }},  // Playful, energetic — visible overshoot (~15 frames)
-  HEAVY:   {{ damping: 24, stiffness: 120, mass: 1.4 }},  // Big numbers, weighty settle — smooth authority (~22 frames)
+  HEAVY:   {{ damping: 20, stiffness: 150, mass: 1.5 }},  // Big numbers, weighty settle — smooth authority
   STIFF:   {{ damping: 24, stiffness: 300, mass: 0.6 }},  // Micro-interactions, fast snaps (~8 frames)
   GENTLE:  {{ damping: 14, stiffness: 80,  mass: 1.2 }},  // Background elements, ambient motion (~25 frames)
   OVERLAY: {{ damping: 32, stiffness: 50,  mass: 1.0 }},  // Overlay scenes — subtle, non-distracting
@@ -444,7 +440,7 @@ ONLY when ALL files are written AND TypeScript passes, respond:
 """
 
     # Conditionally append studio template workflow instructions
-    if style_preset.startswith("studio"):
+    if get_theme(style_preset):
         base_message += """
 
 ---
@@ -482,8 +478,8 @@ The Director's `colorPalette` in scenes.json is a topic hint only. Your constant
 Templates are a starting point, not a constraint. Rename variables, merge pieces from
 multiple templates, delete what you don't need, add new elements.
 """
-        theme = STUDIO_THEMES.get(style_preset, {})
-        variant = theme.get("variant", "dark")
+        theme = get_theme(style_preset)
+        variant = theme.get("variant", "dark") if theme else "dark"
         base_message += f"\nWhen adapting template code, use `BACKGROUNDS.{variant}` for theme colors.\n"
 
     return base_message
@@ -497,7 +493,7 @@ multiple templates, delete what you don't need, add new elements.
 # ---------------------------------------------------------------------------
 
 
-ANIMATOR_BASE_PROMPT = load_prompt('animator/base')
+ANIMATOR_BASE_PROMPT = ANIMATOR_SYSTEM_PROMPT  # base.md deleted — was 95% duplicate
 
 
 ANIMATOR_SETUP_PROMPT = load_prompt('animator/setup')
@@ -758,7 +754,7 @@ def build_scene_task_prompt(
 
     # Add template hint for studio preset when suggestedTemplates is present
     template_hint = ""
-    if style_preset.startswith("studio"):
+    if get_theme(style_preset):
         suggested = scene_data.get("suggestedTemplates")
         if suggested:
             slugs = ", ".join(suggested)
