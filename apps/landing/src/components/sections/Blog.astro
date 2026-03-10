@@ -115,16 +115,54 @@ const features = [
             </div>
           )}
 
-          <!-- Screenshot for AI Visuals card -->
+          <!-- Animated AI visual demo for AI Visuals card -->
           {feature.tag === "AI Visuals" && (
-            <div class="mt-auto rounded-xl overflow-hidden border border-white/60 shadow-sm">
-              <img
-                src="/assets/screenshots/editor-chat.png"
-                alt="Viona AI chat generating visual compositions"
-                class="w-full block"
-                loading="lazy"
-                decoding="async"
-              />
+            <div class="mt-auto rounded-xl overflow-hidden border border-white/60 shadow-sm ai-visual-demo">
+              <!-- Fake video frame -->
+              <div class="ai-demo-frame">
+                <!-- Main chart area -->
+                <div class="ai-demo-chart">
+                  <div class="ai-demo-chart-title">Revenue Growth</div>
+                  <div class="ai-demo-bars">
+                    <div class="ai-demo-bar-wrap">
+                      <div class="ai-demo-bar" style="--h: 40%; --delay: 0s"></div>
+                      <span>Q1</span>
+                    </div>
+                    <div class="ai-demo-bar-wrap">
+                      <div class="ai-demo-bar" style="--h: 62%; --delay: 0.1s"></div>
+                      <span>Q2</span>
+                    </div>
+                    <div class="ai-demo-bar-wrap">
+                      <div class="ai-demo-bar" style="--h: 55%; --delay: 0.2s"></div>
+                      <span>Q3</span>
+                    </div>
+                    <div class="ai-demo-bar-wrap">
+                      <div class="ai-demo-bar ai-demo-bar--highlight" style="--h: 88%; --delay: 0.3s"></div>
+                      <span>Q4</span>
+                    </div>
+                  </div>
+                </div>
+                <!-- AI badge -->
+                <div class="ai-demo-badge">
+                  <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                  AI generated
+                </div>
+                <!-- PiP person -->
+                <div class="ai-demo-pip">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <circle cx="12" cy="8" r="4" opacity="0.6"/>
+                    <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" opacity="0.4"/>
+                  </svg>
+                </div>
+                <!-- Caption bar -->
+                <div class="ai-demo-caption">
+                  <span class="ai-caption-word">revenue</span>
+                  <span class="ai-caption-word ai-caption-word--active">grew</span>
+                  <span class="ai-caption-word">88%</span>
+                  <span class="ai-caption-word">last</span>
+                  <span class="ai-caption-word">quarter</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -142,3 +180,155 @@ const features = [
     </div>
   </div>
 </section>
+
+<style>
+  /* ── AI Visual Demo ── */
+  .ai-demo-frame {
+    position: relative;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+  }
+
+  /* Chart card */
+  .ai-demo-chart {
+    position: absolute;
+    top: 12%;
+    left: 8%;
+    right: 30%;
+    bottom: 22%;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 8px;
+    padding: 10px 12px 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ai-demo-chart-title {
+    font-size: 8px;
+    font-weight: 700;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .ai-demo-bars {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 5px;
+  }
+
+  .ai-demo-bar-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    height: 100%;
+    justify-content: flex-end;
+  }
+
+  .ai-demo-bar-wrap span {
+    font-size: 6px;
+    color: #888;
+    font-weight: 500;
+  }
+
+  .ai-demo-bar {
+    width: 100%;
+    height: var(--h);
+    background: rgba(124, 58, 237, 0.3);
+    border-radius: 3px 3px 0 0;
+    animation: bar-grow 0.8s ease-out calc(var(--delay) + 0.3s) both;
+    transform-origin: bottom;
+  }
+
+  .ai-demo-bar--highlight {
+    background: #7C3AED;
+  }
+
+  @keyframes bar-grow {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+
+  /* AI badge */
+  .ai-demo-badge {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(124, 58, 237, 0.9);
+    color: white;
+    font-size: 7px;
+    font-weight: 600;
+    padding: 3px 7px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    backdrop-filter: blur(4px);
+  }
+
+  .ai-demo-badge svg {
+    width: 7px;
+    height: 7px;
+    animation: sparkle-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes sparkle-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.3); }
+  }
+
+  /* PiP person */
+  .ai-demo-pip {
+    position: absolute;
+    bottom: 18%;
+    right: 6%;
+    width: 18%;
+    aspect-ratio: 1;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ai-demo-pip svg {
+    width: 55%;
+    height: 55%;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  /* Caption bar */
+  .ai-demo-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 5px 8px;
+    background: rgba(0, 0, 0, 0.55);
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .ai-caption-word {
+    font-size: 8px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.7);
+    letter-spacing: 0.02em;
+  }
+
+  .ai-caption-word--active {
+    color: #a78bfa;
+    background: rgba(124, 58, 237, 0.25);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+</style>
