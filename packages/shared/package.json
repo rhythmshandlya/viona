@@ -25,6 +25,11 @@
       "types": "./dist/queue-types.d.ts",
       "import": "./dist/queue-types.mjs",
       "require": "./dist/queue-types.js"
+    },
+    "./progress-types": {
+      "types": "./dist/progress-types.d.ts",
+      "import": "./dist/progress-types.mjs",
+      "require": "./dist/progress-types.js"
     }
   },
   "scripts": {
