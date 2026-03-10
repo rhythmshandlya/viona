@@ -2,8 +2,9 @@
 
 @theme inline {
   --font-sans: "DM Sans", system-ui, sans-serif;
+  --font-serif: "DM Serif Display", Georgia, serif;
 
-  --color-background: #FAFAFF;
+  --color-background: #ffffff;
   --color-foreground: #1a1a1a;
   --color-muted: #f3f2f8;
   --color-muted-foreground: #6b7280;
@@ -302,4 +303,11 @@ details > div {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Serif display headlines */
+.font-serif {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.02em;
 }
