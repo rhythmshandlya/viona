@@ -1,6 +1,7 @@
 export interface Testimonial {
   quote: string;
   author: string;
+  handle?: string;
   role: string;
   company: string;
   color: string;
@@ -9,49 +10,31 @@ export interface Testimonial {
 
 export const testimonials: Testimonial[] = [
   {
-    quote: "I used to spend 4 hours editing each video. Now I upload, review the AI visuals, and export in 20 minutes. My audience says my videos are clearer than ever.",
+    quote: "I used to spend 4 hours editing each video. Now I upload, review the AI visuals, and export in 20 minutes. My engagement went up 40% in the first month.",
     author: "James Park",
-    role: "Course Creator",
-    company: "CodeMentor Academy",
+    handle: "@jamespark_edu",
+    role: "Course creator",
+    company: "180K subscribers",
     color: "#7C3AED",
     featured: true,
   },
   {
-    quote: "The AI actually understands what I'm explaining and creates matching diagrams. Not generic stock footage — real, contextual visuals that help my viewers learn.",
+    quote: "The AI generates diagrams that actually match what I'm explaining — not generic stock. My students say the videos are finally clear.",
     author: "Dr. Lisa Chen",
-    role: "EdTech Founder",
+    handle: "@drlichenmd",
+    role: "EdTech founder",
     company: "MedLearn Pro",
     color: "#2563EB",
     featured: true,
   },
   {
-    quote: "We produce 30+ explainer videos a month for clients. Viona cut our production time in half while making the videos more professional.",
+    quote: "We produce 30+ explainer videos a month. Viona cut our production time in half. The AI chat editor is the feature I didn't know I needed.",
     author: "Marcus Webb",
-    role: "Creative Director",
+    handle: "@marcuswebb_vid",
+    role: "Creative director",
     company: "Explainer Studio",
     color: "#059669",
     featured: true,
-  },
-  {
-    quote: "The caption presets are insane. I picked the Hormozi style, tweaked the colors, and my video looked like it had a $5K editor behind it. Took me 10 minutes.",
-    author: "Priya Sharma",
-    role: "YouTube Creator",
-    company: "LearnWithPriya",
-    color: "#D97706",
-  },
-  {
-    quote: "Being able to export the same video in 9:16, 16:9, and 1:1 from one project saved me from using three different tools. The safe zone preview is a game-changer.",
-    author: "Alex Rivera",
-    role: "Social Media Manager",
-    company: "GrowthLoop Agency",
-    color: "#DC2626",
-  },
-  {
-    quote: "I just told the AI assistant 'make the background darker and add a split layout' and it did it instantly. Feels like having a junior editor on call 24/7.",
-    author: "Tomoko Hayashi",
-    role: "Product Trainer",
-    company: "Notion",
-    color: "#7C3AED",
   },
 ];
 
