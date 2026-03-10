@@ -63,19 +63,19 @@ const features = [
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <!-- Header -->
     <div class="text-center mb-10 sm:mb-14 lg:mb-16">
-      <p class="text-sm font-semibold text-primary mb-3 tracking-wide uppercase">Everything You Need</p>
-      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold leading-tight mb-4">
-        One Studio. <span class="text-brand">Every Tool.</span>
+      <p class="text-sm font-semibold text-primary mb-3 tracking-wide uppercase">What's inside</p>
+      <h2 class="font-serif text-2xl sm:text-3xl lg:text-4xl leading-tight mb-4">
+        Everything your videos<br /><em class="not-italic text-primary">were missing.</em>
       </h2>
-      <p class="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
-        From transcription to export, Viona handles the entire workflow. No plugins, no switching tabs, no complexity.
+      <p class="text-sm sm:text-base text-muted-foreground max-w-xl mx-auto">
+        Captions, AI visuals, multi-platform export, filler word removal, B-roll — all in one editor, no switching tools.
       </p>
     </div>
 
     <!-- Feature grid -->
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
       {features.map((feature) => (
-        <div class={`group relative bg-gradient-to-br ${feature.gradient} rounded-2xl border ${feature.border} p-5 sm:p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1`}>
+        <div class={`group relative bg-gradient-to-br ${feature.gradient} rounded-2xl border ${feature.border} p-5 sm:p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 flex flex-col`}>
           <!-- Tag + Icon -->
           <div class="flex items-center gap-2 mb-3">
             <div class="w-8 h-8 rounded-lg bg-white/80 border border-white flex items-center justify-center text-primary">
@@ -91,7 +91,7 @@ const features = [
           <p class="text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed">{feature.description}</p>
 
           <!-- Feature list -->
-          <ul class="space-y-1.5">
+          <ul class="space-y-1.5 mb-4">
             {feature.items.map((item) => (
               <li class="flex items-start gap-2 text-xs sm:text-sm text-foreground/80">
                 <svg class="w-4 h-4 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -101,6 +101,32 @@ const features = [
               </li>
             ))}
           </ul>
+
+          <!-- Screenshot for Captions card -->
+          {feature.tag === "Captions" && (
+            <div class="mt-auto rounded-xl overflow-hidden border border-white/60 shadow-sm">
+              <img
+                src="/assets/screenshots/editor-captions.png"
+                alt="Viona caption editor with style presets and timeline"
+                class="w-full block"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          )}
+
+          <!-- Screenshot for AI Visuals card -->
+          {feature.tag === "AI Visuals" && (
+            <div class="mt-auto rounded-xl overflow-hidden border border-white/60 shadow-sm">
+              <img
+                src="/assets/screenshots/editor-chat.png"
+                alt="Viona AI chat generating visual compositions"
+                class="w-full block"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+          )}
         </div>
       ))}
     </div>
