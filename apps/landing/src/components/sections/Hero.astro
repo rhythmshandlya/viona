@@ -1,118 +1,90 @@
 ---
-// Frontmatter (no server-side imports needed)
+// No imports needed
 ---
 
 <section class="relative pt-24 pb-12 sm:pt-28 sm:pb-16 lg:pt-32 lg:pb-20 overflow-hidden">
-  <!-- Three.js canvas background -->
-  <canvas id="hero-canvas" class="absolute inset-0 w-full h-full pointer-events-none" style="z-index: 0;"></canvas>
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
 
-  <!-- Gradient blob (fallback / additional depth) -->
-  <div class="hero-gradient" data-hero-gradient></div>
-
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 relative z-10">
-    <!-- Tagline badge -->
-    <div class="flex justify-center mb-6 sm:mb-8">
-      <div class="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-border bg-white/80 backdrop-blur-sm text-xs sm:text-sm" data-hero-badge>
-        <span class="text-muted-foreground">For explainer videos & courses</span>
-      </div>
-    </div>
-
-    <!-- Headline -->
-    <div class="text-center mb-4 sm:mb-6">
-      <h1 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight leading-tight" data-hero-headline>
-        You Explain It.
-        <br />Viona <span class="wavy-underline">Illustrates</span> It.
-      </h1>
-    </div>
-
-    <!-- Subheadline -->
-    <p class="text-center text-muted-foreground text-sm sm:text-base max-w-xl mx-auto mb-8 sm:mb-10 px-2" data-hero-sub>
-      Upload your talking-head video. Our AI transcribes it, removes filler words,
-      and generates charts, diagrams, and graphics synced to your explanations.
-    </p>
-
-    <!-- Waitlist Form -->
-    <div class="flex flex-col items-center mb-10 sm:mb-16" data-hero-cta>
-      <form id="waitlist-form" class="email-input-group w-full max-w-md">
-        <input
-          type="email"
-          id="waitlist-email"
-          placeholder="Enter your email"
-          required
-          autocomplete="email"
-        />
-        <button type="submit" id="waitlist-btn">
-          Join Waitlist
-        </button>
-      </form>
-      <!-- Success message (hidden by default) -->
-      <div id="waitlist-success" class="hidden text-sm font-medium text-primary mt-3">
-        You're on the list!
-      </div>
-      <!-- Error message (hidden by default) -->
-      <div id="waitlist-error" class="hidden text-sm text-red-500 mt-3"></div>
-      <!-- Counter -->
-      <p class="text-xs sm:text-sm text-muted-foreground mt-3" id="waitlist-counter" style="visibility: hidden;">
-        <span id="waitlist-count" class="font-semibold text-foreground tabular-nums">0</span>
-        creators on the waitlist
-      </p>
-    </div>
-
-    <!-- Before/After Visual -->
-    <div class="max-w-3xl mx-auto" data-hero-visual>
-      <!-- Mobile: Stack vertically -->
-      <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
-        <!-- Before -->
-        <div class="text-center w-full sm:flex-1 max-w-[280px] sm:max-w-none">
-          <div class="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm mb-2 sm:mb-3">
-            <div class="aspect-video bg-gray-100 rounded-xl flex items-center justify-center">
-              <!-- Person icon -->
-              <svg class="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20 text-gray-300" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-              </svg>
-            </div>
-          </div>
-          <span class="text-xs sm:text-sm text-muted-foreground">Your talking-head video</span>
+      <!-- Left: editorial copy + form -->
+      <div class="flex-1 text-center lg:text-left" data-hero-copy>
+        <!-- Tagline badge -->
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-white text-xs mb-6 sm:mb-8" data-hero-badge>
+          <span class="w-1.5 h-1.5 rounded-full bg-primary inline-block"></span>
+          <span class="text-muted-foreground">For explainer videos &amp; courses</span>
         </div>
 
-        <!-- Arrow -->
-        <div class="flex-shrink-0 rotate-90 sm:rotate-0">
-          <div class="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-primary/10 rounded-full flex items-center justify-center" data-demo-arrow>
-            <svg class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
-            </svg>
-          </div>
-        </div>
+        <!-- Headline -->
+        <h1 class="font-serif text-4xl sm:text-5xl lg:text-6xl leading-[1.1] mb-4 sm:mb-6" data-hero-headline>
+          Your audience is leaving<br />
+          in the first 30 seconds.
+          <br />
+          <em class="not-italic text-primary">Here's how to keep them.</em>
+        </h1>
 
-        <!-- After -->
-        <div class="text-center w-full sm:flex-1 max-w-[280px] sm:max-w-none">
-          <div class="bg-white/90 backdrop-blur-sm rounded-2xl border border-gray-200 p-3 sm:p-4 md:p-6 shadow-sm mb-2 sm:mb-3 ring-2 ring-primary/20">
-            <div class="aspect-video bg-white rounded-xl relative overflow-hidden border border-gray-100">
-              <!-- Main visual area with chart -->
-              <div class="absolute inset-2 right-12 sm:inset-3 sm:right-14 md:right-16 bg-gray-50 rounded-lg p-2 sm:p-3 flex flex-col">
-                <div class="text-[8px] sm:text-[9px] md:text-xs font-semibold text-gray-700 mb-1 sm:mb-2">Growth Rate</div>
-                <!-- Bar chart -->
-                <div class="flex-1 flex items-end gap-1 sm:gap-1.5 md:gap-2">
-                  <div class="flex-1 bg-primary/30 rounded-t h-[30%]" data-demo-bar></div>
-                  <div class="flex-1 bg-primary/50 rounded-t h-[55%]" data-demo-bar></div>
-                  <div class="flex-1 bg-primary/70 rounded-t h-[45%]" data-demo-bar></div>
-                  <div class="flex-1 bg-primary rounded-t h-[80%]" data-demo-bar></div>
-                </div>
-              </div>
-              <!-- PiP -->
-              <div class="absolute bottom-1.5 right-1.5 sm:bottom-2 sm:right-2 w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center" data-demo-pip>
-                <svg class="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                </svg>
-              </div>
-            </div>
+        <!-- Subheadline -->
+        <p class="text-muted-foreground text-base sm:text-lg max-w-lg mx-auto lg:mx-0 mb-8 sm:mb-10" data-hero-sub>
+          Upload your talking-head video. Viona generates charts, diagrams, and visuals
+          synced to your words — automatically.
+        </p>
+
+        <!-- Waitlist Form -->
+        <div class="flex flex-col items-center lg:items-start" data-hero-cta>
+          <form id="waitlist-form" class="email-input-group w-full max-w-md">
+            <input
+              type="email"
+              id="waitlist-email"
+              placeholder="Enter your email"
+              required
+              autocomplete="email"
+            />
+            <button type="submit" id="waitlist-btn">
+              Join Waitlist
+            </button>
+          </form>
+          <div id="waitlist-success" class="hidden text-sm font-medium text-primary mt-3">
+            You're on the list!
           </div>
-          <span class="text-xs sm:text-sm text-muted-foreground">With AI-generated visuals</span>
+          <div id="waitlist-error" class="hidden text-sm text-red-500 mt-3"></div>
+          <p class="text-xs text-muted-foreground mt-3" id="waitlist-counter" style="visibility: hidden;">
+            <span id="waitlist-count" class="font-semibold text-foreground tabular-nums">0</span>
+            creators on the waitlist
+          </p>
         </div>
       </div>
+
+      <!-- Right: product video in phone frame -->
+      <div class="flex-shrink-0 w-[220px] sm:w-[260px] lg:w-[280px]" data-hero-visual>
+        <div class="hero-phone">
+          <video
+            src="/assets/sample-output.mp4"
+            poster="/assets/sample-output-poster.jpg"
+            autoplay
+            loop
+            muted
+            playsinline
+            class="w-full h-full object-cover"
+          ></video>
+        </div>
+      </div>
+
     </div>
   </div>
 </section>
+
+<style>
+  .hero-phone {
+    aspect-ratio: 9 / 16;
+    border-radius: 28px;
+    overflow: hidden;
+    background: #1a1a1a;
+    box-shadow:
+      0 0 0 8px #1a1a1a,
+      0 0 0 9px rgba(255,255,255,0.08),
+      0 32px 80px rgba(0,0,0,0.25),
+      0 8px 24px rgba(0,0,0,0.15);
+  }
+</style>
 
 <script>
   import { gsap } from "@/scripts/animations";
@@ -120,62 +92,13 @@
   const API_URL = import.meta.env.PUBLIC_API_URL || "https://api-production-18ab.up.railway.app";
 
   document.addEventListener("astro:page-load", () => {
-    // Lazy-load Three.js scene so it doesn't block initial paint
-    const canvas = document.getElementById("hero-canvas") as HTMLCanvasElement;
-    let cleanup: (() => void) | undefined;
-    if (canvas) {
-      import("@/scripts/hero-scene").then(({ initHeroScene }) => {
-        cleanup = initHeroScene(canvas);
-        gsap.fromTo(canvas, { opacity: 0 }, { opacity: 1, duration: 1.5 });
-      });
-    }
-
-    // Hero entrance timeline
     const tl = gsap.timeline({ defaults: { ease: "power2.out" } });
 
-    tl.from('[data-hero-badge]', { y: 20, opacity: 0, duration: 0.5 })
-      .from('[data-hero-headline]', { y: 30, opacity: 0, duration: 0.6 }, "-=0.2")
-      .from('[data-hero-sub]', { y: 20, opacity: 0, duration: 0.5 }, "-=0.3")
-      .from('[data-hero-cta]', { y: 20, opacity: 0, duration: 0.5 }, "-=0.3")
-      .from('[data-hero-visual]', { y: 40, opacity: 0, duration: 0.7 }, "-=0.3");
-
-    // Reveal wavy underline after headline appears
-    tl.add(() => {
-      document.querySelector('[data-hero-headline] .wavy-underline')?.classList.add('revealed');
-    }, "-=0.3");
-
-    // Bar chart bars grow
-    tl.from('[data-demo-bar]', {
-      scaleY: 0,
-      transformOrigin: "bottom",
-      duration: 0.6,
-      stagger: 0.15,
-    }, "-=0.4");
-
-    tl.from('[data-demo-pip]', {
-      x: 20,
-      y: 20,
-      opacity: 0,
-      duration: 0.4,
-    }, "-=0.2");
-
-    // Continuous animations
-    gsap.to('[data-hero-gradient]', {
-      x: 30,
-      y: -20,
-      duration: 6,
-      ease: "sine.inOut",
-      repeat: -1,
-      yoyo: true,
-    });
-
-    gsap.to('[data-demo-arrow]', {
-      scale: 1.1,
-      duration: 1.2,
-      ease: "sine.inOut",
-      repeat: -1,
-      yoyo: true,
-    });
+    tl.from('[data-hero-badge]', { y: 16, opacity: 0, duration: 0.4 })
+      .from('[data-hero-headline]', { y: 24, opacity: 0, duration: 0.5 }, "-=0.2")
+      .from('[data-hero-sub]', { y: 16, opacity: 0, duration: 0.4 }, "-=0.2")
+      .from('[data-hero-cta]', { y: 16, opacity: 0, duration: 0.4 }, "-=0.2")
+      .from('[data-hero-visual]', { x: 24, opacity: 0, duration: 0.6 }, "-=0.5");
 
     // --- Waitlist ---
     const form = document.getElementById("waitlist-form") as HTMLFormElement | null;
@@ -186,7 +109,6 @@
     const counterEl = document.getElementById("waitlist-counter");
     const countEl = document.getElementById("waitlist-count");
 
-    // Fetch initial count
     fetch(`${API_URL}/api/waitlist/count`, { signal: AbortSignal.timeout(5000) })
       .then((r) => r.json())
       .then((data) => {
@@ -195,23 +117,16 @@
           counterEl.style.visibility = "visible";
         }
       })
-      .catch(() => {
-        // Silently fail — counter stays hidden
-      });
+      .catch(() => {});
 
-    // Handle form submit
     form?.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!emailInput || !btn) return;
-
       const email = emailInput.value.trim();
       if (!email) return;
-
-      // Set loading state
       btn.disabled = true;
       btn.textContent = "Joining...";
       errorEl?.classList.add("hidden");
-
       try {
         const res = await fetch(`${API_URL}/api/waitlist`, {
           method: "POST",
@@ -219,18 +134,10 @@
           body: JSON.stringify({ email }),
           signal: AbortSignal.timeout(10000),
         });
-
         const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data.error || "Something went wrong");
-        }
-
-        // Show success
+        if (!res.ok) throw new Error(data.error || "Something went wrong");
         form.classList.add("hidden");
         successEl?.classList.remove("hidden");
-
-        // Update counter
         if (data.count != null && countEl && counterEl) {
           const current = parseInt(countEl.textContent || "0", 10);
           animateCount(current, data.count, countEl);
@@ -247,21 +154,11 @@
     });
 
     function animateCount(from: number, to: number, el: HTMLElement) {
-      const duration = 1;
       const obj = { val: from };
       gsap.to(obj, {
-        val: to,
-        duration,
-        ease: "power2.out",
-        onUpdate: () => {
-          el.textContent = Math.round(obj.val).toLocaleString();
-        },
+        val: to, duration: 1, ease: "power2.out",
+        onUpdate: () => { el.textContent = Math.round(obj.val).toLocaleString(); },
       });
     }
-
-    // Cleanup on page transition
-    document.addEventListener("astro:before-preparation", () => {
-      cleanup?.();
-    }, { once: true });
   });
 </script>
