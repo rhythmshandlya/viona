@@ -1,10 +1,4 @@
-import type {
-  VisualsLayoutMode,
-  VisualsDimensions,
-  StylePreset,
-  GenerateVisualsOptions,
-  RenderOptions,
-} from '@viona/shared';
+import type { RenderOptions } from '@viona/shared';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 

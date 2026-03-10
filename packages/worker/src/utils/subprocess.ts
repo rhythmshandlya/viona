@@ -74,16 +74,18 @@ export function runSubprocess(options: SubprocessOptions): Promise<SubprocessRes
       logger.warn({ name, pid: proc.pid, reason }, `Killing subprocess: ${reason}`);
 
       proc.kill('SIGTERM');
-      setTimeout(() => {
+      const termTimer = setTimeout(() => {
         if (!proc.killed) {
           proc.kill('SIGKILL');
-          setTimeout(() => {
+          const killTimer = setTimeout(() => {
             if (!proc.killed) {
               logger.error({ name, pid: proc.pid }, 'Subprocess survived SIGKILL');
             }
           }, 5000);
+          killTimer.unref();
         }
       }, 10_000);
+      termTimer.unref();
     }
 
     proc.stdout?.on('data', (chunk: Buffer) => {

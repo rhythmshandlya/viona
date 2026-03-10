@@ -2,6 +2,13 @@
  * Types and interfaces for visual generation processor
  */
 
+export type {
+  VisualsLayoutMode,
+  VisualsDimensions,
+  VideoSelection,
+  GenerateVisualsJobData,
+} from '@viona/shared';
+
 export interface HeadTrackingFrame {
   timestamp_ms: number;
   face?: { bbox?: { x: number; y: number; width: number; height: number } };
@@ -27,43 +34,8 @@ export interface ExtractedAsset {
   size?: { width: string; height: string };
 }
 
-export type VisualsLayoutMode = 'pip' | 'stacked';
-
-export interface VisualsDimensions {
-  width: number;
-  height: number;
-}
-
-/**
- * Video selection data from user's scene plan approval.
- * NOTE: This duplicates packages/api/src/types/video.ts - keep in sync!
- * Worker can't import from API package due to build isolation.
- */
-export interface VideoSelection {
-  videoId: string;
-  title: string;
-  thumbnailUrl: string;
-  duration?: string;
-  url: string;
-}
-
-export interface GenerateVisualsJobData {
-  projectId: string;
-  jobId: string;
-  stylePreset: string;
-  layoutMode: VisualsLayoutMode;
-  dimensions: VisualsDimensions;
-  /** Effective dimensions for default scenes in stacked layout */
-  pipEffective?: VisualsDimensions;
-  /** User-provided style/layout guidance for the Director agent */
-  styleGuide?: string;
-  /** Enable verbose logging for debugging */
-  verbose?: boolean;
-  /** If set, skip Director phase and run Animator only using plan from this job */
-  planJobId?: string;
-  /** User-selected videos for scenes: sceneIndex → keyword → VideoSelection */
-  selectedVideos?: Record<number, Record<string, VideoSelection>>;
-}
+// VisualsLayoutMode, VisualsDimensions, VideoSelection, GenerateVisualsJobData
+// are imported and re-exported from @viona/shared above
 
 export interface VisualMetadata {
   compositionId: string;
