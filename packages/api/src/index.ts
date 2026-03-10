@@ -5,10 +5,11 @@ import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, createReadStream } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { execSync } from 'child_process';
+import { sql } from 'drizzle-orm';
 import { config } from './config.js';
 import { runMigrations } from './db/migrate.js';
 import { ensureBuckets, getObjectStream, objectExists, listObjects } from './services/minio.js';
@@ -31,10 +32,7 @@ async function main() {
     process.exit(1);
   }
 
-  if (isProduction && !process.env.COOKIE_SECRET) {
-    console.error('FATAL: COOKIE_SECRET must be set in production. Exiting.');
-    process.exit(1);
-  }
+  // COOKIE_SECRET validation is now handled by config.ts Zod schema
 
   const fastify = Fastify({
     logger: {
@@ -84,14 +82,25 @@ async function main() {
     fastify.log.info(`Serving bundles from: ${config.bundles.dir}`);
   }
 
-  // Production bundle serving from S3
+  // Bundle serving from S3 (production) or local filesystem (development fallback)
   // Route: /api/bundles/:compositionId/*
-  // Auth required: these are user-generated Remotion bundles. The Remotion SSR renderer
-  // uses local file paths (not this endpoint), so auth won't break rendering.
-  // Browser clients send cookies automatically with fetch() and asset requests.
-  fastify.get('/api/bundles/:compositionId/*', { preHandler: [authMiddleware] }, async (request, reply) => {
+  // In production: auth required, streams from S3
+  // In development: no auth, serves from local bundles dir (for DB rows with /api/bundles/ URLs)
+  const bundlePreHandlers = isProduction ? [authMiddleware] : [];
+  fastify.get('/api/bundles/:compositionId/*', { preHandler: bundlePreHandlers }, async (request, reply) => {
     const { compositionId } = request.params as { compositionId: string };
     const filePath = (request.params as { '*': string })['*'] || 'index.html';
+
+    // In development, serve from local filesystem first
+    if (!isProduction) {
+      const localPath = join(config.bundles.dir, compositionId, filePath);
+      if (existsSync(localPath)) {
+        const ext = filePath.split('.').pop()?.toLowerCase() || '';
+        const types: Record<string, string> = { js: 'application/javascript', cjs: 'application/javascript', html: 'text/html', css: 'text/css', json: 'application/json', png: 'image/png', svg: 'image/svg+xml' };
+        reply.header('Content-Type', types[ext] || 'application/octet-stream');
+        return reply.send(createReadStream(localPath));
+      }
+    }
 
     // Construct S3 key: outputs/bundles/{compositionId}/{filePath}
     const s3Key = `bundles/${compositionId}/${filePath}`;
@@ -219,8 +228,36 @@ async function main() {
     }
   });
 
-  // Health check
-  fastify.get('/health', async () => ({ status: 'ok' }));
+  // Health check — probes DB and Redis so load balancers route to healthy instances
+  fastify.get('/health', async (_request, reply) => {
+    const checks: Record<string, 'ok' | 'fail'> = {};
+
+    // Check database
+    try {
+      const { db } = await import('./db/index.js');
+      await db.execute(sql`SELECT 1`);
+      checks.database = 'ok';
+    } catch {
+      checks.database = 'fail';
+    }
+
+    // Check Redis
+    try {
+      const { default: Redis } = await import('ioredis');
+      const redis = new Redis(config.redis.url, { lazyConnect: true, connectTimeout: 3000 });
+      await redis.ping();
+      await redis.quit();
+      checks.redis = 'ok';
+    } catch {
+      checks.redis = 'fail';
+    }
+
+    const healthy = Object.values(checks).every(v => v === 'ok');
+    return reply.code(healthy ? 200 : 503).send({
+      status: healthy ? 'ok' : 'degraded',
+      checks,
+    });
+  });
 
   // Debug: test claude subprocess (dev-only — spawns Claude CLI with no auth)
   if (!isProduction) {
@@ -281,6 +318,20 @@ async function main() {
     fastify.log.error(err);
     process.exit(1);
   }
+  // Graceful shutdown — close server, finish in-flight requests
+  const shutdown = async (signal: string) => {
+    fastify.log.info({ signal }, 'Received shutdown signal, closing server...');
+    try {
+      await fastify.close();
+      fastify.log.info('Server closed gracefully');
+    } catch (err) {
+      fastify.log.error({ err }, 'Error during shutdown');
+    }
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main();

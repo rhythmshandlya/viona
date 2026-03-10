@@ -1,5 +1,28 @@
 import 'dotenv/config';
 import { resolve, join } from 'path';
+import { z } from 'zod';
+
+const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
+
+// In production, crash fast if critical env vars are missing
+if (isProduction) {
+  const prodEnvSchema = z.object({
+    DATABASE_URL: z.string().url(),
+    REDIS_URL: z.string().url(),
+    COOKIE_SECRET: z.string().min(16),
+    STYTCH_PROJECT_ID: z.string().min(1),
+    STYTCH_SECRET: z.string().min(1),
+  });
+
+  const result = prodEnvSchema.safeParse(process.env);
+  if (!result.success) {
+    console.error('FATAL: Missing required environment variables in production:');
+    for (const issue of result.error.issues) {
+      console.error(`  ${issue.path.join('.')}: ${issue.message}`);
+    }
+    process.exit(1);
+  }
+}
 
 // Determine if running on Railway (production)
 const isRailway = !!process.env.BUCKET_ENDPOINT || !!process.env.RAILWAY_ENVIRONMENT;

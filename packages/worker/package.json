@@ -11,7 +11,7 @@
     "lint": "eslint src/",
     "whisperx:setup": "bash ./scripts/setup-whisperx.sh",
     "whisperx:setup:win": ".\\scripts\\setup-whisperx.bat",
-"upload-template": "tsx scripts/upload-template.ts",
+    "upload-template": "tsx scripts/upload-template.ts",
     "download-template": "tsx scripts/download-template.ts",
     "push-tokens": "node scripts/push-claude-tokens.js"
   },
@@ -35,7 +35,8 @@
     "openai": "^6.18.0",
     "pg": "^8.11.3",
     "pino": "^10.3.0",
-    "unzipper": "^0.12.3"
+    "unzipper": "^0.12.3",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.10.6",

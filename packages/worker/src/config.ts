@@ -2,6 +2,27 @@ import 'dotenv/config';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { hostname } from 'os';
+import { z } from 'zod';
+
+const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
+
+// In production, crash fast if critical env vars are missing
+if (isProduction) {
+  const prodEnvSchema = z.object({
+    DATABASE_URL: z.string().url(),
+    REDIS_URL: z.string().url(),
+    CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1),
+  });
+
+  const result = prodEnvSchema.safeParse(process.env);
+  if (!result.success) {
+    console.error('FATAL: Missing required environment variables in production:');
+    for (const issue of result.error.issues) {
+      console.error(`  ${issue.path.join('.')}: ${issue.message}`);
+    }
+    process.exit(1);
+  }
+}
 
 // Worker package root (packages/worker/) — used for resolving relative script paths
 const __filename = fileURLToPath(import.meta.url);
@@ -122,7 +143,7 @@ export const config = {
     // IMPORTANT: In production, use /tmp/bundles (ephemeral but uploaded to S3)
     // In development, use local bundles directory
     bundleOutputDir: resolve(process.env.BUNDLE_OUTPUT_DIR || (
-      process.env.RAILWAY_ENVIRONMENT ? '/tmp/bundles' : join(process.cwd(), 'bundles')
+      process.env.RAILWAY_ENVIRONMENT ? '/tmp/bundles' : join(WORKER_ROOT, 'bundles')
     )),
   },
 

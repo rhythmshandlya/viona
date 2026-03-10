@@ -44,9 +44,9 @@ const updateProjectSchema = z.object({
 
 // Helper to check if a user owns a project
 function checkProjectOwnership(projectUserId: string | null, userId: string | undefined): boolean {
-  // If project has no owner (legacy data), allow access for now
-  if (!projectUserId) return true;
-  // Otherwise check if user owns the project
+  if (!userId) return false;
+  // Legacy projects with no owner: deny access (admin can reassign via DB)
+  if (!projectUserId) return false;
   return projectUserId === userId;
 }
 
@@ -907,7 +907,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/projects/:id/generate-visuals', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
-      stylePreset: z.enum(['studio-dark', 'studio-light']),
+      stylePreset: z.string(),
       layoutMode: z.enum(['pip', 'stacked']),
       dimensions: z.object({
         width: z.number().int().min(100).max(4096),
