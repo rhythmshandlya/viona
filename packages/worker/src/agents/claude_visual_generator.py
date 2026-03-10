@@ -2441,6 +2441,7 @@ export default MainComposition;
         duration_frames: int,
         fps: int,
         style_preset: str = "studio-dark",
+        skip_scenes: set[int] | None = None,
     ) -> dict[str, Any]:
         """
         Phase 2 (Parallel): Implement scenes via SDK subagents.
@@ -2508,6 +2509,11 @@ export default MainComposition;
                             existing_scenes.add(scene_num)
                     except (ValueError, OSError):
                         pass
+
+        # Merge CLI --skip-scenes into existing checkpoint scenes
+        if skip_scenes:
+            print(f"[ClaudeGenerator] CLI --skip-scenes: treating scenes {sorted(skip_scenes)} as already done")
+            existing_scenes |= skip_scenes
 
         setup_exists = constants_path.exists() and constants_path.stat().st_size > 50
         all_scene_nums = set(range(1, total_scenes + 1))
@@ -3363,6 +3369,8 @@ async def main():
                         help="JSON array of safe placement zones from head tracking")
     parser.add_argument("--phase", choices=["director", "animator"], default=None,
                         help="Run only a specific phase (director or animator). Default: all.")
+    parser.add_argument("--skip-scenes", type=str, default=None,
+                        help="Comma-separated scene numbers to skip (for retry from checkpoint)")
 
     args = parser.parse_args()
 
@@ -3513,10 +3521,17 @@ async def _main_inner(args, heartbeat: HeartbeatEmitter):
         heartbeat.update('animate', 'Animator implementing scenes')
         emit_progress(38, "Animator implementing scenes...", {"phase": "animate", "phaseName": "Animating scenes"})
 
+        # Parse --skip-scenes into a set of scene numbers
+        cli_skip_scenes: set[int] | None = None
+        if args.skip_scenes:
+            cli_skip_scenes = {int(s.strip()) for s in args.skip_scenes.split(",") if s.strip().isdigit()}
+            print(f"[ClaudeGenerator] CLI --skip-scenes: {sorted(cli_skip_scenes)}")
+
         animator_result = await generator._run_animator_sequential(
             width=args.width, height=args.height,
             duration_frames=args.duration, fps=args.fps,
             style_preset=args.style_preset,
+            skip_scenes=cli_skip_scenes,
         )
 
         if not animator_result["success"]:

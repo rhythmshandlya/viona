@@ -8,12 +8,7 @@ interface SmoothProgressOptions {
   maxCreepAhead?: number;
 }
 
-interface SmoothProgressResult {
-  displayPercent: number;
-  isCreeping: boolean;
-}
-
-export function useSmoothProgress(options: SmoothProgressOptions): SmoothProgressResult {
+export function useSmoothProgress(options: SmoothProgressOptions): { displayPercent: number } {
   const {
     targetPercent,
     isActive,
@@ -24,9 +19,8 @@ export function useSmoothProgress(options: SmoothProgressOptions): SmoothProgres
 
   const [displayPercent, setDisplayPercent] = useState(0);
   const currentRef = useRef(0);
-  const lastUpdateRef = useRef(Date.now());
+  const lastFrameRef = useRef(Date.now());
   const animFrameRef = useRef<number | null>(null);
-  const isCreepingRef = useRef(false);
 
   useEffect(() => {
     if (!isActive) {
@@ -35,23 +29,22 @@ export function useSmoothProgress(options: SmoothProgressOptions): SmoothProgres
       return;
     }
 
-    lastUpdateRef.current = Date.now();
+    lastFrameRef.current = Date.now();
 
     const animate = () => {
       const now = Date.now();
+      const deltaMs = now - lastFrameRef.current;
+      lastFrameRef.current = now;
+
       const target = targetPercent;
       const current = currentRef.current;
 
       const diff = target - current;
       if (Math.abs(diff) > 0.1) {
         currentRef.current += diff * speed;
-        isCreepingRef.current = false;
       } else {
-        const elapsedSec = (now - lastUpdateRef.current) / 1000;
-        const creep = elapsedSec * creepRate;
         const maxPercent = Math.min(target + maxCreepAhead, 99);
-        currentRef.current = Math.min(current + creep * 0.016, maxPercent);
-        isCreepingRef.current = true;
+        currentRef.current = Math.min(current + creepRate * (deltaMs / 1000), maxPercent);
       }
 
       setDisplayPercent(Math.min(Math.round(currentRef.current * 10) / 10, 100));
@@ -73,6 +66,5 @@ export function useSmoothProgress(options: SmoothProgressOptions): SmoothProgres
 
   return {
     displayPercent,
-    isCreeping: isCreepingRef.current,
   };
 }

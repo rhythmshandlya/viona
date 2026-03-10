@@ -263,6 +263,7 @@ async function subscribeJobProgress(
     },
     signal: ctx.signal,
     jobType: options?.jobType,
+    initialPercent: options?.initialPercent,
   });
 }
 

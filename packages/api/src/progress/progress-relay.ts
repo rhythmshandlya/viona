@@ -7,6 +7,7 @@ interface ProgressRelayConfig {
   signal?: AbortSignal;
   timeoutMs?: number;
   jobType?: string;
+  initialPercent?: number;
 }
 
 interface RelayResult {
@@ -26,7 +27,7 @@ export function createProgressRelay(config: ProgressRelayConfig): Promise<RelayR
     jobType,
   } = config;
 
-  let highWaterMark = 0;
+  let highWaterMark = config.initialPercent ?? 0;
 
   return new Promise<RelayResult>((resolve) => {
     let resolved = false;

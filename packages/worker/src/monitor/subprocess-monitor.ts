@@ -18,7 +18,7 @@ import { logger } from '../logger.js';
  */
 export class SubprocessMonitor {
   private readonly config: SubprocessMonitorConfig;
-  private processWatcher: ProcessWatcher;
+  private processWatcher: ProcessWatcher | null = null;
   private heartbeatTracker: HeartbeatTracker;
   private fileObserver: FileObserver;
   private retriesUsed = 0;
@@ -28,25 +28,32 @@ export class SubprocessMonitor {
   constructor(config: SubprocessMonitorConfig) {
     this.config = config;
 
-    // Layer 1: Process Health
-    this.processWatcher = new ProcessWatcher({
-      healthCheckIntervalMs: config.healthCheckIntervalSec * 1000,
-      onExit: () => {}, // Set per-run
-      onHealthCheck: () => this.onHealthCheck(),
-    });
+    // Layer 1: ProcessWatcher is created per-run in runOnce() — not here
 
     // Layer 2: Heartbeat
     this.heartbeatTracker = new HeartbeatTracker({
       timeoutMs: config.heartbeatTimeoutSec * 1000,
-      onHeartbeat: (event) => this.onHeartbeat(event),
-      onHung: () => this.onHung(),
+      onHeartbeat: (event) => {
+        this.onHeartbeat(event).catch((err) => {
+          logger.warn({ err, jobId: config.jobId }, 'onHeartbeat callback error');
+        });
+      },
+      onHung: () => {
+        this.onHung().catch((err) => {
+          logger.warn({ err, jobId: config.jobId }, 'onHung callback error');
+        });
+      },
     });
 
     // Layer 3: File Observer
     this.fileObserver = new FileObserver({
       workDir: config.workDir,
       debounceMs: 200,
-      onChange: (events) => this.onFileChange(events),
+      onChange: (events) => {
+        this.onFileChange(events).catch((err) => {
+          logger.warn({ err, jobId: config.jobId }, 'onFileChange callback error');
+        });
+      },
     });
   }
 
@@ -77,6 +84,9 @@ export class SubprocessMonitor {
 
         this.currentProcess = proc;
         this.heartbeatTracker.reset();
+
+        // Detach previous watcher before creating a new one
+        this.processWatcher?.detach();
 
         // Wire Layer 1
         this.processWatcher = new ProcessWatcher({
@@ -121,7 +131,7 @@ export class SubprocessMonitor {
         // Abort signal support
         if (this.config.signal) {
           const onAbort = () => {
-            this.processWatcher.kill('User cancelled');
+            this.processWatcher?.kill('User cancelled');
           };
           this.config.signal.addEventListener('abort', onAbort, { once: true });
           proc.on('exit', () => {
@@ -184,7 +194,7 @@ export class SubprocessMonitor {
 
     } finally {
       this.fileObserver.stop();
-      this.processWatcher.detach();
+      this.processWatcher?.detach();
     }
   }
 
@@ -208,7 +218,7 @@ export class SubprocessMonitor {
       type: 'health',
       detail: `No heartbeat for ${this.config.heartbeatTimeoutSec}s — process appears hung`,
     });
-    await this.processWatcher.kill('heartbeat timeout');
+    await this.processWatcher?.kill('heartbeat timeout');
   }
 
   /** Layer 3: file changes detected */
