@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
@@ -564,11 +565,13 @@ export function Editor({ projectId }: EditorProps) {
               transition={{ duration: 0.15, ease: 'easeOut' }}
               className="flex-shrink-0 overflow-hidden"
             >
-              <AIAssistantPanel
-                projectId={project.id}
-                onEditComplete={() => reloadVisuals(project.id)}
-                className="w-[488px]"
-              />
+              <ErrorBoundary name="AI Assistant">
+                <AIAssistantPanel
+                  projectId={project.id}
+                  onEditComplete={() => reloadVisuals(project.id)}
+                  className="w-[488px]"
+                />
+              </ErrorBoundary>
             </motion.div>
           )}
           {leftSidebarOpen && leftSidebarTab !== 'agent' && (
@@ -610,7 +613,9 @@ export function Editor({ projectId }: EditorProps) {
                     </div>
                   )}
                   {leftSidebarTab === 'style' && (
-                    <StylePanel />
+                    <ErrorBoundary name="Style Panel">
+                      <StylePanel />
+                    </ErrorBoundary>
                   )}
                   {leftSidebarTab === 'layout' && (
                     <div className="px-4 pb-4">
@@ -659,7 +664,9 @@ export function Editor({ projectId }: EditorProps) {
             </div>
 
             {/* Scene */}
-            <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
+            <ErrorBoundary name="Scene">
+              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
+            </ErrorBoundary>
           </div>
 
           {/* Transport Controls */}
@@ -694,7 +701,9 @@ export function Editor({ projectId }: EditorProps) {
 
           {/* Timeline */}
           <div style={{ height: timelineHeight }} className="flex-shrink-0 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
-            <Timeline className="h-full" />
+            <ErrorBoundary name="Timeline">
+              <Timeline className="h-full" />
+            </ErrorBoundary>
           </div>
         </div>
 

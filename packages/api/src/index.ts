@@ -11,6 +11,7 @@ import { pipeline } from 'stream/promises';
 import { execSync } from 'child_process';
 import { sql } from 'drizzle-orm';
 import { config } from './config.js';
+import { logger } from './logger.js';
 import { runMigrations } from './db/migrate.js';
 import { ensureBuckets, getObjectStream, objectExists, listObjects } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
@@ -23,12 +24,20 @@ import { authMiddleware } from './middleware/auth.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
+/** Reject path segments that escape the intended directory (e.g. `../`, `..\\`, null bytes) */
+function sanitizeFilePath(raw: string): string | null {
+  if (raw.includes('\0')) return null;
+  const normalized = raw.replace(/\\/g, '/');
+  if (normalized.includes('..') || normalized.startsWith('/')) return null;
+  return normalized;
+}
+
 async function main() {
   // Run database migrations before starting the server
   try {
     await runMigrations();
   } catch (err) {
-    console.error('Migration failed:', err);
+    logger.error({ err }, 'Migration failed');
     process.exit(1);
   }
 
@@ -88,8 +97,12 @@ async function main() {
   // In development: no auth, serves from local bundles dir (for DB rows with /api/bundles/ URLs)
   const bundlePreHandlers = isProduction ? [authMiddleware] : [];
   fastify.get('/api/bundles/:compositionId/*', { preHandler: bundlePreHandlers }, async (request, reply) => {
-    const { compositionId } = request.params as { compositionId: string };
-    const filePath = (request.params as { '*': string })['*'] || 'index.html';
+    const { compositionId: rawId } = request.params as { compositionId: string };
+    const compositionId = sanitizeFilePath(rawId);
+    if (!compositionId) return reply.code(400).send({ error: 'Invalid composition ID' });
+    const rawPath = (request.params as { '*': string })['*'] || 'index.html';
+    const filePath = sanitizeFilePath(rawPath);
+    if (!filePath) return reply.code(400).send({ error: 'Invalid file path' });
 
     // In development, serve from local filesystem first
     if (!isProduction) {
@@ -148,8 +161,12 @@ async function main() {
   // Route: /api/sources/:compositionId/*
   // These are the source project files (index.tsx, metadata.json, etc.) for AI context restoration
   fastify.get('/api/sources/:compositionId/*', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const { compositionId } = request.params as { compositionId: string };
-    const filePath = (request.params as { '*': string })['*'] || 'index.tsx';
+    const { compositionId: rawId } = request.params as { compositionId: string };
+    const compositionId = sanitizeFilePath(rawId);
+    if (!compositionId) return reply.code(400).send({ error: 'Invalid composition ID' });
+    const rawPath = (request.params as { '*': string })['*'] || 'index.tsx';
+    const filePath = sanitizeFilePath(rawPath);
+    if (!filePath) return reply.code(400).send({ error: 'Invalid file path' });
 
     // Construct S3 key: outputs/sources/{compositionId}/{filePath}
     const s3Key = `sources/${compositionId}/${filePath}`;
@@ -187,7 +204,9 @@ async function main() {
 
   // List all source files for a composition (for restoring AI context)
   fastify.get('/api/sources/:compositionId', { preHandler: [authMiddleware] }, async (request, reply) => {
-    const { compositionId } = request.params as { compositionId: string };
+    const { compositionId: rawId } = request.params as { compositionId: string };
+    const compositionId = sanitizeFilePath(rawId);
+    if (!compositionId) return reply.code(400).send({ error: 'Invalid composition ID' });
 
     try {
       // List all files in the source directory

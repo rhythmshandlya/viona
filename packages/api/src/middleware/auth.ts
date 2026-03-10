@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify';
 import { eq } from 'drizzle-orm';
 import { validateSession, validateSessionJwt, StytchSession } from '../services/stytch.js';
 import { db, users, User } from '../db/index.js';
+import { logger } from '../logger.js';
 
 // Extend FastifyRequest to include user
 declare module 'fastify' {
@@ -142,6 +143,6 @@ export async function optionalAuthMiddleware(
     request.stytchSession = session;
   } catch (error) {
     // Failed to get/create user, continue without
-    console.error('Failed to get/create user:', error);
+    logger.warn({ err: error }, 'Failed to get/create user');
   }
 }

@@ -5,18 +5,9 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { getSessionToken } from '@/lib/auth';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-
-function getSessionToken(): string | null {
-  if (typeof document === 'undefined') return null;
-  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-    const [key, value] = cookie.trim().split('=');
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
-  return cookies['stytch_session_jwt'] || cookies['stytch_session_token'] || null;
-}
 
 interface JobProgress {
   jobId: string;

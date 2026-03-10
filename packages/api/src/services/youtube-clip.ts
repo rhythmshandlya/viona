@@ -6,6 +6,7 @@ import { mkdir, unlink, stat } from 'fs/promises';
 import { join, resolve } from 'path';
 import { tmpdir } from 'os';
 import { uploadStream } from './minio.js';
+import { logger } from '../logger.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -172,7 +173,7 @@ class YouTubeClipService {
     // If we got 2 URLs, yt-dlp returned separate video+audio (DASH)
     // This means the combined format wasn't available - fall back to lower quality
     if (urls.length > 1) {
-      console.warn('[YouTubeClip] Got separate streams, retrying with progressive format only');
+      logger.warn('Got separate streams, retrying with progressive format only');
       const { stdout: fallbackStdout } = await execFileAsync('yt-dlp', [
         ...YTDLP_BASE_ARGS, '-g', '-f', '18/best[acodec!=none]', url
       ], {
@@ -283,8 +284,8 @@ class YouTubeClipService {
       url,
     ];
 
-    console.log(`[YouTubeClip] Extracting clip: ${startSeconds}s - ${endSeconds}s`);
-    console.log(`[YouTubeClip] Args: ${args.join(' ')}`);
+    logger.info({ startSeconds, endSeconds }, 'Extracting YouTube clip');
+    logger.debug({ args: args.join(' ') }, 'yt-dlp args');
 
     await execFileAsync('yt-dlp', args, {
       maxBuffer: 50 * 1024 * 1024,
@@ -307,7 +308,7 @@ class YouTubeClipService {
       });
     } catch {
       // Thumbnail extraction failed, continue without
-      console.warn('[YouTubeClip] Thumbnail extraction failed, using default');
+      logger.warn('Thumbnail extraction failed, using default');
     }
 
     onProgress?.(80);

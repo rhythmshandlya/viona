@@ -7,6 +7,7 @@ import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObject
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel, segmentationQueue } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
+import { logger } from '../logger.js';
 
 // Validation schemas
 const createProjectSchema = z.object({
@@ -1472,7 +1473,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         }
       } catch (err) {
         // Silently fail - elements just won't be available
-        console.warn('Could not fetch scenes.json from source:', err);
+        logger.warn({ err }, 'Could not fetch scenes.json from source');
       }
     }
 
@@ -1580,7 +1581,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         };
       }
     } catch (err) {
-      console.warn('Could not fetch assets.json from S3:', err);
+      logger.warn({ err }, 'Could not fetch assets.json from S3');
     }
 
     // Fallback: Try local workspace (for development)
@@ -1597,7 +1598,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
           const workspacePath = path.join(process.cwd(), '..', 'worker', 'workspace', 'src', variant, 'assets.json');
           const localContent = await fs.readFile(workspacePath, 'utf-8');
           const assetsData = JSON.parse(localContent);
-          console.log('Loaded assets from local workspace:', workspacePath);
+          logger.info({ workspacePath }, 'Loaded assets from local workspace');
           return {
             assets: assetsData.assets || [],
             compositionId: visual.compositionId,

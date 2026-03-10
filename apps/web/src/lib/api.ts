@@ -1,20 +1,7 @@
 import type { RenderOptions } from '@viona/shared';
+import { getSessionToken } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
-// Helper to get session token from cookies
-function getSessionToken(): string | null {
-  if (typeof document === 'undefined') return null;
-
-  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-    const [key, value] = cookie.trim().split('=');
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
-
-  // Prefer JWT for faster validation
-  return cookies['stytch_session_jwt'] || cookies['stytch_session_token'] || null;
-}
 
 export interface CreateProjectResponse {
   projectId: string;
@@ -281,11 +268,25 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      credentials: 'include', // Include cookies
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include', // Include cookies
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new Error('Request timed out after 30 seconds');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));

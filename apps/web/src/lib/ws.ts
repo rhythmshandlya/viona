@@ -1,18 +1,6 @@
+import { getSessionToken } from './auth';
+
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-
-// Helper to get session token from cookies
-function getSessionToken(): string | null {
-  if (typeof document === 'undefined') return null;
-
-  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-    const [key, value] = cookie.trim().split('=');
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
-
-  // Prefer JWT for faster validation
-  return cookies['stytch_session_jwt'] || cookies['stytch_session_token'] || null;
-}
 
 export type WSMessageType =
   | 'connected'

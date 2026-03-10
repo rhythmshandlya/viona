@@ -1,5 +1,6 @@
 import { Client } from 'minio';
 import { config } from '../config.js';
+import { logger } from '../logger.js';
 
 // Public endpoint for presigned URLs (browsers need public access)
 const publicEndpoint = process.env.BUCKET_PUBLIC_ENDPOINT || process.env.RAILWAY_SERVICE_STORAGE_URL;
@@ -54,7 +55,7 @@ export async function ensureBuckets() {
   const exists = await minioClient.bucketExists(BUCKET);
   if (!exists) {
     await minioClient.makeBucket(BUCKET, config.storage.region);
-    console.log(`Created bucket: ${BUCKET}`);
+    logger.info({ bucket: BUCKET }, 'Created bucket');
   }
 }
 

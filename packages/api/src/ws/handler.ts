@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { redisSub, CHANNELS } from '../services/redis.js';
 import { validateSession, validateSessionJwt } from '../services/stytch.js';
 import { db, users, projects } from '../db/index.js';
+import { logger } from '../logger.js';
 
 interface WSConnection {
   socket: WebSocket;
@@ -57,7 +58,7 @@ export async function setupWebSocket(fastify: FastifyInstance) {
         }
       }
     } catch (err) {
-      console.error('Error processing Redis message:', err);
+      logger.error({ err }, 'Error processing Redis message');
     }
   });
 
@@ -126,7 +127,7 @@ export async function setupWebSocket(fastify: FastifyInstance) {
     };
     connections.set(socket, conn);
 
-    console.log(`WebSocket connected for project: ${projectId}, user: ${user.id}`);
+    logger.info({ projectId, userId: user.id }, 'WebSocket connected');
 
     // Handle incoming messages
     socket.on('message', (rawMessage: Buffer) => {
@@ -142,18 +143,18 @@ export async function setupWebSocket(fastify: FastifyInstance) {
           conn.jobIds.delete(message.jobId);
         }
       } catch (err) {
-        console.error('Error parsing WebSocket message:', err);
+        logger.error({ err }, 'Error parsing WebSocket message');
       }
     });
 
     // Handle disconnection
     socket.on('close', () => {
       connections.delete(socket);
-      console.log(`WebSocket disconnected for project: ${projectId}`);
+      logger.info({ projectId }, 'WebSocket disconnected');
     });
 
     socket.on('error', (err: Error) => {
-      console.error('WebSocket error:', err);
+      logger.error({ err }, 'WebSocket error');
       connections.delete(socket);
     });
 
