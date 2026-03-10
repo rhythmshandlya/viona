@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,37 @@ from sdk_config import (
     ClaudeAgentOptions,
     HookMatcher,
 )
+
+
+# =============================================================================
+# Heartbeat Emitter
+# =============================================================================
+
+
+class HeartbeatEmitter:
+    """Background thread heartbeat — keeps beating even if main thread hangs on API call."""
+
+    def __init__(self, interval_sec: int = 10):
+        self.phase = "starting"
+        self.detail = ""
+        self._interval = interval_sec
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, daemon=True)
+        self._thread.start()
+
+    def _run(self):
+        while not self._stop.is_set():
+            ts = int(time.time() * 1000)
+            print(f"HEARTBEAT:{ts}:{self.phase}:{self.detail}", flush=True)
+            self._stop.wait(self._interval)
+
+    def update(self, phase: str, detail: str = ""):
+        self.phase = phase
+        self.detail = detail
+
+    def stop(self):
+        self._stop.set()
+        self._thread.join(timeout=2)
 
 
 # =============================================================================
@@ -2464,6 +2496,7 @@ export default MainComposition;
         duration_frames: int,
         fps: int,
         style_preset: str = "studio-dark",
+        skip_scenes: set[int] | None = None,
     ) -> dict[str, Any]:
         """
         Phase 2 (Parallel): Implement scenes via SDK subagents.
@@ -2531,6 +2564,11 @@ export default MainComposition;
                             existing_scenes.add(scene_num)
                     except (ValueError, OSError):
                         pass
+
+        # Merge CLI --skip-scenes into existing checkpoint scenes
+        if skip_scenes:
+            print(f"[ClaudeGenerator] CLI --skip-scenes: treating scenes {sorted(skip_scenes)} as already done")
+            existing_scenes |= skip_scenes
 
         setup_exists = constants_path.exists() and constants_path.stat().st_size > 50
         all_scene_nums = set(range(1, total_scenes + 1))
@@ -3391,8 +3429,21 @@ async def main():
                         help="JSON array of safe placement zones from head tracking")
     parser.add_argument("--phase", choices=["director", "animator"], default=None,
                         help="Run only a specific phase (director or animator). Default: all.")
+    parser.add_argument("--skip-scenes", type=str, default=None,
+                        help="Comma-separated scene numbers to skip (for retry from checkpoint)")
 
     args = parser.parse_args()
+
+    heartbeat = HeartbeatEmitter(interval_sec=10)
+
+    try:
+        return await _main_inner(args, heartbeat)
+    finally:
+        heartbeat.stop()
+
+
+async def _main_inner(args, heartbeat: HeartbeatEmitter):
+    """Inner main logic, separated so heartbeat.stop() is guaranteed in finally."""
 
     # Load transcript
     transcript = args.transcript
@@ -3447,6 +3498,7 @@ async def main():
         else:
             formatted_transcript = f"## TRANSCRIPT\n\n{transcript}"
 
+        heartbeat.update('plan', 'Director analyzing transcript')
         emit_progress(18, "Director planning scenes...", {"phase": "plan", "phaseName": "Planning scenes"})
 
         import json as json_mod
@@ -3526,12 +3578,20 @@ async def main():
         # Resolve selected studio templates from registry
         generator._resolve_studio_templates(args.style_preset)
 
+        heartbeat.update('animate', 'Animator implementing scenes')
         emit_progress(38, "Animator implementing scenes...", {"phase": "animate", "phaseName": "Animating scenes"})
+
+        # Parse --skip-scenes into a set of scene numbers
+        cli_skip_scenes: set[int] | None = None
+        if args.skip_scenes:
+            cli_skip_scenes = {int(s.strip()) for s in args.skip_scenes.split(",") if s.strip().isdigit()}
+            print(f"[ClaudeGenerator] CLI --skip-scenes: {sorted(cli_skip_scenes)}")
 
         animator_result = await generator._run_animator_sequential(
             width=args.width, height=args.height,
             duration_frames=args.duration, fps=args.fps,
             style_preset=args.style_preset,
+            skip_scenes=cli_skip_scenes,
         )
 
         if not animator_result["success"]:
@@ -3542,6 +3602,7 @@ async def main():
         emit_progress(55, "All scenes implemented", {"phase": "animate", "phaseName": "Animating scenes"})
 
         # Verify TypeScript with self-healing
+        heartbeat.update('verify', 'Type-checking scenes')
         emit_progress(58, "Verifying TypeScript...", {"phase": "self_heal", "phaseName": "Fixing errors"})
         print("[ClaudeGenerator] Verifying TypeScript...")
         ts_success, ts_errors = await generator._verify_typescript()
@@ -3618,6 +3679,7 @@ async def main():
         await generator._fix_composition_id(index_tsx, composition_id_with_dashes)
 
         # Bundle
+        heartbeat.update('bundle', 'Remotion bundling')
         emit_progress(65, "Bundling Remotion project...", {"phase": "bundle", "phaseName": "Bundling for preview"})
         print("[ClaudeGenerator] Bundling project...")
         bundle_path = await generator._run_bundle(
@@ -3632,6 +3694,7 @@ async def main():
         print("[ClaudeGenerator] Compiling CJS...")
         await generator._compile_cjs(bundle_path)
 
+        heartbeat.update('upload', 'Finalizing')
         bundle_id = args.project_id.replace("_", "-")
         result = {
             "success": True,

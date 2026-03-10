@@ -236,6 +236,7 @@ export interface ProjectMediaAsset {
   id: string;
   filename: string;
   label?: string | null;
+  description?: string | null;
   mimeType: string;
   fileSize: number | null;
   url: string;
@@ -477,6 +478,10 @@ class ApiClient {
   // Jobs
   async getJob(jobId: string): Promise<Job> {
     return this.request(`/api/jobs/${jobId}`);
+  }
+
+  async getJobActivity(jobId: string): Promise<{ activity: any[]; progress: any }> {
+    return this.request(`/api/jobs/${jobId}/activity`);
   }
 
   async cancelJob(jobId: string): Promise<{ success: boolean }> {
@@ -732,6 +737,94 @@ class ApiClient {
       xhr.send(formData);
     });
   }
+  async splitVisualScene(projectId: string, data: {
+    compositionId: string;
+    sourceSceneId?: number;
+    splitAtMs: number;
+    leftItemId: string;
+    rightItemId: string;
+  }): Promise<{ jobId: string }> {
+    return this.request<{ jobId: string }>(`/api/projects/${projectId}/split-visual`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const api = new ApiClient(API_URL);
+
+// ============================================
+// YouTube Clip API
+// ============================================
+
+export interface YouTubeStreamInfo {
+  tokenId: string;
+  title: string;
+  channel: string;
+  duration: number;
+  thumbnail: string;
+}
+
+export interface YouTubeClipJob {
+  clipId?: string;
+  clipUrl?: string;
+  sourceTitle?: string;
+  duration?: number;
+  thumbnail?: string;
+  status: string;
+  progress: number;
+}
+
+export const youtubeApi = {
+  async getStreamInfo(url: string): Promise<YouTubeStreamInfo> {
+    const res = await fetch(`${API_URL}/youtube-clips/stream-info?url=${encodeURIComponent(url)}`, {
+      headers: { Authorization: `Bearer ${getSessionToken()}` },
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Failed to get stream info');
+    return res.json();
+  },
+
+  getProxyUrl(tokenId: string): string {
+    return `${API_URL}/youtube-clips/proxy/${tokenId}`;
+  },
+
+  getClipUrl(clipPath: string): string {
+    if (clipPath.startsWith('http')) return clipPath;
+    return `${API_URL}${clipPath}`;
+  },
+
+  async extractClip(url: string, startSeconds: number, endSeconds: number): Promise<{ jobId: string }> {
+    const res = await fetch(`${API_URL}/youtube-clips/extract`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getSessionToken()}`,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ url, startSeconds, endSeconds }),
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Failed to start extraction');
+    return res.json();
+  },
+
+  async pollUntilComplete(
+    jobId: string,
+    onProgress?: (progress: number) => void,
+  ): Promise<YouTubeClipJob> {
+    const maxAttempts = 120;
+    for (let i = 0; i < maxAttempts; i++) {
+      const res = await fetch(`${API_URL}/youtube-clips/jobs/${jobId}`, {
+        headers: { Authorization: `Bearer ${getSessionToken()}` },
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to check job status');
+      const job: YouTubeClipJob = await res.json();
+      onProgress?.(job.progress);
+      if (job.status === 'completed') return job;
+      if (job.status === 'failed') throw new Error('Clip extraction failed');
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    throw new Error('Clip extraction timed out');
+  },
+};

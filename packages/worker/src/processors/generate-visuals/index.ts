@@ -12,7 +12,6 @@ import { mkdir, rm, writeFile, readFile, readdir, copyFile } from 'fs/promises';
 import { join } from 'path';
 import { db, projects, tracks, timelineItems, transcripts, jobs, visuals } from '../../db/index.js';
 import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../../services/redis.js';
-import { startHeartbeatProgress } from '../../utils/heartbeat-progress.js';
 import { config } from '../../config.js';
 import { logger } from '../../logger.js';
 import { getWorkspacePath, createProjectDir } from '../../workspace.js';
@@ -22,7 +21,7 @@ import { getTheme } from '../../prompts/theme-loader.js';
 import type { GenerateVisualsJobData, HeadTrackingFrame, VisualMetadata, JobMetrics } from './types.js';
 import { findPackagesRoot, copyDirRecursive, computeSpeakerGrid, extractAssets, injectUserAssets, prepareVideoAssets } from './validation.js';
 import { uploadBundleToStorage, uploadSourceToStorage } from './storage.js';
-import { runClaudeCodeGenerator } from './subprocess.js';
+import { runMonitoredClaudeGenerator } from './subprocess.js';
 
 // Re-exports
 export type { GenerateVisualsJobData } from './types.js';
@@ -41,9 +40,6 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       logger.error({ jobId, err }, 'Lock extension failed');
     }
   }, 55_000);
-
-  // Declared outside try so catch block can stop it on failure
-  let heartbeat: { stop: () => void; raiseWaterMark: (p: number) => void } | null = null;
 
   try {
     // Update job status
@@ -121,7 +117,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     let directorSafePlacement: string[] = [];
     if (project.headTrackingData) {
       const htData = project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } };
-      const totalMs = (project.durationFrames || 900) / (project.fps || 30) * 1000;
+      const totalMs = project.durationMs || ((900 / (project.fps || 30)) * 1000);
       const fullGrid = computeSpeakerGrid(htData, 0, totalMs);
       directorSafePlacement = fullGrid.safePlacement;
       logger.info({ safePlacement: directorSafePlacement, occupancy: fullGrid.occupancy }, 'Pre-computed speaker grid for Director');
@@ -221,7 +217,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     // This prevents TypeScript import errors and eliminates the self-healing cycle.
     const compositionIdDashed = compositionId.replace(/_/g, '-'); // e.g. proj-abc-def
     const rootTsx = join(workspacePath, 'src', 'Root.tsx');
-    const indexTs = join(workspacePath, 'src', 'index.ts');
+    const indexTsx = join(workspacePath, 'src', 'index.tsx');
     try {
       const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
       await writeFile(rootTsx, `import "./index.css";
@@ -243,27 +239,19 @@ export const RemotionRoot: React.FC = () => {
   );
 };
 `, 'utf-8');
-      await writeFile(indexTs, `import { registerRoot } from "remotion";
-import { Composition } from "remotion";
-import MainComposition from "./${compositionId}";
-
-// Dimensions set by infrastructure (not AI-generated) to prevent dimension swap bugs.
-export const RemotionRoot: React.FC = () => (
-  <Composition
-    id="${compositionIdDashed}"
-    component={MainComposition}
-    durationInFrames={${durationFrames}}
-    fps={${project.fps || 30}}
-    width={${dimensions?.width || 1080}}
-    height={${dimensions?.height || 1920}}
-  />
-);
+      await writeFile(indexTsx, `import { registerRoot } from "remotion";
+import { RemotionRoot } from "./${compositionId}/index";
 
 registerRoot(RemotionRoot);
 `, 'utf-8');
-      logger.info({ compositionId }, 'Updated Root.tsx and index.ts with correct project imports');
+
+      // Remove old .ts if it exists (template ships index.ts, we write index.tsx)
+      const oldIndexTs = join(workspacePath, 'src', 'index.ts');
+      try { await rm(oldIndexTs, { force: true }); } catch { /* may not exist */ }
+
+      logger.info({ compositionId }, 'Updated Root.tsx and index.tsx with correct project imports');
     } catch (e) {
-      logger.warn({ error: e }, 'Failed to update Root.tsx/index.ts — self-heal will fix it');
+      logger.warn({ error: e }, 'Failed to update Root.tsx/index.tsx — self-heal will fix it');
     }
 
     // Write categorized template catalog for Director prompt (no bulk copy — resolution happens after Director)
@@ -281,11 +269,8 @@ registerRoot(RemotionRoot);
 
     await publishJobProgress(jobId, 15, 'Starting Claude Code generator...');
 
-    // Start heartbeat progress to prevent stall detection during long SDK calls.
-    // The exponential decay curve fills gaps between Python PROGRESS: lines (15→68 over ~20 min).
-    // Python's specific checkpoints (19, 35, 55, etc.) override the heartbeat when they fire,
-    // and pollJobProgress's highWaterMark ensures the frontend only sees monotonic increases.
-    heartbeat = startHeartbeatProgress(jobId, 15, 68, 20 * 60 * 1000);
+    // SubprocessMonitor handles progress via 3-layer monitoring (process health,
+    // heartbeat tracking, file observation) — no manual heartbeat needed.
 
     // Calculate duration in frames
     const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
@@ -296,9 +281,9 @@ registerRoot(RemotionRoot);
       .map((w: any) => w.word || w.text || '')
       .join(' ');
 
-    // Run Claude Agent generator (always uses two-phase pipeline)
+    // Run Claude Agent generator with SubprocessMonitor (always uses two-phase pipeline)
     const llmModel = config.claudeAgent.model;
-    const claudeResult = await runClaudeCodeGenerator({
+    const claudeResult = await runMonitoredClaudeGenerator({
       projectId: compositionId,
       jobId,
       transcript: transcriptText,
@@ -314,7 +299,6 @@ registerRoot(RemotionRoot);
       pipWidth: pipEffective.width,
       pipHeight: pipEffective.height,
       safePlacement: directorSafePlacement,
-      onProgress: (percent) => heartbeat?.raiseWaterMark(percent),
     });
 
     // Store metrics in job (no token cost for OAuth)
@@ -336,8 +320,6 @@ registerRoot(RemotionRoot);
       .where(eq(jobs.id, jobId));
 
     logger.info({ projectId, jobMetrics }, 'Job metrics recorded');
-
-    heartbeat?.stop();
 
     // Always upload sources immediately after agent completes — even if bundling fails later.
     // This preserves the AI-generated code so retries can pick up where we left off.
@@ -708,7 +690,6 @@ registerRoot(RemotionRoot);
     logger.info({ projectId, compositionId, model: llmModel }, 'Visual generation complete');
 
   } catch (error) {
-    heartbeat?.stop();
     logger.error({ projectId, err: error }, 'Visual generation failed');
 
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

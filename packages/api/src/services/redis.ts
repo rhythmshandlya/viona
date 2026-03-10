@@ -64,3 +64,41 @@ export async function publishJobError(jobId: string, error: string) {
     JSON.stringify({ jobId, error })
   );
 }
+
+// --- Progress Store Redis helpers ---
+
+/** Get all hash fields (HGETALL) */
+export async function redisHGetAll(key: string): Promise<Record<string, string> | null> {
+  const result = await redis.hgetall(key);
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+/** Read full list (LRANGE) */
+export async function redisLRange(key: string): Promise<string[]> {
+  return redis.lrange(key, 0, -1);
+}
+
+/**
+ * Subscribe to a Redis channel.
+ * Returns an unsubscribe function.
+ * Uses a dedicated subscriber client per subscription.
+ */
+export function redisSubscribe(
+  channel: string,
+  callback: (message: string) => void,
+): () => void {
+  const sub = new Redis(config.redis.url, { enableReadyCheck: false });
+
+  sub.subscribe(channel).catch((err) => {
+    console.error(`Failed to subscribe to ${channel}:`, err);
+  });
+
+  sub.on('message', (_ch: string, message: string) => {
+    callback(message);
+  });
+
+  return () => {
+    sub.unsubscribe(channel);
+    sub.disconnect();
+  };
+}

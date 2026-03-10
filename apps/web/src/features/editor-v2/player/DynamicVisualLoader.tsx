@@ -19,6 +19,7 @@ interface DynamicVisualLoaderProps {
   compositionId: string;
   className?: string;
   version?: number; // Cache-busting version, change to force reload
+  inputProps?: Record<string, unknown>; // Additional props passed to the loaded composition
 }
 
 // Module cache to avoid re-fetching

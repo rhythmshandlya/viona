@@ -11,6 +11,10 @@ import { publishJobProgress, registerCancelHandler, unregisterCancelHandler } fr
 import { config } from '../../config.js';
 import { logger } from '../../logger.js';
 import { getWorkspacePath } from '../../workspace.js';
+import { SubprocessMonitor } from '../../monitor/subprocess-monitor.js';
+import { progressStore } from '../../progress/progress-store.js';
+import { VisualProgressMapper } from './visual-progress-mapper.js';
+import type { CheckpointState } from '@viona/shared';
 import type { ClaudeCodeOptions, ClaudeCodeResult } from './types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -95,6 +99,143 @@ export function getRunningJobs(): string[] {
   return Array.from(runningProcesses.keys());
 }
 
+/** Temp file paths created for a generator run */
+interface TempFiles {
+  transcriptPath: string;
+  wordsPath: string | null;
+  styleGuidePath: string | null;
+}
+
+/** Write transcript, words, and style guide to temp files */
+async function writeTempFiles(options: ClaudeCodeOptions): Promise<TempFiles> {
+  const { jobId, transcript, words, styleGuide } = options;
+
+  const transcriptPath = join(tmpdir(), `claude-transcript-${jobId}.txt`);
+  await writeFile(transcriptPath, transcript, 'utf-8');
+
+  let wordsPath: string | null = null;
+  if (words && words.length > 0) {
+    wordsPath = join(tmpdir(), `claude-words-${jobId}.json`);
+    await writeFile(wordsPath, JSON.stringify(words), 'utf-8');
+  }
+
+  let styleGuidePath: string | null = null;
+  if (styleGuide && styleGuide.trim()) {
+    styleGuidePath = join(tmpdir(), `claude-styleguide-${jobId}.txt`);
+    await writeFile(styleGuidePath, styleGuide, 'utf-8');
+  }
+
+  return { transcriptPath, wordsPath, styleGuidePath };
+}
+
+/** Clean up temp files */
+async function cleanTempFiles(jobId: string, tempFiles: TempFiles): Promise<void> {
+  for (const path of [tempFiles.transcriptPath, tempFiles.wordsPath, tempFiles.styleGuidePath]) {
+    if (path) {
+      try { await rm(path); } catch (err) {
+        logger.warn({ jobId, path, err }, 'Failed to clean temp file');
+      }
+    }
+  }
+}
+
+/** Build subprocess args for the Python visual generator */
+function buildGeneratorArgs(options: ClaudeCodeOptions, tempFiles: TempFiles): string[] {
+  const { projectId, durationFrames, fps, width, height, stylePreset, layoutMode, pipWidth, pipHeight, safePlacement, planJobId } = options;
+  const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
+  const workspacePath = getWorkspacePath();
+  const bundleOutputDir = config.remotion.bundleOutputDir;
+
+  const args = [
+    agentScript,
+    '--workspace', workspacePath,
+    '--project-id', projectId,
+    '--bundle-output', bundleOutputDir,
+    '--transcript', tempFiles.transcriptPath,
+    '--width', String(width),
+    '--height', String(height),
+    '--duration', String(durationFrames),
+    '--fps', String(fps),
+    '--model', config.claudeAgent.model,
+    '--style-preset', stylePreset,
+    '--layout-mode', layoutMode,
+  ];
+
+  if (tempFiles.wordsPath) {
+    args.push('--words-json', tempFiles.wordsPath);
+  }
+  if (tempFiles.styleGuidePath) {
+    args.push('--style-guide', tempFiles.styleGuidePath);
+  }
+  if (pipWidth && pipHeight) {
+    args.push('--pip-width', String(pipWidth));
+    args.push('--pip-height', String(pipHeight));
+  }
+  if (safePlacement && safePlacement.length > 0) {
+    args.push('--safe-placement', JSON.stringify(safePlacement));
+  }
+  if (planJobId) {
+    args.push('--phase', 'animator');
+  }
+
+  return args;
+}
+
+/**
+ * Parse the final result JSON from stdout.
+ * The Python script outputs: {"success": true, "bundleUrl": ..., "bundlePath": ...}
+ */
+function parseResultFromStdout(stdout: string): any {
+  // Method 1: Look for standalone { on a line (start of JSON object)
+  const lines = stdout.split('\n');
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (line === '{' || line.startsWith('{"')) {
+      let jsonStr = '';
+      let braceCount = 0;
+      for (let j = i; j < lines.length; j++) {
+        jsonStr += lines[j] + '\n';
+        braceCount += (lines[j].match(/\{/g) || []).length;
+        braceCount -= (lines[j].match(/\}/g) || []).length;
+        if (braceCount === 0 && jsonStr.trim().length > 2) {
+          break;
+        }
+      }
+      try {
+        const parsed = JSON.parse(jsonStr.trim());
+        if (parsed.success !== undefined && parsed.bundleUrl) {
+          return parsed;
+        }
+      } catch {
+        // Not valid JSON, continue searching backwards
+      }
+    }
+  }
+
+  // Method 2: Fallback - look for JSON block in the last portion of output
+  const lastJsonStart = stdout.lastIndexOf('{\n  "success"');
+  if (lastJsonStart !== -1) {
+    let braceCount = 0;
+    let endIndex = lastJsonStart;
+    for (let i = lastJsonStart; i < stdout.length; i++) {
+      if (stdout[i] === '{') braceCount++;
+      if (stdout[i] === '}') braceCount--;
+      if (braceCount === 0) {
+        endIndex = i + 1;
+        break;
+      }
+    }
+    const jsonStr = stdout.slice(lastJsonStart, endIndex);
+    try {
+      return JSON.parse(jsonStr);
+    } catch {
+      // Still failed
+    }
+  }
+
+  return null;
+}
+
 /**
  * Run the Claude Code visual generator.
  *
@@ -104,83 +245,26 @@ export function getRunningJobs(): string[] {
 export async function runClaudeCodeGenerator(
   options: ClaudeCodeOptions
 ): Promise<ClaudeCodeResult> {
-  const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId, pipWidth, pipHeight, safePlacement, onProgress } = options;
+  const { projectId, jobId, planJobId, onProgress } = options;
 
   const pythonPath = config.pythonPath;
-  const agentScript = join(__dirname, '..', '..', 'agents', 'claude_visual_generator.py');
-  const workspacePath = getWorkspacePath();
-  const bundleOutputDir = config.remotion.bundleOutputDir;
 
   logger.info({
     projectId,
     jobId,
-    workspacePath,
+    workspacePath: getWorkspacePath(),
     model: config.claudeAgent.model,
   }, 'Starting Claude Agent visual generator...');
 
   const startTime = Date.now();
-
-  // Write transcript to temp file
-  const transcriptPath = join(tmpdir(), `claude-transcript-${jobId}.txt`);
-  await writeFile(transcriptPath, transcript, 'utf-8');
-
-  // Write words JSON if available (for two-phase pipeline)
-  let wordsPath: string | null = null;
-  if (words && words.length > 0) {
-    wordsPath = join(tmpdir(), `claude-words-${jobId}.json`);
-    await writeFile(wordsPath, JSON.stringify(words), 'utf-8');
-  }
-
-  // Write style guide to temp file if provided
-  let styleGuidePath: string | null = null;
-  if (styleGuide && styleGuide.trim()) {
-    styleGuidePath = join(tmpdir(), `claude-styleguide-${jobId}.txt`);
-    await writeFile(styleGuidePath, styleGuide, 'utf-8');
-  }
+  const tempFiles = await writeTempFiles(options);
 
   try {
-    const args = [
-      agentScript,
-      '--workspace', workspacePath,
-      '--project-id', projectId,
-      '--bundle-output', bundleOutputDir,
-      '--transcript', transcriptPath,
-      '--width', String(width),
-      '--height', String(height),
-      '--duration', String(durationFrames),
-      '--fps', String(fps),
-      '--model', config.claudeAgent.model,
-      '--style-preset', stylePreset,
-      '--layout-mode', layoutMode,
-    ];
+    const args = buildGeneratorArgs(options, tempFiles);
 
-    // Add words JSON path if available (required for two-phase pipeline)
-    if (wordsPath) {
-      args.push('--words-json', wordsPath);
-    }
-
-    // Add style guide path if provided
-    if (styleGuidePath) {
-      args.push('--style-guide', styleGuidePath);
-    }
-
-    // Add pip effective dimensions for per-scene dimension-aware generation
-    if (pipWidth && pipHeight) {
-      args.push('--pip-width', String(pipWidth));
-      args.push('--pip-height', String(pipHeight));
-    }
-
-    // Pass speaker safe-placement zones for Director overlay awareness
-    if (safePlacement && safePlacement.length > 0) {
-      args.push('--safe-placement', JSON.stringify(safePlacement));
-    }
-
-    // If planJobId is set, skip Director and run Animator only
     if (planJobId) {
-      args.push('--phase', 'animator');
       logger.info({ projectId, planJobId }, 'Using Animator-only mode (plan provided from plan job)');
     } else {
-      // Two-phase pipeline is always used
       logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
     }
 
@@ -299,64 +383,7 @@ export async function runClaudeCodeGenerator(
     // Parse result from stdout
     let result: any;
     try {
-      // Find JSON object at the end of output - look for the final result JSON
-      // The Python script outputs: {"success": true, "bundleUrl": ..., "bundlePath": ...}
-      // We need to find this specific JSON, not any random {} in logs
-
-      // Method 1: Look for standalone { on a line (start of JSON object)
-      const lines = stdout.split('\n');
-      for (let i = lines.length - 1; i >= 0; i--) {
-        const line = lines[i].trim();
-        // Look for a line that is just "{" or starts with '{"'
-        if (line === '{' || line.startsWith('{"')) {
-          // Collect lines until braces balance
-          let jsonStr = '';
-          let braceCount = 0;
-          for (let j = i; j < lines.length; j++) {
-            jsonStr += lines[j] + '\n';
-            braceCount += (lines[j].match(/\{/g) || []).length;
-            braceCount -= (lines[j].match(/\}/g) || []).length;
-            if (braceCount === 0 && jsonStr.trim().length > 2) {
-              break;
-            }
-          }
-          try {
-            const parsed = JSON.parse(jsonStr.trim());
-            // Verify it's our expected result object
-            if (parsed.success !== undefined && parsed.bundleUrl) {
-              result = parsed;
-              break;
-            }
-          } catch {
-            // Not valid JSON, continue searching backwards
-          }
-        }
-      }
-
-      // Method 2: Fallback - look for JSON block in the last portion of output
-      if (!result) {
-        // Find the last occurrence of '{\n  "success"' pattern
-        const lastJsonStart = stdout.lastIndexOf('{\n  "success"');
-        if (lastJsonStart !== -1) {
-          // Find the matching closing brace
-          let braceCount = 0;
-          let endIndex = lastJsonStart;
-          for (let i = lastJsonStart; i < stdout.length; i++) {
-            if (stdout[i] === '{') braceCount++;
-            if (stdout[i] === '}') braceCount--;
-            if (braceCount === 0) {
-              endIndex = i + 1;
-              break;
-            }
-          }
-          const jsonStr = stdout.slice(lastJsonStart, endIndex);
-          try {
-            result = JSON.parse(jsonStr);
-          } catch {
-            // Still failed
-          }
-        }
-      }
+      result = parseResultFromStdout(stdout);
     } catch (e) {
       logger.error({ projectId, error: e, stdoutTail: stdout.slice(-2000) }, 'Failed to parse Claude generator JSON output');
     }
@@ -388,27 +415,138 @@ export async function runClaudeCodeGenerator(
   } finally {
     runningProcesses.delete(jobId);
     unregisterCancelHandler(jobId);
+    await cleanTempFiles(jobId, tempFiles);
+  }
+}
 
+/**
+ * Run the Claude Code visual generator with SubprocessMonitor.
+ *
+ * Replaces the heartbeat-progress system with 3-layer monitoring:
+ * Layer 1 (ProcessWatcher) — liveness checks + exit detection
+ * Layer 2 (HeartbeatTracker) — parse heartbeats, detect hung process
+ * Layer 3 (FileObserver) — checkpoint progress from disk artifacts
+ */
+export async function runMonitoredClaudeGenerator(
+  options: ClaudeCodeOptions
+): Promise<ClaudeCodeResult> {
+  const { projectId, jobId, planJobId } = options;
+
+  const pythonPath = config.pythonPath;
+  const workspacePath = getWorkspacePath();
+  const projectDir = join(workspacePath, 'src', projectId);
+
+  logger.info({
+    projectId,
+    jobId,
+    workspacePath,
+    model: config.claudeAgent.model,
+  }, 'Starting monitored Claude Agent visual generator...');
+
+  const startTime = Date.now();
+  const tempFiles = await writeTempFiles(options);
+
+  try {
+    const baseArgs = buildGeneratorArgs(options, tempFiles);
+
+    if (planJobId) {
+      logger.info({ projectId, planJobId }, 'Using Animator-only mode (plan provided from plan job)');
+    } else {
+      logger.info({ projectId }, 'Using two-phase pipeline (Director + Animator)');
+    }
+
+    const abortController = new AbortController();
+
+    const monitor = new SubprocessMonitor({
+      jobId,
+      workDir: projectDir,
+      progressStore,
+      heartbeatTimeoutSec: 60,
+      healthCheckIntervalSec: 5,
+      maxRetries: 1,
+      buildRetryArgs: (checkpoint: CheckpointState) => {
+        const retryArgs = [...baseArgs];
+        if (checkpoint.phases.plan.status === 'complete') {
+          // Plan already finished — only retry animator
+          // Remove any existing --phase flag from base args
+          const phaseIdx = retryArgs.indexOf('--phase');
+          if (phaseIdx === -1) {
+            retryArgs.push('--phase', 'animator');
+          }
+        }
+        if (checkpoint.phases.animate.scenesComplete.length > 0) {
+          retryArgs.push('--skip-scenes', checkpoint.phases.animate.scenesComplete.join(','));
+        }
+        return retryArgs;
+      },
+      progressMapper: new VisualProgressMapper(),
+      signal: abortController.signal,
+    });
+
+    // Register cancel handler using existing pattern
+    registerCancelHandler(jobId, () => {
+      logger.info({ jobId, projectId }, 'Cancelling monitored Claude generator via Redis');
+      abortController.abort();
+    });
+
+    const result = await monitor.run(pythonPath, baseArgs, {
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1',
+      },
+    });
+
+    unregisterCancelHandler(jobId);
+
+    const durationMs = Date.now() - startTime;
+
+    if (result.exitCode !== 0) {
+      const errorOutput = result.stderr || result.stdout.slice(-1000);
+      logger.error({
+        projectId,
+        exitCode: result.exitCode,
+        retriesUsed: result.retriesUsed,
+        stderrTail: result.stderr.slice(-500),
+      }, 'Monitored Claude generator failed');
+      throw new Error(`Claude Code generator exited with code ${result.exitCode} (retries: ${result.retriesUsed}): ${errorOutput}`);
+    }
+
+    // Parse result from stdout
+    let parsed: any;
     try {
-      await rm(transcriptPath);
-    } catch (err) {
-      logger.warn({ jobId, path: transcriptPath, err }, 'Failed to clean temp file');
+      parsed = parseResultFromStdout(result.stdout);
+    } catch (e) {
+      logger.error({ projectId, error: e, stdoutTail: result.stdout.slice(-2000) }, 'Failed to parse Claude generator JSON output');
     }
 
-    if (wordsPath) {
-      try {
-        await rm(wordsPath);
-      } catch (err) {
-        logger.warn({ jobId, path: wordsPath, err }, 'Failed to clean temp file');
-      }
+    if (!parsed || !parsed.success) {
+      logger.error({
+        projectId,
+        parsed,
+        stdoutLength: result.stdout.length,
+        stdoutTail: result.stdout.slice(-1000),
+      }, 'Monitored Claude Code generator did not produce valid output');
+      throw new Error('Claude Code generator did not produce valid output');
     }
 
-    if (styleGuidePath) {
-      try {
-        await rm(styleGuidePath);
-      } catch (err) {
-        logger.warn({ jobId, path: styleGuidePath, err }, 'Failed to clean temp file');
-      }
-    }
+    logger.info({
+      projectId,
+      durationMs,
+      retriesUsed: result.retriesUsed,
+      bundleUrl: parsed.bundleUrl,
+    }, 'Monitored Claude Code generator completed');
+
+    return {
+      bundleUrl: parsed.bundleUrl,
+      bundlePath: parsed.bundlePath,
+      filesWritten: parsed.filesWritten || 2,
+      durationMs,
+      status: 'completed',
+    };
+
+  } finally {
+    unregisterCancelHandler(jobId);
+    await cleanTempFiles(jobId, tempFiles);
   }
 }

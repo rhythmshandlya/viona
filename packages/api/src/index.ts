@@ -19,6 +19,7 @@ import { userRoutes } from './routes/users.js';
 import { agentRoutes } from './agent/agent-router.js';
 import { waitlistRoutes } from './routes/waitlist.js';
 import { youtubeClipRoutes } from './routes/youtube-clips.js';
+import { jobRoutes } from './routes/jobs.js';
 import { setupWebSocket } from './ws/handler.js';
 import { authMiddleware } from './middleware/auth.js';
 
@@ -308,6 +309,7 @@ async function main() {
   await fastify.register(agentRoutes, { prefix: '/api' });
   await fastify.register(waitlistRoutes, { prefix: '/api' });
   await fastify.register(youtubeClipRoutes, { prefix: '/api' });
+  await fastify.register(jobRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);

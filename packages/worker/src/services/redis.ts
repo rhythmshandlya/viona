@@ -117,3 +117,32 @@ export async function publishJobError(
     JSON.stringify({ jobId, error, ...extras })
   );
 }
+
+// --- Progress Store Redis helpers ---
+
+/** Set a hash field set (HSET) */
+export async function redisHSet(key: string, data: Record<string, string>): Promise<void> {
+  await redis.hset(key, data);
+}
+
+/** Get all hash fields (HGETALL) */
+export async function redisHGetAll(key: string): Promise<Record<string, string> | null> {
+  const result = await redis.hgetall(key);
+  return Object.keys(result).length > 0 ? result : null;
+}
+
+/** Append to a capped list (RPUSH + LTRIM) */
+export async function redisRPush(key: string, value: string, maxLen: number = 100): Promise<void> {
+  await redis.rpush(key, value);
+  await redis.ltrim(key, -maxLen, -1);
+}
+
+/** Read full list (LRANGE) */
+export async function redisLRange(key: string): Promise<string[]> {
+  return redis.lrange(key, 0, -1);
+}
+
+/** Set TTL on a key */
+export async function redisExpire(key: string, seconds: number): Promise<void> {
+  await redis.expire(key, seconds);
+}

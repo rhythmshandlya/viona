@@ -279,6 +279,7 @@ export function Editor({ projectId }: EditorProps) {
       startMs: 0,
       endMs: clip.duration * 1000,
       data: {
+        visualId: `youtube-clip-${clip.clipId}`,
         compositionId: `youtube-clip-${clip.clipId}`,
         bundleUrl: '',
         type: 'youtube-clip',

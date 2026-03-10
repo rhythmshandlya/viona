@@ -42,6 +42,8 @@ type MessageHandler = {
   onProgress?: (data: JobProgress) => void;
   onComplete?: (data: JobComplete) => void;
   onError?: (data: JobError) => void;
+  onHealth?: (data: any) => void;
+  onActivity?: (data: any) => void;
 };
 
 const MAX_RECONNECT_DELAY = 30_000;
@@ -108,6 +110,12 @@ export function useJobWebSocket(
               break;
             case 'job:error':
               handlersRef.current.onError?.(payload);
+              break;
+            case 'job:health':
+              handlersRef.current.onHealth?.(payload);
+              break;
+            case 'job:activity':
+              handlersRef.current.onActivity?.(payload);
               break;
           }
         } catch (err) {

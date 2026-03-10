@@ -4,13 +4,7 @@ import { validateSession, validateSessionJwt, StytchSession } from '../services/
 import { db, users, User } from '../db/index.js';
 import { logger } from '../logger.js';
 
-// Extend FastifyRequest to include user
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: User;
-    stytchSession?: StytchSession;
-  }
-}
+// FastifyRequest augmentation is in src/fastify.d.ts
 
 /**
  * Extract session token from request
