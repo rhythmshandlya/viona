@@ -286,10 +286,35 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
 
   // Add video items: prefer DB items (from splits), fall back to synthetic full-duration item
   const dbVideoItems = apiProject.items?.filter((i: { type: string }) => i.type === 'video') || [];
+  console.log('[convertApiProject] Video loading debug:', {
+    isAudioProject,
+    hasVideoKey: !!project.videoKey,
+    hasVideoUrl: !!project.videoUrl,
+    durationMs: project.durationMs,
+    dbVideoItemCount: dbVideoItems.length,
+    dbVideoItems: dbVideoItems.map((i: any) => ({
+      id: i.id,
+      startMs: i.startMs,
+      endMs: i.endMs,
+      trimStartMs: (i.data as any)?.trimStartMs,
+      trimEndMs: (i.data as any)?.trimEndMs,
+    })),
+  });
   if (!isAudioProject && project.videoKey && project.videoUrl) {
     const videoTrack = tracks.find((t) => t.type === 'video');
     if (videoTrack) {
-      if (dbVideoItems.length > 0) {
+      // Fix stale DB video items: if all video items have zero duration but the
+      // project now has a valid durationMs, discard the stale DB items and fall
+      // through to the synthetic path.  This happens when the editor saved before
+      // the transcription worker had set durationMs.
+      const allZeroDuration = dbVideoItems.length > 0 &&
+        dbVideoItems.every((i: any) => i.endMs <= i.startMs);
+      const useDbItems = dbVideoItems.length > 0 && !(allZeroDuration && project.durationMs > 0);
+      if (allZeroDuration && project.durationMs > 0) {
+        console.warn('[convertApiProject] Discarding stale zero-duration DB video items, using synthetic item with durationMs:', project.durationMs);
+      }
+
+      if (useDbItems) {
         // Use saved video items (split state persisted)
         for (const item of dbVideoItems) {
           const raw = item.data as Record<string, unknown>;
@@ -310,12 +335,23 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
               previewUrl: project.videoUrl,
             } as VideoItemData,
           };
-          if (item.startMs != null && item.endMs != null) {
+          // Only set trim if explicit trim data was saved — avoid defaulting to
+          // timeline position which can produce {0,0} if item was saved before
+          // durationMs was available
+          if (raw.trimStartMs != null || raw.trimEndMs != null) {
             videoItem.trim = {
               startMs: (raw.trimStartMs as number) ?? item.startMs,
               endMs: (raw.trimEndMs as number) ?? item.endMs,
             };
           }
+          console.log('[convertApiProject] DB video item:', {
+            id: item.id,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            rawTrimStart: raw.trimStartMs,
+            rawTrimEnd: raw.trimEndMs,
+            resultTrim: videoItem.trim,
+          });
           items[item.id] = videoItem;
           itemIds.push(item.id);
         }
@@ -337,6 +373,11 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             previewUrl: project.videoUrl,
           } as VideoItemData,
         };
+        console.log('[convertApiProject] Synthetic video item:', {
+          id: videoId,
+          startMs: 0,
+          endMs: project.durationMs,
+        });
         itemIds.push(videoId);
       }
     }
