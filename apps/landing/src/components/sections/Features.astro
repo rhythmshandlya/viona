@@ -21,14 +21,30 @@ import { siteConfig } from "@/data/site";
               <div class="reveal-frame">
                 <!-- Plain talking head placeholder -->
                 <div class="reveal-placeholder">
-                  <svg class="reveal-person" viewBox="0 0 80 100" fill="none">
-                    <circle cx="40" cy="28" r="18" fill="currentColor" opacity="0.15"/>
-                    <ellipse cx="40" cy="80" rx="30" ry="22" fill="currentColor" opacity="0.1"/>
-                  </svg>
-                  <div class="reveal-filler-words">
-                    <span>um</span>
-                    <span>so like</span>
-                    <span>you know</span>
+                  <div class="reveal-transcript">
+                    <div class="reveal-transcript-line">
+                      <span class="rt-word rt-filler">um</span>
+                      <span class="rt-word">so</span>
+                      <span class="rt-word">today</span>
+                      <span class="rt-word">we'll</span>
+                    </div>
+                    <div class="reveal-transcript-line">
+                      <span class="rt-word rt-filler">uh</span>
+                      <span class="rt-word">talk</span>
+                      <span class="rt-word">about</span>
+                      <span class="rt-word rt-filler">like</span>
+                    </div>
+                    <div class="reveal-transcript-line">
+                      <span class="rt-word">the</span>
+                      <span class="rt-word">growth</span>
+                      <span class="rt-word">rate</span>
+                      <span class="rt-word rt-filler">basically</span>
+                    </div>
+                    <div class="reveal-transcript-line">
+                      <span class="rt-word rt-filler">you know</span>
+                      <span class="rt-word">of</span>
+                      <span class="rt-word">our</span>
+                    </div>
                   </div>
                 </div>
                 <!-- Fake caption bar -->
@@ -75,45 +91,32 @@ import { siteConfig } from "@/data/site";
 
       <!-- Right: Content -->
       <div>
-        <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold leading-tight mb-4 sm:mb-6">
-          <span class="text-brand">AI-Generated</span> Visuals
-          <br />That Match Your
-          <br /><span class="accent-underline">Explanations</span>
+        <h2 class="font-serif text-2xl sm:text-3xl lg:text-4xl leading-tight mb-4 sm:mb-6">
+          Your viewers don't learn<br />from talking heads.
+          <br /><em class="not-italic text-primary">They learn from visuals.</em>
         </h2>
 
-        <p class="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8">
-          Upload your talking-head video. Our AI listens, understands the concepts,
-          and generates relevant charts, diagrams, and graphics—synced perfectly
-          to your narration.
+        <p class="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8 leading-relaxed">
+          Most talking-head videos lose viewers in the first 30 seconds — not because the
+          content is bad, but because there's nothing to look at. Viona listens to your
+          explanation and generates the exact visual that belongs there: a chart when you cite
+          a stat, a diagram when you describe a process, a comparison when you contrast two ideas.
         </p>
 
-        <!-- Feature list -->
-        <div class="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-          <div class="flex items-center gap-3">
-            <div class="feature-check">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-            <span class="text-sm sm:text-base font-medium">Flowcharts, timelines, and diagrams</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="feature-check">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-            <span class="text-sm sm:text-base font-medium">Bar charts, stats, and comparisons</span>
-          </div>
-          <div class="flex items-center gap-3">
-            <div class="feature-check">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-              </svg>
-            </div>
-            <span class="text-sm sm:text-base font-medium">Auto filler word removal</span>
-          </div>
-        </div>
+        <ul class="space-y-2 mb-6 sm:mb-8 text-sm sm:text-base">
+          <li class="flex items-start gap-3">
+            <span class="text-primary font-semibold mt-0.5">→</span>
+            <span>Flowcharts, timelines, stat cards, comparisons — picked automatically</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <span class="text-primary font-semibold mt-0.5">→</span>
+            <span>Filler words removed before you even see the transcript</span>
+          </li>
+          <li class="flex items-start gap-3">
+            <span class="text-primary font-semibold mt-0.5">→</span>
+            <span>Edit any visual with a single sentence — the AI regenerates it</span>
+          </li>
+        </ul>
 
         <a href="#waitlist-form" class="btn-primary">
           Join Waitlist
@@ -209,37 +212,41 @@ import { siteConfig } from "@/data/site";
     overflow: hidden;
   }
 
-  /* ── Before placeholder ── */
+  /* ── Transcript placeholder (Before state) ── */
   .reveal-placeholder {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, #e8e8e8 0%, #d4d4d4 100%);
+    background: linear-gradient(180deg, #f5f5f5 0%, #ebebeb 100%);
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    padding: 20px 16px;
   }
 
-  .reveal-person {
-    width: 80px;
-    height: 100px;
-    color: #999;
-    margin-bottom: 16px;
+  .reveal-transcript {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .reveal-filler-words {
+  .reveal-transcript-line {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    justify-content: center;
-    padding: 0 20px;
+    gap: 4px;
   }
 
-  .reveal-filler-words span {
-    padding: 2px 8px;
-    border-radius: 4px;
+  .rt-word {
     font-size: 11px;
     font-weight: 500;
+    color: #555;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.06);
+  }
+
+  .rt-filler {
     background: rgba(239, 68, 68, 0.12);
     color: #dc2626;
     text-decoration: line-through;
