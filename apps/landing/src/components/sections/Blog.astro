@@ -898,7 +898,66 @@ const features = [
 </style>
 
 <script>
-  // ── Caption lines data ──
+  // ── Caption styles — all inline so Astro scoping doesn't block them ──
+  const CAP_STYLES: Record<string, {
+    base: Partial<CSSStyleDeclaration>,
+    hl: Partial<CSSStyleDeclaration>,
+    wrap?: Partial<CSSStyleDeclaration>,
+  }> = {
+    mrbeast: {
+      wrap: { gap: "10px", background: "transparent" },
+      base: {
+        fontSize: "clamp(22px, 4vw, 36px)", fontWeight: "900",
+        color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.04em",
+        textShadow: "2px 2px 0 #000, -1px -1px 0 #000, 0 0 20px rgba(0,0,0,0.5)",
+        lineHeight: "1",
+      },
+      hl: {
+        color: "#facc15", textShadow: "2px 2px 0 #000, -1px -1px 0 #000",
+        WebkitTextStroke: "1px rgba(0,0,0,0.5)",
+      },
+    },
+    hormozi: {
+      wrap: { gap: "0px", background: "rgba(0,0,0,0.55)", padding: "8px 16px", borderRadius: "4px" },
+      base: {
+        fontSize: "clamp(20px, 3.5vw, 30px)", fontWeight: "800",
+        color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.02em",
+        lineHeight: "1.1", padding: "0 5px",
+      },
+      hl: {
+        color: "#f97316",
+        textDecoration: "underline",
+        textDecorationColor: "#f97316",
+        textDecorationThickness: "3px",
+      },
+    },
+    alibdaal: {
+      wrap: { gap: "8px", background: "transparent" },
+      base: {
+        fontSize: "clamp(18px, 3vw, 26px)", fontWeight: "600",
+        color: "rgba(255,255,255,0.7)", textTransform: "none", letterSpacing: "0.01em",
+        lineHeight: "1.2",
+      },
+      hl: {
+        color: "#ffffff", fontWeight: "800",
+        borderBottom: "3px solid #a78bfa", paddingBottom: "2px",
+      },
+    },
+    karaoke: {
+      wrap: { gap: "10px", background: "transparent" },
+      base: {
+        fontSize: "clamp(18px, 3vw, 28px)", fontWeight: "700",
+        color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.03em",
+        lineHeight: "1.1",
+      },
+      hl: {
+        color: "#a78bfa",
+        textShadow: "0 0 20px rgba(167,139,250,0.8), 0 0 40px rgba(167,139,250,0.4)",
+        filter: "brightness(1.3)",
+      },
+    },
+  };
+
   const CAP_LINES = [
     { words: ["your", "audience", "stays", "hooked"], hl: 2 },
     { words: ["revenue", "grew", "88%"], hl: 1 },
@@ -909,33 +968,52 @@ const features = [
   ];
 
   let capLineIndex = 0;
-  let capWordTimer: ReturnType<typeof setTimeout> | null = null;
   let capLineTimer: ReturnType<typeof setTimeout> | null = null;
   let currentStyle = "mrbeast";
 
+  function applyStyles(el: HTMLElement, styles: Partial<CSSStyleDeclaration>) {
+    Object.assign(el.style, styles);
+  }
+
   function renderCapLine(display: HTMLElement, line: typeof CAP_LINES[0]) {
     display.innerHTML = "";
-    display.dataset.style = currentStyle;
+    const s = CAP_STYLES[currentStyle] || CAP_STYLES.mrbeast;
+    if (s.wrap) applyStyles(display, s.wrap);
 
     line.words.forEach((word, i) => {
       const span = document.createElement("span");
-      span.className = "cap-word" + (i === line.hl ? " cap-word--hl" : "");
       span.textContent = word;
-      span.style.animationDelay = `${i * 120}ms`;
+      span.style.cssText = `
+        display: inline-block;
+        opacity: 0;
+        animation: cap-pop-js 0.3s cubic-bezier(0.34,1.56,0.64,1) ${i * 130}ms forwards;
+      `;
+      applyStyles(span, s.base);
+      if (i === line.hl) applyStyles(span, s.hl);
       display.appendChild(span);
     });
   }
 
+  // Inject keyframes once
+  if (!document.getElementById("cap-pop-kf")) {
+    const kf = document.createElement("style");
+    kf.id = "cap-pop-kf";
+    kf.textContent = `
+      @keyframes cap-pop-js {
+        from { opacity: 0; transform: scale(0.5) translateY(12px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+      }
+    `;
+    document.head.appendChild(kf);
+  }
+
   function startCaptionLoop(display: HTMLElement) {
     if (capLineTimer) clearTimeout(capLineTimer);
-    if (capWordTimer) clearTimeout(capWordTimer);
-
     function next() {
       capLineIndex = (capLineIndex + 1) % CAP_LINES.length;
       renderCapLine(display, CAP_LINES[capLineIndex]);
       capLineTimer = setTimeout(next, 2200);
     }
-
     renderCapLine(display, CAP_LINES[capLineIndex]);
     capLineTimer = setTimeout(next, 2200);
   }
@@ -950,41 +1028,28 @@ const features = [
     const capDisplay = document.getElementById("cap-display");
     const styleChips = document.querySelectorAll<HTMLButtonElement>(".cap-style-chip");
 
-    // Feature tab switching
     buttons.forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.dataset.feature;
-
         buttons.forEach((b) => b.classList.remove("feat-btn--active"));
         panels.forEach((p) => p.classList.remove("feat-panel--active"));
-
         btn.classList.add("feat-btn--active");
         const panel = document.querySelector<HTMLElement>(`[data-panel="${id}"]`);
         if (panel) panel.classList.add("feat-panel--active");
-
-        if (id === "captions" && capDisplay) {
-          startCaptionLoop(capDisplay);
-        } else {
-          stopCaptionLoop();
-        }
+        if (id === "captions" && capDisplay) startCaptionLoop(capDisplay);
+        else stopCaptionLoop();
       });
     });
 
-    // Caption style chips
     styleChips.forEach((chip) => {
       chip.addEventListener("click", () => {
         styleChips.forEach((c) => c.classList.remove("cap-chip--active"));
         chip.classList.add("cap-chip--active");
         currentStyle = chip.dataset.style || "mrbeast";
-        if (capDisplay) {
-          capDisplay.dataset.style = currentStyle;
-          // re-render current line with new style instantly
-          renderCapLine(capDisplay, CAP_LINES[capLineIndex]);
-        }
+        if (capDisplay) renderCapLine(capDisplay, CAP_LINES[capLineIndex]);
       });
     });
 
-    // Auto-start caption loop (it's the default active panel)
     if (capDisplay) startCaptionLoop(capDisplay);
   });
 </script>
