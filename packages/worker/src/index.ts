@@ -13,7 +13,8 @@ import { processHeadTrackingJob, HeadTrackingJobData } from './processors/head-t
 import { processGenerateReframeJob } from './processors/generate-reframe.js';
 import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from './processors/generate-caption-styles.js';
 import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-clip.js';
-import { processSegmentation, SegmentationJobData } from './processors/segmentation.js';
+// Segmentation disabled — SAM2 not available on this machine
+// import { processSegmentation, SegmentationJobData } from './processors/segmentation.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
 import { redisConnection } from './utils/redis.js';
@@ -141,7 +142,7 @@ async function main() {
     {
       connection,
       concurrency: 1, // Must be 1 — workspace is shared (Root.tsx, index.ts, public/assets)
-      lockDuration: 90 * 60 * 1000,   // 90 min — matches subprocess timeout
+      lockDuration: 100 * 60 * 1000,  // 100 min — 10 min buffer above 90 min subprocess timeout
       stalledInterval: 10 * 60 * 1000, // Check every 10 min (generous buffer for lock extender)
       maxStalledCount: 0,              // Immediately fail stalled jobs (no re-queue — generation is too expensive to retry blindly)
     }
@@ -356,29 +357,6 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'YouTube-clip job failed');
   });
 
-  // Segmentation worker — extracts speaker from video using SAM2
-  const segmentationWorker = new Worker<SegmentationJobData>(
-    'segmentation',
-    async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing segmentation job');
-      await processSegmentation(job);
-    },
-    {
-      connection,
-      concurrency: 1, // GPU-intensive, process one at a time
-      lockDuration: 30 * 60 * 1000, // 30 minutes — SAM2 can be slow on long videos
-      stalledInterval: 10 * 60 * 1000, // Check for stalls every 10 minutes
-      maxStalledCount: 2,
-    }
-  );
-
-  segmentationWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Segmentation job completed');
-  });
-
-  segmentationWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err }, 'Segmentation job failed');
-  });
 
   logger.info('Worker started, waiting for jobs...');
 
@@ -389,12 +367,27 @@ async function main() {
     generateVisualsWorker, planVisualsWorker, editVisualsWorker,
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
-    youtubeClipWorker, segmentationWorker,
+    youtubeClipWorker,
   ];
 
+  let shuttingDown = false;
   const shutdown = async (signal: string) => {
+    if (shuttingDown) {
+      logger.warn({ signal }, 'Shutdown already in progress, ignoring duplicate signal');
+      return;
+    }
+    shuttingDown = true;
+
     logger.info({ signal }, 'Received shutdown signal, closing workers...');
+
+    // Give workers 25s to finish (Kubernetes default grace period is 30s)
+    const timeout = setTimeout(() => {
+      logger.error('Shutdown timeout exceeded (25s), forcing exit');
+      process.exit(1);
+    }, 25_000);
+
     await Promise.allSettled(allWorkers.map(w => w.close()));
+    clearTimeout(timeout);
     logger.info('All workers closed');
     process.exit(0);
   };
