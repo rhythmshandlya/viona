@@ -420,6 +420,8 @@ export interface VisualItemData {
   templateId?: string;
   /** Props for the template component, validated against template schema */
   templateProps?: Record<string, unknown>;
+  /** Whether this visual has an associated video clip (youtube-clip scenes) */
+  hasVideo?: boolean;
 }
 
 export interface BrollItemData {

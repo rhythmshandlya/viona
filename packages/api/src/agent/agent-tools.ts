@@ -16,7 +16,7 @@ interface ScenePlanScene {
   timestampRange: [number, number];
   frames: [number, number];
   displayMode?: string;
-  transition?: string;
+  transition?: string | { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } };
   keySync?: Record<string, unknown>;
   layout?: Record<string, unknown>;
   buildsFrom?: string | null;
@@ -659,7 +659,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             id: widgetId,
             kind: 'scene_plan',
             planJobId: resolvedPlanJobId,
-            scenes: mapScenesToWidget(scenesArray),
+            scenes: mapScenesToWidget(scenesArray as unknown as Record<string, unknown>[]),
             scenePlanMarkdown: updatedMarkdown,
             metadata: {
               primaryMetaphor: scenesObj.primaryMetaphor,
@@ -1134,7 +1134,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                 success: true,
                 query,
                 resultCount: results.length,
-                videos: results.map((r, idx) => ({
+                videos: results.map((r: any, idx: number) => ({
                   index: idx + 1,
                   videoId: r.videoId,
                   title: r.title,

@@ -89,8 +89,8 @@ export function redisSubscribe(
 ): () => void {
   const sub = new Redis(config.redis.url, { enableReadyCheck: false });
 
-  sub.subscribe(channel, (err: Error | null) => {
-    if (err) console.error(`Failed to subscribe to ${channel}:`, err);
+  sub.subscribe(channel).catch((err) => {
+    console.error(`Failed to subscribe to ${channel}:`, err);
   });
 
   sub.on('message', (_ch: string, message: string) => {

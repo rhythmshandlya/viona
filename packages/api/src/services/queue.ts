@@ -1,7 +1,7 @@
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { config } from '../config.js';
-export type {
+import type {
   VisualsLayoutMode,
   VisualsDimensions,
   VideoSelection,
@@ -10,6 +10,15 @@ export type {
   EditVisualsJobData,
   LayoutSettings,
 } from '@viona/shared';
+export type {
+  VisualsLayoutMode,
+  VisualsDimensions,
+  VideoSelection,
+  GenerateVisualsJobData,
+  PlanVisualsJobData,
+  EditVisualsJobData,
+  LayoutSettings,
+};
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {

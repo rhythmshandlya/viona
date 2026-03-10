@@ -14,7 +14,7 @@ import { join, resolve, dirname } from 'path';
 import { spawn } from 'child_process';
 import { logger } from '../../logger.js';
 import { config } from '../../config.js';
-import { STYLE_GUIDELINES } from '../../prompts/generate-visuals.js';
+import { getStyleGuidelines } from '../../prompts/generate-visuals.js';
 import { buildStudioTemplateCatalog } from '../../prompts/studio-templates.js';
 
 export interface TranscriptWord {
@@ -666,7 +666,7 @@ function getAgentDefinitions(
   height: number,
   fps: number
 ): Record<string, AgentDefinition> {
-  const styleGuideline = STYLE_GUIDELINES[stylePreset] || STYLE_GUIDELINES['studio-dark'] || '';
+  const styleGuideline = getStyleGuidelines(stylePreset) || getStyleGuidelines('studio-dark') || '';
 
   return {
     'visual-planner': {
@@ -1225,6 +1225,7 @@ export async function generateVisualsWithClaudeSDK(
     let studioTemplateCatalog = '';
     if (stylePreset === 'studio') {
       try {
+        // @ts-expect-error — @viona/templates may not be available in all environments
         const { listTemplates } = await import('@viona/templates');
         studioTemplateCatalog = buildStudioTemplateCatalog();
 

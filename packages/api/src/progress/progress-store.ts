@@ -49,7 +49,7 @@ export const apiProgressStore = {
         message: job.progressMessage || 'Processing...',
         phase: (meta?.phase as string) || 'unknown',
         phaseName: (meta?.phaseName as string) || 'Processing',
-        updatedAt: job.updatedAt?.getTime() ?? Date.now(),
+        updatedAt: job.createdAt?.getTime() ?? Date.now(),
         meta: meta || undefined,
       };
     } catch {

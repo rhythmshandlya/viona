@@ -117,7 +117,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     let directorSafePlacement: string[] = [];
     if (project.headTrackingData) {
       const htData = project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } };
-      const totalMs = (project.durationFrames || 900) / (project.fps || 30) * 1000;
+      const totalMs = project.durationMs || ((900 / (project.fps || 30)) * 1000);
       const fullGrid = computeSpeakerGrid(htData, 0, totalMs);
       directorSafePlacement = fullGrid.safePlacement;
       logger.info({ safePlacement: directorSafePlacement, occupancy: fullGrid.occupancy }, 'Pre-computed speaker grid for Director');

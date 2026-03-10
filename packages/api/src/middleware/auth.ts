@@ -3,13 +3,7 @@ import { eq } from 'drizzle-orm';
 import { validateSession, validateSessionJwt, StytchSession } from '../services/stytch.js';
 import { db, users, User } from '../db/index.js';
 
-// Extend FastifyRequest to include user
-declare module 'fastify' {
-  interface FastifyRequest {
-    user?: User;
-    stytchSession?: StytchSession;
-  }
-}
+// FastifyRequest augmentation is in src/fastify.d.ts
 
 /**
  * Extract session token from request

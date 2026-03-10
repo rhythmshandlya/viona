@@ -629,7 +629,7 @@ function VisualPropertiesPanel() {
               value={String(templateProps.border || 'none')}
               onChange={(value) => updateTemplateProps({ border: value })}
             />
-            {templateProps.border && templateProps.border !== 'none' && (
+            {Boolean(templateProps.border) && (templateProps.border as string) !== 'none' && (
               <div className="mt-3 flex items-center gap-3">
                 <ColorPicker
                   label="Color"
