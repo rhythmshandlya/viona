@@ -15,8 +15,20 @@ function parseRedisUrl(url: string) {
 const connection = parseRedisUrl(config.redis.url);
 
 // Job queues
-export const transcribeQueue = new Queue('transcribe', { connection });
-export const renderQueue = new Queue('render', { connection });
+export const transcribeQueue = new Queue('transcribe', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+export const renderQueue = new Queue('render', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 // Job data types
 export interface TranscribeJobData {
@@ -93,7 +105,13 @@ export interface EnhanceAudioJobData {
   videoItemId: string;
 }
 
-export const enhanceAudioQueue = new Queue('enhance-audio', { connection });
+export const enhanceAudioQueue = new Queue('enhance-audio', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
   return enhanceAudioQueue.add('enhance-audio', data, {
@@ -119,7 +137,7 @@ export interface VideoSelection {
 export interface GenerateVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'studio-dark' | 'studio-light';
+  stylePreset: string;
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** Effective dimensions for pip scenes in split layouts */
@@ -130,7 +148,13 @@ export interface GenerateVisualsJobData {
   selectedVideos?: Record<number, Record<string, VideoSelection>>;
 }
 
-export const generateVisualsQueue = new Queue('generate-visuals', { connection });
+export const generateVisualsQueue = new Queue('generate-visuals', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   return generateVisualsQueue.add('generate-visuals', data, {
@@ -142,7 +166,7 @@ export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'studio-dark' | 'studio-light';
+  stylePreset: string;
   layoutMode: VisualsLayoutMode;
   dimensions: VisualsDimensions;
   /** Effective dimensions for pip scenes in split layouts */
@@ -152,7 +176,13 @@ export interface PlanVisualsJobData {
   sourceHeight?: number;
 }
 
-export const planVisualsQueue = new Queue('plan-visuals', { connection });
+export const planVisualsQueue = new Queue('plan-visuals', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
   return planVisualsQueue.add('plan-visuals', data, {
@@ -173,7 +203,13 @@ export interface EditVisualsJobData {
   scenePlan?: string;     // JSON scene plan so the agent understands the visual structure
 }
 
-export const editVisualsQueue = new Queue('edit-visuals', { connection });
+export const editVisualsQueue = new Queue('edit-visuals', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueEditVisualsJob(data: EditVisualsJobData) {
   return editVisualsQueue.add('edit-visuals', data, {
@@ -194,7 +230,13 @@ export interface SplitVisualSceneJobData {
   transcript?: string;        // Full transcript text with timestamps for context
 }
 
-export const splitVisualSceneQueue = new Queue('split-visual-scene', { connection });
+export const splitVisualSceneQueue = new Queue('split-visual-scene', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueSplitVisualSceneJob(data: SplitVisualSceneJobData) {
   return splitVisualSceneQueue.add('split-visual-scene', data, {
@@ -220,7 +262,13 @@ export interface SvgAnimationJobData {
   useOriginalImage?: boolean;  // If true, display original image instead of converting to SVG
 }
 
-export const svgAnimationQueue = new Queue('svg-animation', { connection });
+export const svgAnimationQueue = new Queue('svg-animation', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueSvgAnimationJob(data: SvgAnimationJobData) {
   return svgAnimationQueue.add('svg-animation', data, {
@@ -234,15 +282,19 @@ export interface PreloadProjectJobData {
   compositionId: string;
 }
 
-export const preloadProjectQueue = new Queue('preload-project', { connection });
+export const preloadProjectQueue = new Queue('preload-project', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queuePreloadProjectJob(data: PreloadProjectJobData) {
   // Use jobId based on compositionId to prevent duplicate preloads
   return preloadProjectQueue.add('preload-project', data, {
     jobId: `preload-${data.compositionId}`,
     attempts: 1,
-    removeOnComplete: true,
-    removeOnFail: true,
   });
 }
 
@@ -253,7 +305,13 @@ export interface HeadTrackingJobData {
   videoKey: string;
 }
 
-export const headTrackingQueue = new Queue('head-tracking', { connection });
+export const headTrackingQueue = new Queue('head-tracking', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueHeadTrackingJob(data: HeadTrackingJobData) {
   return headTrackingQueue.add('head-tracking', data, {
@@ -268,7 +326,13 @@ export interface GenerateReframeJobData {
   jobId: string;
 }
 
-export const generateReframeQueue = new Queue('generate-reframe', { connection });
+export const generateReframeQueue = new Queue('generate-reframe', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueGenerateReframeJob(data: GenerateReframeJobData) {
   return generateReframeQueue.add('generate-reframe', data, {
@@ -282,7 +346,13 @@ export interface GenerateCaptionStylesJobData {
   jobId: string;
 }
 
-export const generateCaptionStylesQueue = new Queue('generate-caption-styles', { connection });
+export const generateCaptionStylesQueue = new Queue('generate-caption-styles', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueGenerateCaptionStylesJob(data: GenerateCaptionStylesJobData) {
   return generateCaptionStylesQueue.add('generate-caption-styles', data, {
@@ -304,7 +374,13 @@ export interface YouTubeClipJobData {
   projectId?: string;
 }
 
-export const youtubeClipQueue = new Queue('youtube-clip', { connection });
+export const youtubeClipQueue = new Queue('youtube-clip', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueYouTubeClipJob(data: YouTubeClipJobData) {
   return youtubeClipQueue.add('extract-clip', data, {
@@ -324,7 +400,13 @@ export interface SegmentationJobData {
   videoKey: string;
 }
 
-export const segmentationQueue = new Queue('segmentation', { connection });
+export const segmentationQueue = new Queue('segmentation', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueSegmentationJob(data: SegmentationJobData) {
   return segmentationQueue.add('segment-video', data, {
