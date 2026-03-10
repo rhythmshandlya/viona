@@ -1,6 +1,6 @@
 # @viona/worker
 
-Background job processor for Viona, handling transcription, AI visual generation, audio enhancement, video rendering, and more.
+Background job processor for Viona, handling transcription, AI visual generation, video rendering, and more.
 
 ## Overview
 
@@ -72,13 +72,15 @@ src/
 │   │   ├── index.ts
 │   │   └── visual-generator.ts
 │   ├── mcp-servers/         # MCP tool servers for the Animator agent
+│   │   ├── asset-server.js  # Asset download, screenshots, stock photo search
+│   │   └── viewport-server.js  # Scene dimension queries, code validation
 │   ├── claude_visual_generator.py  # Python-based visual generator
 │   ├── visual_director.py
 │   ├── transcript_formatter.py
 │   ├── npm_search.py
 │   └── setup_claude_auth.py
 │
-├── prompts/                 # All prompt files (Python loaders + .md templates)
+├── prompts/                 # All prompt files (loaders + .md templates)
 │   ├── index.ts             # Barrel re-exports
 │   ├── loader.ts            # TypeScript .md file loader with caching
 │   ├── loader.py            # Python .md file loader
@@ -90,14 +92,37 @@ src/
 │   ├── studio-templates.ts  # Studio template catalog builder
 │   ├── animator/            # Animator phase prompts
 │   │   ├── animator.py      # Python prompt builder
-│   │   └── *.md             # System, base, verify, fix prompts
+│   │   ├── system.md        # System-level instructions
+│   │   ├── base.md          # Base prompt for all scenes
+│   │   ├── setup.md         # Workspace setup instructions
+│   │   ├── scene-template.md  # Per-scene prompt template
+│   │   ├── scene-verify.md  # Post-scene verification
+│   │   ├── composition-verify.md  # Full composition verification
+│   │   ├── verify.md        # General verification prompt
+│   │   ├── fix-template.md  # Fix/retry prompt
+│   │   ├── overlay-rules.md # Overlay layout rules
+│   │   ├── fullscreen-rules.md  # Fullscreen layout rules
+│   │   ├── video-overlay-section.md  # Video overlay section
+│   │   ├── youtube-clip-section.md   # YouTube clip section
+│   │   └── studio-design-system.md   # Studio design system reference
 │   ├── director/            # Director phase prompts
 │   │   ├── director.py      # Python prompt builder
-│   │   └── *.md             # System, display-mode, style prompts
-│   ├── assistant-director/
-│   ├── motion/              # Motion utility reference prompts
-│   ├── references/          # Few-shot example prompts
-│   └── transcribe/          # Word analysis prompts
+│   │   ├── system.md        # Director system prompt
+│   │   ├── display-mode-table.md  # Layout mode reference
+│   │   └── studio-style-template.md  # Studio style reference
+│   ├── generate-visuals/    # Style and pattern reference prompts
+│   │   ├── scene-patterns.md
+│   │   ├── style-studio-dark.md
+│   │   └── style-studio-light.md
+│   └── references/          # Few-shot example prompts
+│       ├── common-patterns.md
+│       ├── hash-collisions.md
+│       ├── search-race.md
+│       └── stack-overflow.md
+│
+├── scripts/                 # Python scripts for ML tasks
+│   ├── face_detect.py       # Face detection for head tracking
+│   └── sam2_segment.py      # SAM2 speaker segmentation
 │
 ├── services/                # External service integrations
 │   ├── index.ts             # Barrel re-exports
@@ -126,17 +151,9 @@ src/
 
 The visual generation pipeline is a multi-phase AI system that converts transcripts into animated Remotion compositions.
 
-### Phase 0: Assistant Director
-
-Analyzes the transcript to classify tone/theme and produces a **Creative Brief** (`CREATIVE_BRIEF.md`) that guides downstream agents. Responsibilities:
-- Tone classification (playful, professional, dramatic, educational, inspirational)
-- Visual asset strategy (photos vs illustrations vs icons per beat)
-- Color palette and font pairing recommendations
-- Scene structure hints (beat count, hero moments, pacing)
-
 ### Phase 1: Director
 
-Reads the Creative Brief and transcript, then creates a detailed scene-by-scene plan:
+Reads the transcript, then creates a detailed scene-by-scene plan:
 - Outputs `SCENE_PLAN.md` (human-readable) and `scenes.json` (machine-readable)
 - Defines timing, visual focus, transitions, key elements per scene
 - Tags scenes with `[IMAGE: keyword]` entries for asset fetching
@@ -173,7 +190,7 @@ interface TranscribeJobData {
 ```
 
 ### Generate Visuals
-Runs the full AI pipeline (Assistant Director, Director, Animator).
+Runs the full AI pipeline (Director, Animator).
 
 ```typescript
 interface GenerateVisualsJobData {
@@ -269,7 +286,7 @@ pnpm test
 
 ## Python Setup
 
-The worker requires Python 3.10+ for AI visual generation, audio enhancement, and head tracking.
+The worker requires Python 3.10+ for AI visual generation, head tracking, and segmentation.
 
 ```bash
 # Using Miniconda (recommended)
@@ -296,16 +313,6 @@ pnpm whisperx:setup:win
 
 # macOS/Linux
 pnpm whisperx:setup
-```
-
-## Audio Enhancement Setup
-
-```bash
-# Windows
-pnpm enhance:setup:win
-
-# macOS/Linux
-pnpm enhance:setup
 ```
 
 ## Environment Variables
@@ -353,6 +360,7 @@ In production:
 - **unzipper** - ZIP extraction for templates
 - **pino** - Structured logging
 - **nanoid** - ID generation
+- **better-icons** + **mcp-remote** - MCP server dependencies (installed as direct deps, not via npx)
 - **@viona/shared** - Shared types and constants
 - **@viona/renderer** - Remotion video components
 - **@viona/templates** - Pre-built Studio templates

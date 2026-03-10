@@ -489,6 +489,57 @@ server.registerTool(
   }
 );
 
+// -- submit_verdict -----------------------------------------------------------
+server.registerTool(
+  "submit_verdict",
+  {
+    description:
+      "Submit your verification verdict as structured data. " +
+      "You MUST call this tool exactly once at the end of your verification. " +
+      "Do NOT write PASS or FAIL as text — use this tool instead.",
+    inputSchema: {
+      passed: z
+        .boolean()
+        .describe(
+          "true if the scene/composition passes all checks, false if issues were found"
+        ),
+      issues: z
+        .array(z.string())
+        .describe(
+          "List of specific issues found. Empty array if passed is true."
+        ),
+      acceptance_criteria: z
+        .array(z.string())
+        .optional()
+        .describe(
+          "Checklist items the fix agent must satisfy. Only include when passed is false."
+        ),
+    },
+  },
+  async ({
+    passed,
+    issues,
+    acceptance_criteria,
+  }: {
+    passed: boolean;
+    issues: string[];
+    acceptance_criteria?: string[];
+  }) => {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            passed,
+            issues,
+            acceptance_criteria: acceptance_criteria || [],
+          }),
+        },
+      ],
+    };
+  }
+);
+
 // ---------------------------------------------------------------------------
 // Start
 // ---------------------------------------------------------------------------

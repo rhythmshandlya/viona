@@ -44,5 +44,9 @@
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"
+  },
+  "dependencies": {
+    "pino": "^10.3.0",
+    "pino-pretty": "^13.1.3"
   }
 }
