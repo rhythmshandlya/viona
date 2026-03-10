@@ -17,6 +17,7 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -943,30 +944,70 @@ When done, respond: "SELF-HEAL COMPLETE"
             print(f"[ClaudeGenerator] Self-heal agent error: {e}")
             return False
 
-    def _setup_entry_point(self) -> str:
-        """Set up src/index.ts to import from the generated project.
+    def _setup_entry_point(
+        self,
+        width: int = 1080,
+        height: int = 1920,
+        fps: int = 60,
+        duration_frames: int = 1800,
+    ) -> str:
+        """Set up src/index.tsx to import MainComposition and wrap with correct dimensions.
+
+        Uses infrastructure-known dimensions instead of AI-generated RemotionRoot,
+        preventing dimension swap bugs.
 
         Returns:
-            The original index.ts content (for later restoration).
+            The original index.tsx content (for later restoration).
         """
+        index_tsx_path = self.workspace / "src" / "index.tsx"
         index_ts_path = self.workspace / "src" / "index.ts"
-        original = index_ts_path.read_text(encoding="utf-8") if index_ts_path.exists() else ""
 
+        # Read original from whichever exists (template ships index.ts, we write index.tsx)
+        if index_tsx_path.exists():
+            original = index_tsx_path.read_text(encoding="utf-8")
+        elif index_ts_path.exists():
+            original = index_ts_path.read_text(encoding="utf-8")
+        else:
+            original = ""
+
+        # Remove .ts version — JSX content requires .tsx extension for esbuild
+        if index_ts_path.exists():
+            index_ts_path.unlink()
+
+        composition_id = self.project_id.replace("_", "-")
         new_index_ts = f'''/**
  * Auto-generated entry point for project: {self.project_id}
+ * Dimensions set by infrastructure (not AI-generated).
  */
 import {{ registerRoot }} from "remotion";
-import {{ RemotionRoot }} from "./{self.project_id}/index";
+import {{ Composition }} from "remotion";
+import MainComposition from "./{self.project_id}";
+
+export const RemotionRoot: React.FC = () => (
+  <Composition
+    id="{composition_id}"
+    component={{MainComposition}}
+    durationInFrames={{{duration_frames}}}
+    fps={{{fps}}}
+    width={{{width}}}
+    height={{{height}}}
+  />
+);
 
 registerRoot(RemotionRoot);
 '''
-        index_ts_path.write_text(new_index_ts)
-        print(f"[ClaudeGenerator] Updated src/index.ts to import from {self.project_id}")
+        index_tsx_path.write_text(new_index_ts)
+        print(f"[ClaudeGenerator] Updated src/index.tsx with infrastructure dimensions {width}x{height}")
         return original
 
     def _restore_entry_point(self, original: str) -> None:
-        """Restore the original src/index.ts content."""
+        """Restore the original src/index.ts content (non-JSX template version)."""
+        index_tsx_path = self.workspace / "src" / "index.tsx"
         index_ts_path = self.workspace / "src" / "index.ts"
+        # Remove the .tsx we created
+        if index_tsx_path.exists():
+            index_tsx_path.unlink()
+        # Restore original as .ts (template version has no JSX)
         index_ts_path.write_text(original)
 
     async def _render_scene_still(
@@ -1259,6 +1300,10 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
         scenes_data: dict,
         plan_content: str,
         style_preset: str = "studio-dark",
+        width: int = 1080,
+        height: int = 1920,
+        fps: int = 60,
+        duration_frames: int = 1800,
     ) -> None:
         """Top-level orchestrator for Phase 2e visual verification.
 
@@ -1276,7 +1321,9 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
             print("[ClaudeGenerator] No scenes to verify")
             return
 
-        original_index_ts = self._setup_entry_point()
+        original_index_ts = self._setup_entry_point(
+            width=width, height=height, fps=fps, duration_frames=duration_frames,
+        )
         verify_dir = self.workspace / "visual-verify"
 
         try:
@@ -1313,7 +1360,13 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
                 except Exception as e:
                     print(f"[ClaudeGenerator] Failed to clean up visual-verify dir: {e}")
 
-    async def _run_bundle(self) -> Path:
+    async def _run_bundle(
+        self,
+        width: int = 1080,
+        height: int = 1920,
+        fps: int = 60,
+        duration_frames: int = 1800,
+    ) -> Path:
         """Bundle the Remotion project."""
         import subprocess
 
@@ -1324,7 +1377,9 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
         # Create output directory
         bundle_path.mkdir(parents=True, exist_ok=True)
 
-        original_index_ts = self._setup_entry_point()
+        original_index_ts = self._setup_entry_point(
+            width=width, height=height, fps=fps, duration_frames=duration_frames,
+        )
 
         try:
             result = subprocess.run(
@@ -1346,7 +1401,7 @@ After reviewing all screenshots, call the `mcp__viewport__submit_verdict` tool w
         except subprocess.TimeoutExpired:
             raise RuntimeError("Bundle timed out after 5 minutes")
         finally:
-            # Restore original index.ts for next project
+            # Restore original index.ts (non-JSX) for next project
             self._restore_entry_point(original_index_ts)
 
     async def _compile_cjs(self, bundle_path: Path) -> None:
@@ -1983,7 +2038,7 @@ After your analysis, call the `mcp__viewport__submit_verdict` tool with your ver
         scene_plan_content: str,
         constants_content: str,
         studio_section: str,
-        remotion_libraries: str,
+        skills_directive: str,
     ) -> tuple[bool, list[str]]:
         """Verify a single scene's code against the plan and fix if needed.
 
@@ -2059,7 +2114,7 @@ When done, respond: "FIX COMPLETE"
                     system_prompt={
                         "type": "preset",
                         "preset": "claude_code",
-                        "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}",
+                        "append": f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}",
                     },
                     cwd=str(self.workspace),
                     max_turns=15,
@@ -2613,7 +2668,7 @@ export default MainComposition;
 
             # Build the scene-generator subagent definition (+ studio design system when applicable)
             scene_gen_system = (
-                f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}"
+                f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}"
             )
 
             scene_gen_tools = [
@@ -2763,7 +2818,7 @@ Report which scenes were created.
                     display_mode_rules=mode_rules,
                     project_id=self.project_id,
                 )
-                scene_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{remotion_libraries}\n\n{condensed_skills}\n\n{scene_prompt_filled}{user_assets_section}"
+                scene_system = f"{ANIMATOR_BASE_PROMPT}{studio_section}\n\n{skills_directive}\n\n{scene_prompt_filled}{user_assets_section}"
                 scene_user_msg = build_scene_user_message(
                     project_id=self.project_id,
                     scene_index=i,
@@ -2810,7 +2865,7 @@ Report which scenes were created.
                 scene_plan_content=scene_plan_content,
                 constants_content=constants_content,
                 studio_section=studio_section,
-                remotion_libraries=remotion_libraries,
+                skills_directive=skills_directive,
             )
             for i, scene in enumerate(scenes)
         ]
@@ -3208,6 +3263,8 @@ Report which scenes were created.
                         scenes_data=verify_scenes_data,
                         plan_content=verify_plan_content,
                         style_preset=style_preset,
+                        width=width, height=height, fps=fps,
+                        duration_frames=duration_frames,
                     )
                     emit_progress(64, "Visual verification complete", {"phase": "verify", "phaseName": "Verifying scenes"})
                 except Exception as e:
@@ -3217,7 +3274,10 @@ Report which scenes were created.
                 # Bundle
                 emit_progress(65, "Bundling Remotion project...", {"phase": "bundle", "phaseName": "Bundling for preview"})
                 print(f"[ClaudeGenerator] Bundling project...")
-                bundle_path = await self._run_bundle()
+                bundle_path = await self._run_bundle(
+                    width=width, height=height, fps=fps,
+                    duration_frames=duration_frames,
+                )
                 print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
                 emit_progress(68, "Bundle complete", {"phase": "bundle", "phaseName": "Bundling for preview"})
 
@@ -3560,7 +3620,10 @@ async def main():
         # Bundle
         emit_progress(65, "Bundling Remotion project...", {"phase": "bundle", "phaseName": "Bundling for preview"})
         print("[ClaudeGenerator] Bundling project...")
-        bundle_path = await generator._run_bundle()
+        bundle_path = await generator._run_bundle(
+            width=args.width, height=args.height, fps=args.fps,
+            duration_frames=args.duration,
+        )
         print(f"[ClaudeGenerator] Bundle complete: {bundle_path}")
         emit_progress(68, "Bundle complete", {"phase": "bundle", "phaseName": "Bundling for preview"})
 
