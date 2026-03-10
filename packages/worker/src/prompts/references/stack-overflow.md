@@ -49,7 +49,7 @@ export const {{projectId}}: React.FC = () => {
         {/* Stack visualization */}
         <div style={{ display: 'flex', flexDirection: 'column-reverse', gap: height * 0.008 }}>
           {stackFrames.map((sf) => {
-            const entryProgress = spring({ frame: frame - sf.id * frameInterval, fps, config: { damping: 12, stiffness: 100 } });
+            const entryProgress = spring({ frame: frame - sf.id * frameInterval, fps, config: { damping: 20, stiffness: 100 } });
             const stressLevel = sf.id / maxFrames;
             return (
               <div key={sf.id} style={{

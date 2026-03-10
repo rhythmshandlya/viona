@@ -122,7 +122,7 @@ const frame = useCurrentFrame();
 // ✅ CORRECT - Every value is relative AND all variables are used
 const titleOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
 const titleY = interpolate(frame, [0, 30], [-20, 0], { extrapolateRight: 'clamp' });
-const contentScale = spring({ frame: frame - 15, fps, config: { damping: 12, stiffness: 80 } });
+const contentScale = spring({ frame: frame - 15, fps, config: { damping: 20, stiffness: 80 } });
 
 <div style={{
   fontSize: height * 0.035,      // ← uses height
@@ -164,7 +164,7 @@ const { width, height, fps } = useVideoConfig();
 
 // Animation: pure function of frame
 const opacity = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: 'clamp' });
-const scale = spring({ frame, fps, config: { damping: 12, stiffness: 80 } });
+const scale = spring({ frame, fps, config: { damping: 20, stiffness: 80 } });
 \`\`\`
 
 ### 5. NO UNUSED DECLARATIONS (TypeScript Strict Mode)
@@ -178,14 +178,14 @@ The variable was declared for a reason. Find where it should be used and USE IT.
 \`\`\`tsx
 // ❌ WRONG PATTERN - Declare animation vars, then don't use them
 const rotationInner = interpolate(frame, [0, 60], [0, 360]);
-const springScale = spring({ frame, fps, config: { damping: 12 } });
+const springScale = spring({ frame, fps, config: { damping: 20 } });
 const yPos = interpolate(frame, [0, 30], [100, 0]);
 // Then render with HARDCODED or DIFFERENT values:
 <div style={{ transform: 'rotate(45deg) scale(1)', top: 50 }}>  // ← WRONG! Use the vars!
 
 // ✅ CORRECT PATTERN - Declare and USE in the same component
 const rotationInner = interpolate(frame, [0, 60], [0, 360]);
-const springScale = spring({ frame, fps, config: { damping: 12 } });
+const springScale = spring({ frame, fps, config: { damping: 20 } });
 const yPos = interpolate(frame, [0, 30], [100, 0]);
 <div style={{
   transform: \`rotate(\${rotationInner}deg) scale(\${springScale})\`,  // ← USES rotationInner, springScale
@@ -202,7 +202,7 @@ const frame = useCurrentFrame();
 
 // Step 2: Declare animations (only what you'll use!)
 const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
-const scale = spring({ frame, fps, config: { damping: 12 } });
+const scale = spring({ frame, fps, config: { damping: 20 } });
 
 // Step 3: USE EVERYTHING in the render
 <div style={{

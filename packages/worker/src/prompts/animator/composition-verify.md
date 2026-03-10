@@ -13,19 +13,11 @@ If you find fixable issues (wrong import, typo in TIMING value), fix them direct
 6. **metadata.json validity**: compositionId correct? fps/width/height match? durationInFrames matches TIMING.totalFrames?
 7. **Bundle test**: Run `npx remotion bundle --out-dir /tmp/verify-bundle` to verify build succeeds
 
-## OUTPUT FORMAT — CRITICAL
-Your FINAL text output MUST be ONLY one of the two formats below. Do NOT include analysis or checklists of passing items.
+## OUTPUT — CRITICAL
 
-If everything is correct:
-```
-PASS
-```
+After your analysis, you MUST call the `mcp__viewport__submit_verdict` tool exactly once:
 
-If there are issues:
-```
-ISSUES
-1. [FIXED] description of what you fixed
-2. [WARNING] description of non-fixable concern
-```
+- If everything is correct: `submit_verdict(passed=true, issues=[])`
+- If there are issues: `submit_verdict(passed=false, issues=["[FIXED] description of what you fixed", "[WARNING] description of non-fixable concern"])`
 
-IMPORTANT: Do NOT output numbered lists of things that are correct. Only output PASS or ISSUES with the specific problems. Nothing else.
+Do NOT write PASS or ISSUES as text. Use the tool. Do NOT output numbered lists of things that are correct.

@@ -34,5 +34,5 @@ the scene's purpose. If no template fits, omit the field.
 Examples: revenue growth → ["stat-counter"], comparison → ["versus-screen", "pros-cons"],
 timeline → ["timeline-cascade"], process → ["process-flow"].
 
-**ANIMATION FEEL:** SPRINGS.SMOOTH (damping: 26, stiffness: 120) for premium settle, SPRINGS.SNAPPY (damping: 18, stiffness: 180) for hero reveals.
+**ANIMATION FEEL:** SPRINGS.SMOOTH (damping: 26, stiffness: 120) for premium settle, SPRINGS.SNAPPY (damping: 22, stiffness: 170) for hero reveals.
 Stagger 6-8 frames. Use spring entrances for cards, interpolate for continuous motion.

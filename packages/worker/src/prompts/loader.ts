@@ -18,3 +18,14 @@ export function loadTemplate(name: string, variables?: Record<string, string | n
   if (!variables) return raw;
   return raw.replace(/\{\{(\w+)\}\}/g, (_, key) => String(variables[key] ?? `{{${key}}}`));
 }
+
+const SHARED_MODULES = [
+  'shared/technical-rules',
+  'shared/motion-design-principles',
+  'shared/vocabulary',
+  'shared/quality-checklist',
+] as const;
+
+export function loadSharedModules(): string {
+  return SHARED_MODULES.map(loadPrompt).join('\n\n');
+}

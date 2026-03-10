@@ -173,12 +173,12 @@ export const SPRING_CONFIG = {{ damping: 26, stiffness: 120, mass: 1.0 }};
 // Semantic motion tokens — use these instead of raw spring values
 // Based on Apple iOS, Framer Motion, and After Effects industry standards
 export const SPRINGS = {{
-  SNAPPY:  {{ damping: 18, stiffness: 180, mass: 0.8 }},  // Hero reveals, card entrances (~12 frames)
+  SNAPPY:  {{ damping: 22, stiffness: 170, mass: 0.8 }},  // Hero reveals, card entrances (~12 frames)
   SMOOTH:  {{ damping: 26, stiffness: 120, mass: 1.0 }},  // Apple "smooth" equivalent — premium settle (~18 frames)
-  BOUNCY:  {{ damping: 12, stiffness: 200, mass: 1.0 }},  // Playful, energetic — visible overshoot (~15 frames)
-  HEAVY:   {{ damping: 20, stiffness: 150, mass: 1.5 }},  // Big numbers, weighty settle — smooth authority
+  BOUNCY:  {{ damping: 20, stiffness: 200, mass: 1.0 }},  // Playful, energetic — visible overshoot (~15 frames)
+  HEAVY:   {{ damping: 24, stiffness: 120, mass: 1.4 }},  // Big numbers, weighty settle — smooth authority
   STIFF:   {{ damping: 24, stiffness: 300, mass: 0.6 }},  // Micro-interactions, fast snaps (~8 frames)
-  GENTLE:  {{ damping: 14, stiffness: 80,  mass: 1.2 }},  // Background elements, ambient motion (~25 frames)
+  GENTLE:  {{ damping: 20, stiffness: 80,  mass: 1.2 }},  // Background elements, ambient motion (~25 frames)
   OVERLAY: {{ damping: 32, stiffness: 50,  mass: 1.0 }},  // Overlay scenes — subtle, non-distracting
 }};
 

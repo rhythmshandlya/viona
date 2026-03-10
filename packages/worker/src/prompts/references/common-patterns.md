@@ -98,9 +98,9 @@ const landingSquash = justLanded
 ```tsx
 const SPRING_CONFIGS = {
   minimal: { damping: 20, stiffness: 60 },   // Smooth, no bounce
-  modern: { damping: 12, stiffness: 80 },    // Bouncy, satisfying
-  playful: { damping: 8, stiffness: 200 },   // Very bouncy
-  bold: { damping: 15, stiffness: 150 },     // Snappy, powerful
+  modern: { damping: 20, stiffness: 80 },    // Bouncy, satisfying
+  playful: { damping: 18, stiffness: 200 },  // Energetic
+  bold: { damping: 18, stiffness: 150 },     // Snappy, powerful
   classic: { damping: 25, stiffness: 50 },   // Dignified, no bounce
 };
 ```

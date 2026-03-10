@@ -62,3 +62,25 @@ def load_template(name: str, **kwargs: str | int) -> str:
 def clear_cache() -> None:
     """Clear the in-memory prompt cache."""
     _cache.clear()
+
+
+# --- Shared module composition ---
+
+_SHARED_MODULES = [
+    "shared/technical-rules",
+    "shared/motion-design-principles",
+    "shared/vocabulary",
+    "shared/quality-checklist",
+]
+
+
+def load_shared_modules() -> str:
+    """Load and concatenate all shared prompt modules.
+
+    Returns a single string with all shared modules separated by newlines.
+    Used by agent builders to prepend shared context to role-specific prompts.
+    """
+    parts: list[str] = []
+    for name in _SHARED_MODULES:
+        parts.append(load_prompt(name))
+    return "\n\n".join(parts)

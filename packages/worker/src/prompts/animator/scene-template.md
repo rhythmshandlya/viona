@@ -48,7 +48,7 @@ Before writing ANY code, append your scene plan to IMPLEMENTATION_LOG.md:
 ### Visual Layer Hierarchy:
 - Layer 1 (Primary): [text/data content that EXPLAINS the transcript]
 - Layer 2 (Supporting): [visual metaphors — icons with labels, diagrams, flow arrows]
-- Layer 3 (Ambient): [atmospheric depth — particles, glows, gradients at opacity ≤ 0.15]
+- Layer 3 (Ambient): [atmospheric depth — gradient drift, glow pulse, grid shift at opacity ≤ 0.15]
 - Attention-grabbing count (Layer 1+2): [≤ 4?]
 
 ### Layout (3 zones):

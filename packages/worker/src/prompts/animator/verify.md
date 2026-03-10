@@ -44,25 +44,13 @@ Review ALL three screenshots against the plan:
 - If most frames look correct with minor issues, lean toward PASS.
 - If ANY frame is completely blank/empty or has major layout breakage, that is a clear FAIL.
 
-## Output Format
+## Output
 
-If the scene passes review:
-```
-PASS
-```
+After your analysis, you MUST call the `mcp__viewport__submit_verdict` tool exactly once:
 
-If the scene fails review, provide detailed acceptance criteria:
-```
-FAIL
+- If the scene passes review: `submit_verdict(passed=true, issues=[])`
+- If the scene fails review: `submit_verdict(passed=false, issues=["Issue description, noting which frame(s) are affected"], acceptance_criteria=["Specific testable criterion for fix agent"])`
 
-## Issues Found
-1. [Issue description, noting which frame(s) are affected]
-2. [Issue description]
+The acceptance_criteria help the fix agent know exactly what to verify after making changes.
 
-## Acceptance Criteria (what the fix must achieve)
-- [ ] [Specific, testable criterion — e.g., "Early frame must show at least 2 elements animating in with opacity > 0"]
-- [ ] [Specific criterion — e.g., "Key sync frame must display the stat counter centered with value '47M'"]
-- [ ] [Specific criterion — e.g., "Background color must be dark (#0B0F1A), not white"]
-```
-
-The acceptance criteria help the fix agent know exactly what to verify after making changes.
+Do NOT write PASS or FAIL as text. Use the tool.

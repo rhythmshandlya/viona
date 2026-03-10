@@ -26,12 +26,12 @@ Scene files will import `SPRINGS`, `STAGGER`, `DURATION` by name. If you rename 
 export const SPRING_CONFIG = { damping: 26, stiffness: 120, mass: 1.0 };
 
 export const SPRINGS = {
-  SNAPPY:  { damping: 18, stiffness: 180, mass: 0.8 },
+  SNAPPY:  { damping: 22, stiffness: 170, mass: 0.8 },
   SMOOTH:  { damping: 26, stiffness: 120, mass: 1.0 },
-  BOUNCY:  { damping: 12, stiffness: 200, mass: 1.0 },
+  BOUNCY:  { damping: 20, stiffness: 200, mass: 1.0 },
   HEAVY:   { damping: 24, stiffness: 120, mass: 1.4 },
   STIFF:   { damping: 24, stiffness: 300, mass: 0.6 },
-  GENTLE:  { damping: 14, stiffness: 80,  mass: 1.2 },
+  GENTLE:  { damping: 20, stiffness: 80,  mass: 1.2 },
   OVERLAY: { damping: 32, stiffness: 50,  mass: 1.0 },
 };
 

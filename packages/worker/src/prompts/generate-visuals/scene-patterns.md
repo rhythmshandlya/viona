@@ -19,11 +19,12 @@ Use these composition templates when the transcript content matches. These are p
 - Gold/silver/bronze accent colors for ranking emphasis
 - Final state: all three visible with the winner highlighted
 
-### 3. Hub & Orbit
+### 3. Radial Feature Layout
 **When:** Speaker describes a central concept with related features/properties ("X has these benefits", "core principle with...")
-- Central element (larger, glowing) with orbiting satellite elements
-- Satellites appear one by one, each with a connection line to hub
-- Gentle rotation animation for the orbit ring
+- Central element (larger, accent-bordered) with feature cards arranged around it
+- Cards stagger in one by one with varied spring configs, connected by SVG stroke-draw lines to center
+- Each card has an icon + label (never standalone icons)
+- Cards ACTIVATE at sync points (dim → bright), not orbit
 - Use for: frameworks, architectures, ecosystems, feature sets
 
 ### 4. Card Flip Reveal

@@ -133,7 +133,7 @@ WRONG: all items use identical `spring()` + opacity with only delay offset.
 RIGHT: item 0 pops with snappy spring, item 1 slides from left, item 2 scales up from below. Each element has its own animation character.
 
 **RULE 3: Spring config MUST match animation intent**
-- Impact/pop: `{{ damping: 10, stiffness: 200, mass: 1.4 }}` — bouncy overshoot
+- Impact/pop: `{{ damping: 18, stiffness: 200, mass: 1.4 }}` — bouncy overshoot
 - Smooth settle: `{{ damping: 26, stiffness: 120, mass: 1.0 }}` — no overshoot
 - Connecting lines/paths: use `Easing.out(Easing.cubic)` not springs
 - WRONG: every animation uses the same spring config
@@ -187,8 +187,8 @@ Labels, icons, arrows that annotate Layer 1. Rules:
 - Use Freepik/Iconify MCP for icons — never bare emoji or crude SVG shapes
 
 **Layer 3 — AMBIENT ATMOSPHERE (10% visual weight, opacity ≤ 15%):**
-Subtle depth: DotGrid, particle flow, glow intensification at sync points.
-Direction must match narrative (upward particles = growth, lateral = progression).
+Subtle depth: DotGrid, gradient drift, glow intensification at sync points.
+Direction must match narrative (upward drift = growth, lateral = progression).
 
 ### SYNC COVERAGE (MANDATORY)
 
@@ -298,7 +298,7 @@ scale, 1-3 degree rotation. Large amplitudes or text-position sin = JITTER = BRO
 - Card entrance: `{{ damping: 20, stiffness: 120, mass: 0.8 }}` — smooth settle
 - Hero text reveal: `{{ damping: 20, stiffness: 170 }}` — snappy
 - Gentle slide: `{{ damping: 20, stiffness: 90, mass: 1 }}` — standard
-- **NEVER** damping < 10 (too bouncy) or > 26 (overdamped)
+- **NEVER** damping < 18 (too bouncy) or > 26 (overdamped)
 
 ### RENDERING RULES
 
