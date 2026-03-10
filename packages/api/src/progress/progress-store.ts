@@ -86,6 +86,11 @@ export const apiProgressStore = {
           const { _type, ...event } = parsed;
           onActivity(event as ActivityEvent);
         } else {
+          // Normalize: publishJobProgress sends `progress`, progressStore sends `percent`.
+          // Both publish to the same Redis channel, so handle either field name.
+          if (parsed.percent === undefined && parsed.progress !== undefined) {
+            parsed.percent = parsed.progress;
+          }
           onProgress(parsed as ProgressState);
         }
       } catch {}

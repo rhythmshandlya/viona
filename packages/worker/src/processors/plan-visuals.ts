@@ -161,7 +161,7 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
 
       // Run the Director phase
       await publishJobProgress(jobId, 20, 'Planning scenes — this may take a few minutes...');
-      heartbeat = startHeartbeatProgress(jobId, 20, 88, 12 * 60 * 1000); // 12 min estimate
+      heartbeat = startHeartbeatProgress(jobId, 20, 88, 12 * 60 * 1000, 'Planning scenes...'); // 12 min estimate
 
       const planData = await runDirectorPhase({
         projectId: compositionId,
@@ -353,46 +353,20 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
     let stdout = '';
     let stderr = '';
     let planData: PlanData | null = null;
-    let gotRealProgress = false;
-
-    // Periodic progress ticker — keeps the UI alive while Claude starts up.
-    // Cycles through descriptive messages so users know something is happening.
-    const TICKER_MESSAGES = [
-      [18, 'Starting Claude Code generator...'],
-      [22, 'Connecting to Claude...'],
-      [26, 'Authenticating...'],
-      [30, 'Analyzing transcript...'],
-      [35, 'Identifying key topics...'],
-      [40, 'Mapping visual concepts...'],
-      [45, 'Designing scene structure...'],
-      [50, 'Refining scene details...'],
-      [55, 'Crafting visual descriptions...'],
-      [58, 'Finalizing scene plan...'],
-    ] as const;
-    let tickerIndex = 0;
-
-    const progressTicker = setInterval(() => {
-      if (gotRealProgress || tickerIndex >= TICKER_MESSAGES.length) return;
-      const [percent, message] = TICKER_MESSAGES[tickerIndex];
-      publishJobProgress(jobId, percent, message);
-      tickerIndex++;
-    }, 5_000);
 
     subprocess.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stdout += text;
 
-      // Parse progress updates and PLAN_READY from stdout
+      // Parse PLAN_READY and PROGRESS from stdout
       const lines = text.split('\n');
       for (const line of lines) {
         // Parse PROGRESS:XX:message
         const progressMatch = line.match(/^PROGRESS:(\d+):(.+)$/);
         if (progressMatch) {
-          gotRealProgress = true;
           const percent = parseInt(progressMatch[1], 10);
           const message = progressMatch[2];
-          // Map progress to 60-90% range for real progress (ticker covers 15-58%)
-          const mappedPercent = Math.min(90, Math.max(60, percent));
+          const mappedPercent = Math.min(88, Math.max(20, percent));
           publishJobProgress(jobId, mappedPercent, message);
           logger.info({ projectId, percent: mappedPercent, message }, 'Director phase progress');
         }
@@ -453,7 +427,6 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
-        clearInterval(progressTicker);
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
         if (fatalStderrDetected) {
@@ -470,7 +443,6 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
-        clearInterval(progressTicker);
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
         reject(err);

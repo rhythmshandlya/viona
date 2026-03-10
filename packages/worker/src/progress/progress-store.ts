@@ -60,14 +60,24 @@ export const progressStore = {
       const key = PROGRESS_KEYS.state(jobId);
       const serialized = serializeState(state);
       await redisHSet(key, serialized);
-      await redis.publish(key, JSON.stringify(state));
+      // Publish with `progress` field (not just `percent`) so the frontend
+      // WebSocket handler reads the same shape as publishJobProgress.
+      await redis.publish(key, JSON.stringify({
+        ...state,
+        progress: state.percent,
+        jobId,
+      }));
       await redisExpire(key, TTL_SECONDS);
 
       const buffered = buffer.flush();
       for (const evt of buffered) {
         const k = PROGRESS_KEYS.state(evt.jobId);
         await redisHSet(k, serializeState(evt.state));
-        await redis.publish(k, JSON.stringify(evt.state));
+        await redis.publish(k, JSON.stringify({
+          ...evt.state,
+          progress: evt.state.percent,
+          jobId: evt.jobId,
+        }));
       }
     } catch (err) {
       logger.warn({ jobId, err }, 'Redis write failed, buffering progress');
@@ -135,7 +145,7 @@ export const progressStore = {
         retriesMax: String(health.retriesMax),
       };
       await redisHSet(key, serialized);
-      await redis.publish(key, JSON.stringify(health));
+      await redis.publish(key, JSON.stringify({ ...health, jobId }));
       await redisExpire(key, TTL_SECONDS);
     } catch (err) {
       logger.warn({ jobId, err }, 'Failed to publish health state');
@@ -150,6 +160,7 @@ export const progressStore = {
       await redis.publish(PROGRESS_KEYS.state(jobId), JSON.stringify({
         ...event,
         _type: 'activity',
+        jobId,
       }));
     } catch (err) {
       logger.warn({ jobId, err }, 'Failed to add activity event');

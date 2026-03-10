@@ -87,7 +87,14 @@ export function redisSubscribe(
   channel: string,
   callback: (message: string) => void,
 ): () => void {
-  const sub = new Redis(config.redis.url, { enableReadyCheck: false });
+  const sub = new Redis(config.redis.url, {
+    enableReadyCheck: false,
+    retryStrategy: (times) => Math.min(times * 500, 5000),
+  });
+
+  sub.on('error', (err) => {
+    console.error(`Redis subscriber error on ${channel}:`, err.message);
+  });
 
   sub.subscribe(channel).catch((err) => {
     console.error(`Failed to subscribe to ${channel}:`, err);
@@ -98,7 +105,7 @@ export function redisSubscribe(
   });
 
   return () => {
-    sub.unsubscribe(channel);
+    sub.unsubscribe(channel).catch(() => {});
     sub.disconnect();
   };
 }

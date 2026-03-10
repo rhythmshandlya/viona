@@ -90,7 +90,7 @@ export async function publishJobProgress(
 
   await redis.publish(
     `job:${jobId}:progress`,
-    JSON.stringify({ jobId, projectId, progress, message, ...extras })
+    JSON.stringify({ jobId, projectId, progress, percent: progress, message, ...extras })
   );
 }
 

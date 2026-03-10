@@ -11,13 +11,13 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ events }) => {
   if (events.length === 0) return null;
 
   return (
-    <div style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.5)' }}>
+    <div style={{ fontSize: 11, color: 'var(--editor-text-muted)' }}>
       <button
         onClick={() => setExpanded(!expanded)}
         style={{
           background: 'none',
           border: 'none',
-          color: 'rgba(255, 255, 255, 0.5)',
+          color: 'var(--editor-text-muted)',
           cursor: 'pointer',
           padding: '4px 0',
           fontSize: 11,
@@ -56,7 +56,7 @@ export const ActivityLog: React.FC<ActivityLogProps> = ({ events }) => {
                          event.type === 'phase' ? '●' : '✓';
             const color = event.type === 'error' ? 'rgb(239, 68, 68)' :
                           event.type === 'health' ? 'rgb(250, 204, 21)' :
-                          'rgba(255, 255, 255, 0.4)';
+                          'var(--editor-text-muted)';
 
             return (
               <div key={i} style={{ display: 'flex', gap: 8, color }}>

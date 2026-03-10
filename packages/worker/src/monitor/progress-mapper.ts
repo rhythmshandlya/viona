@@ -71,7 +71,7 @@ export class BaseProgressMapper implements ProgressMapper {
   mapHeartbeatToProgress(phase: string, detail: string): Partial<ProgressState> {
     const w = this.weights[phase];
     if (!w) return { phase, phaseName: phase, detail };
-    return { phase, phaseName: w.label, detail };
+    return { percent: w.start, phase, phaseName: w.label, detail };
   }
 
   mapStdoutToProgress(

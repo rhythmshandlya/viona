@@ -300,7 +300,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const { reloadVisuals, setSelectedScene, setSelectedElement, setSelectedTimeRange, clearSelection, setPendingAIMessage } = useEditorActions();
 
   // WebSocket for real-time job progress (survives page refresh, unlike SSE)
-  const { subscribeToJob } = useJobWebSocket(projectId, {
+  const { subscribeToJob, isConnected: wsConnected } = useJobWebSocket(projectId, {
     onProgress: (data) => {
       // SSE takes priority while stream is active — prevents duplicate updates
       if (progressSourceRef.current === 'sse' && isStreaming) return;
@@ -1603,6 +1603,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // Block renderer
   // -----------------------------------------------------------------------
 
+  /** Merge adjacent text blocks into one so streaming chunks render as a single paragraph. */
+  function mergeAdjacentTextBlocks(blocks: MessageBlock[]): MessageBlock[] {
+    const merged: MessageBlock[] = [];
+    for (const block of blocks) {
+      const prev = merged[merged.length - 1];
+      if (block.type === 'text' && prev?.type === 'text') {
+        // Join with newline so markdown paragraphs stay separate
+        merged[merged.length - 1] = { type: 'text', text: prev.text + '\n' + block.text };
+      } else {
+        merged.push(block);
+      }
+    }
+    return merged;
+  }
+
   const renderBlock = (block: MessageBlock, index: number) => {
     switch (block.type) {
       case 'text':
@@ -1670,7 +1685,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           <div key={index} className="my-2" role="status" aria-live="polite">
             <HealthIndicator
               health={progressState.health}
-              connectionStatus={progressState.source === 'ws' || progressState.source === 'sse' ? 'connected' : 'reconnecting'}
+              connectionStatus={wsConnected || progressState.source === 'sse' ? 'connected' : 'reconnecting'}
               isActive={block.percent < 100}
             />
             <ProgressBar
@@ -1680,6 +1695,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               detail={block.meta?.detail}
               isActive={block.percent < 100}
               error={block.error}
+              jobType={block.jobType}
             />
             <ActivityLog events={progressState.activity} />
             {etaSeconds !== null && block.percent < 95 && !block.error && (
@@ -1830,7 +1846,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                     />
                   </div>
                 )}
-                {message.content.map((block, i) => renderBlock(block, i))}
+                {mergeAdjacentTextBlocks(message.content).map((block, i) => renderBlock(block, i))}
                 {failedMessageId === message.id && !message.content.some((b) => b.type === 'progress' && b.error) && (
                   <button
                     onClick={handleRetry}

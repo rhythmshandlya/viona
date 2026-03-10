@@ -100,6 +100,7 @@ export class SubprocessMonitor {
         proc.stdout?.on('data', (chunk: Buffer) => {
           const text = chunk.toString('utf-8');
           stdout += text;
+          logger.info({ jobId: this.config.jobId, output: text.slice(0, 500) }, 'Subprocess stdout');
 
           for (const line of text.split('\n')) {
             const trimmed = line.trim();
@@ -125,7 +126,11 @@ export class SubprocessMonitor {
         });
 
         proc.stderr?.on('data', (chunk: Buffer) => {
-          stderr += chunk.toString('utf-8');
+          const text = chunk.toString('utf-8');
+          stderr += text;
+          if (text.trim()) {
+            logger.error({ jobId: this.config.jobId, stderr: text.slice(0, 500) }, 'Subprocess stderr');
+          }
         });
 
         // Abort signal support

@@ -8,17 +8,38 @@ interface ProgressBarProps {
   detail?: string;
   isActive: boolean;
   error?: boolean;
+  /** Determines which phases to show in the timeline. */
+  jobType?: string;
 }
 
-const PHASE_ORDER = ['plan', 'animate', 'verify', 'bundle', 'upload', 'done'];
-const PHASE_LABELS: Record<string, string> = {
-  plan: 'Plan',
-  animate: 'Animate',
-  verify: 'Verify',
-  bundle: 'Bundle',
-  upload: 'Upload',
-  done: 'Done',
+/**
+ * Phase definitions per job type.
+ * IDs must match the `phase` values emitted by the backend.
+ */
+const PHASES_BY_JOB: Record<string, Array<{ id: string; label: string }>> = {
+  'plan-visuals': [
+    { id: 'plan', label: 'Plan' },
+  ],
+  'generate-visuals': [
+    { id: 'plan', label: 'Plan' },
+    { id: 'animate', label: 'Animate' },
+    { id: 'verify', label: 'Verify' },
+    { id: 'bundle', label: 'Bundle' },
+  ],
+  'edit-visuals': [
+    { id: 'animate', label: 'Edit' },
+    { id: 'verify', label: 'Verify' },
+    { id: 'bundle', label: 'Bundle' },
+  ],
 };
+
+/** Backend phase aliases — map alternate phase IDs to their canonical ID */
+const PHASE_ALIASES: Record<string, string> = {
+  self_heal: 'verify',
+  workspace: 'plan',
+};
+
+const DEFAULT_PHASES = PHASES_BY_JOB['generate-visuals']!;
 
 export const ProgressBar: React.FC<ProgressBarProps> = ({
   percent,
@@ -27,6 +48,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
   detail,
   isActive,
   error,
+  jobType,
 }) => {
   const { displayPercent } = useSmoothProgress({
     targetPercent: percent,
@@ -37,7 +59,20 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
     ? 'rgb(239, 68, 68)'
     : phase === 'done'
       ? 'rgb(34, 197, 94)'
-      : 'rgb(99, 102, 241)';
+      : 'var(--editor-accent)';
+
+  const phases = (jobType && PHASES_BY_JOB[jobType]) || DEFAULT_PHASES;
+
+  // Resolve aliases (e.g. self_heal → verify, workspace → plan)
+  const resolvedPhase = PHASE_ALIASES[phase] ?? phase;
+
+  // Find the index of the current phase in our list.
+  const currentPhaseIdx = (() => {
+    const direct = phases.findIndex((p) => p.id === resolvedPhase);
+    if (direct >= 0) return direct;
+    if (resolvedPhase === 'done') return phases.length;
+    return -1;
+  })();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 0' }}>
@@ -46,7 +81,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         position: 'relative',
         height: 6,
         borderRadius: 3,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        backgroundColor: 'var(--editor-border-default)',
         overflow: 'hidden',
       }}>
         <div style={{
@@ -58,13 +93,14 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           backgroundColor: barColor,
           borderRadius: 3,
           transition: 'background-color 300ms ease',
+          ...(isActive && !error ? { animation: 'bar-pulse 2s ease-in-out infinite' } : {}),
         }}>
           {isActive && !error && (
             <div style={{
               position: 'absolute',
               inset: 0,
-              background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%)`,
-              animation: 'shimmer 2s infinite',
+              background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)`,
+              animation: 'shimmer 1.5s ease-in-out infinite',
             }} />
           )}
         </div>
@@ -76,7 +112,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         justifyContent: 'space-between',
         alignItems: 'center',
         fontSize: 12,
-        color: error ? 'rgb(239, 68, 68)' : 'rgba(255, 255, 255, 0.6)',
+        color: error ? 'rgb(239, 68, 68)' : 'var(--editor-text-secondary)',
       }}>
         <span>
           {phaseName}
@@ -86,65 +122,69 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
       </div>
 
       {/* Phase timeline */}
-      <div style={{
-        display: 'flex',
-        gap: 4,
-        alignItems: 'center',
-        fontSize: 10,
-        color: 'rgba(255, 255, 255, 0.4)',
-      }}>
-        {PHASE_ORDER.filter(p => p !== 'done').map((p, i) => {
-          const phaseIdx = PHASE_ORDER.indexOf(phase);
-          const thisIdx = PHASE_ORDER.indexOf(p);
-          const isComplete = thisIdx < phaseIdx || phase === 'done';
-          const isCurrent = p === phase;
+      {phases.length > 1 && (
+        <div style={{
+          display: 'flex',
+          gap: 4,
+          alignItems: 'center',
+          fontSize: 10,
+          color: 'var(--editor-text-muted)',
+        }}>
+          {phases.map((p, i) => {
+            const isComplete = i < currentPhaseIdx;
+            const isCurrent = i === currentPhaseIdx;
 
-          return (
-            <React.Fragment key={p}>
-              {i > 0 && (
+            return (
+              <React.Fragment key={p.id}>
+                {i > 0 && (
+                  <div style={{
+                    flex: 1,
+                    height: 1,
+                    backgroundColor: isComplete ? barColor : 'var(--editor-bg-hover)',
+                  }} />
+                )}
                 <div style={{
-                  flex: 1,
-                  height: 1,
-                  backgroundColor: isComplete ? barColor : 'rgba(255, 255, 255, 0.1)',
-                }} />
-              )}
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 3,
-                color: isComplete
-                  ? barColor
-                  : isCurrent
-                    ? 'rgba(255, 255, 255, 0.8)'
-                    : 'rgba(255, 255, 255, 0.3)',
-                fontWeight: isCurrent ? 600 : 400,
-              }}>
-                <span style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  backgroundColor: isComplete
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  color: isComplete
                     ? barColor
                     : isCurrent
-                      ? 'rgba(255, 255, 255, 0.8)'
-                      : 'rgba(255, 255, 255, 0.15)',
-                  ...(isCurrent && !error ? { animation: 'pulse 2s infinite' } : {}),
-                }} />
-                {PHASE_LABELS[p]}
-              </div>
-            </React.Fragment>
-          );
-        })}
-      </div>
+                      ? 'var(--editor-text-primary)'
+                      : 'var(--editor-text-muted)',
+                  fontWeight: isCurrent ? 600 : 400,
+                }}>
+                  <span style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    backgroundColor: isComplete
+                      ? barColor
+                      : isCurrent
+                        ? 'var(--editor-text-primary)'
+                        : 'var(--editor-bg-hover)',
+                    ...(isCurrent && !error ? { animation: 'pulse 2s infinite' } : {}),
+                  }} />
+                  {p.label}
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      )}
 
       <style>{`
         @keyframes shimmer {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(200%); }
+          0% { transform: translateX(-150%); }
+          100% { transform: translateX(250%); }
+        }
+        @keyframes bar-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
         }
         @keyframes pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
+          50% { opacity: 0.4; }
         }
       `}</style>
     </div>

@@ -49,7 +49,7 @@ export const HealthIndicator: React.FC<HealthIndicatorProps> = ({
       alignItems: 'center',
       gap: 6,
       fontSize: 11,
-      color: 'rgba(255, 255, 255, 0.5)',
+      color: 'var(--editor-text-muted)',
     }}>
       <span style={{
         width: 6,

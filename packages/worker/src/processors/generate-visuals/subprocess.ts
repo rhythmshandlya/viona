@@ -142,7 +142,7 @@ async function cleanTempFiles(jobId: string, tempFiles: TempFiles): Promise<void
 /** Build subprocess args for the Python visual generator */
 function buildGeneratorArgs(options: ClaudeCodeOptions, tempFiles: TempFiles): string[] {
   const { projectId, durationFrames, fps, width, height, stylePreset, layoutMode, pipWidth, pipHeight, safePlacement, planJobId } = options;
-  const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
+  const agentScript = join(__dirname, '..', '..', 'agents', 'claude_visual_generator.py');
   const workspacePath = getWorkspacePath();
   const bundleOutputDir = config.remotion.bundleOutputDir;
 
@@ -487,6 +487,11 @@ export async function runMonitoredClaudeGenerator(
     registerCancelHandler(jobId, () => {
       logger.info({ jobId, projectId }, 'Cancelling monitored Claude generator via Redis');
       abortController.abort();
+    });
+
+    // Emit initial progress so the frontend bar moves immediately
+    publishJobProgress(jobId, 5, 'Starting visual generator...', {
+      meta: { phase: 'plan', phaseName: 'Initializing' },
     });
 
     const result = await monitor.run(pythonPath, baseArgs, {

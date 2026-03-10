@@ -1,5 +1,6 @@
 import type { ProgressState, HealthState, ActivityEvent } from '@viona/shared';
 import { apiProgressStore } from './progress-store.js';
+import { logger } from '../logger.js';
 
 interface ProgressRelayConfig {
   jobId: string;
@@ -41,11 +42,17 @@ export function createProgressRelay(config: ProgressRelayConfig): Promise<RelayR
     }
 
     // Subscribe to progress updates
+    let messageCount = 0;
     const unsubProgress = apiProgressStore.subscribe(
       jobId,
       (state: ProgressState) => {
+        messageCount++;
         const percent = Math.max(state.percent, highWaterMark);
         highWaterMark = percent;
+
+        if (messageCount <= 3 || messageCount % 10 === 0 || percent >= 90) {
+          logger.info({ jobId, percent, rawPercent: state.percent, message: state.message, messageCount }, 'Progress relay event');
+        }
 
         sendSSE('progress', {
           percent,
@@ -58,6 +65,7 @@ export function createProgressRelay(config: ProgressRelayConfig): Promise<RelayR
         });
 
         if (state.phase === 'done' || percent >= 100) {
+          logger.info({ jobId, percent }, 'Progress relay: completion detected');
           sendSSE('progress', { percent: 100, message: 'Done!', jobId });
           finish({ status: 'complete' });
         }
@@ -121,7 +129,10 @@ export function createProgressRelay(config: ProgressRelayConfig): Promise<RelayR
         const job = await db.query.jobs.findFirst({ where: eq(jobs.id, jobId) });
         if (!job) return;
 
+        logger.info({ jobId, status: job.status, progress: job.progress, redisMessages: messageCount }, 'Progress relay DB poll');
+
         if (job.status === 'complete') {
+          logger.info({ jobId }, 'Progress relay: DB poll detected completion');
           sendSSE('progress', { percent: 100, message: 'Done!', jobId });
           finish({ status: 'complete' });
         }
