@@ -221,7 +221,7 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     // This prevents TypeScript import errors and eliminates the self-healing cycle.
     const compositionIdDashed = compositionId.replace(/_/g, '-'); // e.g. proj-abc-def
     const rootTsx = join(workspacePath, 'src', 'Root.tsx');
-    const indexTs = join(workspacePath, 'src', 'index.ts');
+    const indexTsx = join(workspacePath, 'src', 'index.tsx');
     try {
       const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
       await writeFile(rootTsx, `import "./index.css";
@@ -243,14 +243,19 @@ export const RemotionRoot: React.FC = () => {
   );
 };
 `, 'utf-8');
-      await writeFile(indexTs, `import { registerRoot } from "remotion";
+      await writeFile(indexTsx, `import { registerRoot } from "remotion";
 import { RemotionRoot } from "./${compositionId}/index";
 
 registerRoot(RemotionRoot);
 `, 'utf-8');
-      logger.info({ compositionId }, 'Updated Root.tsx and index.ts with correct project imports');
+
+      // Remove old .ts if it exists (template ships index.ts, we write index.tsx)
+      const oldIndexTs = join(workspacePath, 'src', 'index.ts');
+      try { await rm(oldIndexTs, { force: true }); } catch { /* may not exist */ }
+
+      logger.info({ compositionId }, 'Updated Root.tsx and index.tsx with correct project imports');
     } catch (e) {
-      logger.warn({ error: e }, 'Failed to update Root.tsx/index.ts — self-heal will fix it');
+      logger.warn({ error: e }, 'Failed to update Root.tsx/index.tsx — self-heal will fix it');
     }
 
     // Write categorized template catalog for Director prompt (no bulk copy — resolution happens after Director)
