@@ -1,60 +1,40 @@
 ---
-import { siteConfig } from "@/data/site";
-
 const features = [
   {
-    tag: "Captions",
+    id: "captions",
+    label: "Captions",
     title: "20+ Creator-Grade Caption Styles",
-    description: "From MrBeast's bold green highlights to Ali Abdaal's word-by-word fades. Pick a viral style, customize fonts, colors, animations, and glow effects — or build your own from scratch.",
-    gradient: "from-violet-500/10 to-purple-500/10",
-    border: "border-violet-200",
-    items: ["MrBeast, Hormozi, Ali Abdaal presets", "Word-by-word & karaoke modes", "Stroke, shadow & neon glow effects", "200+ Google Fonts"],
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/></svg>`,
+    description: "MrBeast, Hormozi, Ali Abdaal presets. Word-by-word, karaoke, neon glow — customize everything.",
   },
   {
-    tag: "AI Visuals",
+    id: "ai-visuals",
+    label: "AI Visuals",
     title: "Auto-Generated Visual Compositions",
-    description: "Describe a process? You get a flowchart. Mention data? A chart appears. Our AI listens to your narration and generates contextual graphics — not generic stock footage.",
-    gradient: "from-fuchsia-500/10 to-pink-500/10",
-    border: "border-fuchsia-200",
-    items: ["Flowcharts, timelines & diagrams", "Charts, stats & comparisons", "PiP, split-screen & fullscreen layouts", "4 visual themes to choose from"],
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"/></svg>`,
+    description: "Flowcharts when you explain a process. Charts when you cite data. The AI picks the right visual automatically.",
   },
   {
-    tag: "Multi-Platform",
+    id: "multiplatform",
+    label: "Multi-Platform",
     title: "One Video, Every Platform",
-    description: "Export in 9:16 for TikTok & Reels, 16:9 for YouTube, 1:1 for Instagram, or 4:5 for ads. Built-in safe zone overlays show you exactly what viewers will see.",
-    gradient: "from-blue-500/10 to-cyan-500/10",
-    border: "border-blue-200",
-    items: ["TikTok, Reels & Shorts safe zones", "Crop, pan & zoom controls", "Platform-specific preview mockups", "Export in any aspect ratio"],
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>`,
+    description: "Export 9:16, 16:9, 1:1 from the same project. Built-in safe zone overlays.",
   },
   {
-    tag: "Audio & B-Roll",
-    title: "Clean Audio & B-Roll Integration",
-    description: "AI removes filler words like 'um' and 'uh' automatically. Enhance audio clarity in one click. Upload your own B-roll or pull from Pexels stock — drag it right onto the timeline.",
-    gradient: "from-emerald-500/10 to-teal-500/10",
-    border: "border-emerald-200",
-    items: ["Auto filler word removal", "One-click audio enhancement", "Pexels stock footage integration", "Multi-track timeline editing"],
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>`,
+    id: "audio",
+    label: "Audio & B-Roll",
+    title: "Clean Audio & B-Roll",
+    description: "Filler words removed automatically. Pull B-roll from Pexels or upload your own.",
   },
   {
-    tag: "AI Assistant",
+    id: "ai-assistant",
+    label: "AI Assistant",
     title: "Edit With Natural Language",
-    description: "Just tell the AI what you want. \"Make the background darker\", \"Change the layout to split-screen\", \"Use warmer colors\". It understands your project and makes the changes live.",
-    gradient: "from-amber-500/10 to-orange-500/10",
-    border: "border-amber-200",
-    items: ["Conversational editing interface", "Context-aware of your project", "Theme & layout suggestions", "Real-time visual updates"],
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>`,
+    description: "\"Make the background darker\" — it does it. Context-aware of your entire project.",
   },
   {
-    tag: "Timeline",
+    id: "timeline",
+    label: "Timeline",
     title: "Full Timeline Control",
-    description: "A multi-track timeline with video, audio, captions, visuals, and B-roll tracks. Trim clips, adjust timing, reorder scenes, control volume per-track — everything a pro editor needs, without the complexity.",
-    gradient: "from-rose-500/10 to-red-500/10",
-    border: "border-rose-200",
-    items: ["Multi-track video & audio", "Drag-and-drop clip editing", "Per-item volume & timing", "Keyboard shortcuts for speed"],
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>`,
+    description: "Multi-track video, audio, captions and visuals. Drag, trim, reorder — everything a pro needs.",
   },
 ];
 ---
@@ -62,57 +42,1014 @@ const features = [
 <section id="capabilities" class="py-12 sm:py-16 lg:py-24">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <!-- Header -->
-    <div class="text-center mb-10 sm:mb-14 lg:mb-16">
-      <p class="text-sm font-semibold text-primary mb-3 tracking-wide uppercase">Everything You Need</p>
-      <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold leading-tight mb-4">
-        One Studio. <span class="text-brand">Every Tool.</span>
+    <div class="text-center mb-10 sm:mb-14">
+      <p class="text-sm font-semibold text-primary mb-3 tracking-wide uppercase">What's inside</p>
+      <h2 class="font-serif text-2xl sm:text-3xl lg:text-4xl leading-tight mb-3">
+        Everything your videos<br /><em class="not-italic text-primary">were missing.</em>
       </h2>
-      <p class="text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto">
-        From transcription to export, Viona handles the entire workflow. No plugins, no switching tabs, no complexity.
-      </p>
     </div>
 
-    <!-- Feature grid -->
-    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-      {features.map((feature) => (
-        <div class={`group relative bg-gradient-to-br ${feature.gradient} rounded-2xl border ${feature.border} p-5 sm:p-6 transition-all duration-300 hover:shadow-lg hover:-translate-y-1`}>
-          <!-- Tag + Icon -->
-          <div class="flex items-center gap-2 mb-3">
-            <div class="w-8 h-8 rounded-lg bg-white/80 border border-white flex items-center justify-center text-primary">
-              <Fragment set:html={feature.icon} />
+    <!-- Interactive layout -->
+    <div class="feat-layout">
+
+      <!-- Left: visual panel -->
+      <div class="feat-visual-wrap">
+
+        <!-- Captions demo -->
+        <div class="feat-panel feat-panel--active" data-panel="captions">
+          <div class="feat-scene feat-scene--dark">
+            <div class="captions-demo">
+              <!-- Fake video bg -->
+              <div class="cap-video-bg" aria-hidden="true">
+                <div class="cap-video-grain"></div>
+              </div>
+
+              <!-- Caption display area -->
+              <div class="cap-display" id="cap-display">
+                <!-- words injected by JS -->
+              </div>
+
+              <!-- Style chips -->
+              <div class="cap-styles">
+                <button class="cap-style-chip cap-chip--active" data-style="mrbeast">MrBeast</button>
+                <button class="cap-style-chip" data-style="hormozi">Hormozi</button>
+                <button class="cap-style-chip" data-style="alibdaal">Ali Abdaal</button>
+                <button class="cap-style-chip" data-style="karaoke">Karaoke</button>
+              </div>
             </div>
-            <span class="text-xs font-semibold text-primary tracking-wide uppercase">{feature.tag}</span>
           </div>
-
-          <!-- Title -->
-          <h3 class="text-base sm:text-lg font-semibold mb-2 leading-snug">{feature.title}</h3>
-
-          <!-- Description -->
-          <p class="text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed">{feature.description}</p>
-
-          <!-- Feature list -->
-          <ul class="space-y-1.5">
-            {feature.items.map((item) => (
-              <li class="flex items-start gap-2 text-xs sm:text-sm text-foreground/80">
-                <svg class="w-4 h-4 text-primary flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                </svg>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
         </div>
-      ))}
-    </div>
 
-    <!-- Bottom CTA -->
-    <div class="text-center mt-10 sm:mt-14">
-      <a href="#waitlist-form" class="inline-flex items-center gap-2 bg-primary text-white px-6 py-3 rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors">
-        Join Waitlist
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
-        </svg>
-      </a>
+        <!-- AI Visuals demo -->
+        <div class="feat-panel" data-panel="ai-visuals">
+          <div class="feat-scene feat-scene--dark">
+            <div class="ai-demo-frame">
+              <div class="ai-demo-chart">
+                <div class="ai-demo-chart-title">Revenue Growth</div>
+                <div class="ai-demo-bars">
+                  <div class="ai-demo-bar-wrap"><div class="ai-demo-bar" style="--h:40%;--delay:0s"></div><span>Q1</span></div>
+                  <div class="ai-demo-bar-wrap"><div class="ai-demo-bar" style="--h:62%;--delay:0.1s"></div><span>Q2</span></div>
+                  <div class="ai-demo-bar-wrap"><div class="ai-demo-bar" style="--h:55%;--delay:0.2s"></div><span>Q3</span></div>
+                  <div class="ai-demo-bar-wrap"><div class="ai-demo-bar ai-demo-bar--hl" style="--h:88%;--delay:0.3s"></div><span>Q4</span></div>
+                </div>
+              </div>
+              <div class="ai-demo-badge">
+                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                AI generated
+              </div>
+              <div class="ai-demo-pip">
+                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4" opacity="0.6"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" opacity="0.4"/></svg>
+              </div>
+              <div class="ai-demo-caption">
+                <span class="aicap-word">revenue</span>
+                <span class="aicap-word aicap-word--hl">grew</span>
+                <span class="aicap-word">88%</span>
+                <span class="aicap-word">last</span>
+                <span class="aicap-word">quarter</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi-platform demo -->
+        <div class="feat-panel" data-panel="multiplatform">
+          <div class="feat-scene feat-scene--light">
+            <div class="mp-demo">
+              <div class="mp-device mp-device--916">
+                <div class="mp-label">TikTok 9:16</div>
+                <div class="mp-screen"></div>
+              </div>
+              <div class="mp-device mp-device--169 mp-device--active">
+                <div class="mp-label">YouTube 16:9</div>
+                <div class="mp-screen"></div>
+              </div>
+              <div class="mp-device mp-device--11">
+                <div class="mp-label">Instagram 1:1</div>
+                <div class="mp-screen"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Audio & B-Roll demo -->
+        <div class="feat-panel" data-panel="audio">
+          <div class="feat-scene feat-scene--dark">
+            <div class="audio-demo">
+              <div class="audio-waveform">
+                {Array.from({length: 28}).map((_, i) => (
+                  <div class="audio-bar" style={`--i:${i};--h:${20 + Math.sin(i * 0.8) * 30 + Math.random() * 20}%`}></div>
+                ))}
+              </div>
+              <div class="audio-transcript">
+                <span class="at-word">so</span>
+                <span class="at-word at-filler">um</span>
+                <span class="at-word">today</span>
+                <span class="at-word at-filler">like</span>
+                <span class="at-word">we'll</span>
+                <span class="at-word">cover</span>
+                <span class="at-word at-filler">uh</span>
+                <span class="at-word">growth</span>
+              </div>
+              <div class="audio-badge">✓ Fillers removed</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Assistant demo -->
+        <div class="feat-panel" data-panel="ai-assistant">
+          <div class="feat-scene feat-scene--dark">
+            <div class="chat-demo">
+              <div class="chat-msg chat-msg--user chat-m1">Make the background darker</div>
+              <div class="chat-msg chat-msg--ai chat-m2">
+                <svg viewBox="0 0 16 16" fill="currentColor" class="chat-spark"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                Done — darkened to #0a0a0a
+              </div>
+              <div class="chat-msg chat-msg--user chat-m3">Split screen layout</div>
+              <div class="chat-msg chat-msg--ai chat-m4">
+                <svg viewBox="0 0 16 16" fill="currentColor" class="chat-spark"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                Applied split-screen with PiP
+              </div>
+              <div class="chat-cursor chat-m5"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timeline demo -->
+        <div class="feat-panel" data-panel="timeline">
+          <div class="feat-scene feat-scene--dark">
+            <div class="tl-demo">
+              <div class="tl-track">
+                <div class="tl-track-label">Video</div>
+                <div class="tl-track-body">
+                  <div class="tl-clip tl-clip--video" style="width:45%"></div>
+                  <div class="tl-clip tl-clip--video" style="width:35%;margin-left:2%"></div>
+                </div>
+              </div>
+              <div class="tl-track">
+                <div class="tl-track-label">Visuals</div>
+                <div class="tl-track-body">
+                  <div class="tl-clip tl-clip--visual" style="width:20%;margin-left:8%"></div>
+                  <div class="tl-clip tl-clip--visual" style="width:25%;margin-left:35%"></div>
+                </div>
+              </div>
+              <div class="tl-track">
+                <div class="tl-track-label">Captions</div>
+                <div class="tl-track-body">
+                  <div class="tl-clip tl-clip--caption" style="width:80%"></div>
+                </div>
+              </div>
+              <div class="tl-track">
+                <div class="tl-track-label">Audio</div>
+                <div class="tl-track-body">
+                  <div class="tl-clip tl-clip--audio" style="width:82%"></div>
+                </div>
+              </div>
+              <div class="tl-playhead"></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right: feature buttons -->
+      <div class="feat-buttons">
+        {features.map((f) => (
+          <button
+            class={`feat-btn ${f.id === 'captions' ? 'feat-btn--active' : ''}`}
+            data-feature={f.id}
+          >
+            <span class="feat-btn-label">{f.label}</span>
+            <div class="feat-btn-desc">{f.description}</div>
+          </button>
+        ))}
+      </div>
+
     </div>
   </div>
 </section>
+
+<style>
+  /* ── Layout ── */
+  .feat-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+
+  @media (min-width: 768px) {
+    .feat-layout {
+      grid-template-columns: 1fr 340px;
+      gap: 32px;
+      align-items: start;
+    }
+  }
+
+  /* ── Visual wrap ── */
+  .feat-visual-wrap {
+    position: relative;
+    aspect-ratio: 16 / 10;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #111;
+    order: 2;
+  }
+
+  @media (min-width: 768px) {
+    .feat-visual-wrap { order: 1; }
+  }
+
+  /* ── Panels ── */
+  .feat-panel {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+  }
+
+  .feat-panel--active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .feat-scene {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  .feat-scene--dark {
+    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
+  }
+
+  .feat-scene--light {
+    background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%);
+  }
+
+  /* ── Buttons ── */
+  .feat-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    order: 1;
+  }
+
+  @media (min-width: 768px) {
+    .feat-buttons { order: 2; }
+  }
+
+  .feat-btn {
+    text-align: left;
+    padding: 12px 16px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .feat-btn:hover {
+    background: rgba(124, 58, 237, 0.06);
+    border-color: rgba(124, 58, 237, 0.15);
+  }
+
+  .feat-btn--active {
+    background: rgba(124, 58, 237, 0.08);
+    border-color: rgba(124, 58, 237, 0.3);
+  }
+
+  .feat-btn-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-foreground);
+    margin-bottom: 2px;
+    transition: color 0.2s;
+  }
+
+  .feat-btn--active .feat-btn-label {
+    color: var(--color-primary);
+  }
+
+  .feat-btn-desc {
+    font-size: 12px;
+    color: var(--color-muted-foreground);
+    line-height: 1.4;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.25s ease;
+    opacity: 0;
+  }
+
+  .feat-btn--active .feat-btn-desc {
+    max-height: 60px;
+    opacity: 1;
+  }
+
+  /* ════════════════════════════
+     CAPTIONS demo
+  ════════════════════════════ */
+  .captions-demo {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    padding-bottom: 20px;
+    gap: 16px;
+  }
+
+  /* Fake video background */
+  .cap-video-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(124,58,237,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse at 75% 60%, rgba(59,130,246,0.08) 0%, transparent 50%),
+      linear-gradient(160deg, #0d0d1a 0%, #111827 100%);
+    overflow: hidden;
+  }
+
+  .cap-video-grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-size: 128px;
+  }
+
+  /* Caption display */
+  .cap-display {
+    position: relative;
+    z-index: 2;
+    min-height: 56px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    justify-content: center;
+    align-items: center;
+    padding: 0 24px;
+  }
+
+  /* Words injected by JS get these classes */
+  .cap-word {
+    display: inline-block;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    line-height: 1.1;
+    opacity: 0;
+    animation: cap-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  @keyframes cap-pop {
+    from { opacity: 0; transform: scale(0.6) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  /* Style variants set via data-style on .captions-demo */
+  /* MrBeast */
+  .cap-display[data-style="mrbeast"] .cap-word {
+    font-size: clamp(20px, 3.5vw, 30px);
+    color: white;
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+  }
+  .cap-display[data-style="mrbeast"] .cap-word--hl {
+    color: #facc15;
+    -webkit-text-stroke: 1px #000;
+  }
+
+  /* Hormozi */
+  .cap-display[data-style="hormozi"] .cap-word {
+    font-size: clamp(18px, 3vw, 26px);
+    color: white;
+    background: transparent;
+  }
+  .cap-display[data-style="hormozi"] .cap-word--hl {
+    color: #f97316;
+    background: rgba(249,115,22,0.15);
+    padding: 1px 8px;
+    border-radius: 4px;
+  }
+
+  /* Ali Abdaal */
+  .cap-display[data-style="alibdaal"] .cap-word {
+    font-size: clamp(16px, 2.8vw, 24px);
+    color: rgba(255,255,255,0.85);
+    font-weight: 600;
+  }
+  .cap-display[data-style="alibdaal"] .cap-word--hl {
+    color: #ffffff;
+    font-weight: 800;
+    border-bottom: 2px solid #a78bfa;
+    padding-bottom: 1px;
+  }
+
+  /* Karaoke */
+  .cap-display[data-style="karaoke"] .cap-word {
+    font-size: clamp(16px, 2.8vw, 24px);
+    color: rgba(255,255,255,0.35);
+    font-weight: 700;
+    transition: color 0.2s, text-shadow 0.2s;
+  }
+  .cap-display[data-style="karaoke"] .cap-word--hl {
+    color: #a78bfa;
+    text-shadow: 0 0 12px rgba(167,139,250,0.6);
+  }
+
+  /* Style chips */
+  .cap-styles {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .cap-style-chip {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.45);
+    background: rgba(255,255,255,0.04);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .cap-style-chip:hover {
+    border-color: rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.7);
+  }
+
+  .cap-style-chip.cap-chip--active {
+    border-color: rgba(124,58,237,0.55);
+    color: #a78bfa;
+    background: rgba(124,58,237,0.15);
+  }
+
+  /* ════════════════════════════
+     AI VISUALS demo
+  ════════════════════════════ */
+  .ai-demo-frame {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    aspect-ratio: 16/9;
+    background: linear-gradient(135deg, #1a1a2e, #0f3460);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .ai-demo-chart {
+    position: absolute;
+    top: 10%;
+    left: 6%;
+    right: 28%;
+    bottom: 20%;
+    background: rgba(255,255,255,0.95);
+    border-radius: 8px;
+    padding: 8px 10px 6px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ai-demo-chart-title {
+    font-size: 7px;
+    font-weight: 700;
+    color: #1a1a1a;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+
+  .ai-demo-bars {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+  }
+
+  .ai-demo-bar-wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    height: 100%;
+    justify-content: flex-end;
+  }
+
+  .ai-demo-bar-wrap span {
+    font-size: 5px;
+    color: #888;
+    font-weight: 600;
+  }
+
+  .ai-demo-bar {
+    width: 100%;
+    height: var(--h);
+    background: rgba(124,58,237,0.3);
+    border-radius: 2px 2px 0 0;
+    animation: bar-up 0.7s ease-out calc(var(--delay) + 0.2s) both;
+    transform-origin: bottom;
+  }
+
+  .ai-demo-bar--hl { background: #7C3AED; }
+
+  @keyframes bar-up {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+
+  .ai-demo-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    background: rgba(124,58,237,0.9);
+    color: white;
+    font-size: 6px;
+    font-weight: 700;
+    padding: 3px 7px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .ai-demo-badge svg {
+    width: 6px;
+    height: 6px;
+    animation: sp 1.4s ease-in-out infinite;
+  }
+
+  @keyframes sp {
+    0%,100%{opacity:1;transform:scale(1)}
+    50%{opacity:.5;transform:scale(1.4)}
+  }
+
+  .ai-demo-pip {
+    position: absolute;
+    bottom: 16%;
+    right: 5%;
+    width: 17%;
+    aspect-ratio: 1;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ai-demo-pip svg {
+    width: 55%;
+    height: 55%;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .ai-demo-caption {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 4px 8px;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+  }
+
+  .aicap-word {
+    font-size: 7px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.65);
+  }
+
+  .aicap-word--hl {
+    color: #a78bfa;
+    background: rgba(124,58,237,0.3);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  /* ════════════════════════════
+     MULTI-PLATFORM demo
+  ════════════════════════════ */
+  .mp-demo {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .mp-device {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.5;
+    transition: opacity 0.3s, transform 0.3s;
+    transform: scale(0.9);
+  }
+
+  .mp-device--active {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .mp-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--color-primary);
+    white-space: nowrap;
+  }
+
+  .mp-screen {
+    background: linear-gradient(135deg, #7C3AED 0%, #a78bfa 100%);
+    border-radius: 4px;
+    border: 2px solid rgba(124,58,237,0.4);
+  }
+
+  .mp-device--916 .mp-screen { width: 36px; height: 64px; }
+  .mp-device--169 .mp-screen { width: 96px; height: 54px; }
+  .mp-device--11 .mp-screen { width: 56px; height: 56px; }
+
+  /* ════════════════════════════
+     AUDIO demo
+  ════════════════════════════ */
+  .audio-demo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .audio-waveform {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 60px;
+  }
+
+  .audio-bar {
+    width: 4px;
+    height: var(--h);
+    background: rgba(124,58,237,0.6);
+    border-radius: 2px;
+    animation: wave 1.2s ease-in-out calc(var(--i) * 0.04s) infinite alternate;
+  }
+
+  @keyframes wave {
+    from { transform: scaleY(0.4); opacity: 0.4; }
+    to { transform: scaleY(1); opacity: 1; }
+  }
+
+  .audio-transcript {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .at-word {
+    font-size: 13px;
+    font-weight: 600;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.07);
+  }
+
+  .at-filler {
+    color: #f87171;
+    background: rgba(239,68,68,0.12);
+    text-decoration: line-through;
+  }
+
+  .audio-badge {
+    font-size: 11px;
+    font-weight: 600;
+    color: #4ade80;
+    background: rgba(74,222,128,0.12);
+    border: 1px solid rgba(74,222,128,0.25);
+    padding: 4px 12px;
+    border-radius: 20px;
+  }
+
+  /* ════════════════════════════
+     AI ASSISTANT demo
+  ════════════════════════════ */
+  .chat-demo {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .chat-msg {
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    animation: chat-in 0.35s ease-out both;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .chat-msg--user {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.1);
+    align-self: flex-end;
+    border-radius: 10px 10px 2px 10px;
+  }
+
+  .chat-msg--ai {
+    background: rgba(124,58,237,0.2);
+    color: #c4b5fd;
+    border: 1px solid rgba(124,58,237,0.3);
+    align-self: flex-start;
+    border-radius: 10px 10px 10px 2px;
+  }
+
+  .chat-spark {
+    width: 10px;
+    height: 10px;
+    color: #a78bfa;
+    flex-shrink: 0;
+  }
+
+  .chat-m1 { animation-delay: 0.1s; }
+  .chat-m2 { animation-delay: 0.5s; }
+  .chat-m3 { animation-delay: 1.0s; }
+  .chat-m4 { animation-delay: 1.5s; }
+
+  .chat-cursor {
+    width: 8px;
+    height: 16px;
+    background: #7C3AED;
+    border-radius: 2px;
+    margin-left: 12px;
+    animation: chat-in 0.2s ease-out 1.9s both, blink 1s ease-in-out 2.1s infinite;
+  }
+
+  @keyframes chat-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes blink {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ════════════════════════════
+     TIMELINE demo
+  ════════════════════════════ */
+  .tl-demo {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 16px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .tl-track {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .tl-track-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    width: 44px;
+    flex-shrink: 0;
+  }
+
+  .tl-track-body {
+    flex: 1;
+    height: 20px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 4px;
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+
+  .tl-clip {
+    height: 14px;
+    border-radius: 3px;
+    position: absolute;
+    animation: clip-in 0.5s ease-out both;
+  }
+
+  .tl-clip--video { background: rgba(124,58,237,0.6); }
+  .tl-clip--visual { background: rgba(251,191,36,0.6); }
+  .tl-clip--caption { background: rgba(74,222,128,0.5); }
+  .tl-clip--audio { background: rgba(96,165,250,0.5); }
+
+  @keyframes clip-in {
+    from { opacity: 0; transform: scaleX(0); transform-origin: left; }
+    to { opacity: 1; transform: scaleX(1); }
+  }
+
+  .tl-playhead {
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    left: calc(44px + 8px + 28%);
+    width: 2px;
+    background: #f43f5e;
+    border-radius: 1px;
+  }
+
+  .tl-playhead::before {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 10px;
+    height: 10px;
+    background: #f43f5e;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+  }
+</style>
+
+<script>
+  // ── Caption styles — all inline so Astro scoping doesn't block them ──
+  const CAP_STYLES: Record<string, {
+    base: Partial<CSSStyleDeclaration>,
+    hl: Partial<CSSStyleDeclaration>,
+    wrap?: Partial<CSSStyleDeclaration>,
+  }> = {
+    mrbeast: {
+      wrap: { gap: "10px", background: "transparent" },
+      base: {
+        fontSize: "clamp(22px, 4vw, 36px)", fontWeight: "900",
+        color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.04em",
+        textShadow: "2px 2px 0 #000, -1px -1px 0 #000, 0 0 20px rgba(0,0,0,0.5)",
+        lineHeight: "1",
+      },
+      hl: {
+        color: "#facc15", textShadow: "2px 2px 0 #000, -1px -1px 0 #000",
+        WebkitTextStroke: "1px rgba(0,0,0,0.5)",
+      },
+    },
+    hormozi: {
+      wrap: { gap: "0px", background: "rgba(0,0,0,0.55)", padding: "8px 16px", borderRadius: "4px" },
+      base: {
+        fontSize: "clamp(20px, 3.5vw, 30px)", fontWeight: "800",
+        color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.02em",
+        lineHeight: "1.1", padding: "0 5px",
+      },
+      hl: {
+        color: "#f97316",
+        textDecoration: "underline",
+        textDecorationColor: "#f97316",
+        textDecorationThickness: "3px",
+      },
+    },
+    alibdaal: {
+      wrap: { gap: "8px", background: "transparent" },
+      base: {
+        fontSize: "clamp(18px, 3vw, 26px)", fontWeight: "600",
+        color: "rgba(255,255,255,0.7)", textTransform: "none", letterSpacing: "0.01em",
+        lineHeight: "1.2",
+      },
+      hl: {
+        color: "#ffffff", fontWeight: "800",
+        borderBottom: "3px solid #a78bfa", paddingBottom: "2px",
+      },
+    },
+    karaoke: {
+      wrap: { gap: "10px", background: "transparent" },
+      base: {
+        fontSize: "clamp(18px, 3vw, 28px)", fontWeight: "700",
+        color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.03em",
+        lineHeight: "1.1",
+      },
+      hl: {
+        color: "#a78bfa",
+        textShadow: "0 0 20px rgba(167,139,250,0.8), 0 0 40px rgba(167,139,250,0.4)",
+        filter: "brightness(1.3)",
+      },
+    },
+  };
+
+  const CAP_LINES = [
+    { words: ["your", "audience", "stays", "hooked"], hl: 2 },
+    { words: ["revenue", "grew", "88%"], hl: 1 },
+    { words: ["never", "lose", "a", "viewer"], hl: 1 },
+    { words: ["this", "changes", "everything"], hl: 1 },
+    { words: ["watch", "time", "up", "40%"], hl: 3 },
+    { words: ["content", "that", "converts"], hl: 2 },
+  ];
+
+  let capLineIndex = 0;
+  let capLineTimer: ReturnType<typeof setTimeout> | null = null;
+  let currentStyle = "mrbeast";
+
+  function applyStyles(el: HTMLElement, styles: Partial<CSSStyleDeclaration>) {
+    Object.assign(el.style, styles);
+  }
+
+  function renderCapLine(display: HTMLElement, line: typeof CAP_LINES[0]) {
+    display.innerHTML = "";
+    const s = CAP_STYLES[currentStyle] || CAP_STYLES.mrbeast;
+    if (s.wrap) applyStyles(display, s.wrap);
+
+    line.words.forEach((word, i) => {
+      const span = document.createElement("span");
+      span.textContent = word;
+      span.style.cssText = `
+        display: inline-block;
+        opacity: 0;
+        animation: cap-pop-js 0.3s cubic-bezier(0.34,1.56,0.64,1) ${i * 130}ms forwards;
+      `;
+      applyStyles(span, s.base);
+      if (i === line.hl) applyStyles(span, s.hl);
+      display.appendChild(span);
+    });
+  }
+
+  // Inject keyframes once
+  if (!document.getElementById("cap-pop-kf")) {
+    const kf = document.createElement("style");
+    kf.id = "cap-pop-kf";
+    kf.textContent = `
+      @keyframes cap-pop-js {
+        from { opacity: 0; transform: scale(0.5) translateY(12px); }
+        to   { opacity: 1; transform: scale(1) translateY(0); }
+      }
+    `;
+    document.head.appendChild(kf);
+  }
+
+  function startCaptionLoop(display: HTMLElement) {
+    if (capLineTimer) clearTimeout(capLineTimer);
+    function next() {
+      capLineIndex = (capLineIndex + 1) % CAP_LINES.length;
+      renderCapLine(display, CAP_LINES[capLineIndex]);
+      capLineTimer = setTimeout(next, 2200);
+    }
+    renderCapLine(display, CAP_LINES[capLineIndex]);
+    capLineTimer = setTimeout(next, 2200);
+  }
+
+  function stopCaptionLoop() {
+    if (capLineTimer) { clearTimeout(capLineTimer); capLineTimer = null; }
+  }
+
+  document.addEventListener("astro:page-load", () => {
+    const buttons = document.querySelectorAll<HTMLButtonElement>(".feat-btn");
+    const panels = document.querySelectorAll<HTMLElement>(".feat-panel");
+    const capDisplay = document.getElementById("cap-display");
+    const styleChips = document.querySelectorAll<HTMLButtonElement>(".cap-style-chip");
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.feature;
+        buttons.forEach((b) => b.classList.remove("feat-btn--active"));
+        panels.forEach((p) => p.classList.remove("feat-panel--active"));
+        btn.classList.add("feat-btn--active");
+        const panel = document.querySelector<HTMLElement>(`[data-panel="${id}"]`);
+        if (panel) panel.classList.add("feat-panel--active");
+        if (id === "captions" && capDisplay) startCaptionLoop(capDisplay);
+        else stopCaptionLoop();
+      });
+    });
+
+    styleChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        styleChips.forEach((c) => c.classList.remove("cap-chip--active"));
+        chip.classList.add("cap-chip--active");
+        currentStyle = chip.dataset.style || "mrbeast";
+        if (capDisplay) renderCapLine(capDisplay, CAP_LINES[capLineIndex]);
+      });
+    });
+
+    if (capDisplay) startCaptionLoop(capDisplay);
+  });
+</script>
