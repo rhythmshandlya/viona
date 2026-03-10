@@ -59,17 +59,22 @@ const features = [
         <div class="feat-panel feat-panel--active" data-panel="captions">
           <div class="feat-scene feat-scene--dark">
             <div class="captions-demo">
-              <div class="cap-line">
-                <span class="cap-word cap-w1">your</span>
-                <span class="cap-word cap-w2">audience</span>
-                <span class="cap-word cap-w3 cap-word--highlight">stays</span>
-                <span class="cap-word cap-w4">hooked</span>
+              <!-- Fake video bg -->
+              <div class="cap-video-bg" aria-hidden="true">
+                <div class="cap-video-grain"></div>
               </div>
+
+              <!-- Caption display area -->
+              <div class="cap-display" id="cap-display">
+                <!-- words injected by JS -->
+              </div>
+
+              <!-- Style chips -->
               <div class="cap-styles">
-                <div class="cap-style-chip cap-chip--active">MrBeast</div>
-                <div class="cap-style-chip">Hormozi</div>
-                <div class="cap-style-chip">Ali Abdaal</div>
-                <div class="cap-style-chip">Karaoke</div>
+                <button class="cap-style-chip cap-chip--active" data-style="mrbeast">MrBeast</button>
+                <button class="cap-style-chip" data-style="hormozi">Hormozi</button>
+                <button class="cap-style-chip" data-style="alibdaal">Ali Abdaal</button>
+                <button class="cap-style-chip" data-style="karaoke">Karaoke</button>
               </div>
             </div>
           </div>
@@ -348,68 +353,144 @@ const features = [
      CAPTIONS demo
   ════════════════════════════ */
   .captions-demo {
+    position: relative;
+    width: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 24px;
-    width: 100%;
+    justify-content: flex-end;
+    padding-bottom: 20px;
+    gap: 16px;
   }
 
-  .cap-line {
+  /* Fake video background */
+  .cap-video-bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 40%, rgba(124,58,237,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse at 75% 60%, rgba(59,130,246,0.08) 0%, transparent 50%),
+      linear-gradient(160deg, #0d0d1a 0%, #111827 100%);
+    overflow: hidden;
+  }
+
+  .cap-video-grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    background-size: 128px;
+  }
+
+  /* Caption display */
+  .cap-display {
+    position: relative;
+    z-index: 2;
+    min-height: 56px;
     display: flex;
-    gap: 10px;
-    align-items: center;
     flex-wrap: wrap;
+    gap: 6px 10px;
     justify-content: center;
+    align-items: center;
+    padding: 0 24px;
   }
 
+  /* Words injected by JS get these classes */
   .cap-word {
-    font-size: clamp(18px, 4vw, 32px);
+    display: inline-block;
     font-weight: 800;
-    color: white;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    animation: cap-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-  }
-
-  .cap-w1 { animation-delay: 0.1s; }
-  .cap-w2 { animation-delay: 0.3s; }
-  .cap-w3 { animation-delay: 0.5s; }
-  .cap-w4 { animation-delay: 0.7s; }
-
-  .cap-word--highlight {
-    color: #facc15;
-    background: rgba(250, 204, 21, 0.15);
-    padding: 2px 10px;
-    border-radius: 6px;
+    line-height: 1.1;
+    opacity: 0;
+    animation: cap-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   }
 
   @keyframes cap-pop {
-    from { opacity: 0; transform: scale(0.7) translateY(8px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
+    from { opacity: 0; transform: scale(0.6) translateY(10px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
   }
 
+  /* Style variants set via data-style on .captions-demo */
+  /* MrBeast */
+  .cap-display[data-style="mrbeast"] .cap-word {
+    font-size: clamp(20px, 3.5vw, 30px);
+    color: white;
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
+  }
+  .cap-display[data-style="mrbeast"] .cap-word--hl {
+    color: #facc15;
+    -webkit-text-stroke: 1px #000;
+  }
+
+  /* Hormozi */
+  .cap-display[data-style="hormozi"] .cap-word {
+    font-size: clamp(18px, 3vw, 26px);
+    color: white;
+    background: transparent;
+  }
+  .cap-display[data-style="hormozi"] .cap-word--hl {
+    color: #f97316;
+    background: rgba(249,115,22,0.15);
+    padding: 1px 8px;
+    border-radius: 4px;
+  }
+
+  /* Ali Abdaal */
+  .cap-display[data-style="alibdaal"] .cap-word {
+    font-size: clamp(16px, 2.8vw, 24px);
+    color: rgba(255,255,255,0.85);
+    font-weight: 600;
+  }
+  .cap-display[data-style="alibdaal"] .cap-word--hl {
+    color: #ffffff;
+    font-weight: 800;
+    border-bottom: 2px solid #a78bfa;
+    padding-bottom: 1px;
+  }
+
+  /* Karaoke */
+  .cap-display[data-style="karaoke"] .cap-word {
+    font-size: clamp(16px, 2.8vw, 24px);
+    color: rgba(255,255,255,0.35);
+    font-weight: 700;
+    transition: color 0.2s, text-shadow 0.2s;
+  }
+  .cap-display[data-style="karaoke"] .cap-word--hl {
+    color: #a78bfa;
+    text-shadow: 0 0 12px rgba(167,139,250,0.6);
+  }
+
+  /* Style chips */
   .cap-styles {
+    position: relative;
+    z-index: 2;
     display: flex;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
     justify-content: center;
   }
 
   .cap-style-chip {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 600;
     padding: 4px 12px;
     border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.15);
-    color: rgba(255,255,255,0.5);
-    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.45);
+    background: rgba(255,255,255,0.04);
     cursor: pointer;
     transition: all 0.2s;
   }
 
+  .cap-style-chip:hover {
+    border-color: rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.7);
+  }
+
   .cap-style-chip.cap-chip--active {
-    border-color: rgba(124,58,237,0.5);
+    border-color: rgba(124,58,237,0.55);
     color: #a78bfa;
     background: rgba(124,58,237,0.15);
   }
@@ -817,10 +898,59 @@ const features = [
 </style>
 
 <script>
+  // ── Caption lines data ──
+  const CAP_LINES = [
+    { words: ["your", "audience", "stays", "hooked"], hl: 2 },
+    { words: ["revenue", "grew", "88%"], hl: 1 },
+    { words: ["never", "lose", "a", "viewer"], hl: 1 },
+    { words: ["this", "changes", "everything"], hl: 1 },
+    { words: ["watch", "time", "up", "40%"], hl: 3 },
+    { words: ["content", "that", "converts"], hl: 2 },
+  ];
+
+  let capLineIndex = 0;
+  let capWordTimer: ReturnType<typeof setTimeout> | null = null;
+  let capLineTimer: ReturnType<typeof setTimeout> | null = null;
+  let currentStyle = "mrbeast";
+
+  function renderCapLine(display: HTMLElement, line: typeof CAP_LINES[0]) {
+    display.innerHTML = "";
+    display.dataset.style = currentStyle;
+
+    line.words.forEach((word, i) => {
+      const span = document.createElement("span");
+      span.className = "cap-word" + (i === line.hl ? " cap-word--hl" : "");
+      span.textContent = word;
+      span.style.animationDelay = `${i * 120}ms`;
+      display.appendChild(span);
+    });
+  }
+
+  function startCaptionLoop(display: HTMLElement) {
+    if (capLineTimer) clearTimeout(capLineTimer);
+    if (capWordTimer) clearTimeout(capWordTimer);
+
+    function next() {
+      capLineIndex = (capLineIndex + 1) % CAP_LINES.length;
+      renderCapLine(display, CAP_LINES[capLineIndex]);
+      capLineTimer = setTimeout(next, 2200);
+    }
+
+    renderCapLine(display, CAP_LINES[capLineIndex]);
+    capLineTimer = setTimeout(next, 2200);
+  }
+
+  function stopCaptionLoop() {
+    if (capLineTimer) { clearTimeout(capLineTimer); capLineTimer = null; }
+  }
+
   document.addEventListener("astro:page-load", () => {
     const buttons = document.querySelectorAll<HTMLButtonElement>(".feat-btn");
     const panels = document.querySelectorAll<HTMLElement>(".feat-panel");
+    const capDisplay = document.getElementById("cap-display");
+    const styleChips = document.querySelectorAll<HTMLButtonElement>(".cap-style-chip");
 
+    // Feature tab switching
     buttons.forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.dataset.feature;
@@ -831,7 +961,30 @@ const features = [
         btn.classList.add("feat-btn--active");
         const panel = document.querySelector<HTMLElement>(`[data-panel="${id}"]`);
         if (panel) panel.classList.add("feat-panel--active");
+
+        if (id === "captions" && capDisplay) {
+          startCaptionLoop(capDisplay);
+        } else {
+          stopCaptionLoop();
+        }
       });
     });
+
+    // Caption style chips
+    styleChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        styleChips.forEach((c) => c.classList.remove("cap-chip--active"));
+        chip.classList.add("cap-chip--active");
+        currentStyle = chip.dataset.style || "mrbeast";
+        if (capDisplay) {
+          capDisplay.dataset.style = currentStyle;
+          // re-render current line with new style instantly
+          renderCapLine(capDisplay, CAP_LINES[capLineIndex]);
+        }
+      });
+    });
+
+    // Auto-start caption loop (it's the default active panel)
+    if (capDisplay) startCaptionLoop(capDisplay);
   });
 </script>
