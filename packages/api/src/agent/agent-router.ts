@@ -27,15 +27,26 @@ interface EventBuffer {
 }
 const projectEventBuffers = new Map<string, EventBuffer>();
 
-// Periodic sweep of stale event buffers (older than 5 minutes)
+// Periodic sweep of stale event buffers
+const MAX_EVENT_BUFFERS = 200; // Safety cap — at 50 users, max ~50 active
 setInterval(() => {
   const now = Date.now();
+  // Remove stale buffers (older than 5 minutes)
   for (const [key, buffer] of projectEventBuffers) {
     if (now - buffer.lastUpdated > 5 * 60 * 1000) {
       projectEventBuffers.delete(key);
     }
   }
-}, 5 * 60 * 1000);
+  // If still over cap, evict oldest
+  if (projectEventBuffers.size > MAX_EVENT_BUFFERS) {
+    const sorted = [...projectEventBuffers.entries()]
+      .sort((a, b) => a[1].lastUpdated - b[1].lastUpdated);
+    const toRemove = sorted.slice(0, sorted.length - MAX_EVENT_BUFFERS);
+    for (const [key] of toRemove) {
+      projectEventBuffers.delete(key);
+    }
+  }
+}, 60 * 1000); // Run every minute instead of every 5 minutes
 
 // SSE helper — returns a closure that writes server-sent events with
 // auto-incrementing IDs, basic backpressure awareness, and event buffering

@@ -1,3 +1,11 @@
+import type {
+  VisualsLayoutMode,
+  VisualsDimensions,
+  StylePreset,
+  GenerateVisualsOptions,
+  RenderOptions,
+} from '@viona/shared';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 // Helper to get session token from cookies
@@ -131,21 +139,9 @@ export interface SeparateAudioResponse {
   src: string;
 }
 
-export type StylePreset = 'studio-dark' | 'studio-light';
-
-export type VisualsLayoutMode = 'pip' | 'stacked';
-
-export interface VisualsDimensions {
-  width: number;
-  height: number;
-}
-
-export interface GenerateVisualsOptions {
-  stylePreset: StylePreset;
-  layoutMode: VisualsLayoutMode;
-  dimensions: VisualsDimensions;
-  styleGuide?: string;
-}
+// StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions
+// are imported from @viona/shared
+export type { StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions } from '@viona/shared';
 
 export interface GenerateVisualsResponse {
   jobId: string;
@@ -345,7 +341,7 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> }): Promise<ProcessProjectResponse> {
+  async renderProject(projectId: string, options?: RenderOptions): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
       body: JSON.stringify(options || {}),

@@ -1,6 +1,15 @@
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { config } from '../config.js';
+export type {
+  VisualsLayoutMode,
+  VisualsDimensions,
+  VideoSelection,
+  GenerateVisualsJobData,
+  PlanVisualsJobData,
+  EditVisualsJobData,
+  LayoutSettings,
+} from '@viona/shared';
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {
@@ -47,29 +56,7 @@ export interface RenderJobData {
   projectId: string;
   jobId: string;
   projectType?: string;
-  layoutSettings?: {
-    mode: 'pip' | 'stacked';
-    pip: {
-      position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-      offsetX: number;
-      offsetY: number;
-      size: 'small' | 'medium' | 'large' | 'custom';
-      customSize: number;
-      shape: 'square' | 'circle' | 'rounded';
-      borderRadius: number;
-      borderWidth: number;
-      borderColor: string;
-      shadowEnabled: boolean;
-      shadowColor: string;
-      shadowBlur: number;
-      opacity: number;
-    };
-    split: {
-      position: 'visuals-first' | 'video-first';
-      ratio: number;
-      gap: number;
-    };
-  };
+  layoutSettings?: LayoutSettings;
   fullscreenSegments?: Array<{ startMs: number; endMs: number }>;
   visualDisplayData?: Array<{
     startMs: number;
@@ -119,34 +106,8 @@ export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
   });
 }
 
-export type VisualsLayoutMode = 'pip' | 'stacked';
-
-export interface VisualsDimensions {
-  width: number;
-  height: number;
-}
-
-export interface VideoSelection {
-  videoId: string;
-  title: string;
-  thumbnailUrl: string;
-  duration?: string;
-  url: string;
-}
-
-export interface GenerateVisualsJobData {
-  projectId: string;
-  jobId: string;
-  stylePreset: string;
-  layoutMode: VisualsLayoutMode;
-  dimensions: VisualsDimensions;
-  /** Effective dimensions for pip scenes in split layouts */
-  pipEffective?: VisualsDimensions;
-  styleGuide?: string;
-  planJobId?: string;  // ID of the plan-visuals job that created the plan
-  /** User-selected videos for scenes: sceneIndex → keyword → VideoSelection */
-  selectedVideos?: Record<number, Record<string, VideoSelection>>;
-}
+// VisualsLayoutMode, VisualsDimensions, VideoSelection, GenerateVisualsJobData
+// are imported from @viona/shared
 
 export const generateVisualsQueue = new Queue('generate-visuals', {
   connection,
@@ -163,18 +124,7 @@ export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   });
 }
 
-export interface PlanVisualsJobData {
-  projectId: string;
-  jobId: string;
-  stylePreset: string;
-  layoutMode: VisualsLayoutMode;
-  dimensions: VisualsDimensions;
-  /** Effective dimensions for pip scenes in split layouts */
-  pipEffective?: VisualsDimensions;
-  styleGuide?: string;
-  sourceWidth?: number;
-  sourceHeight?: number;
-}
+// PlanVisualsJobData imported from @viona/shared
 
 export const planVisualsQueue = new Queue('plan-visuals', {
   connection,
@@ -191,17 +141,7 @@ export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
   });
 }
 
-// Edit visuals job - for continuing to edit existing compositions
-export interface EditVisualsJobData {
-  projectId: string;
-  jobId: string;
-  compositionId: string;  // The existing composition to edit
-  prompt: string;         // User's edit request (e.g., "Make particles bigger")
-  sceneId?: number;       // Optional: target a specific scene (1-indexed)
-  elementName?: string;   // Optional: target a specific element within the scene
-  transcript?: string;    // Full transcript text with timestamps for context
-  scenePlan?: string;     // JSON scene plan so the agent understands the visual structure
-}
+// EditVisualsJobData imported from @viona/shared
 
 export const editVisualsQueue = new Queue('edit-visuals', {
   connection,

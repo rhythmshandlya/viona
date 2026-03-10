@@ -83,7 +83,7 @@ class WebSocketClient {
   private projectId: string | null = null;
   private handlers: Set<MessageHandler> = new Set();
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
   // Track subscribed job IDs so we can re-subscribe on reconnect
   // and queue subscriptions if WS isn't open yet
@@ -133,7 +133,10 @@ class WebSocketClient {
       // Attempt to reconnect (subscribedJobIds are preserved so onopen re-subscribes)
       if (this.reconnectAttempts < this.maxReconnectAttempts && this.projectId) {
         this.reconnectAttempts++;
-        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+        const delay = Math.min(
+          this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+          10_000, // Cap at 10 seconds
+        );
         console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
         setTimeout(() => {
           if (this.projectId) {
