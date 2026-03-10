@@ -5,6 +5,7 @@ import { db } from '../db/index.js';
 import { projects, visuals, transcripts, jobs } from '../db/schema.js';
 import { queueGenerateVisualsJob, queueEditVisualsJob, queuePlanVisualsJob } from '../services/queue.js';
 import { youtubeSearchService } from '../services/youtube-search.js';
+import { createProgressRelay } from '../progress/progress-relay.js';
 import { nanoid } from 'nanoid';
 
 interface ScenePlanScene {
@@ -241,6 +242,28 @@ async function pollJobProgress(
     jobId: sendJobId,
   });
   return { status: 'timeout' };
+}
+
+/** Redis-subscription-based progress relay (replaces pollJobProgress) */
+async function subscribeJobProgress(
+  jobId: string,
+  ctx: ToolContext,
+  options?: { suppressJobId?: boolean; jobType?: string; initialPercent?: number },
+): Promise<{ status: 'complete' | 'failed' | 'timeout' | 'aborted' }> {
+  const sendJobId = options?.suppressJobId ? undefined : jobId;
+
+  return createProgressRelay({
+    jobId,
+    sendSSE: (event, data) => {
+      if (sendJobId === undefined && event === 'progress') {
+        const d = data as Record<string, unknown>;
+        delete d.jobId;
+      }
+      ctx.sendSSE(event, data);
+    },
+    signal: ctx.signal,
+    jobType: options?.jobType,
+  });
 }
 
 // Map raw scenes.json scene objects to widget-friendly format
@@ -759,7 +782,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           // Poll job progress (blocks until complete)
           // suppressJobId: plan-visuals is an intermediate step — don't let the frontend
           // track this job via WebSocket (which would trigger "visuals are ready" on completion)
-          const pollResult = await pollJobProgress(job.id, ctx, { suppressJobId: true, jobType: 'plan-visuals', initialPercent: 5 });
+          const pollResult = await subscribeJobProgress(job.id, ctx, { suppressJobId: true, jobType: 'plan-visuals', initialPercent: 5 });
 
           if (pollResult.status === 'aborted') {
             return {
@@ -923,7 +946,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual generation from approved plan...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          const pollResult = await pollJobProgress(job.id, ctx, { jobType: 'generate-visuals', initialPercent: 5 });
+          const pollResult = await subscribeJobProgress(job.id, ctx, { jobType: 'generate-visuals', initialPercent: 5 });
 
           if (pollResult.status === 'complete') {
             return {
@@ -1050,7 +1073,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting edit...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          const editPollResult = await pollJobProgress(job.id, ctx, { jobType: 'edit-visuals', initialPercent: 5 });
+          const editPollResult = await subscribeJobProgress(job.id, ctx, { jobType: 'edit-visuals', initialPercent: 5 });
 
           if (editPollResult.status === 'complete') {
             return {

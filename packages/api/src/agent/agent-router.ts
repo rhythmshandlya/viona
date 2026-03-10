@@ -318,8 +318,10 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     // Heartbeat to prevent idle connection drops (SDK subprocess startup can be slow)
     const heartbeat = setInterval(() => {
-      if (!sseStream.destroyed) sseStream.write(':\n\n');
-    }, 15_000);
+      if (!sseStream.destroyed) {
+        sendSSE('heartbeat', { ts: Date.now() });
+      }
+    }, 10_000);
 
     // Track all content blocks (text + widgets) for persistence
     const contentBlocks: Array<{ type: string; [k: string]: unknown }> = [];
