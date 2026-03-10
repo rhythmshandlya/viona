@@ -478,6 +478,10 @@ class ApiClient {
     return this.request(`/api/jobs/${jobId}`);
   }
 
+  async getJobActivity(jobId: string): Promise<{ activity: any[]; progress: any }> {
+    return this.request(`/api/jobs/${jobId}/activity`);
+  }
+
   async cancelJob(jobId: string): Promise<{ success: boolean }> {
     return this.request(`/api/jobs/${jobId}/cancel`, {
       method: 'POST',

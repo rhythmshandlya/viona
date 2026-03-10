@@ -15,6 +15,10 @@ import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
 import { useVideoSettings, useEditorActions, useAIEditingContext, useAIEditRequested, usePendingAIMessage, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
+import { useProgress } from '../hooks/use-progress';
+import { ProgressBar } from './ProgressBar';
+import { ActivityLog } from './ActivityLog';
+import { HealthIndicator } from './HealthIndicator';
 import { ThemePicker, LayoutPicker, ScenePlanCard, ConfirmationWidget, ChoiceWidget } from './agent-widgets';
 
 // ---------------------------------------------------------------------------
@@ -254,6 +258,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
+  // Unified progress state (merges SSE + WS + HTTP)
+  const progressState = useProgress();
+
   // Stall detection
   const [stallState, setStallState] = useState<'ok' | 'slow' | 'stuck'>('ok');
   const lastProgressTimeRef = useRef(Date.now());
@@ -301,6 +308,15 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       // Reset stall timer
       lastProgressTimeRef.current = Date.now();
       setStallState('ok');
+      // Feed into unified progress state
+      progressState.onWSProgress({
+        percent: data.progress,
+        message: data.message || `Processing... (${data.progress}%)`,
+        phase: data.meta?.phase || data.phase,
+        phaseName: data.meta?.phaseName || data.phaseName,
+        detail: data.meta?.detail,
+        meta: data.meta,
+      });
       if (!activeJobId) return; // Only show if we're tracking a job
       if (data.jobId !== activeJobId) return;
       setMessages((prev) => {
@@ -380,6 +396,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           return { ...m, content: blocks };
         });
       });
+    },
+    onHealth: (data) => {
+      progressState.onWSHealth(data);
+    },
+    onActivity: (data) => {
+      progressState.onSSEActivity(data);
     },
   });
 
@@ -692,7 +714,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       const { event: eventType, data } = event;
 
       // Reset stall timer on any meaningful SSE activity (not just progress events)
-      if (eventType === 'text' || eventType === 'widget' || eventType === 'progress' || eventType === 'heartbeat') {
+      if (eventType === 'text' || eventType === 'widget' || eventType === 'progress' || eventType === 'heartbeat' || eventType === 'activity' || eventType === 'health') {
         lastProgressTimeRef.current = Date.now();
         setStallState('ok');
       }
@@ -730,6 +752,18 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             case 'progress': {
               progressSourceRef.current = 'sse';
               onProgressReceived();
+              // Feed into unified progress state
+              {
+                const pd = data as Record<string, unknown>;
+                progressState.onSSEProgress({
+                  percent: pd.percent,
+                  message: pd.message,
+                  phase: pd.phase,
+                  phaseName: pd.phaseName,
+                  detail: (pd.meta as any)?.detail,
+                  meta: pd.meta,
+                });
+              }
               const progressData = data as {
                 percent: number; message: string; error?: boolean;
                 jobId?: string; phase?: string; phaseName?: string; jobType?: string;
@@ -795,6 +829,16 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               break;
             }
 
+            case 'activity': {
+              progressState.onSSEActivity(data as Record<string, unknown>);
+              break;
+            }
+
+            case 'health': {
+              progressState.onSSEHealth(data as Record<string, unknown>);
+              break;
+            }
+
             default:
               break;
           }
@@ -848,9 +892,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         progressSourceRef.current = null;
         etaInfoRef.current = null;
         setEtaSeconds(null);
+        progressState.reset();
       }
     },
-    [projectId, reloadVisuals, onEditComplete, onProgressReceived]
+    [projectId, reloadVisuals, onEditComplete, onProgressReceived, progressState]
   );
 
   // -----------------------------------------------------------------------
@@ -1347,6 +1392,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setSceneTags([]);
     messageQueueRef.current = [];
     setQueueSize(0);
+    progressState.reset();
     // Clear any pending attachments
     setAttachmentFiles([]);
     // Re-trigger auto-greet
@@ -1622,87 +1668,25 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
         return (
           <div key={index} className="my-2" role="status" aria-live="polite">
-            <div className="flex items-center gap-2 mb-1">
-              {block.percent >= 100 ? (
-                <Check className="w-3.5 h-3.5 text-green-500" />
-              ) : (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--editor-accent)]" />
-              )}
-              <span className="text-xs text-[var(--editor-text-secondary)]">
-                {block.message}
-              </span>
-              {etaSeconds !== null && block.percent < 95 && !block.error && (
-                <span className="text-[10px] text-[var(--editor-text-muted)] ml-auto">
-                  {formatEta(etaSeconds)}
-                </span>
-              )}
-            </div>
-            <div className="w-full bg-[var(--editor-bg-hover)] rounded-full h-1.5">
-              <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${block.percent >= 100 ? 'bg-green-500' : 'bg-[var(--editor-accent)]'}`}
-                style={{ width: `${Math.min(block.percent, 100)}%` }}
-              />
-            </div>
-            {/* Dynamic phase steps for generate-visuals with structured metadata */}
-            {block.jobType === 'generate-visuals' && block.meta?.phase ? (
-              <div className="flex flex-col gap-1.5 my-2">
-                {GENERATION_PHASES.map((phase) => {
-                  const currentIdx = GENERATION_PHASES.findIndex((p) => p.id === block.meta?.phase);
-                  const phaseIdx = GENERATION_PHASES.findIndex((p) => p.id === phase.id);
-                  let status: 'done' | 'active' | 'pending' = 'pending';
-                  if (block.percent >= 100) {
-                    status = 'done';
-                  } else if (phaseIdx < currentIdx) {
-                    status = 'done';
-                  } else if (phaseIdx === currentIdx) {
-                    status = 'active';
-                  }
-                  // Build dynamic label with scene/iteration info
-                  let label = phase.label;
-                  if (phase.id === 'animate' && block.meta?.totalScenes) {
-                    const sceneNum = block.meta.scene || 0;
-                    label = sceneNum > 0
-                      ? `Animating scenes (${sceneNum}/${block.meta.totalScenes})`
-                      : `Animating ${block.meta.totalScenes} scenes`;
-                  }
-                  if (phase.id === 'self_heal' && block.meta?.iteration) {
-                    label = `Fixing errors (attempt ${block.meta.iteration}/${block.meta.maxIterations || 3})`;
-                  }
-                  if (phase.id === 'verify' && block.meta?.score != null && block.meta.phase === 'verify') {
-                    label = `Verifying scenes (score: ${block.meta.score})`;
-                  }
-                  // Skip self_heal if we haven't entered it (no iteration data) and it's pending
-                  if (phase.id === 'self_heal' && status === 'pending' && !block.meta?.iteration && block.meta?.phase !== 'self_heal') return null;
-                  return (
-                    <div key={phase.id} className="flex items-center gap-2 text-xs">
-                      {status === 'done' && <Check className="w-3 h-3 text-green-500" />}
-                      {status === 'active' && <Loader2 className="w-3 h-3 text-primary animate-spin" />}
-                      {status === 'pending' && <Circle className="w-3 h-3 text-muted-foreground/30" />}
-                      <span className={status === 'active' ? 'text-foreground font-medium' : 'text-muted-foreground'}>
-                        {label}
-                      </span>
-                    </div>
-                  );
-                }).filter(Boolean)}
+            <HealthIndicator
+              health={progressState.health}
+              connectionStatus={progressState.source === 'ws' || progressState.source === 'sse' ? 'connected' : 'reconnecting'}
+              isActive={block.percent < 100}
+            />
+            <ProgressBar
+              percent={block.percent}
+              phase={block.phase || block.meta?.phase || 'unknown'}
+              phaseName={block.phaseName || block.meta?.phaseName || block.message}
+              detail={block.meta?.detail}
+              isActive={block.percent < 100}
+              error={block.error}
+            />
+            <ActivityLog events={progressState.activity} />
+            {etaSeconds !== null && block.percent < 95 && !block.error && (
+              <div className="text-[10px] text-[var(--editor-text-muted)] mt-1">
+                {formatEta(etaSeconds)}
               </div>
-            ) : block.jobType && PHASE_STEPS[block.jobType] ? (
-              /* Legacy fallback for plan-visuals, edit-visuals, and old jobs without metadata */
-              <div className="flex flex-col gap-1.5 my-2">
-                {PHASE_STEPS[block.jobType]!.map((label, i) => {
-                  const status = getStepStatus(block.phase, block.jobType!, i);
-                  return (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      {status === 'done' && <Check className="w-3 h-3 text-green-500" />}
-                      {status === 'active' && <Loader2 className="w-3 h-3 text-primary animate-spin" />}
-                      {status === 'pending' && <Circle className="w-3 h-3 text-muted-foreground/30" />}
-                      <span className={status === 'active' ? 'text-foreground font-medium' : 'text-muted-foreground'}>
-                        {label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
+            )}
           </div>
         );
     }
@@ -1860,13 +1844,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               </div>
             </div>
           ))
-        )}
-
-        {stallState === 'slow' && isStreaming && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-500 px-3 py-1">
-            <Clock className="w-3 h-3" />
-            Taking longer than usual...
-          </div>
         )}
 
         {stallState === 'stuck' && isStreaming && (
