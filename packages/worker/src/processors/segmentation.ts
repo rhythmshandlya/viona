@@ -54,12 +54,7 @@ export async function processSegmentation(job: Job<SegmentationJobData>): Promis
     await publishJobProgress(jobId, 5, 'Downloading video...');
 
     const videoPath = join(workDir, 'input.mp4');
-    // downloadFile takes (prefix, key, destPath) - videoKey contains the full path
-    // Split videoKey into prefix and key parts
-    const keyParts = videoKey.split('/');
-    const prefix = keyParts[0];
-    const key = keyParts.slice(1).join('/');
-    await downloadFile(prefix, key, videoPath);
+    await downloadFile('uploads', videoKey, videoPath);
     await publishJobProgress(jobId, 10, 'Extracting frames...');
 
     const framesDir = join(workDir, 'frames');

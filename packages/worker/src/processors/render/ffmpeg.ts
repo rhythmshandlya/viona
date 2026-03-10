@@ -502,10 +502,41 @@ export async function rebuildBundleFromCJS(bundlePath: string, compositionId: st
     logger.warn({ err }, 'Could not fix composition ID in index.tsx');
   }
 
-  // Create entry point that imports the composition
+  // Read dimensions from metadata.json (infrastructure source of truth)
+  const metadataPath = join(srcDir, 'metadata.json');
+  let metaWidth = 1080;
+  let metaHeight = 1920;
+  let metaFps = 60;
+  let metaDuration = 1800;
+  try {
+    const metadata = JSON.parse(await readFile(metadataPath, 'utf-8'));
+    metaWidth = metadata.width || metadata.compositionWidth || 1080;
+    metaHeight = metadata.height || metadata.compositionHeight || 1920;
+    metaFps = metadata.fps || 60;
+    metaDuration = metadata.durationInFrames || 1800;
+  } catch {
+    logger.warn('Could not read metadata.json for dimensions, using defaults');
+  }
+
+  // Create entry point that imports MainComposition (default export) and wraps
+  // with infrastructure-known dimensions, preventing AI dimension swap bugs.
+  const projectDir = compositionId.replace(/-/g, '_');
+  const fixedId = compositionId.replace(/_/g, '-');
   const entryContent = `
 import { registerRoot } from 'remotion';
-import { RemotionRoot } from './src/${compositionId.replace(/-/g, '_')}/index';
+import { Composition } from 'remotion';
+import MainComposition from './src/${projectDir}';
+
+export const RemotionRoot: React.FC = () => (
+  <Composition
+    id="${fixedId}"
+    component={MainComposition}
+    durationInFrames={${metaDuration}}
+    fps={${metaFps}}
+    width={${metaWidth}}
+    height={${metaHeight}}
+  />
+);
 
 registerRoot(RemotionRoot);
 `;

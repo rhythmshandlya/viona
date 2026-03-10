@@ -107,7 +107,7 @@ export async function runClaudeCodeGenerator(
   const { projectId, jobId, transcript, words, durationFrames, fps, width, height, stylePreset, layoutMode, styleGuide, planJobId, pipWidth, pipHeight, safePlacement, onProgress } = options;
 
   const pythonPath = config.pythonPath;
-  const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
+  const agentScript = join(__dirname, '..', '..', 'agents', 'claude_visual_generator.py');
   const workspacePath = getWorkspacePath();
   const bundleOutputDir = config.remotion.bundleOutputDir;
 

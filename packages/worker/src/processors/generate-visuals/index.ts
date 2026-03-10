@@ -244,7 +244,20 @@ export const RemotionRoot: React.FC = () => {
 };
 `, 'utf-8');
       await writeFile(indexTs, `import { registerRoot } from "remotion";
-import { RemotionRoot } from "./${compositionId}/index";
+import { Composition } from "remotion";
+import MainComposition from "./${compositionId}";
+
+// Dimensions set by infrastructure (not AI-generated) to prevent dimension swap bugs.
+export const RemotionRoot: React.FC = () => (
+  <Composition
+    id="${compositionIdDashed}"
+    component={MainComposition}
+    durationInFrames={${durationFrames}}
+    fps={${project.fps || 30}}
+    width={${dimensions?.width || 1080}}
+    height={${dimensions?.height || 1920}}
+  />
+);
 
 registerRoot(RemotionRoot);
 `, 'utf-8');
@@ -494,8 +507,11 @@ registerRoot(RemotionRoot);
       logger.warn({ projectId, error: err }, 'Failed to upload assets.json');
     }
 
-    // Bundle URL points to API route that serves from S3
-    const bundleUrl = `/api/bundles/${bundleCompositionId}/index.html`;
+    // In production, serve from S3 via authenticated API route
+    // In development, serve from local static file route (no auth)
+    const bundleUrl = process.env.RAILWAY_ENVIRONMENT
+      ? `/api/bundles/${bundleCompositionId}/index.html`
+      : `/bundles/${bundleCompositionId}/index.html`;
 
     await publishJobProgress(jobId, 85, 'Registering visual...');
 

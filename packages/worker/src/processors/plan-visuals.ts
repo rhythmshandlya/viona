@@ -25,6 +25,8 @@ import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
 import { searchIcons, type IconOption, type IconStyleFilters } from '../services/freepik.js';
 import { searchIconify } from '../services/iconify.js';
 import { fetchImageOptionsForPlan } from '../services/image-fetcher.js';
+import { getTheme } from '../prompts/theme-loader.js';
+import { buildTemplateCatalog } from '../prompts/studio-templates.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -132,6 +134,18 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         const htPath = join(projectDir, 'head_tracking.json');
         await writeFile(htPath, JSON.stringify(project.headTrackingData), 'utf-8');
         logger.info({ projectDir }, 'Wrote head_tracking.json for spatial overlay');
+      }
+
+      // Write template catalog so the Director can reference available templates
+      if (getTheme(stylePreset)) {
+        try {
+          const srcDir = join(getWorkspacePath(), 'src');
+          const catalog = buildTemplateCatalog(stylePreset);
+          await writeFile(join(srcDir, 'STUDIO_TEMPLATES.md'), catalog, 'utf-8');
+          logger.info('Template catalog written to workspace for Director phase');
+        } catch (err) {
+          logger.warn({ err }, 'Failed to write template catalog (non-fatal)');
+        }
       }
 
       await publishJobProgress(jobId, 15, 'Starting Director phase...');

@@ -1,6 +1,5 @@
 import { readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
-import { logger } from '../../logger.js';
 import { findPackagesRoot } from './validation.js';
 
 interface RegistryFile {
@@ -59,7 +58,7 @@ export function resolveSelectedTemplates(
   }
 
   if (slugs.size === 0) {
-    logger.info('No templates selected by Director — Animator will create custom visuals');
+    console.error('No templates selected by Director — Animator will create custom visuals');
     return { templates: [], copiedCount: 0 };
   }
 
@@ -81,7 +80,7 @@ export function resolveSelectedTemplates(
         if (!resolved.has(dep)) toResolve.push(dep);
       }
     } catch (err) {
-      logger.warn({ slug, err }, `Failed to resolve template "${slug}" — skipping`);
+      console.error(`Failed to resolve template "${slug}" — skipping: ${err}`);
     }
   }
 
@@ -116,9 +115,8 @@ export function resolveSelectedTemplates(
     }
   }
 
-  logger.info(
-    { slugs: Array.from(slugs), copiedCount, depsResolved: resolved.size - copiedCount },
-    'Resolved selected templates from registry'
+  console.error(
+    `Resolved ${copiedCount} templates (${resolved.size - copiedCount} deps) from registry: ${Array.from(slugs).join(', ')}`
   );
 
   return { templates: templateResults, copiedCount };
