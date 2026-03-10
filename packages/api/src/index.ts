@@ -242,14 +242,16 @@ async function main() {
     }
 
     // Check Redis
+    let redis: import('ioredis').default | undefined;
     try {
       const { default: Redis } = await import('ioredis');
-      const redis = new Redis(config.redis.url, { lazyConnect: true, connectTimeout: 3000 });
+      redis = new Redis(config.redis.url, { lazyConnect: true, connectTimeout: 3000 });
       await redis.ping();
-      await redis.quit();
       checks.redis = 'ok';
     } catch {
       checks.redis = 'fail';
+    } finally {
+      await redis?.quit().catch(() => {});
     }
 
     const healthy = Object.values(checks).every(v => v === 'ok');
@@ -321,12 +323,19 @@ async function main() {
   // Graceful shutdown — close server, finish in-flight requests
   const shutdown = async (signal: string) => {
     fastify.log.info({ signal }, 'Received shutdown signal, closing server...');
+
+    const timeout = setTimeout(() => {
+      fastify.log.error('Shutdown timeout exceeded (15s), forcing exit');
+      process.exit(1);
+    }, 15_000);
+
     try {
       await fastify.close();
       fastify.log.info('Server closed gracefully');
     } catch (err) {
       fastify.log.error({ err }, 'Error during shutdown');
     }
+    clearTimeout(timeout);
     process.exit(0);
   };
 
