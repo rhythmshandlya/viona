@@ -580,6 +580,7 @@ export const RemotionRoot: React.FC = () => (
 registerRoot(RemotionRoot);
 `
     : `
+import React from 'react';
 import { registerRoot } from 'remotion';
 import { Composition } from 'remotion';
 import MainComposition from './src/${projectDir}';

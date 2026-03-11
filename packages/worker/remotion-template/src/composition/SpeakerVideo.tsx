@@ -9,10 +9,11 @@ interface SpeakerVideoProps {
 }
 
 export const SpeakerVideo: React.FC<SpeakerVideoProps> = ({ rect, src, crop }) => {
-  if (rect.h <= 1) return null;
+  // Hide when effectively off-canvas (fullscreen mode transitions)
+  if (rect.h <= 10) return null;
 
   const aspectRatio = crop.sourceWidth / crop.sourceHeight;
-  const rectAspect = rect.w / rect.h;
+  const rectAspect = rect.w / Math.max(rect.h, 1); // prevent division by zero
 
   let scaledW: number;
   let scaledH: number;

@@ -71,17 +71,15 @@ export function computeLayoutForFrame(
     return { videoRect, visualsRect, visualsOpacity: opacity };
   }
 
-  let segIdx = 0;
+  // Find which segment contains the current frame.
+  // Default to last segment for frames past the end.
+  let segIdx = segments.length - 1;
   for (let i = 0; i < segments.length; i++) {
-    if (frame >= segments[i].startFrame && frame < segments[i].endFrame) {
+    if (frame < segments[i].endFrame) {
       segIdx = i;
       break;
     }
-    if (frame >= segments[i].endFrame) {
-      segIdx = i + 1;
-    }
   }
-  segIdx = Math.min(segIdx, segments.length - 1);
 
   const currentSeg = segments[segIdx];
   const currentRects = getRectsForMode(currentSeg.displayMode, canvasWidth, canvasHeight, split, currentSeg.overlayOpacity);

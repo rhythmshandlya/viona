@@ -7,6 +7,7 @@ export interface Rect {
 
 export type DisplayMode = 'default' | 'fullscreen' | 'overlay';
 
+// Keep in sync with packages/worker/src/processors/render/types.ts LayoutSegment
 export interface LayoutSegment {
   startFrame: number;
   endFrame: number;

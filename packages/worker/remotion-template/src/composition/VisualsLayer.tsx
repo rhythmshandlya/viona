@@ -13,8 +13,10 @@ export const VisualsLayer: React.FC<VisualsLayerProps> = ({ rect, opacity, child
 
   if (rect.h <= 1) return null;
 
-  const scaleX = rect.w / width;
-  const scaleY = rect.h / height;
+  // Use uniform scaling (by width) to prevent aspect ratio distortion.
+  // overflow:hidden on the container clips the excess height in stacked mode.
+  // During transitions, the container height animates, smoothly revealing more content.
+  const scale = rect.w / width;
 
   return (
     <div
@@ -30,7 +32,7 @@ export const VisualsLayer: React.FC<VisualsLayerProps> = ({ rect, opacity, child
     >
       <div
         style={{
-          transform: `scale(${scaleX}, ${scaleY})`,
+          transform: `scale(${scale})`,
           transformOrigin: 'top left',
           width,
           height,
