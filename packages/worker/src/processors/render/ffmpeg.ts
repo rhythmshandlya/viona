@@ -490,6 +490,7 @@ export async function rebuildBundleFromCJS(bundlePath: string, compositionId: st
   logger.info({ compositionId, fileCount: sourceFiles.length }, 'Downloaded source files from S3');
 
   // Download composition infrastructure files (__composition__/ prefix) into src/composition/
+  // Fallback: if not in S3 (old projects), copy from the local remotion-template
   const compositionPrefix = `sources/${sourceCompositionId}/__composition__/`;
   const compositionFiles = await listObjects('outputs', compositionPrefix);
   const compositionSrcDir = join(tempDir, 'src', 'composition');
@@ -505,8 +506,30 @@ export async function rebuildBundleFromCJS(bundlePath: string, compositionId: st
       await downloadFile('outputs', file, localPath);
     }
     logger.info({ compositionId, fileCount: compositionFiles.length }, 'Downloaded composition infrastructure files from S3');
+  } else {
+    // Fallback for old projects: copy composition/ from the local workspace template
+    const localCompositionDir = join(getWorkspacePath(), 'src', 'composition');
+    try {
+      await access(localCompositionDir, constants.R_OK);
+      await mkdir(compositionSrcDir, { recursive: true });
+      const { readdir, copyFile: cpFile } = await import('fs/promises');
+      const entries = await readdir(localCompositionDir);
+      for (const entry of entries) {
+        await cpFile(join(localCompositionDir, entry), join(compositionSrcDir, entry));
+      }
+      logger.info({ compositionId, fileCount: entries.length }, 'Copied composition infrastructure from local workspace (not in S3)');
+    } catch {
+      logger.warn({ localCompositionDir }, 'Composition infrastructure not found locally either');
+    }
   }
-  const hasCompositionInfra = compositionFiles.length > 0;
+  let hasCompositionInfra = false;
+  try {
+    await access(compositionSrcDir, constants.R_OK);
+    const entries = await (await import('fs/promises')).readdir(compositionSrcDir);
+    hasCompositionInfra = entries.length > 0;
+  } catch {
+    // compositionSrcDir doesn't exist
+  }
 
   // Fix composition ID in index.tsx (replace underscores with hyphens for Remotion)
   const indexPath = join(srcDir, 'index.tsx');
@@ -648,6 +671,7 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
 
   // Load inputProps from propsPath if provided (for full composition mode)
   let inputProps: Record<string, unknown> = {};
+  const isFullCompositionMode = !!propsPath;
   if (propsPath) {
     const propsJson = await readFile(propsPath, 'utf-8');
     inputProps = JSON.parse(propsJson);
@@ -657,7 +681,18 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
   let composition;
   let serveUrl = bundlePath;
 
-  if (hasUnderscores) {
+  // Full composition mode: ALWAYS rebuild from sources to ensure the FullComposition
+  // wrapper is present. Old bundles (pre-dating this feature) won't have it.
+  if (isFullCompositionMode) {
+    logger.info({ compositionId }, 'Full composition mode — rebuilding bundle from sources to include FullComposition wrapper');
+    serveUrl = await rebuildBundleFromCJS(bundlePath, compositionId);
+
+    composition = await selectComposition({
+      serveUrl,
+      id: hyphenatedId,
+      inputProps,
+    });
+  } else if (hasUnderscores) {
     // Skip getCompositions() - we know the existing bundle will fail validation
     // Go straight to rebuild with fixed IDs
     logger.info({ compositionId, hyphenatedId }, 'Composition ID has underscores, rebuilding bundle with hyphens...');
