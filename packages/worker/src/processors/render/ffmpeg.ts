@@ -573,7 +573,7 @@ registerRoot(RemotionRoot);
  * If the composition is not found, attempts to rebuild the bundle from source.
  */
 export async function renderWithRemotion(options: RenderRemotionOptions): Promise<void> {
-  const { bundlePath, compositionId, outputPath, onProgress } = options;
+  const { bundlePath, compositionId, outputPath, propsPath, onProgress } = options;
 
   logger.info({ bundlePath, compositionId, outputPath }, 'Starting Remotion SSR render');
 
@@ -588,6 +588,14 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
   const hasUnderscores = compositionId.includes('_');
   const hyphenatedId = compositionId.replace(/_/g, '-');
 
+  // Load inputProps from propsPath if provided (for full composition mode)
+  let inputProps: Record<string, unknown> = {};
+  if (propsPath) {
+    const propsJson = await readFile(propsPath, 'utf-8');
+    inputProps = JSON.parse(propsJson);
+    logger.info({ propsPath, propKeys: Object.keys(inputProps) }, 'Loaded composition inputProps');
+  }
+
   let composition;
   let serveUrl = bundlePath;
 
@@ -600,6 +608,7 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
     composition = await selectComposition({
       serveUrl,
       id: hyphenatedId,
+      inputProps,
     });
   } else {
     // No underscores - try normal flow
@@ -620,6 +629,7 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
       composition = await selectComposition({
         serveUrl,
         id: compositionId,
+        inputProps,
       });
     } catch (err) {
       logger.error({ err, compositionId }, 'Failed to select composition, attempting rebuild from CJS');
@@ -627,6 +637,7 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
       composition = await selectComposition({
         serveUrl,
         id: compositionId,
+        inputProps,
       });
     }
   }
@@ -657,6 +668,7 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
     serveUrl,
     codec: 'h264',
     outputLocation: outputPath,
+    inputProps,
     chromiumOptions: {
       enableMultiProcessOnLinux: true,
     },
@@ -1991,4 +2003,48 @@ export function groupVisualsByZone(
   }
 
   return grouped;
+}
+
+/**
+ * Simple audio mux: takes a Remotion-rendered video (which has no audio since
+ * OffthreadVideo is muted) and muxes in the audio track.
+ */
+export async function muxAudioOnly(options: {
+  videoPath: string;
+  audioPath: string | null;
+  sourceVideoPath: string;
+  outputPath: string;
+  onProgress?: (progress: number) => void;
+}): Promise<void> {
+  const { videoPath, audioPath, sourceVideoPath, outputPath, onProgress } = options;
+  const { spawn } = await import('child_process');
+
+  const audioSource = audioPath || sourceVideoPath;
+
+  const args = [
+    '-i', videoPath,
+    '-i', audioSource,
+    '-map', '0:v',
+    '-map', '1:a',
+    '-c:v', 'copy',
+    '-c:a', 'aac',
+    '-shortest',
+    '-y',
+    outputPath,
+  ];
+
+  return new Promise<void>((resolve, reject) => {
+    const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'pipe', 'pipe'] });
+    let stderr = '';
+    proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+    proc.on('close', (code) => {
+      if (code === 0) {
+        onProgress?.(1.0);
+        resolve();
+      } else {
+        reject(new Error(`FFmpeg audio mux exited with code ${code}: ${stderr.slice(-500)}`));
+      }
+    });
+    proc.on('error', (err) => reject(new Error(`Failed to spawn ffmpeg: ${err.message}`)));
+  });
 }

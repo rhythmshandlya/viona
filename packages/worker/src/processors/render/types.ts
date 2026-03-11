@@ -98,6 +98,14 @@ export interface DisplayModeSegment {
   overlayOpacity?: number;  // per-item overlay opacity (0-1), default 0.85
 }
 
+/** Unified layout segment for Remotion full composition (frame-based) */
+export interface LayoutSegment {
+  startFrame: number;
+  endFrame: number;
+  displayMode: 'default' | 'fullscreen' | 'overlay';
+  overlayOpacity?: number;
+}
+
 export interface SegmentationData {
   status: 'pending' | 'processing' | 'ready' | 'failed';
   maskPath?: string;
@@ -133,6 +141,7 @@ export interface RenderRemotionOptions {
   bundlePath: string;
   compositionId: string;
   outputPath: string;
+  propsPath?: string;  // Path to JSON file with composition inputProps
   onProgress?: (progress: number) => void;
 }
 

@@ -20,6 +20,7 @@ import {
   renderWithPiPLayout,
   finalizeRemotionVideo,
   hasZoneBasedVisuals,
+  muxAudioOnly,
 } from './ffmpeg.js';
 import { escapePathForFilter } from './types.js';
 import type {
@@ -28,6 +29,7 @@ import type {
   DisplayModeSegment,
   SegmentationData,
   OverlayZone,
+  LayoutSegment,
 } from './types.js';
 
 // Re-exports for public API
@@ -36,6 +38,51 @@ export { convertToSubtitles, formatASSTime, hexToASSColor, getASSAlignment } fro
 export { escapePathForFilter } from './types.js';
 export { buildVideoCropFilter } from './ffmpeg.js';
 export { resolveAvailableFontFamily } from './fonts.js';
+
+/**
+ * Convert visual display data to frame-based LayoutSegments for Remotion composition.
+ * Fills gaps between visual items with 'default' mode segments.
+ */
+function buildLayoutSegments(
+  visualItems: Array<{ startMs: number; endMs: number; data: { displayMode: string; overlayOpacity?: number } }>,
+  fps: number,
+  totalDurationMs: number,
+): LayoutSegment[] {
+  const segments: LayoutSegment[] = [];
+  let lastEndMs = 0;
+
+  for (const item of visualItems) {
+    if (item.startMs > lastEndMs + 50) {
+      segments.push({
+        startFrame: Math.round((lastEndMs / 1000) * fps),
+        endFrame: Math.round((item.startMs / 1000) * fps),
+        displayMode: 'default',
+      });
+    }
+
+    let dm = item.data.displayMode || 'default';
+    if (dm === 'pip') dm = 'default';
+
+    segments.push({
+      startFrame: Math.round((item.startMs / 1000) * fps),
+      endFrame: Math.round((item.endMs / 1000) * fps),
+      displayMode: dm as 'default' | 'fullscreen' | 'overlay',
+      overlayOpacity: item.data.overlayOpacity,
+    });
+
+    lastEndMs = item.endMs;
+  }
+
+  if (lastEndMs < totalDurationMs - 50) {
+    segments.push({
+      startFrame: Math.round((lastEndMs / 1000) * fps),
+      endFrame: Math.round((totalDurationMs / 1000) * fps),
+      displayMode: 'default',
+    });
+  }
+
+  return segments;
+}
 
 export async function processRenderJob(job: Job<RenderJobData>) {
   const { projectId, jobId, layoutSettings, visualDisplayData, videoClipData } = job.data;
@@ -442,6 +489,33 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         }
       }
 
+      // Determine if we should use the full Remotion composition (stacked layout)
+      const useFullComposition = layoutSettings?.mode === 'stacked';
+
+      // Copy source video to bundle's public/ dir for FullComposition
+      if (useFullComposition && videoPath) {
+        const bundlePublicDir = join(bundlePath, 'public');
+        await mkdir(bundlePublicDir, { recursive: true });
+        const bundleSourceVideo = join(bundlePublicDir, 'source.mp4');
+        await copyFile(videoPath, bundleSourceVideo);
+        logger.info({ bundleSourceVideo }, 'Copied source video to bundle public/ for FullComposition');
+      }
+
+      // Build composition props for full composition mode
+      let compositionPropsPath: string | undefined;
+      if (useFullComposition) {
+        const layoutSegments = buildLayoutSegments(visualItems, visualFps, project.durationMs || 60000);
+        const compositionProps = {
+          splitSettings: layoutSettings?.split || { position: 'visuals-first' as const, ratio: 50, gap: 0 },
+          layoutSegments,
+          videoCropSettings: videoCrop,
+          sourceVideoFile: 'source.mp4',
+        };
+        compositionPropsPath = join(workDir, 'composition-props.json');
+        await writeFile(compositionPropsPath, JSON.stringify(compositionProps), 'utf-8');
+        logger.info({ compositionPropsPath, segmentCount: layoutSegments.length }, 'Wrote composition props for full composition render');
+      }
+
       logger.info({
         projectId,
         compositionId: projectVisual.compositionId,
@@ -453,6 +527,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         videoCrop,
         sceneCount: sceneTimestamps.length,
         videoClipCount: videoClipPaths.size,
+        useFullComposition,
       }, 'Starting Remotion SSR render');
 
       // Step 1: Render Remotion composition exactly as shown in preview
@@ -466,6 +541,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         bundlePath,
         compositionId: projectVisual.compositionId,
         outputPath: remotionTempPath,
+        propsPath: compositionPropsPath,
         onProgress: (progress) => {
           const jobProgress = 30 + Math.round(progress * 40);
 
@@ -573,7 +649,71 @@ export async function processRenderJob(job: Job<RenderJobData>) {
             },
           });
         }
+      } else if (useFullComposition) {
+        // Full composition: Remotion already composited video + visuals with layout transitions.
+        // Just mux audio track.
+        const hasSubtitles = subtitles.length > 0;
+        const compositedPath = hasSubtitles ? join(workDir, 'composited.mp4') : outputPath;
+
+        await muxAudioOnly({
+          videoPath: remotionTempPath,
+          audioPath: enhancedAudioPath,
+          sourceVideoPath: videoPath!,
+          outputPath: compositedPath,
+          onProgress: (progress) => {
+            const jobProgress = 75 + Math.round(progress * 7);
+            publishJobProgress(jobId, jobProgress, `Muxing audio: ${Math.round(progress * 100)}%`);
+          },
+        });
+
+        // Pass 2: Overlay subtitles with Remotion (same React engine as preview)
+        if (hasSubtitles) {
+          await publishJobProgress(jobId, 83, 'Rendering captions...');
+
+          const firstSubStyle = firstStyle;
+          let captionDurationMs = project.durationMs || 0;
+          if (!captionDurationMs) {
+            captionDurationMs = Math.max(...subtitles.map(s => s.endMs)) + 1000;
+          }
+
+          await renderVideo({
+            videoUrl: compositedPath,
+            subtitles,
+            outputPath,
+            width: outputWidth,
+            height: outputHeight,
+            fps: 30,
+            durationMs: captionDurationMs,
+            defaultSubtitleStyle: {
+              fontFamily: firstSubStyle.fontFamily || resolvedFontFamily || 'Inter',
+              fontSize: firstSubStyle.fontSize || 56,
+              fontWeight: firstSubStyle.fontWeight || 800,
+              color: firstSubStyle.color || '#ffffff',
+              activeColor: firstSubStyle.activeColor || '#ffff00',
+              backgroundColor: firstSubStyle.backgroundColor || 'transparent',
+              activeBackgroundColor: firstSubStyle.activeBackgroundColor || 'transparent',
+              opacity: firstSubStyle.opacity ?? 1,
+              lineHeight: firstSubStyle.lineHeight ?? 1.4,
+              letterSpacing: firstSubStyle.letterSpacing ?? 0,
+              textTransform: (firstSubStyle.textTransform || 'none') as 'none' | 'uppercase' | 'lowercase',
+              stroke: firstSubStyle.stroke ?? null,
+              displayMode: firstSubStyle.displayMode || 'phrase',
+              wordsPerPhrase: firstSubStyle.wordsPerPhrase || 5,
+              presetId: firstSubStyle.presetId,
+              position: firstSubStyle.position || 'bottom',
+              effects: firstSubStyle.effects,
+              animation: firstSubStyle.animation,
+              backgroundPadding: firstSubStyle.backgroundPadding,
+              backgroundRadius: firstSubStyle.backgroundRadius,
+            },
+            onProgress: (progress) => {
+              const jobProgress = 83 + Math.round((progress / 100) * 12);
+              publishJobProgress(jobId, jobProgress, `Rendering captions: ${progress}%`);
+            },
+          });
+        }
       } else {
+        // PiP or other layout modes: use existing FFmpeg composite pipeline
         // Video project with visuals: two-pass approach for exact caption matching
         // Pass 1: Composite source video + Remotion visuals + audio WITHOUT subtitles
         const hasSubtitles = subtitles.length > 0;

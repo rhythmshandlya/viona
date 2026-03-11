@@ -47,7 +47,9 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       .set({ status: 'processing', progress: 0 })
       .where(eq(jobs.id, jobId));
 
-    await publishJobProgress(jobId, 5, 'Loading project...');
+    await publishJobProgress(jobId, 5, 'Loading project...', {
+      meta: { phase: 'plan', phaseName: 'Preparing' },
+    });
 
     // Load project and transcript
     const project = await db.query.projects.findFirst({
@@ -221,19 +223,36 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
     try {
       const durationFrames = Math.ceil(((project.durationMs || 60000) / 1000) * (project.fps || 30));
       await writeFile(rootTsx, `import "./index.css";
+import React from "react";
 import { Composition } from "remotion";
 import MainComposition from "./${compositionId}";
+import { FullComposition } from "./composition";
+import type { FullCompositionProps } from "./composition";
+
+const Wrapped: React.FC<FullCompositionProps> = (props) => {
+  return (
+    <FullComposition {...props}>
+      <MainComposition />
+    </FullComposition>
+  );
+};
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
         id="${compositionIdDashed}"
-        component={MainComposition}
+        component={Wrapped}
         durationInFrames={${durationFrames}}
         fps={${project.fps || 30}}
         width={${dimensions?.width || 1080}}
         height={${dimensions?.height || 1920}}
+        defaultProps={{
+          splitSettings: { position: "visuals-first", ratio: 50, gap: 0 },
+          layoutSegments: [],
+          videoCropSettings: { sourceWidth: 1920, sourceHeight: 1080, cropX: 50, cropY: 50, scale: 1.0 },
+          sourceVideoFile: "source.mp4",
+        }}
       />
     </>
   );
