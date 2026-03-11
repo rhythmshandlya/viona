@@ -4,11 +4,13 @@ import type { Rect, VideoCropSettings } from './types';
 
 interface SpeakerVideoProps {
   rect: Rect;
-  src: string;
+  src?: string;
   crop: VideoCropSettings;
 }
 
 export const SpeakerVideo: React.FC<SpeakerVideoProps> = ({ rect, src, crop }) => {
+  if (!src) return null;
+
   // Hide when effectively off-canvas (fullscreen mode transitions)
   if (rect.h <= 10) return null;
 
@@ -42,7 +44,6 @@ export const SpeakerVideo: React.FC<SpeakerVideoProps> = ({ rect, src, crop }) =
       }}
     >
       <OffthreadVideo
-        muted
         src={staticFile(src)}
         style={{
           width: scaledW,
