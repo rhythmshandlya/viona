@@ -25,7 +25,7 @@ Fix this by:
 1. Deep transcript analysis — understand what's ACTUALLY being explained
 2. Precise timestamp alignment — visuals sync to SPECIFIC WORDS
 3. Visual continuity — the SAME elements transform across scenes
-4. Template-first visuals — every concept maps to a template component or styled typography
+4. Diverse visual techniques — SVG illustration, path drawing, kinetic typography, shape morphing, animated diagrams, data viz, AND cards. NOT every scene in a card.
 </philosophy>
 
 <motion_design_planning>
@@ -35,14 +35,15 @@ The Animator implements using motion design principles from shared modules. Plan
 
 - Each scene description should address ALL THREE motion layers:
   1. **Background/ambient** — what fills the canvas and moves continuously
-  2. **Primary element** — the main visual focus and how it enters
+  2. **Primary element** — the main visual focus and how it enters. This should be a VISUAL TECHNIQUE, not just "card with text". Think: SVG path drawing, shape morphing, kinetic typography cascade, animated diagram, scatter effect, or data visualization.
   3. **Supporting elements** — secondary visuals that reinforce the primary
 
-- Specify choreography intent: "Title fills screen from frame 0, then shrinks at keySync as cards cascade in"
-- Use vocabulary names from shared/vocabulary.md in your descriptions (text-reveal, spring-in, stagger-cascade, etc.)
+- **VARY techniques across scenes.** No two adjacent scenes should use the same primary visual approach. If Scene 2 uses cards, Scene 3 must use kinetic typography, path drawing, morphing, or illustration. A project where every scene is "card slides in with text and icon" looks generic.
+- Specify choreography intent: "Title fills screen from frame 0, then shrinks at keySync as words cascade in" or "SVG path draws progressively, connecting nodes that spring in"
+- Use vocabulary names from shared/vocabulary.md in your descriptions (text-reveal, spring-in, stagger-cascade, path-draw, morph, etc.)
 - Reference scene archetypes from shared/vocabulary.md in the archetype field
 
-Your plan quality directly determines animation quality. Vague descriptions produce generic visuals.
+Your plan quality directly determines animation quality. Vague descriptions produce generic visuals. **Specific visual technique descriptions produce distinctive animations.**
 </motion_design_planning>
 
 <transcript_analysis>
@@ -78,7 +79,7 @@ IMPORTANT CONSTRAINTS:
 - If a scene would exceed 450 frames, SPLIT it at a natural topic transition
 - Adjacent transcript lines about the same concept belong in ONE scene
 - Scenes MUST be contiguous — no gaps. Each scene's start = previous scene's end
-- For speaker-focused moments (anecdotes, emotional beats), create an `"overlay"` scene with minimal visual description
+- For speaker-focused moments (anecdotes, emotional beats), create an `"overlay"` scene — these render ON TOP OF a talking head video with a real person, so design compact keyword annotations, not standalone graphics
 - Every frame MUST have meaningful visual content. Each scene needs BOTH:
   (a) an IMMEDIATE visual from frame 0, AND
   (b) the key sync payoff visual
@@ -100,16 +101,66 @@ SCENE MERGE SIGNALS — keep in ONE scene when:
 
 NEVER merge two narrative beats into one scene.
 
-### OVERLAY ZONE CONSTRAINTS (CRITICAL for overlay scenes)
+### OVERLAY DESIGN PHILOSOPHY (CRITICAL)
 
-When planning `"overlay"` scenes, the speaker's face is visible full-screen behind the visuals.
-YOU MUST constrain ALL element positions to safe zones:
+**Overlay scenes render ON TOP OF a talking head video with a real person speaking to camera.**
+You are designing lightweight annotations that complement the speaker — not standalone graphics.
+The speaker IS the primary visual. Your overlays are secondary reinforcement.
+
+**Design principles:**
+- **One element per speech beat.** Each sync point triggers ONE visual (a keyword, a stat, an icon). Never a dashboard, grid, or multi-row card layout.
+- **1-3 words max per overlay.** The speaker provides context verbally. The overlay reinforces the KEY WORD only. "EFFICIENCY" not "MORE EFFICIENCY IN YOUR STROKE TECHNIQUE".
+- **Typography IS the visual.** Large, bold text with textShadow is the primary overlay tool. Icons are small accents, never the focus.
+- **Compact footprint.** Overlay containers: max 55% width. Floating text: max 45% width. Leave breathing room around the speaker.
+- **Never design on the face.** The speaker's face is the viewer's primary attention anchor. All overlay elements must avoid the face area completely.
+
+### SPEAKER-POSITION-AWARE LAYOUT
+
+Adapt overlay placement based on where the speaker is in the frame:
+
+```
+SPEAKER CENTERED:
++-----------------------------+
+|     [top label - centered]  |
+|                             |
+|      [SPEAKER - center]    |
+|                             |
+|   [lower-third - centered] |
++-----------------------------+
+→ Overlays center-aligned below/above speaker
+
+SPEAKER ON LEFT:
++-----------------------------+
+|                [top label]  |
+|                             |
+| [SPEAKER]    [overlay card] |
+|              [on right]     |
+|                             |
++-----------------------------+
+→ Overlays float to the RIGHT side
+
+SPEAKER ON RIGHT:
++-----------------------------+
+| [top label]                 |
+|                             |
+| [overlay card]    [SPEAKER] |
+| [on left]                   |
+|                             |
++-----------------------------+
+→ Overlays float to the LEFT side
+```
+
+Use `safePlacement` data from scenes.json to determine speaker position. If speaker occupies left cells, place content right. If speaker occupies right cells, place content left. If centered, keep overlays centered in lower-third.
+
+Specify `layout.alignment` in scenes.json: `"center"`, `"left"`, or `"right"` based on speaker position.
+
+### OVERLAY ZONE CONSTRAINTS
 
 ```
 +-----------------------------+
-|  TOP STRIP (0-15% Y)       |  <- Titles, labels only
+|  TOP STRIP (0-15% Y)       |  <- Short labels only (1-2 words)
 |                             |
-|  SPEAKER ZONE (15-58% Y)   |  <- OFF-LIMITS
+|  SPEAKER ZONE (15-58% Y)   |  <- OFF-LIMITS (face area)
 |                             |
 |  LOWER-THIRD (58-85% Y)    |  <- Primary content zone
 |                             |
@@ -120,11 +171,9 @@ YOU MUST constrain ALL element positions to safe zones:
 For every overlay scene:
 - `layout.primary.y` MUST be in lower-third (58-85%) or top strip (0-15%)
 - `layout.secondary.y` MUST also be in a safe zone — NEVER in 15-58%
-- If `safePlacement` data is provided, prefer the zones listed there
-- Overlay visuals are SUPPORTING annotations — keep descriptions minimal
+- `layout.alignment` MUST reflect speaker position (center/left/right)
+- Max 2 elements visible at any moment. Prefer 1.
 - SELF-CHECK: Before writing scenes.json, verify no overlay element has y in [15%, 58%]
-
-The Animator resolves layout zone values to exact pixel positions using the speaker grid. Do NOT place overlay elements at arbitrary Y values between 15-58%.
 
 INFORMATION DENSITY BREATHING:
 After a complex scene, follow with a simpler beat (stat reveal, metaphor, pause-and-reflect). Alternate dense and sparse beats throughout.
@@ -230,7 +279,10 @@ Before writing scenes.json, include this completed table:
 | Anchors: each scene specifies in/out anchors? | ✓/✗ | ... |
 | Layers: each description has background + primary + motion? | ✓/✗ | ... |
 | Overlay zones: overlay elements only in 0-15% or 58-85% Y? | ✓/✗ | ... |
+| Overlay alignment: layout.alignment matches speaker position? | ✓/✗ | ... |
+| Overlay text: max 3 words per overlay element? | ✓/✗ | ... |
 | Technique variety: ≥3 different techniques used across scenes? | ✓/✗ | ... |
+| Adjacent technique diversity: no two adjacent scenes share same technique? | ✓/✗ | ... |
 ```
 
 If any check fails, FIX the plan before writing scenes.json.
@@ -257,6 +309,7 @@ If any check fails, FIX the plan before writing scenes.json.
         { "frame": 45, "action": "Title springs in with text-reveal" },
         { "frame": 120, "action": "Subtitle fades up below title" }
       ],
+      "technique": "path-drawing",
       "visual": "AMBIENT: Dark gradient rotates slowly. PRIMARY: Title fills screen with text-reveal from frame 0. At keySync, title shrinks to top via text-morph-position. SECONDARY: Metaphor visual springs into center.",
       "buildsFrom": null,
       "connectsTo": "The glowing key element in motion",
@@ -264,7 +317,8 @@ If any check fails, FIX the plan before writing scenes.json.
       "videos": [],
       "layout": {
         "primary": { "element": "title", "y": "center" },
-        "secondary": { "element": "metaphor visual", "y": "60%" }
+        "secondary": { "element": "metaphor visual", "y": "60%" },
+        "alignment": "center"
       }
     }
   ]
@@ -272,6 +326,18 @@ If any check fails, FIX the plan before writing scenes.json.
 ```
 
 CRITICAL: `"frames": [start, end]` — array format, NOT startFrame/durationInFrames fields.
+
+The `technique` field identifies the primary visual technique for this scene. Valid values:
+- `"card-data"` — card with animated data/stats
+- `"path-drawing"` — SVG strokeDasharray progressive reveal
+- `"shape-morph"` — cross-fade/morph between shapes
+- `"animated-diagram"` — nodes + connecting lines
+- `"split-composition"` — side-by-side comparison with animation
+- `"particle-scatter"` — elements scatter/converge
+- `"svg-illustration"` — full-scene composed SVG
+- `"data-viz"` — charts, progress bars, counters
+
+No two adjacent scenes should share the same `technique` value. The Animator uses this to select the right implementation approach.
 </output_format>
 
 <visual_decomposition>
@@ -343,20 +409,23 @@ Additionally verify:
 </quality_criteria>
 
 <visual_metaphors>
-Map abstract concepts to TEMPLATE COMPONENTS or styled typography — NEVER to hand-drawn physical objects:
+Map abstract concepts to VISUAL TECHNIQUES — choose the most expressive approach for each scene:
 
-| Concept | Template to Use | Fallback |
-|---------|----------------|----------|
-| Data comparison | stat-comparison, split-stat, versus-screen | Bold side-by-side text with accent colors |
-| Metrics/progress | stat-progress, stat-bar-chart, score-meter | number-ticker with large text |
-| Rankings/tiers | tier-board, rating-display | Styled numbered list |
-| Counters/stats | number-ticker, stat-counter | Large animated number with label |
-| Before/after | before-after-reveal | Side-by-side glassmorphic cards |
-| Head-to-head | versus-screen, poll-battle | Comparison cards |
-| Sequences/steps | process-flow, step-counter | Numbered text stack |
-| Growth/trends | stat-line-chart, stat-donut | Bold percentage with direction arrow |
-| Quotes/emphasis | quote-pulse, headline-storm | Centered large typography |
-| Features/lists | feature-list, bullet-stack | Staggered text rows with accent bullets |
+| Concept | Best Visual Techniques | Template Alternative |
+|---------|----------------------|---------------------|
+| Data comparison | Split composition with animated contrast, morphing between states | versus-screen, stat-comparison |
+| Metrics/progress | Animated counter with progress ring/bar fill, data viz | stat-counter, score-meter |
+| Rankings/tiers | Staggered bar chart, animated tier board | tier-board, rating-display |
+| Counters/stats | Large animated number with visual context (ring, bar, particles) | number-ticker, stat-counter |
+| Before/after | Shape morph, color-shift wipe, split-screen reveal | before-after-reveal |
+| Head-to-head | Animated split with visual metaphors on each side | versus-screen |
+| Sequences/steps | SVG path drawing connecting nodes, animated diagram | process-flow |
+| Growth/trends | Animated line/bar chart, rising particles | stat-line-chart |
+| Quotes/emphasis | Kinetic typography (word cascade, letter reveal) | quote-pulse, headline-storm |
+| Features/lists | Staggered icon+label pairs with connecting elements | bullet-stack |
+| Hook/bold claim | Kinetic typography filling the screen, path-draw reveal | headline-storm |
+| Transformation | SVG morph (shape A → shape B), particle scatter/reform | morph-collapse |
+| Emotional moment | Full-scene SVG illustration, large animated icon, particle bloom | — |
 
 | Convergence/focus | converge-to-point, morph-collapse, spotlight-focus | Elements physically move — NOT just pulse/fade |
 | Revealing/unveiling | mask-reveal (circle or directional wipe) | clipPath animation — NOT just opacity fade |
@@ -365,9 +434,7 @@ Map abstract concepts to TEMPLATE COMPONENTS or styled typography — NEVER to h
 | Drilling down | zoom-transition | Scale into element — NOT just cut |
 | Breaking down | exploded-view | Parts spread out — NOT just list |
 
-NEVER describe physical objects (seesaws, gauges with needles, conveyor belts, circuit boards, trophies).
-The Animator cannot render realistic objects — they degrade to crude colored rectangles.
-A polished template component is ALWAYS better than a hand-drawn approximation.
+For physical objects and illustrations: use professional icons from Freepik/Iconify MCP, or build from geometric SVG primitives (arcs, paths, circles). Avoid crude hand-drawn representations of complex real-world objects — a stylized geometric abstraction is better than an unrecognizable sketch.
 </visual_metaphors>
 
 <color_palettes>

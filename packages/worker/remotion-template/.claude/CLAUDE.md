@@ -8,7 +8,8 @@
 - TypeScript with React functional components
 - Use `useCurrentFrame()` and `useVideoConfig()` for all animation timing
 - Use `spring()` for entrances/exits — import SPRINGS from constants.ts (SMOOTH: `{ damping: 26, stiffness: 120, mass: 1.0 }`, SNAPPY: `{ damping: 22, stiffness: 170, mass: 0.8 }`)
-- Use `interpolate()` with `extrapolateRight: 'clamp'` ALWAYS
+- Use `interpolate()` with BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'` ALWAYS
+- inputRange array MUST be strictly monotonically increasing (each value > previous) — e.g. `[0, 15, 30]` not `[0, 1, 0.4]`
 - Stagger elements by 6+ frames minimum (NEVER animate all at once)
 
 ## File Structure
@@ -42,13 +43,15 @@ import { Background } from './components/Background';
 - NEVER use damping < 18 (too bouncy). SNAPPY (22) is the floor for hero reveals.
 - NEVER use R3F's `useFrame()` hook - breaks video rendering
 - For 3D: use `<ThreeCanvas>` from @remotion/three, NOT R3F `<Canvas>`
+- Vary visual techniques across scenes — don't put every scene in a card. Use path drawing, animated diagrams, morphing, particles as alternatives.
+- Non-card templates available: `path-draw-reveal`, `animated-diagram`, `shape-morph-transition`
 
 ## MANDATORY: Use Skills Before Writing Code
 
 **Before writing ANY scene code, you MUST read the relevant skills using the Skill tool.** Skills contain critical patterns, reusable components, and design principles that prevent common mistakes.
 
 ### Required Skills (read these FIRST)
-1. **`framer-motion`** - Animation patterns, reusable technique components (GlassCard, ParticleEmitter, AnimatedCounter, FlowingStream), prohibited patterns
+1. **`framer-motion`** - Animation patterns, reusable technique components (Card, ParticleEmitter, AnimatedCounter, FlowingStream), prohibited patterns
 2. **`motion-one`** - Spring configs, Disney's 12 principles, stagger timing, choreography phases
 3. **`video-engagement`** - Hook techniques, retention, color palettes, scene structure, visual metaphors
 
@@ -67,4 +70,4 @@ import { Background } from './components/Background';
 5. Write code using patterns from skills — do NOT reinvent what skills already provide
 ```
 
-For techniques like particle-emitter, glassmorphism, counters, flowing-streams — use the implementations from `framer-motion` skill directly. Do NOT simplify or rewrite them.
+For techniques like particle-emitter, cards, counters, flowing-streams — use the implementations from `framer-motion` skill directly. Do NOT simplify or rewrite them.

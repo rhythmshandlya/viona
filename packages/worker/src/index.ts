@@ -144,7 +144,7 @@ async function main() {
       concurrency: 1, // Must be 1 — workspace is shared (Root.tsx, index.ts, public/assets)
       lockDuration: 100 * 60 * 1000,  // 100 min — 10 min buffer above 90 min subprocess timeout
       stalledInterval: 10 * 60 * 1000, // Check every 10 min (generous buffer for lock extender)
-      maxStalledCount: 0,              // Immediately fail stalled jobs (no re-queue — generation is too expensive to retry blindly)
+      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
     }
   );
 
@@ -177,7 +177,7 @@ async function main() {
       concurrency: 1,
       lockDuration: 15 * 60 * 1000,  // 15 min — Director runs 5-12 min
       stalledInterval: 10 * 60 * 1000,
-      maxStalledCount: 0,              // Immediately fail stalled jobs (no re-queue)
+      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
     }
   );
 
@@ -209,7 +209,7 @@ async function main() {
       concurrency: 1,
       lockDuration: 20 * 60 * 1000,  // 20 min — edit jobs run 5-15 min
       stalledInterval: 10 * 60 * 1000,
-      maxStalledCount: 0,              // Immediately fail stalled jobs (no re-queue)
+      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
     }
   );
 

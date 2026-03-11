@@ -455,8 +455,8 @@ copy, modify, and combine freely.
 
 **Before writing ANY scene code, you MUST:**
 
-1. **Read at least 3 templates** from `src/.templates/` (e.g., `stat-counter`, `quote-pulse`, `versus-screen`)
-2. **Study how they use:** DotGrid backgrounds, glass card containers, `useScale()`, `FONT_PAIRS`, spring configs, accent color transparency
+1. **Read at least 3 templates** from `src/.templates/` — include at least ONE non-card template (e.g., `path-draw-reveal`, `animated-diagram`, `shape-morph-transition`) alongside card templates (e.g., `stat-counter`, `versus-screen`)
+2. **Study how they use:** DotGrid backgrounds, `useScale()`, `FONT_PAIRS`, spring configs, accent color transparency, SVG path animation, animated diagrams, shape morphing
 3. **Write `constants.ts` using STUDIO THEME COLORS** — NOT the Director's `colorPalette`
 
 The Director's `colorPalette` in scenes.json is a topic hint only. Your constants.ts MUST use the studio theme values from the design system section above. If you skip this step, your scenes will look generic and off-brand.

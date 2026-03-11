@@ -33,6 +33,10 @@ Review ALL three screenshots against the plan:
 11. **Edge margins**: Is there adequate spacing from all edges? No content should touch the frame borders — look for at least ~5% margin.
 12. **Subtitle zone**: Is the bottom ~15% of the frame free of primary content? (This area is reserved for subtitles.)
 
+### Technique Diversity (check across all scenes in batch)
+15. **TECHNIQUE DIVERSITY**: Do the screenshots show varied visual approaches across scenes? If 3+ consecutive screenshots show the same structure (card with text sliding in), flag as "repetitive visual pattern — lacks technique diversity."
+16. **TECHNIQUE MATCH**: Does each scene use the technique specified in the plan? If the plan says "path-drawing" but the screenshot shows a card with text, flag as "technique mismatch."
+
 ### Late Frame (Exit)
 13. **Content still present**: The scene should still have visible content (not fully faded yet at -15 frames)
 14. **No rendering errors across all frames**: No React error boundaries, red error overlays, or "missing component" text
