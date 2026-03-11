@@ -2741,6 +2741,80 @@
         "aspectRatio": "16:9",
         "estimatedDuration": "variable"
       }
+    },
+    {
+      "name": "path-draw-reveal",
+      "type": "registry:component",
+      "description": "SVG path drawing with progressive node reveal — use for processes, connections, step-by-step flows. NOT a card.",
+      "categories": [
+        "non-card"
+      ],
+      "tags": [
+        "path",
+        "svg",
+        "draw",
+        "reveal",
+        "process",
+        "flow",
+        "connection",
+        "steps",
+        "non-card",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "studio-dark",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "8s"
+      }
+    },
+    {
+      "name": "animated-diagram",
+      "type": "registry:component",
+      "description": "Node-and-edge diagram with staggered entrance and progressive line drawing — use for architectures, flows, relationships. NOT a card.",
+      "categories": [
+        "non-card"
+      ],
+      "tags": [
+        "diagram",
+        "nodes",
+        "edges",
+        "architecture",
+        "flow",
+        "graph",
+        "network",
+        "relationship",
+        "non-card",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "studio-dark",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "8s"
+      }
+    },
+    {
+      "name": "shape-morph-transition",
+      "type": "registry:component",
+      "description": "Cross-fade morph between two SVG shapes (square to star) with scale pulse — use for transformations, before/after. NOT a card.",
+      "categories": [
+        "non-card"
+      ],
+      "tags": [
+        "morph",
+        "shape",
+        "transition",
+        "transform",
+        "before-after",
+        "evolution",
+        "svg",
+        "non-card",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "studio-dark",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
     }
   ]
 }

@@ -30,6 +30,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   'social': 'Social',
   'corporate': 'Corporate',
   'entertainment': 'Entertainment',
+  'non-card': 'Non-Card Templates',
 };
 
 /**
