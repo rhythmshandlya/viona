@@ -1,5 +1,3 @@
-import type { SubtitleItem } from '@viona/renderer';
-
 // YouTube URL validation patterns
 export const YOUTUBE_URL_PATTERNS = [
   /^https?:\/\/(www\.)?youtube\.com\/watch\?v=[a-zA-Z0-9_-]{11}/,
@@ -95,7 +93,6 @@ export interface DisplayModeSegment {
   endMs: number;
   enterDurationMs?: number; // transition duration when entering (0 = cut)
   exitDurationMs?: number;  // transition duration when exiting (0 = cut)
-  overlayOpacity?: number;  // per-item overlay opacity (0-1), default 0.85
 }
 
 /** Unified layout segment for Remotion full composition (frame-based) */
@@ -103,7 +100,6 @@ export interface LayoutSegment {
   startFrame: number;
   endFrame: number;
   displayMode: 'default' | 'fullscreen' | 'overlay';
-  overlayOpacity?: number;
 }
 
 export interface SegmentationData {
@@ -126,7 +122,6 @@ export interface RenderJobData {
       enter: { type: string; durationMs: number };
       exit: { type: string; durationMs: number };
     };
-    overlayOpacity?: number;
   }>;
   // Video clip trim data from user-edited templateProps
   videoClipData?: Array<{
@@ -143,67 +138,6 @@ export interface RenderRemotionOptions {
   outputPath: string;
   propsPath?: string;  // Path to JSON file with composition inputProps
   onProgress?: (progress: number) => void;
-}
-
-export interface AddAudioAndSubtitlesOptions {
-  videoPath: string;
-  audioPath: string | null;
-  subtitles: SubtitleItem[];
-  outputPath: string;
-  workDir: string;
-  width: number;
-  height: number;
-  fontsDir?: string;
-  fontSizeMultiplier?: number;
-}
-
-export interface RenderWithPiPLayoutOptions {
-  sourceVideoPath: string;
-  remotionVideoPath: string;
-  audioPath: string | null;
-  subtitles: SubtitleItem[];
-  outputPath: string;
-  workDir: string;
-  width: number;
-  height: number;
-  layoutSettings?: LayoutSettings;
-  videoCrop?: VideoCropSettings;
-  fullscreenVisualSegments?: DisplayModeSegment[];
-  overlaySegments?: DisplayModeSegment[];
-  gapSegments?: DisplayModeSegment[];
-  onProgress?: (progress: number) => void;
-  fontsDir: string;
-  resolvedFontFamily?: string;
-  fontSizeMultiplier?: number;
-  videoClipPaths?: Map<string, string>;  // sceneId → local clip path
-  videoManifest?: VideoManifest;         // For timing info
-  sceneTimestamps?: Array<{ startMs: number; endMs: number; sourceSceneId?: number }>;
-}
-
-export interface FinalizeRemotionVideoOptions {
-  remotionVideoPath: string;
-  audioPath: string | null;
-  subtitles: SubtitleItem[];
-  outputPath: string;
-  workDir: string;
-  width: number;
-  height: number;
-  fontsDir?: string;
-  resolvedFontFamily?: string;
-  fontSizeMultiplier?: number;
-}
-
-export interface CompositeFullVideoOptions {
-  sourceVideoPath: string;
-  remotionVideoPath: string;
-  audioPath: string | null;
-  subtitles: SubtitleItem[];
-  outputPath: string;
-  workDir: string;
-  projectWidth: number;
-  projectHeight: number;
-  fontsDir?: string;
-  fontSizeMultiplier?: number;
 }
 
 /**
