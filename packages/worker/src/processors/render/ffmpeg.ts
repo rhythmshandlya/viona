@@ -12,7 +12,7 @@ import type { SubtitleItem } from '@viona/renderer';
 import { renderMedia, selectComposition, getCompositions } from '@remotion/renderer';
 import { bundle } from '@remotion/bundler';
 import { generateASSForComposite, generateASSSubtitles, formatASSTime } from './subtitles.js';
-import { SYSTEM_FONTS_DIR, GOOGLE_FONT_URLS, detectFontsInBundle, injectGoogleFontsIntoBundle } from './fonts.js';
+import { SYSTEM_FONTS_DIR, GOOGLE_FONT_URLS } from './fonts.js';
 import type {
   VideoManifest,
   VideoClipOverride,
@@ -508,7 +508,7 @@ export async function rebuildBundleFromCJS(bundlePath: string, compositionId: st
     logger.info({ compositionId, fileCount: compositionFiles.length }, 'Downloaded composition infrastructure files from S3');
   } else {
     // Fallback for old projects: copy composition/ from the local workspace template
-    const localCompositionDir = join(getWorkspacePath(), 'src', 'composition');
+    const localCompositionDir = join(config.worker.templatePath, 'src', 'composition');
     try {
       await access(localCompositionDir, constants.R_OK);
       await mkdir(compositionSrcDir, { recursive: true });
@@ -592,10 +592,13 @@ export const RemotionRoot: React.FC = () => (
     width={${metaWidth}}
     height={${metaHeight}}
     defaultProps={{
+      layoutMode: "stacked",
       splitSettings: { position: "visuals-first", ratio: 50, gap: 0 },
       layoutSegments: [],
       videoCropSettings: { sourceWidth: 1920, sourceHeight: 1080, cropX: 50, cropY: 50, scale: 1.0 },
       sourceVideoFile: "source.mp4",
+      subtitles: [],
+      defaultSubtitleStyle: {},
     }}
   />
 );
@@ -736,8 +739,6 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
   }
 
   // Inject Google Fonts into bundle HTML so headless Chromium renders them
-  const detectedFonts = await detectFontsInBundle(serveUrl);
-  await injectGoogleFontsIntoBundle(serveUrl, detectedFonts);
 
   logger.info({
     compositionId: composition.id,
@@ -1537,7 +1538,7 @@ export async function renderWithPiPLayout(options: RenderWithPiPLayoutOptions): 
         const outLabel = isLast ? 'after_ovl' : `after_ovl_${i}`;
         const inputLabel = `vis_ovl_${i}`;
         const enableExpr = `between(t,${(seg.startMs / 1000).toFixed(3)},${(seg.endMs / 1000).toFixed(3)})`;
-        const opacity = Math.max(0, Math.min(1, seg.overlayOpacity ?? 0.85));
+        const opacity = 1.0;
 
         const hasFades = (seg.enterDurationMs || 0) > 0 || (seg.exitDurationMs || 0) > 0;
         if (hasFades) {
