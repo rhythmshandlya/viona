@@ -6,6 +6,7 @@ import { readdir } from 'fs/promises';
 import { join } from 'path';
 import { uploadFile } from '../../services/minio.js';
 import { logger } from '../../logger.js';
+import { getWorkspacePath } from '../../workspace.js';
 
 /**
  * Upload bundle directory to S3 storage.
@@ -64,6 +65,28 @@ export async function uploadSourceToStorage(projectDir: string, compositionId: s
 
       await uploadFile('outputs', s3Key, localPath);
     }
+  }
+
+  // Also upload src/composition/ (FullComposition infrastructure) so rebuildBundleFromCJS
+  // can reconstruct the full composition wrapper during render.
+  const compositionDir = join(getWorkspacePath(), 'src', 'composition');
+  try {
+    const compositionFiles = await readdir(compositionDir, { recursive: true, withFileTypes: true });
+    for (const file of compositionFiles) {
+      if (file.isFile()) {
+        const parentPath = file.parentPath || file.path;
+        const relativePath = parentPath.replace(compositionDir, '').replace(/^[\\/]/, '');
+        const fileName = file.name;
+        const relativeFilePath = relativePath ? `${relativePath}/${fileName}` : fileName;
+
+        const s3Key = `sources/${compositionId}/__composition__/${relativeFilePath}`.replace(/\\/g, '/');
+        const localPath = join(parentPath, fileName);
+        await uploadFile('outputs', s3Key, localPath);
+      }
+    }
+    logger.info({ compositionId }, 'Composition infrastructure files uploaded to S3');
+  } catch (err) {
+    logger.warn({ compositionId, err }, 'Failed to upload composition/ dir (non-fatal for legacy projects)');
   }
 
   const sourceUrl = `/api/sources/${compositionId}`;

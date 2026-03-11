@@ -489,6 +489,25 @@ export async function rebuildBundleFromCJS(bundlePath: string, compositionId: st
 
   logger.info({ compositionId, fileCount: sourceFiles.length }, 'Downloaded source files from S3');
 
+  // Download composition infrastructure files (__composition__/ prefix) into src/composition/
+  const compositionPrefix = `sources/${sourceCompositionId}/__composition__/`;
+  const compositionFiles = await listObjects('outputs', compositionPrefix);
+  const compositionSrcDir = join(tempDir, 'src', 'composition');
+  if (compositionFiles.length > 0) {
+    await mkdir(compositionSrcDir, { recursive: true });
+    for (const file of compositionFiles) {
+      const relativePath = file.replace(compositionPrefix, '');
+      const localPath = join(compositionSrcDir, relativePath);
+      const dir = dirname(localPath);
+      if (dir !== compositionSrcDir) {
+        await mkdir(dir, { recursive: true });
+      }
+      await downloadFile('outputs', file, localPath);
+    }
+    logger.info({ compositionId, fileCount: compositionFiles.length }, 'Downloaded composition infrastructure files from S3');
+  }
+  const hasCompositionInfra = compositionFiles.length > 0;
+
   // Fix composition ID in index.tsx (replace underscores with hyphens for Remotion)
   const indexPath = join(srcDir, 'index.tsx');
   try {
@@ -520,9 +539,47 @@ export async function rebuildBundleFromCJS(bundlePath: string, compositionId: st
 
   // Create entry point that imports MainComposition (default export) and wraps
   // with infrastructure-known dimensions, preventing AI dimension swap bugs.
+  // If composition/ infrastructure files were uploaded, use FullComposition wrapper
+  // for proper split-screen layout support. Otherwise fall back to direct composition.
   const projectDir = compositionId.replace(/-/g, '_');
   const fixedId = compositionId.replace(/_/g, '-');
-  const entryContent = `
+  const entryContent = hasCompositionInfra
+    ? `
+import React from 'react';
+import { registerRoot } from 'remotion';
+import { Composition } from 'remotion';
+import MainComposition from './src/${projectDir}';
+import { FullComposition } from './src/composition';
+import type { FullCompositionProps } from './src/composition';
+
+const Wrapped: React.FC<FullCompositionProps> = (props) => {
+  return (
+    <FullComposition {...props}>
+      <MainComposition />
+    </FullComposition>
+  );
+};
+
+export const RemotionRoot: React.FC = () => (
+  <Composition
+    id="${fixedId}"
+    component={Wrapped}
+    durationInFrames={${metaDuration}}
+    fps={${metaFps}}
+    width={${metaWidth}}
+    height={${metaHeight}}
+    defaultProps={{
+      splitSettings: { position: "visuals-first", ratio: 50, gap: 0 },
+      layoutSegments: [],
+      videoCropSettings: { sourceWidth: 1920, sourceHeight: 1080, cropX: 50, cropY: 50, scale: 1.0 },
+      sourceVideoFile: "source.mp4",
+    }}
+  />
+);
+
+registerRoot(RemotionRoot);
+`
+    : `
 import { registerRoot } from 'remotion';
 import { Composition } from 'remotion';
 import MainComposition from './src/${projectDir}';
