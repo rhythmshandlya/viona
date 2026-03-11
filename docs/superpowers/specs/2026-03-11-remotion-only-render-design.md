@@ -104,7 +104,24 @@ The `<OffthreadVideo>` for the speaker carries audio naturally. No separate audi
 No more noise reduction/normalization preprocessing. Simplifies the pipeline — audio comes directly from the source.
 
 ### 3. Fonts via @remotion/google-fonts
-Replace HTML `<link>` injection with Remotion's native `loadFont()` API. Components call `loadFont()` dynamically with the configured font family. Handles downloading, caching, and subsetting automatically.
+Replace HTML `<link>` injection with Remotion's native font loading. Since the font family is dynamic (user/AI-chosen), we use `@remotion/google-fonts`'s `getAvailableFonts()` to look up the font info by name, then dynamic `import()` to load it at runtime:
+
+```tsx
+import { getAvailableFonts } from '@remotion/google-fonts';
+
+async function loadDynamicFont(fontFamily: string) {
+  const fonts = getAvailableFonts();
+  const match = fonts.find(f => f.fontFamily === fontFamily);
+  if (match) {
+    const loaded = await match.load();
+    const info = await loaded.loadFont();
+    return info.fontFamily; // CSS font-family string
+  }
+  return fontFamily; // fallback to system font
+}
+```
+
+This runs inside the Remotion bundle where dynamic imports are resolved by webpack.
 
 ### 4. YouTube clips rendered in Remotion
 Clips are downloaded to `public/clips/` and referenced via `staticFile()` in scene components as `<OffthreadVideo>`. No FFmpeg overlay.
@@ -112,26 +129,47 @@ Clips are downloaded to `public/clips/` and referenced via `staticFile()` in sce
 ### 5. Scenes as children, not props
 AI-generated scenes are React components passed as `children` to FullComposition. This keeps the composition generic and enables future dynamic compilation (Babel JIT in browser for live preview).
 
+### 6. Conditional rendering for audio-only projects
+When `sourceVideoFile` is undefined (audio-only), `FullComposition` skips `<SpeakerVideo>` entirely and renders:
+- `<VisualsLayer>` fullscreen (if scenes exist)
+- `<SubtitleLayer>` over the full canvas
+- `<Audio src={staticFile(audioFile)} />` for audio playback
+- Black background (configurable via optional `backgroundColor` prop)
+
+### 7. Scene injection into Remotion bundle
+Scenes are already part of the bundle. The current `rebuildBundleFromCJS()` downloads scene source files from S3, generates an entry point that imports `MainComposition` (the AI-generated scene tree), wraps it in `FullComposition`, and calls Remotion's `bundle()` API. This mechanism stays unchanged — scenes become children of FullComposition at bundle time via the generated entry point wrapper.
+
 ---
 
 ## Component Changes
 
 ### FullComposition.tsx
 - Add `audioFile` prop + `<Audio>` tag for audio-only projects
+- Add `layoutMode` and `pipSettings` props (not yet wired)
+- Add conditional rendering: skip `<SpeakerVideo>` when `sourceVideoFile` is undefined
+- Add PiP rendering path: import `PiPVideo`, branch on `layoutMode === 'pip'`, use `computePiPLayoutForFrame()`
 - Unmute `<SpeakerVideo>` (remove `muted` from `<OffthreadVideo>`)
-- Already supports stacked + PiP + subtitles
+- Add optional `backgroundColor` prop (default `'#000'`)
 
 ### SpeakerVideo.tsx
 - Remove `muted` prop from `<OffthreadVideo>`
+- Make `src` prop optional, return null when undefined
 
 ### SubtitleLayer.tsx
-- Add `loadFont()` call from `@remotion/google-fonts` using dynamic font family from `defaultStyle`
+- Add dynamic font loading via `@remotion/google-fonts` `getAvailableFonts()` + dynamic `import()`
 
 ### PiPVideo.tsx
-- No changes needed (already built)
+- Already built, no changes needed
+- Note: PiP bubble video stays `muted` (audio comes from SpeakerVideo)
 
 ### AnimatedSubtitle.tsx
 - No changes needed (already built)
+
+### types.ts
+- Define proper `SubtitleStyle` interface (replace `Record<string, unknown>`)
+- Define `SubtitleItemData` and `SubtitleWordData` locally (currently imported from `@viona/renderer`)
+- Make `layoutMode` required (not optional)
+- Add `audioFile?: string` and `backgroundColor?: string` to `FullCompositionProps`
 
 ---
 
@@ -171,7 +209,7 @@ uploadFile(outputPath, ...);
 
 | Target | Approx LOC | Reason |
 |---|---|---|
-| `packages/renderer/` (entire package) | ~800 | Second Remotion pass for captions |
+| `packages/renderer/` render function + composition | ~500 | Second Remotion pass for captions. **Keep the `animations/` sub-module** — it's imported by the web frontend (`editor-v2/player/Composition.tsx`, `StylePanel.tsx`). Move animation types/functions to `@viona/shared` or keep `packages/renderer/` alive with only the animations module. |
 | `renderWithPiPLayout()` | ~650 | FFmpeg PiP/stacked compositing |
 | `finalizeRemotionVideo()` | ~100 | FFmpeg audio mux + ASS burn |
 | `muxAudioOnly()` | ~40 | FFmpeg audio stream copy |
@@ -193,7 +231,19 @@ uploadFile(outputPath, ...);
 
 ### What stays in subtitles.ts:
 - `convertToSubtitles()` — timeline items → SubtitleItemData[]
-- Delete all ASS-specific functions
+- Delete all ASS-specific functions (`generateASSForComposite`, `generateASSSubtitles`, `formatASSTime`, `hexToASSColor`, `getASSAlignment`)
+
+### Type migrations:
+- `SubtitleItem`, `SubtitleWord` types currently from `@viona/renderer` → move to composition `types.ts` as `SubtitleItemData`, `SubtitleWordData`
+- `SubtitleStyle` → define proper interface in composition `types.ts` (replace `Record<string, unknown>`)
+- Remove re-exports from `render/index.ts`: `formatASSTime`, `hexToASSColor`, `getASSAlignment`, `buildVideoCropFilter`, `escapePathForFilter`
+
+### Edge cases handled:
+- **Audio-only, no subtitles**: Black canvas + `<Audio>` tag, no SpeakerVideo rendered
+- **Video, no visuals, no subtitles**: SpeakerVideo fills canvas, empty VisualsLayer, no SubtitleLayer
+- **No audio at all** (muted video): `<OffthreadVideo>` plays fine with no audio stream — no special handling
+- **Empty `layoutSegments`**: `computeLayoutForFrame()` already returns default stacked layout when segments array is empty
+- **Mid-video display mode transitions**: Preserved via `layoutSegments` array with `computeLayoutForFrame()` interpolation
 
 ---
 
