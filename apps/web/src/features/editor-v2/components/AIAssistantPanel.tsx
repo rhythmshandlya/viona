@@ -303,7 +303,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const { subscribeToJob, isConnected: wsConnected } = useJobWebSocket(projectId, {
     onProgress: (data) => {
       // SSE takes priority while stream is active — prevents duplicate updates
-      if (progressSourceRef.current === 'sse' && isStreaming) return;
+      if (progressSourceRef.current === 'sse' && isStreaming) {
+        return;
+      }
       progressSourceRef.current = 'ws';
       // Reset stall timer
       lastProgressTimeRef.current = Date.now();
@@ -317,8 +319,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         detail: data.meta?.detail,
         meta: data.meta,
       });
-      if (!activeJobId) return; // Only show if we're tracking a job
-      if (data.jobId !== activeJobId) return;
+      if (!activeJobId || data.jobId !== activeJobId) return;
       setMessages((prev) => {
         const last = [...prev].reverse().find((m) => m.role === 'assistant');
         if (!last) return prev;
@@ -420,8 +421,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     httpHighWaterRef.current = 0;
 
     const poll = async () => {
-      // Don't override SSE or WS while they're actively providing progress
-      if (progressSourceRef.current === 'sse' || progressSourceRef.current === 'ws') return;
+      // Don't override SSE or WS while they're actively providing progress.
+      // But if no update arrived from them in 10s, allow HTTP to take over.
+      const staleMs = Date.now() - lastProgressTimeRef.current;
+      if ((progressSourceRef.current === 'sse' || progressSourceRef.current === 'ws') && staleMs < 10_000) return;
       try {
         const job = await api.getJob(activeJobId);
         progressSourceRef.current = 'http';
@@ -489,15 +492,18 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         if (jobMeta?.phase) {
           phase = jobMeta.phase;
         } else {
-          const phases = PHASE_ORDER[jt];
-          if (phases) {
-            if (jt === 'plan-visuals') {
-              phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 88 ? 'planning' : 'finalizing';
-            } else if (jt === 'generate-visuals') {
-              phase = effectivePercent < 15 ? 'preparing' : effectivePercent < 85 ? 'generating' : effectivePercent < 95 ? 'validating' : 'uploading';
-            } else if (jt === 'edit-visuals') {
-              phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 85 ? 'editing' : 'validating';
-            }
+          // Derive canonical phase from percent (matches backend derivePhase + ProgressBar thresholds)
+          if (jt === 'plan-visuals') {
+            phase = 'plan';
+          } else if (jt === 'generate-visuals') {
+            if (effectivePercent < 15) phase = 'plan';
+            else if (effectivePercent < 65) phase = 'animate';
+            else if (effectivePercent < 75) phase = 'verify';
+            else phase = 'bundle';
+          } else if (jt === 'edit-visuals') {
+            if (effectivePercent < 65) phase = 'animate';
+            else if (effectivePercent < 75) phase = 'verify';
+            else phase = 'bundle';
           }
         }
 
@@ -752,24 +758,23 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             case 'progress': {
               progressSourceRef.current = 'sse';
               onProgressReceived();
-              // Feed into unified progress state
-              {
-                const pd = data as Record<string, unknown>;
-                progressState.onSSEProgress({
-                  percent: pd.percent,
-                  message: pd.message,
-                  phase: pd.phase,
-                  phaseName: pd.phaseName,
-                  detail: (pd.meta as any)?.detail,
-                  meta: pd.meta,
-                });
-              }
               const progressData = data as {
                 percent: number; message: string; error?: boolean;
                 jobId?: string; phase?: string; phaseName?: string; jobType?: string;
                 meta?: ProgressMeta;
                 avgDurationMs?: number; jobStartedAt?: string;
               };
+              // Feed into unified progress state
+              {
+                progressState.onSSEProgress({
+                  percent: progressData.percent,
+                  message: progressData.message,
+                  phase: progressData.phase,
+                  phaseName: progressData.phaseName,
+                  detail: progressData.meta?.detail,
+                  meta: progressData.meta,
+                });
+              }
               // On failure, stop tracking the job so the spinner stops
               if (progressData.error) {
                 setActiveJobId(null);
@@ -1811,7 +1816,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${message.queued ? 'opacity-60' : ''}`}
             >
               <div
-                className={`max-w-[90%] text-sm ${
+                className={`text-sm ${
+                  message.content.some((b) => b.type === 'progress') ? 'w-full' : 'max-w-[90%]'
+                } ${
                   message.role === 'user'
                     ? 'bg-[var(--editor-accent-soft)] border border-[var(--editor-accent)]/20 text-[var(--editor-text-primary)] rounded-2xl rounded-br-md px-4 py-2.5'
                     : 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] rounded-2xl rounded-bl-md px-4 py-2.5'

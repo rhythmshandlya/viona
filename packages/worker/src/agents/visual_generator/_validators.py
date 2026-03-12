@@ -342,7 +342,8 @@ class ValidatorsMixin:
         return False
 
     def _validate_interpolate_clamping(self) -> list[str]:
-        """Check all scene files for interpolate() calls missing extrapolateLeft/Right: 'clamp'.
+        """Check all scene files for interpolate() calls missing extrapolateLeft/Right: 'clamp'
+        or with non-monotonic inputRange arrays.
 
         Returns list of warning strings. Empty list = all good.
         """
@@ -351,14 +352,25 @@ class ValidatorsMixin:
         if not scenes_dir.exists():
             return warnings
 
-        interpolate_call_re = re.compile(
+        # Match full interpolate() calls — capture entire call for both checks
+        interpolate_full_re = re.compile(
+            r'interpolate\s*\(\s*([^,]+)\s*,\s*(\[[^\]]*\])',
+            re.DOTALL
+        )
+
+        interpolate_opts_re = re.compile(
             r'interpolate\s*\([^)]*\{([^}]*)\}[^)]*\)',
             re.DOTALL
         )
 
+        # Pattern to extract numeric values from an array literal like [0, 1, 0.4]
+        array_number_re = re.compile(r'[-+]?\d*\.?\d+')
+
         for scene_file in sorted(scenes_dir.glob("Scene*.tsx")):
             content = scene_file.read_text(encoding="utf-8", errors="replace")
-            for match in interpolate_call_re.finditer(content):
+
+            # ── Check 1: Missing clamp options ──
+            for match in interpolate_opts_re.finditer(content):
                 opts = match.group(1)
                 has_left = "extrapolateLeft" in opts
                 has_right = "extrapolateRight" in opts
@@ -372,6 +384,25 @@ class ValidatorsMixin:
                     warnings.append(
                         f"{scene_file.name}:{line_num} — interpolate() missing {', '.join(missing)}"
                     )
+
+            # ── Check 2: Non-monotonic inputRange ──
+            for match in interpolate_full_re.finditer(content):
+                input_range_str = match.group(2)
+                # Only check literal numeric arrays (skip variable references)
+                numbers = array_number_re.findall(input_range_str)
+                if len(numbers) >= 2:
+                    values = [float(n) for n in numbers]
+                    # Check strictly monotonically increasing
+                    is_monotonic = all(
+                        values[i] < values[i + 1] for i in range(len(values) - 1)
+                    )
+                    if not is_monotonic:
+                        line_num = content[:match.start()].count('\n') + 1
+                        warnings.append(
+                            f"{scene_file.name}:{line_num} — interpolate() inputRange "
+                            f"{values} is NOT strictly monotonically increasing. "
+                            f"This WILL crash at runtime."
+                        )
 
         return warnings
 

@@ -6,7 +6,7 @@ import { readdir } from 'fs/promises';
 import { join } from 'path';
 import { uploadFile } from '../../services/minio.js';
 import { logger } from '../../logger.js';
-import { getWorkspacePath } from '../../workspace.js';
+import { config } from '../../config.js';
 
 /**
  * Upload bundle directory to S3 storage.
@@ -69,7 +69,7 @@ export async function uploadSourceToStorage(projectDir: string, compositionId: s
 
   // Also upload src/composition/ (FullComposition infrastructure) so rebuildBundleFromCJS
   // can reconstruct the full composition wrapper during render.
-  const compositionDir = join(getWorkspacePath(), 'src', 'composition');
+  const compositionDir = join(config.worker.templatePath, 'src', 'composition');
   try {
     const compositionFiles = await readdir(compositionDir, { recursive: true, withFileTypes: true });
     for (const file of compositionFiles) {

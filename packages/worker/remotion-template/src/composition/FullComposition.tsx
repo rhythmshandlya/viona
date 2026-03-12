@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Audio, useCurrentFrame, useVideoConfig, staticFile } from 'remotion';
+import { AbsoluteFill, Audio, OffthreadVideo, useCurrentFrame, useVideoConfig, staticFile } from 'remotion';
 import { computeLayoutForFrame, computePiPLayoutForFrame } from './utils';
 import { SpeakerVideo } from './SpeakerVideo';
 import { PiPVideo } from './PiPVideo';
@@ -58,6 +58,13 @@ export const FullComposition: React.FC<Props> = ({
 
     return (
       <AbsoluteFill style={{ backgroundColor: backgroundColor || '#000' }}>
+        {/* Persistent audio carrier — always rendered so audio never drops
+            during display mode transitions. Hidden visually (1x1, opacity 0). */}
+        <OffthreadVideo
+          src={staticFile(sourceVideoFile)}
+          style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
+        />
+
         {/* Overlay mode: video fullscreen behind visuals */}
         {isOverlay && (
           <SpeakerVideo
@@ -74,7 +81,7 @@ export const FullComposition: React.FC<Props> = ({
           </VisualsLayer>
         )}
 
-        {/* PiP bubble (non-overlay) */}
+        {/* PiP bubble (non-overlay) — muted, audio comes from carrier above */}
         {showVideo && !isOverlay && (
           <PiPVideo
             src={sourceVideoFile}

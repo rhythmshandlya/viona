@@ -17,8 +17,8 @@ services:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-reelify}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-reelify123}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-viona}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-viona123}
     command: server /data --console-address ":9001"
     volumes:
       - ./.minio-data:/data
@@ -33,13 +33,13 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-reelify}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-reelify123}
-      POSTGRES_DB: ${POSTGRES_DB:-reelify}
+      POSTGRES_USER: ${POSTGRES_USER:-viona}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-viona123}
+      POSTGRES_DB: ${POSTGRES_DB:-viona}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-reelify}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-viona}"]
       interval: 5s
       timeout: 5s
       retries: 5

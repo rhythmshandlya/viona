@@ -9,6 +9,7 @@ import { execSync } from 'child_process';
 import { uploadFile } from '../../services/minio.js';
 import { logger } from '../../logger.js';
 import { getWorkspacePath } from '../../workspace.js';
+import { config } from '../../config.js';
 
 /**
  * Compile composition source to CommonJS for dynamic frontend loading.
@@ -151,7 +152,7 @@ export async function uploadSourceToStorage(projectDir: string, compositionId: s
 
   // Also upload src/composition/ (FullComposition infrastructure) so rebuildBundleFromCJS
   // can reconstruct the full composition wrapper during render.
-  const compositionDir = join(getWorkspacePath(), 'src', 'composition');
+  const compositionDir = join(config.worker.templatePath, 'src', 'composition');
   if (existsSync(compositionDir)) {
     try {
       const compositionFiles = await readdir(compositionDir, { recursive: true, withFileTypes: true });

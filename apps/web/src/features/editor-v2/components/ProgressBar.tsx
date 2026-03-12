@@ -14,22 +14,23 @@ interface ProgressBarProps {
 
 /**
  * Phase definitions per job type.
- * IDs must match the `phase` values emitted by the backend.
+ * Each phase has an id, label, and the percent threshold at which it starts.
+ * Phase is determined by percent (most reliable) with backend `phase` string as fallback.
  */
-const PHASES_BY_JOB: Record<string, Array<{ id: string; label: string }>> = {
+const PHASES_BY_JOB: Record<string, Array<{ id: string; label: string; startAt: number }>> = {
   'plan-visuals': [
-    { id: 'plan', label: 'Plan' },
+    { id: 'plan', label: 'Plan', startAt: 0 },
   ],
   'generate-visuals': [
-    { id: 'plan', label: 'Plan' },
-    { id: 'animate', label: 'Animate' },
-    { id: 'verify', label: 'Verify' },
-    { id: 'bundle', label: 'Bundle' },
+    { id: 'plan', label: 'Plan', startAt: 0 },
+    { id: 'animate', label: 'Animate', startAt: 15 },
+    { id: 'verify', label: 'Verify', startAt: 65 },
+    { id: 'bundle', label: 'Bundle', startAt: 75 },
   ],
   'edit-visuals': [
-    { id: 'animate', label: 'Edit' },
-    { id: 'verify', label: 'Verify' },
-    { id: 'bundle', label: 'Bundle' },
+    { id: 'animate', label: 'Edit', startAt: 0 },
+    { id: 'verify', label: 'Verify', startAt: 65 },
+    { id: 'bundle', label: 'Bundle', startAt: 75 },
   ],
 };
 
@@ -37,6 +38,14 @@ const PHASES_BY_JOB: Record<string, Array<{ id: string; label: string }>> = {
 const PHASE_ALIASES: Record<string, string> = {
   self_heal: 'verify',
   workspace: 'plan',
+  // Fallback heuristic phase names → canonical
+  preparing: 'plan',
+  planning: 'plan',
+  generating: 'animate',
+  editing: 'animate',
+  validating: 'verify',
+  finalizing: 'bundle',
+  uploading: 'bundle',
 };
 
 const DEFAULT_PHASES = PHASES_BY_JOB['generate-visuals']!;
@@ -63,24 +72,62 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
 
   const phases = (jobType && PHASES_BY_JOB[jobType]) || DEFAULT_PHASES;
 
-  // Resolve aliases (e.g. self_heal → verify, workspace → plan)
+  // Resolve aliases (e.g. self_heal → verify, workspace → plan, generating → animate)
   const resolvedPhase = PHASE_ALIASES[phase] ?? phase;
 
-  // Find the index of the current phase in our list.
+  // Determine current phase index.
+  // Primary: use percent thresholds (most reliable — backend phase strings are inconsistent).
+  // Fallback: match resolved phase string against phase IDs.
   const currentPhaseIdx = (() => {
+    if (resolvedPhase === 'done') return phases.length;
+
+    // Percent-based: find the last phase whose startAt threshold has been reached
+    if (displayPercent > 0 && phases.length > 1) {
+      let idx = 0;
+      for (let i = phases.length - 1; i >= 0; i--) {
+        if (displayPercent >= phases[i].startAt) { idx = i; break; }
+      }
+      return idx;
+    }
+
+    // Fallback: match phase string
     const direct = phases.findIndex((p) => p.id === resolvedPhase);
     if (direct >= 0) return direct;
-    if (resolvedPhase === 'done') return phases.length;
-    return -1;
+    return 0;
   })();
 
+  const roundedPercent = Math.round(displayPercent);
+  const isDone = phase === 'done';
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '12px 0' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '12px 0' }}>
+      {/* Phase text + percent */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+      }}>
+        <span style={{
+          fontSize: 13,
+          fontWeight: 500,
+          color: error ? 'rgb(239, 68, 68)' : 'var(--editor-text-primary)',
+        }}>
+          {phaseName}
+          {detail ? <span style={{ color: 'var(--editor-text-muted)', fontWeight: 400 }}> — {detail}</span> : ''}
+        </span>
+        <span style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: error ? 'rgb(239, 68, 68)' : isDone ? barColor : 'var(--editor-text-secondary)',
+          fontVariantNumeric: 'tabular-nums',
+        }}>{roundedPercent}%</span>
+      </div>
+
       {/* Progress bar */}
       <div style={{
         position: 'relative',
-        height: 6,
-        borderRadius: 3,
+        height: 10,
+        borderRadius: 5,
         backgroundColor: 'var(--editor-border-default)',
         overflow: 'hidden',
       }}>
@@ -90,45 +137,34 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
           top: 0,
           bottom: 0,
           width: `${displayPercent}%`,
-          backgroundColor: barColor,
-          borderRadius: 3,
-          transition: 'background-color 300ms ease',
+          background: isDone
+            ? barColor
+            : error
+              ? barColor
+              : `linear-gradient(90deg, var(--editor-accent), color-mix(in srgb, var(--editor-accent) 70%, white))`,
+          borderRadius: 5,
+          transition: 'width 300ms ease, background 300ms ease',
           ...(isActive && !error ? { animation: 'bar-pulse 2s ease-in-out infinite' } : {}),
         }}>
           {isActive && !error && (
             <div style={{
               position: 'absolute',
               inset: 0,
-              background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.35) 50%, transparent 100%)`,
+              background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 50%, transparent 100%)`,
               animation: 'shimmer 1.5s ease-in-out infinite',
             }} />
           )}
         </div>
       </div>
 
-      {/* Phase text + percent */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: 12,
-        color: error ? 'rgb(239, 68, 68)' : 'var(--editor-text-secondary)',
-      }}>
-        <span>
-          {phaseName}
-          {detail ? ` — ${detail}` : ''}
-        </span>
-        <span>{Math.round(displayPercent)}%</span>
-      </div>
-
       {/* Phase timeline */}
       {phases.length > 1 && (
         <div style={{
           display: 'flex',
-          gap: 4,
+          gap: 0,
           alignItems: 'center',
-          fontSize: 10,
-          color: 'var(--editor-text-muted)',
+          fontSize: 11,
+          marginTop: 2,
         }}>
           {phases.map((p, i) => {
             const isComplete = i < currentPhaseIdx;
@@ -139,31 +175,37 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
                 {i > 0 && (
                   <div style={{
                     flex: 1,
-                    height: 1,
-                    backgroundColor: isComplete ? barColor : 'var(--editor-bg-hover)',
+                    height: 2,
+                    backgroundColor: isComplete ? barColor : 'var(--editor-border-default)',
+                    transition: 'background-color 300ms ease',
                   }} />
                 )}
                 <div style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 3,
+                  gap: 4,
+                  padding: '2px 6px',
+                  borderRadius: 4,
                   color: isComplete
                     ? barColor
                     : isCurrent
                       ? 'var(--editor-text-primary)'
                       : 'var(--editor-text-muted)',
                   fontWeight: isCurrent ? 600 : 400,
+                  ...(isCurrent ? { backgroundColor: 'var(--editor-bg-hover)' } : {}),
                 }}>
                   <span style={{
-                    width: 6,
-                    height: 6,
+                    width: 7,
+                    height: 7,
                     borderRadius: '50%',
+                    flexShrink: 0,
                     backgroundColor: isComplete
                       ? barColor
                       : isCurrent
                         ? 'var(--editor-text-primary)'
-                        : 'var(--editor-bg-hover)',
+                        : 'var(--editor-border-default)',
                     ...(isCurrent && !error ? { animation: 'pulse 2s infinite' } : {}),
+                    transition: 'background-color 300ms ease',
                   }} />
                   {p.label}
                 </div>
@@ -180,7 +222,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         }
         @keyframes bar-pulse {
           0%, 100% { opacity: 1; }
-          50% { opacity: 0.7; }
+          50% { opacity: 0.8; }
         }
         @keyframes pulse {
           0%, 100% { opacity: 1; }

@@ -14,13 +14,15 @@ Before marking any scene complete:
 - [ ] Spring damping >= 18 everywhere
 - [ ] Text scale never exceeds 1.15x during entry
 - [ ] extrapolateLeft AND extrapolateRight: 'clamp' on EVERY interpolate()
+- [ ] inputRange arrays are strictly monotonically increasing (each value > previous, never equal or decreasing)
 - [ ] keySync visual triggers at exact TIMING.sceneNKeySync frame
 - [ ] TypeScript compiles: `npx tsc --noEmit`
 - [ ] Spring configs vary between adjacent elements (not all SMOOTH)
 - [ ] Elements visible 30+ frames have ambient motion (float/breathe/pulse)
 - [ ] ≥2 different animation techniques used across scenes (not all spring-in + stagger)
 - [ ] Content vertically centered: top = (usableHeight - contentHeight) / 2
-- [ ] Related elements (icon + label + card) grouped in shared flex container
+- [ ] Related elements (icon + label + container) grouped in shared flex container
+- [ ] Visual technique varies from adjacent scenes (not all card+text)
 - [ ] Last sync animation completes 30+ frames before outro begins
 </scene_checklist>
 
@@ -36,6 +38,7 @@ Before finalizing scene plan:
 - [ ] SYNC GAP TEST: Max 90 frames (3 seconds) between consecutive sync points?
 - [ ] ANCHOR TEST: Each scene specifies what carries in/out?
 - [ ] LAYER TEST: Each description addresses background + primary element + motion?
+- [ ] TECHNIQUE VARIETY TEST: ≥3 different visual techniques used across scenes (not all cards)?
 - [ ] OVERLAY ZONE TEST: Overlay elements only in 0-15% or 58-85% Y zones?
 </plan_checklist>
 

@@ -62,7 +62,7 @@ export const config = {
   },
 
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://reelify:reelify123@localhost:5432/reelify',
+    url: process.env.DATABASE_URL || 'postgresql://viona:viona123@localhost:5432/viona',
   },
 
   redis: {
@@ -80,8 +80,8 @@ export const config = {
     return {
       endpoint,
       port: process.env.BUCKET_PORT ? parseInt(process.env.BUCKET_PORT, 10) : parseInt(process.env.S3_PORT || '9000', 10),
-      accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
-      secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
+      accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'viona',
+      secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'viona123',
       useSSL: !isInternalConnection && (!!process.env.BUCKET_ENDPOINT || process.env.S3_USE_SSL === 'true'),
       bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'viona',
       region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',

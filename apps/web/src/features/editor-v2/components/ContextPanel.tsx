@@ -492,7 +492,7 @@ function AudioPanel() {
 function VisualPropertiesPanel() {
   const selectedIds = useSelectedIds();
   const visualItem = useItem(selectedIds[0] || '');
-  const { updateVisualDisplayMode, updateOverlayOpacity, updateItemData, updateVisualOverlayZone } = useEditorActions();
+  const { updateVisualDisplayMode, updateItemData, updateVisualOverlayZone } = useEditorActions();
 
   // Get all items to find video for segmentation status
   const allItems = useItems();
@@ -503,8 +503,6 @@ function VisualPropertiesPanel() {
   const data = visualItem.data as VisualItemData;
   const rawDm = data.displayMode;
   const displayMode = (!rawDm || (rawDm as string) === 'pip') ? 'default' : rawDm;
-  const overlayOpacity = data.overlayOpacity ?? 0.85;
-
   // Find first video item for segmentation data
   const videoItem = allItemIds
     .map(id => allItems[id])
@@ -556,26 +554,6 @@ function VisualPropertiesPanel() {
         <SegmentationStatus segmentation={segmentation} className="mt-2" />
       )}
 
-      {displayMode === 'overlay' && (
-        <>
-          <Divider />
-          <Section label="Overlay Opacity">
-            <div className="flex items-center gap-3">
-              <Slider
-                value={[Math.round(overlayOpacity * 100)]}
-                min={20}
-                max={100}
-                step={5}
-                onValueChange={([op]) => updateOverlayOpacity(visualItem.id, op / 100)}
-                className="flex-1"
-              />
-              <span className="text-xs text-[var(--editor-text-secondary)] w-10 text-right">
-                {Math.round(overlayOpacity * 100)}%
-              </span>
-            </div>
-          </Section>
-        </>
-      )}
 
       {/* YouTube Clip Template Properties */}
       {isYouTubeClip && (

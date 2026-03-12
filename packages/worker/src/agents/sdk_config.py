@@ -273,7 +273,7 @@ def get_skills_directive() -> str:
 ## SKILLS (MANDATORY)
 
 Before writing ANY scene code, use the Skill tool to read these skills:
-1. `framer-motion` — Reusable components (GlassCard, ParticleEmitter, AnimatedCounter, FlowingStream, ProbabilityGate), animation patterns, prohibited patterns
+1. `framer-motion` — Reusable components (Card, ParticleEmitter, AnimatedCounter, FlowingStream, ProbabilityGate), animation patterns, prohibited patterns
 2. `motion-one` — Spring configs (SMOOTH, SNAPPY, BOUNCY, HEAVY), Disney's 12 principles, stagger timing
 3. `video-engagement` — Hook techniques, retention, color palettes, scene structure, visual metaphors
 4. `remotion-best-practices` — Official Remotion patterns (read specific rules/ for @remotion/shapes, @remotion/noise, @remotion/paths, @remotion/transitions)

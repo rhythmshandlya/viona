@@ -22,6 +22,7 @@ export interface EditVisualsJobData {
   compositionId: string;
   prompt: string;
   sceneId?: number;       // Optional: target a specific scene (1-indexed)
+  sceneIds?: number[];    // Optional: target multiple scenes (1-indexed). Takes priority over sceneId.
   elementName?: string;   // Optional: target a specific element within the scene
   transcript?: string;    // Full transcript text with timestamps for context
   scenePlan?: string;     // JSON scene plan so the agent understands the visual structure
@@ -34,6 +35,7 @@ export interface ClaudeEditorOptions {
   prompt: string;
   existingFiles: string[];
   targetSceneId?: number;
+  targetSceneIds?: number[];    // Multiple scenes to edit (takes priority over targetSceneId)
   targetElementName?: string;
   transcript?: string;          // Timestamped transcript of what the speaker says
   scenePlan?: string;           // JSON scene plan describing what each scene visualizes

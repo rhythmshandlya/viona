@@ -27,7 +27,7 @@ import type { EditVisualsJobData } from './types.js';
 export type { EditVisualsJobData } from './types.js';
 
 export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
-  const { projectId, jobId, compositionId, prompt, sceneId, elementName, transcript, scenePlan } = job.data;
+  const { projectId, jobId, compositionId, prompt, sceneId, sceneIds, elementName, transcript, scenePlan } = job.data;
   setJobProjectId(jobId, projectId);
 
   // Convert compositionId format: proj-xxx-xxx -> proj_xxx_xxx for workspace
@@ -47,7 +47,9 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       .set({ status: 'processing', progress: 0 })
       .where(eq(jobs.id, jobId));
 
-    await publishJobProgress(jobId, 5, 'Loading project...');
+    await publishJobProgress(jobId, 5, 'Loading project...', {
+      meta: { phase: 'animate', phaseName: 'Preparing' },
+    });
 
     // Load project
     const project = await db.query.projects.findFirst({
@@ -116,6 +118,9 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
 
     await publishJobProgress(jobId, 22, 'AI is editing your visuals...');
 
+    // Normalize scene targeting: sceneIds takes priority over sceneId
+    const resolvedSceneIds = sceneIds?.length ? sceneIds : (sceneId ? [sceneId] : undefined);
+
     // Run Claude to edit the composition
     const editResult = await runClaudeEditor({
       projectId: workspaceCompositionId,
@@ -123,7 +128,8 @@ export async function processEditVisualsJob(job: Job<EditVisualsJobData>) {
       projectDir,
       prompt,
       existingFiles: downloadedFiles,
-      targetSceneId: sceneId,
+      targetSceneId: resolvedSceneIds?.length === 1 ? resolvedSceneIds[0] : undefined,
+      targetSceneIds: resolvedSceneIds?.length && resolvedSceneIds.length > 1 ? resolvedSceneIds : undefined,
       targetElementName: elementName,
       transcript,
       scenePlan,

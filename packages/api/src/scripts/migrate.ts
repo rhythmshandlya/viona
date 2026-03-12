@@ -4,7 +4,7 @@ import { readdir, readFile } from 'fs/promises';
 import { join } from 'path';
 
 const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://reelify:reelify123@localhost:5432/reelify',
+  connectionString: process.env.DATABASE_URL || 'postgresql://viona:viona123@localhost:5432/viona',
 });
 
 async function migrate() {

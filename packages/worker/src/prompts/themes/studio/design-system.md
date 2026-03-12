@@ -16,7 +16,7 @@ Each template lives in `src/.templates/{slug}/` with:
 **Before writing ANY scene code, you MUST complete this step:**
 
 1. Read at least 3 different templates from `src/.templates/` (e.g., `stat-counter`, `quote-pulse`, `versus-screen`)
-2. Study how they use: DotGrid backgrounds, glass card containers, `useScale()`, `FONT_PAIRS`, spring configs, accent color transparency
+2. Study how they use: DotGrid backgrounds, solid card containers, `useScale()`, `FONT_PAIRS`, spring configs, accent color transparency
 3. Write `constants.ts` using the STUDIO THEME COLORS below — NOT the Director's `colorPalette` field
 
 The Director's `colorPalette` in scenes.json is a **topic hint only**. Your constants.ts MUST use these exact studio theme values:
@@ -33,7 +33,7 @@ export const THEME = {{
 }};
 ```
 
-If you skip this step, your scenes will look generic and off-brand. Templates show you **what good looks like** — the DotGrid, the glass cards, the spring entrances, the font system, the accent glow conventions. Internalize these patterns before you write a single line.
+If you skip this step, your scenes will look generic and off-brand. Templates show you **what good looks like** — the DotGrid, the solid cards, the spring entrances, the font system, the accent glow conventions. Internalize these patterns before you write a single line.
 
 ### Workflow
 1. **Read 3+ templates** to absorb the studio design language (MANDATORY — see above)
@@ -169,16 +169,20 @@ Map each narration phrase to a specific visual change. Pause test: at any random
 Every scene MUST have three layers. A scene with only text is BROKEN.
 
 **Layer 1 — PRIMARY CONTENT (60% visual weight):**
-The core idea as a VISUAL, not just text. Map concept → template:
-| Concept | Use | Not |
-|---------|-----|-----|
-| Number/stat | stat-counter, animated counter | Plain text "10,000+" |
-| Comparison | versus-screen, split layout with metrics | Two text labels |
-| Before/After | before-after-reveal, divider wipe | Side-by-side text |
-| Process/Steps | process-flow, connecting nodes | Numbered text list |
-| Data trend | stat-bar-chart, stat-line-chart | Descriptive paragraph |
-| Feature list | bullet-stack with icons | Plain bullet points |
-| Quote/Hook | quote-pulse, large typography + accent | Small centered text |
+The core idea as a VISUAL, not just text. Choose the right technique:
+| Concept | Best Techniques | Avoid |
+|---------|----------------|-------|
+| Number/stat | Animated counter with progress ring/bar, stat-counter template | Plain text in a card |
+| Comparison | Split composition with morphing, versus-screen, animated diagram | Two identical cards with text |
+| Before/After | Shape morph, color-shift transition, before-after-reveal | Side-by-side static cards |
+| Process/Steps | SVG path-drawing between nodes, animated diagram, process-flow | Numbered text list in cards |
+| Data trend | Animated bar/line chart, progress fill, stat-line-chart | Descriptive paragraph |
+| Hook/Bold claim | Kinetic typography (word cascade), large animated text, path draw | Small text in a card |
+| Transformation | SVG morph (shape A → shape B), particle scatter, wipe reveal | Two static states |
+| Emotion/Impact | Full-scene SVG illustration, particle effects, large icon animation | Small icon with text label |
+| Credibility/Proof | Animated counters + globe/map composition, data viz | Facts as card text |
+
+**Templates are ONE option, not the only option.** Use templates when they fit. Use custom SVG animation, path drawing, kinetic typography, or morphing when the scene calls for something more expressive.
 
 **Layer 2 — SUPPORTING GRAPHICS (30% visual weight):**
 Labels, icons, arrows that annotate Layer 1. Rules:
@@ -213,7 +217,9 @@ an already-visible icon. Bad: element appears from nothing on an empty screen.
 ### WHAT NOT TO BUILD (ANTI-PATTERNS)
 
 **Text-Only Scene:** If your scene is just typography fading in, it's broken.
-Add a visual metaphor — a diagram, chart, icon set, or comparison layout.
+Add a visual element — SVG illustration, path-drawing animation, animated diagram, morphing shape, data viz, or kinetic typography.
+
+**Every Scene in a Card:** Cards are for stats and data displays. Do NOT wrap every scene's content in a card container. Use open compositions for illustrations, path animations, kinetic typography, and morphing visuals. Vary between card scenes and open scenes.
 
 **Decorative Icons:** An icon that bounces/pulses but has no label = decoration.
 Every icon needs a text label explaining what it represents.
@@ -227,37 +233,29 @@ Overlay visuals must show SUPPORTING content: stats, icons with labels, comparis
 data visualizations, key metrics. If you're typing the same words the narrator says, STOP.
 Ask: "What VISUAL DATA supports what the narrator is saying?"
 
-**Raw Shapes as Concepts:** Drawing circles/rectangles to represent complex ideas = lazy.
-Use template component structures (stat-counter, process-flow, versus-screen).
+**Plain Divs as Illustrations:** A colored `<div>` is not a visual object. Build illustrations with SVG paths, downloaded icons, or animated strokes.
 
-**Crude Figurative SVGs:** If you cannot draw a RECOGNIZABLE SVG illustration (person, animal,
-building, vehicle, map), DO NOT attempt it. Wavy lines are NOT "swimmer silhouettes." Ellipses
-are NOT "world maps." An unrecognizable SVG is worse than no SVG at all. Instead use:
-  (a) Geometric abstractions: circles, arcs, progress rings, bar segments, chevrons
-  (b) Typography-driven design: large bold text with accent colors, animated counters
-  (c) Data visualization: bar charts, progress bars, percentage rings, number tickers
-  (d) Professional icons via MCP tools (Iconify/Freepik)
-RULE: If a paused viewer would ask "what is that shape?" — delete it and use typography or geometry.
+**SVG Quality Threshold:** For figurative SVGs (people, objects, maps): either download a professional icon via MCP (preferred) or build from geometric primitives (circles, arcs, paths) with enough detail to be recognizable. A single ellipse is not a "world map" — but a circle with lat/long grid lines IS. Simple geometric compositions ARE valid when they're intentional.
 
 **Over-Animated Text:** Text bouncing with 3 springs, rotating, with particle emitter = slop.
 Text gets simple fade+scale. Save dramatic animation for GRAPHICS.
 
+**Same Visual Pattern Repeated:** If 3+ scenes all use the same structure (card sliding in with icon + text), the project looks templated and generic. Vary techniques: path drawing, kinetic typography, morphing shapes, animated diagrams, scatter effects, data viz. No two adjacent scenes should have the same visual structure.
+
 ### CARD CONTAINERS
 
-Glass card (default):
+Card (default):
 ```tsx
 {{
   background: '{cardBg}',
-  backdropFilter: 'blur(20px)',
-  WebkitBackdropFilter: 'blur(20px)',
   border: '1px solid {cardBorder}',
   borderRadius: s(32),
   padding: `${{s(56)}}px ${{s(64)}}px`,
   maxWidth: s(900),
-  boxShadow: `0 ${{s(8)}}px ${{s(32)}}px rgba(0, 0, 0, 0.2)`,
+  boxShadow: `0 ${{s(8)}}px ${{s(32)}}px rgba(0, 0, 0, 0.3)`,
 }}
 ```
-Variants: solid (opaque bg), gradient (`linear-gradient(135deg, ${{accentColor}}18 0%, {cardBg} 100%)`), outline (transparent + border only).
+Variants: gradient (`linear-gradient(135deg, ${{accentColor}}18 0%, {cardBg} 100%)`), outline ({cardBg} bg + accent border).
 
 ### ACCENT COLOR TRANSPARENCY CONVENTION
 
@@ -306,6 +304,6 @@ scale, 1-3 degree rotation. Large amplitudes or text-position sin = JITTER = BRO
 - All graphics via inline SVG (charts, icons, shapes). No image imports.
 - Every `interpolate()` MUST have `{{ extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }}`
 - Never use `Math.sin/cos` on text positions (causes jitter)
-- `backdropFilter` always paired with `WebkitBackdropFilter`
+- Card backgrounds use theme colors from COLORS.cardBg
 - Stagger minimum 6 frames between elements
 </studio_templates>

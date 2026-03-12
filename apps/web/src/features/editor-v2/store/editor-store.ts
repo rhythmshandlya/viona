@@ -501,7 +501,6 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             sourceSceneId: (raw.sourceSceneId as number) || undefined,
             displayMode: (raw.displayMode as VisualDisplayMode) || undefined,
             transition: (raw.transition as VisualItemData['transition']) || undefined,
-            overlayOpacity: (raw.overlayOpacity as number) ?? undefined,
             speakerBbox: (raw.speakerBbox as VisualItemData['speakerBbox']) ?? undefined,
           } as VisualItemData,
         };
@@ -2443,16 +2442,6 @@ export const useEditorStore = create<EditorStore>()(
         const item = state.items[itemId];
         if (item?.type === 'visual') {
           (item.data as VisualItemData).displayMode = displayMode;
-        }
-      });
-      get().pushHistory();
-    },
-
-    updateOverlayOpacity: (itemId: string, opacity: number) => {
-      set((state) => {
-        const item = state.items[itemId];
-        if (item?.type === 'visual') {
-          (item.data as VisualItemData).overlayOpacity = opacity;
         }
       });
       get().pushHistory();

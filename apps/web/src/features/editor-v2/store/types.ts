@@ -410,8 +410,6 @@ export interface VisualItemData {
     enter: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
     exit: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
   };
-  /** Opacity for overlay mode (0-1). Default 0.85. Only used when displayMode === 'overlay'. */
-  overlayOpacity?: number;
   /** Speaker face bounding box for overlay masking (0-1 fractions of canvas). */
   speakerBbox?: { x: number; y: number; w: number; h: number };
 
@@ -756,7 +754,6 @@ export interface EditorActions {
 
   // Visual display mode
   updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => void;
-  updateOverlayOpacity: (itemId: string, opacity: number) => void;
   updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => void;
 
   // Transition picker

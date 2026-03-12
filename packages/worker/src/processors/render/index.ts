@@ -9,34 +9,24 @@ import { downloadFile, uploadFile } from '../../services/minio.js';
 import { publishJobProgress, publishJobComplete, publishJobError, setJobProjectId } from '../../services/redis.js';
 import { config } from '../../config.js';
 import { logger } from '../../logger.js';
-import { renderVideo } from '@viona/renderer';
 import { convertToSubtitles } from './subtitles.js';
-import { resolveAvailableFontFamily, ensureFontsDir, downloadFont, getASSFontSizeMultiplier, SYSTEM_FONTS_DIR } from './fonts.js';
+import { resolveAvailableFontFamily, ensureFontsDir, downloadFont, SYSTEM_FONTS_DIR } from './fonts.js';
 import {
-  buildVideoCropFilter,
   downloadVideoClipsForRender,
-  encodeVideoWithAudio,
   renderWithRemotion,
-  renderWithPiPLayout,
-  finalizeRemotionVideo,
   hasZoneBasedVisuals,
-  muxAudioOnly,
 } from './ffmpeg.js';
 import { escapePathForFilter } from './types.js';
 import type {
   RenderJobData,
   VideoCropSettings,
-  DisplayModeSegment,
   SegmentationData,
-  OverlayZone,
   LayoutSegment,
 } from './types.js';
 
 // Re-exports for public API
 export type { RenderJobData } from './types.js';
-export { convertToSubtitles, formatASSTime, hexToASSColor, getASSAlignment } from './subtitles.js';
-export { escapePathForFilter } from './types.js';
-export { buildVideoCropFilter } from './ffmpeg.js';
+export { convertToSubtitles } from './subtitles.js';
 export { resolveAvailableFontFamily } from './fonts.js';
 
 /**
@@ -44,7 +34,7 @@ export { resolveAvailableFontFamily } from './fonts.js';
  * Fills gaps between visual items with 'default' mode segments.
  */
 function buildLayoutSegments(
-  visualItems: Array<{ startMs: number; endMs: number; data: { displayMode: string; overlayOpacity?: number } }>,
+  visualItems: Array<{ startMs: number; endMs: number; data: { displayMode: string } }>,
   fps: number,
   totalDurationMs: number,
 ): LayoutSegment[] {
@@ -67,7 +57,6 @@ function buildLayoutSegments(
       startFrame: Math.round((item.startMs / 1000) * fps),
       endFrame: Math.round((item.endMs / 1000) * fps),
       displayMode: dm as 'default' | 'fullscreen' | 'overlay',
-      overlayOpacity: item.data.overlayOpacity,
     });
 
     lastEndMs = item.endMs;
@@ -127,14 +116,14 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       ? visualDisplayData.map((v) => ({
           startMs: v.startMs,
           endMs: v.endMs,
-          data: { displayMode: v.displayMode || 'pip', transition: v.transition, overlayOpacity: v.overlayOpacity, overlayZone: (v as any).overlayZone },
+          data: { displayMode: v.displayMode || 'pip', transition: v.transition, overlayZone: (v as any).overlayZone },
         }))
       : allItems
           .filter((item: any) => item.type === 'visual')
           .map((item: any) => ({
             startMs: item.startMs,
             endMs: item.endMs,
-            data: { displayMode: (item.data as any)?.displayMode || 'pip', transition: (item.data as any)?.transition, overlayOpacity: (item.data as any)?.overlayOpacity, overlayZone: (item.data as any)?.overlayZone },
+            data: { displayMode: (item.data as any)?.displayMode || 'pip', transition: (item.data as any)?.transition, overlayZone: (item.data as any)?.overlayZone },
           }));
 
     const visualItems = visualItemsRaw.sort((a, b) => a.startMs - b.startMs);
@@ -163,96 +152,11 @@ export async function processRenderJob(job: Job<RenderJobData>) {
       }, 'Export includes zone-based visuals');
     }
 
-    const fullscreenVisualSegments: DisplayModeSegment[] = [];
-    const overlaySegments: DisplayModeSegment[] = [];
-    const isSplitLayout = layoutSettings?.mode === 'stacked';
-
-    for (let i = 0; i < visualItems.length; i++) {
-      const item = visualItems[i];
-      const dm = item.data.displayMode;
-      const transition = item.data.transition;
-
-      // Determine if layout changes at enter/exit boundaries
-      // For stacked mode, 'default' is the base stacked layout — only non-default modes need overlay layers
-      const prevItem = i > 0 ? visualItems[i - 1] : null;
-      const nextItem = i < visualItems.length - 1 ? visualItems[i + 1] : null;
-      const prevDm = prevItem ? prevItem.data.displayMode : 'gap';
-      const nextDm = nextItem ? nextItem.data.displayMode : 'gap';
-
-      // Check if there's a gap between prev and current (gap = different layout)
-      const hasPrevGap = !prevItem || prevItem.endMs < item.startMs - 50;
-      const hasNextGap = !nextItem || nextItem.startMs > item.endMs + 50;
-      const effectivePrevLayout = hasPrevGap ? 'gap' : prevDm;
-      const effectiveNextLayout = hasNextGap ? 'gap' : nextDm;
-
-      const layoutChangesOnEnter = dm !== effectivePrevLayout;
-      const layoutChangesOnExit = dm !== effectiveNextLayout;
-
-      // Only include transition durations when the layout actually changes
-      const enterDurationMs = (layoutChangesOnEnter && transition?.enter?.type !== 'cut')
-        ? (transition?.enter?.durationMs || 0) : 0;
-      const exitDurationMs = (layoutChangesOnExit && transition?.exit?.type !== 'cut')
-        ? (transition?.exit?.durationMs || 0) : 0;
-
-      if (dm === 'fullscreen') {
-        fullscreenVisualSegments.push({ startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs });
-      } else if (dm === 'overlay') {
-        overlaySegments.push({
-          startMs: item.startMs, endMs: item.endMs, enterDurationMs, exitDurationMs,
-          overlayOpacity: (item.data as any)?.overlayOpacity ?? 0.85,
-        });
-      }
-    }
-
-    // Gap segments: time ranges where no visual is active (speaker fullscreen)
-    // Computed for ALL layout modes — in pip mode, gaps need the source video
-    // overlaid fullscreen so the Remotion black frames don't show through.
-    const gapSegments: DisplayModeSegment[] = [];
-    {
-      const durationMs = project.durationMs || 0;
-      let cursor = 0;
-      for (let i = 0; i < visualItems.length; i++) {
-        const item = visualItems[i];
-        if (item.startMs > cursor) {
-          // For gap enter: check transition of the preceding visual item (its exit)
-          const prevItem = i > 0 ? visualItems[i - 1] : null;
-          const prevTransition = prevItem ? prevItem.data.transition : null;
-          const prevDm = prevItem ? prevItem.data.displayMode : 'pip';
-          const gapEnterDuration = (prevDm !== 'gap' && prevTransition?.exit?.type !== 'cut')
-            ? (prevTransition?.exit?.durationMs || 0) : 0;
-
-          // For gap exit: check transition of the next visual item (its enter)
-          const nextTransition = item.data.transition;
-          const nextDm = item.data.displayMode;
-          const gapExitDuration = (nextDm !== 'gap' && nextTransition?.enter?.type !== 'cut')
-            ? (nextTransition?.enter?.durationMs || 0) : 0;
-
-          gapSegments.push({
-            startMs: cursor, endMs: item.startMs,
-            enterDurationMs: gapEnterDuration, exitDurationMs: gapExitDuration,
-          });
-        }
-        cursor = Math.max(cursor, item.endMs);
-      }
-      if (cursor < durationMs) {
-        const lastItem = visualItems[visualItems.length - 1];
-        const lastTransition = lastItem ? lastItem.data.transition : null;
-        const lastDm = lastItem ? lastItem.data.displayMode : 'pip';
-        const enterDuration = (lastDm !== 'gap' && lastTransition?.exit?.type !== 'cut')
-          ? (lastTransition?.exit?.durationMs || 0) : 0;
-        gapSegments.push({ startMs: cursor, endMs: durationMs, enterDurationMs: enterDuration, exitDurationMs: 0 });
-      }
-    }
-
     logger.info({
-      fullscreenVisualCount: fullscreenVisualSegments.length,
-      overlayCount: overlaySegments.length,
-      gapCount: gapSegments.length,
       visualItemCount: visualItems.length,
       hasZonedVisuals,
       segmentationReady,
-      source: visualDisplayData ? 'frontend' : 'db',
-    }, 'Extracted display mode segments');
+    }, 'Display mode segment info');
 
     const isAudioProject = (job.data.projectType || project.projectType || 'video') === 'audio';
 
@@ -313,11 +217,6 @@ export async function processRenderJob(job: Job<RenderJobData>) {
     // Resolve the font to one that's actually available (with fallback for commercial fonts)
     const resolvedFontFamily = resolveAvailableFontFamily(rawFontFamily);
     logger.info({ rawFontFamily, resolvedFontFamily, fontsDir }, 'Resolved font for export');
-
-    // Compute ASS↔CSS font size correction multiplier from TTF metrics.
-    // libass sizes glyphs differently than CSS, so without this multiplier
-    // exported text appears ~60% smaller than the preview.
-    const fontSizeMultiplier = await getASSFontSizeMultiplier(resolvedFontFamily, fontsDir);
 
     // Resolve fontFamily in all subtitle styles so both Remotion (headless Chrome)
     // and FFmpeg/ASS paths use an actual available Google Font name.
@@ -489,68 +388,119 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         }
       }
 
-      // Determine if we should use the full Remotion composition (stacked layout)
-      const useFullComposition = layoutSettings?.mode === 'stacked';
+      // === UNIFIED RENDER PATH ===
+      // All project types go through FullComposition: build props → copy assets → renderMedia
 
-      // Copy source video to bundle's public/ dir for FullComposition
-      if (useFullComposition && videoPath) {
-        const bundlePublicDir = join(bundlePath, 'public');
-        await mkdir(bundlePublicDir, { recursive: true });
+      const bundlePublicDir = join(bundlePath, 'public');
+      await mkdir(bundlePublicDir, { recursive: true });
+
+      // Copy source video to bundle public/ (video projects only)
+      if (videoPath) {
         const bundleSourceVideo = join(bundlePublicDir, 'source.mp4');
         await copyFile(videoPath, bundleSourceVideo);
-        logger.info({ bundleSourceVideo }, 'Copied source video to bundle public/ for FullComposition');
+        logger.info({ bundleSourceVideo }, 'Copied source video to bundle public/');
       }
 
-      // Build composition props for full composition mode
-      let compositionPropsPath: string | undefined;
-      if (useFullComposition) {
-        const layoutSegments = buildLayoutSegments(visualItems, visualFps, project.durationMs || 60000);
-        const compositionProps = {
-          splitSettings: layoutSettings?.split || { position: 'visuals-first' as const, ratio: 50, gap: 0 },
-          layoutSegments,
-          videoCropSettings: videoCrop,
-          sourceVideoFile: 'source.mp4',
-        };
-        compositionPropsPath = join(workDir, 'composition-props.json');
-        await writeFile(compositionPropsPath, JSON.stringify(compositionProps), 'utf-8');
-        logger.info({ compositionPropsPath, segmentCount: layoutSegments.length }, 'Wrote composition props for full composition render');
+      // Copy audio file for audio-only projects
+      if (isAudioProject && audioOnlyPath) {
+        const bundleAudioFile = join(bundlePublicDir, 'audio.mp4');
+        await copyFile(audioOnlyPath, bundleAudioFile);
+        logger.info({ bundleAudioFile }, 'Copied audio file to bundle public/');
       }
 
+      // Build layout segments
+      const layoutSegments = buildLayoutSegments(visualItems, visualFps, project.durationMs || 60000);
+
+      // Build subtitle data
+      const subtitleData = subtitles.map((sub: any) => ({
+        startMs: sub.startMs,
+        endMs: sub.endMs,
+        words: sub.words || [],
+        style: sub.style,
+      }));
+
+      // Build default subtitle style
+      const defaultSubtitleStyle = {
+        fontFamily: firstStyle.fontFamily || resolvedFontFamily || 'Inter',
+        fontSize: firstStyle.fontSize || 56,
+        fontWeight: firstStyle.fontWeight || 800,
+        color: firstStyle.color || '#ffffff',
+        activeColor: firstStyle.activeColor || '#ffff00',
+        backgroundColor: firstStyle.backgroundColor || 'transparent',
+        activeBackgroundColor: firstStyle.activeBackgroundColor || 'transparent',
+        opacity: firstStyle.opacity ?? 1,
+        lineHeight: firstStyle.lineHeight ?? 1.4,
+        letterSpacing: firstStyle.letterSpacing ?? 0,
+        textTransform: firstStyle.textTransform || 'none',
+        stroke: firstStyle.stroke ?? null,
+        displayMode: firstStyle.displayMode || 'phrase',
+        wordsPerPhrase: firstStyle.wordsPerPhrase || 5,
+        presetId: firstStyle.presetId,
+        position: firstStyle.position || 'bottom',
+        effects: firstStyle.effects,
+        animation: firstStyle.animation,
+        backgroundPadding: firstStyle.backgroundPadding,
+        backgroundRadius: firstStyle.backgroundRadius,
+      };
+
+      // Resolve PiP settings
+      const pipSizeMap: Record<string, number> = { small: 18, medium: 25, large: 35, custom: 25 };
+      const pipConfig = layoutSettings?.pip;
+      const resolvedPipSize = pipConfig
+        ? (pipConfig.size === 'custom' ? pipConfig.customSize : (pipSizeMap[pipConfig.size] || 25))
+        : 25;
+      const resolvedLayoutMode = layoutSettings?.mode || 'stacked';
+
+      // Build composition props (the single source of truth)
+      const compositionProps: Record<string, unknown> = {
+        layoutMode: resolvedLayoutMode,
+        splitSettings: layoutSettings?.split || { position: 'visuals-first' as const, ratio: 50, gap: 0 },
+        pipSettings: resolvedLayoutMode === 'pip' && pipConfig ? {
+          position: pipConfig.position || 'bottom-right',
+          offsetX: pipConfig.offsetX || 20,
+          offsetY: pipConfig.offsetY || 20,
+          size: resolvedPipSize,
+          shape: pipConfig.shape || 'rounded',
+          borderRadius: pipConfig.borderRadius || 16,
+          borderWidth: pipConfig.borderWidth || 0,
+          borderColor: pipConfig.borderColor || '#ffffff',
+          shadowEnabled: pipConfig.shadowEnabled ?? true,
+          shadowColor: pipConfig.shadowColor || 'rgba(0,0,0,0.3)',
+          shadowBlur: pipConfig.shadowBlur || 12,
+          opacity: pipConfig.opacity ?? 1,
+          rotation: pipConfig.rotation || 0,
+        } : undefined,
+        layoutSegments,
+        videoCropSettings: videoCrop,
+        sourceVideoFile: isAudioProject ? undefined : 'source.mp4',
+        audioFile: isAudioProject ? 'audio.mp4' : undefined,
+        subtitles: subtitleData,
+        defaultSubtitleStyle,
+      };
+
+      const compositionPropsPath = join(workDir, 'composition-props.json');
+      await writeFile(compositionPropsPath, JSON.stringify(compositionProps), 'utf-8');
       logger.info({
-        projectId,
-        compositionId: projectVisual.compositionId,
-        bundlePath,
-        hasEnhancedAudio: !!enhancedAudioPath,
-        subtitleCount: subtitles.length,
-        outputWidth,
-        outputHeight,
-        videoCrop,
-        sceneCount: sceneTimestamps.length,
-        videoClipCount: videoClipPaths.size,
-        useFullComposition,
-      }, 'Starting Remotion SSR render');
+        compositionPropsPath,
+        layoutMode: resolvedLayoutMode,
+        segmentCount: layoutSegments.length,
+        subtitleCount: subtitleData.length,
+        hasVideo: !isAudioProject,
+      }, 'Wrote composition props');
 
-      // Step 1: Render Remotion composition exactly as shown in preview
-      // Note: compositionId uses underscores (as registered in bundle), bundlePath uses hyphens
-      const remotionTempPath = join(workDir, 'remotion_visuals.mp4');
-
-      // Track last reported scene to avoid duplicate messages
-      let lastReportedScene = -1;
-
+      // Single Remotion render — produces final video with audio, captions, everything
       await renderWithRemotion({
         bundlePath,
         compositionId: projectVisual.compositionId,
-        outputPath: remotionTempPath,
+        outputPath,
         propsPath: compositionPropsPath,
         onProgress: (progress) => {
-          const jobProgress = 30 + Math.round(progress * 40);
+          const jobProgress = 30 + Math.round(progress * 50);
 
-          // Calculate current time in ms based on progress
           if (sceneTimestamps.length > 0 && totalFrames > 0) {
             const currentFrame = Math.floor(progress * totalFrames);
             const currentMs = (currentFrame / visualFps) * 1000;
 
-            // Find the current scene
             let currentSceneIndex = 0;
             for (let i = 0; i < sceneTimestamps.length; i++) {
               if (currentMs >= sceneTimestamps[i].startMs && currentMs < sceneTimestamps[i].endMs) {
@@ -560,241 +510,18 @@ export async function processRenderJob(job: Job<RenderJobData>) {
                 currentSceneIndex = i + 1;
               }
             }
-
-            // Clamp to valid range
             currentSceneIndex = Math.min(currentSceneIndex, sceneTimestamps.length - 1);
 
-            // Only report if scene changed or every 5% within same scene
-            if (currentSceneIndex !== lastReportedScene) {
-              lastReportedScene = currentSceneIndex;
-              const scene = sceneTimestamps[currentSceneIndex];
-              const sceneDesc = scene.description || scene.type || `Scene ${currentSceneIndex + 1}`;
-              publishJobProgress(
-                jobId,
-                jobProgress,
-                `Rendering scene ${currentSceneIndex + 1}/${sceneTimestamps.length}: ${sceneDesc}`
-              );
-            } else {
-              publishJobProgress(jobId, jobProgress, `Rendering scene ${currentSceneIndex + 1}/${sceneTimestamps.length}...`);
-            }
+            const scene = sceneTimestamps[currentSceneIndex];
+            const sceneDesc = scene.description || scene.type || `Scene ${currentSceneIndex + 1}`;
+            publishJobProgress(jobId, jobProgress, `Rendering scene ${currentSceneIndex + 1}/${sceneTimestamps.length}: ${sceneDesc}`);
           } else {
             publishJobProgress(jobId, jobProgress, `Rendering: ${Math.round(progress * 100)}%`);
           }
         },
       });
 
-      logger.info({ projectId, remotionTempPath }, 'Remotion render complete');
-
-      await publishJobProgress(jobId, 75, 'Compositing video with audio and subtitles...');
-
-      if (isAudioProject) {
-        // Audio project with visuals: two-pass approach for exact caption matching
-        // Pass 1: Composite Remotion visuals + audio WITHOUT subtitles
-        const hasSubtitles = subtitles.length > 0;
-        const compositedAudioPath = hasSubtitles ? join(workDir, 'composited_audio.mp4') : outputPath;
-
-        await finalizeRemotionVideo({
-          remotionVideoPath: remotionTempPath,
-          audioPath: enhancedAudioPath,
-          subtitles: [],  // No ASS subtitles — Remotion handles them in pass 2
-          outputPath: compositedAudioPath,
-          workDir,
-          width: outputWidth,
-          height: outputHeight,
-          fontsDir,
-          resolvedFontFamily,
-          fontSizeMultiplier,
-        });
-
-        // Pass 2: Overlay subtitles with Remotion (same React engine as preview)
-        if (hasSubtitles) {
-          await publishJobProgress(jobId, 80, 'Rendering captions...');
-
-          const firstSubStyle = firstStyle;
-          const captionDurationMs = project.durationMs || Math.max(...subtitles.map(s => s.endMs)) + 1000;
-
-          await renderVideo({
-            videoUrl: compositedAudioPath,
-            subtitles,
-            outputPath,
-            width: outputWidth,
-            height: outputHeight,
-            fps: 30,
-            durationMs: captionDurationMs,
-            defaultSubtitleStyle: {
-              fontFamily: firstSubStyle.fontFamily || resolvedFontFamily || 'Inter',
-              fontSize: firstSubStyle.fontSize || 56,
-              fontWeight: firstSubStyle.fontWeight || 800,
-              color: firstSubStyle.color || '#ffffff',
-              activeColor: firstSubStyle.activeColor || '#ffff00',
-              backgroundColor: firstSubStyle.backgroundColor || 'transparent',
-              activeBackgroundColor: firstSubStyle.activeBackgroundColor || 'transparent',
-              opacity: firstSubStyle.opacity ?? 1,
-              lineHeight: firstSubStyle.lineHeight ?? 1.4,
-              letterSpacing: firstSubStyle.letterSpacing ?? 0,
-              textTransform: (firstSubStyle.textTransform || 'none') as 'none' | 'uppercase' | 'lowercase',
-              stroke: firstSubStyle.stroke ?? null,
-              displayMode: firstSubStyle.displayMode || 'phrase',
-              wordsPerPhrase: firstSubStyle.wordsPerPhrase || 5,
-              presetId: firstSubStyle.presetId,
-              position: firstSubStyle.position || 'bottom',
-              effects: firstSubStyle.effects,
-              animation: firstSubStyle.animation,
-              backgroundPadding: firstSubStyle.backgroundPadding,
-              backgroundRadius: firstSubStyle.backgroundRadius,
-            },
-            onProgress: (progress) => {
-              const jobProgress = 80 + Math.round((progress / 100) * 15);
-              publishJobProgress(jobId, jobProgress, `Rendering captions: ${progress}%`);
-            },
-          });
-        }
-      } else if (useFullComposition) {
-        // Full composition: Remotion already composited video + visuals with layout transitions.
-        // Just mux audio track.
-        const hasSubtitles = subtitles.length > 0;
-        const compositedPath = hasSubtitles ? join(workDir, 'composited.mp4') : outputPath;
-
-        await muxAudioOnly({
-          videoPath: remotionTempPath,
-          audioPath: enhancedAudioPath,
-          sourceVideoPath: videoPath!,
-          outputPath: compositedPath,
-          onProgress: (progress) => {
-            const jobProgress = 75 + Math.round(progress * 7);
-            publishJobProgress(jobId, jobProgress, `Muxing audio: ${Math.round(progress * 100)}%`);
-          },
-        });
-
-        // Pass 2: Overlay subtitles with Remotion (same React engine as preview)
-        if (hasSubtitles) {
-          await publishJobProgress(jobId, 83, 'Rendering captions...');
-
-          const firstSubStyle = firstStyle;
-          let captionDurationMs = project.durationMs || 0;
-          if (!captionDurationMs) {
-            captionDurationMs = Math.max(...subtitles.map(s => s.endMs)) + 1000;
-          }
-
-          await renderVideo({
-            videoUrl: compositedPath,
-            subtitles,
-            outputPath,
-            width: outputWidth,
-            height: outputHeight,
-            fps: 30,
-            durationMs: captionDurationMs,
-            defaultSubtitleStyle: {
-              fontFamily: firstSubStyle.fontFamily || resolvedFontFamily || 'Inter',
-              fontSize: firstSubStyle.fontSize || 56,
-              fontWeight: firstSubStyle.fontWeight || 800,
-              color: firstSubStyle.color || '#ffffff',
-              activeColor: firstSubStyle.activeColor || '#ffff00',
-              backgroundColor: firstSubStyle.backgroundColor || 'transparent',
-              activeBackgroundColor: firstSubStyle.activeBackgroundColor || 'transparent',
-              opacity: firstSubStyle.opacity ?? 1,
-              lineHeight: firstSubStyle.lineHeight ?? 1.4,
-              letterSpacing: firstSubStyle.letterSpacing ?? 0,
-              textTransform: (firstSubStyle.textTransform || 'none') as 'none' | 'uppercase' | 'lowercase',
-              stroke: firstSubStyle.stroke ?? null,
-              displayMode: firstSubStyle.displayMode || 'phrase',
-              wordsPerPhrase: firstSubStyle.wordsPerPhrase || 5,
-              presetId: firstSubStyle.presetId,
-              position: firstSubStyle.position || 'bottom',
-              effects: firstSubStyle.effects,
-              animation: firstSubStyle.animation,
-              backgroundPadding: firstSubStyle.backgroundPadding,
-              backgroundRadius: firstSubStyle.backgroundRadius,
-            },
-            onProgress: (progress) => {
-              const jobProgress = 83 + Math.round((progress / 100) * 12);
-              publishJobProgress(jobId, jobProgress, `Rendering captions: ${progress}%`);
-            },
-          });
-        }
-      } else {
-        // PiP or other layout modes: use existing FFmpeg composite pipeline
-        // Video project with visuals: two-pass approach for exact caption matching
-        // Pass 1: Composite source video + Remotion visuals + audio WITHOUT subtitles
-        const hasSubtitles = subtitles.length > 0;
-        const compositedPath = hasSubtitles ? join(workDir, 'composited.mp4') : outputPath;
-
-        await renderWithPiPLayout({
-          sourceVideoPath: videoPath!,
-          remotionVideoPath: remotionTempPath,
-          audioPath: enhancedAudioPath,
-          subtitles: [],  // No ASS subtitles — Remotion handles them in pass 2
-          outputPath: compositedPath,
-          workDir,
-          width: outputWidth,
-          height: outputHeight,
-          layoutSettings,
-          videoCrop,
-          fullscreenVisualSegments,
-          overlaySegments,
-          gapSegments,
-          fontsDir,
-          resolvedFontFamily,
-          fontSizeMultiplier,
-          videoClipPaths,
-          videoManifest: videoManifest ?? undefined,
-          sceneTimestamps,
-          onProgress: (progress) => {
-            // Map compositing progress from 75% to 82%
-            const jobProgress = 75 + Math.round(progress * 7);
-            publishJobProgress(jobId, jobProgress, `Compositing: ${Math.round(progress * 100)}%`);
-          },
-        });
-
-        // Pass 2: Overlay subtitles with Remotion (same React engine as preview)
-        if (hasSubtitles) {
-          await publishJobProgress(jobId, 83, 'Rendering captions...');
-
-          const firstSubStyle = firstStyle;
-          let captionDurationMs = project.durationMs || 0;
-          if (!captionDurationMs) {
-            captionDurationMs = Math.max(...subtitles.map(s => s.endMs)) + 1000;
-          }
-
-          await renderVideo({
-            videoUrl: compositedPath,
-            subtitles,
-            outputPath,
-            width: outputWidth,
-            height: outputHeight,
-            fps: 30,
-            durationMs: captionDurationMs,
-            defaultSubtitleStyle: {
-              fontFamily: firstSubStyle.fontFamily || resolvedFontFamily || 'Inter',
-              fontSize: firstSubStyle.fontSize || 56,
-              fontWeight: firstSubStyle.fontWeight || 800,
-              color: firstSubStyle.color || '#ffffff',
-              activeColor: firstSubStyle.activeColor || '#ffff00',
-              backgroundColor: firstSubStyle.backgroundColor || 'transparent',
-              activeBackgroundColor: firstSubStyle.activeBackgroundColor || 'transparent',
-              opacity: firstSubStyle.opacity ?? 1,
-              lineHeight: firstSubStyle.lineHeight ?? 1.4,
-              letterSpacing: firstSubStyle.letterSpacing ?? 0,
-              textTransform: (firstSubStyle.textTransform || 'none') as 'none' | 'uppercase' | 'lowercase',
-              stroke: firstSubStyle.stroke ?? null,
-              displayMode: firstSubStyle.displayMode || 'phrase',
-              wordsPerPhrase: firstSubStyle.wordsPerPhrase || 5,
-              presetId: firstSubStyle.presetId,
-              position: firstSubStyle.position || 'bottom',
-              effects: firstSubStyle.effects,
-              animation: firstSubStyle.animation,
-              backgroundPadding: firstSubStyle.backgroundPadding,
-              backgroundRadius: firstSubStyle.backgroundRadius,
-            },
-            onProgress: (progress) => {
-              const jobProgress = 83 + Math.round((progress / 100) * 12);
-              publishJobProgress(jobId, jobProgress, `Rendering captions: ${progress}%`);
-            },
-          });
-        }
-      }
-
-      logger.info({ projectId, outputPath }, 'Export complete with full composite');
+      logger.info({ projectId, outputPath }, 'Remotion render complete');
     } else if (isAudioProject) {
       // Audio project without visuals: black canvas + subtitles + audio
       // Use Remotion for subtitles to match preview exactly
@@ -847,6 +574,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         await publishJobProgress(jobId, 50, 'Rendering captions...');
 
         const firstSubStyle = firstStyle;
+        const { renderVideo } = await import('@viona/renderer');
         await renderVideo({
           videoUrl: blackCanvasPath,
           subtitles,
@@ -965,6 +693,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
         // so that even subtitles without explicit style get the user's settings.
         // Use the robust firstStyle from earlier (finds first subtitle WITH a style).
         const firstSubStyle = firstStyle;
+        const { renderVideo } = await import('@viona/renderer');
         await renderVideo({
           videoUrl: videoPath!,
           subtitles,
@@ -1007,6 +736,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
 
         // If enhanced audio, mux it with the rendered video
         if (enhancedAudioPath) {
+          const { encodeVideoWithAudio } = await import('./ffmpeg.js');
           await encodeVideoWithAudio(remotionOutputPath, enhancedAudioPath, outputPath);
         }
       } else {
@@ -1020,6 +750,7 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           // Re-encode with crop/pan/scale to match preview
           const cw = videoSettings.canvasWidth || 1080;
           const ch = videoSettings.canvasHeight || 1920;
+          const { buildVideoCropFilter } = await import('./ffmpeg.js');
           const cropFilter = buildVideoCropFilter({
             sourceWidth: project.sourceWidth || 1920,
             sourceHeight: project.sourceHeight || 1080,
@@ -1062,7 +793,8 @@ export async function processRenderJob(job: Job<RenderJobData>) {
           // Move output to final path
           await copyFile(join(cropWorkDir, localOutput), outputPath);
         } else {
-          await encodeVideoWithAudio(videoPath!, enhancedAudioPath, outputPath);
+          const { encodeVideoWithAudio: encodeVA } = await import('./ffmpeg.js');
+          await encodeVA(videoPath!, enhancedAudioPath, outputPath);
         }
       }
     }

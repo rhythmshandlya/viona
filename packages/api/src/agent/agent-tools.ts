@@ -77,20 +77,18 @@ export function normalizeProgressMessage(jobType: string, percent: number, rawMe
 
 export function derivePhase(jobType: string, percent: number): string {
   if (jobType === 'plan-visuals') {
-    if (percent < 20) return 'preparing';
-    if (percent < 88) return 'planning';
-    return 'finalizing';
+    return 'plan';
   }
   if (jobType === 'generate-visuals') {
-    if (percent < 15) return 'preparing';
-    if (percent < 85) return 'generating';
-    if (percent < 95) return 'validating';
-    return 'uploading';
+    if (percent < 15) return 'plan';
+    if (percent < 65) return 'animate';
+    if (percent < 75) return 'verify';
+    return 'bundle';
   }
   if (jobType === 'edit-visuals') {
-    if (percent < 20) return 'preparing';
-    if (percent < 85) return 'editing';
-    return 'validating';
+    if (percent < 65) return 'animate';
+    if (percent < 75) return 'verify';
+    return 'bundle';
   }
   return 'processing';
 }
@@ -975,13 +973,14 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
       tool(
         'edit_visuals',
-        'Make a targeted edit to existing visuals. Can target a specific scene or the entire composition. Use this when the user wants to change something about existing visuals. Write a detailed prompt that explains WHAT the user wants changed and WHY — include what the speaker is saying in that section so the editor understands the content context. IMPORTANT: If the user provides raw content (SVG markup, code, CSS, colors, specific text), you MUST include it VERBATIM in the prompt — do NOT summarize or paraphrase user-provided content.',
+        'Make a targeted edit to existing visuals. Can target specific scene(s) or the entire composition. Use this when the user wants to change something about existing visuals. Write a detailed prompt that explains WHAT the user wants changed and WHY — include what the speaker is saying in that section so the editor understands the content context. IMPORTANT: If the user provides raw content (SVG markup, code, CSS, colors, specific text), you MUST include it VERBATIM in the prompt — do NOT summarize or paraphrase user-provided content. When the user mentions MULTIPLE scenes (e.g. "scene 3, 5, 7"), pass ALL of them in sceneIds so they are edited in a single pass.',
         {
           prompt: z.string().describe('Detailed edit instructions. MUST include any user-provided raw content (SVGs, code, CSS, colors) verbatim — never summarize user-provided content'),
-          sceneId: z.number().optional(),
+          sceneId: z.number().optional().describe('Single scene to edit (1-indexed). Use sceneIds instead when editing multiple scenes.'),
+          sceneIds: z.array(z.number()).optional().describe('Multiple scenes to edit (1-indexed). Use this when the user references 2+ scenes. Takes priority over sceneId.'),
           elementName: z.string().optional(),
         },
-        async ({ prompt, sceneId, elementName }) => {
+        async ({ prompt, sceneId, sceneIds, elementName }) => {
           const visual = await db.query.visuals.findFirst({
             where: eq(visuals.projectId, ctx.projectId),
           });
@@ -1050,22 +1049,27 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             ? `${prompt}\n\n--- ORIGINAL USER MESSAGE ---\n${rawMsg}`
             : prompt;
 
-          // Resolve positional sceneId to sourceSceneId so the worker targets
-          // the correct scenes/SceneN.tsx file even after timeline splits
-          let targetSceneId = sceneId;
-          if (sceneId && visual.timestamps) {
-            const ts = (visual.timestamps as Array<{ sourceSceneId?: number }>)[sceneId - 1];
-            if (ts?.sourceSceneId) {
-              targetSceneId = ts.sourceSceneId;
+          // Normalize sceneIds: prefer sceneIds array, fall back to single sceneId
+          const rawIds = sceneIds?.length ? sceneIds : (sceneId ? [sceneId] : []);
+
+          // Resolve positional sceneIds to sourceSceneIds so the worker targets
+          // the correct scenes/SceneN.tsx files even after timeline splits
+          const resolvedIds = rawIds.map(id => {
+            if (visual.timestamps) {
+              const ts = (visual.timestamps as Array<{ sourceSceneId?: number }>)[id - 1];
+              if (ts?.sourceSceneId) return ts.sourceSceneId;
             }
-          }
+            return id;
+          });
 
           await queueEditVisualsJob({
             projectId: ctx.projectId,
             jobId: job.id,
             compositionId: visual.compositionId,
             prompt: fullPrompt,
-            sceneId: targetSceneId,
+            // Pass single sceneId for backward compat, plus sceneIds for multi-scene
+            sceneId: resolvedIds.length === 1 ? resolvedIds[0] : undefined,
+            sceneIds: resolvedIds.length > 0 ? resolvedIds : undefined,
             elementName,
             transcript: transcriptText,
             scenePlan,

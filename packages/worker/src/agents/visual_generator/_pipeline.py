@@ -204,19 +204,20 @@ class PipelineMixin:
 
                 print(f"[ClaudeGenerator] TypeScript validation passed")
 
-                # Check for missing interpolate clamp options
+                # Check for interpolate() issues: missing clamp options + non-monotonic inputRange
                 clamp_warnings = self._validate_interpolate_clamping()
                 if clamp_warnings:
-                    print(f"[ClaudeGenerator] Found {len(clamp_warnings)} interpolate() calls missing clamp:")
+                    print(f"[ClaudeGenerator] Found {len(clamp_warnings)} interpolate() issues:")
                     for w in clamp_warnings:
                         print(f"  - {w}")
                     clamp_error_msg = (
-                        "CRITICAL: The following interpolate() calls are missing extrapolateLeft: 'clamp' "
-                        "and/or extrapolateRight: 'clamp'. BOTH are required on EVERY interpolate() call. "
-                        "Without both, values extrapolate linearly beyond the range, causing catastrophic "
-                        "visual bugs (e.g. scale: 13x, opacity: 85).\n\n"
+                        "CRITICAL interpolate() issues found:\n\n"
                         + "\n".join(clamp_warnings)
-                        + "\n\nFix ALL of them by adding the missing clamp option(s)."
+                        + "\n\nRules:\n"
+                        "1. EVERY interpolate() call MUST have BOTH extrapolateLeft: 'clamp' AND extrapolateRight: 'clamp'.\n"
+                        "2. inputRange MUST be strictly monotonically increasing (each value > previous). "
+                        "e.g. [0, 1, 0.4] CRASHES — use [0, 15, 30] with actual frame numbers instead.\n\n"
+                        "Fix ALL issues above."
                     )
                     await self._run_self_heal(clamp_error_msg)
                     ts_success, ts_errors = await self._verify_typescript()

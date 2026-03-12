@@ -43,8 +43,9 @@ Import: `import { Easing } from 'remotion';`
 </easing_guide>
 
 <interpolate_rules>
-## Interpolate Clamping (CRITICAL)
+## Interpolate Rules (CRITICAL)
 
+### Rule 1: Clamp Both Sides
 **EVERY `interpolate()` call MUST include BOTH clamp options:**
 ```tsx
 interpolate(frame, [0, 30], [0, 1], {
@@ -54,6 +55,20 @@ interpolate(frame, [0, 30], [0, 1], {
 ```
 
 Without BOTH clamps, values extrapolate linearly beyond the range — causing scale: 13x, opacity: 85, or other catastrophic visual bugs. No exceptions.
+
+### Rule 2: inputRange MUST Be Strictly Monotonically Increasing (FATAL)
+The `inputRange` array values MUST be sorted in strictly ascending order. Every value must be greater than the previous one.
+
+```tsx
+// ❌ FATAL — CRASHES AT RUNTIME:
+interpolate(frame, [0, 1, 0.4], [0, 1, 0])  // 0.4 < 1 — NOT monotonic!
+interpolate(frame, [0, 30, 30], [0, 1, 0])   // 30 == 30 — NOT strictly increasing!
+
+// ✅ CORRECT — strictly ascending:
+interpolate(frame, [0, 15, 30], [0, 1, 0], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' })
+```
+
+Common mistake: using normalized [0, 1] as inputRange then adding a third value. If you need a 3-point interpolation, use actual frame numbers: `[0, halfway, total]`.
 </interpolate_rules>
 
 <frame_timing>

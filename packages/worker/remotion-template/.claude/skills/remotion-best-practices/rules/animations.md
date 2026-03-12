@@ -16,6 +16,7 @@ export const FadeIn = () => {
   const { fps } = useVideoConfig();
 
   const opacity = interpolate(frame, [0, 2 * fps], [0, 1], {
+    extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
  

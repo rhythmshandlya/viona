@@ -1,7 +1,7 @@
 // Sub-module processors
 export { processRenderJob } from './render/index.js';
 export type { RenderJobData } from './render/index.js';
-export { convertToSubtitles, formatASSTime, hexToASSColor, getASSAlignment, escapePathForFilter, buildVideoCropFilter, resolveAvailableFontFamily } from './render/index.js';
+export { convertToSubtitles, resolveAvailableFontFamily } from './render/index.js';
 
 export { processGenerateVisualsJob, validateEnvironment, cancelJob, getRunningJobs } from './generate-visuals/index.js';
 export type { GenerateVisualsJobData } from './generate-visuals/index.js';

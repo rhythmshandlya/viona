@@ -75,7 +75,6 @@ export interface RenderJobData {
       enter: { type: string; durationMs: number };
       exit: { type: string; durationMs: number };
     };
-    overlayOpacity?: number;
   }>;
 }
 

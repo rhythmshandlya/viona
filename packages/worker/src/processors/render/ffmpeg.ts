@@ -650,8 +650,6 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
     }
   }
 
-  // Inject Google Fonts into bundle HTML so headless Chromium renders them
-
   logger.info({
     compositionId: composition.id,
     width: composition.width,

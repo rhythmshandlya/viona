@@ -68,8 +68,8 @@ b) **REASONING (MANDATORY)** — write to IMPLEMENTATION_LOG.md before ANY code:
    - What does the Director want? Key sync point? Target emotion?
 
    ### 2. VISUAL LAYERS
-   - Layer 1 (Primary): text/data explaining transcript
-   - Layer 2 (Supporting): labeled icons, diagrams
+   - Layer 1 (Primary): the VISUAL that carries the scene's meaning — animated SVG illustration, path-drawing animation, morphing shape, data visualization, kinetic typography, or diagram. NOT just a card with text.
+   - Layer 2 (Supporting): labeled icons, annotations, connecting elements
    - Layer 3 (Ambient): ambient texture (gradient drift, glow pulse, grid shift) at opacity <= 0.15
    - Attention-grabbing count (L1+L2): <= 4?
    - TOP (0-35%): [what] | MIDDLE (35-75%): [what] | BOTTOM (75-85%): [what]
@@ -93,7 +93,7 @@ b) **REASONING (MANDATORY)** — write to IMPLEMENTATION_LOG.md before ANY code:
    - Any uncovered phrases? Visual beat count vs frame count?
 
    ### 6. MODE CHECK (if overlay/fullscreen)
-   - Overlay? → damping >= 28, stiffness <= 60, no Math.sin/cos, no particles, no Background
+   - Overlay? → This renders ON TOP OF a talking head video. Speaker position? (center/left/right → align overlays accordingly). Max 1-2 elements, 1-3 words each, max 55% width, textShadow mandatory, gentle springs only (damping >= 28, stiffness <= 60), idle breathing after settle, no Background, no dashboard layouts
    - Fullscreen? → full canvas dims, Background included
 
    ### 7. STEPS
@@ -146,7 +146,10 @@ For EVERY scene: reasoning FIRST -> code -> validate.
 - [ ] No single-dimension entrances (every entrance has opacity + scale or slide)
 - [ ] Spring configs vary between adjacent elements (not all SMOOTH)
 - [ ] Elements visible 30+ frames have ambient motion (float/breathe/pulse)
-- [ ] Glass card styling differs from previous scene (tint, blur, radius)
+- [ ] Card backgrounds use COLORS.cardBg from theme
+- [ ] Overlay scenes: max 2 elements visible, 1-3 words each, max 55% width
+- [ ] Overlay scenes: alignment matches speaker position (center/left/right)
+- [ ] Overlay scenes: textShadow on all text, idle breathing on settled elements
 </logging_requirement>
 
 <animation_patterns>
@@ -209,17 +212,15 @@ const contentOpacity = interpolate(frame,
 ```
 **RULE: Never show a small title at top with blank space below. Title dominates screen initially, then makes room.**
 
-### Glassmorphism
+### Card Styling
 ```tsx
-// Tint glass with scene's accent color for variety:
-const glassStyle = {
-  background: `${COLORS.accent}0F`, // hex alpha — NOT always white rgba
-  backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
-  border: `1px solid ${COLORS.accent}25`,
-  borderRadius: 16, boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+const cardStyle = {
+  background: COLORS.cardBg, // Solid opaque color from theme (e.g. '#141824')
+  border: `1px solid ${COLORS.cardBorder}`,
+  borderRadius: 16, boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
   overflow: 'hidden' as const,
 };
-// Vary blur (16-24px), border opacity, and borderRadius (12-20) between scenes.
+// Vary borderRadius (12-20), boxShadow intensity, and border accent between scenes.
 ```
 
 ### Spring Variation
@@ -344,11 +345,17 @@ const support2 = spring({frame: frame - (keySync + 12), fps, config: SPRINGS.SMO
 
 Longer scenes: extend proportionally. Always keep minimum 20 frames of breathe at end.
 
-### Overlay Scenes — Simplified
-- No anticipation phase, no particles, no Layer 3
-- 1-2 elements max per beat
-- Gentle springs only (damping >= 28, stiffness <= 60) or simple interpolate fades
-- Breathing room still applies
+### Overlay Scenes — Talking Head Annotations
+Overlay scenes render ON TOP OF a talking head video with a real person. The speaker is the primary visual — your graphics are lightweight annotations.
+
+- **One element per sync point.** Each beat = one keyword, one stat, or one small card. Never multiple cards, rows, or grids.
+- **1-3 words max.** The speaker provides context. You reinforce the KEY WORD only.
+- **Typography-first.** Large bold text with textShadow is your primary tool. Icons are small accents (max 1 per overlay moment), never the focus.
+- **Compact footprint.** Max 55% of EW for containers. Max 45% for floating text. Leave breathing room.
+- **Speaker-aware alignment.** If speaker is centered, center overlays in lower-third. If speaker is left, float overlays right. If speaker is right, float overlays left. Check `safePlacement` in scenes.json.
+- **Never design on the face.** All elements in 0-15% Y (top strip) or 58-85% Y (lower-third) only.
+- **Gentle entrance + living idle.** Fade-in 15-25 frames with gentle spring (damping >= 28, stiffness <= 60). After settling, elements have subtle idle animation: scale breathing (1.0↔1.02 over 60 frames via `Math.sin(frame * 0.05) * 0.02`) or Y float (±3px over 90 frames). Elements are never frozen.
+- **No dashboard patterns.** No feature rows, no split panels, no icon grids, no multi-row lists. One concept per moment.
 </choreography>
 
 <intro_exit_animations>
@@ -438,22 +445,22 @@ Transition durations OVERLAP with scene durations. Only use TransitionSeries whe
 - **Content at top with empty space below** — ALWAYS compute: `contentTopY = (EH * 0.85 - totalContentHeight) / 2`. When new elements appear, existing content spring-animates upward.
 - **Small title at top, empty screen** — Titles START large and centered, then spring to final position when content appears.
 - **Missing key prop** on children arrays
-- **Math.sin/cos on text containers** — Only on Layer 3 particles at opacity <= 0.15
+- **Math.sin/cos on text POSITIONS** — Never use Math.sin/cos for translateX/translateY on text (causes jitter). Allowed for: text SCALE breathing (amplitude <= 0.02), Layer 3 ambient at opacity <= 0.15, and non-text element float/rotation.
 - **damping < 18** in spring config — NO EXCEPTIONS. SNAPPY (22) is the minimum for hero reveals. Never go lower.
 - **All elements animate simultaneously** — Always stagger
 - **Static elements** — Any element visible 30+ frames MUST have ambient motion (float, breathe, glow pulse). Settled ≠ frozen. Use the continuous motion recipes below.
-- **Colored div shapes as real objects** (gauges, trophies, globes) — Use template components or typography
-- **Crude figurative SVGs** (wavy lines as "swimmers") — Use geometric abstractions or download icons via MCP
+- **Plain colored divs as real objects** — If you need a visual object, build it with detailed SVG paths, animated strokes, or download via MCP. A bare `<div>` with a background color is not an illustration.
 - **Missing clamp** — BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'` required on every interpolate()
 - **Hardcoded 1080/1920** — Use EW/EH from constants.ts
-- **Text-only scenes** — Use template components, animated data, typographic treatment
+- **Text-only scenes** — Every scene needs a VISUAL element: animated SVG, path-draw, morph, diagram, data-viz, or illustration. Cards with only text inside = text-only.
 - **Outro with only particles** — Final scene MUST have Layer 1 content (stat, takeaway, callback)
 - **spring() for everything** — Vary with Easing
 - **Same technique in 3+ scenes** — No animation technique (stagger-cascade, progress-fill, accent-line, etc.) may appear in more than 2 scenes per project. Vary techniques across scenes.
 - **Ignoring Director's named animations** — If plan says word-cascade, don't use generic fade
 - **Scattered absolute positioning** — ALL content in ONE centered flex container. Only Background, Layer 3, and full-screen overlays outside.
-- **Domain SVGs on dot-grid** (pool lanes, circuit boards) — Dot-grid IS the background. Content in cards.
+- **Every scene in a card** — Cards are ONE tool, not the default container. Use cards for stats/data. Use open compositions (no card wrapper) for illustrations, path animations, morphing visuals, and kinetic typography.
 - **Generic AI aesthetics** — NEVER use Inter, Roboto, Arial, system fonts. NEVER default to purple gradients on white. Use the font pair from the Creative Brief or constants.ts.
+- **Semi-transparent card backgrounds** — Card backgrounds use COLORS.cardBg (a solid hex color like `'#141824'`). Entrance/exit `opacity` on content wrappers is fine.
 
 ### Continuous Motion Recipes
 
@@ -470,6 +477,89 @@ Math.sin/cos ALLOWED for these subtle ambient motions. Amplitude: 2-5px, 0.01-0.
 
 **Semantic icon motion:** Match ambient motion to icon meaning — gears rotate, rockets drift upward, hearts pulse, arrows oscillate, waves undulate. Generic float is the fallback, not the default.
 </prohibited_patterns>
+
+<visual_techniques>
+## VISUAL TECHNIQUE LIBRARY — Go Beyond Cards
+
+Cards + text is ONE technique. Professional motion graphics use a DIVERSE visual vocabulary. Choose the right technique for each scene's content.
+
+### SVG Path Drawing (strokeDasharray / strokeDashoffset)
+Draw lines, shapes, diagrams that reveal progressively. Perfect for: processes, connections, reveals.
+```tsx
+const pathLength = 600;
+const drawProgress = interpolate(frame, [start, start + 40], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.inOut(Easing.cubic),
+});
+<path d="M10 80 C40 10, 65 10, 95 80 S150 150, 180 80"
+  stroke={COLORS.primary} strokeWidth="3" fill="none"
+  strokeDasharray={pathLength} strokeDashoffset={pathLength * (1 - drawProgress)} />
+```
+
+### Shape Morphing (cross-fade + scale between SVG shapes)
+Transition between two concepts visually. Perfect for: transformations, before/after, evolution.
+```tsx
+const morphProgress = interpolate(frame, [syncFrame, syncFrame + 20], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.out(Easing.cubic),
+});
+// Shape A fades out + shrinks, Shape B fades in + grows
+<div style={{ opacity: 1 - morphProgress, transform: `scale(${1 - morphProgress * 0.3})` }}><ShapeA /></div>
+<div style={{ opacity: morphProgress, transform: `scale(${0.7 + morphProgress * 0.3})` }}><ShapeB /></div>
+```
+
+### Animated Diagrams (nodes + connecting lines)
+Show relationships, flows, hierarchies. Perfect for: processes, systems, cause-effect.
+```tsx
+// Nodes appear with stagger, then lines draw between them
+const node1 = spring({ frame: frame - 10, fps, config: SPRINGS.SNAPPY });
+const node2 = spring({ frame: frame - 18, fps, config: SPRINGS.SMOOTH });
+const lineProgress = interpolate(frame, [25, 50], [0, 1], {...});
+```
+
+### Kinetic Typography (text as the visual, not just a label)
+Text IS the animation — large, expressive, choreographed. Perfect for: hooks, quotes, key phrases.
+```tsx
+// Word-by-word cascade with varied springs
+{words.map((word, i) => {
+  const wordSpring = spring({ frame: frame - (i * 8), fps, config: SPRINGS.SNAPPY });
+  return <span style={{ opacity: wordSpring, transform: `translateY(${(1-wordSpring) * s(40)}px) scale(${0.8 + wordSpring * 0.2})` }}>{word}</span>;
+})}
+```
+
+### Animated Progress / Data Visualization
+Numbers, bars, rings that fill dynamically. Perfect for: stats, comparisons, metrics.
+
+### Particle / Element Scatter
+Multiple small elements that appear, drift, and create a pattern. Perfect for: impact, celebration, global reach.
+```tsx
+// Scatter dots from a center point with staggered springs
+{Array.from({length: 12}).map((_, i) => {
+  const angle = (i / 12) * Math.PI * 2;
+  const dist = spring({ frame: frame - (i * 3), fps, config: SPRINGS.SMOOTH });
+  const x = Math.cos(angle) * s(120) * dist;
+  const y = Math.sin(angle) * s(120) * dist;
+  return <div key={i} style={{ position: 'absolute', left: '50%', top: '50%',
+    transform: `translate(${x}px, ${y}px)`, opacity: dist,
+    width: s(8), height: s(8), borderRadius: '50%', background: COLORS.primary }} />;
+})}
+```
+
+### Full-Scene Illustration (SVG composition)
+Build a scene from multiple SVG elements that animate in layers. Perfect for: storytelling, metaphors, environments.
+Use Freepik/Iconify for complex shapes, compose them with animated positioning and layered reveals.
+
+### Technique Selection Guide
+| Scene Content | Best Techniques | Avoid |
+|--------------|----------------|-------|
+| Hook / bold claim | Kinetic typography, path drawing | Plain card with text |
+| Comparison | Split composition, morphing, side-by-side animation | Two identical cards |
+| Stats / numbers | Animated counters, progress rings, bar fills | Number in a card |
+| Process / steps | Animated diagram, path drawing between nodes | Numbered text list |
+| Transformation | Shape morph, before→after wipe, color shift | Two static states |
+| Emotional moment | Full-scene illustration, particle scatter, large icon animation | Small icon in card |
+| Credibility / proof | Data viz, animated counter, globe/map composition | Text stating facts |
+
+**RULE: No two adjacent scenes should use the same primary technique. If Scene 3 uses cards, Scene 4 MUST use something else (path drawing, kinetic typography, morphing, diagram, etc.).**
+</visual_techniques>
 
 <three_dimensional_animations>
 ## 3D WITH @remotion/three
@@ -607,40 +697,64 @@ Always add color overlay/vignette. Never raw photos as backgrounds.
 
 ### Overlay Mode — MANDATORY RULES
 
+**Context: Overlay scenes render ON TOP OF a talking head video with a real person speaking to camera. The speaker is the star. Your graphics are supporting annotations — compact, punchy, and positioned to complement the speaker, never compete.**
+
 If `displayMode === "overlay"`:
 
 **BACKGROUND — ZERO TOLERANCE:**
 - NO Background component, NO backgroundColor, NO background gradients/images
 - Root `<AbsoluteFill>` has NO background styles. Fully transparent canvas.
-- Prefer BRIGHT colors (white, yellow, cyan) for text.
+- Prefer BRIGHT colors (white, yellow, cyan) for text visibility over video.
 
-**LAYOUT — TWO ZONES ONLY (both horizontally centered):**
+**LAYOUT — SPEAKER-POSITION AWARE:**
+Check `safePlacement` / `layout.alignment` from scenes.json to determine speaker position:
+
 ```
-TOP STRIP (0-15%):    Titles, topic labels, banners
-[SPEAKER SPACE 15-60%: NEVER place content here]
-LOWER-THIRD (60-85%): Main content (stats, callouts, lists)
+SPEAKER CENTERED → center overlays:
+  <div style={{ position: 'absolute', left: 0, right: 0, bottom: EH * 0.15,
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    padding: `0 ${EW * 0.2}px` }}> {/* narrow, centered */}
+
+SPEAKER LEFT → float overlays right:
+  <div style={{ position: 'absolute', right: EW * 0.05, bottom: EH * 0.15,
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-end',
+    maxWidth: EW * 0.5 }}> {/* right-aligned */}
+
+SPEAKER RIGHT → float overlays left:
+  <div style={{ position: 'absolute', left: EW * 0.05, bottom: EH * 0.15,
+    display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+    maxWidth: EW * 0.5 }}> {/* left-aligned */}
+```
+
+**TWO ZONES ONLY:**
+```
+TOP STRIP (0-15%):    Short labels (1-2 words max)
+[SPEAKER FACE 15-58%: NEVER place content here — the face is sacred]
+LOWER-THIRD (58-85%): Primary content zone
 [SUBTITLE AREA 85-100%: Reserved — do NOT use]
 ```
 
-Lower-third container:
-```tsx
-<div style={{
-  position: 'absolute', left: 0, right: 0, bottom: EH * 0.15,
-  display: 'flex', flexDirection: 'column', alignItems: 'center',
-  padding: `0 ${EW * 0.08}px`, gap: EH * 0.02,
-}}>{/* centered content */}</div>
-```
+**ELEMENT RULES:**
+- Max 2 elements visible at any moment. Prefer 1.
+- Text: 1-3 words per overlay element. The speaker says the rest.
+- fontSize >= EH * 0.03 (58px min). Bold/semibold weight.
+- textShadow MANDATORY: `'0 2px 12px rgba(0,0,0,0.8), 0 0 4px rgba(0,0,0,0.5)'`
+- Container max-width: EW * 0.55. Floating text max-width: EW * 0.45.
+- All elements reach opacity 1.0 at rest.
+- One element per sync point. Minimum 15 frames between entrances.
 
-- NEVER use absolute left/top pixel positioning at random spots
-- Text fontSize >= EH * 0.025 (48px min). Containers width >= EW * 0.6.
-- All elements reach opacity 1.0 at rest. NEVER multiply by fraction.
-- speakerGrid = avoidance info only. Do NOT scatter elements into "safe zones".
+**ANIMATION:**
+- Entrance: fade-in (15-25 frames) + gentle slide from edge (10-20px) with gentle spring (damping >= 28, stiffness <= 60).
+- Idle (after settling): subtle scale breathing `scale(${1 + Math.sin(frame * 0.05) * 0.015})` or Y float `translateY(${Math.sin(frame * 0.04) * 2.5}px)`. Elements are NEVER frozen.
+- Exit: fade-out (10-15 frames) with slight scale-down to 0.95.
+- NO scale-from-zero, NO spinning, NO heavy bounce, NO dashboard layouts.
 
-**ANIMATION:** Simple fade-in (15-25 frames), gentle slide from bottom (10-20px), soft pulse.
-Gentle springs (damping >= 28, stiffness <= 60). NO scale-from-zero, NO spinning, NO heavy bounce.
-Total animation: 15-30 frames. Elements appear smoothly, then remain still.
-
-Overlay uses full canvas dimensions for positioning.
+**PROHIBITED IN OVERLAY MODE:**
+- Feature rows, split panels, icon grids, multi-row lists
+- Cards wider than 55% of EW
+- More than 1 inline SVG icon per overlay moment
+- Sentences or phrases longer than 3 words
+- Any element in the 15-58% Y speaker face zone
 </assets_and_visuals>
 
 <react_keys>
@@ -873,9 +987,11 @@ Pause at ANY frame. A viewer who CANNOT hear audio should understand the topic f
 Longer scenes -> more beats. Narrator doesn't pause; neither should your visuals.
 
 ### Overlay Adaptation
-Simpler beats: text labels, small stat cards. Max 2-3 elements. No particles. Each beat = one label or card. Speaker IS part of storytelling.
+The speaker IS the primary storytelling visual. Your overlays are punchy keyword reinforcements.
+Each beat = one bold keyword or one compact stat. Max 1-2 elements on screen. No particles, no grids.
+Speaker says "efficiency" → you show "EFFICIENCY" in large bold text with textShadow. That's it.
 
-In reasoning, MUST answer: "Which transcript phrases lack visual representation?" Cover them all.
+In reasoning, MUST answer: "Which transcript phrases lack visual representation?" Cover them — but with single words, not sentences.
 </continuous_storytelling>
 
 <layout_rules>

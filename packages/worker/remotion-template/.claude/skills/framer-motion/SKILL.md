@@ -110,17 +110,15 @@ const contentEnter = spring({ frame: frame - 16, fps, config: { damping: 26, sti
 
 ## Reusable Technique Components
 
-### Glassmorphism Card
+### Card
 ```tsx
-const GlassCard: React.FC<{children: React.ReactNode}> = ({children}) => (
+const Card: React.FC<{children: React.ReactNode}> = ({children}) => (
   <div style={{
-    background: 'rgba(255, 255, 255, 0.1)',
-    backdropFilter: 'blur(20px)',
-    WebkitBackdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
+    background: COLORS.cardBg, // Solid opaque color from theme
+    border: `1px solid ${COLORS.cardBorder}`,
     borderRadius: 16,
     padding: 24,
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
   }}>
     {children}
   </div>

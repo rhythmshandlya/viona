@@ -61,6 +61,7 @@ export interface EditVisualsJobData {
   compositionId: string;
   prompt: string;
   sceneId?: number;
+  sceneIds?: number[];    // Multiple scenes to edit (1-indexed). Takes priority over sceneId.
   elementName?: string;
   transcript?: string;
   scenePlan?: string;
@@ -111,7 +112,6 @@ export const renderOptionsSchema = z.object({
       enter: z.object({ type: z.string(), durationMs: z.number() }),
       exit: z.object({ type: z.string(), durationMs: z.number() }),
     }).optional(),
-    overlayOpacity: z.number().optional(),
   })).optional(),
 });
 export type RenderOptions = z.infer<typeof renderOptionsSchema>;

@@ -57,8 +57,8 @@ export function createStorageConfigFromEnv(): StorageConfig {
     endpoint: process.env.S3_ENDPOINT || 'localhost',
     port: parseInt(process.env.S3_PORT || '9000', 10),
     useSSL: process.env.S3_USE_SSL === 'true',
-    accessKey: process.env.S3_ACCESS_KEY || 'reelify',
-    secretKey: process.env.S3_SECRET_KEY || 'reelify123',
+    accessKey: process.env.S3_ACCESS_KEY || 'viona',
+    secretKey: process.env.S3_SECRET_KEY || 'viona123',
     bucket: process.env.S3_BUCKET || 'viona',
     region: process.env.S3_REGION || 'us-east-1',
     prefixes: {

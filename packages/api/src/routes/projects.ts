@@ -7,6 +7,7 @@ import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObject
 import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel, segmentationQueue } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
+import { apiProgressStore } from '../progress/progress-store.js';
 import { logger } from '../logger.js';
 
 // Validation schemas
@@ -833,7 +834,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } }; overlayOpacity?: number }> } || {};
+    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -2020,7 +2021,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     return { success: true, scenes: widgetScenes };
   });
 
-  // Get job status
+  // Get job status — merges Redis (real-time) progress with DB row
   fastify.get('/jobs/:id', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -2039,6 +2040,27 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project || !checkProjectOwnership(project.userId, request.user?.id)) {
       return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    // For active jobs, check Redis for fresher progress data
+    if (job.status === 'processing' || job.status === 'pending') {
+      try {
+        const redisProgress = await apiProgressStore.get(id);
+        if (redisProgress && redisProgress.percent > job.progress) {
+          return {
+            ...job,
+            progress: redisProgress.percent,
+            progressMessage: redisProgress.message,
+            progressMeta: {
+              phase: redisProgress.phase,
+              phaseName: redisProgress.phaseName,
+              ...(redisProgress.meta || {}),
+            },
+          };
+        }
+      } catch {
+        // Redis unavailable — fall through to DB data
+      }
     }
 
     return job;

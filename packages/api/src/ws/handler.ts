@@ -27,7 +27,9 @@ export async function setupWebSocket(fastify: FastifyInstance) {
       // Determine message type from channel
       let type: string;
       if (channel.includes(':progress')) {
-        type = 'job:progress';
+        // Activity events are published on the :progress channel with _type: 'activity'.
+        // Route them as job:activity so the frontend can handle them separately.
+        type = data._type === 'activity' ? 'job:activity' : 'job:progress';
       } else if (channel.includes(':complete')) {
         type = 'job:complete';
       } else if (channel.includes(':error')) {

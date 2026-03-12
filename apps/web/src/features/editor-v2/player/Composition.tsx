@@ -50,6 +50,12 @@ import {
   ZONE_DIMENSIONS,
 } from '../utils/overlay-zones';
 import type { FaceBbox, OverlayZone, SegmentationData } from '../store/types';
+import {
+  computeLayoutForFrame,
+  buildLayoutSegmentsFromItems,
+  type Rect,
+  type SplitSettings as LayoutSplitSettings,
+} from './layout-utils';
 
 // Calculate video transform for crop/pan
 function calculateVideoTransform(
@@ -1102,181 +1108,121 @@ function DynamicLayoutComposition({
   // Normalize legacy 'pip' → 'default'
   const displayMode = (!rawDisplayMode || (rawDisplayMode as string) === 'pip') ? 'default' : rawDisplayMode;
 
-  // Determine previous/next items and whether the layout actually changes
   const isSplitMode = mode === 'stacked';
-  const currentLayout = getEffectiveLayout(activeItem, isSplitMode);
-  const prevItem = activeItem ? findPreviousVisualItem(visualItems, activeItem) : null;
-  const prevLayout = activeItem ? getEffectiveLayout(
-    // If there's a gap between prev and current, the previous layout is 'gap'
-    prevItem && prevItem.endMs >= activeItem.startMs - 50 ? prevItem : null,
-    isSplitMode,
-  ) : 'gap';
-
-  const nextItem = activeItem ? findNextVisualItem(visualItems, activeItem) : null;
-  const nextLayout = activeItem ? getEffectiveLayout(
-    nextItem && nextItem.startMs <= activeItem.endMs + 50 ? nextItem : null,
-    isSplitMode,
-  ) : 'gap';
-
-  const layoutChangesOnEnter = currentLayout !== prevLayout;
-  const layoutChangesOnExit = currentLayout !== nextLayout;
-
-  // Calculate transition opacity/scale for the active item
-  let transitionOpacity = 1;
-  let transitionScale = 1;
-  // Layout progress: 0 = previous layout, 1 = current layout (for animating split/pip positions)
-  // Only used when layout actually changes between scenes
-  let layoutEnterProgress = 1;
-  let layoutExitProgress = 0;
-
-  // Use explicit transition if set, otherwise default to a 300ms fade in/out
-  const DEFAULT_FADE_TRANSITION = {
-    enter: { type: 'fade' as const, durationMs: 300 },
-    exit: { type: 'fade' as const, durationMs: 300 },
-  };
-  const effectiveTransition = activeData?.transition ?? DEFAULT_FADE_TRANSITION;
-
-  if (activeItem) {
-    const itemDurationMs = activeItem.endMs - activeItem.startMs;
-    const { enter, exit } = effectiveTransition;
-
-    // Clamp transition durations to at most half the item duration
-    const maxDuration = itemDurationMs / 2;
-    const enterDuration = Math.min(enter.durationMs, maxDuration);
-    const exitDuration = Math.min(exit.durationMs, maxDuration);
-
-    // Enter transition
-    if (enter.type !== 'cut' && enterDuration > 0) {
-      const enterProgress = getTransitionProgress(
-        currentTimeMs,
-        activeItem.startMs,
-        enterDuration,
-      );
-      // Only animate layout if the display mode actually changed
-      if (layoutChangesOnEnter) {
-        layoutEnterProgress = enterProgress;
-      }
-
-      if (enter.type === 'fade') {
-        transitionOpacity = Math.min(transitionOpacity, enterProgress);
-      } else if (enter.type === 'zoom-in') {
-        // Scale from 1.3 down to 1.0
-        transitionOpacity = Math.min(transitionOpacity, enterProgress);
-        transitionScale *= 1.3 - 0.3 * enterProgress;
-      } else if (enter.type === 'zoom-out') {
-        // Scale from 0.7 up to 1.0
-        transitionOpacity = Math.min(transitionOpacity, enterProgress);
-        transitionScale *= 0.7 + 0.3 * enterProgress;
-      }
-    }
-
-    // Exit transition
-    const exitStartMs = activeItem.endMs - exitDuration;
-    if (exit.type !== 'cut' && exitDuration > 0 && currentTimeMs >= exitStartMs) {
-      const exitProgress = getTransitionProgress(
-        currentTimeMs,
-        exitStartMs,
-        exitDuration,
-      );
-      // Only animate layout if the next scene has a different layout
-      if (layoutChangesOnExit) {
-        layoutExitProgress = exitProgress;
-      }
-
-      if (exit.type === 'fade') {
-        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
-      } else if (exit.type === 'zoom-in') {
-        // Scale from 1.0 to 1.3
-        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
-        transitionScale *= 1.0 + 0.3 * exitProgress;
-      } else if (exit.type === 'zoom-out') {
-        // Scale from 1.0 to 0.7
-        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
-        transitionScale *= 1.0 - 0.3 * exitProgress;
-      }
-    }
-  }
-
-  // Build container styles based on the current display mode
   const isGap = !activeItem;
-  const showVideoLayer = isGap || displayMode === 'default' || displayMode === 'overlay';
-  const showVisualLayer = !isGap;
-  const hideVideoCompletely = !isGap && displayMode === 'fullscreen';
 
-  // For stacked mode, displayMode 'default' means "use the stacked layout"
-  const useSplitLayout = isSplitMode && displayMode === 'default' && !isGap;
+  // ---------------------------------------------------------------------------
+  // Stacked mode: use rect-based layout (same math as export FullComposition)
+  // ---------------------------------------------------------------------------
+
+  // Build layout segments from visual items (memoized by reference)
+  const totalDurationMs = React.useMemo(() => {
+    if (visualItems.length === 0) return 60000;
+    return Math.max(...visualItems.map(v => v.endMs)) + 1000;
+  }, [visualItems]);
+
+  const layoutSegments = React.useMemo(() => {
+    if (!isSplitMode) return [];
+    const sortedItems = [...visualItems]
+      .filter(v => v.type === 'visual')
+      .sort((a, b) => a.startMs - b.startMs)
+      .map(v => ({
+        startMs: v.startMs,
+        endMs: v.endMs,
+        data: {
+          displayMode: (v.data as VisualItemData)?.displayMode || 'default',
+        },
+      }));
+    return buildLayoutSegmentsFromItems(sortedItems, fps, totalDurationMs);
+  }, [visualItems, fps, totalDurationMs, isSplitMode]);
+
+  const layoutSplit: LayoutSplitSettings = {
+    position: split.position as 'visuals-first' | 'video-first',
+    ratio: split.ratio,
+    gap: split.gap,
+  };
+
+  // Compute rects for stacked mode (continuous frame-by-frame interpolation)
+  const { width: compWidth, height: compHeight } = useVideoConfig();
+  const layout = isSplitMode
+    ? computeLayoutForFrame(frame, layoutSegments, compWidth, compHeight, layoutSplit)
+    : null;
 
   // Video layer style
   let videoLayerStyle: React.CSSProperties;
   let visualLayerStyle: React.CSSProperties;
 
-  if (useSplitLayout) {
-    // Stacked layout: video and visuals top/bottom
-    // Animate layout from fullscreen → stacked during enter, stacked → fullscreen during exit
-    const layoutProgress = Math.min(layoutEnterProgress, 1 - layoutExitProgress);
-    const styles = buildAnimatedSplitStyles(split, true /* always horizontal for stacked */, layoutProgress);
-    videoLayerStyle = styles.videoStyle;
+  if (isSplitMode && layout) {
+    // Stacked mode: rect-based absolute positioning with smooth transitions.
+    // Matches the export FullComposition exactly.
+    const { videoRect, visualsRect, visualsOpacity } = layout;
+
+    videoLayerStyle = videoRect.h <= 1
+      ? { display: 'none' }
+      : {
+          position: 'absolute',
+          left: videoRect.x,
+          top: videoRect.y,
+          width: videoRect.w,
+          height: videoRect.h,
+          overflow: 'hidden',
+        };
+
+    // Visuals layer: scale content from full canvas to the rect size (uniform by width)
+    const visualScale = visualsRect.w / compWidth;
     visualLayerStyle = {
-      ...styles.visualsStyle,
-      opacity: transitionOpacity,
-      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-      transformOrigin: 'center center',
+      position: 'absolute',
+      left: visualsRect.x,
+      top: visualsRect.y,
+      width: visualsRect.w,
+      height: visualsRect.h,
+      overflow: 'hidden',
+      opacity: visualsOpacity,
     };
   } else if (isGap || displayMode === 'overlay') {
     // Fullscreen video (speaker-only gap or overlay background)
     videoLayerStyle = fullScreenStyle;
     visualLayerStyle = {
       ...fullScreenStyle,
-      opacity: transitionOpacity,
-      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-      transformOrigin: 'center center',
     };
   } else if (displayMode === 'default') {
     // Video as PiP bubble on top of visual (PiP layout mode)
     videoLayerStyle = buildPiPStyle(pip);
     visualLayerStyle = {
       ...fullScreenStyle,
-      opacity: transitionOpacity,
-      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-      transformOrigin: 'center center',
     };
   } else {
     // displayMode === 'fullscreen' — video hidden
     videoLayerStyle = { display: 'none' };
     visualLayerStyle = {
       ...fullScreenStyle,
-      opacity: transitionOpacity,
-      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-      transformOrigin: 'center center',
     };
   }
 
-  // For overlay mode, visuals sit on top of video with CSS opacity compositing.
-  // FFmpeg export matches this using overlay filter with colorchannelmixer alpha
-  // (render.ts). The face mask below is a safety net against AI-generated scenes
-  // that place elements over the speaker's face.
-  const overlayOpacity = activeData?.overlayOpacity ?? 0.85;
+  // Determine visibility flags from rect-based layout (stacked) or displayMode (pip)
+  const showVideoLayer = isSplitMode
+    ? (layout ? layout.videoRect.h > 1 : true)
+    : (isGap || displayMode === 'default' || displayMode === 'overlay');
+  const showVisualLayer = isSplitMode
+    ? (layout ? layout.visualsRect.h > 1 : true)
+    : !isGap;
+  const hideVideoCompletely = isSplitMode
+    ? (layout ? layout.videoRect.h <= 1 : false)
+    : (!isGap && displayMode === 'fullscreen');
+
   const speakerBbox = activeData?.speakerBbox;
-  // Build a CSS mask that fades out the overlay over the speaker's face area.
-  // Uses a radial gradient: transparent at the face center, opaque everywhere else.
-  // This is a safety net — even if the AI places elements on the face, they'll be masked.
   let faceMask: string | undefined;
-  if (speakerBbox && displayMode === 'overlay') {
+  if (speakerBbox && displayMode === 'overlay' && !isSplitMode) {
     const cx = (speakerBbox.x + speakerBbox.w / 2) * 100;
     const cy = (speakerBbox.y + speakerBbox.h / 2) * 100;
-    // Ellipse radii: face bbox size + 10% buffer for breathing room
     const rx = (speakerBbox.w / 2 + 0.05) * 100;
     const ry = (speakerBbox.h / 2 + 0.05) * 100;
     faceMask = `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, transparent 60%, black 100%)`;
   }
   const overlayVisualStyle: React.CSSProperties = {
     ...fullScreenStyle,
-    opacity: transitionOpacity * overlayOpacity,
-    transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-    transformOrigin: 'center center',
+    opacity: 1.0,
     zIndex: 5,
-    // No blend mode — CSS opacity compositing matches the FFmpeg export
-    // which uses overlay filter with colorchannelmixer alpha (render.ts).
     ...(faceMask ? {
       WebkitMaskImage: faceMask,
       maskImage: faceMask,
@@ -1340,15 +1286,14 @@ function DynamicLayoutComposition({
 
   // Determine whether the video should use simple (cover) or crop/pan rendering
   // All modes now use transform-based rendering so cropX/cropY/scale are respected.
-  const { width: compWidth, height: compHeight } = useVideoConfig();
 
   let videoUseSimpleRender = false;
   let videoTransform = transform;
 
-  if (useSplitLayout && videoItems.length > 0) {
-    // Stacked mode: cover transform for the stacked video container
-    const containerW = compWidth;
-    const containerH = Math.round(compHeight * (100 - split.ratio) / 100);
+  if (isSplitMode && layout && layout.videoRect.h > 1 && videoItems.length > 0) {
+    // Stacked mode: cover transform for the current video rect (animated during transitions)
+    const containerW = layout.videoRect.w;
+    const containerH = layout.videoRect.h;
     const firstVideoData = videoItems[0].data as VideoItemData;
     if (firstVideoData.width > 0 && firstVideoData.height > 0) {
       videoTransform = calculateCoverTransform(
@@ -1438,10 +1383,40 @@ function DynamicLayoutComposition({
             </>
           )}
         </>
-      ) : (
-        /* Existing displayMode-based rendering (keep the original code) */
+      ) : isSplitMode && layout ? (
+        /* Stacked mode: rect-based layout matching export FullComposition */
         <>
-          {/* Visual layer (behind video for pip/split) */}
+          {/* Video layer — positioned by animated rect */}
+          {showVideoLayer && !hideVideoCompletely && (
+            <div style={videoLayerStyle}>
+              <VideoSequences
+                videoItems={videoItems}
+                fps={fps}
+                hasSeparateAudio={hasSeparateAudio}
+                transform={videoTransform}
+                useSimpleRender={videoUseSimpleRender}
+              />
+            </div>
+          )}
+
+          {/* Visuals layer — positioned by animated rect with uniform scaling */}
+          {showVisualLayer && (
+            <div style={visualLayerStyle}>
+              <div style={{
+                transform: `scale(${layout.visualsRect.w / compWidth})`,
+                transformOrigin: 'top left',
+                width: compWidth,
+                height: compHeight,
+              }}>
+                <VisualSequences visualItems={visualItems} fps={fps} />
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        /* PiP mode: existing displayMode-based rendering */
+        <>
+          {/* Visual layer (behind video for pip) */}
           {displayMode !== 'overlay' && showVisualLayer && (
             <div style={visualLayerStyle}>
               <VisualSequences visualItems={visualItems} fps={fps} />

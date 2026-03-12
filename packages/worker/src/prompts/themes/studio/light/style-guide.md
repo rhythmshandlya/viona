@@ -1,21 +1,22 @@
 
-Style: Studio Light (Polished Card Animations — Light Mode)
+Style: Studio Light (Polished Motion Graphics — Light Mode)
 
 **DESIGN SYSTEM — DotGrid Theme:**
-This style has a complete template library. When possible, USE EXISTING TEMPLATES as building blocks (see template catalog below). Copy their code into the workspace, customize props, and compose them into scenes.
+This style has a template library AND a rich custom animation toolkit. Use templates for data displays and stats. Use custom SVG animation, path drawing, kinetic typography, and morphing for storytelling scenes.
 
 **DESIGN:**
-- Polished card-based layouts floating on dot-grid backgrounds
-- Centered content containers with generous padding and rounded corners
+- Diverse visual techniques on dot-grid backgrounds: SVG illustrations, path-drawing animations, kinetic typography, morphing shapes, card-based data displays, and animated diagrams
+- Centered content with clean composition — cards for data, open layouts for illustrations
 - Clean typography hierarchy using Google Font pairs
+- VARIETY across scenes — no two adjacent scenes should use the same visual structure
 
 **COLOR PALETTE (Light Mode):**
 - Background: #F8F9FB
 - Text: #111827
 - Text muted: rgba(0,0,0,0.45)
 - Grid: rgba(0,0,0,0.04)
-- Card bg: rgba(0,0,0,0.04)
-- Card border: rgba(0,0,0,0.08)
+- Card bg: #EDEEF2
+- Card border: #D1D5DB
 - Accent: Indigo #6366F1 (primary), Pink #EC4899 (secondary)
 
 **BACKGROUND:**
@@ -35,7 +36,7 @@ Import from shared fonts module. Default: boldImpact (Bebas Neue + Roboto).
 Available: modernTech (Montserrat + Inter), friendlyTech (Poppins + Inter), elegantEditorial (Playfair Display + Lato), cleanMinimal (Inter + Inter).
 
 **CARD LAYOUT:**
-Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background. Use glass cards: background rgba(0,0,0,0.04), backdropFilter blur(20px), border rgba(0,0,0,0.08).
+Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background. Card style: background #EDEEF2, border #D1D5DB, boxShadow for depth.
 
 **ANIMATION:**
 - Use spring({ damping: 22, stiffness: 100 }) for card entrances

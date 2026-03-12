@@ -22,17 +22,20 @@ export const runningProcesses = new Map<string, ChildProcess>();
  * No pre-filtering or edit mode detection — the model is smarter than keyword heuristics.
  */
 export async function runClaudeEditor(options: ClaudeEditorOptions): Promise<ClaudeEditorResult> {
-  const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId, targetElementName, transcript, scenePlan, canvasWidth, canvasHeight } = options;
+  const { projectId, jobId, projectDir, prompt, existingFiles, targetSceneId, targetSceneIds, targetElementName, transcript, scenePlan, canvasWidth, canvasHeight } = options;
 
   const workspacePath = getWorkspacePath();
   const bundleOutputDir = config.remotion.bundleOutputDir;
+
+  // Normalize scene targeting: multi-scene array takes priority over single ID
+  const allTargetIds = targetSceneIds || (targetSceneId ? [targetSceneId] : []);
 
   logger.info({
     projectId,
     jobId,
     prompt: prompt.slice(0, 100),
     existingFiles: existingFiles.length,
-    targetSceneId,
+    targetSceneIds: allTargetIds.length > 0 ? allTargetIds : undefined,
     targetElementName,
     hasTranscript: !!transcript,
     hasScenePlan: !!scenePlan,
@@ -42,27 +45,24 @@ export async function runClaudeEditor(options: ClaudeEditorOptions): Promise<Cla
 
   // List source files for Claude to read on demand (don't embed contents — too large for prompt)
   const fileList = existingFiles.join('\n- ');
-
-  // Build target scene context if a specific scene was selected
   let targetSceneContext = '';
-  if (targetSceneId) {
+  if (allTargetIds.length > 0) {
     try {
       const scenesRaw = await readFile(join(projectDir, 'scenes.json'), 'utf-8');
       const parsed = JSON.parse(scenesRaw);
-      const scene = (parsed.scenes || []).find((s: any) => s.id === targetSceneId);
-      if (scene) {
-        targetSceneContext = `
-USER-SELECTED TARGET:
-- Scene ${scene.id}: "${scene.name}"
-- File: scenes/Scene${scene.id}.tsx
-- Frames: ${scene.frames[0]} to ${scene.frames[1]}
-- Timestamp: ${scene.timestampRange[0]}s to ${scene.timestampRange[1]}s
-- Description: ${scene.visual || scene.description || 'N/A'}`;
-      } else {
-        targetSceneContext = `\nUSER-SELECTED TARGET: Scene ${targetSceneId} (file: scenes/Scene${targetSceneId}.tsx)`;
+      const allScenes = parsed.scenes || [];
+      const parts: string[] = [];
+      for (const id of allTargetIds) {
+        const scene = allScenes.find((s: any) => s.id === id);
+        if (scene) {
+          parts.push(`- Scene ${scene.id}: "${scene.name}" · File: scenes/Scene${scene.id}.tsx · Frames: ${scene.frames[0]}–${scene.frames[1]} · ${scene.timestampRange[0]}s–${scene.timestampRange[1]}s · ${scene.visual || scene.description || 'N/A'}`);
+        } else {
+          parts.push(`- Scene ${id} (file: scenes/Scene${id}.tsx)`);
+        }
       }
+      targetSceneContext = `\nUSER-SELECTED TARGET${allTargetIds.length > 1 ? 'S' : ''}:\n${parts.join('\n')}`;
     } catch {
-      targetSceneContext = `\nUSER-SELECTED TARGET: Scene ${targetSceneId} (file: scenes/Scene${targetSceneId}.tsx)`;
+      targetSceneContext = `\nUSER-SELECTED TARGET${allTargetIds.length > 1 ? 'S' : ''}: ${allTargetIds.map(id => `Scene ${id} (scenes/Scene${id}.tsx)`).join(', ')}`;
     }
   }
 
@@ -118,14 +118,16 @@ For SVGs needing color changes, read the SVG file from public/assets/user/ and i
   }
 
   // Build layout & dimension context from scenes.json
+  // For multi-scene edits, pass undefined to get all scenes' layout summary
+  const layoutSceneId = allTargetIds.length === 1 ? allTargetIds[0] : undefined;
   const layoutContext = await buildLayoutContext(
-    projectDir, targetSceneId, canvasWidth ?? 1080, canvasHeight ?? 1920
+    projectDir, layoutSceneId, canvasWidth ?? 1080, canvasHeight ?? 1920
   );
 
   logger.info({
     projectId,
     fileCount: existingFiles.length,
-    hasTargetScene: !!targetSceneId,
+    targetSceneCount: allTargetIds.length,
     hasTargetElement: !!targetElementName,
     transcriptLength: transcript?.length || 0,
     hasUserAssets: userAssetsSection.length > 0,
@@ -163,12 +165,13 @@ TECHNICAL GUIDELINES:
 - Remotion best practices: useCurrentFrame(), spring() with damping >= 20, interpolate() with extrapolateRight: 'clamp'.
 - Do NOT modify files that aren't relevant to the request.
 - After making changes, run: npx remotion bundle src/${projectId}/index.tsx --out-dir ${bundleOutputDir}/${projectId.replace(/_/g, '-')}
-${targetSceneId ? `
+${allTargetIds.length > 0 ? `
 SCOPE RESTRICTION (MANDATORY):
-- You MUST ONLY edit scenes/Scene${targetSceneId}.tsx and its direct dependencies (components/ or constants.ts).
-- Do NOT touch other scene files (Scene1.tsx, Scene3.tsx, etc.) — they are NOT part of this edit.
+- You MUST ONLY edit ${allTargetIds.map(id => `scenes/Scene${id}.tsx`).join(', ')} and their direct dependencies (components/ or constants.ts).
+- Do NOT touch other scene files — they are NOT part of this edit.
 - Do NOT modify index.tsx unless the user explicitly asks to change scene ordering/structure.
 - If the edit requires changes to shared components, make them backward-compatible so other scenes still work.
+- Apply the SAME edit to ALL listed scene files.
 ` : ''}
 `.trim();
 

@@ -10,8 +10,8 @@
         "text": "#FFFFFF",
         "textMuted": "rgba(255,255,255,0.45)",
         "gridColor": "rgba(255,255,255,0.04)",
-        "cardBg": "rgba(255,255,255,0.06)",
-        "cardBorder": "rgba(255,255,255,0.10)",
+        "cardBg": "#141824",
+        "cardBorder": "#252A3A",
         "accentDefault": "#6366F1",
         "secondaryDefault": "#EC4899"
       }
@@ -26,8 +26,8 @@
         "text": "#111827",
         "textMuted": "rgba(0,0,0,0.45)",
         "gridColor": "rgba(0,0,0,0.04)",
-        "cardBg": "rgba(0,0,0,0.04)",
-        "cardBorder": "rgba(0,0,0,0.08)",
+        "cardBg": "#EDEEF2",
+        "cardBorder": "#D1D5DB",
         "accentDefault": "#6366F1",
         "secondaryDefault": "#EC4899"
       }

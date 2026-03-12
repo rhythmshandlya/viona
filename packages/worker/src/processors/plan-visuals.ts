@@ -93,7 +93,9 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         .set({ status: 'processing', progress: 0 })
         .where(eq(jobs.id, jobId));
 
-      await publishJobProgress(jobId, 5, 'Loading project...');
+      await publishJobProgress(jobId, 5, 'Loading project...', {
+        meta: { phase: 'plan', phaseName: 'Preparing' },
+      });
 
       // Load project and transcript
       const project = await db.query.projects.findFirst({

@@ -262,7 +262,9 @@ export class SubprocessMonitor {
       updatedAt: Date.now(),
       meta: this.lastProgressState.meta,
     };
-    await this.config.progressStore.set(this.config.jobId, state);
+    // Use checkpoint() to write to both Redis AND DB — the frontend HTTP
+    // polling reads from DB, so set() alone (Redis-only) leaves it stale.
+    await this.config.progressStore.checkpoint(this.config.jobId, state);
   }
 
   /** Publish health state */

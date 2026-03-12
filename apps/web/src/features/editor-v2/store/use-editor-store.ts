@@ -564,7 +564,6 @@ export function useEditorActions() {
 
       // Visual display mode
       updateVisualDisplayMode: state.updateVisualDisplayMode,
-      updateOverlayOpacity: state.updateOverlayOpacity,
       updateVisualTransition: state.updateVisualTransition,
       openTransitionPicker: state.openTransitionPicker,
       closeTransitionPicker: state.closeTransitionPicker,

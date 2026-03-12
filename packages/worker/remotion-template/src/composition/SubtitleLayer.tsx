@@ -2,13 +2,12 @@ import React, { useMemo } from 'react';
 import { Sequence, useVideoConfig, continueRender, delayRender } from 'remotion';
 import { getAvailableFonts } from '@remotion/google-fonts';
 import { AnimatedSubtitle } from './AnimatedSubtitle';
-import type { Rect, SubtitleItemData } from './types';
-import type { SubtitleStyle } from './AnimatedSubtitle';
+import type { Rect, SubtitleItemData, SubtitleStyle } from './types';
 
 interface SubtitleLayerProps {
   subtitles: SubtitleItemData[];
   videoRect: Rect;
-  defaultStyle?: Record<string, unknown>;
+  defaultStyle?: SubtitleStyle;
 }
 
 /**
@@ -20,6 +19,8 @@ function useDynamicFont(fontFamily: string | undefined): string {
   const [handle] = React.useState(() => delayRender('Loading font'));
 
   React.useEffect(() => {
+    let cancelled = false;
+
     if (!fontFamily) {
       continueRender(handle);
       return;
@@ -35,12 +36,18 @@ function useDynamicFont(fontFamily: string | undefined): string {
 
     match.load().then(async (loaded) => {
       const info = await loaded.loadFont();
-      setLoadedFamily(info.fontFamily);
-      continueRender(handle);
+      if (!cancelled) {
+        setLoadedFamily(info.fontFamily);
+        continueRender(handle);
+      }
     }).catch(() => {
-      // Font load failed — use fallback
-      continueRender(handle);
+      if (!cancelled) {
+        // Font load failed — use fallback
+        continueRender(handle);
+      }
     });
+
+    return () => { cancelled = true; };
   }, [fontFamily, handle]);
 
   return loadedFamily;
@@ -52,7 +59,7 @@ export const SubtitleLayer: React.FC<SubtitleLayerProps> = ({
   defaultStyle,
 }) => {
   const { fps } = useVideoConfig();
-  const requestedFont = (defaultStyle as any)?.fontFamily as string | undefined;
+  const requestedFont = defaultStyle?.fontFamily;
   const loadedFont = useDynamicFont(requestedFont);
 
   // Merge loaded font into default style
@@ -81,8 +88,8 @@ export const SubtitleLayer: React.FC<SubtitleLayerProps> = ({
         const durationInFrames = Math.max(1, Math.round(((item.endMs - item.startMs) / 1000) * fps));
 
         const mergedStyle: SubtitleStyle = {
-          ...(resolvedStyle as SubtitleStyle),
-          ...(item.style as SubtitleStyle),
+          ...resolvedStyle,
+          ...item.style,
         };
 
         return (
