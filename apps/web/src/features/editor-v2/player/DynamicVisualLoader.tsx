@@ -19,6 +19,7 @@ interface DynamicVisualLoaderProps {
   compositionId: string;
   className?: string;
   version?: number; // Cache-busting version, change to force reload
+  workspaceBundleVersion?: number; // Workspace bundle version for cache busting on rebuilds
   inputProps?: Record<string, unknown>; // Additional props passed to the loaded composition
 }
 
@@ -56,6 +57,7 @@ export function DynamicVisualLoader({
   compositionId,
   className,
   version = 0,
+  workspaceBundleVersion = 0,
 }: DynamicVisualLoaderProps) {
   const [Component, setComponent] = useState<React.ComponentType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,7 @@ export function DynamicVisualLoader({
   const fullUrl = `${apiUrl}${compositionUrl}?v=${urlVersion}`;
 
   const loadComposition = useCallback(async () => {
-    const cacheKey = `${compositionUrl}:${compositionId}:${urlVersion}`;
+    const cacheKey = `${compositionUrl}:${compositionId}:${urlVersion}:${workspaceBundleVersion}`;
 
     // Check cache
     if (moduleCache.has(cacheKey)) {
@@ -272,7 +274,7 @@ export function DynamicVisualLoader({
     } finally {
       setLoading(false);
     }
-  }, [fullUrl, compositionId, compositionUrl, urlVersion]);
+  }, [fullUrl, compositionId, compositionUrl, urlVersion, workspaceBundleVersion]);
 
   useEffect(() => {
     loadComposition();
