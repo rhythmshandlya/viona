@@ -26,6 +26,9 @@ export const projects = pgTable('projects', {
   sourceHeight: integer('source_height').default(1080),
   videoSettings: jsonb('video_settings'),
   headTrackingData: jsonb('head_tracking_data'),
+  workspaceStatus: varchar('workspace_status', { length: 50 }).default('inactive').notNull(),
+  workspaceLastActivity: timestamp('workspace_last_activity'),
+  activeBundleUrl: varchar('active_bundle_url', { length: 1024 }),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
@@ -125,6 +128,7 @@ export const visuals = pgTable('visuals', {
       height: string;
     }>;
   }>>(),
+  sourceSceneIds: jsonb('source_scene_ids').$type<number[]>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
