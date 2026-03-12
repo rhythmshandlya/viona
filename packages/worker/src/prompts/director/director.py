@@ -7,7 +7,9 @@ scene-by-scene animation plans that sync precisely with narration.
 
 
 from prompts._loader import load_prompt, load_shared_modules
-DIRECTOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('director/system')
+
+_SEGMENT_GROUPING = load_prompt('director/segment-grouping')
+DIRECTOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('director/system') + "\n\n" + _SEGMENT_GROUPING
 
 
 import math

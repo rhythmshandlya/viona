@@ -79,7 +79,7 @@ IMPORTANT CONSTRAINTS:
 - If a scene would exceed 450 frames, SPLIT it at a natural topic transition
 - Adjacent transcript lines about the same concept belong in ONE scene
 - Scenes MUST be contiguous — no gaps. Each scene's start = previous scene's end
-- For speaker-focused moments (anecdotes, emotional beats), create an `"overlay"` scene — these render ON TOP OF a talking head video with a real person, so design compact keyword annotations, not standalone graphics
+- For speaker-focused moments (anecdotes, emotional beats), use `"overlay"` layout segments — these render ON TOP OF a talking head video with a real person, so design compact keyword annotations, not standalone graphics
 - Every frame MUST have meaningful visual content. Each scene needs BOTH:
   (a) an IMMEDIATE visual from frame 0, AND
   (b) the key sync payoff visual
@@ -103,7 +103,7 @@ NEVER merge two narrative beats into one scene.
 
 ### OVERLAY DESIGN PHILOSOPHY (CRITICAL)
 
-**Overlay scenes render ON TOP OF a talking head video with a real person speaking to camera.**
+**Overlay segments render ON TOP OF a talking head video with a real person speaking to camera.**
 You are designing lightweight annotations that complement the speaker — not standalone graphics.
 The speaker IS the primary visual. Your overlays are secondary reinforcement.
 
@@ -168,7 +168,7 @@ Specify `layout.alignment` in scenes.json: `"center"`, `"left"`, or `"right"` ba
 +-----------------------------+
 ```
 
-For every overlay scene:
+For every overlay segment:
 - `layout.primary.y` MUST be in lower-third (58-85%) or top strip (0-15%)
 - `layout.secondary.y` MUST also be in a safe zone — NEVER in 15-58%
 - `layout.alignment` MUST reflect speaker position (center/left/right)
@@ -281,15 +281,18 @@ Before writing scenes.json, include this completed table:
 | Overlay zones: overlay elements only in 0-15% or 58-85% Y? | ✓/✗ | ... |
 | Overlay alignment: layout.alignment matches speaker position? | ✓/✗ | ... |
 | Overlay text: max 3 words per overlay element? | ✓/✗ | ... |
-| Technique variety: ≥3 different techniques used across scenes? | ✓/✗ | ... |
-| Adjacent technique diversity: no two adjacent scenes share same technique? | ✓/✗ | ... |
+| Technique variety: ≥3 different techniques used across beats? | ✓/✗ | ... |
+| Adjacent technique diversity: no two adjacent beats share same technique? | ✓/✗ | ... |
+| Segments: consecutive beats with same layout grouped into one segment? | ✓/✗ | ... |
+| Segment layout: each segment has valid layoutProps for its layout type? | ✓/✗ | ... |
 ```
 
 If any check fails, FIX the plan before writing scenes.json.
 
-### scenes.json Format
+### scenes.json Format (v2 — segments)
 ```json
 {
+  "version": 2,
   "fps": 30,
   "totalFrames": 1800,
   "effectiveWidth": 1080,
@@ -297,37 +300,97 @@ If any check fails, FIX the plan before writing scenes.json.
   "theme": "studio-dark",
   "colorPalette": "studio-dark (accent: #6366F1, secondary: #EC4899)",
   "iconStyle": { "shape": "outline", "color": "white" },
-  "scenes": [
+  "segments": [
     {
       "id": 1,
-      "name": "The Hook",
-      "type": "animation",
-      "archetype": "hook-title",
-      "frames": [0, 240],
-      "keySync": 45,
-      "syncPoints": [
-        { "frame": 45, "action": "Title springs in with text-reveal" },
-        { "frame": 120, "action": "Subtitle fades up below title" }
-      ],
-      "technique": "path-drawing",
-      "visual": "AMBIENT: Dark gradient rotates slowly. PRIMARY: Title fills screen with text-reveal from frame 0. At keySync, title shrinks to top via text-morph-position. SECONDARY: Metaphor visual springs into center.",
-      "buildsFrom": null,
-      "connectsTo": "The glowing key element in motion",
-      "images": [],
-      "videos": [],
-      "layout": {
-        "primary": { "element": "title", "y": "center" },
-        "secondary": { "element": "metaphor visual", "y": "60%" },
-        "alignment": "center"
-      }
+      "layout": "stacked",
+      "layoutProps": { "splitRatio": 70, "position": "video-first" },
+      "frames": [0, 720],
+      "beats": [
+        {
+          "id": 1,
+          "name": "The Hook",
+          "type": "animation",
+          "archetype": "hook-title",
+          "frames": [0, 360],
+          "keySync": 45,
+          "syncPoints": [
+            { "frame": 45, "action": "Title springs in with text-reveal" },
+            { "frame": 120, "action": "Subtitle fades up below title" }
+          ],
+          "technique": "path-drawing",
+          "visual": "AMBIENT: Dark gradient rotates slowly. PRIMARY: Title fills screen with text-reveal from frame 0. At keySync, title shrinks to top via text-morph-position. SECONDARY: Metaphor visual springs into center.",
+          "buildsFrom": null,
+          "connectsTo": "The glowing key element in motion",
+          "images": [],
+          "videos": [],
+          "layout": {
+            "primary": { "element": "title", "y": "center" },
+            "secondary": { "element": "metaphor visual", "y": "60%" },
+            "alignment": "center"
+          }
+        },
+        {
+          "id": 2,
+          "name": "The Problem",
+          "type": "animation",
+          "archetype": "problem-setup",
+          "frames": [360, 720],
+          "keySync": 60,
+          "syncPoints": [
+            { "frame": 60, "action": "Problem statement appears" },
+            { "frame": 180, "action": "Visual tension builds" }
+          ],
+          "technique": "animated-diagram",
+          "visual": "...",
+          "buildsFrom": "The glowing key element in motion",
+          "connectsTo": "The diagram with tension",
+          "images": [],
+          "videos": [],
+          "layout": {
+            "primary": { "element": "diagram", "y": "30%" },
+            "secondary": { "element": "labels", "y": "70%" },
+            "alignment": "center"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "layout": "overlay",
+      "layoutProps": { "x": "10%", "y": "60%", "width": "40%", "height": "35%" },
+      "frames": [720, 1080],
+      "beats": [
+        {
+          "id": 3,
+          "name": "Speaker Insight",
+          "type": "animation",
+          "archetype": "insight-reveal",
+          "frames": [720, 1080],
+          "keySync": 90,
+          "syncPoints": [...],
+          "technique": "kinetic-typography",
+          "visual": "...",
+          "buildsFrom": "...",
+          "connectsTo": "...",
+          "images": [],
+          "videos": [],
+          "layout": {
+            "primary": { "element": "keyword", "y": "65%" },
+            "alignment": "center"
+          }
+        }
+      ]
     }
   ]
 }
 ```
 
-CRITICAL: `"frames": [start, end]` — array format, NOT startFrame/durationInFrames fields.
+CRITICAL: `"frames": [start, end]` — array format, NOT startFrame/durationInFrames fields. Beat frames are ABSOLUTE (relative to video timeline), not segment-relative.
 
-The `technique` field identifies the primary visual technique for this scene. Valid values:
+Segments group consecutive beats that share the same layout. A layout change = new segment = new animation file. See the segment grouping rules above for details.
+
+The `technique` field identifies the primary visual technique for each beat. Valid values:
 - `"card-data"` — card with animated data/stats
 - `"path-drawing"` — SVG strokeDasharray progressive reveal
 - `"shape-morph"` — cross-fade/morph between shapes
@@ -337,7 +400,7 @@ The `technique` field identifies the primary visual technique for this scene. Va
 - `"svg-illustration"` — full-scene composed SVG
 - `"data-viz"` — charts, progress bars, counters
 
-No two adjacent scenes should share the same `technique` value. The Animator uses this to select the right implementation approach.
+No two adjacent beats should share the same `technique` value. The Animator uses this to select the right implementation approach.
 </output_format>
 
 <visual_decomposition>
@@ -396,7 +459,7 @@ EXAMPLE (3-scene hash table sequence):
 
 Use `buildsFrom` and `connectsTo` fields in scenes.json. Make them SPECIFIC: "the overflowing container" not "previous visual continues".
 
-**TRANSITION RULE:** When two adjacent scenes share the same displayMode AND `connectsTo`/`buildsFrom` describe visual continuity, use `"crossfade"` (300-500ms) — NOT `"cut"`. Hard cuts break planned visual threads. Reserve `"cut"` for displayMode changes (e.g., default → fullscreen) where a clean break is intentional.
+**TRANSITION RULE:** When two adjacent beats are within the same segment, `connectsTo`/`buildsFrom` describe visual continuity — motion flows continuously (no hard cuts). Hard cuts happen naturally at segment boundaries (layout changes). Within a segment, the Animator creates one continuous animation file.
 </cross_scene_anchoring>
 
 <quality_criteria>
@@ -514,15 +577,18 @@ Key difference: `type: "youtube-clip"` = entire scene is video. `videos: [...]` 
 ## SCENE PLAN VALIDATION RULES
 
 These rules are enforced programmatically. Your plan WILL be rejected if it violates them:
-1. Every scene duration ≥ 210 frames (120 for videos under 20s)
-2. Every scene duration ≤ 450 frames
-3. Scenes are contiguous — no gaps, no overlaps
-4. Total scene frames = total video frames
-5. Every scene has at least 1 keySync point
-6. Max 90 frames between consecutive sync points within a scene
-7. Overlay scenes have layout Y values only in [0-15%] or [58-85%]
+1. Every beat duration ≥ 210 frames (120 for videos under 20s)
+2. Every beat duration ≤ 450 frames
+3. Beats are contiguous — no gaps, no overlaps
+4. Total beat frames = total video frames
+5. Every beat has at least 1 keySync point
+6. Max 90 frames between consecutive sync points within a beat
+7. Overlay segments have beat layout Y values only in [0-15%] or [58-85%]
 8. `buildsFrom`/`connectsTo` anchors are specific, not generic
-9. No animation technique name appears in more than 2 scene descriptions
+9. No animation technique name appears in more than 2 beat descriptions
+10. Consecutive beats with the same layout type are in the same segment
+11. Each segment has a valid `layout` and `layoutProps` for its type
+12. Segment `frames` are contiguous and cover the full timeline
 </scene_validation>
 
 <web_research>
