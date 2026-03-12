@@ -1,4 +1,5 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
+import { createManifestTools } from './agent-manifest-tools.js';
 import { z } from 'zod';
 import { eq, and, desc, sql, isNotNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
@@ -38,6 +39,15 @@ export const TOOL_NAMES = [
   `mcp__${MCP_SERVER_NAME}__start_generation`,
   `mcp__${MCP_SERVER_NAME}__edit_visuals`,
   `mcp__${MCP_SERVER_NAME}__search_youtube`,
+  `mcp__${MCP_SERVER_NAME}__read_manifest`,
+  `mcp__${MCP_SERVER_NAME}__set_layout`,
+  `mcp__${MCP_SERVER_NAME}__set_display_mode`,
+  `mcp__${MCP_SERVER_NAME}__set_transition`,
+  `mcp__${MCP_SERVER_NAME}__move_item`,
+  `mcp__${MCP_SERVER_NAME}__update_caption_style`,
+  `mcp__${MCP_SERVER_NAME}__split_scene`,
+  `mcp__${MCP_SERVER_NAME}__delete_item`,
+  `mcp__${MCP_SERVER_NAME}__reorder_scenes`,
 ];
 
 // Tool executor context
@@ -300,6 +310,8 @@ export function createAgentMcpServer(ctx: ToolContext) {
   // Track whether plan_visuals was called in this turn — prevents the agent
   // from calling start_generation without user approval.
   let planShownThisTurn = false;
+
+  const manifestTools = createManifestTools(ctx);
 
   return createSdkMcpServer({
     name: MCP_SERVER_NAME,
@@ -1163,6 +1175,8 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           }
         },
       ),
+
+      ...manifestTools,
     ],
   });
 }
