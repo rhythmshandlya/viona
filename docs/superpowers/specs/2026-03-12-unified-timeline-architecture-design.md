@@ -130,7 +130,7 @@ workspaces/{projectId}/
       "startMs": 0, "endMs": 8000,
       "data": {
         "sceneFile": "scenes/Scene1.tsx",
-        "displayMode": "stacked",
+        "displayMode": "default",
         "frameOffset": 0,
         "transition": {
           "enter": { "type": "fade", "durationMs": 200 },
@@ -185,13 +185,23 @@ workspaces/{projectId}/
   },
 
   "captionStyle": {
+    // Uses the full CaptionStyle type from types.ts. Example shows common fields:
     "displayMode": "word-by-word",
+    "wordsPerPhrase": 3,
     "fontFamily": "Inter",
     "fontSize": 64,
     "fontWeight": 800,
+    "letterSpacing": 0,
+    "textTransform": "none",
+    "lineHeight": 1.2,
+    "opacity": 1.0,
     "color": "#FFFFFF",
     "activeColor": "#FFD700",
     "backgroundColor": "transparent",
+    "activeBackgroundColor": "transparent",
+    "backgroundPadding": { "x": 8, "y": 4 },
+    "backgroundRadius": 4,
+    "stroke": { "width": 0, "color": "#000000" },
     "animation": {
       "in": "elastic-pop",
       "active": "none",
@@ -202,14 +212,18 @@ workspaces/{projectId}/
       "anchor": "bottom",
       "offsetX": 0,
       "offsetY": -5,
-      "textAlign": "center"
+      "textAlign": "center",
+      "rotation": 0
     },
     "effects": {
       "shadow": {
         "offsetX": 2, "offsetY": 2,
         "blur": 4, "color": "#000000", "opacity": 0.8
-      }
-    }
+      },
+      "shadowSecondary": null,
+      "glow": null
+    },
+    "presetId": null
   },
 
   "videoSettings": {
@@ -218,6 +232,31 @@ workspaces/{projectId}/
   }
 }
 ```
+
+### Display Mode vs Layout Mode
+
+Two separate concepts that must not be conflated:
+
+- **`layout.mode`** (global): `'pip' | 'stacked'` — how the speaker video and visuals area are arranged on canvas. Stacked = side-by-side split. PiP = speaker in a bubble.
+- **`item.data.displayMode`** (per visual item): `'default' | 'fullscreen' | 'overlay'` — how a specific visual composites with the speaker. `'default'` means "follow the global layout mode." `'fullscreen'` hides the video. `'overlay'` renders visuals on top of the video.
+
+This matches the existing `VisualDisplayMode` type. The manifest preserves this distinction.
+
+### Supported Item Types
+
+The manifest supports these item types (matching existing `TimelineItemType`):
+
+| Type | Description |
+|---|---|
+| `video` | Source speaker video |
+| `audio` | Separated/enhanced audio track |
+| `visual` | AI-generated scene (Scene*.tsx) |
+| `caption` | Word-level subtitle segment |
+| `broll` | B-roll footage (uploaded clips, stock footage) |
+| `text` | Text overlay |
+| `image` | Static image overlay |
+
+The `broll`, `text`, and `image` types are carried forward from the existing system. Their `data` schemas remain unchanged. The manifest example above shows the most common types; all existing types are supported.
 
 ---
 
@@ -258,6 +297,24 @@ Adjacent visual items with transition config render with **overlapping sequences
 - Scene1 opacity interpolates 1→0, Scene2 opacity interpolates 0→1
 - Both scenes render within the same `VisualsLayer` rect during overlap
 
+**Concrete example** — Scene1 ends at 8000ms, Scene2 starts at 8000ms, crossfade 300ms at 30fps (9 frames):
+
+```
+Scene1 content endMs:   8000ms (frame 240)
+Scene2 content startMs: 8000ms (frame 240)
+
+Overlap window: 7700ms - 8300ms (frames 231 - 249)
+
+Scene1 effective render: frame 0 → frame 249 (extended 9 frames past content end)
+Scene2 effective render: frame 231 → frame 450+ (started 9 frames before content start)
+
+During overlap (frames 231-249):
+  Scene1 opacity: interpolate(frame, [231, 249], [1, 0], { extrapolateLeft/Right: 'clamp' })
+  Scene2 opacity: interpolate(frame, [231, 249], [0, 1], { extrapolateLeft/Right: 'clamp' })
+```
+
+The overlap is centered on the boundary — each side extends by half the transition duration (150ms each way). The manifest `startMs`/`endMs` remain the content boundaries; CompositionCore computes the extensions internally.
+
 Supported transition types:
 
 | Type | Behavior |
@@ -280,9 +337,21 @@ The full caption system moves into CompositionCore:
 - **Position system**: anchor mode (top/center/bottom + offsets) and free mode (x/y %)
 - **Responsive scaling**: `fontScale = canvasWidth / 1080`
 
-This replaces both:
+This replaces all three existing copies:
 - Frontend `Composition.tsx` caption renderer (~800 lines within the 1959-line file)
 - Worker `AnimatedSubtitle.tsx` (760 lines) + `SubtitleLayer.tsx` (105 lines)
+- `packages/renderer` AnimatedSubtitle.tsx (759 lines) + animations engine
+
+The `packages/renderer` animation engine (`@viona/renderer/animations`) moves into the workspace `captions/animations/` directory. The package itself is deleted.
+
+### Font Loading
+
+CompositionCore uses `@remotion/google-fonts` for font loading:
+
+- On workspace spin-up: the manifest's `captionStyle.fontFamily` is read. The corresponding `@remotion/google-fonts` import is generated in the workspace.
+- During rendering: `loadFont()` from `@remotion/google-fonts` handles font download and `@font-face` injection. This works identically in preview (browser) and export (headless Chrome SSR).
+- When the user changes fonts via the caption style panel: the manifest updates, and the workspace's font import is regenerated. This requires a rebuild (adding to the rebuild trigger list).
+- Fallback fonts are bundled in the workspace for offline/fast scenarios.
 
 ### Scene Loading
 
@@ -339,10 +408,14 @@ User opens project
       3. Read DB (tracks, timelineItems, captionStyles, videoSettings) → generate manifest.json
       4. Copy scene sources from S3 (if existing visuals)
       5. Copy/symlink source video to public/
-      6. Queue initial bundle build via bundler service
-      7. Set project.workspaceStatus = 'active'
-  → Return: { manifest, workspaceStatus: 'initializing' }
-  → WebSocket: workspace:ready + bundle:ready (once built)
+      6. If last known bundle exists in S3: serve that immediately as warm cache
+      7. Queue workspace bundle build via bundler service
+      8. Set project.workspaceStatus = 'active'
+  → Return: { manifest, workspaceStatus: 'initializing', cachedBundleUrl? }
+  → Frontend: if cachedBundleUrl exists, load immediately (stale but instant preview)
+  → WebSocket: workspace:ready + bundle:ready (once built, frontend swaps to fresh bundle)
+
+**Cold start mitigation**: The 5-10s bundle build creates a loading gap. To mitigate: when a workspace is torn down, the last good bundle is uploaded to S3 alongside the scene sources. On re-open, this cached bundle is served immediately while the fresh build runs. The preview may be briefly stale (if scenes changed in another session), but the user gets instant visual feedback.
 ```
 
 ### Active Editing
@@ -372,6 +445,20 @@ User returns to project
   → Same as spin-up — workspace regenerated from DB + S3
 ```
 
+### Error Recovery
+
+Workspace spin-up can fail at multiple points. Error handling:
+
+| Failure | State Left | Recovery |
+|---|---|---|
+| S3 download fails (scene sources) | Partial workspace dir | Clean up partial dir. Return error to frontend. User can retry. Project stays in DB. |
+| Disk full | Partial workspace dir | Clean up. Return error. Alert ops. |
+| Scene files corrupted | Workspace created, bundle fails | Return bundle:error via WebSocket. Frontend shows error state. User can regenerate visuals. |
+| Bundle build fails | Workspace + manifest OK, no bundle | Retry build once. If still fails, return bundle:error. User can edit manifest (no rebuild needed) while issue is diagnosed. |
+| Crash during active editing | Workspace may have unsaved changes | On next spin-up, check for orphaned workspace dir. If manifest exists and is newer than last DB checkpoint, offer to recover from workspace state. |
+
+All workspace directories use the pattern `workspaces/{projectId}/`. On any unrecoverable failure, the entire directory is cleaned up and `workspaceStatus` is set back to `'inactive'`. The DB + S3 data is never modified during spin-up, so it's always safe to retry.
+
 ---
 
 ## Sync Protocol
@@ -384,14 +471,16 @@ Simple lock on the workspace:
 {
   "holder": "user" | "ai",
   "acquiredAt": "2026-03-12T10:00:00Z",
-  "ttl": 30000  // 30s, auto-release on timeout
+  "ttl": 30000,  // 30s for user, extended for AI
+  "lastHeartbeat": "2026-03-12T10:00:25Z"
 }
 ```
 
-- User starts editing → acquire lock as `user`
-- AI receives edit request → acquire lock as `ai`
+- User starts editing → acquire lock as `user` (TTL: 30s, auto-release on inactivity)
+- AI receives edit request → acquire lock as `ai` (TTL: 30s, but heartbeat-extended)
+- AI heartbeat: while the AI agent is running, it sends a heartbeat every 10s that resets the TTL. This handles long-running operations (scene generation can take 30-120s).
 - Lock held by other party → reject with "editing in progress"
-- Auto-release on TTL expiry prevents deadlocks
+- Auto-release on TTL expiry (no heartbeat renewal) prevents deadlocks
 - Frontend shows "AI is editing..." indicator when AI holds lock
 
 ### Edit Flows
@@ -442,6 +531,7 @@ AI calls edit_scene("Scene2", "make chart more dynamic")
 | Transition type change | No |
 | Video crop/pan/zoom | No |
 | Caption text/words edited | No |
+| Caption font family changed | Yes (font import regeneration) |
 
 ---
 
@@ -490,8 +580,10 @@ PATCH  /projects/{id}/workspace/manifest     → apply validated manifest operat
 POST   /projects/{id}/workspace/lock         → acquire edit lock
 DELETE /projects/{id}/workspace/lock         → release edit lock
 
-GET    /projects/{id}/workspace/bundle/*     → serve bundle files (static)
+GET    /projects/{id}/workspace/bundle/*     → serve bundle files (static, production: serve from S3/CDN)
 ```
+
+> **Production optimization**: In production, bundle files should be served from S3/CDN directly rather than through the Fastify API. The API endpoint is for development convenience. The `active_bundle_url` on the projects table can point to either the API path (dev) or an S3/CDN URL (production).
 
 ---
 
@@ -539,7 +631,7 @@ Used to GENERATE manifest on workspace spin-up.
 |---|---|---|
 | `read_manifest()` | — | Return full manifest for context |
 | `set_layout(mode, settings)` | Layout mode + settings | Change pip/stacked and related settings |
-| `set_display_mode(itemId, mode)` | Item ID + display mode | Change stacked/overlay/fullscreen |
+| `set_display_mode(itemId, mode)` | Item ID + display mode | Change default/overlay/fullscreen |
 | `set_transition(itemId, enter?, exit?)` | Item ID + transition config | Set transition type and duration |
 | `move_item(itemId, startMs, endMs)` | Item ID + new timing | Change item timing |
 | `reorder_scenes(itemIds)` | Ordered array of item IDs | Reorder visual items on timeline |
@@ -662,13 +754,15 @@ Replaces the `DynamicVisualLoader` eval/CJS shim approach.
 ```
 User clicks Export
   → API: POST /projects/{id}/render
-  → If workspace active: use existing workspace
+  → If workspace active: snapshot manifest.json (atomic copy)
   → If workspace inactive: spin up from DB + S3
-  → Read manifest.json (this IS the composition props)
+  → Use snapshot manifest as composition props (immutable for duration of render)
   → Ensure source video in public/
-  → Remotion renderMedia() with ExportShell + manifest as inputProps
+  → Remotion renderMedia() with ExportShell + snapshot manifest as inputProps
   → Upload MP4 to S3
 ```
+
+**Concurrent editing during export**: The export takes an immutable snapshot of the manifest at request time. The user can continue editing while the export renders — their edits won't affect the in-progress export, and the export won't block editing.
 
 ### What Gets Eliminated
 
@@ -699,6 +793,8 @@ Only difference: resolution and encoding quality.
 ---
 
 ## Embedding Layer (Gemini Embedding 2)
+
+> **Phase note**: The embedding layer is a separate phase that can be implemented after the unified timeline is working. The core architecture (manifest, CompositionCore, workspace, bundler) stands on its own. Embeddings add intelligence on top — they are not required for the basic editing flow to work. Implement the embedding layer when the unified timeline is stable and the AI agent is successfully using scoped manifest tools.
 
 ### What Gets Embedded
 
@@ -797,6 +893,15 @@ Projects created before this change have data in the old format (DB tables + S3 
 
 No batch migration needed. Projects migrate on first access.
 
+### Manifest Versioning
+
+The manifest has a `version` field (starting at 1). When the format evolves:
+
+- On workspace spin-up, if the DB produces a v1 manifest but CompositionCore expects v2, a migration function transforms the manifest in-place before writing to the workspace.
+- Migration functions are chained: v1→v2→v3, each handling one version bump.
+- The DB always stores the latest format after teardown sync.
+- Old workspaces with stale manifests are rebuilt from DB (which has the migrated data).
+
 ---
 
 ## Code Elimination Summary
@@ -810,8 +915,9 @@ No batch migration needed. Projects migrate on first access.
 | Worker `AnimatedSubtitle.tsx` | ~760 | Unified caption renderer in CompositionCore |
 | Worker `SubtitleLayer.tsx` | ~105 | Absorbed into CompositionCore |
 | Worker `composition/utils.ts` | ~202 | Single `layout/utils.ts` |
+| `packages/renderer` (AnimatedSubtitle + animations) | ~1,500 | Animations engine moves into workspace `captions/animations/` |
 | Render processor orchestration | ~850 | ~100 lines (manifest-driven) |
-| **Total removed** | **~4,589** | |
+| **Total removed** | **~6,089** | |
 | **Total new** | | **~2,000** (CompositionCore + workspace service + bundler + API endpoints + overlays) |
 
-Net reduction: ~2,500 lines, with the remaining code being single-purpose and non-duplicated.
+Net reduction: ~4,000 lines, with the remaining code being single-purpose and non-duplicated.
