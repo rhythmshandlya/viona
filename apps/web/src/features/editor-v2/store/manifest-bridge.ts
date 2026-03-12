@@ -132,11 +132,20 @@ export function manifestToStore(
 /**
  * Extract 1-indexed scene ID from a scene file path.
  * "scenes/Scene3.tsx" -> 3
- * Returns undefined if the path doesn't match.
+ * Returns undefined if the path doesn't match (e.g. workspace-remapped paths).
  */
 export function extractSceneId(sceneFile: string): number | undefined {
   const match = sceneFile.match(/Scene(\d+)\.tsx$/);
   return match ? parseInt(match[1], 10) : undefined;
+}
+
+/**
+ * Extract compositionId from a workspace-remapped scene file path.
+ * "scenes/comp_abc123/index.tsx" -> "comp_abc123"
+ */
+export function extractCompositionId(sceneFile: string): string | undefined {
+  const match = sceneFile.match(/^scenes\/([^/]+)\/index\.tsx$/);
+  return match ? match[1] : undefined;
 }
 
 // ============================================
