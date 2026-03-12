@@ -8,7 +8,6 @@ import type {
   GenerateVisualsJobData,
   PlanVisualsJobData,
   EditVisualsJobData,
-  LayoutSettings,
 } from '@viona/shared';
 export type {
   VisualsLayoutMode,
@@ -17,7 +16,6 @@ export type {
   GenerateVisualsJobData,
   PlanVisualsJobData,
   EditVisualsJobData,
-  LayoutSettings,
 };
 
 // Parse Redis URL for BullMQ connection
@@ -55,27 +53,18 @@ export interface TranscribeJobData {
   videoKey: string;
 }
 
-export interface ExportOptions {
-  layoutMode: 'pip' | 'stacked';
-  pipPosition: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-  pipSize: number;
-}
-
 export interface RenderJobData {
   projectId: string;
   jobId: string;
   projectType?: string;
-  layoutSettings?: LayoutSettings;
-  fullscreenSegments?: Array<{ startMs: number; endMs: number }>;
-  visualDisplayData?: Array<{
-    startMs: number;
-    endMs: number;
-    displayMode?: string;
-    transition?: {
-      enter: { type: string; durationMs: number };
-      exit: { type: string; durationMs: number };
-    };
+  videoClipData?: Array<{
+    sourceSceneId: number;
+    sourceVideoUrl: string;
+    trimStartSeconds: number;
+    trimEndSeconds: number;
   }>;
+  manifest?: unknown;
+  workspaceBundlePath?: string;
 }
 
 // Queue job creators

@@ -15,8 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
-import { useLayoutSettings, useEditorActions, useItems, useItemIds } from '../store/use-editor-store';
-import type { VisualItemData } from '../store/types';
+import { useEditorActions } from '../store/use-editor-store';
 
 interface ExportModalProps {
   open: boolean;
@@ -35,9 +34,6 @@ export function ExportModal({
   projectStatus,
   hasOutputKey,
 }: ExportModalProps) {
-  const layoutSettings = useLayoutSettings();
-  const items = useItems();
-  const itemIds = useItemIds();
   const { saveProject } = useEditorActions();
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
@@ -159,25 +155,9 @@ export function ExportModal({
       // Save project first to ensure caption styles are persisted to database
       await saveProject();
 
-      // Extract visual display mode data from the editor store so the backend
-      // uses the exact same state shown in the preview (instead of re-reading from DB).
-      const visualDisplayData = itemIds
-        .map((id) => items[id])
-        .filter((item) => item && item.type === 'visual')
-        .sort((a, b) => a.startMs - b.startMs)
-        .map((item) => {
-          const data = item.data as VisualItemData;
-          return {
-            startMs: item.startMs,
-            endMs: item.endMs,
-            displayMode: data?.displayMode || 'pip',
-            transition: data?.transition,
-          };
-        });
-
       setStatusMessage('Starting export...');
-      // Pass layoutSettings and visualDisplayData to render API for exact preview match
-      const { jobId: newJobId } = await api.renderProject(projectId, { layoutSettings, visualDisplayData });
+      // Layout and visual data now come from the workspace manifest
+      const { jobId: newJobId } = await api.renderProject(projectId);
       setJobId(newJobId);
       jobIdRef.current = newJobId;
     } catch (err) {

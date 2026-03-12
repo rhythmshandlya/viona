@@ -836,7 +836,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> } || {};
+    const body = request.body as { videoClipData?: Array<{ sourceSceneId: number; sourceVideoUrl: string; trimStartSeconds: number; trimEndSeconds: number }> } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -871,14 +871,12 @@ export async function projectRoutes(fastify: FastifyInstance) {
       workspaceBundlePath = bundlerService.getBundlePath(id);
     }
 
-    // Queue the job with layout settings, fullscreen segments, and visual display data for exact preview match
+    // Queue the render job — layout/visuals come from the workspace manifest
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
       projectType: project.projectType || 'video',
-      layoutSettings: body.layoutSettings,
-      fullscreenSegments: body.fullscreenSegments,
-      visualDisplayData: body.visualDisplayData,
+      videoClipData: body.videoClipData,
       ...(manifestSnapshot ? { manifest: manifestSnapshot } : {}),
       ...(workspaceBundlePath ? { workspaceBundlePath } : {}),
     });

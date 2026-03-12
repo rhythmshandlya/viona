@@ -10,13 +10,6 @@ export function isValidYouTubeUrl(url: string): boolean {
   return YOUTUBE_URL_PATTERNS.some(pattern => pattern.test(url));
 }
 
-export const PIP_SIZE_MAP: Record<string, number> = {
-  small: 18,
-  medium: 25,
-  large: 35,
-  custom: 25,
-};
-
 // Zone types for overlay system
 export type OverlayZone = 'behind' | 'lower-third' | 'top' | 'frame' | 'background' | 'none';
 
@@ -49,36 +42,6 @@ export interface VideoClipOverride {
   trimEndSeconds: number;
 }
 
-export interface LayoutSettings {
-  mode: 'pip' | 'stacked';
-  pip: {
-    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-    offsetX: number;
-    offsetY: number;
-    size: 'small' | 'medium' | 'large' | 'custom';
-    customSize: number;
-    shape: 'square' | 'circle' | 'rounded';
-    borderRadius: number;
-    borderWidth: number;
-    borderColor: string;
-    shadowEnabled: boolean;
-    shadowColor: string;
-    shadowBlur: number;
-    opacity: number;
-    rotation: number;
-  };
-  split: {
-    position: 'visuals-first' | 'video-first';
-    ratio: number;
-    gap: number;
-  };
-}
-
-export interface FullscreenSegment {
-  startMs: number;
-  endMs: number;
-}
-
 /** Video crop/pan/scale settings from the editor's videoSettings */
 export interface VideoCropSettings {
   sourceWidth: number;
@@ -88,13 +51,6 @@ export interface VideoCropSettings {
   scale: number;    // 1.0=fill, >1 zoom
 }
 
-export interface DisplayModeSegment {
-  startMs: number;
-  endMs: number;
-  enterDurationMs?: number; // transition duration when entering (0 = cut)
-  exitDurationMs?: number;  // transition duration when exiting (0 = cut)
-}
-
 /** Unified layout segment for Remotion full composition (frame-based) */
 export interface LayoutSegment {
   startFrame: number;
@@ -102,27 +58,10 @@ export interface LayoutSegment {
   displayMode: 'default' | 'fullscreen' | 'overlay';
 }
 
-export interface SegmentationData {
-  status: 'pending' | 'processing' | 'ready' | 'failed';
-  maskPath?: string;
-  maskFps?: number;
-}
-
 export interface RenderJobData {
   projectId: string;
   jobId: string;
   projectType?: string;
-  layoutSettings?: LayoutSettings;
-  fullscreenSegments?: FullscreenSegment[];
-  visualDisplayData?: Array<{
-    startMs: number;
-    endMs: number;
-    displayMode?: string;
-    transition?: {
-      enter: { type: string; durationMs: number };
-      exit: { type: string; durationMs: number };
-    };
-  }>;
   // Video clip trim data from user-edited templateProps
   videoClipData?: Array<{
     sourceSceneId: number;
