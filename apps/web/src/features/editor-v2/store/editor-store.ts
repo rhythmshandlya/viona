@@ -72,8 +72,14 @@ const dispatchManifestOp = async (op: StoreManifestOp): Promise<void> => {
 
   try {
     await api.applyManifestOp(state.project.id, op as any);
+    // Clear any previous sync error on success
+    if (useEditorStore.getState().manifestSyncError) {
+      useEditorStore.setState({ manifestSyncError: null });
+    }
   } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to sync edit';
     console.error('Failed to apply manifest op:', err);
+    useEditorStore.setState({ manifestSyncError: message });
   }
 };
 
@@ -125,6 +131,7 @@ const initialState: EditorState = {
   workspaceLockHolder: null,
   workspaceBundleError: null,
   workspaceManifest: null,
+  manifestSyncError: null,
 
   // Caption style toggle
   applyStyleToAll: false,

@@ -596,6 +596,9 @@ export interface EditorState {
   workspaceLockHolder: 'user' | 'ai' | null;
   workspaceBundleError: string | null;
 
+  /** Error from last failed manifest operation dispatch */
+  manifestSyncError: string | null;
+
   /** Raw workspace manifest JSON — source of truth for WorkspacePlayer */
   workspaceManifest: Record<string, unknown> | null;
 

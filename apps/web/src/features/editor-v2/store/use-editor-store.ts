@@ -726,3 +726,6 @@ export function useWorkspaceBundleError() {
 export function useWorkspaceManifest() {
   return useEditorStore((s) => s.workspaceManifest);
 }
+
+/** Error from last failed manifest operation dispatch */
+export const useManifestSyncError = () => useEditorStore((s) => s.manifestSyncError);
