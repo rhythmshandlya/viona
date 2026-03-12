@@ -93,6 +93,12 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
       return reply.status(404).send({ error: 'No active workspace' });
     }
 
+    // Check if AI holds the lock — reject user edits during AI editing
+    const lockInfo = await getLockInfo(id);
+    if (lockInfo && lockInfo.holder === 'ai') {
+      return reply.status(409).send({ error: 'AI is currently editing', holder: 'ai' });
+    }
+
     // Validate the operation
     const parseResult = manifestOpSchema.safeParse(request.body);
     if (!parseResult.success) {
@@ -169,7 +175,7 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
   // ---- Bundle serving ----
 
   /** Serve bundle files from the workspace build output */
-  fastify.get('/projects/:id/workspace/bundle/*', async (request, reply) => {
+  fastify.get('/projects/:id/workspace/bundle/*', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const filePath = (request.params as any)['*'] || 'index.html';
 
