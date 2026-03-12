@@ -35,6 +35,7 @@ import { Timeline } from './timeline/Timeline';
 import { AssetsPanel } from './panels/AssetsPanel';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useJobWebSocket } from './hooks/use-job-websocket';
+import { useWorkspaceWS } from './hooks/use-workspace-ws';
 import {
   useProject,
   useIsLoading,
@@ -114,6 +115,10 @@ export function Editor({ projectId }: EditorProps) {
   const selectedIds = useSelectedIds();
   const captionItems = useCaptionItems();
 
+  // Workspace state
+  const workspaceLockHolder = useEditorStore((s) => s.workspaceLockHolder);
+  const workspaceBundleError = useEditorStore((s) => s.workspaceBundleError);
+
   // Actions
   const { loadProject, reloadVisuals, refreshMediaUrls, clearSelection, updateEnhancementStatus, setInspectModeEnabled, pause } = useEditorActions();
 
@@ -178,6 +183,61 @@ export function Editor({ projectId }: EditorProps) {
       setLeftSidebarTab('agent');
     }
   }, [aiEditRequested]);
+
+  // Workspace WebSocket events (Plan 3)
+  useWorkspaceWS(projectId, {
+    onWorkspaceReady: (data) => {
+      useEditorStore.getState().setWorkspaceStatus('active');
+      if (data.bundleUrl) {
+        useEditorStore.getState().setWorkspaceBundleUrl(data.bundleUrl);
+      }
+    },
+    onManifestUpdated: async (data) => {
+      if (data.source === 'ai' && projectId) {
+        try {
+          const manifest = await api.readManifest(projectId);
+          useEditorStore.getState().applyRemoteManifestUpdate(manifest);
+        } catch (err) {
+          console.error('Failed to apply remote manifest update:', err);
+        }
+      }
+    },
+    onBundleReady: (data) => {
+      const s = useEditorStore.getState();
+      s.setWorkspaceBundleError(null);
+      s.incrementBundleVersion();
+      if (data.bundleUrl) {
+        s.setWorkspaceBundleUrl(data.bundleUrl);
+      }
+    },
+    onBundleError: (data) => {
+      useEditorStore.getState().setWorkspaceBundleError(data.error);
+    },
+    onLockAcquired: (data) => {
+      useEditorStore.getState().setWorkspaceLockHolder(data.holder);
+    },
+    onLockReleased: () => {
+      useEditorStore.getState().setWorkspaceLockHolder(null);
+    },
+    onWorkspaceTeardown: () => {
+      const s = useEditorStore.getState();
+      s.setWorkspaceStatus('inactive');
+      s.setWorkspaceBundleUrl(null);
+      s.setWorkspaceLockHolder(null);
+    },
+  });
+
+  // Workspace cleanup on unmount (Plan 3)
+  useEffect(() => {
+    return () => {
+      const state = useEditorStore.getState();
+      if (state.project && state.workspaceStatus === 'active') {
+        api.tearDownWorkspace(state.project.id).catch((err: any) => {
+          console.warn('Failed to tear down workspace on unmount:', err);
+        });
+      }
+    };
+  }, []);
 
   // Exit inspect mode and clear element selection when playback starts
   const isPlaying = useEditorStore((s) => s.isPlaying);
@@ -649,6 +709,21 @@ export function Editor({ projectId }: EditorProps) {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Video Preview Area */}
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
+            {/* Workspace status indicators */}
+            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
+              {workspaceLockHolder === 'ai' && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-sm">
+                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                  AI is editing...
+                </div>
+              )}
+              {workspaceBundleError && (
+                <div className="px-3 py-1.5 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
+                  Bundle error: {workspaceBundleError}
+                </div>
+              )}
+            </div>
+
             {/* Zoom control */}
             <div className="absolute top-4 left-4 z-10">
               <Select defaultValue="fit">
