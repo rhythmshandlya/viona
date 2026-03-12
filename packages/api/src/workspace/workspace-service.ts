@@ -10,6 +10,12 @@ import {
 } from './workspace-config.js';
 import { bundlerService } from './bundler-service.js';
 import { forceReleaseLock } from './workspace-lock.js';
+import {
+  downloadSceneSources,
+  extractCompositionIds,
+  buildVisualCompositionMap,
+  remapManifestSceneFiles,
+} from './workspace-scenes.js';
 import { emitWorkspaceReady, emitWorkspaceTeardown } from './workspace-ws.js';
 import { dbToManifest, manifestToDb, validateManifest, applyManifestOp } from '@viona/shared';
 import type { Manifest, ManifestOp, DbToManifestInput } from '@viona/shared';
@@ -74,9 +80,18 @@ export async function spinUpWorkspace(projectId: string): Promise<{ manifest: Ma
 
   const manifest = dbToManifest(dbInput);
 
-  // 3. Copy scene sources from S3 (if project has existing visuals)
-  // TODO (Plan 3+): Download scene .tsx files from S3 sources/{compositionId}/ into workspace src/scenes/
-  // For now, scenes are empty — they'll be generated fresh or loaded in a later plan.
+  // 3. Download scene sources from S3 for existing visuals
+  const dbItemsForScenes = allItems.map(item => ({
+    id: item.id,
+    type: item.type,
+    data: (item.data as Record<string, unknown>) ?? {},
+  }));
+  const compositionIds = extractCompositionIds(dbItemsForScenes);
+  const downloadedCompositions = await downloadSceneSources(projectId, compositionIds);
+
+  // 3b. Remap manifest sceneFile values to match actual workspace paths
+  const visualCompositionMap = buildVisualCompositionMap(dbItemsForScenes);
+  remapManifestSceneFiles(manifest, visualCompositionMap, downloadedCompositions);
 
   // 4. Write manifest.json
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
