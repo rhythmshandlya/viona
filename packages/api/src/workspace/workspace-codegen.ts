@@ -1,6 +1,6 @@
-import { readdir, writeFile } from 'fs/promises';
+import { readdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
-import { getWorkspaceSrcPath, getScenesPath } from './workspace-config.js';
+import { getWorkspaceSrcPath, getScenesPath, getManifestPath } from './workspace-config.js';
 
 interface SceneEntry {
   /** e.g. "scenes/comp_abc123/index.tsx" — matches remapManifestSceneFiles output */
@@ -60,6 +60,22 @@ export async function generatePlayerComposition(projectId: string): Promise<void
   const srcPath = getWorkspaceSrcPath(projectId);
   const scenes = await discoverScenes(projectId);
 
+  // Read manifest to determine caption font family for static import
+  const manifestPath = getManifestPath(projectId);
+  let captionFontFamily = 'Inter';
+  try {
+    const manifestJson = await readFile(manifestPath, 'utf-8');
+    const manifest = JSON.parse(manifestJson);
+    captionFontFamily = manifest.captionStyle?.fontFamily || 'Inter';
+  } catch {
+    // Manifest may not exist yet during initial codegen — default to Inter
+  }
+
+  const fontModuleName = captionFontFamily.replace(/\s+/g, '');
+  const fontImport = captionFontFamily !== 'Inter'
+    ? `import { loadFont } from '@remotion/google-fonts/${fontModuleName}';\nloadFont();\n`
+    : '';
+
   const sceneImports = scenes
     .map(s => `import { MainComposition as ${s.importName} } from '${s.importPath}';`)
     .join('\n');
@@ -73,7 +89,7 @@ import { useVideoConfig } from 'remotion';
 import { FullComposition } from './composition/index';
 import type { SceneItem, SubtitleItemData, SubtitleWordData, SubtitleStyle, LayoutSegment } from './composition/types';
 ${sceneImports}
-
+${fontImport}
 // Scene registry — maps sceneFile paths to React components
 const SCENE_MAP: Record<string, React.FC<any>> = {
 ${sceneMapEntries}
