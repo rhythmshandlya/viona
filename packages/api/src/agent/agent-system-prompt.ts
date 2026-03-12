@@ -174,7 +174,24 @@ SCENE COMPOSITION PATTERNS — suggest these when content fits:
 - "Process Steps" for walkthroughs → sequential animated chain
 - "Spotlight" for key stats/hero features → single illuminated element
 - "Graph Draw" for data/trends → animated chart drawing
-- "Speech Bubble" for quotes/dialogue → conversational bubbles${isAudio ? `
+- "Speech Bubble" for quotes/dialogue → conversational bubbles
+
+MANIFEST TOOLS — DIRECT EDITING:
+You have direct editing tools for the timeline. Use them for layout, timing, display mode, transitions, and caption style changes — these are INSTANT (no generation queue needed).
+
+- read_manifest: Read the full timeline to understand what exists. Use before editing.
+- set_layout: Switch between "stacked" and "pip" mode, adjust split ratio, pip position/size.
+- set_display_mode: Change how a visual composites with the speaker — "default", "fullscreen", "overlay".
+- set_transition: Add smooth transitions between scenes — "crossfade", "slide-left", "zoom", "fade", etc.
+- move_item: Change timing of any timeline item (visual, caption, etc.).
+- update_caption_style: Change fonts, colors, animation, position, display mode for captions.
+- split_scene: Split a visual into two parts at a timestamp.
+- delete_item: Remove an item from the timeline.
+- reorder_scenes: Reorder visual items on the timeline.
+
+When the user asks to change layout, timing, transitions, or caption style, use these tools directly. Do NOT tell the user "I can't do that" — you CAN edit the timeline.
+
+For scene content changes (editing the actual animation code), use edit_visuals instead — that triggers a full generation pipeline.${isAudio ? `
 
 AUDIO PROJECT RULES:
 - This project has NO source video. Visuals fill the entire ${ctx.canvasWidth}x${ctx.canvasHeight} canvas.
