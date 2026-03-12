@@ -104,6 +104,9 @@ class BundlerService {
     const entryPoint = join(srcPath, 'index.tsx');
     await this.runRemotionBundle(entryPoint, outDir, workspacePath);
 
+    // Compile PlayerComposition to CJS (for frontend preview)
+    await this.compilePlayerCjs(srcPath, outDir);
+
     // Update cache
     this.cache.set(projectId, { bundlePath: outDir, hash, builtAt: Date.now() });
 
@@ -145,6 +148,59 @@ class BundlerService {
         proc.kill('SIGTERM');
         reject(new Error('Remotion bundle timed out after 120s'));
       }, 120_000);
+    });
+  }
+
+  private compilePlayerCjs(srcPath: string, outDir: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const entryPoint = join(srcPath, 'PlayerComposition.tsx');
+      const cjsOutput = join(outDir, 'player-composition.cjs.js');
+
+      const args = [
+        'esbuild',
+        entryPoint,
+        '--bundle',
+        '--format=cjs',
+        '--platform=browser',
+        '--target=es2020',
+        '--external:react',
+        '--external:react/jsx-runtime',
+        '--external:react/jsx-dev-runtime',
+        '--external:remotion',
+        '--external:@remotion/noise',
+        '--external:@remotion/shapes',
+        '--external:@remotion/paths',
+        '--external:@remotion/three',
+        '--external:@remotion/google-fonts/*',
+        '--external:remotion/no-react',
+        `--outfile=${cjsOutput}`,
+      ];
+
+      const proc = spawn('npx', args, {
+        cwd: join(srcPath, '..'), // workspace root
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: process.platform === 'win32',
+      });
+
+      let stderr = '';
+      proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`CJS compilation failed (exit ${code}): ${stderr.slice(0, 500)}`));
+        }
+      });
+
+      proc.on('error', (err) => {
+        reject(new Error(`Failed to spawn esbuild: ${err.message}`));
+      });
+
+      setTimeout(() => {
+        proc.kill('SIGTERM');
+        reject(new Error('CJS compilation timed out after 60s'));
+      }, 60_000);
     });
   }
 
