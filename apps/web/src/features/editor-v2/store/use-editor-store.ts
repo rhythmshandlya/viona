@@ -687,3 +687,37 @@ export function useTrackY(): (trackId: string) => number {
     return 0;
   };
 }
+
+// ============================================
+// Workspace Selectors (Plan 3)
+// ============================================
+
+/** Workspace lifecycle status */
+export function useWorkspaceStatus() {
+  return useEditorStore((s) => s.workspaceStatus);
+}
+
+/** Whether workspace is active (ready for manifest ops) */
+export function useIsWorkspaceActive() {
+  return useEditorStore((s) => s.workspaceStatus === 'active');
+}
+
+/** Current workspace bundle URL */
+export function useWorkspaceBundleUrl() {
+  return useEditorStore((s) => s.workspaceBundleUrl);
+}
+
+/** Bundle version — changes trigger visual reload */
+export function useWorkspaceBundleVersion() {
+  return useEditorStore((s) => s.workspaceBundleVersion);
+}
+
+/** Who holds the workspace lock (null if unlocked) */
+export function useWorkspaceLockHolder() {
+  return useEditorStore((s) => s.workspaceLockHolder);
+}
+
+/** Bundle error message (null if no error) */
+export function useWorkspaceBundleError() {
+  return useEditorStore((s) => s.workspaceBundleError);
+}
