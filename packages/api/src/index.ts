@@ -339,6 +339,13 @@ async function main() {
   try {
     await fastify.listen({ port: config.port, host: '0.0.0.0' });
     fastify.log.info(`Server running at http://localhost:${config.port}`);
+
+    // Clean up orphaned workspaces from previous runs (fire-and-forget)
+    import('./workspace/workspace-service.js').then(({ cleanupOrphanedWorkspaces }) => {
+      cleanupOrphanedWorkspaces().catch((err) => {
+        fastify.log.error(err, '[startup] Failed to clean up orphaned workspaces');
+      });
+    });
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

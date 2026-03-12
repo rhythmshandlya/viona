@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile, rm, access, cp } from 'fs/promises';
+import { mkdir, writeFile, readFile, readdir, rm, access, cp } from 'fs/promises';
 import { join, resolve } from 'path';
 import { eq, inArray } from 'drizzle-orm';
 import {
@@ -303,4 +303,34 @@ async function syncManifestToDb(projectId: string, manifest: Manifest): Promise<
       });
     }
   });
+}
+
+/**
+ * Clean up orphaned workspace directories on startup.
+ * After a process restart, workspace directories may exist on disk but the
+ * in-memory activeWorkspaces Map is empty. These orphans will never be cleaned up
+ * unless we scan and remove them at boot.
+ */
+export async function cleanupOrphanedWorkspaces(): Promise<void> {
+  const rootDir = workspaceConfig.rootDir;
+  try {
+    await access(rootDir);
+  } catch {
+    return; // Root doesn't exist — nothing to clean
+  }
+
+  const entries = await readdir(rootDir);
+
+  for (const entry of entries) {
+    try {
+      console.log(`[workspace] Cleaning up orphaned workspace: ${entry}`);
+      await db.update(projects)
+        .set({ workspaceStatus: 'inactive' })
+        .where(eq(projects.id, entry));
+      await rm(join(rootDir, entry), { recursive: true, force: true });
+      await forceReleaseLock(entry);
+    } catch (err) {
+      console.warn(`[workspace] Failed to clean up orphaned workspace ${entry}:`, err);
+    }
+  }
 }
