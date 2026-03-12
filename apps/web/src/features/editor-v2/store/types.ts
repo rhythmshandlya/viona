@@ -596,6 +596,9 @@ export interface EditorState {
   workspaceLockHolder: 'user' | 'ai' | null;
   workspaceBundleError: string | null;
 
+  /** Raw workspace manifest JSON — source of truth for WorkspacePlayer */
+  workspaceManifest: Record<string, unknown> | null;
+
   // Caption style toggle
   applyStyleToAll: boolean;
 

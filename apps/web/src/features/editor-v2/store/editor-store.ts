@@ -124,6 +124,7 @@ const initialState: EditorState = {
   workspaceBundleVersion: 0,
   workspaceLockHolder: null,
   workspaceBundleError: null,
+  workspaceManifest: null,
 
   // Caption style toggle
   applyStyleToAll: false,
@@ -725,6 +726,7 @@ export const useEditorStore = create<EditorStore>()(
             state.workspaceBundleUrl = bundleBaseUrl;
             state.workspaceBundleVersion = 0;
             state.workspaceBundleError = null;
+            state.workspaceManifest = wsResult.manifest as Record<string, unknown>;
             state.workspaceLockHolder = null;
             state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
             state.history = [];
@@ -2672,6 +2674,9 @@ export const useEditorStore = create<EditorStore>()(
         s.duration = bridgeResult.duration;
         s.layoutSettings = bridgeResult.layoutSettings;
       });
+
+      // Also store the raw manifest
+      set((state) => { state.workspaceManifest = manifest as Record<string, unknown>; });
     },
   }))
 );

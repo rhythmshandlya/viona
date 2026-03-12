@@ -721,3 +721,8 @@ export function useWorkspaceLockHolder() {
 export function useWorkspaceBundleError() {
   return useEditorStore((s) => s.workspaceBundleError);
 }
+
+/** Raw workspace manifest JSON */
+export function useWorkspaceManifest() {
+  return useEditorStore((s) => s.workspaceManifest);
+}

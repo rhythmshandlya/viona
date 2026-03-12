@@ -1,13 +1,13 @@
 /**
  * Player Component
- * Remotion player wrapper with two-way sync to editor store
+ * WorkspacePlayer wrapper with two-way sync to editor store
  */
 
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Player as RemotionPlayer, CallbackListener } from '@remotion/player';
-import { Composition } from './Composition';
+import { CallbackListener } from '@remotion/player';
+import { WorkspacePlayer } from './WorkspacePlayer';
 import {
   useProject,
   useDuration,
@@ -16,6 +16,9 @@ import {
   useIsPlaying,
   useEditorActions,
   useSafeZonePlatform,
+  useWorkspaceManifest,
+  useWorkspaceBundleUrl,
+  useWorkspaceBundleVersion,
 } from '../store/use-editor-store';
 import { SafeZoneOverlay } from '../components/SafeZoneOverlay';
 import { sharedPlayerRef } from './player-ref';
@@ -35,6 +38,9 @@ export function Player({ className }: PlayerProps) {
   const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const safeZonePlatform = useSafeZonePlatform();
+  const manifest = useWorkspaceManifest();
+  const bundleUrl = useWorkspaceBundleUrl();
+  const bundleVersion = useWorkspaceBundleVersion();
 
   // Actions
   const { setCurrentTime, play, pause } = useEditorActions();
@@ -112,30 +118,34 @@ export function Player({ className }: PlayerProps) {
     );
   }
 
-  const durationInFrames = Math.max(1, Math.round((duration / 1000) * fps));
-
   // Use canvas dimensions from videoSettings (9:16 for reels)
   const compositionWidth = project.videoSettings?.canvasWidth || 1080;
   const compositionHeight = project.videoSettings?.canvasHeight || 1920;
 
+  if (!manifest) {
+    return (
+      <div className={`relative w-full h-full ${className || ''}`}>
+        <div className="flex items-center justify-center h-full bg-slate-950">
+          <span className="text-slate-400 text-sm">Waiting for workspace...</span>
+        </div>
+        <SafeZoneOverlay platform={safeZonePlatform} />
+      </div>
+    );
+  }
+
   return (
     <div className={`relative w-full h-full ${className || ''}`}>
-      <RemotionPlayer
-        ref={playerRef}
-        component={Composition}
-        durationInFrames={durationInFrames}
+      <WorkspacePlayer
+        manifest={manifest}
+        videoUrl={project.videoUrl ?? undefined}
+        bundleUrl={bundleUrl}
+        bundleVersion={bundleVersion}
         compositionWidth={compositionWidth}
         compositionHeight={compositionHeight}
+        durationMs={duration}
         fps={fps}
+        playerRef={playerRef}
         className="w-full h-full"
-        style={{
-          width: '100%',
-          height: '100%',
-        }}
-        controls={false}
-        loop={false}
-        clickToPlay={false}
-        acknowledgeRemotionLicense
       />
       <SafeZoneOverlay platform={safeZonePlatform} />
     </div>
