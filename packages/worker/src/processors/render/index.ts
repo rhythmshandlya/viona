@@ -17,6 +17,7 @@ import {
   hasZoneBasedVisuals,
 } from './ffmpeg.js';
 import { manifestToProps } from './manifest-to-props.js';
+import type { Manifest } from '@viona/shared';
 import { escapePathForFilter } from './types.js';
 import type {
   RenderJobData,
@@ -84,7 +85,7 @@ async function renderFromManifest(
   workDir: string,
   jobId: string,
 ): Promise<boolean> {
-  const manifest = (jobData as any).manifest;
+  const manifest = jobData.manifest;
   if (!manifest) return false;
 
   const projectId = jobData.projectId;
@@ -118,16 +119,16 @@ async function renderFromManifest(
   await publishJobProgress(jobId, 15, 'Converting manifest to composition props...');
 
   // 3. Convert manifest → FullCompositionProps
-  const compositionProps = manifestToProps(manifest);
+  const compositionProps = manifestToProps(manifest as Manifest);
 
   // Set source media paths (not part of manifest conversion)
   if (sourceVideoPath) {
-    (compositionProps as any).sourceVideoFile = 'source.mp4';
+    compositionProps.sourceVideoFile = 'source.mp4';
   }
   if (isAudioProject) {
-    (compositionProps as any).audioFile = 'audio.mp4';
+    compositionProps.audioFile = 'audio.mp4';
   }
-  (compositionProps as any).backgroundColor = '#000000';
+  compositionProps.backgroundColor = '#000000';
 
   // 4. Check if we have a visual composition
   const projectVisual = await db.query.visuals.findFirst({

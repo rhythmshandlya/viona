@@ -130,6 +130,8 @@ export interface RenderJobData {
     trimStartSeconds: number;
     trimEndSeconds: number;
   }>;
+  /** Workspace manifest snapshot — when present, workspace render path is used */
+  manifest?: unknown;
 }
 
 export interface RenderRemotionOptions {
