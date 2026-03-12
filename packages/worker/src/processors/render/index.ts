@@ -93,14 +93,14 @@ async function renderFromManifest(
     }
   }
 
-  // 5. Handle enhanced audio
-  const allItems = (manifest as any).items || [];
-  const enhancedAudioItem = allItems.find((item: any) =>
-    item.type === 'audio' && item.data?.isEnhanced && item.data?.src,
-  );
+  // 5. Handle enhanced audio (data shape is loosely typed — audio items may carry extra fields)
+  const enhancedAudioItem = (manifest.items || []).find((item) => {
+    const d = item.data as Record<string, unknown>;
+    return item.type === 'audio' && d?.isEnhanced && d?.src;
+  });
 
   if (enhancedAudioItem) {
-    const audioSrc = enhancedAudioItem.data.src as string;
+    const audioSrc = (enhancedAudioItem.data as Record<string, unknown>).src as string;
     const audioKeyMatch = audioSrc.match(/\/media\/outputs\/(.+)$/);
     if (audioKeyMatch) {
       try {

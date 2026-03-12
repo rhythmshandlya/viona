@@ -1,3 +1,5 @@
+import type { Manifest } from '@viona/shared';
+
 // YouTube URL validation patterns
 export const YOUTUBE_URL_PATTERNS = [
   /^https?:\/\/(www\.)?youtube\.com\/watch\?v=[a-zA-Z0-9_-]{11}/,
@@ -70,7 +72,7 @@ export interface RenderJobData {
     trimEndSeconds: number;
   }>;
   /** Workspace manifest snapshot — when present, workspace render path is used */
-  manifest?: unknown;
+  manifest?: Manifest;
   /** Path to workspace Remotion bundle directory */
   workspaceBundlePath?: string;
 }
