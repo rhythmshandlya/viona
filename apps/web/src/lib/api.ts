@@ -749,6 +749,80 @@ class ApiClient {
       body: JSON.stringify(data),
     });
   }
+
+  // ---- Workspace API ----
+
+  /** Spin up workspace — returns manifest + initial bundle URL */
+  async spinUpWorkspace(projectId: string): Promise<{
+    manifest: any;
+    workspaceStatus: string;
+    cachedBundleUrl?: string | null;
+    bundleUrl?: string | null;
+  }> {
+    return this.request(`/api/projects/${projectId}/workspace`, {
+      method: 'POST',
+    });
+  }
+
+  /** Tear down workspace */
+  async tearDownWorkspace(projectId: string): Promise<{ status: string }> {
+    return this.request(`/api/projects/${projectId}/workspace`, {
+      method: 'DELETE',
+    });
+  }
+
+  /** Read current manifest from active workspace */
+  async readManifest(projectId: string): Promise<any> {
+    return this.request(`/api/projects/${projectId}/workspace/manifest`);
+  }
+
+  /** Apply a single manifest operation — returns updated manifest */
+  async applyManifestOp(projectId: string, op: Record<string, unknown>): Promise<any> {
+    return this.request(`/api/projects/${projectId}/workspace/manifest`, {
+      method: 'PATCH',
+      body: JSON.stringify(op),
+    });
+  }
+
+  /** Acquire edit lock */
+  async acquireWorkspaceLock(projectId: string, holder: 'user' | 'ai' = 'user'): Promise<{
+    acquired: boolean;
+    holder: string;
+  }> {
+    return this.request(`/api/projects/${projectId}/workspace/lock`, {
+      method: 'POST',
+      body: JSON.stringify({ holder }),
+    });
+  }
+
+  /** Release edit lock */
+  async releaseWorkspaceLock(projectId: string, holder: 'user' | 'ai' = 'user'): Promise<{ released: boolean }> {
+    return this.request(`/api/projects/${projectId}/workspace/lock`, {
+      method: 'DELETE',
+      body: JSON.stringify({ holder }),
+    });
+  }
+
+  /** Extend lock TTL (heartbeat) */
+  async heartbeatWorkspaceLock(projectId: string, holder: 'user' | 'ai' = 'user'): Promise<{ extended: boolean }> {
+    return this.request(`/api/projects/${projectId}/workspace/lock/heartbeat`, {
+      method: 'POST',
+      body: JSON.stringify({ holder }),
+    });
+  }
+
+  /** Get lock status */
+  async getWorkspaceLockStatus(projectId: string): Promise<{
+    locked: boolean;
+    info: { holder: string; acquiredAt: string } | null;
+  }> {
+    return this.request(`/api/projects/${projectId}/workspace/lock`);
+  }
+
+  /** Get the base URL for workspace bundle assets */
+  getWorkspaceBundleUrl(projectId: string): string {
+    return `${this.baseUrl}/api/projects/${projectId}/workspace/bundle`;
+  }
 }
 
 export const api = new ApiClient(API_URL);
