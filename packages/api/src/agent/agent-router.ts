@@ -7,6 +7,8 @@ import { db, projects, transcripts, visuals, jobs } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { redis, publishJobError } from '../services/redis.js';
+import { releaseLock } from '../workspace/workspace-lock.js';
+import { emitLockReleased } from '../workspace/workspace-ws.js';
 import { buildSystemPrompt } from './agent-system-prompt.js';
 import { createAgentMcpServer, TOOL_NAMES, derivePhase, normalizeProgressMessage } from './agent-tools.js';
 import {
@@ -538,6 +540,16 @@ export async function agentRoutes(fastify: FastifyInstance) {
           projectEventBuffers.delete(projectId);
         }
       }, 2 * 60 * 1000);
+
+      // Release workspace lock if AI acquired it during this turn
+      try {
+        const released = await releaseLock(projectId, 'ai');
+        if (released) {
+          await emitLockReleased(projectId, { holder: 'ai' });
+        }
+      } catch (lockErr) {
+        fastify.log.warn({ err: lockErr, projectId }, 'Failed to release AI lock after turn');
+      }
 
       // Safety net: flush any remaining content on error paths
       // (happy path already persisted before 'done' event above)
