@@ -589,6 +589,13 @@ export interface EditorState {
   isSaving: boolean;
   isDirty: boolean;
 
+  // Workspace state (Plan 3)
+  workspaceStatus: 'inactive' | 'initializing' | 'active' | 'tearing_down';
+  workspaceBundleUrl: string | null;
+  workspaceBundleVersion: number;
+  workspaceLockHolder: 'user' | 'ai' | null;
+  workspaceBundleError: string | null;
+
   // Caption style toggle
   applyStyleToAll: boolean;
 
@@ -770,6 +777,14 @@ export interface EditorActions {
   // Overlay zone actions
   updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => void;
   getVideoSegmentation: (videoItemId: string) => SegmentationData | undefined;
+
+  // Workspace actions (Plan 3)
+  setWorkspaceStatus: (status: EditorState['workspaceStatus']) => void;
+  setWorkspaceBundleUrl: (url: string | null) => void;
+  incrementBundleVersion: () => void;
+  setWorkspaceLockHolder: (holder: 'user' | 'ai' | null) => void;
+  setWorkspaceBundleError: (error: string | null) => void;
+  applyRemoteManifestUpdate: (manifest: any) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;
