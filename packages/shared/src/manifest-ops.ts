@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { nanoid } from 'nanoid';
 import type { Manifest, ManifestItem } from './manifest.js';
 
 // ---- Operation schemas ----
@@ -140,7 +141,7 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       }
 
       // Create second half
-      const newId = `${item.id}-${Date.now().toString(36)}`;
+      const newId = `split_${nanoid(10)}`;
       const secondHalf: ManifestItem = structuredClone(item);
       secondHalf.id = newId;
       secondHalf.startMs = op.atMs;
