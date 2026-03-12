@@ -38,7 +38,7 @@ export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
   stylePreset: string;
-  layoutMode: 'pip' | 'stacked';
+  layoutMode?: 'pip' | 'stacked';  // Optional — v1 only, v2 uses per-segment layout
   dimensions: {
     width: number;
     height: number;
@@ -56,7 +56,9 @@ export interface PlanVisualsJobData {
 
 interface PlanData {
   scenePlan: string;
-  scenes: Record<string, unknown>;
+  scenes: Record<string, unknown>;  // v1 legacy format
+  segments?: any[];                  // v2 segments array
+  version?: number;                  // 1 or 2
 }
 
 export function cancelPlanJob(jobId: string): boolean {
@@ -175,7 +177,7 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         width: dimensions?.width || 1080,
         height: dimensions?.height || 1920,
         stylePreset: stylePreset || 'studio-dark',
-        layoutMode: layoutMode || 'pip',
+        layoutMode: layoutMode ?? 'pip',
         styleGuide,
         sourceWidth: job.data.sourceWidth,
         sourceHeight: job.data.sourceHeight,
@@ -209,7 +211,8 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
       await publishJobProgress(jobId, 100, 'Plan ready');
       await publishJobComplete(jobId, projectId);
 
-      logger.info({ projectId, compositionId, sceneCount: (planData.scenes as any)?.scenes?.length ?? 'unknown' }, 'Plan visuals complete');
+      const itemCount = planData.segments?.length ?? (planData.scenes as any)?.scenes?.length ?? 'unknown';
+      logger.info({ projectId, compositionId, version: planData.version ?? 1, itemCount }, 'Plan visuals complete');
 
     } catch (error) {
       heartbeat?.stop();
@@ -379,7 +382,7 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
           try {
             planData = JSON.parse(planMatch[1]) as PlanData;
             publishJobProgress(jobId, 95, 'Plan ready — preparing preview...');
-            logger.info({ projectId, hasScenePlan: !!planData?.scenePlan }, 'Received PLAN_READY from Director');
+            logger.info({ projectId, hasScenePlan: !!planData?.scenePlan, version: planData?.version ?? 1, hasSegments: !!planData?.segments }, 'Received PLAN_READY from Director');
           } catch (parseErr) {
             logger.error({ projectId, error: parseErr, raw: planMatch[1].slice(0, 200) }, 'Failed to parse PLAN_READY JSON');
           }
@@ -515,8 +518,11 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
  * Returns planData with svgOptions merged in.
  */
 async function fetchSvgOptionsForPlan(planData: PlanData): Promise<PlanData & { svgOptions?: Record<string, Record<string, IconOption[]>> }> {
+  // Support both v1 (scenes) and v2 (segments) formats
   const scenesObj = planData.scenes as Record<string, unknown>;
-  const scenesArray = (scenesObj?.scenes as Array<Record<string, unknown>>) || [];
+  const v1Scenes = (scenesObj?.scenes as Array<Record<string, unknown>>) || [];
+  const v2Segments = (planData.segments as Array<Record<string, unknown>>) || [];
+  const scenesArray = v2Segments.length > 0 ? v2Segments : v1Scenes;
 
   // Read AI-chosen icon style from plan root (shape + color filters for Freepik)
   // Validate against known Freepik API values to prevent hallucinated values from silently failing
