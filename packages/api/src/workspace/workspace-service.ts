@@ -268,42 +268,40 @@ function clearIdleTimer(projectId: string): void {
 async function syncManifestToDb(projectId: string, manifest: Manifest): Promise<void> {
   const { tracks: manifestTracks, items: manifestItems, videoSettings } = manifestToDb(manifest);
 
-  // Update video settings on project
-  await db.update(projects)
-    .set({
-      videoSettings: videoSettings as any,
-      durationMs: Math.round(manifest.durationMs),
-    })
-    .where(eq(projects.id, projectId));
+  await db.transaction(async (tx) => {
+    // Update video settings on project
+    await tx.update(projects)
+      .set({
+        videoSettings: videoSettings as any,
+        durationMs: Math.round(manifest.durationMs),
+      })
+      .where(eq(projects.id, projectId));
 
-  // Sync tracks: delete existing, insert from manifest
-  const existingTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
-  for (const t of existingTracks) {
-    // Timeline items cascade-delete with tracks
-    await db.delete(tracks).where(eq(tracks.id, t.id));
-  }
+    // Sync tracks: delete existing (timeline items cascade-delete via FK)
+    await tx.delete(tracks).where(eq(tracks.projectId, projectId));
 
-  for (const t of manifestTracks) {
-    await db.insert(tracks).values({
-      id: t.id,
-      projectId,
-      type: t.type,
-      name: t.name,
-      position: t.position,
-      locked: false,  // Default — manifest doesn't track lock/visibility state
-      visible: true,
-    });
-  }
+    for (const t of manifestTracks) {
+      await tx.insert(tracks).values({
+        id: t.id,
+        projectId,
+        type: t.type,
+        name: t.name,
+        position: t.position,
+        locked: false,  // Default — manifest doesn't track lock/visibility state
+        visible: true,
+      });
+    }
 
-  // Insert items
-  for (const item of manifestItems) {
-    await db.insert(timelineItems).values({
-      id: item.id,
-      trackId: item.trackId,
-      type: item.type,
-      startMs: item.startMs,
-      endMs: item.endMs,
-      data: item.data as any,
-    });
-  }
+    // Insert items
+    for (const item of manifestItems) {
+      await tx.insert(timelineItems).values({
+        id: item.id,
+        trackId: item.trackId,
+        type: item.type,
+        startMs: item.startMs,
+        endMs: item.endMs,
+        data: item.data as any,
+      });
+    }
+  });
 }
