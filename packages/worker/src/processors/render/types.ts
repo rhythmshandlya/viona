@@ -132,6 +132,8 @@ export interface RenderJobData {
   }>;
   /** Workspace manifest snapshot — when present, workspace render path is used */
   manifest?: unknown;
+  /** Path to workspace Remotion bundle directory */
+  workspaceBundlePath?: string;
 }
 
 export interface RenderRemotionOptions {

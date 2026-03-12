@@ -10,6 +10,7 @@ import type { ProjectStatus } from '@viona/shared';
 import { apiProgressStore } from '../progress/progress-store.js';
 import { logger } from '../logger.js';
 import { isWorkspaceActive, snapshotManifest } from '../workspace/workspace-service.js';
+import { bundlerService } from '../workspace/bundler-service.js';
 
 // Validation schemas
 const createProjectSchema = z.object({
@@ -864,8 +865,10 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     // Snapshot workspace manifest if active (immutable copy for export)
     let manifestSnapshot = null;
+    let workspaceBundlePath: string | null = null;
     if (await isWorkspaceActive(id)) {
       manifestSnapshot = await snapshotManifest(id);
+      workspaceBundlePath = bundlerService.getBundlePath(id);
     }
 
     // Queue the job with layout settings, fullscreen segments, and visual display data for exact preview match
@@ -877,6 +880,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       fullscreenSegments: body.fullscreenSegments,
       visualDisplayData: body.visualDisplayData,
       ...(manifestSnapshot ? { manifest: manifestSnapshot } : {}),
+      ...(workspaceBundlePath ? { workspaceBundlePath } : {}),
     });
 
     return { jobId: job.id };
