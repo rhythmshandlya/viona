@@ -30,6 +30,20 @@ export async function setupWebSocket(fastify: FastifyInstance) {
         // Activity events are published on the :progress channel with _type: 'activity'.
         // Route them as job:activity so the frontend can handle them separately.
         type = data._type === 'activity' ? 'job:activity' : 'job:progress';
+      } else if (channel.includes(':workspace:ready')) {
+        type = 'workspace:ready';
+      } else if (channel.includes(':manifest:updated')) {
+        type = 'manifest:updated';
+      } else if (channel.includes(':bundle:ready')) {
+        type = 'bundle:ready';
+      } else if (channel.includes(':bundle:error')) {
+        type = 'bundle:error';
+      } else if (channel.includes(':workspace:lock_acquired')) {
+        type = 'workspace:lock_acquired';
+      } else if (channel.includes(':workspace:lock_released')) {
+        type = 'workspace:lock_released';
+      } else if (channel.includes(':workspace:teardown')) {
+        type = 'workspace:teardown';
       } else if (channel.includes(':complete')) {
         type = 'job:complete';
       } else if (channel.includes(':error')) {
