@@ -36,8 +36,9 @@ export async function downloadSceneSources(
 ): Promise<string[]> {
   const scenesDir = getScenesPath(projectId);
   const downloaded: string[] = [];
+  const uniqueIds = [...new Set(compositionIds)];
 
-  for (const compositionId of compositionIds) {
+  for (const compositionId of uniqueIds) {
     try {
       // List all source files for this composition
       const keys = await listObjects('outputs', `sources/${compositionId}/`);
@@ -128,7 +129,7 @@ export function remapManifestSceneFiles(
  * Extract unique compositionIds from DB visual items.
  */
 export function extractCompositionIds(
-  dbItems: Array<{ id: string; type: string; data: Record<string, unknown> }>,
+  dbItems: Array<{ type: string; data: Record<string, unknown> }>,
 ): string[] {
   const ids = new Set<string>();
   for (const item of dbItems) {
