@@ -7,7 +7,7 @@ export type TimelineItemType = 'subtitle' | 'visual' | 'audio' | 'effect';
 
 export type VisualType = 'chart' | 'flowchart' | 'list' | 'comparison' | 'framework' | 'stat';
 
-export type SubtitleDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
+export type SubtitleDisplayMode = 'word-by-word' | 'phrase' | 'karaoke' | 'dynamic-hierarchy';
 
 // Legacy position type (for backward compatibility)
 export type SubtitlePositionLegacy = 'top' | 'center' | 'bottom';
