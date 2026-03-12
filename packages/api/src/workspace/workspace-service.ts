@@ -168,6 +168,21 @@ export async function applyManifestOperation(projectId: string, op: ManifestOp):
 }
 
 /**
+ * Create an atomic snapshot of the workspace manifest.
+ * Used by the render processor to get an immutable copy that won't change
+ * during export while the user continues editing.
+ */
+export async function snapshotManifest(projectId: string): Promise<Manifest | null> {
+  if (!(await isWorkspaceActive(projectId))) {
+    return null;
+  }
+
+  const manifest = await readManifest(projectId);
+  // Return a deep clone so mutations to the live manifest don't affect the snapshot
+  return structuredClone(manifest);
+}
+
+/**
  * Check if a workspace is currently active.
  */
 export async function isWorkspaceActive(projectId: string): Promise<boolean> {
