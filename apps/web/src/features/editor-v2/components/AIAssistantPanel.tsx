@@ -12,7 +12,7 @@ import remarkGfm from 'remark-gfm';
 import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw, Square, Clock, AlertCircle, Check, Circle, XCircle, ListOrdered, Plus, Paperclip } from 'lucide-react';
 import { api } from '@/lib/api';
 import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
-import { clearVisualCache } from '../player/DynamicVisualLoader';
+import { clearCompositionCache } from '../player/useWorkspaceComposition';
 import { useVideoSettings, useEditorActions, useAIEditingContext, useAIEditRequested, usePendingAIMessage, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
 import { useProgress } from '../hooks/use-progress';
@@ -376,7 +376,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         };
         return [...updated, doneMsg];
       });
-      clearVisualCache();
+      clearCompositionCache();
       if (reloadVisuals) reloadVisuals(projectId);
     },
     onError: (data) => {
@@ -454,7 +454,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               createdAt: new Date().toISOString(),
             }];
           });
-          clearVisualCache();
+          clearCompositionCache();
           if (reloadVisuals) reloadVisuals(projectId);
           return;
         }
@@ -882,7 +882,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         );
 
         // Trigger visual reload on completion
-        clearVisualCache();
+        clearCompositionCache();
         if (reloadVisuals) {
           reloadVisuals(projectId);
         }
@@ -1070,7 +1070,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             setMessages(loaded);
             if (data.conversationId) setConversationId(data.conversationId);
 
-            clearVisualCache();
+            clearCompositionCache();
             if (reloadVisuals) reloadVisuals(projectId);
             setIsStreaming(false);
             return;
@@ -1402,7 +1402,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setAttachmentFiles([]);
     // Re-trigger auto-greet
     autoGreetSent.current = false;
-    clearVisualCache();
+    clearCompositionCache();
     // Await reloadVisuals so store syncs status/tracks before we unblock UI
     if (reloadVisuals) await reloadVisuals(projectId);
     setIsResetting(false);

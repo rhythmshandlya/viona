@@ -49,7 +49,7 @@ import {
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 import { api } from '@/lib/api';
-import { clearVisualCache } from './player/DynamicVisualLoader';
+import { clearCompositionCache } from './player/useWorkspaceComposition';
 
 interface EditorProps {
   projectId: string;
@@ -397,8 +397,8 @@ export function Editor({ projectId }: EditorProps) {
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
 
-          // Clear cached bundle so DynamicVisualLoader fetches fresh content
-          clearVisualCache();
+          // Clear cached bundle so workspace composition fetches fresh content
+          clearCompositionCache();
 
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
@@ -443,8 +443,8 @@ export function Editor({ projectId }: EditorProps) {
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
 
-          // Clear cached bundle so DynamicVisualLoader fetches fresh content
-          clearVisualCache();
+          // Clear cached bundle so workspace composition fetches fresh content
+          clearCompositionCache();
 
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
