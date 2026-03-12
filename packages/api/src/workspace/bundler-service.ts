@@ -129,9 +129,20 @@ class BundlerService {
       });
 
       let stderr = '';
+      let settled = false;
       proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.killProcessTree(proc);
+        reject(new Error('Remotion bundle timed out after 120s'));
+      }, 120_000);
+
       proc.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         if (code === 0) {
           resolve();
         } else {
@@ -140,14 +151,11 @@ class BundlerService {
       });
 
       proc.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         reject(new Error(`Failed to spawn Remotion bundle: ${err.message}`));
       });
-
-      // Timeout: 2 minutes max
-      setTimeout(() => {
-        proc.kill('SIGTERM');
-        reject(new Error('Remotion bundle timed out after 120s'));
-      }, 120_000);
     });
   }
 
@@ -177,15 +185,26 @@ class BundlerService {
       ];
 
       const proc = spawn('npx', args, {
-        cwd: join(srcPath, '..'), // workspace root
+        cwd: join(srcPath, '..'),
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: process.platform === 'win32',
       });
 
       let stderr = '';
+      let settled = false;
       proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
 
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.killProcessTree(proc);
+        reject(new Error('CJS compilation timed out after 60s'));
+      }, 60_000);
+
       proc.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         if (code === 0) {
           resolve();
         } else {
@@ -194,14 +213,25 @@ class BundlerService {
       });
 
       proc.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
         reject(new Error(`Failed to spawn esbuild: ${err.message}`));
       });
-
-      setTimeout(() => {
-        proc.kill('SIGTERM');
-        reject(new Error('CJS compilation timed out after 60s'));
-      }, 60_000);
     });
+  }
+
+  private killProcessTree(proc: import('child_process').ChildProcess): void {
+    if (!proc.pid) return;
+    try {
+      if (process.platform === 'win32') {
+        spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+      } else {
+        proc.kill('SIGTERM');
+      }
+    } catch {
+      // Process may already be dead
+    }
   }
 
   private async computeSourceHash(srcDir: string): Promise<string> {
