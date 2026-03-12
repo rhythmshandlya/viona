@@ -48,11 +48,23 @@ interface PiPSettings {
   rotation: number;
 }
 
+interface SceneItem {
+  id: string;
+  startFrame: number;
+  endFrame: number;
+  sceneFile: string;
+  displayMode: string;
+  frameOffset?: number;
+  enter?: { type: string; durationMs: number };
+  exit?: { type: string; durationMs: number };
+}
+
 interface FullCompositionProps {
   layoutMode: 'stacked' | 'pip';
   splitSettings: { position: 'visuals-first' | 'video-first'; ratio: number; gap: number };
   pipSettings?: PiPSettings;
   layoutSegments: LayoutSegment[];
+  sceneItems?: SceneItem[];
   videoCropSettings: VideoCropSettings;
   sourceVideoFile?: string;
   audioFile?: string;
@@ -149,6 +161,36 @@ function buildPiPSettings(
 }
 
 /**
+ * Build SceneItem[] from manifest visual items.
+ * Extracts transition config, sceneFile, frameOffset, and displayMode.
+ */
+function buildSceneItems(
+  visualItems: Array<{ id: string; startMs: number; endMs: number; data: ManifestVisualItemData }>,
+  fps: number,
+): SceneItem[] {
+  const sorted = [...visualItems].sort((a, b) => a.startMs - b.startMs);
+
+  return sorted.map((item) => {
+    const data = item.data as Record<string, unknown>;
+    const transition = data.transition as {
+      enter?: { type: string; durationMs: number };
+      exit?: { type: string; durationMs: number };
+    } | undefined;
+
+    return {
+      id: item.id,
+      startFrame: Math.round((item.startMs / 1000) * fps),
+      endFrame: Math.round((item.endMs / 1000) * fps),
+      sceneFile: (data.sceneFile as string) || '',
+      displayMode: (data.displayMode as string) || 'default',
+      frameOffset: (data.frameOffset as number) || undefined,
+      enter: transition?.enter,
+      exit: transition?.exit,
+    };
+  });
+}
+
+/**
  * Convert a Manifest into FullCompositionProps ready for Remotion rendering.
  */
 export function manifestToProps(manifest: Manifest): FullCompositionProps {
@@ -168,6 +210,9 @@ export function manifestToProps(manifest: Manifest): FullCompositionProps {
 
   // Layout segments from visual items (or single default segment if none)
   const layoutSegments = buildLayoutSegments(visualItems, fps, totalDurationMs);
+
+  // Scene items with transition config
+  const sceneItems = buildSceneItems(visualItems, fps);
 
   // If no visual items produced no segments at all (durationMs within threshold of 0),
   // ensure at least one default segment spanning the full duration.
@@ -231,6 +276,7 @@ export function manifestToProps(manifest: Manifest): FullCompositionProps {
     },
     pipSettings,
     layoutSegments,
+    ...(sceneItems.length > 0 ? { sceneItems } : {}),
     videoCropSettings,
     ...(subtitles.length > 0 ? { subtitles } : {}),
     defaultSubtitleStyle,
