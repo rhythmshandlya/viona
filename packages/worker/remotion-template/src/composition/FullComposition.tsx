@@ -4,11 +4,12 @@ import { computeLayoutForFrame, computePiPLayoutForFrame } from './utils';
 import { SpeakerVideo } from './SpeakerVideo';
 import { PiPVideo } from './PiPVideo';
 import { VisualsLayer } from './VisualsLayer';
+import { SceneTransitionLayer } from './SceneTransitionLayer';
 import { SubtitleLayer } from './SubtitleLayer';
-import type { FullCompositionProps } from './types';
+import type { FullCompositionProps, Rect } from './types';
 
 interface Props extends FullCompositionProps {
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 export const FullComposition: React.FC<Props> = ({
@@ -22,6 +23,8 @@ export const FullComposition: React.FC<Props> = ({
   backgroundColor,
   subtitles,
   defaultSubtitleStyle,
+  sceneItems,
+  renderScene,
   children,
 }) => {
   const frame = useCurrentFrame();
@@ -30,13 +33,32 @@ export const FullComposition: React.FC<Props> = ({
   const hasVideo = !!sourceVideoFile;
   const fullRect = { x: 0, y: 0, w: width, h: height };
 
+  const hasSceneTransitions = sceneItems && sceneItems.length > 0 && renderScene;
+
+  // Helper: render visuals either via SceneTransitionLayer or children
+  const renderVisuals = (rect: Rect, opacity: number) => {
+    if (hasSceneTransitions) {
+      return (
+        <SceneTransitionLayer
+          sceneItems={sceneItems}
+          renderScene={renderScene}
+          rect={rect}
+          opacity={opacity}
+        />
+      );
+    }
+    return (
+      <VisualsLayer rect={rect} opacity={opacity}>
+        {children}
+      </VisualsLayer>
+    );
+  };
+
   // --- Audio-only: visuals fullscreen + subtitles + <Audio> ---
   if (!hasVideo) {
     return (
       <AbsoluteFill style={{ backgroundColor: backgroundColor || '#000' }}>
-        <VisualsLayer rect={fullRect} opacity={1}>
-          {children}
-        </VisualsLayer>
+        {renderVisuals(fullRect, 1)}
         {subtitles && subtitles.length > 0 && (
           <SubtitleLayer
             subtitles={subtitles}
@@ -75,11 +97,7 @@ export const FullComposition: React.FC<Props> = ({
         )}
 
         {/* Visuals — always fullscreen in PiP */}
-        {showVisuals && (
-          <VisualsLayer rect={fullRect} opacity={1}>
-            {children}
-          </VisualsLayer>
-        )}
+        {showVisuals && renderVisuals(fullRect, 1)}
 
         {/* PiP bubble (non-overlay) — muted, audio comes from carrier above */}
         {showVideo && !isOverlay && (
@@ -119,9 +137,7 @@ export const FullComposition: React.FC<Props> = ({
         src={sourceVideoFile}
         crop={videoCropSettings}
       />
-      <VisualsLayer rect={visualsRect} opacity={visualsOpacity}>
-        {children}
-      </VisualsLayer>
+      {renderVisuals(visualsRect, visualsOpacity)}
       {subtitles && subtitles.length > 0 && (
         <SubtitleLayer
           subtitles={subtitles}
