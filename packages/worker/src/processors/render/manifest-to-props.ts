@@ -8,13 +8,58 @@ import type {
   ManifestVisualItemData,
 } from '@viona/shared';
 import type {
-  FullCompositionProps,
   LayoutSegment,
-  PiPSettings,
-  SubtitleItemData,
-  SubtitleStyle,
-  SubtitleWordData,
-} from '../../remotion-template/src/composition/types.js';
+  VideoCropSettings,
+} from './types.js';
+
+// These types mirror the FullComposition prop interfaces from remotion-template.
+// We declare them locally because remotion-template is outside the worker's rootDir
+// and cannot be imported via tsc. Keep in sync with remotion-template/src/composition/types.ts.
+
+interface SubtitleWordData {
+  text: string;
+  startMs: number;
+  endMs: number;
+  styleOverrides?: Record<string, unknown>;
+}
+
+interface SubtitleItemData {
+  startMs: number;
+  endMs: number;
+  words: SubtitleWordData[];
+  style?: Record<string, unknown>;
+}
+
+type SubtitleStyle = Record<string, unknown>;
+
+interface PiPSettings {
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  offsetX: number;
+  offsetY: number;
+  size: number;
+  shape: 'square' | 'circle' | 'rounded';
+  borderRadius: number;
+  borderWidth: number;
+  borderColor: string;
+  shadowEnabled: boolean;
+  shadowColor: string;
+  shadowBlur: number;
+  opacity: number;
+  rotation: number;
+}
+
+interface FullCompositionProps {
+  layoutMode: 'stacked' | 'pip';
+  splitSettings: { position: 'visuals-first' | 'video-first'; ratio: number; gap: number };
+  pipSettings?: PiPSettings;
+  layoutSegments: LayoutSegment[];
+  videoCropSettings: VideoCropSettings;
+  sourceVideoFile?: string;
+  audioFile?: string;
+  backgroundColor?: string;
+  subtitles?: SubtitleItemData[];
+  defaultSubtitleStyle?: SubtitleStyle;
+}
 
 /** Gaps smaller than this (in ms) are absorbed rather than filled with a default segment. */
 const GAP_THRESHOLD_MS = 50;

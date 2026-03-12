@@ -181,7 +181,7 @@ async function renderFromManifest(
       }
       for (const word of sub.words) {
         if (word.styleOverrides?.fontFamily) {
-          (word.styleOverrides as any).fontFamily = resolveAvailableFontFamily(word.styleOverrides.fontFamily);
+          (word.styleOverrides as any).fontFamily = resolveAvailableFontFamily(word.styleOverrides.fontFamily as string);
         }
       }
     }
