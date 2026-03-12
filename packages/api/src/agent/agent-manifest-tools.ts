@@ -31,6 +31,10 @@ async function ensureWorkspaceAndLock(projectId: string): Promise<{ error?: stri
   return {};
 }
 
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function errorResult(message: string) {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify({ error: message }) }],
@@ -112,8 +116,8 @@ export function createManifestTools(ctx: ToolContext) {
           });
           await emitManifestUpdated(ctx.projectId, { source: 'ai', ops: [{ op: 'set_layout', layout }] });
           return successResult({ layoutMode: updated.layout.mode, layout: updated.layout });
-        } catch (err: any) {
-          return errorResult(err.message);
+        } catch (err: unknown) {
+          return errorResult(getErrorMessage(err));
         }
       },
     ),
@@ -135,8 +139,8 @@ export function createManifestTools(ctx: ToolContext) {
           await applyManifestOperation(ctx.projectId, op);
           await emitManifestUpdated(ctx.projectId, { source: 'ai', ops: [op] });
           return successResult({ itemId, displayMode, applied: true });
-        } catch (err: any) {
-          return errorResult(err.message);
+        } catch (err: unknown) {
+          return errorResult(getErrorMessage(err));
         }
       },
     ),
@@ -165,8 +169,8 @@ export function createManifestTools(ctx: ToolContext) {
           await applyManifestOperation(ctx.projectId, op);
           await emitManifestUpdated(ctx.projectId, { source: 'ai', ops: [op] });
           return successResult({ itemId, enter, exit, applied: true });
-        } catch (err: any) {
-          return errorResult(err.message);
+        } catch (err: unknown) {
+          return errorResult(getErrorMessage(err));
         }
       },
     ),
@@ -193,8 +197,8 @@ export function createManifestTools(ctx: ToolContext) {
           await applyManifestOperation(ctx.projectId, op);
           await emitManifestUpdated(ctx.projectId, { source: 'ai', ops: [op] });
           return successResult({ itemId, startMs, endMs, applied: true });
-        } catch (err: any) {
-          return errorResult(err.message);
+        } catch (err: unknown) {
+          return errorResult(getErrorMessage(err));
         }
       },
     ),
@@ -241,8 +245,8 @@ export function createManifestTools(ctx: ToolContext) {
           const updated = await applyManifestOperation(ctx.projectId, op);
           await emitManifestUpdated(ctx.projectId, { source: 'ai', ops: [op] });
           return successResult({ captionStyle: updated.captionStyle, applied: true });
-        } catch (err: any) {
-          return errorResult(err.message);
+        } catch (err: unknown) {
+          return errorResult(getErrorMessage(err));
         }
       },
     ),
@@ -277,8 +281,8 @@ export function createManifestTools(ctx: ToolContext) {
             firstHalf: firstHalf ? { id: firstHalf.id, startMs: firstHalf.startMs, endMs: firstHalf.endMs } : null,
             secondHalf: secondHalf ? { id: secondHalf.id, startMs: secondHalf.startMs, endMs: secondHalf.endMs } : null,
           });
-        } catch (err: any) {
-          return errorResult(err.message);
+        } catch (err: unknown) {
+          return errorResult(getErrorMessage(err));
         }
       },
     ),
@@ -312,8 +316,8 @@ export function createManifestTools(ctx: ToolContext) {
               endMs: deletedItem.endMs,
             } : { id: itemId },
           });
-        } catch (err: any) {
-          return errorResult(err.message);
+        } catch (err: unknown) {
+          return errorResult(getErrorMessage(err));
         }
       },
     ),
@@ -333,6 +337,12 @@ export function createManifestTools(ctx: ToolContext) {
           // Read current manifest to get visual items
           const manifest = await readManifest(ctx.projectId);
           const visualItems = manifest.items.filter(i => i.type === 'visual');
+
+          // Check for duplicate IDs
+          const uniqueIds = new Set(itemIds);
+          if (uniqueIds.size !== itemIds.length) {
+            return errorResult('Duplicate item IDs are not allowed');
+          }
 
           // Require ALL visual items to be included
           if (itemIds.length !== visualItems.length) {
@@ -370,8 +380,8 @@ export function createManifestTools(ctx: ToolContext) {
             order: itemIds,
             message: `Reordered ${itemIds.length} visual items`,
           });
-        } catch (err: any) {
-          return errorResult(err.message);
+        } catch (err: unknown) {
+          return errorResult(getErrorMessage(err));
         }
       },
     ),
