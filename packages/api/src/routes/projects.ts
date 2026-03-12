@@ -9,7 +9,7 @@ import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
 import { apiProgressStore } from '../progress/progress-store.js';
 import { logger } from '../logger.js';
-import { isWorkspaceActive, snapshotManifest } from '../workspace/workspace-service.js';
+import { isWorkspaceActive, snapshotManifest, spinUpWorkspace } from '../workspace/workspace-service.js';
 import { bundlerService } from '../workspace/bundler-service.js';
 
 // Validation schemas
@@ -863,13 +863,26 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Snapshot workspace manifest if active (immutable copy for export)
-    let manifestSnapshot = null;
-    let workspaceBundlePath: string | null = null;
-    if (await isWorkspaceActive(id)) {
-      manifestSnapshot = await snapshotManifest(id);
-      workspaceBundlePath = bundlerService.getBundlePath(id);
+    // Ensure workspace is active for rendering
+    if (!(await isWorkspaceActive(id))) {
+      // Spin up workspace — generates manifest, copies composition, runs codegen
+      // NOTE: spinUpWorkspace queues a bundle build async (fire-and-forget)
+      await spinUpWorkspace(id);
     }
+
+    // Always await a bundle build to ensure it's ready for export.
+    // enqueueBuild is idempotent — if bundle is cached and hash matches,
+    // it returns immediately. If a build was queued by spinUpWorkspace,
+    // the debounce timer deduplicates.
+    await bundlerService.enqueueBuild(id, 'user');
+
+    // Snapshot workspace manifest (now guaranteed to exist)
+    const manifestSnapshot = await snapshotManifest(id);
+    if (!manifestSnapshot) {
+      return reply.status(500).send({ error: 'Failed to snapshot workspace manifest' });
+    }
+
+    const workspaceBundlePath = bundlerService.getBundlePath(id);
 
     // Queue the render job — layout/visuals come from the workspace manifest
     await queueRenderJob({
@@ -877,8 +890,8 @@ export async function projectRoutes(fastify: FastifyInstance) {
       jobId: job.id,
       projectType: project.projectType || 'video',
       videoClipData: body.videoClipData,
-      ...(manifestSnapshot ? { manifest: manifestSnapshot } : {}),
-      ...(workspaceBundlePath ? { workspaceBundlePath } : {}),
+      manifest: manifestSnapshot,
+      workspaceBundlePath,
     });
 
     return { jobId: job.id };
