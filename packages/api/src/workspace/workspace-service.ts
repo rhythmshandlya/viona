@@ -1,6 +1,6 @@
 import { mkdir, writeFile, readFile, rm, access, cp } from 'fs/promises';
 import { join, resolve } from 'path';
-import { eq } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import {
   workspaceConfig,
   getWorkspacePath,
@@ -46,12 +46,11 @@ export async function spinUpWorkspace(projectId: string): Promise<{ manifest: Ma
 
   const projectTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
 
-  // Get ALL items for all tracks in this project
-  const allItems = [];
-  for (const track of projectTracks) {
-    const items = await db.select().from(timelineItems).where(eq(timelineItems.trackId, track.id));
-    allItems.push(...items);
-  }
+  // Get ALL items for all tracks in this project (single query)
+  const trackIds = projectTracks.map(t => t.id);
+  const allItems = trackIds.length > 0
+    ? await db.select().from(timelineItems).where(inArray(timelineItems.trackId, trackIds))
+    : [];
 
   const dbInput: DbToManifestInput = {
     project: {
