@@ -565,6 +565,29 @@ Key behaviors:
 - **Queue priority**: user-triggered rebuilds jump ahead of background
 - **One build per project at a time**: new request cancels in-progress build for same project
 - **No persistent process per project**: just a queue worker that processes builds sequentially
+- **Source maps enabled**: every build produces source maps alongside the bundle (see below)
+
+### Source Maps
+
+The bundler produces source maps (`.js.map` files) with every build. These map bundled JS back to the original TypeScript scene files.
+
+**What source maps enable:**
+
+1. **Element picker → precise code location**: User clicks an element in the preview → React DevTools-style fiber walking identifies the rendered component → source map traces it to `Scene2.tsx:45` → AI receives exact file + line range for surgical edits instead of vague "edit the chart."
+
+2. **Frontend property editing → direct code mutation**: User changes a color in the context panel → source map identifies the exact `fill: '#FF0000'` declaration in the TSX → backend does a targeted string replacement (no AI round-trip needed for simple property changes).
+
+3. **Error tracing**: Runtime errors in the preview show original TSX locations, not bundled JS line numbers. Useful for both debugging and AI self-healing.
+
+**Implementation:**
+
+- Webpack (Remotion's bundler) supports `devtool: 'source-map'` for production-quality source maps
+- Source maps are served alongside the bundle via the same bundle endpoint
+- The frontend loads source maps and exposes a `resolveSourceLocation(bundledFile, line, col)` utility
+- The element picker overlay uses this to annotate selected elements with their source location
+- Source locations are passed to AI tools: `edit_scene("Scene2", prompt, { startLine: 45, endLine: 60 })`
+
+**Size concern**: Source maps add ~2-3x the bundle size in `.map` files. They are only loaded on-demand by the element picker/inspect mode — not downloaded upfront. In production, they can be stripped from export builds (export doesn't need source maps).
 
 ---
 
