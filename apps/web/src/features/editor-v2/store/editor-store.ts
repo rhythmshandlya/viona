@@ -9,6 +9,7 @@ import { nanoid } from 'nanoid';
 import { api, Project as ApiProject } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
+import { manifestToStore, StoreManifestOp } from './manifest-bridge';
 import {
   EditorStore,
   EditorState,
@@ -62,6 +63,20 @@ const cancelDebouncedSave = () => {
   }
 };
 
+/** Dispatch a manifest operation to the workspace if active, otherwise no-op (legacy save handles it) */
+const dispatchManifestOp = async (op: StoreManifestOp): Promise<void> => {
+  const state = useEditorStore.getState();
+  if (state.workspaceStatus !== 'active' || !state.project) {
+    return;
+  }
+
+  try {
+    await api.applyManifestOp(state.project.id, op as any);
+  } catch (err) {
+    console.error('Failed to apply manifest op:', err);
+  }
+};
+
 // Initial state
 const initialState: EditorState = {
   // Project
@@ -102,6 +117,13 @@ const initialState: EditorState = {
   // UI state
   isSaving: false,
   isDirty: false,
+
+  // Workspace state (Plan 3)
+  workspaceStatus: 'inactive' as const,
+  workspaceBundleUrl: null,
+  workspaceBundleVersion: 0,
+  workspaceLockHolder: null,
+  workspaceBundleError: null,
 
   // Caption style toggle
   applyStyleToAll: false,
@@ -656,6 +678,85 @@ export const useEditorStore = create<EditorStore>()(
         const videoUrl = (apiProject as any).videoPresignedUrl
           || (apiProject.videoKey ? `${API_URL}/api/projects/${projectId}/video` : '');
 
+        // --- Workspace path (Plan 3) ---
+        try {
+          const wsResult = await api.spinUpWorkspace(projectId);
+          const bundleBaseUrl = api.getWorkspaceBundleUrl(projectId);
+          const initialBundleUrl = wsResult.cachedBundleUrl ?? wsResult.bundleUrl ?? bundleBaseUrl;
+
+          const bridgeResult = manifestToStore(wsResult.manifest, {
+            videoUrl,
+            bundleUrl: initialBundleUrl,
+            compositionId: (apiProject as any).compositionId ?? '',
+            visualMeta: (apiProject as any).visualMeta,
+          });
+
+          // Build project object from API data (we still need this for metadata)
+          const project = {
+            id: apiProject.id,
+            title: apiProject.title,
+            status: apiProject.status,
+            projectType: apiProject.projectType,
+            videoKey: apiProject.videoKey,
+            audioKey: (apiProject as any).audioKey,
+            videoUrl,
+            audioUrl: (apiProject as any).audioPresignedUrl || null,
+            outputKey: apiProject.outputKey,
+            durationMs: bridgeResult.duration,
+            fps: bridgeResult.fps,
+            sourceWidth: apiProject.width,
+            sourceHeight: apiProject.height,
+            videoSettings: bridgeResult.videoSettings,
+          };
+
+          set((state) => {
+            state.project = project;
+            state.tracks = bridgeResult.tracks;
+            state.items = bridgeResult.items;
+            state.itemIds = bridgeResult.itemIds;
+            state.duration = bridgeResult.duration;
+            state.fps = bridgeResult.fps;
+            state.isLoading = false;
+            state.currentTimeMs = 0;
+            state.selectedIds = [];
+            state.layoutSettings = bridgeResult.layoutSettings;
+            state.layoutPresetId = bridgeResult.layoutPresetId as LayoutPresetId;
+            state.workspaceStatus = wsResult.workspaceStatus as any;
+            state.workspaceBundleUrl = bundleBaseUrl;
+            state.workspaceBundleVersion = 0;
+            state.workspaceBundleError = null;
+            state.workspaceLockHolder = null;
+            state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
+            state.history = [];
+            state.historyIndex = -1;
+            state.isDirty = false;
+          });
+
+          get().pushHistory();
+          cancelDebouncedSave();
+          set((state) => { state.isDirty = false; });
+
+          // Auto-load caption fonts (same as existing path)
+          const captionFonts = new Set<string>();
+          for (const id of bridgeResult.itemIds) {
+            const item = bridgeResult.items[id];
+            if (item?.type === 'caption') {
+              const fontFamily = (item.data as CaptionItemData).style?.fontFamily;
+              if (fontFamily) captionFonts.add(fontFamily.split(',')[0].trim());
+            }
+          }
+          for (const family of captionFonts) {
+            const entry = findFont(family);
+            if (entry) loadFont(entry);
+          }
+
+          return; // Workspace path succeeded — skip legacy path
+        } catch (wsError) {
+          console.warn('Workspace spin-up failed, falling back to DB loading:', wsError);
+          // Fall through to existing convertApiProject path
+        }
+        // --- End workspace path ---
+
         const { project, tracks, items, itemIds, duration } = convertApiProject(
           apiProject,
           videoUrl
@@ -1027,6 +1128,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      dispatchManifestOp({ op: 'update_video_settings', updates: { ...settings } });
     },
 
     // ========================================
@@ -1048,6 +1150,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      dispatchManifestOp({ op: 'update_caption_style', updates: { ...styleUpdates } });
     },
 
     updateSelectedCaptionStyles: (ids: string[], styleUpdates: Partial<CaptionStyle>) => {
@@ -1260,6 +1363,10 @@ export const useEditorStore = create<EditorStore>()(
       // Cancel the debounced save from pushHistory — we save immediately below
       cancelDebouncedSave();
 
+      for (const id of ids) {
+        dispatchManifestOp({ op: 'delete_item', itemId: id });
+      }
+
       // If visual items were deleted, delete visuals from backend
       if (hasVisualItems && project) {
         try {
@@ -1285,6 +1392,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchManifestOp({ op: 'move_item', itemId: id, startMs: get().items[id]?.startMs ?? 0, endMs: get().items[id]?.endMs ?? 0 });
     },
 
     resizeItem: (id, startMs, endMs) => {
@@ -1297,6 +1405,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchManifestOp({ op: 'move_item', itemId: id, startMs: get().items[id]?.startMs ?? 0, endMs: get().items[id]?.endMs ?? 0 });
     },
 
     // ========================================
@@ -1622,6 +1731,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchManifestOp({ op: 'reorder_tracks', trackIds });
     },
 
     // ========================================
@@ -1761,6 +1871,10 @@ export const useEditorStore = create<EditorStore>()(
 
       get().pushHistory();
       debouncedSave(() => get().saveProject());
+
+      if (splitResult) {
+        dispatchManifestOp({ op: 'split_item', itemId, atMs });
+      }
 
       // Trigger AI regeneration for visual splits
       if (isVisual && splitResult && visualData?.sourceSceneId) {
@@ -2250,6 +2364,8 @@ export const useEditorStore = create<EditorStore>()(
         state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
+      const ls = get().layoutSettings;
+      dispatchManifestOp({ op: 'set_layout', layout: { mode: ls.mode, pip: ls.pip, split: ls.split } });
     },
 
     updatePiPSettings: (settings: Partial<PiPSettings>) => {
@@ -2297,6 +2413,8 @@ export const useEditorStore = create<EditorStore>()(
         state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
+      const ls = get().layoutSettings;
+      dispatchManifestOp({ op: 'set_layout', layout: { mode: ls.mode, pip: ls.pip, split: ls.split } });
     },
 
     setLayoutMode: (mode: LayoutMode) => {
@@ -2306,6 +2424,8 @@ export const useEditorStore = create<EditorStore>()(
         state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
+      const ls = get().layoutSettings;
+      dispatchManifestOp({ op: 'set_layout', layout: { mode: ls.mode, pip: ls.pip, split: ls.split } });
     },
 
     // Scene selection for AI editing
@@ -2445,6 +2565,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      dispatchManifestOp({ op: 'set_display_mode', itemId, displayMode });
     },
 
     updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => {
@@ -2455,6 +2576,9 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      if (transition) {
+        dispatchManifestOp({ op: 'set_transition', itemId, enter: transition.enter, exit: transition.exit });
+      }
     },
 
     openTransitionPicker: (itemId: string) => {
@@ -2509,6 +2633,45 @@ export const useEditorStore = create<EditorStore>()(
       const item = get().items[videoItemId];
       if (!item || item.type !== 'video') return undefined;
       return (item.data as VideoItemData).segmentation;
+    },
+
+    // ========================================
+    // Workspace Actions (Plan 3)
+    // ========================================
+
+    setWorkspaceStatus: (status) => set((state) => { state.workspaceStatus = status; }),
+    setWorkspaceBundleUrl: (url) => set((state) => { state.workspaceBundleUrl = url; }),
+    incrementBundleVersion: () => set((state) => { state.workspaceBundleVersion += 1; }),
+    setWorkspaceLockHolder: (holder) => set((state) => { state.workspaceLockHolder = holder; }),
+    setWorkspaceBundleError: (error) => set((state) => { state.workspaceBundleError = error; }),
+
+    applyRemoteManifestUpdate: async (manifest) => {
+      const state = get();
+      if (!state.project) return;
+
+      // Preserve existing visual metadata from current store items
+      const existingVideoItem = state.itemIds
+        .map(id => state.items[id])
+        .find(item => item?.type === 'video');
+      const existingVisualItem = state.itemIds
+        .map(id => state.items[id])
+        .find(item => item?.type === 'visual');
+      const existingVisualData = existingVisualItem?.data as VisualItemData | undefined;
+
+      const bridgeResult = manifestToStore(manifest, {
+        videoUrl: (existingVideoItem?.data as VideoItemData)?.src ?? '',
+        bundleUrl: state.workspaceBundleUrl ?? '',
+        compositionId: existingVisualData?.compositionId ?? '',
+        visualMeta: undefined,
+      });
+
+      set((s) => {
+        s.tracks = bridgeResult.tracks;
+        s.items = bridgeResult.items;
+        s.itemIds = bridgeResult.itemIds;
+        s.duration = bridgeResult.duration;
+        s.layoutSettings = bridgeResult.layoutSettings;
+      });
     },
   }))
 );
