@@ -16,6 +16,7 @@ import {
   renderWithRemotion,
   hasZoneBasedVisuals,
 } from './ffmpeg.js';
+import { manifestToProps } from './manifest-to-props.js';
 import { escapePathForFilter } from './types.js';
 import type {
   RenderJobData,
@@ -73,6 +74,160 @@ function buildLayoutSegments(
   return segments;
 }
 
+/**
+ * Workspace-based render path.
+ * Reads manifest from job data, converts to FullCompositionProps, renders with Remotion.
+ * Returns true if it handled the render, false to fall back to legacy path.
+ */
+async function renderFromManifest(
+  jobData: RenderJobData,
+  workDir: string,
+  jobId: string,
+): Promise<boolean> {
+  const manifest = (jobData as any).manifest;
+  if (!manifest) return false;
+
+  const projectId = jobData.projectId;
+
+  await publishJobProgress(jobId, 5, 'Preparing workspace-based render...');
+
+  // 1. Load project for metadata
+  const project = await db.query.projects.findFirst({
+    where: eq(projects.id, projectId),
+  });
+  if (!project) throw new Error(`Project not found: ${projectId}`);
+
+  // 2. Download source media
+  const isAudioProject = (jobData.projectType || project.projectType || 'video') === 'audio';
+  let sourceVideoPath: string | undefined;
+  let audioPath: string | undefined;
+
+  if (isAudioProject) {
+    if (project.audioKey) {
+      const audioExt = project.audioKey.match(/\.[^.]+$/)?.[0] || '.mp3';
+      audioPath = join(workDir, `input${audioExt}`);
+      await downloadFile('uploads', project.audioKey, audioPath);
+    }
+  } else {
+    if (project.videoKey) {
+      sourceVideoPath = join(workDir, 'input.mp4');
+      await downloadFile('uploads', project.videoKey!, sourceVideoPath);
+    }
+  }
+
+  await publishJobProgress(jobId, 15, 'Converting manifest to composition props...');
+
+  // 3. Convert manifest → FullCompositionProps
+  const compositionProps = manifestToProps(manifest);
+
+  // Set source media paths (not part of manifest conversion)
+  if (sourceVideoPath) {
+    (compositionProps as any).sourceVideoFile = 'source.mp4';
+  }
+  if (isAudioProject) {
+    (compositionProps as any).audioFile = 'audio.mp4';
+  }
+  (compositionProps as any).backgroundColor = '#000000';
+
+  // 4. Check if we have a visual composition
+  const projectVisual = await db.query.visuals.findFirst({
+    where: eq(visuals.projectId, projectId),
+  });
+
+  if (!projectVisual) {
+    return false;
+  }
+
+  await publishJobProgress(jobId, 25, 'Preparing bundle...');
+
+  // 5. Derive bundle path
+  const bundleDirName = projectVisual.compositionId.replace(/_/g, '-');
+  const bundlePath = join(config.remotion.bundleOutputDir, bundleDirName);
+  const bundlePublicDir = join(bundlePath, 'public');
+  await mkdir(bundlePublicDir, { recursive: true });
+
+  // 6. Copy source media into bundle's public/
+  if (sourceVideoPath) {
+    await copyFile(sourceVideoPath, join(bundlePublicDir, 'source.mp4'));
+  }
+  if (isAudioProject && audioPath) {
+    await copyFile(audioPath, join(bundlePublicDir, 'audio.mp4'));
+  }
+
+  // 7. Handle video clips
+  if (jobData.videoClipData?.length) {
+    const { clips: videoClipPaths } = await downloadVideoClipsForRender(projectId, workDir, jobData.videoClipData);
+    if (videoClipPaths.size > 0) {
+      const bundleClipsDir = join(bundlePath, 'public', 'assets', 'clips');
+      await mkdir(bundleClipsDir, { recursive: true });
+      for (const [_sceneId, clipPath] of videoClipPaths) {
+        await copyFile(clipPath, join(bundleClipsDir, basename(clipPath)));
+      }
+    }
+  }
+
+  // 8. Resolve fonts
+  const defaultStyle = compositionProps.defaultSubtitleStyle as any;
+  if (compositionProps.subtitles?.length && defaultStyle) {
+    const rawFontFamily = defaultStyle.fontFamily || 'Inter';
+    await ensureFontsDir(rawFontFamily);
+    const resolvedFontFamily = resolveAvailableFontFamily(rawFontFamily);
+    defaultStyle.fontFamily = resolvedFontFamily;
+
+    for (const sub of compositionProps.subtitles) {
+      const style = sub.style as any;
+      if (style?.fontFamily) {
+        style.fontFamily = resolveAvailableFontFamily(style.fontFamily);
+      }
+      for (const word of sub.words) {
+        if (word.styleOverrides?.fontFamily) {
+          (word.styleOverrides as any).fontFamily = resolveAvailableFontFamily(word.styleOverrides.fontFamily);
+        }
+      }
+    }
+  }
+
+  await publishJobProgress(jobId, 35, 'Rendering video...');
+
+  // 9. Write props and render
+  const outputPath = join(workDir, 'output.mp4');
+  const propsPath = join(workDir, 'composition-props.json');
+  await writeFile(propsPath, JSON.stringify(compositionProps), 'utf-8');
+
+  await renderWithRemotion({
+    bundlePath,
+    compositionId: projectVisual.compositionId,
+    outputPath,
+    propsPath,
+    onProgress: (progress) => {
+      const jobProgress = 35 + Math.round(progress * 55);
+      publishJobProgress(jobId, jobProgress, `Rendering: ${Math.round(progress * 100)}%`);
+    },
+  });
+
+  await publishJobProgress(jobId, 92, 'Uploading output...');
+
+  // 10. Upload to S3
+  const outputKey = `${nanoid()}/output.mp4`;
+  await uploadFile('outputs', outputKey, outputPath);
+
+  // 11. Update project + job
+  await db.update(projects).set({
+    status: 'complete',
+    outputKey,
+    updatedAt: new Date(),
+  }).where(eq(projects.id, projectId));
+
+  await db.update(jobs)
+    .set({ status: 'complete', progress: 100, completedAt: new Date() })
+    .where(eq(jobs.id, jobId));
+
+  await publishJobProgress(jobId, 100, 'Complete');
+  await publishJobComplete(jobId, projectId);
+
+  return true;
+}
+
 export async function processRenderJob(job: Job<RenderJobData>) {
   const { projectId, jobId, layoutSettings, visualDisplayData, videoClipData } = job.data;
   setJobProjectId(jobId, projectId);
@@ -85,6 +240,15 @@ export async function processRenderJob(job: Job<RenderJobData>) {
     await db.update(jobs)
       .set({ status: 'processing', progress: 0 })
       .where(eq(jobs.id, jobId));
+
+    // Try workspace-based render first (Plan 4)
+    try {
+      const handled = await renderFromManifest(job.data, workDir, jobId);
+      if (handled) return;
+    } catch (err) {
+      logger.warn({ err, projectId }, 'Workspace render failed, falling back to legacy');
+    }
+    // Fall through to existing DB-based render
 
     await publishJobProgress(jobId, 5, 'Loading project...');
 
