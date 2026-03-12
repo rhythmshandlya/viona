@@ -101,7 +101,8 @@ function buildLayoutSegments(
   for (const item of visualItems) {
     const startFrame = Math.round((item.startMs / 1000) * fps);
     const endFrame = Math.round((item.endMs / 1000) * fps);
-    const displayMode = item.data?.displayMode || 'default';
+    let displayMode: string = item.data?.displayMode || 'default';
+    if (displayMode === 'pip') displayMode = 'default'; // Normalise pip → default
 
     // Fill gap before this visual with 'default'
     if (startFrame > lastEndFrame) {
@@ -135,7 +136,7 @@ function buildSceneItems(items: any[], fps: number): SceneItem[] {
         endFrame,
         sceneFile: data.sceneFile || '',
         displayMode: data.displayMode || 'default',
-        frameOffset: data.frameOffset || 0,
+        frameOffset: data.frameOffset ?? undefined,
       };
 
       if (data.transition?.enter) {
@@ -161,9 +162,9 @@ function buildSubtitles(items: any[]): SubtitleItemData[] {
     .map((it: any) => {
       const words: SubtitleWordData[] = (it.data?.words || []).map((w: any) => ({
         text: w.text,
-        // Words are stored with absolute timing in the manifest
-        startMs: w.startMs,
-        endMs: w.endMs,
+        // Word timings are relative to item start — convert to absolute
+        startMs: w.startMs + it.startMs,
+        endMs: w.endMs + it.startMs,
         styleOverrides: w.styleOverrides,
       }));
 
