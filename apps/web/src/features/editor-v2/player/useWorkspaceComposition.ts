@@ -211,6 +211,23 @@ export function useWorkspaceComposition(
         }
         const code = await response.text();
 
+        // Validate response before eval
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('javascript') && !contentType.includes('text/plain')) {
+          throw new Error(`Unexpected content-type for bundle: ${contentType}`);
+        }
+
+        // Basic sanity check — CJS bundles should start with common patterns
+        const trimmed = code.trimStart();
+        if (!trimmed.startsWith('"use strict"') &&
+            !trimmed.startsWith("'use strict'") &&
+            !trimmed.startsWith('var ') &&
+            !trimmed.startsWith('Object.defineProperty') &&
+            !trimmed.startsWith('(function') &&
+            !trimmed.startsWith('module.exports')) {
+          throw new Error('Bundle content does not look like valid CJS JavaScript');
+        }
+
         if (cancelled) return;
 
         // Create module and exports objects
