@@ -1,5 +1,5 @@
-import { mkdir, writeFile, readFile, rm, access } from 'fs/promises';
-import { join } from 'path';
+import { mkdir, writeFile, readFile, rm, access, cp } from 'fs/promises';
+import { join, resolve } from 'path';
 import { eq } from 'drizzle-orm';
 import {
   workspaceConfig,
@@ -16,6 +16,7 @@ import {
   buildVisualCompositionMap,
   remapManifestSceneFiles,
 } from './workspace-scenes.js';
+import { generatePlayerComposition, updateRootWithPlayerComposition } from './workspace-codegen.js';
 import { emitWorkspaceReady, emitWorkspaceTeardown } from './workspace-ws.js';
 import { dbToManifest, manifestToDb, validateManifest, applyManifestOp } from '@viona/shared';
 import type { Manifest, ManifestOp, DbToManifestInput } from '@viona/shared';
@@ -92,6 +93,27 @@ export async function spinUpWorkspace(projectId: string): Promise<{ manifest: Ma
   // 3b. Remap manifest sceneFile values to match actual workspace paths
   const visualCompositionMap = buildVisualCompositionMap(dbItemsForScenes);
   remapManifestSceneFiles(manifest, visualCompositionMap, downloadedCompositions);
+
+  // 3c. Copy composition infrastructure from worker template
+  const templateCompositionDir = resolve(
+    process.cwd(), '..', 'worker', 'remotion-template', 'src', 'composition',
+  );
+  const workspaceCompositionDir = join(srcPath, 'composition');
+  try {
+    await cp(templateCompositionDir, workspaceCompositionDir, { recursive: true });
+  } catch (err) {
+    console.warn(`[workspace] Failed to copy composition infrastructure:`, err);
+  }
+
+  // 3d. Generate PlayerComposition.tsx and Root.tsx (codegen)
+  await generatePlayerComposition(projectId);
+  await updateRootWithPlayerComposition(
+    projectId,
+    manifest.durationMs,
+    manifest.fps,
+    manifest.canvas.width,
+    manifest.canvas.height,
+  );
 
   // 4. Write manifest.json
   await writeFile(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
