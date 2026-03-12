@@ -70,31 +70,33 @@ export const SceneTransitionLayer: React.FC<SceneTransitionLayerProps> = ({
     const nextScene = idx < sorted.length - 1 ? sorted[idx + 1] : undefined;
 
     // Overlap with previous scene (this scene is entering)
-    // Use floor+ceil split so enterHalf + exitHalf on the other scene = total overlap
+    // Split overlap at boundary: beforeHalf frames before, afterHalf frames after
     const enterOverlapFrames = computeOverlapFrames(prevScene, scene, fps);
-    const enterHalf = Math.floor(enterOverlapFrames / 2);
+    const enterBeforeHalf = Math.floor(enterOverlapFrames / 2);
+    const enterAfterHalf = enterOverlapFrames - enterBeforeHalf;
 
     // Overlap with next scene (this scene is exiting)
     const exitOverlapFrames = computeOverlapFrames(scene, nextScene, fps);
-    const exitHalf = Math.ceil(exitOverlapFrames / 2);
+    const exitBeforeHalf = Math.floor(exitOverlapFrames / 2);
+    const exitAfterHalf = exitOverlapFrames - exitBeforeHalf;
 
     // Extended render window
-    const effectiveStart = scene.startFrame - enterHalf;
-    const effectiveEnd = scene.endFrame + exitHalf;
+    const effectiveStart = scene.startFrame - enterBeforeHalf;
+    const effectiveEnd = scene.endFrame + exitAfterHalf;
 
     return {
       scene,
       effectiveStart,
       effectiveEnd,
-      // Enter transition info
+      // Enter transition spans full overlap: [startFrame - before, startFrame + after]
       enterType: scene.enter?.type ?? prevScene?.exit?.type ?? 'cut',
-      enterOverlapStart: scene.startFrame - enterHalf,
-      enterOverlapEnd: scene.startFrame + enterHalf,
+      enterOverlapStart: scene.startFrame - enterBeforeHalf,
+      enterOverlapEnd: scene.startFrame + enterAfterHalf,
       hasEnterTransition: enterOverlapFrames > 0,
-      // Exit transition info
+      // Exit transition spans full overlap: [endFrame - before, endFrame + after]
       exitType: scene.exit?.type ?? nextScene?.enter?.type ?? 'cut',
-      exitOverlapStart: scene.endFrame - exitHalf,
-      exitOverlapEnd: scene.endFrame + exitHalf,
+      exitOverlapStart: scene.endFrame - exitBeforeHalf,
+      exitOverlapEnd: scene.endFrame + exitAfterHalf,
       hasExitTransition: exitOverlapFrames > 0,
     };
   });

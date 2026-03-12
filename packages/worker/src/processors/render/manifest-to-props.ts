@@ -183,7 +183,7 @@ function buildSceneItems(
       endFrame: Math.round((item.endMs / 1000) * fps),
       sceneFile: (data.sceneFile as string) || '',
       displayMode: (data.displayMode as string) || 'default',
-      frameOffset: (data.frameOffset as number) || undefined,
+      frameOffset: (data.frameOffset as number) ?? undefined,
       enter: transition?.enter,
       exit: transition?.exit,
     };

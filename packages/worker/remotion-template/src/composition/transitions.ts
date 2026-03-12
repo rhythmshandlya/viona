@@ -69,8 +69,9 @@ function morph(progress: number, isExit: boolean): CSSProperties {
   };
 }
 
-/** Cut: instant switch, no animation */
-function cut(_progress: number, _isExit: boolean): CSSProperties {
+/** Cut: instant switch — hide exiting scene immediately */
+function cut(progress: number, isExit: boolean): CSSProperties {
+  if (isExit && progress > 0) return { opacity: 0 };
   return {};
 }
 
