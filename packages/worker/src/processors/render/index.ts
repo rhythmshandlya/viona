@@ -16,8 +16,6 @@ import {
   renderWithRemotion,
   hasZoneBasedVisuals,
 } from './ffmpeg.js';
-import { manifestToProps } from './manifest-to-props.js';
-import type { Manifest } from '@viona/shared';
 import { escapePathForFilter } from './types.js';
 import type {
   RenderJobData,
@@ -77,8 +75,8 @@ function buildLayoutSegments(
 
 /**
  * Workspace-based render path.
- * Reads manifest from job data, converts to FullCompositionProps, renders with Remotion.
- * Returns true if it handled the render, false to fall back to legacy path.
+ * Uses the workspace Remotion bundle directly with manifest as inputProps.
+ * The bundle's PlayerComposition handles all manifest → props conversion internally.
  */
 async function renderFromManifest(
   jobData: RenderJobData,
@@ -86,13 +84,14 @@ async function renderFromManifest(
   jobId: string,
 ): Promise<boolean> {
   const manifest = jobData.manifest;
-  if (!manifest) return false;
+  const bundlePath = jobData.workspaceBundlePath;
+  if (!manifest || !bundlePath) return false;
 
   const projectId = jobData.projectId;
 
   await publishJobProgress(jobId, 5, 'Preparing workspace-based render...');
 
-  // 1. Load project for metadata
+  // 1. Load project for source media keys
   const project = await db.query.projects.findFirst({
     where: eq(projects.id, projectId),
   });
@@ -116,103 +115,93 @@ async function renderFromManifest(
     }
   }
 
-  await publishJobProgress(jobId, 15, 'Converting manifest to composition props...');
+  await publishJobProgress(jobId, 15, 'Preparing bundle assets...');
 
-  // 3. Convert manifest → FullCompositionProps
-  const compositionProps = manifestToProps(manifest as Manifest);
-
-  // Set source media paths (not part of manifest conversion)
-  if (sourceVideoPath) {
-    compositionProps.sourceVideoFile = 'source.mp4';
-  }
-  if (isAudioProject) {
-    compositionProps.audioFile = 'audio.mp4';
-  }
-  compositionProps.backgroundColor = '#000000';
-
-  // 4. Check if we have a visual composition
-  const projectVisual = await db.query.visuals.findFirst({
-    where: eq(visuals.projectId, projectId),
-  });
-
-  if (!projectVisual) {
-    return false;
-  }
-
-  await publishJobProgress(jobId, 25, 'Preparing bundle...');
-
-  // 5. Derive bundle path
-  const bundleDirName = projectVisual.compositionId.replace(/_/g, '-');
-  const bundlePath = join(config.remotion.bundleOutputDir, bundleDirName);
+  // 3. Copy source media into bundle's public/ directory
   const bundlePublicDir = join(bundlePath, 'public');
   await mkdir(bundlePublicDir, { recursive: true });
 
-  // 6. Copy source media into bundle's public/
+  let videoUrl: string | undefined;
+  let audioUrl: string | undefined;
+
   if (sourceVideoPath) {
     await copyFile(sourceVideoPath, join(bundlePublicDir, 'source.mp4'));
+    videoUrl = 'source.mp4';
   }
   if (isAudioProject && audioPath) {
-    await copyFile(audioPath, join(bundlePublicDir, 'audio.mp4'));
+    // Preserve original extension (.mp3, .m4a, .wav, etc.)
+    const audioFilename = `audio${audioPath.match(/\.[^.]+$/)?.[0] || '.mp3'}`;
+    await copyFile(audioPath, join(bundlePublicDir, audioFilename));
+    audioUrl = audioFilename;
   }
 
-  // 7. Handle video clips
+  // 4. Handle video clips (YouTube clips for scenes)
   if (jobData.videoClipData?.length) {
-    const { clips: videoClipPaths } = await downloadVideoClipsForRender(projectId, workDir, jobData.videoClipData);
+    const { clips: videoClipPaths } = await downloadVideoClipsForRender(
+      projectId, workDir, jobData.videoClipData,
+    );
     if (videoClipPaths.size > 0) {
-      const bundleClipsDir = join(bundlePath, 'public', 'assets', 'clips');
+      const bundleClipsDir = join(bundlePublicDir, 'assets', 'clips');
       await mkdir(bundleClipsDir, { recursive: true });
-      for (const [_sceneId, clipPath] of videoClipPaths) {
+      for (const [, clipPath] of videoClipPaths) {
         await copyFile(clipPath, join(bundleClipsDir, basename(clipPath)));
       }
     }
   }
 
-  // 8. Resolve fonts
-  const defaultStyle = compositionProps.defaultSubtitleStyle as any;
-  if (compositionProps.subtitles?.length && defaultStyle) {
-    const rawFontFamily = defaultStyle.fontFamily || 'Inter';
-    await ensureFontsDir(rawFontFamily);
-    const resolvedFontFamily = resolveAvailableFontFamily(rawFontFamily);
-    defaultStyle.fontFamily = resolvedFontFamily;
+  // 5. Handle enhanced audio
+  const allItems = (manifest as any).items || [];
+  const enhancedAudioItem = allItems.find((item: any) =>
+    item.type === 'audio' && item.data?.isEnhanced && item.data?.src,
+  );
 
-    for (const sub of compositionProps.subtitles) {
-      const style = sub.style as any;
-      if (style?.fontFamily) {
-        style.fontFamily = resolveAvailableFontFamily(style.fontFamily);
-      }
-      for (const word of sub.words) {
-        if (word.styleOverrides?.fontFamily) {
-          (word.styleOverrides as any).fontFamily = resolveAvailableFontFamily(word.styleOverrides.fontFamily as string);
-        }
+  if (enhancedAudioItem) {
+    const audioSrc = enhancedAudioItem.data.src as string;
+    const audioKeyMatch = audioSrc.match(/\/media\/outputs\/(.+)$/);
+    if (audioKeyMatch) {
+      try {
+        const enhancedPath = join(workDir, 'enhanced.m4a');
+        await downloadFile('outputs', audioKeyMatch[1], enhancedPath);
+        await copyFile(enhancedPath, join(bundlePublicDir, 'enhanced.m4a'));
+        audioUrl = 'enhanced.m4a';
+      } catch (err) {
+        logger.warn({ err }, 'Failed to download enhanced audio, using original');
       }
     }
   }
 
-  await publishJobProgress(jobId, 35, 'Rendering video...');
+  await publishJobProgress(jobId, 25, 'Rendering video...');
 
-  // 9. Write props and render
+  // 6. Build inputProps — manifest + media URLs
+  const inputProps = {
+    manifest,
+    videoUrl,
+    audioUrl,
+  };
+
+  const propsPath = join(workDir, 'input-props.json');
+  await writeFile(propsPath, JSON.stringify(inputProps), 'utf-8');
+
+  // 7. Render with Remotion
   const outputPath = join(workDir, 'output.mp4');
-  const propsPath = join(workDir, 'composition-props.json');
-  await writeFile(propsPath, JSON.stringify(compositionProps), 'utf-8');
-
   await renderWithRemotion({
     bundlePath,
-    compositionId: projectVisual.compositionId,
+    compositionId: 'Preview',
     outputPath,
     propsPath,
     onProgress: (progress) => {
-      const jobProgress = 35 + Math.round(progress * 55);
+      const jobProgress = 25 + Math.round(progress * 65);
       publishJobProgress(jobId, jobProgress, `Rendering: ${Math.round(progress * 100)}%`);
     },
   });
 
   await publishJobProgress(jobId, 92, 'Uploading output...');
 
-  // 10. Upload to S3
+  // 8. Upload to S3
   const outputKey = `${nanoid()}/output.mp4`;
   await uploadFile('outputs', outputKey, outputPath);
 
-  // 11. Update project + job
+  // 9. Update project + job
   await db.update(projects).set({
     status: 'complete',
     outputKey,
