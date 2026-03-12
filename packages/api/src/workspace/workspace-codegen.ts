@@ -71,7 +71,7 @@ export async function generatePlayerComposition(projectId: string): Promise<void
     // Manifest may not exist yet during initial codegen — default to Inter
   }
 
-  const fontModuleName = captionFontFamily.replace(/\s+/g, '');
+  const fontModuleName = captionFontFamily.replace(/[^a-zA-Z0-9]/g, '');
   const fontImport = captionFontFamily !== 'Inter'
     ? `import { loadFont } from '@remotion/google-fonts/${fontModuleName}';\nloadFont();\n`
     : '';
