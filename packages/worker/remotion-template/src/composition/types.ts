@@ -1,3 +1,5 @@
+import React from 'react';
+
 export interface Rect {
   x: number;
   y: number;
@@ -142,4 +144,33 @@ export interface FullCompositionProps {
   backgroundColor?: string;
   subtitles?: SubtitleItemData[];
   defaultSubtitleStyle?: SubtitleStyle;
+  /** Visual items with transition config. When provided, FullComposition renders scenes
+   *  via SceneTransitionLayer instead of using children through VisualsLayer. */
+  sceneItems?: SceneItem[];
+  /** Callback to render a scene by sceneFile path. Required when sceneItems is provided. */
+  renderScene?: (sceneFile: string, frameOffset: number) => React.ReactNode;
+}
+
+// ---- Scene transition types ----
+
+export type TransitionType = 'cut' | 'crossfade' | 'slide-left' | 'slide-up' | 'zoom' | 'morph' | 'fade';
+
+export interface SceneTransition {
+  type: TransitionType;
+  durationMs: number;
+}
+
+/**
+ * Visual item metadata for scene transition rendering.
+ * Each SceneItem maps to one visual item in the manifest.
+ */
+export interface SceneItem {
+  id: string;
+  startFrame: number;
+  endFrame: number;
+  sceneFile: string;
+  displayMode: DisplayMode;
+  frameOffset?: number;
+  enter?: SceneTransition;
+  exit?: SceneTransition;
 }
