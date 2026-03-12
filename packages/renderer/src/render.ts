@@ -43,6 +43,11 @@ async function getBundleLocation(): Promise<string> {
   return bundleLocation;
 }
 
+/**
+ * @deprecated Use FullComposition + renderMedia() instead.
+ * This function is only kept for the no-visuals fallback paths.
+ * Will be removed when standalone FullComposition bundle is created.
+ */
 export async function renderVideo(options: RenderOptions): Promise<void> {
   const {
     videoUrl,
