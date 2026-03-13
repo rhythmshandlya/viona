@@ -48,15 +48,52 @@ const features = [
       <!-- Left: Preview area -->
       <div class="relative rounded-2xl overflow-hidden bg-gradient-to-b from-[#1a1a2e] to-[#0d0d1a] aspect-[4/3] shadow-xl" data-cap-preview>
         <!-- Captions demo -->
-        <div class="absolute inset-0 flex flex-col items-center justify-end pb-8 sm:pb-12 px-6" id="demo-captions">
-          <h3 class="text-white text-xl sm:text-2xl md:text-3xl font-bold tracking-tight mb-5 sm:mb-6 text-center">
-            WATCH TIME UP <span class="text-[#d4a843]">40%</span>
-          </h3>
-          <div class="flex flex-wrap justify-center gap-2 sm:gap-3">
-            <span class="px-3 py-1.5 rounded-full text-xs font-medium border border-primary/50 bg-primary/10 text-primary">MrBeast</span>
-            <span class="px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 bg-white/5 text-white/60">Hormozi</span>
-            <span class="px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 bg-white/5 text-white/60">Ali Abdaal</span>
-            <span class="px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 bg-white/5 text-white/60">Karaoke</span>
+        <div class="absolute inset-0 flex flex-col items-center justify-center px-6" id="demo-captions">
+          <!-- Caption preview area -->
+          <div class="mb-8 sm:mb-10 h-20 sm:h-24 flex items-center justify-center">
+            <!-- MrBeast style -->
+            <div class="caption-style active" data-caption="mrbeast">
+              <span class="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wide" style="color: #44ff44; text-shadow: 0 0 20px rgba(68,255,68,0.5), 3px 3px 0 #000; -webkit-text-stroke: 1px #000;">WATCH TIME</span>
+              <span class="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wide" style="color: #ffff00; text-shadow: 0 0 20px rgba(255,255,0,0.5), 3px 3px 0 #000; -webkit-text-stroke: 1px #000;"> UP 40%</span>
+            </div>
+            <!-- Hormozi style -->
+            <div class="caption-style" data-caption="hormozi">
+              <div class="text-center">
+                <span class="text-xl sm:text-2xl md:text-3xl font-bold text-white uppercase">watch time up </span>
+                <span class="text-xl sm:text-2xl md:text-3xl font-bold text-[#ff6b35] uppercase" style="text-shadow: 0 2px 10px rgba(255,107,53,0.4);">40%</span>
+              </div>
+            </div>
+            <!-- Ali Abdaal style -->
+            <div class="caption-style" data-caption="ali-abdaal">
+              <div class="text-center space-y-1">
+                <div class="text-lg sm:text-xl md:text-2xl font-medium text-white/90 tracking-wide" style="font-family: system-ui;">watch time up</div>
+                <div class="text-2xl sm:text-3xl md:text-4xl font-semibold text-sky-400" style="font-family: system-ui;">40%</div>
+              </div>
+            </div>
+            <!-- Karaoke style -->
+            <div class="caption-style" data-caption="karaoke">
+              <div class="text-center text-xl sm:text-2xl md:text-3xl font-bold uppercase tracking-wider">
+                <span class="text-primary karaoke-word" data-k="0">watch </span>
+                <span class="text-white/40 karaoke-word" data-k="1">time </span>
+                <span class="text-white/40 karaoke-word" data-k="2">up </span>
+                <span class="text-white/40 karaoke-word" data-k="3">40%</span>
+              </div>
+            </div>
+            <!-- Neon style -->
+            <div class="caption-style" data-caption="neon">
+              <div class="text-center text-xl sm:text-2xl md:text-3xl font-bold uppercase" style="color: #e040fb; text-shadow: 0 0 7px #e040fb, 0 0 20px #e040fb, 0 0 40px #e040fb;">
+                watch time up <span style="color: #00e5ff; text-shadow: 0 0 7px #00e5ff, 0 0 20px #00e5ff, 0 0 40px #00e5ff;">40%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Preset pills -->
+          <div class="flex flex-wrap justify-center gap-2 sm:gap-2.5">
+            <button class="caption-pill active px-3 py-1.5 rounded-full text-xs font-medium border border-primary/50 bg-primary/15 text-primary transition-all duration-200" data-pill="mrbeast">MrBeast</button>
+            <button class="caption-pill px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 bg-white/5 text-white/60 hover:border-white/40 transition-all duration-200" data-pill="hormozi">Hormozi</button>
+            <button class="caption-pill px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 bg-white/5 text-white/60 hover:border-white/40 transition-all duration-200" data-pill="ali-abdaal">Ali Abdaal</button>
+            <button class="caption-pill px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 bg-white/5 text-white/60 hover:border-white/40 transition-all duration-200" data-pill="karaoke">Karaoke</button>
+            <button class="caption-pill px-3 py-1.5 rounded-full text-xs font-medium border border-white/20 bg-white/5 text-white/60 hover:border-white/40 transition-all duration-200" data-pill="neon">Neon Glow</button>
           </div>
         </div>
 
@@ -176,6 +213,16 @@ const features = [
   </div>
 </section>
 
+<style>
+  .caption-style {
+    display: none;
+    text-align: center;
+  }
+  .caption-style.active {
+    display: block;
+  }
+</style>
+
 <script>
   import { gsap } from "@/scripts/animations";
 
@@ -183,7 +230,6 @@ const features = [
     const tabs = document.querySelectorAll<HTMLButtonElement>(".feature-tab");
     const demos = new Map<string, HTMLElement>();
 
-    // Collect demo panels
     tabs.forEach((tab) => {
       const id = tab.dataset.tab;
       if (id) {
@@ -193,6 +239,46 @@ const features = [
     });
 
     let activeId = "captions";
+
+    // --- Per-demo entrance animations ---
+    const animateDemo = (id: string) => {
+      const demo = demos.get(id);
+      if (!demo) return;
+
+      if (id === "captions") {
+        // Animate the active caption style
+        const active = demo.querySelector(".caption-style.active");
+        if (active) gsap.fromTo(active, { scale: 0.8, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.5)" });
+        gsap.fromTo(demo.querySelectorAll(".caption-pill"), { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, stagger: 0.05, delay: 0.15 });
+      }
+
+      if (id === "ai-visuals") {
+        const boxes = demo.querySelectorAll("[class*='bg-primary']");
+        gsap.fromTo(boxes, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.12, ease: "power2.out" });
+      }
+
+      if (id === "multi-platform") {
+        const frames = demo.querySelectorAll("[class*='aspect-']");
+        gsap.fromTo(frames, { scale: 0.7, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.5, stagger: 0.1, ease: "back.out(1.2)" });
+      }
+
+      if (id === "audio-broll") {
+        const bars = demo.querySelectorAll("[class*='bg-primary/50']");
+        gsap.fromTo(bars, { scaleY: 0 }, { scaleY: 1, duration: 0.5, stagger: 0.01, ease: "power2.out" });
+        const fillerRow = demo.querySelector("[class*='flex items-center gap-3']");
+        if (fillerRow) gsap.fromTo(fillerRow, { y: 15, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, delay: 0.3 });
+      }
+
+      if (id === "ai-assistant") {
+        const bubbles = demo.querySelectorAll("[class*='rounded-xl']");
+        gsap.fromTo(bubbles, { x: -20, opacity: 0 }, { x: 0, opacity: 1, duration: 0.4, stagger: 0.2, ease: "power2.out" });
+      }
+
+      if (id === "timeline") {
+        const tracks = demo.querySelectorAll("[class*='flex items-center gap-2']");
+        gsap.fromTo(tracks, { x: -30, opacity: 0 }, { x: 0, opacity: 1, duration: 0.35, stagger: 0.08, ease: "power2.out" });
+      }
+    };
 
     const switchTab = (newId: string) => {
       if (newId === activeId) return;
@@ -204,17 +290,11 @@ const features = [
         if (id === newId) {
           tab.classList.add("bg-primary/5", "border-primary/20", "active");
           tab.classList.remove("bg-transparent", "border-transparent");
-          if (desc) {
-            desc.style.maxHeight = "6rem";
-            desc.style.opacity = "1";
-          }
+          if (desc) { desc.style.maxHeight = "6rem"; desc.style.opacity = "1"; }
         } else {
           tab.classList.remove("bg-primary/5", "border-primary/20", "active");
           tab.classList.add("bg-transparent", "border-transparent");
-          if (desc) {
-            desc.style.maxHeight = "0";
-            desc.style.opacity = "0";
-          }
+          if (desc) { desc.style.maxHeight = "0"; desc.style.opacity = "0"; }
         }
       });
 
@@ -223,13 +303,15 @@ const features = [
       const newDemo = demos.get(newId);
 
       if (oldDemo) {
-        gsap.to(oldDemo, { opacity: 0, duration: 0.25, onComplete: () => {
+        gsap.to(oldDemo, { opacity: 0, duration: 0.2, onComplete: () => {
           oldDemo.classList.add("pointer-events-none");
         }});
       }
       if (newDemo) {
         newDemo.classList.remove("pointer-events-none");
-        gsap.to(newDemo, { opacity: 1, duration: 0.35, delay: 0.15 });
+        gsap.to(newDemo, { opacity: 1, duration: 0.3, delay: 0.1, onComplete: () => {
+          animateDemo(newId);
+        }});
       }
 
       activeId = newId;
@@ -239,6 +321,68 @@ const features = [
       tab.addEventListener("click", () => {
         const id = tab.dataset.tab;
         if (id) switchTab(id);
+      });
+    });
+
+    // --- Caption preset switching ---
+    const pills = document.querySelectorAll<HTMLButtonElement>(".caption-pill");
+    const captionStyles = document.querySelectorAll<HTMLElement>(".caption-style");
+    let karaokeInterval: ReturnType<typeof setInterval> | null = null;
+    let activePill = "mrbeast";
+
+    const stopKaraoke = () => {
+      if (karaokeInterval) { clearInterval(karaokeInterval); karaokeInterval = null; }
+    };
+
+    const startKaraoke = () => {
+      stopKaraoke();
+      const words = document.querySelectorAll<HTMLElement>(".karaoke-word");
+      let idx = 0;
+      const highlight = () => {
+        words.forEach((w, i) => {
+          w.classList.toggle("text-primary", i === idx);
+          w.classList.toggle("text-white/40", i !== idx);
+        });
+        idx = (idx + 1) % words.length;
+      };
+      highlight();
+      karaokeInterval = setInterval(highlight, 600);
+    };
+
+    const switchCaption = (preset: string) => {
+      if (preset === activePill) return;
+      stopKaraoke();
+
+      // Update pills
+      pills.forEach((p) => {
+        if (p.dataset.pill === preset) {
+          p.classList.add("active", "border-primary/50", "bg-primary/15", "text-primary");
+          p.classList.remove("border-white/20", "bg-white/5", "text-white/60");
+        } else {
+          p.classList.remove("active", "border-primary/50", "bg-primary/15", "text-primary");
+          p.classList.add("border-white/20", "bg-white/5", "text-white/60");
+        }
+      });
+
+      // Swap caption styles with animation
+      captionStyles.forEach((s) => {
+        if (s.dataset.caption === preset) {
+          s.classList.add("active");
+          gsap.fromTo(s, { scale: 0.85, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.35, ease: "back.out(1.5)" });
+        } else {
+          s.classList.remove("active");
+        }
+      });
+
+      if (preset === "karaoke") startKaraoke();
+      activePill = preset;
+    };
+
+    pills.forEach((pill) => {
+      pill.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const preset = pill.dataset.pill;
+        if (preset) switchCaption(preset);
       });
     });
 
@@ -256,7 +400,8 @@ const features = [
             tl.to("[data-cap-label]", { y: 0, opacity: 1, duration: 0.4 })
               .to("[data-cap-heading]", { y: 0, opacity: 1, duration: 0.5 }, "-=0.2")
               .to("[data-cap-preview]", { y: 0, opacity: 1, duration: 0.6 }, "-=0.2")
-              .to("[data-cap-tabs]", { y: 0, opacity: 1, duration: 0.5 }, "-=0.3");
+              .to("[data-cap-tabs]", { y: 0, opacity: 1, duration: 0.5 }, "-=0.3")
+              .add(() => animateDemo("captions"), "-=0.2");
           });
         },
         { threshold: 0.1 }
