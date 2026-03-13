@@ -832,6 +832,14 @@ export interface EditorActions {
   // Scene split regeneration
   clearRegeneratingItems: (itemIds: string[]) => void;
   removeSplitJob: (jobId: string) => void;
+  // Transform & keyframe actions (Task 7)
+  updateTransform: (itemId: string, transform: Partial<Transform>) => void;
+  updateFilters: (itemId: string, filters: Partial<Filters>) => void;
+  updateKeyframes: (itemId: string, keyframes: Keyframe[]) => void;
+  addKeyframeAtTime: (itemId: string, timeMs: number, props: Partial<Transform>, easing?: string) => void;
+  deleteKeyframe: (itemId: string, index: number) => void;
+  updateKeyframeEasing: (itemId: string, index: number, easing: string) => void;
+
   // Overlay zone actions
   updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => void;
   getVideoSegmentation: (videoItemId: string) => SegmentationData | undefined;

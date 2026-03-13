@@ -10,6 +10,7 @@ import { api, Project as ApiProject } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
 import { manifestToStore, StoreManifestOp } from './manifest-bridge';
+import { dispatchToSandbox, type SandboxOp } from './manifest-dispatch';
 import {
   EditorStore,
   EditorState,
@@ -39,6 +40,9 @@ import {
   SplitSettings,
   normalizeLayoutMode,
   OverlayZone,
+  Transform,
+  Keyframe,
+  Filters,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -79,6 +83,13 @@ const dispatchManifestOp = async (op: StoreManifestOp): Promise<void> => {
     console.error('Failed to apply manifest op:', err);
     useEditorStore.setState({ manifestSyncError: message });
   }
+};
+
+/** Fire-and-forget dispatch of sandbox ops (POST /ops). No-op if sandbox not active. */
+const dispatchOps = (ops: SandboxOp[]) => {
+  const state = useEditorStore.getState();
+  if (state.workspaceStatus !== 'active' || !state.project) return;
+  dispatchToSandbox(state.project.id, ops);
 };
 
 // Initial state
@@ -1151,6 +1162,16 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      // Dispatch updateItem for each caption with updated data
+      const state = get();
+      const ops: SandboxOp[] = [];
+      for (const id of ids) {
+        const item = state.items[id];
+        if (item?.type === 'caption') {
+          ops.push({ tool: 'updateItem', input: { itemId: id, data: item.data } });
+        }
+      }
+      if (ops.length > 0) dispatchOps(ops);
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {
@@ -1184,6 +1205,10 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      const updatedItem = get().items[captionId];
+      if (updatedItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: captionId, data: updatedItem.data } }]);
+      }
     },
 
     setApplyStyleToAll: (value: boolean) => {
@@ -1233,6 +1258,12 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+
+      const addedItem = get().items[id];
+      if (addedItem) {
+        dispatchOps([{ tool: 'addItem', input: { id, trackId, type: addedItem.type, startMs: addedItem.startMs, endMs: addedItem.endMs, data: addedItem.data } }]);
+      }
+
       return id;
     },
 
@@ -1245,6 +1276,19 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+
+      // Build sandbox update payload from relevant keys
+      const sandboxUpdates: Record<string, unknown> = { itemId: id };
+      if (updates.startMs !== undefined) sandboxUpdates.startMs = updates.startMs;
+      if (updates.endMs !== undefined) sandboxUpdates.endMs = updates.endMs;
+      if (updates.trackId !== undefined) sandboxUpdates.trackId = updates.trackId;
+      if (updates.transform !== undefined) sandboxUpdates.transform = updates.transform;
+      if (updates.filters !== undefined) sandboxUpdates.filters = updates.filters;
+      if (updates.keyframes !== undefined) sandboxUpdates.keyframes = updates.keyframes;
+      if (updates.data !== undefined) sandboxUpdates.data = updates.data;
+      if (Object.keys(sandboxUpdates).length > 1) {
+        dispatchOps([{ tool: 'updateItem', input: sandboxUpdates }]);
+      }
     },
 
     updateItemData: (id, dataUpdates) => {
@@ -1256,6 +1300,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps([{ tool: 'updateItem', input: { itemId: id, data: dataUpdates } }]);
     },
 
     deleteItems: async (ids) => {
@@ -1350,6 +1395,7 @@ export const useEditorStore = create<EditorStore>()(
       for (const id of ids) {
         dispatchManifestOp({ op: 'delete_item', itemId: id });
       }
+      dispatchOps(ids.map(id => ({ tool: 'removeItem' as const, input: { itemId: id } })));
 
       // If visual items were deleted, delete visuals from backend
       if (hasVisualItems && project) {
@@ -1365,18 +1411,24 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     moveItem: (id, trackId, startMs) => {
-      set((state) => {
-        const item = state.items[id];
-        if (!item) return;
+      const item = get().items[id];
+      const duration = item ? item.endMs - item.startMs : 0;
 
-        const duration = item.endMs - item.startMs;
-        item.trackId = trackId;
-        item.startMs = Math.max(0, startMs);
-        item.endMs = item.startMs + duration;
+      set((state) => {
+        const stateItem = state.items[id];
+        if (!stateItem) return;
+
+        stateItem.trackId = trackId;
+        stateItem.startMs = Math.max(0, startMs);
+        stateItem.endMs = stateItem.startMs + (stateItem.endMs - stateItem.startMs > 0 ? duration : 0);
       });
 
       get().pushHistory();
-      dispatchManifestOp({ op: 'move_item', itemId: id, startMs: get().items[id]?.startMs ?? 0, endMs: get().items[id]?.endMs ?? 0 });
+      const movedItem = get().items[id];
+      dispatchManifestOp({ op: 'move_item', itemId: id, startMs: movedItem?.startMs ?? 0, endMs: movedItem?.endMs ?? 0 });
+      if (movedItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: id, trackId, startMs: movedItem.startMs, endMs: movedItem.endMs } }]);
+      }
     },
 
     resizeItem: (id, startMs, endMs) => {
@@ -1389,7 +1441,11 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-      dispatchManifestOp({ op: 'move_item', itemId: id, startMs: get().items[id]?.startMs ?? 0, endMs: get().items[id]?.endMs ?? 0 });
+      const resizedItem = get().items[id];
+      dispatchManifestOp({ op: 'move_item', itemId: id, startMs: resizedItem?.startMs ?? 0, endMs: resizedItem?.endMs ?? 0 });
+      if (resizedItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: id, startMs: resizedItem.startMs, endMs: resizedItem.endMs } }]);
+      }
     },
 
     // ========================================
@@ -1647,6 +1703,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps([{ tool: 'addTrack', input: { type: trackData.type || 'overlay', name: trackData.name || 'New Track' } }]);
       return id;
     },
 
@@ -1659,6 +1716,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps([{ tool: 'updateTrack', input: { trackId: id, ...updates } }]);
     },
 
     deleteTrack: (id) => {
@@ -1697,6 +1755,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps([{ tool: 'removeTrack', input: { trackId: id } }]);
     },
 
     reorderTracks: (trackIds) => {
@@ -1716,6 +1775,7 @@ export const useEditorStore = create<EditorStore>()(
 
       get().pushHistory();
       dispatchManifestOp({ op: 'reorder_tracks', trackIds });
+      dispatchOps(trackIds.map((id, i) => ({ tool: 'updateTrack' as const, input: { trackId: id, position: i } })));
     },
 
     // ========================================
@@ -1858,6 +1918,24 @@ export const useEditorStore = create<EditorStore>()(
 
       if (splitResult) {
         dispatchManifestOp({ op: 'split_item', itemId, atMs });
+
+        if (item.type === 'video') {
+          // Video items: use splitVideo tool
+          dispatchOps([{ tool: 'splitVideo', input: { itemId, atMs } }]);
+        } else {
+          // Non-video: remove original + add left/right
+          const [leftId, rightId] = splitResult;
+          const leftItem = get().items[leftId];
+          const rightItem = get().items[rightId];
+          const ops: SandboxOp[] = [{ tool: 'removeItem', input: { itemId } }];
+          if (leftItem) {
+            ops.push({ tool: 'addItem', input: { id: leftId, trackId: leftItem.trackId, type: leftItem.type, startMs: leftItem.startMs, endMs: leftItem.endMs, data: leftItem.data } });
+          }
+          if (rightItem) {
+            ops.push({ tool: 'addItem', input: { id: rightId, trackId: rightItem.trackId, type: rightItem.type, startMs: rightItem.startMs, endMs: rightItem.endMs, data: rightItem.data } });
+          }
+          dispatchOps(ops);
+        }
       }
 
       // Trigger AI regeneration for visual splits
@@ -2096,6 +2174,15 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Dispatch addItem for each pasted item
+      const pasteOps: SandboxOp[] = [];
+      for (const newId of get().selectedIds) {
+        const item = get().items[newId];
+        if (item) {
+          pasteOps.push({ tool: 'addItem', input: { id: newId, trackId: item.trackId, type: item.type, startMs: item.startMs, endMs: item.endMs, data: item.data } });
+        }
+      }
+      if (pasteOps.length > 0) dispatchOps(pasteOps);
     },
 
     duplicateItems: (ids: string[]) => {
@@ -2123,6 +2210,15 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Dispatch addItem for each duplicated item
+      const dupOps: SandboxOp[] = [];
+      for (const newId of get().selectedIds) {
+        const item = get().items[newId];
+        if (item) {
+          dupOps.push({ tool: 'addItem', input: { id: newId, trackId: item.trackId, type: item.type, startMs: item.startMs, endMs: item.endMs, data: item.data } });
+        }
+      }
+      if (dupOps.length > 0) dispatchOps(dupOps);
     },
 
     // ========================================
@@ -2148,6 +2244,14 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      const nudgeOps: SandboxOp[] = [];
+      for (const id of ids) {
+        const item = get().items[id];
+        if (item) {
+          nudgeOps.push({ tool: 'updateItem', input: { itemId: id, startMs: item.startMs, endMs: item.endMs } });
+        }
+      }
+      if (nudgeOps.length > 0) dispatchOps(nudgeOps);
     },
 
     trimItems: (ids: string[], edge: 'start' | 'end', deltaMs: number) => {
@@ -2167,6 +2271,14 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      const trimOps: SandboxOp[] = [];
+      for (const id of ids) {
+        const item = get().items[id];
+        if (item) {
+          trimOps.push({ tool: 'updateItem', input: { itemId: id, startMs: item.startMs, endMs: item.endMs } });
+        }
+      }
+      if (trimOps.length > 0) dispatchOps(trimOps);
     },
 
     // ========================================
@@ -2236,6 +2348,20 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Dispatch removeItem + 2x addItem for the split caption
+      const splitOps: SandboxOp[] = [{ tool: 'removeItem', input: { itemId: captionId } }];
+      // Find the two new caption items (most recently added to itemIds)
+      const currentState = get();
+      for (const id of currentState.itemIds) {
+        const itm = currentState.items[id];
+        if (itm && itm.type === 'caption' && itm.trackId === item.trackId) {
+          // Check if this is one of the new items (not the original)
+          if (id !== captionId && itm.startMs >= item.startMs && itm.endMs <= item.endMs) {
+            splitOps.push({ tool: 'addItem', input: { id, trackId: itm.trackId, type: itm.type, startMs: itm.startMs, endMs: itm.endMs, data: itm.data } });
+          }
+        }
+      }
+      dispatchOps(splitOps);
     },
 
     mergeCaptions: (captionId1: string, captionId2: string) => {
@@ -2293,6 +2419,19 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Find the merged item (most recently added)
+      const mergeOps: SandboxOp[] = [
+        { tool: 'removeItem', input: { itemId: first.id } },
+        { tool: 'removeItem', input: { itemId: second.id } },
+      ];
+      // The merged item is the last added to itemIds
+      const mergeState = get();
+      const lastId = mergeState.itemIds[mergeState.itemIds.length - 1];
+      const mergedItem = mergeState.items[lastId];
+      if (mergedItem) {
+        mergeOps.push({ tool: 'addItem', input: { id: lastId, trackId: mergedItem.trackId, type: mergedItem.type, startMs: mergedItem.startMs, endMs: mergedItem.endMs, data: mergedItem.data } });
+      }
+      dispatchOps(mergeOps);
     },
 
     updateCaptionText: (captionId: string, newText: string) => {
@@ -2332,6 +2471,10 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      const captionItem = get().items[captionId];
+      if (captionItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: captionId, data: captionItem.data } }]);
+      }
     },
 
     // ========================================
@@ -2607,6 +2750,74 @@ export const useEditorStore = create<EditorStore>()(
 
       // Also store the raw manifest
       set((state) => { state.workspaceManifest = manifest as Record<string, unknown>; });
+    },
+
+    // ========================================
+    // Transform / Filters / Keyframes Actions (V2)
+    // ========================================
+
+    updateTransform: (itemId: string, transform: Partial<Transform>) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item) return;
+        item.transform = { ...(item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 }), ...transform };
+      });
+      get().pushHistory();
+      dispatchOps([{ tool: 'updateItem', input: { itemId, transform } }]);
+    },
+
+    updateFilters: (itemId: string, filters: Partial<Filters>) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item) return;
+        item.filters = { ...(item.filters ?? {}), ...filters };
+      });
+      get().pushHistory();
+      dispatchOps([{ tool: 'updateItem', input: { itemId, filters } }]);
+    },
+
+    updateKeyframes: (itemId: string, keyframes: Keyframe[]) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item) return;
+        item.keyframes = keyframes;
+      });
+      get().pushHistory();
+      dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes } }]);
+    },
+
+    addKeyframeAtTime: (itemId: string, timeMs: number, props: Partial<Transform>, easing?: string) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item) return;
+        const kf: Keyframe = { timeMs, props, easing: (easing ?? 'linear') as Keyframe['easing'] };
+        item.keyframes = [...(item.keyframes ?? []), kf].sort((a, b) => a.timeMs - b.timeMs);
+      });
+      get().pushHistory();
+      const item = get().items[itemId];
+      if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes } }]);
+    },
+
+    deleteKeyframe: (itemId: string, index: number) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item?.keyframes) return;
+        item.keyframes.splice(index, 1);
+      });
+      get().pushHistory();
+      const item = get().items[itemId];
+      if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes ?? [] } }]);
+    },
+
+    updateKeyframeEasing: (itemId: string, index: number, easing: string) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item?.keyframes?.[index]) return;
+        item.keyframes[index].easing = easing as Keyframe['easing'];
+      });
+      get().pushHistory();
+      const item = get().items[itemId];
+      if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes } }]);
     },
 
     // ========================================
