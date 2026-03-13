@@ -144,7 +144,10 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
               videoSettings: (project.videoSettings as Record<string, unknown>) || null,
             },
             tracks: projectTracks,
-            items: allItems,
+            items: allItems.map(item => ({
+              ...item,
+              data: (item.data as Record<string, unknown>) ?? {},
+            })),
           });
 
           // Send init to sandbox
