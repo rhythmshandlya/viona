@@ -13,6 +13,7 @@ import * as RemotionShapes from '@remotion/shapes';
 import * as RemotionPaths from '@remotion/paths';
 import * as RemotionThree from '@remotion/three';
 import { FONT_REGISTRY, loadFont } from '@/lib/font-registry';
+import { getSessionToken } from '@/lib/auth';
 
 interface DynamicVisualLoaderProps {
   bundleUrl: string;
@@ -91,7 +92,11 @@ export function DynamicVisualLoader({
 
     try {
       // Fetch the CommonJS module code
-      const response = await fetch(fullUrl, { credentials: 'include' });
+      const token = getSessionToken();
+      const response = await fetch(fullUrl, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch composition: ${response.status}`);
       }
