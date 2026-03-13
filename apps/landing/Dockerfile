@@ -19,6 +19,10 @@ RUN npm install
 # Copy source files
 COPY apps/landing/ .
 
+# Pass PUBLIC_API_URL so Vite inlines it at build time
+ARG PUBLIC_API_URL
+ENV PUBLIC_API_URL=${PUBLIC_API_URL}
+
 # Build the static site
 RUN npm run build
 
