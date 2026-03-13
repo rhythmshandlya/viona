@@ -8,6 +8,15 @@ import * as RemotionPaths from '@remotion/paths';
 import { FONT_REGISTRY, loadFont } from '@/lib/font-registry';
 
 // ---------------------------------------------------------------------------
+// Module-level mutable ref for assets map — staticFile() reads this
+// ---------------------------------------------------------------------------
+let _currentAssetsMap: Record<string, string> = {};
+
+export function setAssetsMap(map: Record<string, string>) {
+  _currentAssetsMap = map;
+}
+
+// ---------------------------------------------------------------------------
 // Composition cache
 // ---------------------------------------------------------------------------
 const compositionCache = new Map<string, React.ComponentType<any>>();
@@ -79,7 +88,18 @@ function makeJsx() {
 function createRequire(bundleBaseUrl: string, apiUrl: string) {
   const customStaticFile = (relativePath: string) => {
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
-    return `${apiUrl}${bundleBaseUrl}/public/${cleanPath}`;
+
+    // Check assets map first (presigned S3 URL)
+    if (_currentAssetsMap[cleanPath]) {
+      return _currentAssetsMap[cleanPath];
+    }
+
+    // Fallback to proxy URL
+    const projectIdMatch = bundleBaseUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
+    const publicBase = projectIdMatch
+      ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
+      : `${bundleBaseUrl}/public`;
+    return `${apiUrl}${publicBase}/${cleanPath}`;
   };
 
   const jsx = makeJsx();
@@ -108,6 +128,9 @@ function createRequire(bundleBaseUrl: string, apiUrl: string) {
         ...Remotion,
         Composition: () => null,
         staticFile: customStaticFile,
+        // OffthreadVideo is for rendering; in the Player context, use Video
+        // which renders a native <video> element with proper frame sync
+        OffthreadVideo: Remotion.Video,
       };
     }
 
@@ -115,6 +138,12 @@ function createRequire(bundleBaseUrl: string, apiUrl: string) {
     if (moduleName === '@remotion/shapes') return RemotionShapes;
     if (moduleName === '@remotion/paths') return RemotionPaths;
     if (moduleName === '@remotion/three') return _remotionThree ?? {};
+
+    if (moduleName === '@remotion/google-fonts') {
+      return {
+        getAvailableFonts: () => [],
+      };
+    }
 
     if (moduleName.startsWith('@remotion/google-fonts/')) {
       const fontName = moduleName.replace('@remotion/google-fonts/', '').replace(/-/g, ' ');
@@ -171,7 +200,7 @@ export function useWorkspaceComposition(
   }, [bundleUrl]);
 
   useEffect(() => {
-    if (!bundleUrl) {
+    if (!bundleUrl || bundleVersion === 0) {
       setComponent(null);
       setLoading(false);
       setError(null);
@@ -205,26 +234,25 @@ export function useWorkspaceComposition(
         await getRemotionThree();
 
         const fullUrl = `${apiUrl}${bundleUrl}/player-composition.cjs.js?v=${bundleVersion}`;
-        const response = await fetch(fullUrl);
+        const response = await fetch(fullUrl, { credentials: 'include' });
         if (!response.ok) {
           throw new Error(`Failed to fetch composition: ${response.status}`);
         }
         const code = await response.text();
 
-        // Validate response before eval
         const contentType = response.headers.get('content-type') || '';
+
+        // Validate response before eval
         if (!contentType.includes('javascript') && !contentType.includes('text/plain')) {
           throw new Error(`Unexpected content-type for bundle: ${contentType}`);
         }
 
-        // Basic sanity check — CJS bundles should start with common patterns
-        const trimmed = code.trimStart();
-        if (!trimmed.startsWith('"use strict"') &&
-            !trimmed.startsWith("'use strict'") &&
-            !trimmed.startsWith('var ') &&
-            !trimmed.startsWith('Object.defineProperty') &&
-            !trimmed.startsWith('(function') &&
-            !trimmed.startsWith('module.exports')) {
+        // Basic sanity check — verify it contains CJS patterns (exports/require)
+        // rather than checking the first line (esbuild output varies)
+        if (!code.includes('module.exports') &&
+            !code.includes('exports.') &&
+            !code.includes('__toCommonJS') &&
+            !code.includes('require(')) {
           throw new Error('Bundle content does not look like valid CJS JavaScript');
         }
 
