@@ -23,6 +23,7 @@ import { jobRoutes } from './routes/jobs.js';
 import { setupWebSocket } from './ws/handler.js';
 import { authMiddleware } from './middleware/auth.js';
 import { workspaceRoutes } from './workspace/workspace-routes.js';
+import { sandboxRoutes } from './sandbox/routes.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -312,6 +313,7 @@ async function main() {
   await fastify.register(youtubeClipRoutes, { prefix: '/api' });
   await fastify.register(jobRoutes, { prefix: '/api' });
   await fastify.register(workspaceRoutes, { prefix: '/api' });
+  await fastify.register(sandboxRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);
