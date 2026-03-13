@@ -1,12 +1,8 @@
 import React from 'react';
 
 const themes = [
-  { id: 'modern', label: 'Modern', description: 'Vibrant gradients, purple-blue', colors: ['#0f0f23', '#8b5cf6', '#3b82f6'] },
-  { id: 'playful', label: 'Playful', description: 'Bright, bouncy, energetic', colors: ['#fef3c7', '#f59e0b', '#ec4899'] },
-  { id: 'bold', label: 'Bold', description: 'High contrast, impactful', colors: ['#0f172a', '#ef4444', '#f8fafc'] },
-  { id: 'classic', label: 'Classic', description: 'Muted, elegant, professional', colors: ['#1e293b', '#d4c5a9', '#8b9dc3'] },
-  { id: 'studio', label: 'Studio', description: 'Polished cards, dot-grid, dark/light', colors: ['#0B0F1A', '#6366F1', '#F8FAFC'] },
-  { id: 'kinetic-typography', label: 'Kinetic Text', description: 'Bold text cards, doodle annotations', colors: ['#00E556', '#000000', '#EBEBEB'] },
+  { id: 'studio-dark', label: 'Studio Dark', description: 'Polished cards, dot-grid, dark navy', colors: ['#0B0F1A', '#6366F1', '#EC4899'] },
+  { id: 'studio-light', label: 'Studio Light', description: 'Same card system on light background', colors: ['#F8F9FB', '#6366F1', '#EC4899'] },
 ];
 
 interface ThemePickerProps {

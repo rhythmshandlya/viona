@@ -2,7 +2,7 @@
   "slug": "score-meter",
   "name": "Score Meter",
   "description": "Animated semicircular gauge with sweeping needle and score",
-  "category": "entertainment",
+  "category": "data-visualization",
   "tags": [
     "KPI",
     "arc",

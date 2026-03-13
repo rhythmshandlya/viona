@@ -1,18 +1,7 @@
+import type { RenderOptions, GenerateVisualsOptions } from '@viona/shared';
+import { getSessionToken } from './auth';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
-// Helper to get session token from cookies
-function getSessionToken(): string | null {
-  if (typeof document === 'undefined') return null;
-
-  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-    const [key, value] = cookie.trim().split('=');
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
-
-  // Prefer JWT for faster validation
-  return cookies['stytch_session_jwt'] || cookies['stytch_session_token'] || null;
-}
 
 export interface CreateProjectResponse {
   projectId: string;
@@ -131,21 +120,9 @@ export interface SeparateAudioResponse {
   src: string;
 }
 
-export type StylePreset = 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
-
-export type VisualsLayoutMode = 'pip' | 'stacked';
-
-export interface VisualsDimensions {
-  width: number;
-  height: number;
-}
-
-export interface GenerateVisualsOptions {
-  stylePreset: StylePreset;
-  layoutMode: VisualsLayoutMode;
-  dimensions: VisualsDimensions;
-  styleGuide?: string;
-}
+// StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions
+// are imported from @viona/shared
+export type { StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions } from '@viona/shared';
 
 export interface GenerateVisualsResponse {
   jobId: string;
@@ -259,6 +236,7 @@ export interface ProjectMediaAsset {
   id: string;
   filename: string;
   label?: string | null;
+  description?: string | null;
   mimeType: string;
   fileSize: number | null;
   url: string;
@@ -282,7 +260,7 @@ class ApiClient {
     // Get auth token
     const token = getSessionToken();
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...(options.headers as Record<string, string> || {}),
     };
 
@@ -291,11 +269,25 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      credentials: 'include', // Include cookies
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30_000);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        ...options,
+        headers,
+        credentials: 'include', // Include cookies
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        throw new Error('Request timed out after 30 seconds');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
@@ -345,7 +337,7 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string, options?: { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> }): Promise<ProcessProjectResponse> {
+  async renderProject(projectId: string, options?: RenderOptions): Promise<ProcessProjectResponse> {
     return this.request(`/api/projects/${projectId}/render`, {
       method: 'POST',
       body: JSON.stringify(options || {}),
@@ -486,6 +478,10 @@ class ApiClient {
   // Jobs
   async getJob(jobId: string): Promise<Job> {
     return this.request(`/api/jobs/${jobId}`);
+  }
+
+  async getJobActivity(jobId: string): Promise<{ activity: any[]; progress: any }> {
+    return this.request(`/api/jobs/${jobId}/activity`);
   }
 
   async cancelJob(jobId: string): Promise<{ success: boolean }> {
@@ -741,6 +737,94 @@ class ApiClient {
       xhr.send(formData);
     });
   }
+  async splitVisualScene(projectId: string, data: {
+    compositionId: string;
+    sourceSceneId?: number;
+    splitAtMs: number;
+    leftItemId: string;
+    rightItemId: string;
+  }): Promise<{ jobId: string }> {
+    return this.request<{ jobId: string }>(`/api/projects/${projectId}/split-visual`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const api = new ApiClient(API_URL);
+
+// ============================================
+// YouTube Clip API
+// ============================================
+
+export interface YouTubeStreamInfo {
+  tokenId: string;
+  title: string;
+  channel: string;
+  duration: number;
+  thumbnail: string;
+}
+
+export interface YouTubeClipJob {
+  clipId?: string;
+  clipUrl?: string;
+  sourceTitle?: string;
+  duration?: number;
+  thumbnail?: string;
+  status: string;
+  progress: number;
+}
+
+export const youtubeApi = {
+  async getStreamInfo(url: string): Promise<YouTubeStreamInfo> {
+    const res = await fetch(`${API_URL}/youtube-clips/stream-info?url=${encodeURIComponent(url)}`, {
+      headers: { Authorization: `Bearer ${getSessionToken()}` },
+      credentials: 'include',
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Failed to get stream info');
+    return res.json();
+  },
+
+  getProxyUrl(tokenId: string): string {
+    return `${API_URL}/youtube-clips/proxy/${tokenId}`;
+  },
+
+  getClipUrl(clipPath: string): string {
+    if (clipPath.startsWith('http')) return clipPath;
+    return `${API_URL}${clipPath}`;
+  },
+
+  async extractClip(url: string, startSeconds: number, endSeconds: number): Promise<{ jobId: string }> {
+    const res = await fetch(`${API_URL}/youtube-clips/extract`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getSessionToken()}`,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ url, startSeconds, endSeconds }),
+    });
+    if (!res.ok) throw new Error((await res.json()).message || 'Failed to start extraction');
+    return res.json();
+  },
+
+  async pollUntilComplete(
+    jobId: string,
+    onProgress?: (progress: number) => void,
+  ): Promise<YouTubeClipJob> {
+    const maxAttempts = 120;
+    for (let i = 0; i < maxAttempts; i++) {
+      const res = await fetch(`${API_URL}/youtube-clips/jobs/${jobId}`, {
+        headers: { Authorization: `Bearer ${getSessionToken()}` },
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to check job status');
+      const job: YouTubeClipJob = await res.json();
+      onProgress?.(job.progress);
+      if (job.status === 'completed') return job;
+      if (job.status === 'failed') throw new Error('Clip extraction failed');
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    throw new Error('Clip extraction timed out');
+  },
+};

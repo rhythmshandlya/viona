@@ -25,6 +25,8 @@ import { startHeartbeatProgress } from '../utils/heartbeat-progress.js';
 import { searchIcons, type IconOption, type IconStyleFilters } from '../services/freepik.js';
 import { searchIconify } from '../services/iconify.js';
 import { fetchImageOptionsForPlan } from '../services/image-fetcher.js';
+import { getTheme } from '../prompts/theme-loader.js';
+import { buildTemplateCatalog } from '../prompts/studio-templates.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -35,7 +37,7 @@ const runningProcesses = new Map<string, ChildProcess>();
 export interface PlanVisualsJobData {
   projectId: string;
   jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
+  stylePreset: string;
   layoutMode: 'pip' | 'stacked';
   dimensions: {
     width: number;
@@ -91,7 +93,9 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         .set({ status: 'processing', progress: 0 })
         .where(eq(jobs.id, jobId));
 
-      await publishJobProgress(jobId, 5, 'Loading project...');
+      await publishJobProgress(jobId, 5, 'Loading project...', {
+        meta: { phase: 'plan', phaseName: 'Preparing' },
+      });
 
       // Load project and transcript
       const project = await db.query.projects.findFirst({
@@ -134,6 +138,18 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         logger.info({ projectDir }, 'Wrote head_tracking.json for spatial overlay');
       }
 
+      // Write template catalog so the Director can reference available templates
+      if (getTheme(stylePreset)) {
+        try {
+          const srcDir = join(getWorkspacePath(), 'src');
+          const catalog = buildTemplateCatalog(stylePreset);
+          await writeFile(join(srcDir, 'STUDIO_TEMPLATES.md'), catalog, 'utf-8');
+          logger.info('Template catalog written to workspace for Director phase');
+        } catch (err) {
+          logger.warn({ err }, 'Failed to write template catalog (non-fatal)');
+        }
+      }
+
       await publishJobProgress(jobId, 15, 'Starting Director phase...');
 
       // Calculate duration in frames
@@ -147,7 +163,7 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
 
       // Run the Director phase
       await publishJobProgress(jobId, 20, 'Planning scenes — this may take a few minutes...');
-      heartbeat = startHeartbeatProgress(jobId, 20, 88, 12 * 60 * 1000); // 12 min estimate
+      heartbeat = startHeartbeatProgress(jobId, 20, 88, 12 * 60 * 1000, 'Planning scenes...'); // 12 min estimate
 
       const planData = await runDirectorPhase({
         projectId: compositionId,
@@ -158,7 +174,7 @@ export async function processPlanVisualsJob(job: Job<PlanVisualsJobData>) {
         fps: project.fps || 30,
         width: dimensions?.width || 1080,
         height: dimensions?.height || 1920,
-        stylePreset: stylePreset || 'modern',
+        stylePreset: stylePreset || 'studio-dark',
         layoutMode: layoutMode || 'pip',
         styleGuide,
         sourceWidth: job.data.sourceWidth,
@@ -339,46 +355,20 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
     let stdout = '';
     let stderr = '';
     let planData: PlanData | null = null;
-    let gotRealProgress = false;
-
-    // Periodic progress ticker — keeps the UI alive while Claude starts up.
-    // Cycles through descriptive messages so users know something is happening.
-    const TICKER_MESSAGES = [
-      [18, 'Starting Claude Code generator...'],
-      [22, 'Connecting to Claude...'],
-      [26, 'Authenticating...'],
-      [30, 'Analyzing transcript...'],
-      [35, 'Identifying key topics...'],
-      [40, 'Mapping visual concepts...'],
-      [45, 'Designing scene structure...'],
-      [50, 'Refining scene details...'],
-      [55, 'Crafting visual descriptions...'],
-      [58, 'Finalizing scene plan...'],
-    ] as const;
-    let tickerIndex = 0;
-
-    const progressTicker = setInterval(() => {
-      if (gotRealProgress || tickerIndex >= TICKER_MESSAGES.length) return;
-      const [percent, message] = TICKER_MESSAGES[tickerIndex];
-      publishJobProgress(jobId, percent, message);
-      tickerIndex++;
-    }, 5_000);
 
     subprocess.stdout?.on('data', (chunk: Buffer) => {
       const text = chunk.toString('utf-8');
       stdout += text;
 
-      // Parse progress updates and PLAN_READY from stdout
+      // Parse PLAN_READY and PROGRESS from stdout
       const lines = text.split('\n');
       for (const line of lines) {
         // Parse PROGRESS:XX:message
         const progressMatch = line.match(/^PROGRESS:(\d+):(.+)$/);
         if (progressMatch) {
-          gotRealProgress = true;
           const percent = parseInt(progressMatch[1], 10);
           const message = progressMatch[2];
-          // Map progress to 60-90% range for real progress (ticker covers 15-58%)
-          const mappedPercent = Math.min(90, Math.max(60, percent));
+          const mappedPercent = Math.min(88, Math.max(20, percent));
           publishJobProgress(jobId, mappedPercent, message);
           logger.info({ projectId, percent: mappedPercent, message }, 'Director phase progress');
         }
@@ -439,7 +429,6 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
 
       subprocess.on('close', (code) => {
         clearTimeout(timeoutId);
-        clearInterval(progressTicker);
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
         if (fatalStderrDetected) {
@@ -456,7 +445,6 @@ async function runDirectorPhase(options: DirectorPhaseOptions): Promise<PlanData
 
       subprocess.on('error', (err) => {
         clearTimeout(timeoutId);
-        clearInterval(progressTicker);
         runningProcesses.delete(jobId);
         unregisterCancelHandler(jobId);
         reject(err);

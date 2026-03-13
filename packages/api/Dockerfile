@@ -19,7 +19,7 @@ FROM base AS deps
 
 # Copy workspace config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
+
 
 # Copy package.json files for all packages needed
 COPY packages/shared/package.json ./packages/shared/
@@ -39,7 +39,7 @@ COPY --from=deps /app/packages/api/node_modules ./packages/api/node_modules
 
 # Copy source files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
+
 COPY packages/shared ./packages/shared
 COPY packages/api ./packages/api
 
@@ -58,7 +58,7 @@ ENV NODE_ENV=production
 
 # Copy package files for production install
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
+
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/api/package.json ./packages/api/
 

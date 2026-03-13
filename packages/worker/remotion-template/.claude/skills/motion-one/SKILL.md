@@ -20,7 +20,7 @@ const scaleY = interpolate(bounce, [0, 0.5, 1], [1, 0.8, 1]);
 ```tsx
 // Wind up before the main action
 const antic = interpolate(frame, [0, 8], [0, -10], { extrapolateRight: 'clamp' });
-const action = spring({ frame: frame - 8, fps, config: { damping: 18, stiffness: 150, mass: 0.9 } });
+const action = spring({ frame: frame - 8, fps, config: { damping: 22, stiffness: 150, mass: 0.9 } });
 const y = frame < 8 ? antic : interpolate(action, [0, 1], [-10, -200]);
 ```
 
@@ -68,9 +68,9 @@ const scale = interpolate(dramatic, [0, 1], [0, 1.5]);
 | BOUNCY | 12 | 200 | 1.0 | Playful, energetic pops |
 | HEAVY | 20 | 150 | 1.5 | Text slams, big numbers |
 | STIFF | 24 | 300 | 0.6 | Micro-interactions, fast snaps |
-| GENTLE | 14 | 80 | 1.2 | Background, ambient elements |
+| GENTLE | 20 | 80 | 1.2 | Background, ambient elements |
 
-**Rule**: Never use damping < 10 (too bouncy for video).
+**Rule**: Never use damping < 18 (too bouncy for video).
 
 ## Easing Functions
 

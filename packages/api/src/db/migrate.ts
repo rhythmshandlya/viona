@@ -4,6 +4,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 import { config } from '../config.js';
+import { logger } from '../logger.js';
 
 export async function runMigrations() {
   const pool = new pg.Pool({
@@ -44,7 +45,7 @@ export async function runMigrations() {
         continue;
       }
 
-      console.log(`[migrate] Applying ${file}...`);
+      logger.info({ file }, 'Applying migration');
       const sql = await readFile(join(migrationsDir, file), 'utf-8');
 
       await client.query('BEGIN');
@@ -60,9 +61,9 @@ export async function runMigrations() {
     }
 
     if (applied_count > 0) {
-      console.log(`[migrate] Applied ${applied_count} migration(s)`);
+      logger.info({ count: applied_count }, 'Migrations applied');
     } else {
-      console.log(`[migrate] Database up to date (${sqlFiles.length} migrations)`);
+      logger.info({ total: sqlFiles.length }, 'Database up to date');
     }
   } finally {
     client.release();

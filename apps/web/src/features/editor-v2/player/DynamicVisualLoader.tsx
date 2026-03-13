@@ -12,12 +12,15 @@ import * as RemotionNoise from '@remotion/noise';
 import * as RemotionShapes from '@remotion/shapes';
 import * as RemotionPaths from '@remotion/paths';
 import * as RemotionThree from '@remotion/three';
+import { FONT_REGISTRY, loadFont } from '@/lib/font-registry';
+import { getSessionToken } from '@/lib/auth';
 
 interface DynamicVisualLoaderProps {
   bundleUrl: string;
   compositionId: string;
   className?: string;
   version?: number; // Cache-busting version, change to force reload
+  inputProps?: Record<string, unknown>; // Additional props passed to the loaded composition
 }
 
 // Module cache to avoid re-fetching
@@ -89,7 +92,11 @@ export function DynamicVisualLoader({
 
     try {
       // Fetch the CommonJS module code
-      const response = await fetch(fullUrl);
+      const token = getSessionToken();
+      const response = await fetch(fullUrl, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       if (!response.ok) {
         throw new Error(`Failed to fetch composition: ${response.status}`);
       }
@@ -251,6 +258,13 @@ export function DynamicVisualLoader({
 
       if (!CompositionComponent) {
         throw new Error(`Composition component not found. Exports: ${Object.keys(exports).join(', ')}`);
+      }
+
+      // Load any Google Fonts referenced in the composition code
+      for (const entry of FONT_REGISTRY) {
+        if (code.includes(entry.family)) {
+          loadFont(entry);
+        }
       }
 
       // Cache and set

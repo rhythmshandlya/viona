@@ -1,0 +1,24 @@
+{
+  "slug": "multi-stop-journey",
+  "name": "Multi-Stop Journey",
+  "description": "Animated map showing a multi-stop trip with numbered markers, path drawing between stops, and optional dates",
+  "category": "timeline-process",
+  "tags": [
+    "map",
+    "multi-stop",
+    "journey",
+    "itinerary",
+    "trip-recap",
+    "numbered",
+    "timeline",
+    "travel",
+    "vacation",
+    "backpacking",
+    "tour"
+  ],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "15s",
+  "thumbnail": "thumbnail.png"
+}

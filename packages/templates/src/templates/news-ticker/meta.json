@@ -2,7 +2,7 @@
   "slug": "news-ticker",
   "name": "News Ticker",
   "description": "Scrolling broadcast-style ticker tape with breaking badge",
-  "category": "social",
+  "category": "text-typography",
   "tags": [
     "alert",
     "banner",

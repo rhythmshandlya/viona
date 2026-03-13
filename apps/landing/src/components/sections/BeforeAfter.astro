@@ -1,0 +1,153 @@
+---
+// Before/After video comparison section
+---
+
+<section class="py-16 sm:py-20 lg:py-24 overflow-hidden">
+  <div class="max-w-6xl mx-auto px-4 sm:px-6">
+    <div class="text-center mb-8 sm:mb-12">
+      <h2 class="text-2xl sm:text-3xl md:text-4xl font-semibold tracking-tight mb-3 sm:mb-4" data-ba-heading>
+        See the Difference
+      </h2>
+      <p class="text-muted-foreground text-sm sm:text-base max-w-lg mx-auto" data-ba-sub>
+        From raw talking-head to polished explainer — in minutes.
+      </p>
+    </div>
+
+    <div class="max-w-[280px] sm:max-w-xs mx-auto" data-ba-visual>
+      <div class="relative rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-black" id="comparison-container">
+        <div class="relative select-none" style="aspect-ratio: 9/16;" id="comparison-viewport">
+          <!-- After layer (full width, underneath) -->
+          <div class="absolute inset-0">
+            <video
+              class="w-full h-full object-cover"
+              src="/videos/after.mp4"
+              muted
+              loop
+              playsinline
+              autoplay
+              poster="/videos/after-poster.jpg"
+              id="video-after"
+            ></video>
+          </div>
+
+          <!-- Before layer (clipped by slider) -->
+          <div class="absolute inset-0" id="before-clip" style="clip-path: inset(0 50% 0 0);">
+            <video
+              class="w-full h-full object-cover"
+              src="/videos/before.mp4"
+              muted
+              loop
+              playsinline
+              autoplay
+              poster="/videos/before-poster.jpg"
+              id="video-before"
+            ></video>
+          </div>
+
+          <!-- Slider handle -->
+          <div class="absolute top-0 bottom-0 z-20 flex items-center" id="slider-line" style="left: 50%;">
+            <div class="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_8px_rgba(0,0,0,0.3)]" style="left: 50%; transform: translateX(-50%);"></div>
+            <div class="relative w-10 h-10 sm:w-12 sm:h-12 bg-white rounded-full shadow-lg border border-gray-200 flex items-center justify-center cursor-grab active:cursor-grabbing" style="left: 50%; transform: translateX(-50%);" id="slider-handle">
+              <svg class="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4M16 15l-4 4-4-4"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Labels -->
+          <div class="absolute top-3 left-3 sm:top-4 sm:left-4 z-10">
+            <span class="inline-flex items-center px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium bg-black/60 text-white backdrop-blur-sm">
+              Raw Video
+            </span>
+          </div>
+          <div class="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
+            <span class="inline-flex items-center px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium bg-primary/90 text-white backdrop-blur-sm">
+              With Viona
+            </span>
+          </div>
+        </div>
+      </div>
+      <p class="text-center text-xs text-muted-foreground mt-3">Drag to compare</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { gsap } from "@/scripts/animations";
+
+  document.addEventListener("astro:page-load", () => {
+    // Entrance animations
+    const tl = gsap.timeline({
+      defaults: { ease: "power2.out" },
+      scrollTrigger: {
+        trigger: "[data-ba-heading]",
+        start: "top 85%",
+      },
+    });
+
+    tl.from("[data-ba-heading]", { y: 20, opacity: 0, duration: 0.5 })
+      .from("[data-ba-sub]", { y: 15, opacity: 0, duration: 0.4 }, "-=0.2")
+      .from("[data-ba-visual]", { y: 30, opacity: 0, duration: 0.6 }, "-=0.2");
+
+    // --- Slider interaction ---
+    const viewport = document.getElementById("comparison-viewport");
+    const beforeClip = document.getElementById("before-clip");
+    const sliderLine = document.getElementById("slider-line");
+    const sliderHandle = document.getElementById("slider-handle");
+
+    if (viewport && beforeClip && sliderLine && sliderHandle) {
+      let isDragging = false;
+
+      const setSliderPosition = (clientX: number) => {
+        const rect = viewport.getBoundingClientRect();
+        let pct = ((clientX - rect.left) / rect.width) * 100;
+        pct = Math.max(5, Math.min(95, pct));
+        beforeClip.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+        sliderLine.style.left = `${pct}%`;
+      };
+
+      sliderHandle.addEventListener("mousedown", (e: MouseEvent) => {
+        e.preventDefault();
+        isDragging = true;
+      });
+      sliderHandle.addEventListener("touchstart", (e: TouchEvent) => {
+        e.preventDefault();
+        isDragging = true;
+      }, { passive: false });
+
+      document.addEventListener("mousemove", (e: MouseEvent) => {
+        if (!isDragging) return;
+        setSliderPosition(e.clientX);
+      });
+      document.addEventListener("touchmove", (e: TouchEvent) => {
+        if (!isDragging) return;
+        setSliderPosition(e.touches[0].clientX);
+      }, { passive: true });
+
+      document.addEventListener("mouseup", () => { isDragging = false; });
+      document.addEventListener("touchend", () => { isDragging = false; });
+
+      viewport.addEventListener("click", (e: MouseEvent) => {
+        setSliderPosition(e.clientX);
+      });
+
+      // Animate slider sweep on scroll-in
+      tl.add(() => {
+        gsap.fromTo(
+          { val: 80 },
+          { val: 80 },
+          {
+            val: 50,
+            duration: 1.2,
+            ease: "power2.inOut",
+            onUpdate: function () {
+              const v = (this as any).targets()[0].val;
+              beforeClip.style.clipPath = `inset(0 ${100 - v}% 0 0)`;
+              sliderLine.style.left = `${v}%`;
+            },
+          }
+        );
+      }, "-=0.3");
+    }
+  });
+</script>

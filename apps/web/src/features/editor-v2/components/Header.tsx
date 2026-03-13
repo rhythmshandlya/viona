@@ -83,6 +83,7 @@ export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isT
       setIsEditingTitle(false);
     }
     if (e.key === 'Escape') {
+      setTitle(project?.title || '');
       setIsEditingTitle(false);
     }
   };

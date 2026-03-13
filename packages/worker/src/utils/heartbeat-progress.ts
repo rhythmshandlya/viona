@@ -14,6 +14,7 @@ export function startHeartbeatProgress(
   startPercent: number,
   ceilingPercent: number,
   estimatedMs: number,
+  message = 'Processing...',
 ) {
   const startTime = Date.now();
   const range = ceilingPercent - startPercent - 2;
@@ -49,7 +50,7 @@ export function startHeartbeatProgress(
     highWater = percent;
     lastPercent = percent;
 
-    await publishJobProgress(jobId, percent, 'Processing...').catch(() => {});
+    await publishJobProgress(jobId, percent, message).catch(() => {});
   }, 5_000); // every 5 seconds
 
   return {

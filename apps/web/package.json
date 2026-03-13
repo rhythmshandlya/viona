@@ -47,6 +47,7 @@
 		"@radix-ui/react-tooltip": "^1.2.6",
 		"@viona/renderer": "workspace:*",
 		"@viona/shared": "workspace:*",
+		"@viona/templates": "workspace:*",
 		"@remotion/cli": "4.0.422",
 		"@remotion/media-utils": "4.0.422",
 		"@remotion/noise": "4.0.422",

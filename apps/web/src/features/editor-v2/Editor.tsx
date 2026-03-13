@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
@@ -43,9 +44,11 @@ import {
   useCaptionItems,
   useAIEditRequested,
   useEditorStore,
+  useIsDirty,
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 import { api } from '@/lib/api';
+import { clearVisualCache } from './player/DynamicVisualLoader';
 
 interface EditorProps {
   projectId: string;
@@ -112,7 +115,7 @@ export function Editor({ projectId }: EditorProps) {
   const captionItems = useCaptionItems();
 
   // Actions
-  const { loadProject, reloadVisuals, clearSelection, updateEnhancementStatus, setInspectModeEnabled, pause } = useEditorActions();
+  const { loadProject, reloadVisuals, refreshMediaUrls, clearSelection, updateEnhancementStatus, setInspectModeEnabled, pause } = useEditorActions();
 
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
@@ -142,10 +145,30 @@ export function Editor({ projectId }: EditorProps) {
     }, [setInspectModeEnabled, pause]),
   });
 
+  // Warn before navigating away with unsaved changes
+  const isDirty = useIsDirty();
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   // Load project on mount
   useEffect(() => {
     loadProject(projectId);
   }, [projectId, loadProject]);
+
+  // Periodically refresh presigned media URLs before they expire (TTL = 8h, refresh every 3h)
+  useEffect(() => {
+    const REFRESH_INTERVAL = 3 * 60 * 60 * 1000; // 3 hours
+    const timer = setInterval(() => {
+      refreshMediaUrls(projectId);
+    }, REFRESH_INTERVAL);
+    return () => clearInterval(timer);
+  }, [projectId, refreshMediaUrls]);
 
   // Open AI sidebar when "Edit with AI" is requested from context menu
   const aiEditRequested = useAIEditRequested();
@@ -242,6 +265,46 @@ export function Editor({ projectId }: EditorProps) {
     document.addEventListener('mouseup', handleMouseUp);
   };
 
+  // Handle YouTube clip added from assets panel
+  const handleYouTubeClipAdded = useCallback((clip: { clipId: string; duration: number; clipUrl: string; sourceTitle?: string; frameStyle?: string; startSeconds: number; endSeconds: number; sourceUrl: string }) => {
+    const state = useEditorStore.getState();
+    const { tracks, fps: currentFps } = state;
+    const visualTrack = tracks.find((t) => t.type === 'visual');
+    if (!visualTrack) {
+      console.warn('[Editor] No visual track found for YouTube clip');
+      return;
+    }
+    state.addItem(visualTrack.id, {
+      type: 'visual',
+      startMs: 0,
+      endMs: clip.duration * 1000,
+      data: {
+        visualId: `youtube-clip-${clip.clipId}`,
+        compositionId: `youtube-clip-${clip.clipId}`,
+        bundleUrl: '',
+        type: 'youtube-clip',
+        description: clip.sourceTitle || 'YouTube Clip',
+        width: 1920,
+        height: 1080,
+        fps: currentFps,
+        templateId: 'youtube-clip',
+        templateProps: {
+          clipUrl: clip.clipUrl,
+          frame: clip.frameStyle || 'browser',
+          trimStartSeconds: clip.startSeconds,
+          trimEndSeconds: clip.endSeconds,
+          backgroundColor: '#000000',
+          muted: false,
+          volume: 1,
+        },
+        sourceSceneId: 1, // Manual clips get scene 1; render uses this for clip path mapping
+        sourceVideoUrl: clip.sourceUrl,
+        videoUrl: clip.clipUrl,
+        hasVideo: true,
+      },
+    });
+  }, []);
+
   // Handle export
   const handleExport = () => {
     if (!project) return;
@@ -273,6 +336,9 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsStatus('Complete!');
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
+
+          // Clear cached bundle so DynamicVisualLoader fetches fresh content
+          clearVisualCache();
 
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
@@ -316,6 +382,9 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsStatus('Complete!');
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
+
+          // Clear cached bundle so DynamicVisualLoader fetches fresh content
+          clearVisualCache();
 
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
@@ -497,11 +566,13 @@ export function Editor({ projectId }: EditorProps) {
               transition={{ duration: 0.15, ease: 'easeOut' }}
               className="flex-shrink-0 overflow-hidden"
             >
-              <AIAssistantPanel
-                projectId={project.id}
-                onEditComplete={() => reloadVisuals(project.id)}
-                className="w-[488px]"
-              />
+              <ErrorBoundary name="AI Assistant">
+                <AIAssistantPanel
+                  projectId={project.id}
+                  onEditComplete={() => reloadVisuals(project.id)}
+                  className="w-[488px]"
+                />
+              </ErrorBoundary>
             </motion.div>
           )}
           {leftSidebarOpen && leftSidebarTab !== 'agent' && (
@@ -543,7 +614,9 @@ export function Editor({ projectId }: EditorProps) {
                     </div>
                   )}
                   {leftSidebarTab === 'style' && (
-                    <StylePanel />
+                    <ErrorBoundary name="Style Panel">
+                      <StylePanel />
+                    </ErrorBoundary>
                   )}
                   {leftSidebarTab === 'layout' && (
                     <div className="px-4 pb-4">
@@ -563,6 +636,7 @@ export function Editor({ projectId }: EditorProps) {
                         setLeftSidebarTab('agent');
                         useEditorStore.setState({ aiEditRequested: true });
                       }}
+                      onYouTubeClipAdded={handleYouTubeClipAdded}
                     />
                   )}
                 </div>
@@ -591,7 +665,9 @@ export function Editor({ projectId }: EditorProps) {
             </div>
 
             {/* Scene */}
-            <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
+            <ErrorBoundary name="Scene">
+              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
+            </ErrorBoundary>
           </div>
 
           {/* Transport Controls */}
@@ -626,7 +702,9 @@ export function Editor({ projectId }: EditorProps) {
 
           {/* Timeline */}
           <div style={{ height: timelineHeight }} className="flex-shrink-0 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
-            <Timeline className="h-full" />
+            <ErrorBoundary name="Timeline">
+              <Timeline className="h-full" />
+            </ErrorBoundary>
           </div>
         </div>
 

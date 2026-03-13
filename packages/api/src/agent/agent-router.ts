@@ -21,7 +21,32 @@ import {
 
 // Per-project event buffer for Last-Event-ID resumption
 const EVENT_BUFFER_SIZE = 100;
-const projectEventBuffers = new Map<string, Array<{ id: number; event: string; data: string }>>();
+interface EventBuffer {
+  events: Array<{ id: number; event: string; data: string }>;
+  lastUpdated: number;
+}
+const projectEventBuffers = new Map<string, EventBuffer>();
+
+// Periodic sweep of stale event buffers
+const MAX_EVENT_BUFFERS = 200; // Safety cap — at 50 users, max ~50 active
+setInterval(() => {
+  const now = Date.now();
+  // Remove stale buffers (older than 5 minutes)
+  for (const [key, buffer] of projectEventBuffers) {
+    if (now - buffer.lastUpdated > 5 * 60 * 1000) {
+      projectEventBuffers.delete(key);
+    }
+  }
+  // If still over cap, evict oldest
+  if (projectEventBuffers.size > MAX_EVENT_BUFFERS) {
+    const sorted = [...projectEventBuffers.entries()]
+      .sort((a, b) => a[1].lastUpdated - b[1].lastUpdated);
+    const toRemove = sorted.slice(0, sorted.length - MAX_EVENT_BUFFERS);
+    for (const [key] of toRemove) {
+      projectEventBuffers.delete(key);
+    }
+  }
+}, 60 * 1000); // Run every minute instead of every 5 minutes
 
 // SSE helper — returns a closure that writes server-sent events with
 // auto-incrementing IDs, basic backpressure awareness, and event buffering
@@ -32,8 +57,8 @@ function createSSEWriter(stream: NodeJS.WritableStream, projectId: string) {
   stream.on('drain', () => { draining = true; });
 
   // Always create a fresh buffer — replaces any stale buffer from a prior stream
-  const buffer: Array<{ id: number; event: string; data: string }> = [];
-  projectEventBuffers.set(projectId, buffer);
+  const bufferObj: EventBuffer = { events: [], lastUpdated: Date.now() };
+  projectEventBuffers.set(projectId, bufferObj);
 
   function sendSSE(event: string, data: unknown, skipBuffer = false) {
     if ((stream as any).destroyed) return;
@@ -42,8 +67,9 @@ function createSSEWriter(stream: NodeJS.WritableStream, projectId: string) {
 
     // Buffer for potential replay (skip for replayed events to prevent duplicates)
     if (!skipBuffer) {
-      buffer.push({ id: eventId, event, data: serialized });
-      if (buffer.length > EVENT_BUFFER_SIZE) buffer.shift();
+      bufferObj.events.push({ id: eventId, event, data: serialized });
+      bufferObj.lastUpdated = Date.now();
+      if (bufferObj.events.length > EVENT_BUFFER_SIZE) bufferObj.events.shift();
     }
 
     try {
@@ -54,7 +80,7 @@ function createSSEWriter(stream: NodeJS.WritableStream, projectId: string) {
     }
   }
 
-  return { sendSSE, buffer };
+  return { sendSSE, bufferObj };
 }
 
 // Per-project concurrent SSE stream counter
@@ -158,7 +184,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
 
     // Check project ownership
-    if (project.userId && project.userId !== (request as any).user?.id) {
+    if (project.userId && project.userId !== request.user?.id) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
@@ -266,16 +292,16 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // Snapshot old event buffer BEFORE createSSEWriter replaces it with a fresh one
     const prevBuffer = projectEventBuffers.get(projectId);
 
-    const { sendSSE, buffer: streamBuffer } = createSSEWriter(sseStream, projectId);
+    const { sendSSE, bufferObj: streamBufferObj } = createSSEWriter(sseStream, projectId);
 
     // Replay missed events if client reconnects with Last-Event-ID
     // Uses skipBuffer=true to prevent replayed events from being re-buffered
     // (which would cause duplicates on subsequent reconnections)
     const lastEventIdHeader = request.headers['last-event-id'];
-    if (lastEventIdHeader && prevBuffer && prevBuffer.length > 0) {
+    if (lastEventIdHeader && prevBuffer && prevBuffer.events.length > 0) {
       const lastId = parseInt(lastEventIdHeader as string, 10);
       if (!isNaN(lastId)) {
-        const missed = prevBuffer.filter(e => e.id > lastId);
+        const missed = prevBuffer.events.filter(e => e.id > lastId);
         for (const e of missed) {
           sendSSE(e.event, JSON.parse(e.data), true);
         }
@@ -292,8 +318,10 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     // Heartbeat to prevent idle connection drops (SDK subprocess startup can be slow)
     const heartbeat = setInterval(() => {
-      if (!sseStream.destroyed) sseStream.write(':\n\n');
-    }, 15_000);
+      if (!sseStream.destroyed) {
+        sendSSE('heartbeat', { ts: Date.now() });
+      }
+    }, 10_000);
 
     // Track all content blocks (text + widgets) for persistence
     const contentBlocks: Array<{ type: string; [k: string]: unknown }> = [];
@@ -506,7 +534,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       // Clean up event buffer after 2 minutes (enough time for reconnection).
       // Only delete if it's still OUR buffer — a newer stream may have replaced it.
       setTimeout(() => {
-        if (projectEventBuffers.get(projectId) === streamBuffer) {
+        if (projectEventBuffers.get(projectId) === streamBufferObj) {
           projectEventBuffers.delete(projectId);
         }
       }, 2 * 60 * 1000);
@@ -533,7 +561,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       where: eq(projects.id, projectId),
     });
     if (!project) return reply.code(404).send({ error: 'Project not found' });
-    if (project.userId && project.userId !== (request as any).user?.id) {
+    if (project.userId && project.userId !== request.user?.id) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
@@ -590,7 +618,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       where: eq(projects.id, projectId),
     });
     if (!project) return reply.code(404).send({ error: 'Project not found' });
-    if (project.userId && project.userId !== (request as any).user?.id) {
+    if (project.userId && project.userId !== request.user?.id) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
@@ -612,7 +640,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
         where: eq(projects.id, projectId),
       });
       if (!project) return reply.code(404).send({ error: 'Project not found' });
-      if (project.userId && project.userId !== (request as any).user?.id) {
+      if (project.userId && project.userId !== request.user?.id) {
         return reply.code(403).send({ error: 'Forbidden' });
       }
 

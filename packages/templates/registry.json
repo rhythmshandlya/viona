@@ -1,0 +1,2820 @@
+{
+  "name": "viona-templates",
+  "homepage": "https://viona.app",
+  "items": [
+    {
+      "name": "agenda-tracker",
+      "type": "registry:component",
+      "description": "Video outline showing progress through agenda items",
+      "categories": [
+        "timeline-process"
+      ],
+      "tags": [
+        "agenda",
+        "chapters",
+        "index",
+        "meeting",
+        "milestones",
+        "navigation",
+        "outline",
+        "overview",
+        "presentation",
+        "progress",
+        "roadmap",
+        "schedule",
+        "sections",
+        "structure",
+        "studio-theme",
+        "table-of-contents",
+        "timeline",
+        "topics",
+        "tracker"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "alert-banner",
+      "type": "registry:component",
+      "description": "Full-width alert banner with icon and attention-grabbing color",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "CTA",
+        "alert",
+        "announcement",
+        "attention",
+        "banner",
+        "breaking-news",
+        "danger",
+        "flash",
+        "highlight",
+        "important",
+        "info-bar",
+        "message-bar",
+        "notice",
+        "notification",
+        "promotion",
+        "studio-theme",
+        "system-alert",
+        "urgent",
+        "warning"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "audience-question",
+      "type": "registry:component",
+      "description": "Bold question prompt to drive viewer engagement and comments",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "CTA",
+        "ask",
+        "audience",
+        "comment",
+        "debate",
+        "discussion",
+        "engagement",
+        "hook",
+        "icebreaker",
+        "interactive",
+        "opening-question",
+        "opinion",
+        "poll",
+        "prompt",
+        "question",
+        "rhetorical",
+        "studio-theme",
+        "thought-provoking",
+        "viewer-participation"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "bar-chart-race",
+      "type": "registry:component",
+      "description": "Ranked horizontal bars that reorder over time — perfect for GDP rankings, brand battles, and trending data",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "GDP",
+        "animated",
+        "bar",
+        "brand-battle",
+        "chart",
+        "comparison",
+        "competition",
+        "data",
+        "data-visualization",
+        "dynamic",
+        "growth",
+        "leaderboard",
+        "market-share",
+        "progression",
+        "race",
+        "ranking",
+        "sorted",
+        "studio-theme",
+        "time-lapse",
+        "top-10",
+        "trending"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "before-after-reveal",
+      "type": "registry:component",
+      "description": "Split-screen before vs after comparison with animated wipe divider — perfect for transformations, results, and growth stories",
+      "categories": [
+        "comparison"
+      ],
+      "tags": [
+        "after",
+        "before",
+        "change",
+        "comparison",
+        "dramatic",
+        "evolution",
+        "growth",
+        "improvement",
+        "makeover",
+        "progress",
+        "results",
+        "reveal",
+        "showcase",
+        "side-by-side",
+        "slider",
+        "split-screen",
+        "studio-theme",
+        "transformation",
+        "upgrade",
+        "wipe"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "bullet-stack",
+      "type": "registry:component",
+      "description": "Cascading bullet-point list with animated checkmarks",
+      "categories": [
+        "text-typography"
+      ],
+      "tags": [
+        "agenda",
+        "animated-list",
+        "bullets",
+        "cascade",
+        "checkmark",
+        "highlights",
+        "icons",
+        "key-points",
+        "list",
+        "outline",
+        "overview",
+        "points",
+        "sequential",
+        "stack",
+        "staggered",
+        "studio-theme",
+        "summary",
+        "takeaways",
+        "tips"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "channel-intro",
+      "type": "registry:component",
+      "description": "Animated channel branding intro with floating geometric elements",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "animated",
+        "brand",
+        "branding",
+        "bumper",
+        "channel",
+        "geometric",
+        "greeting",
+        "identity",
+        "intro",
+        "logo",
+        "motion-graphics",
+        "opener",
+        "opening",
+        "particles",
+        "professional",
+        "studio-theme",
+        "subscriber",
+        "welcome",
+        "youtube"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "chapter-card",
+      "type": "registry:component",
+      "description": "Full-screen chapter transition with number and title",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "break",
+        "chapter",
+        "clean",
+        "divider",
+        "full-screen",
+        "interlude",
+        "minimal",
+        "number",
+        "part",
+        "presentation",
+        "scene-break",
+        "section",
+        "segment",
+        "slide",
+        "studio-theme",
+        "title-card",
+        "topic-change",
+        "transition"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "choropleth-race",
+      "type": "registry:component",
+      "description": "Racing bubble chart map with growing data bubbles and live ranking sidebar showing competition over time",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "choropleth",
+        "race",
+        "data",
+        "ranking",
+        "visualization",
+        "growth",
+        "statistics",
+        "comparison",
+        "animated"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "comment-highlight",
+      "type": "registry:component",
+      "description": "Social media comment bubble overlay with avatar and reactions",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "appreciation",
+        "bubble",
+        "chat",
+        "comment",
+        "community",
+        "engagement",
+        "fan-comment",
+        "feedback",
+        "interaction",
+        "likes",
+        "message",
+        "profile-pic",
+        "reply",
+        "response",
+        "shoutout",
+        "social",
+        "studio-theme",
+        "user-generated",
+        "viewer"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "comparison-split-map",
+      "type": "registry:component",
+      "description": "Side-by-side map comparison with animated sliding divider revealing two different map styles or data overlays",
+      "categories": [
+        "comparison"
+      ],
+      "tags": [
+        "map",
+        "comparison",
+        "split",
+        "before-after",
+        "versus",
+        "day-night",
+        "contrast",
+        "dual",
+        "overlay",
+        "change"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "10s"
+      }
+    },
+    {
+      "name": "compass-navigator",
+      "type": "registry:component",
+      "description": "Ornate compass rose animation with spinning needle pointing to destination, revealing the route map beneath",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "compass",
+        "nautical",
+        "explorer",
+        "navigation",
+        "bearing",
+        "direction",
+        "travel",
+        "maritime",
+        "adventure",
+        "vintage"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "countdown-reveal",
+      "type": "registry:component",
+      "description": "Top 5 countdown with dramatic item reveals — perfect for rankings, product launches, and listicles",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "announcement",
+        "awards",
+        "best-of",
+        "countdown",
+        "dramatic",
+        "list",
+        "listicle",
+        "number-reveal",
+        "picks",
+        "ranking",
+        "reveal",
+        "studio-theme",
+        "surprise",
+        "suspense",
+        "top-10",
+        "top-list",
+        "top5",
+        "trending",
+        "viral",
+        "winner"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "country-highlight",
+      "type": "registry:component",
+      "description": "Highlight a country on a satellite map with animated zoom, colored overlay, and location labels",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "animation",
+        "border",
+        "country",
+        "earth",
+        "focus",
+        "geography",
+        "geopolitics",
+        "global",
+        "highlight",
+        "international",
+        "location",
+        "map",
+        "nation",
+        "region",
+        "satellite",
+        "studio-theme",
+        "territory",
+        "world-map",
+        "zoom"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "coupon-badge",
+      "type": "registry:component",
+      "description": "Discount code stamp with shimmer effect",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "badge",
+        "checkout",
+        "code",
+        "coupon",
+        "deal",
+        "discount",
+        "ecommerce",
+        "flash-sale",
+        "limited-time",
+        "offer",
+        "percentage-off",
+        "promo",
+        "promotion",
+        "sale",
+        "savings",
+        "shopping",
+        "studio-theme",
+        "value",
+        "voucher"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "coverage-map",
+      "type": "registry:component",
+      "description": "Expanding service area map with concentric coverage waves and animated statistics overlay",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "coverage",
+        "service-area",
+        "delivery",
+        "expansion",
+        "radius",
+        "zone",
+        "business",
+        "growth",
+        "reach"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "10s"
+      }
+    },
+    {
+      "name": "credits-roll",
+      "type": "registry:component",
+      "description": "Classic scrolling credits with roles and names",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "acknowledgment",
+        "appreciation",
+        "cast",
+        "closing",
+        "contributors",
+        "credits",
+        "end",
+        "film",
+        "final",
+        "names",
+        "outro",
+        "production",
+        "roles",
+        "roll",
+        "scroll",
+        "studio-theme",
+        "team",
+        "thank-you",
+        "video-end"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "definition-tooltip",
+      "type": "registry:component",
+      "description": "Dictionary-style tooltip with term, pronunciation, and definition",
+      "categories": [
+        "text-typography"
+      ],
+      "tags": [
+        "annotation",
+        "clarification",
+        "definition",
+        "dictionary",
+        "explain",
+        "explainer",
+        "glossary",
+        "hover",
+        "jargon",
+        "language",
+        "learning",
+        "meaning",
+        "popup",
+        "studio-theme",
+        "technical-term",
+        "term",
+        "tooltip",
+        "vocabulary",
+        "word"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "elevation-profile",
+      "type": "registry:component",
+      "description": "Split-view map with animated elevation chart below, showing route and altitude profile in sync",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "hiking",
+        "cycling",
+        "elevation",
+        "altitude",
+        "terrain",
+        "adventure",
+        "mountain",
+        "trail",
+        "sports",
+        "outdoor"
+      ],
+      "meta": {
+        "stylePreset": "strongReadable",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "emoji-burst",
+      "type": "registry:component",
+      "description": "Floating emoji reactions rising from bottom of screen",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "animation",
+        "applause",
+        "burst",
+        "celebration",
+        "chat",
+        "confetti",
+        "emoji",
+        "engagement",
+        "expression",
+        "festive",
+        "fun",
+        "happiness",
+        "live",
+        "overlay",
+        "particles",
+        "positive",
+        "reaction",
+        "stream",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "friendlyTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "emoji-slider-poll",
+      "type": "registry:component",
+      "description": "Instagram-style emoji slider poll with animated result",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "audience-input",
+        "emoji",
+        "engagement",
+        "feedback",
+        "fun",
+        "gauge",
+        "instagram",
+        "interactive",
+        "mood",
+        "poll",
+        "rating",
+        "reaction",
+        "scale",
+        "sentiment",
+        "slider",
+        "story",
+        "studio-theme",
+        "swipe",
+        "vote"
+      ],
+      "meta": {
+        "stylePreset": "friendlyTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "end-screen",
+      "type": "registry:component",
+      "description": "YouTube-style end screen with video placeholders and subscribe button",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "CTA",
+        "branding",
+        "channel",
+        "closing",
+        "end-screen",
+        "engagement",
+        "final-screen",
+        "next-video",
+        "outro",
+        "playlist",
+        "recommendation",
+        "retention",
+        "studio-theme",
+        "subscribe",
+        "thumbnails",
+        "watch-more",
+        "watch-next",
+        "youtube"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "event-announce",
+      "type": "registry:component",
+      "description": "Bold event announcement with date, location, and call-to-action",
+      "categories": [
+        "social"
+      ],
+      "tags": [
+        "CTA",
+        "announcement",
+        "calendar",
+        "conference",
+        "countdown",
+        "date",
+        "event",
+        "invitation",
+        "launch",
+        "location",
+        "meetup",
+        "promotional",
+        "registration",
+        "save-the-date",
+        "studio-theme",
+        "upcoming",
+        "webinar",
+        "workshop"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "event-locator",
+      "type": "registry:component",
+      "description": "Map zooming into event venue with pin drop, details card, and animated direction lines from nearby landmarks",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "event",
+        "venue",
+        "location",
+        "invitation",
+        "conference",
+        "party",
+        "directions",
+        "address",
+        "meetup"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "10s"
+      }
+    },
+    {
+      "name": "fact-flash",
+      "type": "registry:component",
+      "description": "Rapid-fire animated facts with big numbers and context — perfect for 'Did You Know' content and industry stats",
+      "categories": [
+        "education"
+      ],
+      "tags": [
+        "attention",
+        "data-point",
+        "didyouknow",
+        "education",
+        "facts",
+        "hook",
+        "information",
+        "insight",
+        "numbers",
+        "opening",
+        "pop-up",
+        "quick-fact",
+        "rapid",
+        "sequence",
+        "statistic",
+        "stats",
+        "studio-theme",
+        "surprising",
+        "trivia",
+        "viral"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "feature-list",
+      "type": "registry:component",
+      "description": "Cascading feature list with icons and descriptions",
+      "categories": [
+        "marketing"
+      ],
+      "tags": [
+        "SaaS",
+        "benefits",
+        "bullet-points",
+        "capabilities",
+        "comparison",
+        "features",
+        "highlights",
+        "icons",
+        "list",
+        "overview",
+        "product",
+        "product-features",
+        "selling-points",
+        "showcase",
+        "specs",
+        "staggered",
+        "studio-theme",
+        "value-prop"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "follower-milestone",
+      "type": "registry:component",
+      "description": "Animated subscriber count reaching a milestone with celebration effects",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "100K",
+        "1M",
+        "achievement",
+        "animated-number",
+        "celebration",
+        "community",
+        "confetti",
+        "counter",
+        "fireworks",
+        "followers",
+        "growth",
+        "landmark",
+        "milestone",
+        "party",
+        "studio-theme",
+        "subscriber-count",
+        "subscribers",
+        "success",
+        "thank-you"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "formula-display",
+      "type": "registry:component",
+      "description": "Mathematical formula with step-by-step reveal animation",
+      "categories": [
+        "text-typography"
+      ],
+      "tags": [
+        "LaTeX",
+        "STEM",
+        "academic",
+        "algebra",
+        "calculation",
+        "chemistry",
+        "derivation",
+        "education",
+        "equation",
+        "explainer",
+        "formula",
+        "math",
+        "notation",
+        "physics",
+        "proof",
+        "science",
+        "step-by-step",
+        "studio-theme",
+        "teaching"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "glitch-transition",
+      "type": "registry:component",
+      "description": "Digital glitch effect with RGB split, scan lines, and corruption blocks",
+      "categories": [
+        "entertainment"
+      ],
+      "tags": [
+        "VHS",
+        "breaking",
+        "cinematic",
+        "corruption",
+        "cyberpunk",
+        "digital",
+        "distortion",
+        "dramatic",
+        "effect",
+        "error",
+        "glitch",
+        "noise",
+        "retro",
+        "rgb",
+        "scene-change",
+        "studio-theme",
+        "tech",
+        "transition",
+        "visual-effect"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "globe-connections",
+      "type": "registry:component",
+      "description": "Dark globe with neon arcs launching sequentially from a hub city to worldwide destinations with ring ripples",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "3d",
+        "globe",
+        "world",
+        "connections",
+        "network",
+        "arcs",
+        "corporate",
+        "animation",
+        "earth"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "globe-hexbins",
+      "type": "registry:component",
+      "description": "3D hexagonal columns rising from the globe colored by value, perfect for visualizing population or data density",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "3d",
+        "globe",
+        "world",
+        "hexbins",
+        "data",
+        "population",
+        "visualization",
+        "animation",
+        "earth"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "globe-hologram",
+      "type": "registry:component",
+      "description": "Transparent wireframe globe with cyberpunk neon arcs, scanline overlay and typewriter labels",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "3d",
+        "globe",
+        "world",
+        "hologram",
+        "wireframe",
+        "cyberpunk",
+        "neon",
+        "sci-fi",
+        "animation",
+        "earth"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "globe-shield",
+      "type": "registry:component",
+      "description": "Sci-fi defense shield with rapid concentric rings expanding from poles or custom points across the globe",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "3d",
+        "globe",
+        "world",
+        "shield",
+        "rings",
+        "sci-fi",
+        "defense",
+        "animation",
+        "earth"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "globe-spin",
+      "type": "registry:component",
+      "description": "3D rotating globe with a glowing arc connecting two cities, cinematic camera orbit and zoom",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "3d",
+        "globe",
+        "world",
+        "international",
+        "flight",
+        "arc",
+        "cinematic",
+        "travel",
+        "earth",
+        "animation"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "guest-intro-card",
+      "type": "registry:component",
+      "description": "Guest introduction card with avatar, name, title, and bio",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "appearance",
+        "bio",
+        "co-host",
+        "collaboration",
+        "credentials",
+        "expert",
+        "featured",
+        "guest",
+        "host",
+        "interview",
+        "intro",
+        "name-card",
+        "panelist",
+        "photo",
+        "podcast",
+        "profile",
+        "speaker",
+        "studio-theme",
+        "title"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "headline-storm",
+      "type": "registry:component",
+      "description": "Text match cut effect — rapidly cycling news articles with the brand name always at center, highlighted",
+      "categories": [
+        "text-typography"
+      ],
+      "tags": [
+        "PR",
+        "attention",
+        "brand",
+        "brand-mention",
+        "buzz",
+        "headlines",
+        "match-cut",
+        "media-coverage",
+        "montage",
+        "news",
+        "newspaper",
+        "press",
+        "press-coverage",
+        "publicity",
+        "rapid-fire",
+        "recognition",
+        "social-proof",
+        "studio-theme",
+        "trending",
+        "viral"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "15s"
+      }
+    },
+    {
+      "name": "heatmap-pulse",
+      "type": "registry:component",
+      "description": "Animated heatmap with pulsing data points showing intensity by location, with metric counter and color legend",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "heatmap",
+        "data",
+        "visualization",
+        "analytics",
+        "metrics",
+        "corporate",
+        "statistics",
+        "regions",
+        "density"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "hub-spoke-radial",
+      "type": "registry:component",
+      "description": "Central hub city with lines radiating to multiple destinations, perfect for year-in-travel recaps",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "hub",
+        "spoke",
+        "radial",
+        "destinations",
+        "yearly-recap",
+        "travel-recap",
+        "multiple",
+        "cities",
+        "visited",
+        "summary"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "indiana-jones",
+      "type": "registry:component",
+      "description": "Classic vintage red dashed line tracing a route across a parchment-style map with airplane icon and compass",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "adventure",
+        "vintage",
+        "classic",
+        "travel",
+        "retro",
+        "parchment",
+        "map",
+        "journey",
+        "explorer",
+        "cinematic"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "10s"
+      }
+    },
+    {
+      "name": "keyword-pop",
+      "type": "registry:component",
+      "description": "Bold keyword slam animation with impact effect",
+      "categories": [
+        "text-typography"
+      ],
+      "tags": [
+        "accent",
+        "animation",
+        "attention",
+        "bold",
+        "callout",
+        "dramatic",
+        "emphasis",
+        "highlight",
+        "impact",
+        "keyword",
+        "pop",
+        "punch",
+        "scale",
+        "single-word",
+        "slam",
+        "studio-theme",
+        "text",
+        "typography",
+        "zoom"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "kinetic-caption",
+      "type": "registry:component",
+      "description": "Word-by-word animated captions with highlight effects",
+      "categories": [
+        "text-typography"
+      ],
+      "tags": [
+        "accessible",
+        "animated",
+        "caption",
+        "dialogue",
+        "emphasis",
+        "highlight",
+        "kinetic",
+        "lyric",
+        "readable",
+        "reveal",
+        "speech",
+        "storytelling",
+        "studio-theme",
+        "subtitle",
+        "sync",
+        "text",
+        "timed-text",
+        "word-by-word",
+        "words"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "link-callout",
+      "type": "registry:component",
+      "description": "Animated callout with arrow pointing to link or resource",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "annotation",
+        "arrow",
+        "callout",
+        "click",
+        "cta",
+        "description",
+        "download",
+        "external",
+        "info",
+        "link",
+        "overlay",
+        "pointer",
+        "promotion",
+        "redirect",
+        "reference",
+        "resource",
+        "studio-theme",
+        "url",
+        "website"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "location-tag",
+      "type": "registry:component",
+      "description": "Map pin location overlay with name and coordinates",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "GPS",
+        "address",
+        "check-in",
+        "city",
+        "coordinates",
+        "destination",
+        "geo",
+        "geotagging",
+        "location",
+        "map",
+        "marker",
+        "navigation",
+        "pin",
+        "place",
+        "studio-theme",
+        "travel",
+        "venue",
+        "vlog",
+        "where"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "logo-stinger",
+      "type": "registry:component",
+      "description": "Branded logo reveal with geometric motion graphics — perfect for video intros, outros, and bumpers",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "animation",
+        "brand",
+        "branding",
+        "bumper",
+        "channel",
+        "corporate",
+        "geometric",
+        "identity",
+        "intro",
+        "logo",
+        "motion",
+        "opening-sequence",
+        "outro",
+        "particles",
+        "professional",
+        "reveal",
+        "signature",
+        "stinger",
+        "studio-theme",
+        "watermark"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "multi-stop-journey",
+      "type": "registry:component",
+      "description": "Animated map showing a multi-stop trip with numbered markers, path drawing between stops, and optional dates",
+      "categories": [
+        "timeline-process"
+      ],
+      "tags": [
+        "map",
+        "multi-stop",
+        "journey",
+        "itinerary",
+        "trip-recap",
+        "numbered",
+        "timeline",
+        "travel",
+        "vacation",
+        "backpacking",
+        "tour"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "15s"
+      }
+    },
+    {
+      "name": "neighborhood-guide",
+      "type": "registry:component",
+      "description": "Interactive neighborhood map with categorized POI icons animating in by group with category legend panel",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "neighborhood",
+        "guide",
+        "pois",
+        "local",
+        "city",
+        "explore",
+        "categories",
+        "food",
+        "shopping"
+      ],
+      "meta": {
+        "stylePreset": "friendlyTech",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "15s"
+      }
+    },
+    {
+      "name": "neon-dark-map",
+      "type": "registry:component",
+      "description": "Futuristic dark map with neon-glow route line, pulsing markers, and cyberpunk-style typography",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "neon",
+        "dark",
+        "cyberpunk",
+        "futuristic",
+        "glow",
+        "nightlife",
+        "travel",
+        "map",
+        "modern",
+        "trendy"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "10s"
+      }
+    },
+    {
+      "name": "news-ticker",
+      "type": "registry:component",
+      "description": "Scrolling broadcast-style ticker tape with breaking badge",
+      "categories": [
+        "text-typography"
+      ],
+      "tags": [
+        "alert",
+        "banner",
+        "breaking",
+        "broadcast",
+        "bulletin",
+        "crawl",
+        "feed",
+        "headline",
+        "information",
+        "live",
+        "lower-third",
+        "marquee",
+        "news",
+        "real-time",
+        "scrolling",
+        "stream",
+        "studio-theme",
+        "ticker",
+        "update"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "number-ticker",
+      "type": "registry:component",
+      "description": "Large animated counter with prefix and suffix overlay",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "KPI",
+        "animated",
+        "big-number",
+        "counter",
+        "counting",
+        "data-point",
+        "display",
+        "figure",
+        "headline",
+        "hero-number",
+        "metric",
+        "minimal",
+        "number",
+        "overlay",
+        "stat",
+        "statistic",
+        "studio-theme",
+        "ticker",
+        "value"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "pin-drop-scatter",
+      "type": "registry:component",
+      "description": "Cascading pin drops marking locations one-by-one with bounce animation, counter, and optional connection lines",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "pins",
+        "locations",
+        "scatter",
+        "stores",
+        "team",
+        "franchise",
+        "offices",
+        "global",
+        "markers"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "poll-battle",
+      "type": "registry:component",
+      "description": "Animated poll results racing to fill — options compete visually with a winner crowned at the end",
+      "categories": [
+        "comparison"
+      ],
+      "tags": [
+        "A-vs-B",
+        "audience",
+        "bar-fill",
+        "battle",
+        "choice",
+        "comparison",
+        "competition",
+        "engagement",
+        "interactive",
+        "opinion",
+        "percentage",
+        "poll",
+        "preference",
+        "results",
+        "social",
+        "studio-theme",
+        "survey",
+        "versus",
+        "vote",
+        "winner"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "popup-fact",
+      "type": "registry:component",
+      "description": "Notification-style popup cards with surprising facts",
+      "categories": [
+        "education"
+      ],
+      "tags": [
+        "annotation",
+        "aside",
+        "callout",
+        "card",
+        "context",
+        "detail",
+        "did-you-know",
+        "fact",
+        "floating",
+        "info",
+        "information",
+        "notification",
+        "nugget",
+        "overlay",
+        "popup",
+        "studio-theme",
+        "surprise",
+        "tip",
+        "toast"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "postcard-reveal",
+      "type": "registry:component",
+      "description": "Map animation that zooms into destination then flips into a vintage postcard with greeting text and stamp",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "postcard",
+        "vintage",
+        "greeting",
+        "souvenir",
+        "retro",
+        "destination",
+        "travel",
+        "romantic",
+        "nostalgic",
+        "keepsake"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "10s"
+      }
+    },
+    {
+      "name": "process-flow",
+      "type": "registry:component",
+      "description": "Step-by-step workflow with animated connecting arrows — ideal for funnels, how-to guides, and onboarding flows",
+      "categories": [
+        "timeline-process"
+      ],
+      "tags": [
+        "architecture",
+        "arrows",
+        "connected",
+        "diagram",
+        "flow",
+        "framework",
+        "funnel",
+        "guide",
+        "howto",
+        "instruction",
+        "methodology",
+        "onboarding",
+        "pipeline",
+        "process",
+        "sequence",
+        "steps",
+        "studio-theme",
+        "system",
+        "tutorial",
+        "workflow"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "product-card",
+      "type": "registry:component",
+      "description": "Floating product showcase card with price, rating, and description",
+      "categories": [
+        "marketing"
+      ],
+      "tags": [
+        "buy",
+        "card",
+        "deal",
+        "ecommerce",
+        "feature",
+        "highlight",
+        "item",
+        "merchandise",
+        "offer",
+        "price",
+        "product",
+        "promotion",
+        "rating",
+        "review",
+        "shopping",
+        "showcase",
+        "specs",
+        "stars",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "property-spotlight",
+      "type": "registry:component",
+      "description": "Location amenity map with expanding radius rings and category POI icons showing nearby amenities",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "property",
+        "real-estate",
+        "amenities",
+        "radius",
+        "location",
+        "neighborhood",
+        "spotlight",
+        "listing",
+        "proximity"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "pros-cons",
+      "type": "registry:component",
+      "description": "Two-column pros and cons comparison with animated icons",
+      "categories": [
+        "comparison"
+      ],
+      "tags": [
+        "advantages",
+        "analysis",
+        "assessment",
+        "balanced-view",
+        "checklist",
+        "comparison",
+        "cons",
+        "decision",
+        "disadvantages",
+        "evaluation",
+        "product-review",
+        "pros",
+        "review",
+        "studio-theme",
+        "thumbs-down",
+        "thumbs-up",
+        "tradeoffs",
+        "two-column",
+        "weighing"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "qr-code-reveal",
+      "type": "registry:component",
+      "description": "Animated QR code that builds itself with scan prompt",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "app",
+        "build-up",
+        "call-to-action",
+        "code",
+        "connect",
+        "digital",
+        "download",
+        "engagement",
+        "interactive",
+        "link",
+        "mobile",
+        "pixel",
+        "qr",
+        "reveal-animation",
+        "scan",
+        "smartphone",
+        "studio-theme",
+        "url",
+        "website"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "quote-pulse",
+      "type": "registry:component",
+      "description": "Kinetic typography with dramatic word-by-word reveals — perfect for quotes, taglines, and key messages",
+      "categories": [
+        "social"
+      ],
+      "tags": [
+        "animated-text",
+        "emphasis",
+        "hero-text",
+        "highlight",
+        "inspirational",
+        "key-message",
+        "kinetic",
+        "message",
+        "motivation",
+        "quote",
+        "reveal",
+        "social",
+        "speaker-quote",
+        "statement",
+        "studio-theme",
+        "tagline",
+        "testimonial",
+        "text",
+        "typography",
+        "words"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "rating-display",
+      "type": "registry:component",
+      "description": "Animated star rating with score counter and review count",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "5-star",
+        "app-rating",
+        "assessment",
+        "customer-feedback",
+        "evaluation",
+        "feedback",
+        "grade",
+        "product",
+        "quality",
+        "ranking",
+        "rating",
+        "review",
+        "satisfaction",
+        "score",
+        "service-review",
+        "stars",
+        "studio-theme",
+        "testimonial",
+        "trust"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "road-trip",
+      "type": "registry:component",
+      "description": "Retro Americana road trip with isometric 3D vehicle, animated odometer, highway sign waypoints, and vintage grain overlay",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "road-trip",
+        "driving",
+        "car",
+        "van",
+        "journey",
+        "highway",
+        "adventure",
+        "travel",
+        "route",
+        "distance",
+        "retro",
+        "americana",
+        "route-66",
+        "vintage"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "satellite-flyover",
+      "type": "registry:component",
+      "description": "Cinematic satellite imagery pan following a route with cloud overlays and documentary-style labels",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "satellite",
+        "aerial",
+        "cinematic",
+        "documentary",
+        "flyover",
+        "earth",
+        "landscape",
+        "travel",
+        "nature",
+        "drone"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "score-meter",
+      "type": "registry:component",
+      "description": "Animated semicircular gauge with sweeping needle and score",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "KPI",
+        "arc",
+        "assessment",
+        "benchmark",
+        "dashboard",
+        "dial",
+        "evaluation",
+        "gauge",
+        "health-score",
+        "indicator",
+        "measure",
+        "meter",
+        "needle",
+        "performance",
+        "progress",
+        "rating",
+        "score",
+        "speedometer",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "social-handle-bar",
+      "type": "registry:component",
+      "description": "Animated social media handles with platform icons",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "CTA",
+        "animated",
+        "branding",
+        "connect",
+        "contact",
+        "follow-me",
+        "handles",
+        "icons",
+        "instagram",
+        "links",
+        "network",
+        "overlay",
+        "platforms",
+        "profiles",
+        "social",
+        "studio-theme",
+        "tiktok",
+        "twitter",
+        "youtube"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "source-cite",
+      "type": "registry:component",
+      "description": "Editorial reference card for citing sources and quotes",
+      "categories": [
+        "education"
+      ],
+      "tags": [
+        "academic",
+        "article",
+        "attribution",
+        "bibliography",
+        "cite",
+        "credibility",
+        "data-source",
+        "evidence",
+        "footnote",
+        "journalism",
+        "link",
+        "paper",
+        "quote",
+        "reference",
+        "report",
+        "research",
+        "source",
+        "studio-theme",
+        "study"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "speaker-id",
+      "type": "registry:component",
+      "description": "Animated lower-third name tag with name, title, and affiliation",
+      "categories": [
+        "social"
+      ],
+      "tags": [
+        "broadcast",
+        "chyron",
+        "guest",
+        "host",
+        "identity",
+        "interview",
+        "intro",
+        "lower-third",
+        "name",
+        "name-tag",
+        "overlay",
+        "panelist",
+        "podcast",
+        "presenter",
+        "speaker",
+        "studio-theme",
+        "title-card"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "split-departure",
+      "type": "registry:component",
+      "description": "Split screen showing departure and arrival cities side by side with an animated connecting arc",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "departure",
+        "arrival",
+        "split",
+        "moving",
+        "relocation",
+        "travel",
+        "city",
+        "versus",
+        "comparison",
+        "journey"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "10s"
+      }
+    },
+    {
+      "name": "split-stat",
+      "type": "registry:component",
+      "description": "Side-by-side stat comparison with VS divider and fill bars",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "KPI",
+        "bar-fill",
+        "benchmark",
+        "comparison",
+        "contrast",
+        "data-visualization",
+        "dual-metric",
+        "head-to-head",
+        "matchup",
+        "metric-pair",
+        "numbers",
+        "percentage",
+        "proportion",
+        "relative",
+        "side-by-side",
+        "split",
+        "stat",
+        "studio-theme",
+        "versus"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-bar-chart",
+      "type": "registry:component",
+      "description": "Horizontal bars growing with staggered spring animation — ideal for channel breakdowns and rankings",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "KPI",
+        "bar",
+        "category-breakdown",
+        "channel-breakdown",
+        "chart",
+        "comparison",
+        "dashboard",
+        "data-visualization",
+        "distribution",
+        "horizontal-bars",
+        "leaderboard",
+        "market-share",
+        "metrics",
+        "ranking",
+        "revenue",
+        "stats",
+        "studio-theme",
+        "top-items"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-comparison",
+      "type": "registry:component",
+      "description": "Two numbers side-by-side with animated arrow and change indicator — perfect for year-over-year and before/after comparisons",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "KPI",
+        "arrow",
+        "before-after",
+        "benchmark",
+        "change",
+        "comparison",
+        "dashboard",
+        "data-visualization",
+        "decrease",
+        "delta",
+        "growth",
+        "improvement",
+        "increase",
+        "metrics",
+        "performance",
+        "revenue",
+        "side-by-side",
+        "stats",
+        "studio-theme",
+        "year-over-year"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-counter",
+      "type": "registry:component",
+      "description": "Big animated number counting up with trend badge — perfect for revenue, users, or growth metrics",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "ARR",
+        "KPI",
+        "MRR",
+        "big-reveal",
+        "counter",
+        "counting-animation",
+        "dashboard",
+        "data-visualization",
+        "downloads",
+        "growth",
+        "headline-number",
+        "metrics",
+        "milestone",
+        "number",
+        "revenue",
+        "single-metric",
+        "stats",
+        "studio-theme",
+        "subscribers",
+        "users",
+        "wow-moment"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-donut",
+      "type": "registry:component",
+      "description": "SVG donut chart with animated arc drawing — great for revenue breakdowns and distribution data",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "KPI",
+        "breakdown",
+        "category-split",
+        "chart",
+        "circular",
+        "composition",
+        "dashboard",
+        "data-visualization",
+        "distribution",
+        "donut",
+        "market-share",
+        "metrics",
+        "percentage",
+        "pie",
+        "pie-chart",
+        "proportion",
+        "revenue",
+        "segment",
+        "stats",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-line-chart",
+      "type": "registry:component",
+      "description": "SVG line graph drawn progressively with gradient fill — perfect for growth trends and time series",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "KPI",
+        "analytics",
+        "chart",
+        "dashboard",
+        "data-visualization",
+        "graph",
+        "growth",
+        "line",
+        "metrics",
+        "month-over-month",
+        "performance",
+        "progress",
+        "revenue",
+        "sparkline",
+        "stats",
+        "studio-theme",
+        "time-series",
+        "trajectory",
+        "trend",
+        "year-over-year"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "stat-progress",
+      "type": "registry:component",
+      "description": "Multiple progress bars filling with staggered spring animation — ideal for objectives, KPIs, and completion tracking",
+      "categories": [
+        "data-visualization"
+      ],
+      "tags": [
+        "KPI",
+        "OKR",
+        "achievement",
+        "bar",
+        "completion",
+        "dashboard",
+        "data-visualization",
+        "goal-tracking",
+        "horizontal-bars",
+        "metrics",
+        "milestones",
+        "objectives",
+        "progress",
+        "quarterly",
+        "revenue",
+        "stats",
+        "status",
+        "studio-theme",
+        "target"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "step-counter",
+      "type": "registry:component",
+      "description": "Step indicator with progress ring for tutorials and how-tos",
+      "categories": [
+        "timeline-process"
+      ],
+      "tags": [
+        "circle",
+        "counter",
+        "current-step",
+        "guide",
+        "howto",
+        "indicator",
+        "instruction",
+        "lesson",
+        "navigation",
+        "numbered",
+        "onboarding",
+        "phase",
+        "progress",
+        "ring",
+        "step",
+        "studio-theme",
+        "tutorial",
+        "walkthrough",
+        "wizard"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "subscribe-nudge",
+      "type": "registry:component",
+      "description": "Animated subscribe, like, and bell notification overlay",
+      "categories": [
+        "social-engagement"
+      ],
+      "tags": [
+        "animated",
+        "audience-retention",
+        "bell",
+        "button",
+        "channel",
+        "cta",
+        "engagement",
+        "follow",
+        "growth",
+        "like",
+        "notification",
+        "overlay",
+        "reminder",
+        "ring-bell",
+        "smash-like",
+        "social",
+        "studio-theme",
+        "subscribe",
+        "youtube"
+      ],
+      "meta": {
+        "stylePreset": "friendlyTech",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "swipe-wipe",
+      "type": "registry:component",
+      "description": "Bold geometric shape transition wipe with optional text",
+      "categories": [
+        "entertainment"
+      ],
+      "tags": [
+        "animation",
+        "clean",
+        "cover",
+        "diagonal",
+        "direction",
+        "dynamic",
+        "geometric",
+        "left-to-right",
+        "mask",
+        "motion",
+        "reveal",
+        "scene-transition",
+        "shape",
+        "slider",
+        "smooth",
+        "studio-theme",
+        "swipe",
+        "transition",
+        "wipe"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "territory-timeline",
+      "type": "registry:component",
+      "description": "Sequential region expansion map with chronological territory fills, date counter, and connection lines",
+      "categories": [
+        "timeline-process"
+      ],
+      "tags": [
+        "map",
+        "territory",
+        "timeline",
+        "expansion",
+        "growth",
+        "history",
+        "milestones",
+        "chronology",
+        "markets",
+        "rollout"
+      ],
+      "meta": {
+        "stylePreset": "strongReadable",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "testimonial-card",
+      "type": "registry:component",
+      "description": "Animated testimonial/review card with quote, rating, and author",
+      "categories": [
+        "social"
+      ],
+      "tags": [
+        "avatar",
+        "card",
+        "client",
+        "customer",
+        "endorsement",
+        "feedback",
+        "quote",
+        "rating",
+        "recommendation",
+        "review",
+        "social proof",
+        "social-proof",
+        "star-rating",
+        "studio-theme",
+        "success-story",
+        "testimonial",
+        "trust",
+        "user-review"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "tier-board",
+      "type": "registry:component",
+      "description": "Animated tier list ranking with items snapping into S/A/B/C/D rows — viral format for rankings and opinions",
+      "categories": [
+        "comparison"
+      ],
+      "tags": [
+        "S-tier",
+        "best-to-worst",
+        "category",
+        "classification",
+        "comparison",
+        "debate",
+        "entertainment",
+        "grid",
+        "list",
+        "meme",
+        "opinion",
+        "ranking",
+        "rating",
+        "snap",
+        "studio-theme",
+        "tier",
+        "tier-list",
+        "trending",
+        "viral",
+        "youtube"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "timeline-cascade",
+      "type": "registry:component",
+      "description": "Vertical timeline with animated milestone nodes — ideal for company history, project roadmaps, and event sequences",
+      "categories": [
+        "timeline-process"
+      ],
+      "tags": [
+        "chronological",
+        "corporate",
+        "dates",
+        "events",
+        "evolution",
+        "history",
+        "journey",
+        "milestones",
+        "nodes",
+        "phases",
+        "plan",
+        "progress",
+        "project",
+        "roadmap",
+        "sequence",
+        "story",
+        "studio-theme",
+        "timeline",
+        "vertical"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "timezone-traveler",
+      "type": "registry:component",
+      "description": "World map with timezone bands and a clock that updates as the route crosses time zones",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "map",
+        "timezone",
+        "time",
+        "clock",
+        "international",
+        "long-haul",
+        "flight",
+        "jet-lag",
+        "world",
+        "global",
+        "crossing"
+      ],
+      "meta": {
+        "stylePreset": "modernTech",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "topic-title",
+      "type": "registry:component",
+      "description": "Bold animated section title with subtitle and accent underline",
+      "categories": [
+        "social"
+      ],
+      "tags": [
+        "accent",
+        "animated-text",
+        "announcement",
+        "big-text",
+        "chapter",
+        "header",
+        "heading",
+        "intro",
+        "opening",
+        "presentation",
+        "scene-title",
+        "section",
+        "segment",
+        "slide-title",
+        "studio-theme",
+        "title",
+        "topic",
+        "underline"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "versus-screen",
+      "type": "registry:component",
+      "description": "Dramatic split-screen VS comparison with attributes",
+      "categories": [
+        "comparison"
+      ],
+      "tags": [
+        "A-vs-B",
+        "battle",
+        "comparison",
+        "competition",
+        "debate",
+        "dramatic",
+        "duel",
+        "face-off",
+        "head-to-head",
+        "matchup",
+        "product-comparison",
+        "rivalry",
+        "showdown",
+        "side-by-side",
+        "split",
+        "studio-theme",
+        "two-column",
+        "versus",
+        "vs"
+      ],
+      "meta": {
+        "stylePreset": "boldImpact",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "warm-intro",
+      "type": "registry:component",
+      "description": "Soft, human-centered intro with floating orbs and gentle animations",
+      "categories": [
+        "intro-outro"
+      ],
+      "tags": [
+        "animated",
+        "brand",
+        "clean",
+        "friendly",
+        "gentle",
+        "human",
+        "intro",
+        "minimal",
+        "opener",
+        "organic",
+        "soft",
+        "warm",
+        "welcome"
+      ],
+      "meta": {
+        "stylePreset": "cleanMinimal",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "watercolor-map",
+      "type": "registry:component",
+      "description": "Animated travel route between two locations on a watercolor-style map with markers and a connecting line",
+      "categories": [
+        "geographic"
+      ],
+      "tags": [
+        "adventure",
+        "animation",
+        "artistic",
+        "destination",
+        "exploring",
+        "flight-path",
+        "geography",
+        "hand-drawn",
+        "illustration",
+        "journey",
+        "map",
+        "markers",
+        "pins",
+        "route",
+        "studio-theme",
+        "travel",
+        "trip",
+        "vacation",
+        "watercolor"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "1:1",
+        "estimatedDuration": "12s"
+      }
+    },
+    {
+      "name": "youtube-clip",
+      "type": "registry:component",
+      "description": "Embed a YouTube video clip with customizable borders, frames, and effects",
+      "categories": [
+        "media"
+      ],
+      "tags": [
+        "youtube",
+        "video",
+        "clip",
+        "embed",
+        "social",
+        "reaction",
+        "commentary",
+        "reference",
+        "footage",
+        "external"
+      ],
+      "meta": {
+        "stylePreset": "default",
+        "aspectRatio": "16:9",
+        "estimatedDuration": "variable"
+      }
+    },
+    {
+      "name": "path-draw-reveal",
+      "type": "registry:component",
+      "description": "SVG path drawing with progressive node reveal — use for processes, connections, step-by-step flows. NOT a card.",
+      "categories": [
+        "non-card"
+      ],
+      "tags": [
+        "path",
+        "svg",
+        "draw",
+        "reveal",
+        "process",
+        "flow",
+        "connection",
+        "steps",
+        "non-card",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "studio-dark",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "8s"
+      }
+    },
+    {
+      "name": "animated-diagram",
+      "type": "registry:component",
+      "description": "Node-and-edge diagram with staggered entrance and progressive line drawing — use for architectures, flows, relationships. NOT a card.",
+      "categories": [
+        "non-card"
+      ],
+      "tags": [
+        "diagram",
+        "nodes",
+        "edges",
+        "architecture",
+        "flow",
+        "graph",
+        "network",
+        "relationship",
+        "non-card",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "studio-dark",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "8s"
+      }
+    },
+    {
+      "name": "shape-morph-transition",
+      "type": "registry:component",
+      "description": "Cross-fade morph between two SVG shapes (square to star) with scale pulse — use for transformations, before/after. NOT a card.",
+      "categories": [
+        "non-card"
+      ],
+      "tags": [
+        "morph",
+        "shape",
+        "transition",
+        "transform",
+        "before-after",
+        "evolution",
+        "svg",
+        "non-card",
+        "studio-theme"
+      ],
+      "meta": {
+        "stylePreset": "studio-dark",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "6s"
+      }
+    }
+  ]
+}

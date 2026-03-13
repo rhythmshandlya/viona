@@ -1,0 +1,23 @@
+{
+  "slug": "pin-drop-scatter",
+  "name": "Pin Drop Scatter",
+  "description": "Cascading pin drops marking locations one-by-one with bounce animation, counter, and optional connection lines",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "pins",
+    "locations",
+    "scatter",
+    "stores",
+    "team",
+    "franchise",
+    "offices",
+    "global",
+    "markers"
+  ],
+  "stylePreset": "boldImpact",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

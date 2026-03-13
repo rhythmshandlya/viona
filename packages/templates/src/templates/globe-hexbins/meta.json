@@ -1,0 +1,23 @@
+{
+  "slug": "globe-hexbins",
+  "name": "Population Towers",
+  "description": "3D hexagonal columns rising from the globe colored by value, perfect for visualizing population or data density",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "3d",
+    "globe",
+    "world",
+    "hexbins",
+    "data",
+    "population",
+    "visualization",
+    "animation",
+    "earth"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

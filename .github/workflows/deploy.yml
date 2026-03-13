@@ -38,7 +38,7 @@ jobs:
       - name: Run migrations
         run: |
           railway link -p 84a07d3b-cbeb-42ce-a189-bd3516d59879 -s api -e production
-          railway run pnpm --filter @reelify/api db:migrate
+          railway run pnpm --filter @viona/api db:migrate
 
   deploy-landing:
     name: Deploy Landing

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { redisSub, CHANNELS } from '../services/redis.js';
 import { validateSession, validateSessionJwt } from '../services/stytch.js';
 import { db, users, projects } from '../db/index.js';
+import { logger } from '../logger.js';
 
 interface WSConnection {
   socket: WebSocket;
@@ -26,11 +27,15 @@ export async function setupWebSocket(fastify: FastifyInstance) {
       // Determine message type from channel
       let type: string;
       if (channel.includes(':progress')) {
-        type = 'job:progress';
+        // Activity events are published on the :progress channel with _type: 'activity'.
+        // Route them as job:activity so the frontend can handle them separately.
+        type = data._type === 'activity' ? 'job:activity' : 'job:progress';
       } else if (channel.includes(':complete')) {
         type = 'job:complete';
       } else if (channel.includes(':error')) {
         type = 'job:error';
+      } else if (channel.includes(':health')) {
+        type = 'job:health';
       } else if (channel.includes(':logs')) {
         type = 'job:logs';
       } else if (channel.includes(':updated')) {
@@ -57,7 +62,7 @@ export async function setupWebSocket(fastify: FastifyInstance) {
         }
       }
     } catch (err) {
-      console.error('Error processing Redis message:', err);
+      logger.error({ err }, 'Error processing Redis message');
     }
   });
 
@@ -126,7 +131,7 @@ export async function setupWebSocket(fastify: FastifyInstance) {
     };
     connections.set(socket, conn);
 
-    console.log(`WebSocket connected for project: ${projectId}, user: ${user.id}`);
+    logger.info({ projectId, userId: user.id }, 'WebSocket connected');
 
     // Handle incoming messages
     socket.on('message', (rawMessage: Buffer) => {
@@ -142,18 +147,18 @@ export async function setupWebSocket(fastify: FastifyInstance) {
           conn.jobIds.delete(message.jobId);
         }
       } catch (err) {
-        console.error('Error parsing WebSocket message:', err);
+        logger.error({ err }, 'Error parsing WebSocket message');
       }
     });
 
     // Handle disconnection
     socket.on('close', () => {
       connections.delete(socket);
-      console.log(`WebSocket disconnected for project: ${projectId}`);
+      logger.info({ projectId }, 'WebSocket disconnected');
     });
 
     socket.on('error', (err: Error) => {
-      console.error('WebSocket error:', err);
+      logger.error({ err }, 'WebSocket error');
       connections.delete(socket);
     });
 

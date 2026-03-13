@@ -4,9 +4,11 @@ import { nanoid } from 'nanoid';
 import { eq, inArray, or, and, desc } from 'drizzle-orm';
 import { db, projects, tracks, timelineItems, jobs, transcripts, visuals, projectAssets } from '../db/index.js';
 import { getPresignedUploadUrl, getPresignedDownloadUrl, objectExists, getObjectStream, getPartialObjectStream, getObjectStat, uploadStream, deleteObjectsByPrefix, deleteObject } from '../services/minio.js';
-import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel } from '../services/queue.js';
+import { queueTranscribeJob, queueRenderJob, queueEnhanceAudioJob, queueGenerateVisualsJob, queueEditVisualsJob, queueSvgAnimationJob, queuePreloadProjectJob, queueHeadTrackingJob, queueGenerateCaptionStylesJob, publishJobCancel, segmentationQueue } from '../services/queue.js';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
+import { apiProgressStore } from '../progress/progress-store.js';
+import { logger } from '../logger.js';
 
 // Validation schemas
 const createProjectSchema = z.object({
@@ -44,9 +46,9 @@ const updateProjectSchema = z.object({
 
 // Helper to check if a user owns a project
 function checkProjectOwnership(projectUserId: string | null, userId: string | undefined): boolean {
-  // If project has no owner (legacy data), allow access for now
-  if (!projectUserId) return true;
-  // Otherwise check if user owns the project
+  if (!userId) return false;
+  // Legacy projects with no owner: deny access (admin can reassign via DB)
+  if (!projectUserId) return false;
   return projectUserId === userId;
 }
 
@@ -132,6 +134,44 @@ export async function projectRoutes(fastify: FastifyInstance) {
         data.mimetype
       );
 
+      // For video projects, create video item and trigger segmentation
+      if (project.projectType !== 'audio' && project.videoKey) {
+        // Find the video track
+        const videoTrack = await db.query.tracks.findFirst({
+          where: and(eq(tracks.projectId, id), eq(tracks.type, 'video')),
+        });
+
+        if (videoTrack) {
+          // Check if a video item already exists
+          const existingVideoItem = await db.select().from(timelineItems).where(
+            and(eq(timelineItems.trackId, videoTrack.id), eq(timelineItems.type, 'video'))
+          );
+
+          if (existingVideoItem.length === 0) {
+            // Create video timeline item (duration will be updated by transcribe worker)
+            const [videoItem] = await db.insert(timelineItems).values({
+              trackId: videoTrack.id,
+              type: 'video',
+              startMs: 0,
+              endMs: 0, // Will be updated once duration is known
+              data: {
+                src: `/api/projects/${id}/video`,
+                volume: 1,
+              },
+            }).returning();
+
+            // Queue segmentation job (non-blocking)
+            segmentationQueue.add('segment-video', {
+              projectId: id,
+              videoItemId: videoItem.id,
+              videoKey: project.videoKey,
+            }).catch((err) => {
+              fastify.log.warn({ err, projectId: id }, 'Failed to queue segmentation job (non-critical)');
+            });
+          }
+        }
+      }
+
       return { success: true, videoKey: storageKey };
     } catch (err) {
       fastify.log.error(err, 'Failed to upload file');
@@ -171,8 +211,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
       where: eq(transcripts.projectId, id),
     });
 
-    // Generate presigned URL for video playback (valid for 1 hour)
+    // Generate presigned URL for video playback (valid for 8 hours)
     // This allows the frontend to load video without cookies for cross-origin requests
+    const PRESIGNED_TTL = 28800; // 8 hours — covers a full editing session
     let videoPresignedUrl: string | null = null;
     if (project.videoKey) {
       try {
@@ -180,7 +221,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         const exists = await objectExists('uploads', project.videoKey);
         fastify.log.info({ videoKey: project.videoKey, exists }, 'Video exists check result');
         if (exists) {
-          videoPresignedUrl = await getPresignedDownloadUrl('uploads', project.videoKey, 3600);
+          videoPresignedUrl = await getPresignedDownloadUrl('uploads', project.videoKey, PRESIGNED_TTL);
           fastify.log.info({ videoKey: project.videoKey, urlGenerated: !!videoPresignedUrl, videoPresignedUrl }, 'Presigned URL generated');
         }
       } catch (err) {
@@ -196,7 +237,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
       try {
         const exists = await objectExists('uploads', project.audioKey);
         if (exists) {
-          audioPresignedUrl = await getPresignedDownloadUrl('uploads', project.audioKey, 3600);
+          audioPresignedUrl = await getPresignedDownloadUrl('uploads', project.audioKey, PRESIGNED_TTL);
         }
       } catch (err) {
         fastify.log.warn({ err, audioKey: project.audioKey }, 'Failed to generate presigned URL for audio');
@@ -868,7 +909,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   fastify.post('/projects/:id/generate-visuals', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const body = z.object({
-      stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'apple', 'google', 'studio']),
+      stylePreset: z.string(),
       layoutMode: z.enum(['pip', 'stacked']),
       dimensions: z.object({
         width: z.number().int().min(100).max(4096),
@@ -1103,8 +1144,9 @@ export async function projectRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Read label from multipart fields
+      // Read label and description from multipart fields
       const label = (data.fields?.label as any)?.value as string | undefined;
+      const description = (data.fields?.description as any)?.value as string | undefined;
 
       const ext = data.mimetype === 'image/svg+xml' ? 'svg'
         : data.mimetype.split('/')[1].replace('jpeg', 'jpg');
@@ -1124,6 +1166,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         projectId: id,
         filename: data.filename,
         label: label || null,
+        description: description || null,
         storageKey,
         contentType: data.mimetype,
         fileSize: data.file.bytesRead || null,
@@ -1135,6 +1178,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         id: asset.id,
         filename: asset.filename,
         label: asset.label,
+        description: asset.description,
         mimeType: asset.contentType,
         fileSize: asset.fileSize,
         url,
@@ -1172,6 +1216,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         id: asset.id,
         filename: asset.filename,
         label: asset.label,
+        description: asset.description,
         mimeType: asset.contentType,
         fileSize: asset.fileSize,
         url,
@@ -1180,6 +1225,68 @@ export async function projectRoutes(fastify: FastifyInstance) {
     }));
 
     return { assets: assetsWithUrls };
+  });
+
+  // Update a project media asset (label, description)
+  const updateAssetSchema = z.object({
+    label: z.string().max(255).optional(),
+    description: z.string().max(2000).optional(),
+  });
+
+  fastify.patch('/projects/:id/media/:assetId', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id, assetId } = request.params as { id: string; assetId: string };
+
+    const parsed = updateAssetSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid input', details: parsed.error.flatten() });
+    }
+    const { label, description } = parsed.data;
+
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, id),
+    });
+
+    if (!project) {
+      return reply.status(404).send({ error: 'Project not found' });
+    }
+
+    if (!checkProjectOwnership(project.userId, request.user?.id)) {
+      return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    const asset = await db.query.projectAssets.findFirst({
+      where: and(eq(projectAssets.id, assetId), eq(projectAssets.projectId, id)),
+    });
+
+    if (!asset) {
+      return reply.status(404).send({ error: 'Asset not found' });
+    }
+
+    const updates: { label?: string | null; description?: string | null } = {};
+    if (label !== undefined) updates.label = label || null;
+    if (description !== undefined) updates.description = description || null;
+
+    if (Object.keys(updates).length === 0) {
+      return reply.status(400).send({ error: 'No fields to update' });
+    }
+
+    const [updated] = await db.update(projectAssets)
+      .set(updates)
+      .where(eq(projectAssets.id, assetId))
+      .returning();
+
+    const url = await getPresignedDownloadUrl('uploads', updated.storageKey);
+
+    return {
+      id: updated.id,
+      filename: updated.filename,
+      label: updated.label,
+      description: updated.description,
+      mimeType: updated.contentType,
+      fileSize: updated.fileSize,
+      url,
+      createdAt: updated.createdAt.toISOString(),
+    };
   });
 
   // Delete a project media asset
@@ -1367,7 +1474,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         }
       } catch (err) {
         // Silently fail - elements just won't be available
-        console.warn('Could not fetch scenes.json from source:', err);
+        logger.warn({ err }, 'Could not fetch scenes.json from source');
       }
     }
 
@@ -1475,7 +1582,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
         };
       }
     } catch (err) {
-      console.warn('Could not fetch assets.json from S3:', err);
+      logger.warn({ err }, 'Could not fetch assets.json from S3');
     }
 
     // Fallback: Try local workspace (for development)
@@ -1492,7 +1599,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
           const workspacePath = path.join(process.cwd(), '..', 'worker', 'workspace', 'src', variant, 'assets.json');
           const localContent = await fs.readFile(workspacePath, 'utf-8');
           const assetsData = JSON.parse(localContent);
-          console.log('Loaded assets from local workspace:', workspacePath);
+          logger.info({ workspacePath }, 'Loaded assets from local workspace');
           return {
             assets: assetsData.assets || [],
             compositionId: visual.compositionId,
@@ -1914,7 +2021,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     return { success: true, scenes: widgetScenes };
   });
 
-  // Get job status
+  // Get job status — merges Redis (real-time) progress with DB row
   fastify.get('/jobs/:id', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
 
@@ -1933,6 +2040,27 @@ export async function projectRoutes(fastify: FastifyInstance) {
 
     if (!project || !checkProjectOwnership(project.userId, request.user?.id)) {
       return reply.status(403).send({ error: 'Access denied' });
+    }
+
+    // For active jobs, check Redis for fresher progress data
+    if (job.status === 'processing' || job.status === 'pending') {
+      try {
+        const redisProgress = await apiProgressStore.get(id);
+        if (redisProgress && redisProgress.percent > job.progress) {
+          return {
+            ...job,
+            progress: redisProgress.percent,
+            progressMessage: redisProgress.message,
+            progressMeta: {
+              phase: redisProgress.phase,
+              phaseName: redisProgress.phaseName,
+              ...(redisProgress.meta || {}),
+            },
+          };
+        }
+      } catch {
+        // Redis unavailable — fall through to DB data
+      }
     }
 
     return job;

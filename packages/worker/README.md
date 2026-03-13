@@ -1,125 +1,159 @@
 # @viona/worker
 
-Background job processor for Viona, handling transcription, AI visual generation, audio enhancement, video rendering, and more.
+Background job processor for Viona, handling transcription, AI visual generation, video rendering, and more.
 
 ## Overview
 
 The worker package consumes async jobs from BullMQ queues. It orchestrates a multi-phase AI visual generation pipeline powered by Claude Agent SDK, manages audio/video processing via Python scripts and FFmpeg, and renders final output with Remotion.
 
-**Registered queues (8):**
+**Registered queues (12):**
 
 | Queue | Concurrency | Description |
 |---|---|---|
 | `transcribe` | 1 | Audio transcription with WhisperX (local) or OpenAI Whisper API |
-| `render` | 2 | Video rendering with Remotion (SSR or Lambda) |
-| `enhance-audio` | 1 | Audio enhancement (noise reduction, loudness normalization) |
+| `render` | 2 | Video rendering with Remotion SSR |
 | `generate-visuals` | 1 | Full AI visual generation pipeline (Director + Animator) |
 | `plan-visuals` | 1 | Director phase only (creates scene plan for user approval) |
 | `edit-visuals` | 1 | Conversational editing of existing compositions |
 | `svg-animation` | 1 | Converts uploaded images to animated SVG compositions |
 | `preload-project` | 2 | Warms up workspace when the editor opens |
+| `head-tracking` | 1 | Face/body detection for smart reframing |
+| `generate-reframe` | 1 | Auto-reframe from head tracking data |
+| `generate-caption-styles` | 2 | AI-powered per-caption styling |
+| `youtube-clip` | 2 | YouTube clip extraction |
+| `segmentation` | 1 | Speaker isolation (GPU-intensive) |
 
 ## Architecture
 
 ```
 src/
-├── index.ts                 # Worker entry, registers all 8 BullMQ workers
+├── index.ts                 # Worker entry, registers all 12 BullMQ workers
 ├── config.ts                # Environment configuration
 ├── logger.ts                # Pino logger
 ├── workspace.ts             # Workspace management (dev + prod paths)
 │
 ├── processors/              # Job processors (one per queue)
-│   ├── transcribe.ts        # WhisperX / OpenAI Whisper transcription
-│   ├── render.ts            # Remotion SSR + Lambda rendering, subtitle burn-in
-│   ├── enhance-audio.ts     # FFmpeg-based audio enhancement pipeline
-│   ├── generate-visuals.ts  # Full visual generation (Assistant Director → Director → Animator)
-│   ├── plan-visuals.ts      # Director-only phase for plan approval flow
-│   ├── edit-visuals.ts      # Edit existing compositions with user prompts
-│   ├── svg-animation.ts     # Image → SVG → animated Remotion composition
-│   ├── generate-broll.ts    # Auto-generates B-roll track from Pexels videos
-│   ├── generate-caption-styles.ts  # AI-powered per-caption styling
-│   ├── generate-reframe.ts  # Auto-reframe from head tracking data
-│   ├── head-tracking.ts     # Face/body tracking via Python (detect_head.py)
-│   └── preload-project.ts   # Workspace warm-up from MinIO/S3 sources
+│   ├── index.ts             # Barrel re-exports
+│   ├── transcribe.ts
+│   ├── plan-visuals.ts
+│   ├── head-tracking.ts
+│   ├── generate-reframe.ts
+│   ├── generate-caption-styles.ts
+│   ├── preload-project.ts
+│   ├── segmentation.ts
+│   ├── youtube-clip.ts
+│   ├── render/              # Video rendering + subtitle burn-in
+│   │   ├── index.ts         # processRenderJob + re-exports
+│   │   ├── types.ts         # Interfaces, constants
+│   │   ├── fonts.ts         # Google Fonts download, caching, metrics
+│   │   ├── subtitles.ts     # ASS subtitle generation
+│   │   └── ffmpeg.ts        # FFmpeg encoding, Remotion bundle, compositing
+│   ├── generate-visuals/    # Full AI visual generation pipeline
+│   │   ├── index.ts         # processGenerateVisualsJob + re-exports
+│   │   ├── types.ts
+│   │   ├── validation.ts    # Speaker grid, asset extraction, pre-processing
+│   │   ├── storage.ts       # S3 bundle/source uploads
+│   │   └── subprocess.ts    # Claude Code subprocess management
+│   ├── edit-visuals/        # Conversational editing
+│   │   ├── index.ts         # processEditVisualsJob + re-exports
+│   │   ├── types.ts
+│   │   ├── context.ts       # Scene/layout/asset context building
+│   │   ├── editor.ts        # Claude editor subprocess
+│   │   └── build.ts         # esbuild compilation, S3 uploads
+│   └── svg-animation/       # Image → SVG animation
+│       ├── index.ts         # processSvgAnimationJob + re-exports
+│       ├── types.ts
+│       ├── converter.ts     # Image-to-SVG conversion (OpenAI Vision)
+│       ├── components.ts    # Remotion component code generation
+│       └── build.ts         # Compilation, bundling, S3 uploads
 │
 ├── agents/                  # AI agent system
 │   ├── claude-sdk/          # TypeScript Claude Agent SDK integration
-│   │   ├── index.ts         # Exports generateVisualsWithClaudeSDK
-│   │   └── visual-generator.ts  # SDK-based visual generation with planning + scene gen
-│   │
+│   │   ├── index.ts
+│   │   └── visual-generator.ts
 │   ├── mcp-servers/         # MCP tool servers for the Animator agent
-│   │   ├── asset-server.js  # download_file, screenshot, search_unsplash, search_pexels, download_stock_photo
-│   │   └── viewport-server.js  # get_scene_dimensions, validate_scene_code
-│   │
-│   ├── prompts/             # Python prompt modules for each agent phase
-│   │   ├── __init__.py
-│   │   ├── assistant_director.py  # Phase 0: tone classification, creative brief
-│   │   ├── director.py            # Phase 1: scene planning, visual story design
-│   │   └── animator.py            # Phase 2: Remotion code implementation
-│   │
-│   ├── claude_visual_generator.py  # Python-based visual generator (Claude Agent SDK + OAuth)
-│   ├── visual_director.py         # Director utilities (style colors, event emission, plan validation)
-│   ├── transcript_formatter.py    # Converts WhisperX output to Director-friendly format
-│   ├── npm_search.py              # NPM package search/validation for animation packages
-│   ├── token_utils.py             # OAuth token export/import/refresh for server deployment
-│   └── setup_claude_auth.py       # Claude Code credential setup helper
+│   │   ├── asset-server.js  # Asset download, screenshots, stock photo search
+│   │   └── viewport-server.js  # Scene dimension queries, code validation
+│   ├── claude_visual_generator.py  # Python-based visual generator
+│   ├── visual_director.py
+│   ├── transcript_formatter.py
+│   ├── npm_search.py
+│   └── setup_claude_auth.py
+│
+├── prompts/                 # All prompt files (loaders + .md templates)
+│   ├── index.ts             # Barrel re-exports
+│   ├── loader.ts            # TypeScript .md file loader with caching
+│   ├── loader.py            # Python .md file loader
+│   ├── _loader.py           # Python bridge module
+│   ├── _themes.py           # Shared theme constants
+│   ├── __init__.py          # Python barrel exports
+│   ├── generate-visuals.ts  # Style guidelines with design tokens
+│   ├── visual-references.ts # Few-shot Remotion code examples
+│   ├── studio-templates.ts  # Studio template catalog builder
+│   ├── animator/            # Animator phase prompts
+│   │   ├── animator.py      # Python prompt builder
+│   │   ├── system.md        # System-level instructions
+│   │   ├── base.md          # Base prompt for all scenes
+│   │   ├── setup.md         # Workspace setup instructions
+│   │   ├── scene-template.md  # Per-scene prompt template
+│   │   ├── scene-verify.md  # Post-scene verification
+│   │   ├── composition-verify.md  # Full composition verification
+│   │   ├── verify.md        # General verification prompt
+│   │   ├── fix-template.md  # Fix/retry prompt
+│   │   ├── overlay-rules.md # Overlay layout rules
+│   │   ├── fullscreen-rules.md  # Fullscreen layout rules
+│   │   ├── video-overlay-section.md  # Video overlay section
+│   │   ├── youtube-clip-section.md   # YouTube clip section
+│   │   └── studio-design-system.md   # Studio design system reference
+│   ├── director/            # Director phase prompts
+│   │   ├── director.py      # Python prompt builder
+│   │   ├── system.md        # Director system prompt
+│   │   ├── display-mode-table.md  # Layout mode reference
+│   │   └── studio-style-template.md  # Studio style reference
+│   ├── generate-visuals/    # Style and pattern reference prompts
+│   │   ├── scene-patterns.md
+│   │   ├── style-studio-dark.md
+│   │   └── style-studio-light.md
+│   └── references/          # Few-shot example prompts
+│       ├── common-patterns.md
+│       ├── hash-collisions.md
+│       ├── search-race.md
+│       └── stack-overflow.md
+│
+├── scripts/                 # Python scripts for ML tasks
+│   ├── face_detect.py       # Face detection for head tracking
+│   └── sam2_segment.py      # SAM2 speaker segmentation
 │
 ├── services/                # External service integrations
-│   ├── redis.ts             # Redis pub/sub for job progress, cancel handlers
+│   ├── index.ts             # Barrel re-exports
+│   ├── redis.ts             # Redis pub/sub, job progress, cancel handlers
 │   ├── minio.ts             # MinIO/S3 file upload/download
-│   ├── remotion-lambda.ts   # Remotion Lambda rendering (AWS)
-│   ├── log-streamer.ts      # Debounced log streaming for agent output
-│   ├── freepik.ts           # Freepik API (icon/illustration search and download)
-│   ├── pexels.ts            # Pexels API (photo search and download)
-│   └── image-fetcher.ts     # Orchestrator: routes [IMAGE: keyword] to Pexels/Freepik
-│
-├── prompts/                 # Visual generation prompt libraries (TypeScript)
-│   ├── generate-visuals.ts  # Style guidelines with design tokens per preset
-│   ├── visual-references.ts # Few-shot Remotion code examples (common patterns)
-│   ├── studio-templates.ts  # Studio theme template catalog builder
-│   ├── motion-utilities.ts  # Apple/Google ad-style motion snippets
-│   └── physics-helpers.ts   # Physics simulation patterns (gravity, bounce, etc.)
+│   ├── freepik.ts           # Freepik API (illustrations)
+│   ├── pexels.ts            # Pexels API (photos)
+│   ├── iconify.ts           # Iconify icon search
+│   └── image-fetcher.ts     # Routes [IMAGE: keyword] to Pexels/Freepik
 │
 ├── utils/
-│   ├── template.ts          # Remotion template download/extraction from S3
-│   ├── python.ts            # Python subprocess execution utilities
-│   └── heartbeat-progress.ts  # Periodic progress heartbeat to prevent stalls
+│   ├── index.ts             # Barrel re-exports
+│   ├── template.ts          # Remotion template download/extraction
+│   ├── python.ts            # Python subprocess utilities
+│   ├── redis.ts             # Redis connection helper
+│   └── heartbeat-progress.ts
+│
+├── types/
+│   └── renderer.d.ts        # Ambient type declarations
 │
 └── db/
     └── index.ts             # Drizzle ORM schema + PostgreSQL connection
-
-scripts/                     # Setup and utility scripts
-├── whisperx_transcribe.py   # WhisperX transcription script
-├── enhance_audio.py         # Audio enhancement (denoising, normalization)
-├── detect_head.py           # Face/body detection for head tracking
-├── setup-whisperx.sh / .bat # WhisperX environment setup
-├── setup-enhance.sh / .bat  # Audio enhancement environment setup
-├── upload-template.ts       # Upload Remotion template to S3
-├── download-template.ts     # Download Remotion template from S3
-├── push-claude-tokens.js    # Push OAuth tokens to production
-├── test_enhance.py          # Audio enhancement tests
-├── test-bundle-loading.cjs  # Bundle loading smoke test
-└── requirements.txt         # Python dependencies
-
-remotion-template/           # Base Remotion template (downloaded from S3)
-workspace/                   # Generated project files (dev)
 ```
 
 ## Visual Generation Pipeline
 
 The visual generation pipeline is a multi-phase AI system that converts transcripts into animated Remotion compositions.
 
-### Phase 0: Assistant Director
-
-Analyzes the transcript to classify tone/theme and produces a **Creative Brief** (`CREATIVE_BRIEF.md`) that guides downstream agents. Responsibilities:
-- Tone classification (playful, professional, dramatic, educational, inspirational)
-- Visual asset strategy (photos vs illustrations vs icons per beat)
-- Color palette and font pairing recommendations
-- Scene structure hints (beat count, hero moments, pacing)
-
 ### Phase 1: Director
 
-Reads the Creative Brief and transcript, then creates a detailed scene-by-scene plan:
+Reads the transcript, then creates a detailed scene-by-scene plan:
 - Outputs `SCENE_PLAN.md` (human-readable) and `scenes.json` (machine-readable)
 - Defines timing, visual focus, transitions, key elements per scene
 - Tags scenes with `[IMAGE: keyword]` entries for asset fetching
@@ -155,22 +189,8 @@ interface TranscribeJobData {
 }
 ```
 
-### Enhance Audio
-Applies noise reduction and loudness normalization via FFmpeg/Python.
-
-```typescript
-interface EnhanceAudioJobData {
-  projectId: string;
-  jobId: string;
-  videoKey: string;
-  audioTrackId: string;
-  audioItemId: string;
-  videoItemId: string;
-}
-```
-
 ### Generate Visuals
-Runs the full AI pipeline (Assistant Director, Director, Animator).
+Runs the full AI pipeline (Director, Animator).
 
 ```typescript
 interface GenerateVisualsJobData {
@@ -266,7 +286,7 @@ pnpm test
 
 ## Python Setup
 
-The worker requires Python 3.10+ for AI visual generation, audio enhancement, and head tracking.
+The worker requires Python 3.10+ for AI visual generation, head tracking, and segmentation.
 
 ```bash
 # Using Miniconda (recommended)
@@ -293,16 +313,6 @@ pnpm whisperx:setup:win
 
 # macOS/Linux
 pnpm whisperx:setup
-```
-
-## Audio Enhancement Setup
-
-```bash
-# Windows
-pnpm enhance:setup:win
-
-# macOS/Linux
-pnpm enhance:setup
 ```
 
 ## Environment Variables
@@ -336,23 +346,21 @@ In production:
 - Bundles are uploaded to S3 for persistence
 - Claude OAuth token set via `CLAUDE_CODE_OAUTH_TOKEN` environment variable
 - Template is downloaded from S3 on startup via `ensureTemplate()`
-- Graceful shutdown closes all 8 workers in parallel, waiting for in-progress jobs
+- Graceful shutdown closes all 12 workers in parallel, waiting for in-progress jobs
 
 ## Dependencies
 
 ### Runtime
 - **bullmq** - Job queue processing
-- **@remotion/bundler** + **@remotion/renderer** + **@remotion/lambda** - Remotion bundle creation, rendering (local + Lambda)
-- **@remotion/captions** - Caption processing
+- **@remotion/bundler** + **@remotion/renderer** - Remotion bundle creation and SSR rendering
 - **drizzle-orm** + **pg** - PostgreSQL database access
 - **minio** - S3-compatible storage client
 - **ioredis** - Redis client for pub/sub and BullMQ
-- **execa** - Python subprocess execution
-- **fluent-ffmpeg** - FFmpeg wrapper for audio/video processing
-- **openai** - OpenAI Whisper API for cloud transcription
-- **archiver** + **unzipper** - ZIP handling for templates and bundles
+- **openai** - OpenAI Whisper API for cloud transcription + SVG conversion
+- **unzipper** - ZIP extraction for templates
 - **pino** - Structured logging
 - **nanoid** - ID generation
+- **better-icons** + **mcp-remote** - MCP server dependencies (installed as direct deps, not via npx)
 - **@viona/shared** - Shared types and constants
 - **@viona/renderer** - Remotion video components
 - **@viona/templates** - Pre-built Studio templates

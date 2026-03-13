@@ -42,11 +42,20 @@ import {
 } from '../store/types';
 import { effectsToCss } from '@/lib/effects-utils';
 import { DynamicVisualLoader } from './DynamicVisualLoader';
+import { StaticTemplateRenderer } from './StaticTemplateRenderer';
 import {
-  classifyWordTier,
-  computeEmotionalSegments,
-  findActiveSegment,
-} from '@viona/shared';
+  interpolateFaceBbox,
+  getEffectiveZone,
+  ZONE_Z_INDEX,
+  ZONE_DIMENSIONS,
+} from '../utils/overlay-zones';
+import type { FaceBbox, OverlayZone, SegmentationData } from '../store/types';
+import {
+  computeLayoutForFrame,
+  buildLayoutSegmentsFromItems,
+  type Rect,
+  type SplitSettings as LayoutSplitSettings,
+} from './layout-utils';
 
 // Calculate video transform for crop/pan
 function calculateVideoTransform(
@@ -83,19 +92,24 @@ function calculateVideoTransform(
 }
 
 // Calculate video transform to achieve "cover" behavior for an arbitrary container
+// Optional cropX/cropY (0-100, 50=center) and userScale (>=1.0) allow pan/zoom.
 function calculateCoverTransform(
   sourceWidth: number,
   sourceHeight: number,
   containerWidth: number,
   containerHeight: number,
+  cropX: number = 50,
+  cropY: number = 50,
+  userScale: number = 1.0,
 ) {
-  const scale = Math.max(containerWidth / sourceWidth, containerHeight / sourceHeight);
-  const scaledWidth = sourceWidth * scale;
-  const scaledHeight = sourceHeight * scale;
-  // Center the scaled video within the container
-  const translateX = (containerWidth - scaledWidth) / 2;
-  const translateY = (containerHeight - scaledHeight) / 2;
-  return { scale, translateX, translateY };
+  const baseScale = Math.max(containerWidth / sourceWidth, containerHeight / sourceHeight) * userScale;
+  const scaledWidth = sourceWidth * baseScale;
+  const scaledHeight = sourceHeight * baseScale;
+  const overflowX = scaledWidth - containerWidth;
+  const overflowY = scaledHeight - containerHeight;
+  const translateX = -(overflowX * (cropX / 100));
+  const translateY = -(overflowY * (cropY / 100));
+  return { scale: baseScale, translateX, translateY };
 }
 
 // Helper to build PiP container style from settings
@@ -426,6 +440,36 @@ function findNextVisualItem(
   return next;
 }
 
+/**
+ * Validate mask path format to prevent path traversal attacks.
+ * Valid format: videos/{projectId}/masks
+ */
+function isValidMaskPath(maskPath: string): boolean {
+  // Must match pattern: videos/<alphanumeric_id>/masks
+  const pattern = /^videos\/[a-zA-Z0-9_-]+\/masks$/;
+  return pattern.test(maskPath);
+}
+
+// Compute mask URL for segmented video frame
+function getMaskUrl(
+  segmentation: SegmentationData | undefined,
+  frame: number,
+  fps: number
+): string | null {
+  if (!segmentation?.maskPath || segmentation.status !== 'ready') return null;
+
+  // Validate mask path format to prevent path traversal
+  if (!isValidMaskPath(segmentation.maskPath)) {
+    console.warn('Invalid mask path format:', segmentation.maskPath);
+    return null;
+  }
+
+  const maskFps = segmentation.maskFps || 10;
+  const maskFrame = Math.floor(frame / (fps / maskFps));
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  return `${apiUrl}/storage/${segmentation.maskPath}/${String(maskFrame + 1).padStart(4, '0')}.webp`;
+}
+
 // Get the effective layout mode for an item ('gap' if null, otherwise its displayMode)
 function getEffectiveLayout(item: TimelineItem | null, isSplitMode: boolean): string {
   if (!item) return 'gap';
@@ -586,6 +630,9 @@ export function Composition() {
           transform={transform}
           hasSeparateAudio={hasSeparateAudio || videoAudioExtracted}
           fullScreenStyle={fullScreenStyle}
+          cropX={videoSettings?.cropX ?? 50}
+          cropY={videoSettings?.cropY ?? 50}
+          userScale={videoSettings?.scale ?? 1.0}
         />
       )}
 
@@ -688,6 +735,45 @@ export function Composition() {
 // Extracted sub-components for visual and video sequences
 // ---------------------------------------------------------------------------
 
+/**
+ * Fix expired presigned URLs for youtube-clip templates.
+ * Converts old presigned URLs to the new proxy format.
+ */
+function fixYouTubeClipUrl(templateProps: Record<string, unknown>): Record<string, unknown> {
+  const clipUrl = templateProps.clipUrl;
+  if (typeof clipUrl !== 'string' || !clipUrl) {
+    return templateProps;
+  }
+
+  // Check if this is a presigned URL (contains signature parameters)
+  const isPresignedUrl = clipUrl.includes('X-Amz-') || clipUrl.includes('?AWSAccessKeyId');
+
+  if (isPresignedUrl) {
+    // Extract the storage key from the presigned URL
+    // Pattern: .../outputs/clips/{clipId}.mp4?...
+    const match = clipUrl.match(/\/outputs\/(clips\/[^?]+)/);
+    if (match) {
+      const clipKey = match[1];
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      return {
+        ...templateProps,
+        clipUrl: `${apiUrl}/api/media/outputs/${clipKey}`,
+      };
+    }
+  }
+
+  // Also handle relative URLs (from new API) - convert to absolute
+  if (clipUrl.startsWith('/api/media/')) {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    return {
+      ...templateProps,
+      clipUrl: `${apiUrl}${clipUrl}`,
+    };
+  }
+
+  return templateProps;
+}
+
 /** Renders grouped visual item Sequences (shared by static and dynamic paths).
  *  Visuals are generated at full canvas dimensions with per-scene effective areas.
  *  The container clips via overflow:hidden — no contain-fit scaling needed. */
@@ -705,13 +791,19 @@ function VisualSequences({
   const groups = new Map<string, {
     bundleUrl: string;
     compositionId: string;
-    videoUrl: string | undefined;
     minStartMs: number;
     maxEndMs: number;
     width: number;
     height: number;
     fps: number;
+    // Template-based visual support
+    templateId?: string;
+    templateProps?: Record<string, unknown>;
   }>();
+
+  // Collect video clips per scene (sceneIndex → proxyUrl)
+  // These are passed to DynamicVisualLoader as inputProps.videoClips
+  const videoClipsMap: Record<string, string> = {};
 
   for (const item of visualItems) {
     const data = item.data as VisualItemData;
@@ -720,20 +812,30 @@ function VisualSequences({
     if (existing) {
       existing.minStartMs = Math.min(existing.minStartMs, item.startMs);
       existing.maxEndMs = Math.max(existing.maxEndMs, item.endMs);
-      if (data.videoUrl && !existing.videoUrl) {
-        existing.videoUrl = data.videoUrl;
-      }
     } else {
       groups.set(key, {
         bundleUrl: data.bundleUrl,
         compositionId: data.compositionId,
-        videoUrl: data.videoUrl,
         minStartMs: item.startMs,
         maxEndMs: item.endMs,
         width: data.width,
         height: data.height,
         fps: data.fps,
+        // Include template data for template-based visuals
+        templateId: data.templateId,
+        templateProps: data.templateProps,
       });
+    }
+
+    // Track video clips by scene ID for inputProps
+    // sourceSceneId is set by generate-visuals (1-indexed scene ID)
+    if (data.videoUrl && data.sourceSceneId !== undefined) {
+      const isYouTubeUrl = (url: string) =>
+        url.includes('youtube.com') || url.includes('youtu.be');
+      if (!isYouTubeUrl(data.videoUrl)) {
+        const fullUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${data.videoUrl}`;
+        videoClipsMap[String(data.sourceSceneId)] = fullUrl;
+      }
     }
   }
 
@@ -743,10 +845,6 @@ function VisualSequences({
         const fromFrame = Math.round((group.minStartMs / 1000) * fps);
         const durationInFrames = Math.round(((group.maxEndMs - group.minStartMs) / 1000) * fps);
 
-        const videoSrc = group.videoUrl
-          ? `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}${group.videoUrl}`
-          : null;
-
         return (
           <Sequence
             key={key}
@@ -754,22 +852,20 @@ function VisualSequences({
             durationInFrames={durationInFrames}
           >
             <AbsoluteFill>
-              {videoSrc ? (
-                <Video
-                  src={videoSrc}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  }}
-                  onError={(e) => {
-                    console.warn('Visual video playback error:', e?.message);
-                  }}
+              {group.templateId ? (
+                <StaticTemplateRenderer
+                  templateId={group.templateId}
+                  templateProps={
+                    group.templateId === 'youtube-clip'
+                      ? fixYouTubeClipUrl(group.templateProps || {})
+                      : group.templateProps || {}
+                  }
                 />
               ) : (
                 <DynamicVisualLoader
                   bundleUrl={group.bundleUrl}
                   compositionId={group.compositionId}
+                  inputProps={{ videoClips: videoClipsMap }}
                 />
               )}
             </AbsoluteFill>
@@ -875,6 +971,85 @@ function VideoSequences({
 }
 
 // ---------------------------------------------------------------------------
+// Zone-based overlay components
+// ---------------------------------------------------------------------------
+
+interface ZoneLayerProps {
+  zone: OverlayZone;
+  children: React.ReactNode;
+  zIndex?: number;
+}
+
+/** Container for a specific overlay zone */
+function ZoneLayer({ zone, children, zIndex }: ZoneLayerProps) {
+  const dimensions = ZONE_DIMENSIONS[zone];
+  const effectiveZIndex = zIndex ?? ZONE_Z_INDEX[zone];
+
+  const style: React.CSSProperties = {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    width: '100%',
+    zIndex: effectiveZIndex,
+    ...dimensions,
+    height: dimensions.height || '100%',
+    overflow: 'hidden',
+  };
+
+  return <div style={style}>{children}</div>;
+}
+
+interface SegmentedSpeakerProps {
+  videoItems: TimelineItem[];
+  fps: number;
+  hasSeparateAudio: boolean;
+  transform: { scale: number; translateX: number; translateY: number };
+  maskUrl: string | null;
+}
+
+/** Renders video with CSS mask for speaker segmentation */
+function SegmentedSpeaker({
+  videoItems,
+  fps,
+  hasSeparateAudio,
+  transform,
+  maskUrl,
+}: SegmentedSpeakerProps) {
+  const maskStyle: React.CSSProperties = maskUrl
+    ? {
+        WebkitMaskImage: `url(${maskUrl})`,
+        maskImage: `url(${maskUrl})`,
+        WebkitMaskSize: 'cover',
+        maskSize: 'cover',
+        WebkitMaskRepeat: 'no-repeat',
+        maskRepeat: 'no-repeat',
+      }
+    : {};
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
+        zIndex: 2, // Speaker is above 'behind' zone, below other zones
+        ...maskStyle,
+      }}
+    >
+      <VideoSequences
+        videoItems={videoItems}
+        fps={fps}
+        hasSeparateAudio={hasSeparateAudio}
+        transform={transform}
+        useSimpleRender={true}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // DynamicLayoutComposition — per-frame layout switching
 // ---------------------------------------------------------------------------
 
@@ -890,6 +1065,9 @@ interface DynamicLayoutProps {
   transform: { scale: number; translateX: number; translateY: number };
   hasSeparateAudio: boolean;
   fullScreenStyle: React.CSSProperties;
+  cropX: number;
+  cropY: number;
+  userScale: number;
 }
 
 /**
@@ -916,6 +1094,9 @@ function DynamicLayoutComposition({
   transform,
   hasSeparateAudio,
   fullScreenStyle,
+  cropX,
+  cropY,
+  userScale,
 }: DynamicLayoutProps) {
   const frame = useCurrentFrame();
   const currentTimeMs = (frame / fps) * 1000;
@@ -927,276 +1108,394 @@ function DynamicLayoutComposition({
   // Normalize legacy 'pip' → 'default'
   const displayMode = (!rawDisplayMode || (rawDisplayMode as string) === 'pip') ? 'default' : rawDisplayMode;
 
-  // Determine previous/next items and whether the layout actually changes
   const isSplitMode = mode === 'stacked';
-  const currentLayout = getEffectiveLayout(activeItem, isSplitMode);
-  const prevItem = activeItem ? findPreviousVisualItem(visualItems, activeItem) : null;
-  const prevLayout = activeItem ? getEffectiveLayout(
-    // If there's a gap between prev and current, the previous layout is 'gap'
-    prevItem && prevItem.endMs >= activeItem.startMs - 50 ? prevItem : null,
-    isSplitMode,
-  ) : 'gap';
-
-  const nextItem = activeItem ? findNextVisualItem(visualItems, activeItem) : null;
-  const nextLayout = activeItem ? getEffectiveLayout(
-    nextItem && nextItem.startMs <= activeItem.endMs + 50 ? nextItem : null,
-    isSplitMode,
-  ) : 'gap';
-
-  const layoutChangesOnEnter = currentLayout !== prevLayout;
-  const layoutChangesOnExit = currentLayout !== nextLayout;
-
-  // Calculate transition opacity/scale for the active item
-  let transitionOpacity = 1;
-  let transitionScale = 1;
-  // Layout progress: 0 = previous layout, 1 = current layout (for animating split/pip positions)
-  // Only used when layout actually changes between scenes
-  let layoutEnterProgress = 1;
-  let layoutExitProgress = 0;
-
-  // Use explicit transition if set, otherwise default to a 300ms fade in/out
-  const DEFAULT_FADE_TRANSITION = {
-    enter: { type: 'fade' as const, durationMs: 300 },
-    exit: { type: 'fade' as const, durationMs: 300 },
-  };
-  const effectiveTransition = activeData?.transition ?? DEFAULT_FADE_TRANSITION;
-
-  if (activeItem) {
-    const itemDurationMs = activeItem.endMs - activeItem.startMs;
-    const { enter, exit } = effectiveTransition;
-
-    // Clamp transition durations to at most half the item duration
-    const maxDuration = itemDurationMs / 2;
-    const enterDuration = Math.min(enter.durationMs, maxDuration);
-    const exitDuration = Math.min(exit.durationMs, maxDuration);
-
-    // Enter transition
-    if (enter.type !== 'cut' && enterDuration > 0) {
-      const enterProgress = getTransitionProgress(
-        currentTimeMs,
-        activeItem.startMs,
-        enterDuration,
-      );
-      // Only animate layout if the display mode actually changed
-      if (layoutChangesOnEnter) {
-        layoutEnterProgress = enterProgress;
-      }
-
-      if (enter.type === 'fade') {
-        transitionOpacity = Math.min(transitionOpacity, enterProgress);
-      } else if (enter.type === 'zoom-in') {
-        // Scale from 1.3 down to 1.0
-        transitionOpacity = Math.min(transitionOpacity, enterProgress);
-        transitionScale *= 1.3 - 0.3 * enterProgress;
-      } else if (enter.type === 'zoom-out') {
-        // Scale from 0.7 up to 1.0
-        transitionOpacity = Math.min(transitionOpacity, enterProgress);
-        transitionScale *= 0.7 + 0.3 * enterProgress;
-      }
-    }
-
-    // Exit transition
-    const exitStartMs = activeItem.endMs - exitDuration;
-    if (exit.type !== 'cut' && exitDuration > 0 && currentTimeMs >= exitStartMs) {
-      const exitProgress = getTransitionProgress(
-        currentTimeMs,
-        exitStartMs,
-        exitDuration,
-      );
-      // Only animate layout if the next scene has a different layout
-      if (layoutChangesOnExit) {
-        layoutExitProgress = exitProgress;
-      }
-
-      if (exit.type === 'fade') {
-        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
-      } else if (exit.type === 'zoom-in') {
-        // Scale from 1.0 to 1.3
-        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
-        transitionScale *= 1.0 + 0.3 * exitProgress;
-      } else if (exit.type === 'zoom-out') {
-        // Scale from 1.0 to 0.7
-        transitionOpacity = Math.min(transitionOpacity, 1 - exitProgress);
-        transitionScale *= 1.0 - 0.3 * exitProgress;
-      }
-    }
-  }
-
-  // Build container styles based on the current display mode
   const isGap = !activeItem;
-  const showVideoLayer = isGap || displayMode === 'default' || displayMode === 'overlay';
-  const showVisualLayer = !isGap;
-  const hideVideoCompletely = !isGap && displayMode === 'fullscreen';
 
-  // For stacked mode, displayMode 'default' means "use the stacked layout"
-  const useSplitLayout = isSplitMode && displayMode === 'default' && !isGap;
+  // ---------------------------------------------------------------------------
+  // Stacked mode: use rect-based layout (same math as export FullComposition)
+  // ---------------------------------------------------------------------------
+
+  // Build layout segments from visual items (memoized by reference)
+  const totalDurationMs = React.useMemo(() => {
+    if (visualItems.length === 0) return 60000;
+    return Math.max(...visualItems.map(v => v.endMs)) + 1000;
+  }, [visualItems]);
+
+  const layoutSegments = React.useMemo(() => {
+    if (!isSplitMode) return [];
+    const sortedItems = [...visualItems]
+      .filter(v => v.type === 'visual')
+      .sort((a, b) => a.startMs - b.startMs)
+      .map(v => ({
+        startMs: v.startMs,
+        endMs: v.endMs,
+        data: {
+          displayMode: (v.data as VisualItemData)?.displayMode || 'default',
+        },
+      }));
+    return buildLayoutSegmentsFromItems(sortedItems, fps, totalDurationMs);
+  }, [visualItems, fps, totalDurationMs, isSplitMode]);
+
+  const layoutSplit: LayoutSplitSettings = {
+    position: split.position as 'visuals-first' | 'video-first',
+    ratio: split.ratio,
+    gap: split.gap,
+  };
+
+  // Compute rects for stacked mode (continuous frame-by-frame interpolation)
+  const { width: compWidth, height: compHeight } = useVideoConfig();
+  const layout = isSplitMode
+    ? computeLayoutForFrame(frame, layoutSegments, compWidth, compHeight, layoutSplit)
+    : null;
 
   // Video layer style
   let videoLayerStyle: React.CSSProperties;
   let visualLayerStyle: React.CSSProperties;
 
-  if (useSplitLayout) {
-    // Stacked layout: video and visuals top/bottom
-    // Animate layout from fullscreen → stacked during enter, stacked → fullscreen during exit
-    const layoutProgress = Math.min(layoutEnterProgress, 1 - layoutExitProgress);
-    const styles = buildAnimatedSplitStyles(split, true /* always horizontal for stacked */, layoutProgress);
-    videoLayerStyle = styles.videoStyle;
+  if (isSplitMode && layout) {
+    // Stacked mode: rect-based absolute positioning with smooth transitions.
+    // Matches the export FullComposition exactly.
+    const { videoRect, visualsRect, visualsOpacity } = layout;
+
+    videoLayerStyle = videoRect.h <= 1
+      ? { display: 'none' }
+      : {
+          position: 'absolute',
+          left: videoRect.x,
+          top: videoRect.y,
+          width: videoRect.w,
+          height: videoRect.h,
+          overflow: 'hidden',
+        };
+
+    // Visuals layer: scale content from full canvas to the rect size (uniform by width)
+    const visualScale = visualsRect.w / compWidth;
     visualLayerStyle = {
-      ...styles.visualsStyle,
-      opacity: transitionOpacity,
-      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-      transformOrigin: 'center center',
+      position: 'absolute',
+      left: visualsRect.x,
+      top: visualsRect.y,
+      width: visualsRect.w,
+      height: visualsRect.h,
+      overflow: 'hidden',
+      opacity: visualsOpacity,
     };
   } else if (isGap || displayMode === 'overlay') {
     // Fullscreen video (speaker-only gap or overlay background)
     videoLayerStyle = fullScreenStyle;
     visualLayerStyle = {
       ...fullScreenStyle,
-      opacity: transitionOpacity,
-      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-      transformOrigin: 'center center',
     };
   } else if (displayMode === 'default') {
     // Video as PiP bubble on top of visual (PiP layout mode)
     videoLayerStyle = buildPiPStyle(pip);
     visualLayerStyle = {
       ...fullScreenStyle,
-      opacity: transitionOpacity,
-      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-      transformOrigin: 'center center',
     };
   } else {
     // displayMode === 'fullscreen' — video hidden
     videoLayerStyle = { display: 'none' };
     visualLayerStyle = {
       ...fullScreenStyle,
-      opacity: transitionOpacity,
-      transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-      transformOrigin: 'center center',
     };
   }
 
-  // For overlay mode, visuals sit on top of video with real alpha compositing.
-  // The generated index.tsx conditionally removes Background during overlay frames,
-  // so the composition is genuinely transparent. FFmpeg export still uses screen blend
-  // for H.264 compositing (render.ts). The face mask below is a safety net against
-  // AI-generated scenes that place elements over the speaker's face.
-  const overlayOpacity = activeData?.overlayOpacity ?? 0.85;
+  // Determine visibility flags from rect-based layout (stacked) or displayMode (pip)
+  const showVideoLayer = isSplitMode
+    ? (layout ? layout.videoRect.h > 1 : true)
+    : (isGap || displayMode === 'default' || displayMode === 'overlay');
+  const showVisualLayer = isSplitMode
+    ? (layout ? layout.visualsRect.h > 1 : true)
+    : !isGap;
+  const hideVideoCompletely = isSplitMode
+    ? (layout ? layout.videoRect.h <= 1 : false)
+    : (!isGap && displayMode === 'fullscreen');
+
   const speakerBbox = activeData?.speakerBbox;
-  // Build a CSS mask that fades out the overlay over the speaker's face area.
-  // Uses a radial gradient: transparent at the face center, opaque everywhere else.
-  // This is a safety net — even if the AI places elements on the face, they'll be masked.
   let faceMask: string | undefined;
-  if (speakerBbox && displayMode === 'overlay') {
+  if (speakerBbox && displayMode === 'overlay' && !isSplitMode) {
     const cx = (speakerBbox.x + speakerBbox.w / 2) * 100;
     const cy = (speakerBbox.y + speakerBbox.h / 2) * 100;
-    // Ellipse radii: face bbox size + 10% buffer for breathing room
     const rx = (speakerBbox.w / 2 + 0.05) * 100;
     const ry = (speakerBbox.h / 2 + 0.05) * 100;
     faceMask = `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, transparent 60%, black 100%)`;
   }
   const overlayVisualStyle: React.CSSProperties = {
     ...fullScreenStyle,
-    opacity: transitionOpacity * overlayOpacity,
-    transform: transitionScale !== 1 ? `scale(${transitionScale})` : undefined,
-    transformOrigin: 'center center',
+    opacity: 1.0,
     zIndex: 5,
-    // No blend mode — overlay compositions use real alpha transparency.
-    // index.tsx conditionally removes Background during overlay frames.
-    // FFmpeg export still uses blend=all_mode=screen for H.264 compositing.
     ...(faceMask ? {
       WebkitMaskImage: faceMask,
       maskImage: faceMask,
     } : {}),
   };
 
-  // Determine whether the video should use simple (cover) or crop/pan rendering
-  // PiP mode uses simple render (objectFit: cover); fullscreen/overlay/gap use crop/pan
-  const { width: compWidth, height: compHeight } = useVideoConfig();
+  // ---------------------------------------------------------------------------
+  // Zone-based rendering setup
+  // ---------------------------------------------------------------------------
 
-  // For stacked mode, compute a cover transform for the video container so the
-  // speaker video fills the bottom half without gaps. We use the transform-based
-  // rendering path (same as crop/pan) since objectFit: cover is unreliable inside
-  // Remotion's flex-based AbsoluteFill containers.
-  let videoUseSimpleRender: boolean;
+  // Group visuals by their overlay zone
+  const visualsByZone = React.useMemo(() => {
+    const grouped: Record<OverlayZone, TimelineItem[]> = {
+      'background': [],
+      'behind': [],
+      'frame': [],
+      'lower-third': [],
+      'top': [],
+      'none': [],
+    };
+
+    for (const item of visualItems) {
+      const data = item.data as VisualItemData;
+      const zone = getEffectiveZone(data.overlayZone, data.displayMode);
+      grouped[zone].push(item);
+    }
+
+    return grouped;
+  }, [visualItems]);
+
+  // Get segmentation data from first video item
+  const videoSegmentation = videoItems.length > 0
+    ? (videoItems[0].data as VideoItemData).segmentation
+    : undefined;
+
+  // Compute mask URL for current frame
+  const maskUrl = getMaskUrl(videoSegmentation, frame, fps);
+
+  // Get interpolated face bbox for zone-aware templates
+  const faceBbox = videoSegmentation?.faceBboxTimeline
+    ? interpolateFaceBbox(
+        videoSegmentation.faceBboxTimeline,
+        Math.floor(frame / fps * (videoSegmentation.maskFps || 10))
+      )
+    : null;
+
+  // Determine if we should use zone-based rendering
+  // Zone rendering activates when: segmentation is ready AND at least one visual uses a zone
+  const hasZonedVisuals =
+    visualsByZone.background.length > 0 ||
+    visualsByZone.behind.length > 0 ||
+    visualsByZone.frame.length > 0 ||
+    visualsByZone['lower-third'].length > 0 ||
+    visualsByZone.top.length > 0;
+
+  const useZoneRendering = videoSegmentation?.status === 'ready' && hasZonedVisuals;
+
+  // ---------------------------------------------------------------------------
+  // Video transform calculation
+  // ---------------------------------------------------------------------------
+
+  // Determine whether the video should use simple (cover) or crop/pan rendering
+  // All modes now use transform-based rendering so cropX/cropY/scale are respected.
+
+  let videoUseSimpleRender = false;
   let videoTransform = transform;
 
-  if (useSplitLayout && videoItems.length > 0) {
-    // Stacked mode: use transform-based cover for the stacked container
-    videoUseSimpleRender = false;
-    const containerW = compWidth;
-    const containerH = Math.round(compHeight * (100 - split.ratio) / 100);
+  if (isSplitMode && layout && layout.videoRect.h > 1 && videoItems.length > 0) {
+    // Stacked mode: cover transform for the current video rect (animated during transitions)
+    const containerW = layout.videoRect.w;
+    const containerH = layout.videoRect.h;
     const firstVideoData = videoItems[0].data as VideoItemData;
     if (firstVideoData.width > 0 && firstVideoData.height > 0) {
       videoTransform = calculateCoverTransform(
         firstVideoData.width, firstVideoData.height,
         containerW, containerH,
+        cropX, cropY, userScale,
       );
     }
-  } else if (mode === 'pip' && displayMode === 'default' && !isGap) {
-    // PiP mode: use transform-based rendering with PiP-specific crop settings
-    videoUseSimpleRender = false;
-    const pipCrop = pip.crop || { cropX: 50, cropY: 50, zoom: 1.0 };
-    // Get PiP container dimensions for transform calculation
+  } else if (!isGap && displayMode === 'default') {
+    // PiP mode: cover transform for the PiP bubble container
     const pipSizePercent = pip.size === 'custom' ? pip.customSize : PIP_SIZE_MAP[pip.size];
-    const containerW = Math.round(compWidth * (pipSizePercent / 100));
-    const containerH = containerW; // PiP is square aspect ratio
+    const pipW = Math.round(compWidth * pipSizePercent / 100);
+    const pipH = pipW; // PiP is always 1:1 aspect ratio
     const firstVideoData = videoItems.length > 0 ? videoItems[0].data as VideoItemData : null;
     if (firstVideoData && firstVideoData.width > 0 && firstVideoData.height > 0) {
-      videoTransform = calculateVideoTransform(
-        firstVideoData.width,
-        firstVideoData.height,
-        containerW,
-        containerH,
-        pipCrop.cropX,
-        pipCrop.cropY,
-        pipCrop.zoom,
+      videoTransform = calculateCoverTransform(
+        firstVideoData.width, firstVideoData.height,
+        pipW, pipH,
+        cropX, cropY, userScale,
       );
     }
-  } else {
-    videoUseSimpleRender = !isGap && displayMode === 'default';
   }
 
   return (
     <>
-      {/* Visual layer (behind video for pip/split) */}
-      {displayMode !== 'overlay' && showVisualLayer && (
-        <div style={visualLayerStyle}>
-          <VisualSequences visualItems={visualItems} fps={fps} />
-        </div>
-      )}
+      {useZoneRendering ? (
+        /* Zone-based rendering */
+        <>
+          {/* Background zone */}
+          {visualsByZone.background.length > 0 && (
+            <ZoneLayer zone="background">
+              <VisualSequences visualItems={visualsByZone.background} fps={fps} />
+            </ZoneLayer>
+          )}
 
-      {/* Video layer */}
-      {showVideoLayer && !hideVideoCompletely && (
-        <div
-          style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}
-          {...(mode === 'pip' && displayMode === 'default' && !isGap ? { 'data-pip-overlay': true } : {})}
-        >
-          <VideoSequences
+          {/* Behind zone */}
+          {visualsByZone.behind.length > 0 && (
+            <ZoneLayer zone="behind">
+              <VisualSequences visualItems={visualsByZone.behind} fps={fps} />
+            </ZoneLayer>
+          )}
+
+          {/* Segmented speaker */}
+          <SegmentedSpeaker
             videoItems={videoItems}
             fps={fps}
             hasSeparateAudio={hasSeparateAudio}
-            transform={videoTransform}
-            useSimpleRender={videoUseSimpleRender}
+            transform={transform}
+            maskUrl={maskUrl}
           />
-        </div>
-      )}
 
+          {/* Frame zone (edge effects around speaker) */}
+          {visualsByZone.frame.length > 0 && (
+            <ZoneLayer zone="frame">
+              <VisualSequences visualItems={visualsByZone.frame} fps={fps} />
+            </ZoneLayer>
+          )}
 
-      {/* Overlay mode: visual on top of video with real alpha compositing */}
-      {displayMode === 'overlay' && showVisualLayer && (
-        <div style={overlayVisualStyle}>
-          <VisualSequences visualItems={visualItems} fps={fps} />
-        </div>
+          {/* Lower-third zone */}
+          {visualsByZone['lower-third'].length > 0 && (
+            <ZoneLayer zone="lower-third">
+              <VisualSequences visualItems={visualsByZone['lower-third']} fps={fps} />
+            </ZoneLayer>
+          )}
+
+          {/* Top zone */}
+          {visualsByZone.top.length > 0 && (
+            <ZoneLayer zone="top">
+              <VisualSequences visualItems={visualsByZone.top} fps={fps} />
+            </ZoneLayer>
+          )}
+
+          {/* Non-zone visuals still use displayMode logic */}
+          {visualsByZone.none.length > 0 && (
+            /* Render these using the existing displayMode logic */
+            <>
+              {displayMode !== 'overlay' && (
+                <div style={visualLayerStyle}>
+                  <VisualSequences visualItems={visualsByZone.none} fps={fps} />
+                </div>
+              )}
+              {displayMode === 'overlay' && (
+                <div style={overlayVisualStyle}>
+                  <VisualSequences visualItems={visualsByZone.none} fps={fps} />
+                </div>
+              )}
+            </>
+          )}
+        </>
+      ) : isSplitMode && layout ? (
+        /* Stacked mode: rect-based layout matching export FullComposition */
+        <>
+          {/* Video layer — positioned by animated rect */}
+          {showVideoLayer && !hideVideoCompletely && (
+            <div style={videoLayerStyle}>
+              <VideoSequences
+                videoItems={videoItems}
+                fps={fps}
+                hasSeparateAudio={hasSeparateAudio}
+                transform={videoTransform}
+                useSimpleRender={videoUseSimpleRender}
+              />
+            </div>
+          )}
+
+          {/* Visuals layer — positioned by animated rect with uniform scaling */}
+          {showVisualLayer && (
+            <div style={visualLayerStyle}>
+              <div style={{
+                transform: `scale(${layout.visualsRect.w / compWidth})`,
+                transformOrigin: 'top left',
+                width: compWidth,
+                height: compHeight,
+              }}>
+                <VisualSequences visualItems={visualItems} fps={fps} />
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        /* PiP mode: existing displayMode-based rendering */
+        <>
+          {/* Visual layer (behind video for pip) */}
+          {displayMode !== 'overlay' && showVisualLayer && (
+            <div style={visualLayerStyle}>
+              <VisualSequences visualItems={visualItems} fps={fps} />
+            </div>
+          )}
+
+          {/* Video layer */}
+          {showVideoLayer && !hideVideoCompletely && (
+            <div
+              style={{ ...videoLayerStyle, zIndex: displayMode === 'overlay' ? 1 : undefined }}
+              {...(mode === 'pip' && displayMode === 'default' && !isGap ? { 'data-pip-overlay': true } : {})}
+            >
+              <VideoSequences
+                videoItems={videoItems}
+                fps={fps}
+                hasSeparateAudio={hasSeparateAudio}
+                transform={videoTransform}
+                useSimpleRender={videoUseSimpleRender}
+              />
+            </div>
+          )}
+
+          {/* Overlay mode: visual on top of video with real alpha compositing */}
+          {displayMode === 'overlay' && showVisualLayer && (
+            <div style={overlayVisualStyle}>
+              <VisualSequences visualItems={visualItems} fps={fps} />
+            </div>
+          )}
+        </>
       )}
     </>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Dynamic Hierarchy — word classification imported from @viona/shared
-// getDynamicHierarchyOverrides uses platform-specific scale values
+// Dynamic Hierarchy — word classification for typography hierarchy preset
 // ---------------------------------------------------------------------------
+
+const POWER_WORDS = new Set([
+  // Emotion
+  'love', 'hate', 'fear', 'die', 'dead', 'death', 'kill', 'destroy', 'dream',
+  'obsessed', 'insane', 'crazy', 'incredible', 'amazing', 'unbelievable',
+  'shocking', 'terrifying', 'brilliant', 'genius', 'perfect', 'worst',
+  'best', 'greatest', 'legendary', 'epic', 'massive', 'huge', 'evil',
+  // Urgency
+  'now', 'stop', 'wait', 'listen', 'watch', 'look', 'never', 'always',
+  'forever', 'immediately', 'urgent', 'warning', 'danger', 'critical',
+  'important', 'breaking', 'exclusive', 'secret', 'finally', 'today',
+  // Money & numbers
+  'million', 'billion', 'thousand', 'money', 'rich', 'free', 'paid',
+  'expensive', 'cheap', 'profit', 'cash', 'dollar', 'dollars', 'price',
+  'worth', 'cost', 'zero', 'double', 'triple', '100%', '1000',
+  // Contrast & impact
+  'but', 'however', 'actually', 'wrong', 'right', 'truth', 'lie', 'real',
+  'fake', 'only', 'everything', 'nothing', 'impossible', 'possible',
+  'everyone', 'nobody', 'first', 'last', 'biggest', 'smallest',
+  // Power verbs
+  'win', 'won', 'lose', 'lost', 'fight', 'broke', 'crushed', 'dominated',
+  'exploded', 'changed', 'saved', 'failed', 'success', 'discovered',
+]);
+
+const FILLER_WORDS = new Set([
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'to', 'of', 'in', 'for', 'on', 'at', 'by', 'with', 'from', 'as',
+  'and', 'or', 'if', 'it', 'its', 'that', 'this', 'than', 'then',
+  'so', 'up', 'do', 'did', 'has', 'had', 'have', 'will', 'would',
+  'could', 'should', 'can', 'may', 'might', 'shall', 'just', 'very',
+  'also', 'about', 'into', 'not', 'no', 'yes', 'some', 'my', 'your',
+  'we', 'they', 'he', 'she', 'i', 'me', 'us', 'them', 'our', 'their',
+]);
+
+function classifyWordTier(text: string): 'power' | 'medium' | 'filler' {
+  const clean = text.replace(/[^a-zA-Z0-9%]/g, '').toLowerCase();
+  // Numbers (dollar amounts, percentages, large numbers) are power words
+  if (/^\$?\d/.test(clean) || /\d{4,}/.test(clean) || clean.endsWith('%')) return 'power';
+  if (POWER_WORDS.has(clean)) return 'power';
+  if (FILLER_WORDS.has(clean)) return 'filler';
+  return 'medium';
+}
 
 function getDynamicHierarchyOverrides(
   wordText: string,
@@ -1224,6 +1523,106 @@ function getDynamicHierarchyOverrides(
 
   // Merge: existing manual overrides take priority over computed
   return { ...computed, ...existingOverrides };
+}
+
+// ---------------------------------------------------------------------------
+// Emotional line breaking — break for impact, not grammar
+// ---------------------------------------------------------------------------
+
+interface EmotionalSegment {
+  lines: number[][]; // each line is an array of word indices
+  startIdx: number;
+  endIdx: number;    // exclusive
+}
+
+/**
+ * Break caption words into emotional segments (groups of 1-2 lines shown together).
+ * Rules:
+ *  - Max 5 words per line
+ *  - Isolate power words (single-word line for dramatic emphasis)
+ *  - Break on pauses > 400ms
+ *  - Don't start a line with a filler word (pull it to the previous line if possible)
+ *  - Alternate short (1-2 words) and medium (3-5 words) lines for visual rhythm
+ */
+function computeEmotionalSegments(words: CaptionWord[]): EmotionalSegment[] {
+  if (words.length === 0) return [];
+
+  const MAX_LINE = 5;
+  const PAUSE_THRESHOLD_MS = 400;
+  const lines: number[][] = [];
+  let currentLine: number[] = [];
+
+  for (let i = 0; i < words.length; i++) {
+    const tier = classifyWordTier(words[i].text);
+
+    // Check for pause before this word
+    const hasPause = i > 0 && (words[i].startMs - words[i - 1].endMs) > PAUSE_THRESHOLD_MS;
+
+    // Force break: pause detected
+    if (hasPause && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+
+    // Power word isolation: if this is a power word, break before it
+    // and give it its own line (or start of a new line)
+    if (tier === 'power' && currentLine.length > 0) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+
+    // Don't start a line with a filler word — pull it to previous line if possible
+    if (tier === 'filler' && currentLine.length === 0 && lines.length > 0) {
+      const prevLine = lines[lines.length - 1];
+      if (prevLine.length < MAX_LINE) {
+        prevLine.push(i);
+        continue;
+      }
+    }
+
+    currentLine.push(i);
+
+    // Power word gets its own line
+    if (tier === 'power' && currentLine.length === 1) {
+      // Check if the next word is also short — if so, keep the power word alone
+      lines.push(currentLine);
+      currentLine = [];
+      continue;
+    }
+
+    // Max line length hit
+    if (currentLine.length >= MAX_LINE) {
+      lines.push(currentLine);
+      currentLine = [];
+    }
+  }
+
+  if (currentLine.length > 0) {
+    lines.push(currentLine);
+  }
+
+  // Group lines into display segments (max 2 lines per segment for rhythm)
+  const segments: EmotionalSegment[] = [];
+  for (let l = 0; l < lines.length; l += 2) {
+    const segLines = [lines[l]];
+    if (l + 1 < lines.length) segLines.push(lines[l + 1]);
+    const allIndices = segLines.flat();
+    segments.push({
+      lines: segLines,
+      startIdx: allIndices[0],
+      endIdx: allIndices[allIndices.length - 1] + 1,
+    });
+  }
+
+  return segments;
+}
+
+/** Find which emotional segment contains a word index */
+function findActiveSegment(segments: EmotionalSegment[], wordIdx: number): EmotionalSegment | null {
+  for (const seg of segments) {
+    if (wordIdx >= seg.startIdx && wordIdx < seg.endIdx) return seg;
+  }
+  return segments.length > 0 ? segments[0] : null;
 }
 
 interface CaptionRendererProps {
@@ -1302,7 +1701,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     const activeWord = words[activeWordIndex];
     const overrides = style.presetId === 'dynamic-hierarchy'
       ? getDynamicHierarchyOverrides(activeWord.text, activeWord.styleOverrides)
-      : undefined;
+      : activeWord.styleOverrides;
 
     // Resolve animation for the active word
     const elapsedMs = relativeTimeMs - activeWord.startMs;
@@ -1362,7 +1761,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
           const hasAppeared = relativeTimeMs >= word.startMs;
           const overrides = isDynHierarchy
             ? getDynamicHierarchyOverrides(word.text, word.styleOverrides)
-            : undefined;
+            : word.styleOverrides;
 
           // Resolve animation for this word
           const elapsedMs = relativeTimeMs - word.startMs;
@@ -1449,7 +1848,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
     const hasAppeared = relativeTimeMs >= word.startMs;
     const overrides = isDynamicHierarchy
       ? getDynamicHierarchyOverrides(word.text, word.styleOverrides)
-      : undefined;
+      : word.styleOverrides;
 
     const elapsedMs = relativeTimeMs - word.startMs;
     const wordDurationMs = word.endMs - word.startMs;
@@ -1516,7 +1915,7 @@ function CaptionRenderer({ item, fps }: CaptionRendererProps) {
             key={lineIdx}
             style={{
               display: 'flex',
-              flexWrap: 'nowrap',
+              flexWrap: 'wrap',
               justifyContent: 'center',
               alignItems: 'baseline',
               gap: '0 6px',

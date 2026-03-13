@@ -5,7 +5,20 @@ export interface TemplateMeta {
   slug: string;
   name: string;
   description: string;
-  category: 'marketing' | 'education' | 'social' | 'corporate' | 'entertainment';
+  category:
+    | 'data-visualization'
+    | 'text-typography'
+    | 'comparison'
+    | 'social-engagement'
+    | 'geographic'
+    | 'intro-outro'
+    | 'timeline-process'
+    | 'media'
+    | 'marketing'
+    | 'education'
+    | 'social'
+    | 'corporate'
+    | 'entertainment';
   tags: string[];
   stylePreset: string;
   aspectRatio: '16:9' | '9:16' | '1:1';

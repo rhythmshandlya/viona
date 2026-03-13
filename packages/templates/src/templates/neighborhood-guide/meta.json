@@ -1,0 +1,23 @@
+{
+  "slug": "neighborhood-guide",
+  "name": "Neighborhood Guide",
+  "description": "Interactive neighborhood map with categorized POI icons animating in by group with category legend panel",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "neighborhood",
+    "guide",
+    "pois",
+    "local",
+    "city",
+    "explore",
+    "categories",
+    "food",
+    "shopping"
+  ],
+  "stylePreset": "friendlyTech",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "15s",
+  "thumbnail": "thumbnail.png"
+}

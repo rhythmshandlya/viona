@@ -39,6 +39,7 @@ import {
   PiPCrop,
   SplitSettings,
   normalizeLayoutMode,
+  OverlayZone,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -50,10 +51,15 @@ const debouncedSave = (saveFn: () => Promise<void>, delay = 1000) => {
     clearTimeout(saveTimeout);
   }
   saveTimeout = setTimeout(() => {
-    console.log('[debouncedSave] firing save…');
-    saveFn().then(() => console.log('[debouncedSave] save OK')).catch((err) => console.error('[debouncedSave] save FAILED:', err));
+    saveFn().catch((err) => console.error('[debouncedSave] save FAILED:', err));
     saveTimeout = null;
   }, delay);
+};
+const cancelDebouncedSave = () => {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
 };
 
 // Initial state
@@ -95,6 +101,7 @@ const initialState: EditorState = {
 
   // UI state
   isSaving: false,
+  isDirty: false,
 
   // Caption style toggle
   applyStyleToAll: false,
@@ -279,10 +286,35 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
 
   // Add video items: prefer DB items (from splits), fall back to synthetic full-duration item
   const dbVideoItems = apiProject.items?.filter((i: { type: string }) => i.type === 'video') || [];
+  console.log('[convertApiProject] Video loading debug:', {
+    isAudioProject,
+    hasVideoKey: !!project.videoKey,
+    hasVideoUrl: !!project.videoUrl,
+    durationMs: project.durationMs,
+    dbVideoItemCount: dbVideoItems.length,
+    dbVideoItems: dbVideoItems.map((i: any) => ({
+      id: i.id,
+      startMs: i.startMs,
+      endMs: i.endMs,
+      trimStartMs: (i.data as any)?.trimStartMs,
+      trimEndMs: (i.data as any)?.trimEndMs,
+    })),
+  });
   if (!isAudioProject && project.videoKey && project.videoUrl) {
     const videoTrack = tracks.find((t) => t.type === 'video');
     if (videoTrack) {
-      if (dbVideoItems.length > 0) {
+      // Fix stale DB video items: if all video items have zero duration but the
+      // project now has a valid durationMs, discard the stale DB items and fall
+      // through to the synthetic path.  This happens when the editor saved before
+      // the transcription worker had set durationMs.
+      const allZeroDuration = dbVideoItems.length > 0 &&
+        dbVideoItems.every((i: any) => i.endMs <= i.startMs);
+      const useDbItems = dbVideoItems.length > 0 && !(allZeroDuration && project.durationMs > 0);
+      if (allZeroDuration && project.durationMs > 0) {
+        console.warn('[convertApiProject] Discarding stale zero-duration DB video items, using synthetic item with durationMs:', project.durationMs);
+      }
+
+      if (useDbItems) {
         // Use saved video items (split state persisted)
         for (const item of dbVideoItems) {
           const raw = item.data as Record<string, unknown>;
@@ -303,12 +335,23 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
               previewUrl: project.videoUrl,
             } as VideoItemData,
           };
-          if (item.startMs != null && item.endMs != null) {
+          // Only set trim if explicit trim data was saved — avoid defaulting to
+          // timeline position which can produce {0,0} if item was saved before
+          // durationMs was available
+          if (raw.trimStartMs != null || raw.trimEndMs != null) {
             videoItem.trim = {
               startMs: (raw.trimStartMs as number) ?? item.startMs,
               endMs: (raw.trimEndMs as number) ?? item.endMs,
             };
           }
+          console.log('[convertApiProject] DB video item:', {
+            id: item.id,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            rawTrimStart: raw.trimStartMs,
+            rawTrimEnd: raw.trimEndMs,
+            resultTrim: videoItem.trim,
+          });
           items[item.id] = videoItem;
           itemIds.push(item.id);
         }
@@ -330,6 +373,11 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             previewUrl: project.videoUrl,
           } as VideoItemData,
         };
+        console.log('[convertApiProject] Synthetic video item:', {
+          id: videoId,
+          startMs: 0,
+          endMs: project.durationMs,
+        });
         itemIds.push(videoId);
       }
     }
@@ -453,7 +501,6 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             sourceSceneId: (raw.sourceSceneId as number) || undefined,
             displayMode: (raw.displayMode as VisualDisplayMode) || undefined,
             transition: (raw.transition as VisualItemData['transition']) || undefined,
-            overlayOpacity: (raw.overlayOpacity as number) ?? undefined,
             speakerBbox: (raw.speakerBbox as VisualItemData['speakerBbox']) ?? undefined,
           } as VisualItemData,
         };
@@ -652,10 +699,14 @@ export const useEditorStore = create<EditorStore>()(
           // Clear history on load
           state.history = [];
           state.historyIndex = -1;
+          state.isDirty = false;
         });
 
         // Push initial state to history
         get().pushHistory();
+        // Reset dirty flag and cancel the debounced save — the initial pushHistory is not a user change
+        cancelDebouncedSave();
+        set((state) => { state.isDirty = false; });
 
         // Auto-load caption fonts used in the project
         const captionFonts = new Set<string>();
@@ -680,8 +731,20 @@ export const useEditorStore = create<EditorStore>()(
 
     reloadVisuals: async (projectId: string) => {
       // Reload only visual items without resetting playback position or other state
+      // Retry once on 401 — Stytch JWT may have expired and the SDK refreshes it in the background
+      const fetchProject = async (retry = true): ReturnType<typeof api.getProject> => {
+        try {
+          return await api.getProject(projectId);
+        } catch (err) {
+          if (retry && err instanceof Error && err.message.includes('Unauthorized')) {
+            await new Promise(r => setTimeout(r, 2000)); // wait for Stytch SDK to refresh JWT
+            return fetchProject(false);
+          }
+          throw err;
+        }
+      };
       try {
-        const apiProject = await api.getProject(projectId);
+        const apiProject = await fetchProject();
 
         // Use presigned URL from API
         const videoUrl = (apiProject as any).videoPresignedUrl
@@ -762,6 +825,45 @@ export const useEditorStore = create<EditorStore>()(
         });
       } catch (err) {
         console.error('Failed to reload visuals:', err);
+      }
+    },
+
+    refreshMediaUrls: async (projectId: string) => {
+      // Lightweight refresh: only update presigned video/audio URLs without
+      // touching tracks, items, layout, or playback state. Prevents videos
+      // from vanishing when presigned URLs expire during long editing sessions.
+      try {
+        const apiProject = await api.getProject(projectId);
+        const videoUrl = (apiProject as any).videoPresignedUrl
+          || (apiProject.videoKey ? `${API_URL}/api/projects/${projectId}/video` : '');
+        const audioUrl = (apiProject as any).audioPresignedUrl
+          || (apiProject.audioKey ? `${API_URL}/api/projects/${projectId}/audio` : '');
+
+        set((state) => {
+          if (state.project) {
+            state.project.videoUrl = videoUrl;
+            state.project.audioUrl = audioUrl;
+          }
+          // Update src on video and audio items so <Video>/<Audio> elements pick up fresh URLs
+          for (const id of state.itemIds) {
+            const item = state.items[id];
+            if (!item) continue;
+            if (item.type === 'video' && videoUrl) {
+              (item.data as any).src = videoUrl;
+            } else if (item.type === 'audio') {
+              const audioData = item.data as any;
+              // Only refresh items that use the project video/audio as source
+              if (audioData.src?.includes('/api/projects/') || audioData.src?.includes('X-Amz-')) {
+                audioData.src = audioData.src.includes('/video') ? videoUrl : audioUrl;
+                if (audioData.originalSrc?.includes('/api/projects/') || audioData.originalSrc?.includes('X-Amz-')) {
+                  audioData.originalSrc = audioData.originalSrc.includes('/video') ? videoUrl : audioUrl;
+                }
+              }
+            }
+          }
+        });
+      } catch (err) {
+        console.warn('Failed to refresh media URLs:', err);
       }
     },
 
@@ -893,6 +995,7 @@ export const useEditorStore = create<EditorStore>()(
 
         set((state) => {
           state.isSaving = false;
+          state.isDirty = false;
         });
       } catch (err) {
         console.error('[saveProject] Failed:', err);
@@ -945,8 +1048,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      // Auto-save caption styles to database
-      debouncedSave(() => get().saveProject());
     },
 
     updateSelectedCaptionStyles: (ids: string[], styleUpdates: Partial<CaptionStyle>) => {
@@ -963,8 +1064,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      // Auto-save caption styles to database
-      debouncedSave(() => get().saveProject());
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {
@@ -998,7 +1097,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     setApplyStyleToAll: (value: boolean) => {
@@ -1159,6 +1257,8 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Cancel the debounced save from pushHistory — we save immediately below
+      cancelDebouncedSave();
 
       // If visual items were deleted, delete visuals from backend
       if (hasVisualItems && project) {
@@ -1376,7 +1476,10 @@ export const useEditorStore = create<EditorStore>()(
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
         state.historyIndex = newIndex;
+        state.isDirty = true;
       });
+
+      debouncedSave(() => get().saveProject());
     },
 
     redo: () => {
@@ -1392,7 +1495,10 @@ export const useEditorStore = create<EditorStore>()(
         state.itemIds = entry.itemIds;
         state.selectedIds = entry.selectedIds;
         state.historyIndex = newIndex;
+        state.isDirty = true;
       });
+
+      debouncedSave(() => get().saveProject());
     },
 
     pushHistory: () => {
@@ -1417,7 +1523,11 @@ export const useEditorStore = create<EditorStore>()(
           state.history.shift();
           state.historyIndex--;
         }
+
+        state.isDirty = true;
       });
+
+      debouncedSave(() => get().saveProject());
     },
 
     // ========================================
@@ -1716,7 +1826,6 @@ export const useEditorStore = create<EditorStore>()(
 
       if (get().selectedIds.length > 0) {
         get().pushHistory();
-        debouncedSave(() => get().saveProject());
       }
     },
 
@@ -1817,6 +1926,8 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Cancel the debounced save from pushHistory — we save immediately below
+      cancelDebouncedSave();
 
       // Delete visuals from backend if needed
       if (hasVisualItems && project) {
@@ -2027,7 +2138,6 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     mergeCaptions: (captionId1: string, captionId2: string) => {
@@ -2085,7 +2195,6 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     updateCaptionText: (captionId: string, newText: string) => {
@@ -2125,7 +2234,6 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     // ========================================
@@ -2139,6 +2247,7 @@ export const useEditorStore = create<EditorStore>()(
           ...settings,
         };
         state.layoutPresetId = 'custom';
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2150,6 +2259,7 @@ export const useEditorStore = create<EditorStore>()(
           ...settings,
         };
         state.layoutPresetId = 'custom';
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2172,6 +2282,7 @@ export const useEditorStore = create<EditorStore>()(
           ...settings,
         };
         state.layoutPresetId = 'custom';
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2183,6 +2294,7 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.layoutPresetId = presetId;
         state.layoutSettings = JSON.parse(JSON.stringify(preset.settings));
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2191,6 +2303,7 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.layoutSettings.mode = mode;
         state.layoutPresetId = 'custom';
+        state.isDirty = true;
       });
       debouncedSave(() => get().saveProject());
     },
@@ -2332,18 +2445,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
-    },
-
-    updateOverlayOpacity: (itemId: string, opacity: number) => {
-      set((state) => {
-        const item = state.items[itemId];
-        if (item?.type === 'visual') {
-          (item.data as VisualItemData).overlayOpacity = opacity;
-        }
-      });
-      get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => {
@@ -2354,7 +2455,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
-      debouncedSave(() => get().saveProject());
     },
 
     openTransitionPicker: (itemId: string) => {
@@ -2379,6 +2479,36 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.showSafeZone = show;
       });
+    },
+
+    // ========================================
+    // Overlay Zone Actions
+    // ========================================
+
+    updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => {
+      set((state) => {
+        const item = state.items[itemId];
+        if (!item || item.type !== 'visual') return state;
+
+        const data = item.data as VisualItemData;
+        state.items[itemId] = {
+          ...item,
+          data: {
+            ...data,
+            overlayZone: zone,
+            // Clear deprecated displayMode when zone is set
+            displayMode: zone === 'none' ? data.displayMode : undefined,
+          },
+        };
+        state.isDirty = true;
+      });
+      get().pushHistory();
+    },
+
+    getVideoSegmentation: (videoItemId: string) => {
+      const item = get().items[videoItemId];
+      if (!item || item.type !== 'video') return undefined;
+      return (item.data as VideoItemData).segmentation;
     },
   }))
 );

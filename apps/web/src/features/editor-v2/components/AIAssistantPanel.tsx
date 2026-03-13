@@ -15,6 +15,10 @@ import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearVisualCache } from '../player/DynamicVisualLoader';
 import { useVideoSettings, useEditorActions, useAIEditingContext, useAIEditRequested, usePendingAIMessage, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
+import { useProgress } from '../hooks/use-progress';
+import { ProgressBar } from './ProgressBar';
+import { ActivityLog } from './ActivityLog';
+import { HealthIndicator } from './HealthIndicator';
 import { ThemePicker, LayoutPicker, ScenePlanCard, ConfirmationWidget, ChoiceWidget } from './agent-widgets';
 
 // ---------------------------------------------------------------------------
@@ -249,11 +253,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const pendingWidgetResponseRef = useRef<Array<{ widgetId: string; value: unknown }>>([]);
   const lastEventIdRef = useRef<number | undefined>(undefined);
 
-  // Attachment state
-  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
-  const [attachmentLabel, setAttachmentLabel] = useState('');
+  // Attachment state (supports multiple files)
+  const [attachmentFiles, setAttachmentFiles] = useState<{ file: File; label: string }[]>([]);
   const [attachmentUploading, setAttachmentUploading] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+
+  // Unified progress state (merges SSE + WS + HTTP)
+  const progressState = useProgress();
 
   // Stall detection
   const [stallState, setStallState] = useState<'ok' | 'slow' | 'stuck'>('ok');
@@ -294,16 +300,26 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const { reloadVisuals, setSelectedScene, setSelectedElement, setSelectedTimeRange, clearSelection, setPendingAIMessage } = useEditorActions();
 
   // WebSocket for real-time job progress (survives page refresh, unlike SSE)
-  const { subscribeToJob } = useJobWebSocket(projectId, {
+  const { subscribeToJob, isConnected: wsConnected } = useJobWebSocket(projectId, {
     onProgress: (data) => {
       // SSE takes priority while stream is active — prevents duplicate updates
-      if (progressSourceRef.current === 'sse' && isStreaming) return;
+      if (progressSourceRef.current === 'sse' && isStreaming) {
+        return;
+      }
       progressSourceRef.current = 'ws';
       // Reset stall timer
       lastProgressTimeRef.current = Date.now();
       setStallState('ok');
-      if (!activeJobId) return; // Only show if we're tracking a job
-      if (data.jobId !== activeJobId) return;
+      // Feed into unified progress state
+      progressState.onWSProgress({
+        percent: data.progress,
+        message: data.message || `Processing... (${data.progress}%)`,
+        phase: data.meta?.phase || data.phase,
+        phaseName: data.meta?.phaseName || data.phaseName,
+        detail: data.meta?.detail,
+        meta: data.meta,
+      });
+      if (!activeJobId || data.jobId !== activeJobId) return;
       setMessages((prev) => {
         const last = [...prev].reverse().find((m) => m.role === 'assistant');
         if (!last) return prev;
@@ -346,7 +362,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             ...m,
             content: m.content.map((b) =>
               b.type === 'progress' && !b.error
-                ? { ...b, percent: 100, message: 'Done!' }
+                ? { ...b, percent: 100, message: 'Done!', phase: 'done' }
                 : b,
             ),
           };
@@ -382,6 +398,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         });
       });
     },
+    onHealth: (data) => {
+      progressState.onWSHealth(data);
+    },
+    onActivity: (data) => {
+      progressState.onSSEActivity(data);
+    },
   });
 
   // Subscribe to job updates when we have an active job
@@ -399,8 +421,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     httpHighWaterRef.current = 0;
 
     const poll = async () => {
-      // Don't override SSE or WS while they're actively providing progress
-      if (progressSourceRef.current === 'sse' || progressSourceRef.current === 'ws') return;
+      // Don't override SSE or WS while they're actively providing progress.
+      // But if no update arrived from them in 10s, allow HTTP to take over.
+      const staleMs = Date.now() - lastProgressTimeRef.current;
+      if ((progressSourceRef.current === 'sse' || progressSourceRef.current === 'ws') && staleMs < 10_000) return;
       try {
         const job = await api.getJob(activeJobId);
         progressSourceRef.current = 'http';
@@ -419,7 +443,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               return {
                 ...m,
                 content: m.content.map(b =>
-                  b.type === 'progress' && !b.error ? { ...b, percent: 100, message: 'Done!' } : b,
+                  b.type === 'progress' && !b.error ? { ...b, percent: 100, message: 'Done!', phase: 'done' } : b,
                 ),
               };
             });
@@ -468,15 +492,18 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         if (jobMeta?.phase) {
           phase = jobMeta.phase;
         } else {
-          const phases = PHASE_ORDER[jt];
-          if (phases) {
-            if (jt === 'plan-visuals') {
-              phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 88 ? 'planning' : 'finalizing';
-            } else if (jt === 'generate-visuals') {
-              phase = effectivePercent < 15 ? 'preparing' : effectivePercent < 85 ? 'generating' : effectivePercent < 95 ? 'validating' : 'uploading';
-            } else if (jt === 'edit-visuals') {
-              phase = effectivePercent < 20 ? 'preparing' : effectivePercent < 85 ? 'editing' : 'validating';
-            }
+          // Derive canonical phase from percent (matches backend derivePhase + ProgressBar thresholds)
+          if (jt === 'plan-visuals') {
+            phase = 'plan';
+          } else if (jt === 'generate-visuals') {
+            if (effectivePercent < 15) phase = 'plan';
+            else if (effectivePercent < 65) phase = 'animate';
+            else if (effectivePercent < 75) phase = 'verify';
+            else phase = 'bundle';
+          } else if (jt === 'edit-visuals') {
+            if (effectivePercent < 65) phase = 'animate';
+            else if (effectivePercent < 75) phase = 'verify';
+            else phase = 'bundle';
           }
         }
 
@@ -693,7 +720,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       const { event: eventType, data } = event;
 
       // Reset stall timer on any meaningful SSE activity (not just progress events)
-      if (eventType === 'text' || eventType === 'widget' || eventType === 'progress' || eventType === 'heartbeat') {
+      if (eventType === 'text' || eventType === 'widget' || eventType === 'progress' || eventType === 'heartbeat' || eventType === 'activity' || eventType === 'health') {
         lastProgressTimeRef.current = Date.now();
         setStallState('ok');
       }
@@ -737,6 +764,17 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 meta?: ProgressMeta;
                 avgDurationMs?: number; jobStartedAt?: string;
               };
+              // Feed into unified progress state
+              {
+                progressState.onSSEProgress({
+                  percent: progressData.percent,
+                  message: progressData.message,
+                  phase: progressData.phase,
+                  phaseName: progressData.phaseName,
+                  detail: progressData.meta?.detail,
+                  meta: progressData.meta,
+                });
+              }
               // On failure, stop tracking the job so the spinner stops
               if (progressData.error) {
                 setActiveJobId(null);
@@ -796,6 +834,16 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               break;
             }
 
+            case 'activity': {
+              progressState.onSSEActivity(data as Record<string, unknown>);
+              break;
+            }
+
+            case 'health': {
+              progressState.onSSEHealth(data as Record<string, unknown>);
+              break;
+            }
+
             default:
               break;
           }
@@ -849,9 +897,10 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         progressSourceRef.current = null;
         etaInfoRef.current = null;
         setEtaSeconds(null);
+        progressState.reset();
       }
     },
-    [projectId, reloadVisuals, onEditComplete, onProgressReceived]
+    [projectId, reloadVisuals, onEditComplete, onProgressReceived, progressState]
   );
 
   // -----------------------------------------------------------------------
@@ -1064,10 +1113,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // Attachment helpers
   // -----------------------------------------------------------------------
   const handleAttachmentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setAttachmentFile(file);
-    setAttachmentLabel(file.name.replace(/\.[^.]+$/, ''));
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const newAttachments = Array.from(files).map(file => ({
+      file,
+      label: file.name.replace(/\.[^.]+$/, ''),
+    }));
+    setAttachmentFiles(prev => [...prev, ...newAttachments]);
     e.target.value = '';
   };
 
@@ -1345,9 +1397,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setSceneTags([]);
     messageQueueRef.current = [];
     setQueueSize(0);
-    // Clear any pending attachment
-    setAttachmentFile(null);
-    setAttachmentLabel('');
+    progressState.reset();
+    // Clear any pending attachments
+    setAttachmentFiles([]);
     // Re-trigger auto-greet
     autoGreetSent.current = false;
     clearVisualCache();
@@ -1371,27 +1423,35 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -----------------------------------------------------------------------
   const handleSendWithAttachment = useCallback(async () => {
     const text = input.trim();
-    if (!text && !attachmentFile) return;
+    if (!text && attachmentFiles.length === 0) return;
 
-    if (attachmentFile) {
+    if (attachmentFiles.length > 0) {
       setAttachmentUploading(true);
+      const labels: string[] = [];
       try {
-        await api.uploadProjectMedia(projectId, attachmentFile, attachmentLabel || undefined);
-        const label = attachmentLabel || attachmentFile.name;
-        const fullText = text ? `[Attached: ${label}]\n${text}` : `[Attached: ${label}]`;
-        setAttachmentFile(null);
-        setAttachmentLabel('');
+        for (const { file, label } of attachmentFiles) {
+          await api.uploadProjectMedia(projectId, file, label || undefined);
+          labels.push(label || file.name);
+        }
+        const attachPrefix = labels.map(l => `[Attached: ${l}]`).join('\n');
+        const fullText = text ? `${attachPrefix}\n${text}` : attachPrefix;
+        setAttachmentFiles([]);
         setAttachmentUploading(false);
         setInput('');
         sendMessage(fullText);
       } catch (err) {
         console.error('Attachment upload failed:', err);
+        // Remove successfully uploaded files, keep only un-uploaded ones
+        const uploadedCount = labels.length;
+        setAttachmentFiles(prev => prev.slice(uploadedCount));
         setAttachmentUploading(false);
-        // Keep attachment chip visible so user can retry — add system message
+        const msg = uploadedCount > 0
+          ? `Uploaded ${uploadedCount} file(s) but failed on the rest. Please retry.`
+          : 'Failed to upload attachment. Please try again.';
         setMessages(prev => [...prev, {
           id: generateId(),
           role: 'assistant' as const,
-          content: [{ type: 'text' as const, text: 'Failed to upload attachment. Please try again.' }],
+          content: [{ type: 'text' as const, text: msg }],
           createdAt: new Date().toISOString(),
         }]);
       }
@@ -1399,13 +1459,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       setInput('');
       sendMessage(text);
     }
-  }, [input, attachmentFile, attachmentLabel, projectId, sendMessage]);
+  }, [input, attachmentFiles, projectId, sendMessage]);
 
   // -----------------------------------------------------------------------
   // Key handler
   // -----------------------------------------------------------------------
 
-  const canSend = input.trim().length > 0 || attachmentFile !== null;
+  const canSend = input.trim().length > 0 || attachmentFiles.length > 0;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -1548,6 +1608,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // Block renderer
   // -----------------------------------------------------------------------
 
+  /** Merge adjacent text blocks into one so streaming chunks render as a single paragraph. */
+  function mergeAdjacentTextBlocks(blocks: MessageBlock[]): MessageBlock[] {
+    const merged: MessageBlock[] = [];
+    for (const block of blocks) {
+      const prev = merged[merged.length - 1];
+      if (block.type === 'text' && prev?.type === 'text') {
+        // Join with newline so markdown paragraphs stay separate
+        merged[merged.length - 1] = { type: 'text', text: prev.text + '\n' + block.text };
+      } else {
+        merged.push(block);
+      }
+    }
+    return merged;
+  }
+
   const renderBlock = (block: MessageBlock, index: number) => {
     switch (block.type) {
       case 'text':
@@ -1613,87 +1688,26 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
         return (
           <div key={index} className="my-2" role="status" aria-live="polite">
-            <div className="flex items-center gap-2 mb-1">
-              {block.percent >= 100 ? (
-                <Check className="w-3.5 h-3.5 text-green-500" />
-              ) : (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-[var(--editor-accent)]" />
-              )}
-              <span className="text-xs text-[var(--editor-text-secondary)]">
-                {block.message}
-              </span>
-              {etaSeconds !== null && block.percent < 95 && !block.error && (
-                <span className="text-[10px] text-[var(--editor-text-muted)] ml-auto">
-                  {formatEta(etaSeconds)}
-                </span>
-              )}
-            </div>
-            <div className="w-full bg-[var(--editor-bg-hover)] rounded-full h-1.5">
-              <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${block.percent >= 100 ? 'bg-green-500' : 'bg-[var(--editor-accent)]'}`}
-                style={{ width: `${Math.min(block.percent, 100)}%` }}
-              />
-            </div>
-            {/* Dynamic phase steps for generate-visuals with structured metadata */}
-            {block.jobType === 'generate-visuals' && block.meta?.phase ? (
-              <div className="flex flex-col gap-1.5 my-2">
-                {GENERATION_PHASES.map((phase) => {
-                  const currentIdx = GENERATION_PHASES.findIndex((p) => p.id === block.meta?.phase);
-                  const phaseIdx = GENERATION_PHASES.findIndex((p) => p.id === phase.id);
-                  let status: 'done' | 'active' | 'pending' = 'pending';
-                  if (block.percent >= 100) {
-                    status = 'done';
-                  } else if (phaseIdx < currentIdx) {
-                    status = 'done';
-                  } else if (phaseIdx === currentIdx) {
-                    status = 'active';
-                  }
-                  // Build dynamic label with scene/iteration info
-                  let label = phase.label;
-                  if (phase.id === 'animate' && block.meta?.totalScenes) {
-                    const sceneNum = block.meta.scene || 0;
-                    label = sceneNum > 0
-                      ? `Animating scenes (${sceneNum}/${block.meta.totalScenes})`
-                      : `Animating ${block.meta.totalScenes} scenes`;
-                  }
-                  if (phase.id === 'self_heal' && block.meta?.iteration) {
-                    label = `Fixing errors (attempt ${block.meta.iteration}/${block.meta.maxIterations || 3})`;
-                  }
-                  if (phase.id === 'verify' && block.meta?.score != null && block.meta.phase === 'verify') {
-                    label = `Verifying scenes (score: ${block.meta.score})`;
-                  }
-                  // Skip self_heal if we haven't entered it (no iteration data) and it's pending
-                  if (phase.id === 'self_heal' && status === 'pending' && !block.meta?.iteration && block.meta?.phase !== 'self_heal') return null;
-                  return (
-                    <div key={phase.id} className="flex items-center gap-2 text-xs">
-                      {status === 'done' && <Check className="w-3 h-3 text-green-500" />}
-                      {status === 'active' && <Loader2 className="w-3 h-3 text-primary animate-spin" />}
-                      {status === 'pending' && <Circle className="w-3 h-3 text-muted-foreground/30" />}
-                      <span className={status === 'active' ? 'text-foreground font-medium' : 'text-muted-foreground'}>
-                        {label}
-                      </span>
-                    </div>
-                  );
-                }).filter(Boolean)}
+            <HealthIndicator
+              health={progressState.health}
+              connectionStatus={wsConnected || progressState.source === 'sse' ? 'connected' : 'reconnecting'}
+              isActive={block.percent < 100}
+            />
+            <ProgressBar
+              percent={block.percent}
+              phase={block.phase || block.meta?.phase || 'unknown'}
+              phaseName={block.phaseName || block.meta?.phaseName || block.message}
+              detail={block.meta?.detail}
+              isActive={block.percent < 100}
+              error={block.error}
+              jobType={block.jobType}
+            />
+            <ActivityLog events={progressState.activity} />
+            {etaSeconds !== null && block.percent < 95 && !block.error && (
+              <div className="text-[10px] text-[var(--editor-text-muted)] mt-1">
+                {formatEta(etaSeconds)}
               </div>
-            ) : block.jobType && PHASE_STEPS[block.jobType] ? (
-              /* Legacy fallback for plan-visuals, edit-visuals, and old jobs without metadata */
-              <div className="flex flex-col gap-1.5 my-2">
-                {PHASE_STEPS[block.jobType]!.map((label, i) => {
-                  const status = getStepStatus(block.phase, block.jobType!, i);
-                  return (
-                    <div key={i} className="flex items-center gap-2 text-xs">
-                      {status === 'done' && <Check className="w-3 h-3 text-green-500" />}
-                      {status === 'active' && <Loader2 className="w-3 h-3 text-primary animate-spin" />}
-                      {status === 'pending' && <Circle className="w-3 h-3 text-muted-foreground/30" />}
-                      <span className={status === 'active' ? 'text-foreground font-medium' : 'text-muted-foreground'}>
-                        {label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
+            )}
           </div>
         );
     }
@@ -1802,7 +1816,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${message.queued ? 'opacity-60' : ''}`}
             >
               <div
-                className={`max-w-[90%] text-sm ${
+                className={`text-sm ${
+                  message.content.some((b) => b.type === 'progress') ? 'w-full' : 'max-w-[90%]'
+                } ${
                   message.role === 'user'
                     ? 'bg-[var(--editor-accent-soft)] border border-[var(--editor-accent)]/20 text-[var(--editor-text-primary)] rounded-2xl rounded-br-md px-4 py-2.5'
                     : 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] rounded-2xl rounded-bl-md px-4 py-2.5'
@@ -1837,7 +1853,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                     />
                   </div>
                 )}
-                {message.content.map((block, i) => renderBlock(block, i))}
+                {mergeAdjacentTextBlocks(message.content).map((block, i) => renderBlock(block, i))}
                 {failedMessageId === message.id && !message.content.some((b) => b.type === 'progress' && b.error) && (
                   <button
                     onClick={handleRetry}
@@ -1851,13 +1867,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               </div>
             </div>
           ))
-        )}
-
-        {stallState === 'slow' && isStreaming && (
-          <div className="flex items-center gap-1.5 text-xs text-amber-500 px-3 py-1">
-            <Clock className="w-3 h-3" />
-            Taking longer than usual...
-          </div>
         )}
 
         {stallState === 'stuck' && isStreaming && (
@@ -1929,26 +1938,28 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </div>
         )}
 
-        {/* Attachment chip */}
-        {attachmentFile && (
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
-                             bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25">
-              <Paperclip className="w-3 h-3" />
-              <input
-                type="text"
-                value={attachmentLabel}
-                onChange={(e) => setAttachmentLabel(e.target.value)}
-                className="bg-transparent outline-none text-[11px] w-24 max-w-[120px]"
-                placeholder="Label..."
-              />
-              <button
-                onClick={() => { setAttachmentFile(null); setAttachmentLabel(''); }}
-                className="ml-0.5 hover:text-red-400 transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </span>
+        {/* Attachment chips */}
+        {attachmentFiles.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+            {attachmentFiles.map((att, idx) => (
+              <span key={`${att.file.name}-${att.file.lastModified}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium
+                               bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25">
+                <Paperclip className="w-3 h-3" />
+                <input
+                  type="text"
+                  value={att.label}
+                  onChange={(e) => setAttachmentFiles(prev => prev.map((a, i) => i === idx ? { ...a, label: e.target.value } : a))}
+                  className="bg-transparent outline-none text-[11px] w-24 max-w-[120px]"
+                  placeholder="Label..."
+                />
+                <button
+                  onClick={() => setAttachmentFiles(prev => prev.filter((_, i) => i !== idx))}
+                  className="ml-0.5 hover:text-red-400 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
             {attachmentUploading && (
               <Loader2 className="w-3 h-3 animate-spin text-[var(--editor-text-muted)]" />
             )}
@@ -1960,6 +1971,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           ref={attachmentInputRef}
           type="file"
           accept="image/*,.svg"
+          multiple
           className="hidden"
           onChange={handleAttachmentSelect}
         />

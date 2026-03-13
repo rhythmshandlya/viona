@@ -2,7 +2,7 @@
   "slug": "stat-line-chart",
   "name": "Stat Line Chart",
   "description": "SVG line graph drawn progressively with gradient fill — perfect for growth trends and time series",
-  "category": "marketing",
+  "category": "data-visualization",
   "tags": [
     "KPI",
     "analytics",

@@ -302,7 +302,7 @@ export interface SubtitleData {
 // ============================================
 
 export interface VisualStyle {
-  theme: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio';
+  theme: 'studio-dark' | 'studio-light';
   primaryColor: string;
   secondaryColor?: string;
   backgroundColor?: string;

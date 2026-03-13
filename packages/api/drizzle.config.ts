@@ -6,6 +6,6 @@ export default defineConfig({
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    url: process.env.DATABASE_URL || 'postgresql://reelify:reelify123@localhost:5432/reelify',
+    url: process.env.DATABASE_URL || 'postgresql://viona:viona123@localhost:5432/viona',
   },
 });

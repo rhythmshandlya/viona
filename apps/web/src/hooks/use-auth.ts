@@ -2,6 +2,7 @@
 
 import { useStytch, useStytchUser, useStytchSession } from "@stytch/nextjs";
 import { useCallback } from "react";
+import { getSessionToken } from "@/lib/auth";
 
 export interface AuthUser {
   id: string;
@@ -22,20 +23,6 @@ export function useAuth() {
       await stytch.session.revoke();
     }
   }, [stytch, session]);
-
-  const getSessionToken = useCallback((): string | null => {
-    // Get session tokens from cookies (set by Stytch SDK)
-    if (typeof document === "undefined") return null;
-
-    const cookies = document.cookie.split(";").reduce((acc, cookie) => {
-      const [key, value] = cookie.trim().split("=");
-      acc[key] = value;
-      return acc;
-    }, {} as Record<string, string>);
-
-    // Prefer JWT for faster validation
-    return cookies["stytch_session_jwt"] || cookies["stytch_session_token"] || null;
-  }, []);
 
   const authUser: AuthUser | null = user
     ? {

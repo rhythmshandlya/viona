@@ -5,18 +5,9 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import { getSessionToken } from '@/lib/auth';
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-
-function getSessionToken(): string | null {
-  if (typeof document === 'undefined') return null;
-  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-    const [key, value] = cookie.trim().split('=');
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
-  return cookies['stytch_session_jwt'] || cookies['stytch_session_token'] || null;
-}
 
 interface JobProgress {
   jobId: string;
@@ -51,6 +42,8 @@ type MessageHandler = {
   onProgress?: (data: JobProgress) => void;
   onComplete?: (data: JobComplete) => void;
   onError?: (data: JobError) => void;
+  onHealth?: (data: any) => void;
+  onActivity?: (data: any) => void;
 };
 
 const MAX_RECONNECT_DELAY = 30_000;
@@ -117,6 +110,12 @@ export function useJobWebSocket(
               break;
             case 'job:error':
               handlersRef.current.onError?.(payload);
+              break;
+            case 'job:health':
+              handlersRef.current.onHealth?.(payload);
+              break;
+            case 'job:activity':
+              handlersRef.current.onActivity?.(payload);
               break;
           }
         } catch (err) {

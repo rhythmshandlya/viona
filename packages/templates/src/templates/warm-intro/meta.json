@@ -1,0 +1,25 @@
+{
+  "slug": "warm-intro",
+  "name": "Warm Intro",
+  "description": "Soft, human-centered intro with floating orbs and gentle animations",
+  "category": "intro-outro",
+  "tags": [
+    "animated",
+    "brand",
+    "clean",
+    "friendly",
+    "gentle",
+    "human",
+    "intro",
+    "minimal",
+    "opener",
+    "organic",
+    "soft",
+    "warm",
+    "welcome"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s"
+}

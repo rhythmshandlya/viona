@@ -1,5 +1,6 @@
 import * as stytch from 'stytch';
 import { config } from '../config.js';
+import { logger } from '../logger.js';
 
 // Initialize Stytch client
 const stytchClient = new stytch.Client({
@@ -42,7 +43,7 @@ export async function validateSession(sessionToken: string): Promise<StytchSessi
     };
   } catch (error) {
     // Session is invalid or expired
-    console.error('Stytch session validation error:', error);
+    logger.error({ err: error }, 'Stytch session validation error');
     return null;
   }
 }
@@ -76,7 +77,7 @@ export async function validateSessionJwt(sessionJwt: string): Promise<StytchSess
         : undefined,
     };
   } catch (error) {
-    console.error('Stytch JWT validation error:', error);
+    logger.error({ err: error }, 'Stytch JWT validation error');
     return null;
   }
 }

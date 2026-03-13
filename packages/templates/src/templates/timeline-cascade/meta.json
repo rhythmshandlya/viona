@@ -2,7 +2,7 @@
   "slug": "timeline-cascade",
   "name": "Timeline Cascade",
   "description": "Vertical timeline with animated milestone nodes — ideal for company history, project roadmaps, and event sequences",
-  "category": "corporate",
+  "category": "timeline-process",
   "tags": [
     "chronological",
     "corporate",

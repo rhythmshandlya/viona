@@ -1,18 +1,6 @@
+import { getSessionToken } from './auth';
+
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:4000';
-
-// Helper to get session token from cookies
-function getSessionToken(): string | null {
-  if (typeof document === 'undefined') return null;
-
-  const cookies = document.cookie.split(';').reduce((acc, cookie) => {
-    const [key, value] = cookie.trim().split('=');
-    acc[key] = value;
-    return acc;
-  }, {} as Record<string, string>);
-
-  // Prefer JWT for faster validation
-  return cookies['stytch_session_jwt'] || cookies['stytch_session_token'] || null;
-}
 
 export type WSMessageType =
   | 'connected'
@@ -83,7 +71,7 @@ class WebSocketClient {
   private projectId: string | null = null;
   private handlers: Set<MessageHandler> = new Set();
   private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
+  private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
   // Track subscribed job IDs so we can re-subscribe on reconnect
   // and queue subscriptions if WS isn't open yet
@@ -133,7 +121,10 @@ class WebSocketClient {
       // Attempt to reconnect (subscribedJobIds are preserved so onopen re-subscribes)
       if (this.reconnectAttempts < this.maxReconnectAttempts && this.projectId) {
         this.reconnectAttempts++;
-        const delay = this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+        const delay = Math.min(
+          this.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1),
+          10_000, // Cap at 10 seconds
+        );
         console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
         setTimeout(() => {
           if (this.projectId) {

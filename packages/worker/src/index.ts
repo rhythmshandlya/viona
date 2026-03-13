@@ -2,16 +2,19 @@ import { Worker } from 'bullmq';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
-import { processRenderJob, RenderJobData } from './processors/render.js';
+import { processRenderJob, RenderJobData } from './processors/render/index.js';
 
-import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals.js';
-import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals.js';
-import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation.js';
+import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals/index.js';
+import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals/index.js';
+import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation/index.js';
 import { processPreloadProjectJob, PreloadProjectJobData } from './processors/preload-project.js';
 import { processPlanVisualsJob, PlanVisualsJobData } from './processors/plan-visuals.js';
 import { processHeadTrackingJob, HeadTrackingJobData } from './processors/head-tracking.js';
 import { processGenerateReframeJob } from './processors/generate-reframe.js';
 import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from './processors/generate-caption-styles.js';
+import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-clip.js';
+// Segmentation disabled — SAM2 not available on this machine
+// import { processSegmentation, SegmentationJobData } from './processors/segmentation.js';
 import { initializeWorkspace, getWorkerId } from './workspace.js';
 import { ensureTemplate } from './utils/template.js';
 import { redisConnection } from './utils/redis.js';
@@ -138,10 +141,10 @@ async function main() {
     },
     {
       connection,
-      concurrency: 3,
-      lockDuration: 90 * 60 * 1000,   // 90 min — matches subprocess timeout
+      concurrency: 1, // Must be 1 — workspace is shared (Root.tsx, index.ts, public/assets)
+      lockDuration: 100 * 60 * 1000,  // 100 min — 10 min buffer above 90 min subprocess timeout
       stalledInterval: 10 * 60 * 1000, // Check every 10 min (generous buffer for lock extender)
-      maxStalledCount: 0,              // Never re-queue stalled jobs
+      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
     }
   );
 
@@ -174,7 +177,7 @@ async function main() {
       concurrency: 1,
       lockDuration: 15 * 60 * 1000,  // 15 min — Director runs 5-12 min
       stalledInterval: 10 * 60 * 1000,
-      maxStalledCount: 0,
+      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
     }
   );
 
@@ -206,7 +209,7 @@ async function main() {
       concurrency: 1,
       lockDuration: 20 * 60 * 1000,  // 20 min — edit jobs run 5-15 min
       stalledInterval: 10 * 60 * 1000,
-      maxStalledCount: 0,
+      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
     }
   );
 
@@ -332,6 +335,29 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'Generate-caption-styles job failed');
   });
 
+  // YouTube clip extraction worker
+  const youtubeClipWorker = new Worker<YouTubeClipJobData>(
+    'youtube-clip',
+    async (job) => {
+      logger.info({ jobId: job.id, url: job.data.url }, 'Processing youtube-clip job');
+      return await processYouTubeClipJob(job);
+    },
+    {
+      connection,
+      concurrency: 2, // Can process multiple clips in parallel
+      lockDuration: 10 * 60 * 1000, // 10 minutes
+    }
+  );
+
+  youtubeClipWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'YouTube-clip job completed');
+  });
+
+  youtubeClipWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'YouTube-clip job failed');
+  });
+
+
   logger.info('Worker started, waiting for jobs...');
 
   // Graceful shutdown — close all workers in parallel, waiting for in-progress
@@ -341,11 +367,27 @@ async function main() {
     generateVisualsWorker, planVisualsWorker, editVisualsWorker,
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
+    youtubeClipWorker,
   ];
 
+  let shuttingDown = false;
   const shutdown = async (signal: string) => {
+    if (shuttingDown) {
+      logger.warn({ signal }, 'Shutdown already in progress, ignoring duplicate signal');
+      return;
+    }
+    shuttingDown = true;
+
     logger.info({ signal }, 'Received shutdown signal, closing workers...');
+
+    // Give workers 25s to finish (Kubernetes default grace period is 30s)
+    const timeout = setTimeout(() => {
+      logger.error('Shutdown timeout exceeded (25s), forcing exit');
+      process.exit(1);
+    }, 25_000);
+
     await Promise.allSettled(allWorkers.map(w => w.close()));
+    clearTimeout(timeout);
     logger.info('All workers closed');
     process.exit(0);
   };

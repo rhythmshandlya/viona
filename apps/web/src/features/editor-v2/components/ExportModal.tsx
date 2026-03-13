@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Download, X, CheckCircle, AlertCircle, Loader2, Film, Settings } from 'lucide-react';
 import {
   Dialog,
@@ -16,6 +16,7 @@ import {
 import { api } from '@/lib/api';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
 import { useLayoutSettings, useEditorActions, useItems, useItemIds } from '../store/use-editor-store';
+import type { VisualItemData } from '../store/types';
 
 interface ExportModalProps {
   open: boolean;
@@ -40,6 +41,7 @@ export function ExportModal({
   const { saveProject } = useEditorActions();
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
+  const jobIdRef = useRef<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export function ExportModal({
     projectId,
     {
       onProgress: (data) => {
-        if (data.jobId === jobId) {
+        if (data.jobId === jobIdRef.current) {
           setProgress(data.progress || 0);
           if (data.message) {
             setStatusMessage(data.message);
@@ -59,7 +61,7 @@ export function ExportModal({
         }
       },
       onComplete: async (data) => {
-        if (data.jobId === jobId) {
+        if (data.jobId === jobIdRef.current) {
           setExportState('complete');
           setProgress(100);
           setStatusMessage('Export complete!');
@@ -73,7 +75,7 @@ export function ExportModal({
         }
       },
       onError: (data) => {
-        if (data.jobId === jobId) {
+        if (data.jobId === jobIdRef.current) {
           setExportState('error');
           setError(data.error || 'Export failed');
         }
@@ -138,6 +140,7 @@ export function ExportModal({
       if (exportState !== 'complete') {
         setExportState('idle');
         setJobId(null);
+        jobIdRef.current = null;
         setProgress(0);
         setStatusMessage('');
         setError(null);
@@ -163,7 +166,7 @@ export function ExportModal({
         .filter((item) => item && item.type === 'visual')
         .sort((a, b) => a.startMs - b.startMs)
         .map((item) => {
-          const data = item.data as any;
+          const data = item.data as VisualItemData;
           return {
             startMs: item.startMs,
             endMs: item.endMs,
@@ -176,6 +179,7 @@ export function ExportModal({
       // Pass layoutSettings and visualDisplayData to render API for exact preview match
       const { jobId: newJobId } = await api.renderProject(projectId, { layoutSettings, visualDisplayData });
       setJobId(newJobId);
+      jobIdRef.current = newJobId;
     } catch (err) {
       setExportState('error');
       setError(err instanceof Error ? err.message : 'Failed to start export');
@@ -196,6 +200,7 @@ export function ExportModal({
     setWantsNewExport(true);
     setExportState('idle');
     setJobId(null);
+    jobIdRef.current = null;
     setProgress(0);
     setStatusMessage('');
     setError(null);

@@ -2,6 +2,27 @@ import 'dotenv/config';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { hostname } from 'os';
+import { z } from 'zod';
+
+const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
+
+// In production, crash fast if critical env vars are missing
+if (isProduction) {
+  const prodEnvSchema = z.object({
+    DATABASE_URL: z.string().url(),
+    REDIS_URL: z.string().url(),
+    CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1),
+  });
+
+  const result = prodEnvSchema.safeParse(process.env);
+  if (!result.success) {
+    console.error('FATAL: Missing required environment variables in production:');
+    for (const issue of result.error.issues) {
+      console.error(`  ${issue.path.join('.')}: ${issue.message}`);
+    }
+    process.exit(1);
+  }
+}
 
 // Worker package root (packages/worker/) — used for resolving relative script paths
 const __filename = fileURLToPath(import.meta.url);
@@ -41,7 +62,7 @@ export const config = {
   },
 
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://reelify:reelify123@localhost:5432/reelify',
+    url: process.env.DATABASE_URL || 'postgresql://viona:viona123@localhost:5432/viona',
   },
 
   redis: {
@@ -59,8 +80,8 @@ export const config = {
     return {
       endpoint,
       port: process.env.BUCKET_PORT ? parseInt(process.env.BUCKET_PORT, 10) : parseInt(process.env.S3_PORT || '9000', 10),
-      accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
-      secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
+      accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'viona',
+      secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'viona123',
       useSSL: !isInternalConnection && (!!process.env.BUCKET_ENDPOINT || process.env.S3_USE_SSL === 'true'),
       bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'viona',
       region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
@@ -93,17 +114,6 @@ export const config = {
     batchSize: parseInt(process.env.WHISPER_BATCH_SIZE || '16', 10),
   },
 
-  enhance: {
-    scriptPath: process.env.ENHANCE_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'enhance_audio.py'),
-    // Set AUDIO_ENHANCEMENT_ENABLED=false to skip the enhancement pipeline
-    enabled: process.env.AUDIO_ENHANCEMENT_ENABLED !== 'false',
-    // Inverse of enabled for backwards compatibility
-    get disabled() {
-      return !this.enabled;
-    },
-  },
-
-
   wordStyleAnalysis: {
     // Set WORD_STYLE_ANALYSIS_ENABLED=false to skip LLM word analysis
     enabled: process.env.WORD_STYLE_ANALYSIS_ENABLED === 'true',
@@ -124,12 +134,16 @@ export const config = {
     apiKey: process.env.PEXELS_API_KEY || '',
   },
 
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY || '',
+  },
+
   remotion: {
     projectDir: resolve(process.env.REMOTION_PROJECT_DIR || join(process.cwd(), 'remotion-temp')),
     // IMPORTANT: In production, use /tmp/bundles (ephemeral but uploaded to S3)
     // In development, use local bundles directory
     bundleOutputDir: resolve(process.env.BUNDLE_OUTPUT_DIR || (
-      process.env.RAILWAY_ENVIRONMENT ? '/tmp/bundles' : join(process.cwd(), 'bundles')
+      process.env.RAILWAY_ENVIRONMENT ? '/tmp/bundles' : join(WORKER_ROOT, 'bundles')
     )),
   },
 

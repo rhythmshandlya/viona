@@ -2,7 +2,7 @@
   "slug": "guest-intro-card",
   "name": "Guest Intro Card",
   "description": "Guest introduction card with avatar, name, title, and bio",
-  "category": "social",
+  "category": "intro-outro",
   "tags": [
     "appearance",
     "bio",

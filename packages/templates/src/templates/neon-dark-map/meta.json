@@ -1,0 +1,23 @@
+{
+  "slug": "neon-dark-map",
+  "name": "Neon Dark Map",
+  "description": "Futuristic dark map with neon-glow route line, pulsing markers, and cyberpunk-style typography",
+  "category": "geographic",
+  "tags": [
+    "neon",
+    "dark",
+    "cyberpunk",
+    "futuristic",
+    "glow",
+    "nightlife",
+    "travel",
+    "map",
+    "modern",
+    "trendy"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "10s",
+  "thumbnail": "thumbnail.png"
+}

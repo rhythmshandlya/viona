@@ -5,34 +5,44 @@ import rateLimit from '@fastify/rate-limit';
 import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import multipart from '@fastify/multipart';
-import { existsSync, mkdirSync } from 'fs';
+import { existsSync, mkdirSync, createReadStream } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { execSync } from 'child_process';
+import { sql } from 'drizzle-orm';
 import { config } from './config.js';
+import { logger } from './logger.js';
 import { runMigrations } from './db/migrate.js';
 import { ensureBuckets, getObjectStream, objectExists, listObjects } from './services/minio.js';
 import { projectRoutes } from './routes/projects.js';
 import { userRoutes } from './routes/users.js';
 import { agentRoutes } from './agent/agent-router.js';
 import { waitlistRoutes } from './routes/waitlist.js';
+import { youtubeClipRoutes } from './routes/youtube-clips.js';
+import { jobRoutes } from './routes/jobs.js';
 import { setupWebSocket } from './ws/handler.js';
+import { authMiddleware } from './middleware/auth.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
+
+/** Reject path segments that escape the intended directory (e.g. `../`, `..\\`, null bytes) */
+function sanitizeFilePath(raw: string): string | null {
+  if (raw.includes('\0')) return null;
+  const normalized = raw.replace(/\\/g, '/');
+  if (normalized.includes('..') || normalized.startsWith('/')) return null;
+  return normalized;
+}
 
 async function main() {
   // Run database migrations before starting the server
   try {
     await runMigrations();
   } catch (err) {
-    console.error('Migration failed:', err);
+    logger.error({ err }, 'Migration failed');
     process.exit(1);
   }
 
-  if (isProduction && !process.env.COOKIE_SECRET) {
-    console.error('FATAL: COOKIE_SECRET must be set in production. Exiting.');
-    process.exit(1);
-  }
+  // COOKIE_SECRET validation is now handled by config.ts Zod schema
 
   const fastify = Fastify({
     logger: {
@@ -82,11 +92,29 @@ async function main() {
     fastify.log.info(`Serving bundles from: ${config.bundles.dir}`);
   }
 
-  // Production bundle serving from S3
+  // Bundle serving from S3 (production) or local filesystem (development fallback)
   // Route: /api/bundles/:compositionId/*
-  fastify.get('/api/bundles/:compositionId/*', async (request, reply) => {
-    const { compositionId } = request.params as { compositionId: string };
-    const filePath = (request.params as { '*': string })['*'] || 'index.html';
+  // In production: auth required, streams from S3
+  // In development: no auth, serves from local bundles dir (for DB rows with /api/bundles/ URLs)
+  const bundlePreHandlers = isProduction ? [authMiddleware] : [];
+  fastify.get('/api/bundles/:compositionId/*', { preHandler: bundlePreHandlers }, async (request, reply) => {
+    const { compositionId: rawId } = request.params as { compositionId: string };
+    const compositionId = sanitizeFilePath(rawId);
+    if (!compositionId) return reply.code(400).send({ error: 'Invalid composition ID' });
+    const rawPath = (request.params as { '*': string })['*'] || 'index.html';
+    const filePath = sanitizeFilePath(rawPath);
+    if (!filePath) return reply.code(400).send({ error: 'Invalid file path' });
+
+    // In development, serve from local filesystem first
+    if (!isProduction) {
+      const localPath = join(config.bundles.dir, compositionId, filePath);
+      if (existsSync(localPath)) {
+        const ext = filePath.split('.').pop()?.toLowerCase() || '';
+        const types: Record<string, string> = { js: 'application/javascript', cjs: 'application/javascript', html: 'text/html', css: 'text/css', json: 'application/json', png: 'image/png', svg: 'image/svg+xml' };
+        reply.header('Content-Type', types[ext] || 'application/octet-stream');
+        return reply.send(createReadStream(localPath));
+      }
+    }
 
     // Construct S3 key: outputs/bundles/{compositionId}/{filePath}
     const s3Key = `bundles/${compositionId}/${filePath}`;
@@ -119,7 +147,7 @@ async function main() {
 
       const contentType = contentTypes[ext] || 'application/octet-stream';
       reply.header('Content-Type', contentType);
-      reply.header('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+      reply.header('Cache-Control', 'no-cache'); // Always revalidate — bundles change on regeneration
 
       // Stream file from S3
       const stream = await getObjectStream('outputs', s3Key);
@@ -133,9 +161,13 @@ async function main() {
   // Production source files serving from S3
   // Route: /api/sources/:compositionId/*
   // These are the source project files (index.tsx, metadata.json, etc.) for AI context restoration
-  fastify.get('/api/sources/:compositionId/*', async (request, reply) => {
-    const { compositionId } = request.params as { compositionId: string };
-    const filePath = (request.params as { '*': string })['*'] || 'index.tsx';
+  fastify.get('/api/sources/:compositionId/*', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { compositionId: rawId } = request.params as { compositionId: string };
+    const compositionId = sanitizeFilePath(rawId);
+    if (!compositionId) return reply.code(400).send({ error: 'Invalid composition ID' });
+    const rawPath = (request.params as { '*': string })['*'] || 'index.tsx';
+    const filePath = sanitizeFilePath(rawPath);
+    if (!filePath) return reply.code(400).send({ error: 'Invalid file path' });
 
     // Construct S3 key: outputs/sources/{compositionId}/{filePath}
     const s3Key = `sources/${compositionId}/${filePath}`;
@@ -172,8 +204,10 @@ async function main() {
   });
 
   // List all source files for a composition (for restoring AI context)
-  fastify.get('/api/sources/:compositionId', async (request, reply) => {
-    const { compositionId } = request.params as { compositionId: string };
+  fastify.get('/api/sources/:compositionId', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { compositionId: rawId } = request.params as { compositionId: string };
+    const compositionId = sanitizeFilePath(rawId);
+    if (!compositionId) return reply.code(400).send({ error: 'Invalid composition ID' });
 
     try {
       // List all files in the source directory
@@ -214,34 +248,68 @@ async function main() {
     }
   });
 
-  // Health check
-  fastify.get('/health', async () => ({ status: 'ok' }));
+  // Health check — probes DB and Redis so load balancers route to healthy instances
+  fastify.get('/health', async (_request, reply) => {
+    const checks: Record<string, 'ok' | 'fail'> = {};
 
-  // Debug: test claude subprocess
-  fastify.get('/debug/claude-test', async (_request, reply) => {
-    const { spawn } = await import('child_process');
-    return new Promise((resolve) => {
-      const proc = spawn('claude', ['-p', 'say hello in 5 words', '--output-format', 'text'], {
-        env: { ...process.env, CLAUDECODE: undefined },
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      let stdout = '';
-      let stderr = '';
-      proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
-      proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-      proc.on('close', (code: number) => {
-        reply.send({ code, stdout: stdout.slice(0, 500), stderr: stderr.slice(0, 500) });
-        resolve(undefined);
-      });
-      setTimeout(() => { proc.kill(); reply.send({ error: 'timeout', stderr: stderr.slice(0, 500) }); resolve(undefined); }, 30000);
+    // Check database
+    try {
+      const { db } = await import('./db/index.js');
+      await db.execute(sql`SELECT 1`);
+      checks.database = 'ok';
+    } catch {
+      checks.database = 'fail';
+    }
+
+    // Check Redis
+    let redis: import('ioredis').default | undefined;
+    try {
+      const { default: Redis } = await import('ioredis');
+      redis = new Redis(config.redis.url, { lazyConnect: true, connectTimeout: 3000 });
+      await redis.ping();
+      checks.redis = 'ok';
+    } catch {
+      checks.redis = 'fail';
+    } finally {
+      await redis?.quit().catch(() => {});
+    }
+
+    const healthy = Object.values(checks).every(v => v === 'ok');
+    return reply.code(healthy ? 200 : 503).send({
+      status: healthy ? 'ok' : 'degraded',
+      checks,
     });
   });
+
+  // Debug: test claude subprocess (dev-only — spawns Claude CLI with no auth)
+  if (!isProduction) {
+    fastify.get('/debug/claude-test', async (_request, reply) => {
+      const { spawn } = await import('child_process');
+      return new Promise((resolve) => {
+        const proc = spawn('claude', ['-p', 'say hello in 5 words', '--output-format', 'text'], {
+          env: { ...process.env, CLAUDECODE: undefined },
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        let stdout = '';
+        let stderr = '';
+        proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
+        proc.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
+        proc.on('close', (code: number) => {
+          reply.send({ code, stdout: stdout.slice(0, 500), stderr: stderr.slice(0, 500) });
+          resolve(undefined);
+        });
+        setTimeout(() => { proc.kill(); reply.send({ error: 'timeout', stderr: stderr.slice(0, 500) }); resolve(undefined); }, 30000);
+      });
+    });
+  }
 
   // Register routes
   await fastify.register(projectRoutes, { prefix: '/api' });
   await fastify.register(userRoutes, { prefix: '/api' });
   await fastify.register(agentRoutes, { prefix: '/api' });
   await fastify.register(waitlistRoutes, { prefix: '/api' });
+  await fastify.register(youtubeClipRoutes, { prefix: '/api' });
+  await fastify.register(jobRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);
@@ -273,6 +341,27 @@ async function main() {
     fastify.log.error(err);
     process.exit(1);
   }
+  // Graceful shutdown — close server, finish in-flight requests
+  const shutdown = async (signal: string) => {
+    fastify.log.info({ signal }, 'Received shutdown signal, closing server...');
+
+    const timeout = setTimeout(() => {
+      fastify.log.error('Shutdown timeout exceeded (15s), forcing exit');
+      process.exit(1);
+    }, 15_000);
+
+    try {
+      await fastify.close();
+      fastify.log.info('Server closed gracefully');
+    } catch (err) {
+      fastify.log.error({ err }, 'Error during shutdown');
+    }
+    clearTimeout(timeout);
+    process.exit(0);
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
 main();

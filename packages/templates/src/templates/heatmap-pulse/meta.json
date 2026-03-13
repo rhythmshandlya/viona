@@ -1,0 +1,23 @@
+{
+  "slug": "heatmap-pulse",
+  "name": "Heatmap Pulse",
+  "description": "Animated heatmap with pulsing data points showing intensity by location, with metric counter and color legend",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "heatmap",
+    "data",
+    "visualization",
+    "analytics",
+    "metrics",
+    "corporate",
+    "statistics",
+    "regions",
+    "density"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "16:9",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

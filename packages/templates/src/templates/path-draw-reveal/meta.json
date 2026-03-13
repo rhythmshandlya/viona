@@ -1,0 +1,27 @@
+{
+  "slug": "path-draw-reveal",
+  "name": "Path Draw Reveal",
+  "description": "SVG path that draws progressively with numbered nodes appearing at endpoints — perfect for process flows, timelines, and step-by-step breakdowns",
+  "category": "diagram",
+  "tags": [
+    "diagram",
+    "flow",
+    "nodes",
+    "path",
+    "pipeline",
+    "process",
+    "progressive-reveal",
+    "roadmap",
+    "sequential",
+    "steps",
+    "studio-theme",
+    "svg-animation",
+    "timeline",
+    "workflow"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "8s",
+  "thumbnail": "thumbnail.png"
+}

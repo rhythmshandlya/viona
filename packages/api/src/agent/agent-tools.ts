@@ -4,7 +4,26 @@ import { eq, and, desc, sql, isNotNull } from 'drizzle-orm';
 import { db } from '../db/index.js';
 import { projects, visuals, transcripts, jobs } from '../db/schema.js';
 import { queueGenerateVisualsJob, queueEditVisualsJob, queuePlanVisualsJob } from '../services/queue.js';
+import { youtubeSearchService } from '../services/youtube-search.js';
+import { createProgressRelay } from '../progress/progress-relay.js';
 import { nanoid } from 'nanoid';
+
+interface ScenePlanScene {
+  id: number;
+  name: string;
+  visual: string;
+  emotion: string;
+  timestampRange: [number, number];
+  frames: [number, number];
+  displayMode?: string;
+  transition?: string | { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } };
+  keySync?: Record<string, unknown>;
+  layout?: Record<string, unknown>;
+  buildsFrom?: string | null;
+  connectsTo?: string | null;
+  requires3D?: boolean;
+  icons?: string[];
+}
 
 const MCP_SERVER_NAME = 'creative-director';
 
@@ -18,6 +37,7 @@ export const TOOL_NAMES = [
   `mcp__${MCP_SERVER_NAME}__plan_visuals`,
   `mcp__${MCP_SERVER_NAME}__start_generation`,
   `mcp__${MCP_SERVER_NAME}__edit_visuals`,
+  `mcp__${MCP_SERVER_NAME}__search_youtube`,
 ];
 
 // Tool executor context
@@ -57,20 +77,18 @@ export function normalizeProgressMessage(jobType: string, percent: number, rawMe
 
 export function derivePhase(jobType: string, percent: number): string {
   if (jobType === 'plan-visuals') {
-    if (percent < 20) return 'preparing';
-    if (percent < 88) return 'planning';
-    return 'finalizing';
+    return 'plan';
   }
   if (jobType === 'generate-visuals') {
-    if (percent < 15) return 'preparing';
-    if (percent < 85) return 'generating';
-    if (percent < 95) return 'validating';
-    return 'uploading';
+    if (percent < 15) return 'plan';
+    if (percent < 65) return 'animate';
+    if (percent < 75) return 'verify';
+    return 'bundle';
   }
   if (jobType === 'edit-visuals') {
-    if (percent < 20) return 'preparing';
-    if (percent < 85) return 'editing';
-    return 'validating';
+    if (percent < 65) return 'animate';
+    if (percent < 75) return 'verify';
+    return 'bundle';
   }
   return 'processing';
 }
@@ -222,6 +240,29 @@ async function pollJobProgress(
     jobId: sendJobId,
   });
   return { status: 'timeout' };
+}
+
+/** Redis-subscription-based progress relay (replaces pollJobProgress) */
+async function subscribeJobProgress(
+  jobId: string,
+  ctx: ToolContext,
+  options?: { suppressJobId?: boolean; jobType?: string; initialPercent?: number },
+): Promise<{ status: 'complete' | 'failed' | 'timeout' | 'aborted' }> {
+  const sendJobId = options?.suppressJobId ? undefined : jobId;
+
+  return createProgressRelay({
+    jobId,
+    sendSSE: (event, data) => {
+      if (sendJobId === undefined && event === 'progress') {
+        const d = data as Record<string, unknown>;
+        delete d.jobId;
+      }
+      ctx.sendSSE(event, data);
+    },
+    signal: ctx.signal,
+    jobType: options?.jobType,
+    initialPercent: options?.initialPercent,
+  });
 }
 
 // Map raw scenes.json scene objects to widget-friendly format
@@ -472,7 +513,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
           const planData = planJob.planData as { scenePlan: string; scenes: Record<string, unknown> };
           const scenesObj = planData.scenes as Record<string, unknown>;
-          let scenesArray = (scenesObj.scenes as Array<Record<string, unknown>>) || [];
+          let scenesArray = (scenesObj.scenes as ScenePlanScene[]) || [];
 
           const changeLog: string[] = [];
 
@@ -481,14 +522,14 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
           for (const op of sorted) {
             const action = op.action || 'update';
-            const idx = scenesArray.findIndex((s: any) => s.id === op.sceneId);
+            const idx = scenesArray.findIndex((s) => s.id === op.sceneId);
 
             if (idx === -1 && action !== 'update') {
               changeLog.push(`Scene ${op.sceneId} not found, skipped`);
               continue;
             }
 
-            const scene = scenesArray[idx] as any;
+            const scene = scenesArray[idx];
 
             switch (action) {
               case 'update': {
@@ -504,7 +545,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
               case 'split': {
                 if (!scene) break;
-                const range = scene.timestampRange as [number, number];
+                const range = scene.timestampRange;
                 const splitAt = op.splitAtMs != null
                   ? op.splitAtMs / 1000
                   : (range[0] + range[1]) / 2; // Default: midpoint
@@ -514,7 +555,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                   break;
                 }
 
-                const first: Record<string, unknown> = {
+                const first: ScenePlanScene = {
                   ...scene,
                   id: scene.id,
                   name: op.firstHalf?.name || `${scene.name} (Part 1)`,
@@ -522,9 +563,9 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                   timestampRange: [range[0], splitAt],
                 };
 
-                const second: Record<string, unknown> = {
+                const second: ScenePlanScene = {
                   ...scene,
-                  id: scene.id + 1,
+                  id: 90000 + Math.floor(Math.random() * 10000),
                   name: op.secondHalf?.name || `${scene.name} (Part 2)`,
                   visual: op.secondHalf?.visual || scene.visual,
                   timestampRange: [splitAt, range[1]],
@@ -542,16 +583,16 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
                   changeLog.push(`Merge requires mergeWithSceneId for Scene ${op.sceneId}`);
                   break;
                 }
-                const otherIdx = scenesArray.findIndex((s: any) => s.id === op.mergeWithSceneId);
+                const otherIdx = scenesArray.findIndex((s) => s.id === op.mergeWithSceneId);
                 if (otherIdx === -1) {
                   changeLog.push(`Merge target Scene ${op.mergeWithSceneId} not found`);
                   break;
                 }
-                const other = scenesArray[otherIdx] as any;
-                const rangeA = scene.timestampRange as [number, number];
-                const rangeB = other.timestampRange as [number, number];
+                const other = scenesArray[otherIdx];
+                const rangeA = scene.timestampRange;
+                const rangeB = other.timestampRange;
 
-                const merged: Record<string, unknown> = {
+                const merged: ScenePlanScene = {
                   ...scene,
                   name: op.mergedName || `${scene.name} + ${other.name}`,
                   visual: op.mergedVisual || `${scene.visual}; ${other.visual}`,
@@ -560,7 +601,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
                 // Remove both, insert merged at the earlier position
                 const minIdx = Math.min(idx, otherIdx);
-                scenesArray = scenesArray.filter((_: any, i: number) => i !== idx && i !== otherIdx);
+                scenesArray = scenesArray.filter((_, i) => i !== idx && i !== otherIdx);
                 scenesArray.splice(minIdx, 0, merged);
                 changeLog.push(`Merged "${scene.name}" and "${other.name}" into "${merged.name}"`);
                 break;
@@ -617,7 +658,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             id: widgetId,
             kind: 'scene_plan',
             planJobId: resolvedPlanJobId,
-            scenes: mapScenesToWidget(scenesArray),
+            scenes: mapScenesToWidget(scenesArray as unknown as Record<string, unknown>[]),
             scenePlanMarkdown: updatedMarkdown,
             metadata: {
               primaryMetaphor: scenesObj.primaryMetaphor,
@@ -646,8 +687,8 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         'plan_visuals',
         'Run the Director phase to create a scene-by-scene visual plan based on the transcript. This queues a planning job that analyzes the transcript and produces a detailed plan. The plan is then shown to the user as an interactive widget for approval before any generation begins. Only call this after the user has selected a theme and layout.',
         {
-          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio', 'apple', 'google', 'kinetic-typography']),
-          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
+          stylePreset: z.string(),
+          layoutMode: z.enum(['pip', 'stacked']),
           styleGuide: z.string().optional(),
         },
         async ({ stylePreset, layoutMode, styleGuide }) => {
@@ -726,7 +767,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           await queuePlanVisualsJob({
             projectId: ctx.projectId,
             jobId: job.id,
-            stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
+            stylePreset,
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'stacked',
             dimensions,
             pipEffective,
@@ -740,7 +781,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           // Poll job progress (blocks until complete)
           // suppressJobId: plan-visuals is an intermediate step — don't let the frontend
           // track this job via WebSocket (which would trigger "visuals are ready" on completion)
-          const pollResult = await pollJobProgress(job.id, ctx, { suppressJobId: true, jobType: 'plan-visuals', initialPercent: 5 });
+          const pollResult = await subscribeJobProgress(job.id, ctx, { suppressJobId: true, jobType: 'plan-visuals', initialPercent: 5 });
 
           if (pollResult.status === 'aborted') {
             return {
@@ -813,10 +854,20 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
         'Start generating visuals from an approved plan. This takes the planJobId from a completed plan_visuals run and triggers the full generation pipeline. Only call this after the user has approved the plan. Pass the same stylePreset and layoutMode that were used in plan_visuals.',
         {
           planJobId: z.string(),
-          stylePreset: z.enum(['minimal', 'modern', 'playful', 'bold', 'classic', 'studio', 'apple', 'google', 'kinetic-typography']),
-          layoutMode: z.enum(['pip', 'split-horizontal', 'split-vertical']),
+          stylePreset: z.string(),
+          layoutMode: z.enum(['pip', 'stacked']),
+          selectedVideos: z.record(
+            z.coerce.number(),
+            z.record(z.string(), z.object({
+              videoId: z.string(),
+              title: z.string(),
+              thumbnailUrl: z.string(),
+              duration: z.string().optional(),
+              url: z.string(),
+            }))
+          ).optional().describe('User-selected videos for scenes: sceneIndex → keyword → VideoSelection'),
         },
-        async ({ planJobId, stylePreset, layoutMode }) => {
+        async ({ planJobId, stylePreset, layoutMode, selectedVideos }) => {
           // Hard gate: refuse if plan was just shown this turn (user hasn't had a chance to approve)
           if (planShownThisTurn) {
             return {
@@ -883,17 +934,18 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           await queueGenerateVisualsJob({
             projectId: ctx.projectId,
             jobId: job.id,
-            stylePreset: stylePreset as 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'studio',
+            stylePreset,
             layoutMode: isAudioProject ? 'pip' : layoutMode as 'pip' | 'stacked',
             dimensions,
             pipEffective,
             planJobId,
+            selectedVideos,
           });
 
           ctx.sendSSE('progress', { percent: 5, message: 'Starting visual generation from approved plan...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          const pollResult = await pollJobProgress(job.id, ctx, { jobType: 'generate-visuals', initialPercent: 5 });
+          const pollResult = await subscribeJobProgress(job.id, ctx, { jobType: 'generate-visuals', initialPercent: 5 });
 
           if (pollResult.status === 'complete') {
             return {
@@ -921,13 +973,14 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
 
       tool(
         'edit_visuals',
-        'Make a targeted edit to existing visuals. Can target a specific scene or the entire composition. Use this when the user wants to change something about existing visuals. Write a detailed prompt that explains WHAT the user wants changed and WHY — include what the speaker is saying in that section so the editor understands the content context. IMPORTANT: If the user provides raw content (SVG markup, code, CSS, colors, specific text), you MUST include it VERBATIM in the prompt — do NOT summarize or paraphrase user-provided content.',
+        'Make a targeted edit to existing visuals. Can target specific scene(s) or the entire composition. Use this when the user wants to change something about existing visuals. Write a detailed prompt that explains WHAT the user wants changed and WHY — include what the speaker is saying in that section so the editor understands the content context. IMPORTANT: If the user provides raw content (SVG markup, code, CSS, colors, specific text), you MUST include it VERBATIM in the prompt — do NOT summarize or paraphrase user-provided content. When the user mentions MULTIPLE scenes (e.g. "scene 3, 5, 7"), pass ALL of them in sceneIds so they are edited in a single pass.',
         {
           prompt: z.string().describe('Detailed edit instructions. MUST include any user-provided raw content (SVGs, code, CSS, colors) verbatim — never summarize user-provided content'),
-          sceneId: z.number().optional(),
+          sceneId: z.number().optional().describe('Single scene to edit (1-indexed). Use sceneIds instead when editing multiple scenes.'),
+          sceneIds: z.array(z.number()).optional().describe('Multiple scenes to edit (1-indexed). Use this when the user references 2+ scenes. Takes priority over sceneId.'),
           elementName: z.string().optional(),
         },
-        async ({ prompt, sceneId, elementName }) => {
+        async ({ prompt, sceneId, sceneIds, elementName }) => {
           const visual = await db.query.visuals.findFirst({
             where: eq(visuals.projectId, ctx.projectId),
           });
@@ -996,22 +1049,27 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
             ? `${prompt}\n\n--- ORIGINAL USER MESSAGE ---\n${rawMsg}`
             : prompt;
 
-          // Resolve positional sceneId to sourceSceneId so the worker targets
-          // the correct scenes/SceneN.tsx file even after timeline splits
-          let targetSceneId = sceneId;
-          if (sceneId && visual.timestamps) {
-            const ts = (visual.timestamps as Array<{ sourceSceneId?: number }>)[sceneId - 1];
-            if (ts?.sourceSceneId) {
-              targetSceneId = ts.sourceSceneId;
+          // Normalize sceneIds: prefer sceneIds array, fall back to single sceneId
+          const rawIds = sceneIds?.length ? sceneIds : (sceneId ? [sceneId] : []);
+
+          // Resolve positional sceneIds to sourceSceneIds so the worker targets
+          // the correct scenes/SceneN.tsx files even after timeline splits
+          const resolvedIds = rawIds.map(id => {
+            if (visual.timestamps) {
+              const ts = (visual.timestamps as Array<{ sourceSceneId?: number }>)[id - 1];
+              if (ts?.sourceSceneId) return ts.sourceSceneId;
             }
-          }
+            return id;
+          });
 
           await queueEditVisualsJob({
             projectId: ctx.projectId,
             jobId: job.id,
             compositionId: visual.compositionId,
             prompt: fullPrompt,
-            sceneId: targetSceneId,
+            // Pass single sceneId for backward compat, plus sceneIds for multi-scene
+            sceneId: resolvedIds.length === 1 ? resolvedIds[0] : undefined,
+            sceneIds: resolvedIds.length > 0 ? resolvedIds : undefined,
             elementName,
             transcript: transcriptText,
             scenePlan,
@@ -1020,7 +1078,7 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
           ctx.sendSSE('progress', { percent: 5, message: 'Starting edit...', jobId: job.id });
 
           // Poll job progress (blocks until complete)
-          const editPollResult = await pollJobProgress(job.id, ctx, { jobType: 'edit-visuals', initialPercent: 5 });
+          const editPollResult = await subscribeJobProgress(job.id, ctx, { jobType: 'edit-visuals', initialPercent: 5 });
 
           if (editPollResult.status === 'complete') {
             return {
@@ -1042,6 +1100,67 @@ Pass the planJobId from plan_visuals. If omitted, uses the most recent plan.`,
               message: 'Visual edit failed. User can ask to retry.',
             }) }],
           };
+        },
+      ),
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // YouTube Search Tool - enables AI to find and select YouTube clips
+      // ─────────────────────────────────────────────────────────────────────────
+      tool(
+        'search_youtube',
+        'Search YouTube for video clips to embed in scenes. Use this when planning scenes that should show real footage instead of animations. Returns video options with thumbnails, duration, and URLs.',
+        {
+          query: z.string().describe('Search query for YouTube (e.g., "product demo", "AI code assistant")'),
+          maxResults: z.number().min(1).max(5).default(3).describe('Number of results to return (1-5)'),
+          videoDuration: z.enum(['short', 'medium', 'long', 'any']).default('medium')
+            .describe('Video length filter: short (<4min), medium (4-20min), long (>20min), any'),
+        },
+        async ({ query, maxResults, videoDuration }) => {
+          try {
+            const results = await youtubeSearchService.searchVideos(query, {
+              maxResults,
+              videoDuration,
+              videoDefinition: 'high',
+              order: 'relevance',
+            });
+
+            if (results.length === 0) {
+              return {
+                content: [{ type: 'text' as const, text: JSON.stringify({
+                  success: false,
+                  message: 'No YouTube videos found for this query. Try different search terms.',
+                  query,
+                }) }],
+              };
+            }
+
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                success: true,
+                query,
+                resultCount: results.length,
+                videos: results.map((r: any, idx: number) => ({
+                  index: idx + 1,
+                  videoId: r.videoId,
+                  title: r.title,
+                  url: r.url,
+                  duration: r.duration || 'unknown',
+                  channel: r.channelTitle,
+                  thumbnail: r.thumbnail.url,
+                  viewCount: r.viewCount,
+                })),
+                hint: 'Use update_plan to add a selected video to a scene with videoUrl, trimStart, trimEnd, and frameStyle fields.',
+              }) }],
+            };
+          } catch (err) {
+            return {
+              content: [{ type: 'text' as const, text: JSON.stringify({
+                success: false,
+                error: err instanceof Error ? err.message : 'YouTube search failed',
+                query,
+              }) }],
+            };
+          }
         },
       ),
     ],

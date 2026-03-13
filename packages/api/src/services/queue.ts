@@ -1,6 +1,24 @@
 import { Queue } from 'bullmq';
 import Redis from 'ioredis';
 import { config } from '../config.js';
+import type {
+  VisualsLayoutMode,
+  VisualsDimensions,
+  VideoSelection,
+  GenerateVisualsJobData,
+  PlanVisualsJobData,
+  EditVisualsJobData,
+  LayoutSettings,
+} from '@viona/shared';
+export type {
+  VisualsLayoutMode,
+  VisualsDimensions,
+  VideoSelection,
+  GenerateVisualsJobData,
+  PlanVisualsJobData,
+  EditVisualsJobData,
+  LayoutSettings,
+};
 
 // Parse Redis URL for BullMQ connection
 function parseRedisUrl(url: string) {
@@ -15,8 +33,20 @@ function parseRedisUrl(url: string) {
 const connection = parseRedisUrl(config.redis.url);
 
 // Job queues
-export const transcribeQueue = new Queue('transcribe', { connection });
-export const renderQueue = new Queue('render', { connection });
+export const transcribeQueue = new Queue('transcribe', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+export const renderQueue = new Queue('render', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 // Job data types
 export interface TranscribeJobData {
@@ -35,29 +65,7 @@ export interface RenderJobData {
   projectId: string;
   jobId: string;
   projectType?: string;
-  layoutSettings?: {
-    mode: 'pip' | 'stacked';
-    pip: {
-      position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-      offsetX: number;
-      offsetY: number;
-      size: 'small' | 'medium' | 'large' | 'custom';
-      customSize: number;
-      shape: 'square' | 'circle' | 'rounded';
-      borderRadius: number;
-      borderWidth: number;
-      borderColor: string;
-      shadowEnabled: boolean;
-      shadowColor: string;
-      shadowBlur: number;
-      opacity: number;
-    };
-    split: {
-      position: 'visuals-first' | 'video-first';
-      ratio: number;
-      gap: number;
-    };
-  };
+  layoutSettings?: LayoutSettings;
   fullscreenSegments?: Array<{ startMs: number; endMs: number }>;
   visualDisplayData?: Array<{
     startMs: number;
@@ -92,7 +100,13 @@ export interface EnhanceAudioJobData {
   videoItemId: string;
 }
 
-export const enhanceAudioQueue = new Queue('enhance-audio', { connection });
+export const enhanceAudioQueue = new Queue('enhance-audio', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
   return enhanceAudioQueue.add('enhance-audio', data, {
@@ -100,26 +114,16 @@ export async function queueEnhanceAudioJob(data: EnhanceAudioJobData) {
   });
 }
 
-export type VisualsLayoutMode = 'pip' | 'stacked';
+// VisualsLayoutMode, VisualsDimensions, VideoSelection, GenerateVisualsJobData
+// are imported from @viona/shared
 
-export interface VisualsDimensions {
-  width: number;
-  height: number;
-}
-
-export interface GenerateVisualsJobData {
-  projectId: string;
-  jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
-  layoutMode: VisualsLayoutMode;
-  dimensions: VisualsDimensions;
-  /** Effective dimensions for pip scenes in split layouts */
-  pipEffective?: VisualsDimensions;
-  styleGuide?: string;
-  planJobId?: string;  // ID of the plan-visuals job that created the plan
-}
-
-export const generateVisualsQueue = new Queue('generate-visuals', { connection });
+export const generateVisualsQueue = new Queue('generate-visuals', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   return generateVisualsQueue.add('generate-visuals', data, {
@@ -128,20 +132,15 @@ export async function queueGenerateVisualsJob(data: GenerateVisualsJobData) {
   });
 }
 
-export interface PlanVisualsJobData {
-  projectId: string;
-  jobId: string;
-  stylePreset: 'minimal' | 'modern' | 'playful' | 'bold' | 'classic' | 'apple' | 'google' | 'studio' | 'kinetic-typography';
-  layoutMode: VisualsLayoutMode;
-  dimensions: VisualsDimensions;
-  /** Effective dimensions for pip scenes in split layouts */
-  pipEffective?: VisualsDimensions;
-  styleGuide?: string;
-  sourceWidth?: number;
-  sourceHeight?: number;
-}
+// PlanVisualsJobData imported from @viona/shared
 
-export const planVisualsQueue = new Queue('plan-visuals', { connection });
+export const planVisualsQueue = new Queue('plan-visuals', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
   return planVisualsQueue.add('plan-visuals', data, {
@@ -150,19 +149,15 @@ export async function queuePlanVisualsJob(data: PlanVisualsJobData) {
   });
 }
 
-// Edit visuals job - for continuing to edit existing compositions
-export interface EditVisualsJobData {
-  projectId: string;
-  jobId: string;
-  compositionId: string;  // The existing composition to edit
-  prompt: string;         // User's edit request (e.g., "Make particles bigger")
-  sceneId?: number;       // Optional: target a specific scene (1-indexed)
-  elementName?: string;   // Optional: target a specific element within the scene
-  transcript?: string;    // Full transcript text with timestamps for context
-  scenePlan?: string;     // JSON scene plan so the agent understands the visual structure
-}
+// EditVisualsJobData imported from @viona/shared
 
-export const editVisualsQueue = new Queue('edit-visuals', { connection });
+export const editVisualsQueue = new Queue('edit-visuals', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueEditVisualsJob(data: EditVisualsJobData) {
   return editVisualsQueue.add('edit-visuals', data, {
@@ -183,7 +178,13 @@ export interface SplitVisualSceneJobData {
   transcript?: string;        // Full transcript text with timestamps for context
 }
 
-export const splitVisualSceneQueue = new Queue('split-visual-scene', { connection });
+export const splitVisualSceneQueue = new Queue('split-visual-scene', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueSplitVisualSceneJob(data: SplitVisualSceneJobData) {
   return splitVisualSceneQueue.add('split-visual-scene', data, {
@@ -209,7 +210,13 @@ export interface SvgAnimationJobData {
   useOriginalImage?: boolean;  // If true, display original image instead of converting to SVG
 }
 
-export const svgAnimationQueue = new Queue('svg-animation', { connection });
+export const svgAnimationQueue = new Queue('svg-animation', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueSvgAnimationJob(data: SvgAnimationJobData) {
   return svgAnimationQueue.add('svg-animation', data, {
@@ -223,15 +230,19 @@ export interface PreloadProjectJobData {
   compositionId: string;
 }
 
-export const preloadProjectQueue = new Queue('preload-project', { connection });
+export const preloadProjectQueue = new Queue('preload-project', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queuePreloadProjectJob(data: PreloadProjectJobData) {
   // Use jobId based on compositionId to prevent duplicate preloads
   return preloadProjectQueue.add('preload-project', data, {
     jobId: `preload-${data.compositionId}`,
     attempts: 1,
-    removeOnComplete: true,
-    removeOnFail: true,
   });
 }
 
@@ -242,7 +253,13 @@ export interface HeadTrackingJobData {
   videoKey: string;
 }
 
-export const headTrackingQueue = new Queue('head-tracking', { connection });
+export const headTrackingQueue = new Queue('head-tracking', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueHeadTrackingJob(data: HeadTrackingJobData) {
   return headTrackingQueue.add('head-tracking', data, {
@@ -257,7 +274,13 @@ export interface GenerateReframeJobData {
   jobId: string;
 }
 
-export const generateReframeQueue = new Queue('generate-reframe', { connection });
+export const generateReframeQueue = new Queue('generate-reframe', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueGenerateReframeJob(data: GenerateReframeJobData) {
   return generateReframeQueue.add('generate-reframe', data, {
@@ -271,7 +294,13 @@ export interface GenerateCaptionStylesJobData {
   jobId: string;
 }
 
-export const generateCaptionStylesQueue = new Queue('generate-caption-styles', { connection });
+export const generateCaptionStylesQueue = new Queue('generate-caption-styles', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
 
 export async function queueGenerateCaptionStylesJob(data: GenerateCaptionStylesJobData) {
   return generateCaptionStylesQueue.add('generate-caption-styles', data, {
@@ -280,6 +309,57 @@ export async function queueGenerateCaptionStylesJob(data: GenerateCaptionStylesJ
       type: 'exponential',
       delay: 5000,
     },
+  });
+}
+
+// YouTube clip extraction queue
+export interface YouTubeClipJobData {
+  jobId: string;
+  url: string;
+  startSeconds: number;
+  endSeconds: number;
+  quality?: string;
+  projectId?: string;
+}
+
+export const youtubeClipQueue = new Queue('youtube-clip', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+
+export async function queueYouTubeClipJob(data: YouTubeClipJobData) {
+  return youtubeClipQueue.add('extract-clip', data, {
+    jobId: data.jobId,
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
+  });
+}
+
+// Segmentation queue — ML video segmentation pipeline
+export interface SegmentationJobData {
+  projectId: string;
+  videoItemId: string;
+  videoKey: string;
+}
+
+export const segmentationQueue = new Queue('segmentation', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+
+export async function queueSegmentationJob(data: SegmentationJobData) {
+  return segmentationQueue.add('segment-video', data, {
+    jobId: `${data.projectId}:segment:${Date.now()}`,
+    attempts: 1,
   });
 }
 

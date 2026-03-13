@@ -1,5 +1,28 @@
 import 'dotenv/config';
 import { resolve, join } from 'path';
+import { z } from 'zod';
+
+const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
+
+// In production, crash fast if critical env vars are missing
+if (isProduction) {
+  const prodEnvSchema = z.object({
+    DATABASE_URL: z.string().url(),
+    REDIS_URL: z.string().url(),
+    COOKIE_SECRET: z.string().min(16),
+    STYTCH_PROJECT_ID: z.string().min(1),
+    STYTCH_SECRET: z.string().min(1),
+  });
+
+  const result = prodEnvSchema.safeParse(process.env);
+  if (!result.success) {
+    console.error('FATAL: Missing required environment variables in production:');
+    for (const issue of result.error.issues) {
+      console.error(`  ${issue.path.join('.')}: ${issue.message}`);
+    }
+    process.exit(1);
+  }
+}
 
 // Determine if running on Railway (production)
 const isRailway = !!process.env.BUCKET_ENDPOINT || !!process.env.RAILWAY_ENVIRONMENT;
@@ -17,7 +40,7 @@ export const config = {
   },
 
   database: {
-    url: process.env.DATABASE_URL || 'postgresql://reelify:reelify123@localhost:5432/reelify',
+    url: process.env.DATABASE_URL || 'postgresql://viona:viona123@localhost:5432/viona',
   },
 
   redis: {
@@ -29,8 +52,8 @@ export const config = {
   storage: {
     endpoint: storageEndpoint,
     port: process.env.BUCKET_PORT ? parseInt(process.env.BUCKET_PORT, 10) : parseInt(process.env.S3_PORT || '9000', 10),
-    accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'reelify',
-    secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'reelify123',
+    accessKey: process.env.BUCKET_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY || 'viona',
+    secretKey: process.env.BUCKET_SECRET_ACCESS_KEY || process.env.S3_SECRET_KEY || 'viona123',
     useSSL: isRailway && !isInternalConnection ? true : process.env.S3_USE_SSL === 'true',
     bucket: process.env.BUCKET_NAME || process.env.S3_BUCKET || 'viona',
     region: process.env.BUCKET_REGION || process.env.S3_REGION || 'us-east-1',
@@ -61,5 +84,10 @@ export const config = {
   stytch: {
     projectId: process.env.STYTCH_PROJECT_ID || '',
     secret: process.env.STYTCH_SECRET || '',
+  },
+
+  // YouTube Data API
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY || '',
   },
 } as const;

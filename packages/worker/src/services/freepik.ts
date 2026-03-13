@@ -249,9 +249,14 @@ export async function downloadResource(id: string, destPath: string): Promise<bo
         if (imageFiles.length > 0) {
           buffer = Buffer.from(await imageFiles[0].buffer());
           logger.info({ id, extractedFile: imageFiles[0].path, bytes: buffer.length }, 'Extracted image from Freepik ZIP');
+        } else {
+          const allFiles = directory.files.map((f: { path: string }) => f.path);
+          logger.warn({ id, files: allFiles }, 'Freepik ZIP contains no raster images (vector-only resource)');
+          return false;
         }
       } catch (err) {
-        logger.warn({ id, err }, 'Failed to extract from ZIP — saving raw download');
+        logger.warn({ id, err }, 'Failed to extract from ZIP — skipping resource');
+        return false;
       }
     }
 

@@ -14,6 +14,7 @@ import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItem
 interface AssetsPanelProps {
   className?: string;
   onEditWithAI?: (asset: ExtractedAsset) => void;
+  onYouTubeClipAdded?: (clip: { clipId: string; duration: number; clipUrl: string; sourceTitle?: string; frameStyle?: string; startSeconds: number; endSeconds: number; sourceUrl: string }) => void;
 }
 
 // Icon mapping for asset types
@@ -46,7 +47,7 @@ const mimeTypeBadge = (mime: string) => {
   return { label: 'IMG', color: 'text-gray-400 bg-gray-400/10' };
 };
 
-export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) {
+export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }: AssetsPanelProps) {
   const [assets, setAssets] = useState<ExtractedAsset[]>([]);
   const [sceneTimings, setSceneTimings] = useState<Map<number, { startMs: number; endMs: number; contentDisplayMs?: number }>>(new Map());
   const [loading, setLoading] = useState(false);
@@ -57,8 +58,7 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
   const [uploadedAssets, setUploadedAssets] = useState<ProjectMediaAsset[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
-  const [pendingLabel, setPendingLabel] = useState('');
+  const [pendingFiles, setPendingFiles] = useState<{ file: File; label: string }[]>([]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -123,41 +123,78 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
     }
   }, [visualItemIds, fetchAssets]);
 
-  // Preview URL for pending file — memoized to avoid leak
-  const pendingPreviewUrl = useMemo(() => {
-    if (pendingFile && pendingFile.type.startsWith('image/') && !pendingFile.type.includes('svg')) {
-      return URL.createObjectURL(pendingFile);
+  // Stable preview URL map — only creates/revokes URLs for added/removed files
+  const previewUrlsRef = useRef(new Map<File, string>());
+
+  const pendingPreviewUrls = useMemo(() => {
+    const newMap = new Map<File, string>();
+    for (const { file } of pendingFiles) {
+      const existing = previewUrlsRef.current.get(file);
+      if (existing) {
+        newMap.set(file, existing);
+      } else if (file.type.startsWith('image/') && !file.type.includes('svg')) {
+        newMap.set(file, URL.createObjectURL(file));
+      }
     }
-    return null;
-  }, [pendingFile]);
+    // Revoke URLs for removed files
+    for (const [file, url] of previewUrlsRef.current) {
+      if (!newMap.has(file)) URL.revokeObjectURL(url);
+    }
+    previewUrlsRef.current = newMap;
+    return pendingFiles.map(({ file }) => newMap.get(file) ?? null);
+  }, [pendingFiles]);
 
   useEffect(() => {
-    return () => { if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl); };
-  }, [pendingPreviewUrl]);
+    return () => { previewUrlsRef.current.forEach(url => URL.revokeObjectURL(url)); };
+  }, []);
 
-  // Handle file selection
+  // Handle file selection (supports multiple)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPendingFile(file);
-    setPendingLabel(file.name.replace(/\.[^.]+$/, ''));
-    // Reset input so same file can be selected again
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const newPending = Array.from(files).map(file => ({
+      file,
+      label: file.name.replace(/\.[^.]+$/, ''),
+    }));
+    setPendingFiles(prev => [...prev, ...newPending]);
     e.target.value = '';
   };
 
-  // Handle upload confirmation
+  // Update label for a specific pending file
+  const updatePendingLabel = (index: number, label: string) => {
+    setPendingFiles(prev => prev.map((p, i) => i === index ? { ...p, label } : p));
+  };
+
+  // Remove a specific pending file
+  const removePending = (index: number) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Handle upload confirmation — uploads all pending files
   const handleUpload = async () => {
-    if (!projectId || !pendingFile) return;
+    if (!projectId || pendingFiles.length === 0) return;
 
     setUploading(true);
     setUploadProgress(0);
+    const total = pendingFiles.length;
+    const uploaded: ProjectMediaAsset[] = [];
     try {
-      const asset = await api.uploadProjectMedia(projectId, pendingFile, pendingLabel || undefined, (p) => setUploadProgress(p));
-      setUploadedAssets(prev => [asset, ...prev]);
-      setPendingFile(null);
-      setPendingLabel('');
+      for (let i = 0; i < pendingFiles.length; i++) {
+        const { file, label } = pendingFiles[i];
+        const asset = await api.uploadProjectMedia(projectId, file, label || undefined, (p) => {
+          setUploadProgress(Math.round(((i + p / 100) / total) * 100));
+        });
+        uploaded.push(asset);
+      }
+      setUploadedAssets(prev => [...uploaded.toReversed(), ...prev]);
+      setPendingFiles([]);
     } catch (err) {
       console.error('Upload failed:', err);
+      // Keep un-uploaded files pending
+      if (uploaded.length > 0) {
+        setUploadedAssets(prev => [...uploaded.toReversed(), ...prev]);
+        setPendingFiles(prev => prev.slice(uploaded.length));
+      }
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -239,10 +276,13 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) {
-      setPendingFile(file);
-      setPendingLabel(file.name.replace(/\.[^.]+$/, ''));
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    if (files.length > 0) {
+      const newPending = files.map(file => ({
+        file,
+        label: file.name.replace(/\.[^.]+$/, ''),
+      }));
+      setPendingFiles(prev => [...prev, ...newPending]);
     }
   };
 
@@ -278,6 +318,7 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
         ref={fileInputRef}
         type="file"
         accept="image/*,.svg"
+        multiple
         className="hidden"
         onChange={handleFileSelect}
       />
@@ -300,42 +341,56 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
           </button>
         </div>
 
-        {/* Pending file — inline label input */}
-        {pendingFile && (
-          <div className="px-4 pb-2">
-            <div className="flex items-center gap-2 p-2 rounded-lg border border-[var(--editor-border-subtle)]
-                            bg-[var(--editor-bg-surface)]">
-              <div className="w-8 h-8 rounded bg-[var(--editor-bg-hover)] flex items-center justify-center flex-shrink-0 overflow-hidden">
-                {pendingPreviewUrl ? (
-                  <img
-                    src={pendingPreviewUrl}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <Image className="w-4 h-4 text-[var(--editor-text-muted)]" />
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <input
-                  type="text"
-                  value={pendingLabel}
-                  onChange={(e) => setPendingLabel(e.target.value)}
-                  placeholder="Label (e.g. Company logo)"
-                  className="w-full bg-transparent text-xs text-[var(--editor-text-primary)]
-                             placeholder:text-[var(--editor-text-muted)] outline-none"
-                  onKeyDown={(e) => e.key === 'Enter' && handleUpload()}
-                  autoFocus
-                />
-                <div className="text-[10px] text-[var(--editor-text-muted)] truncate">
-                  {pendingFile.name}
+        {/* Pending files — inline label inputs */}
+        {pendingFiles.length > 0 && (
+          <div className="px-4 pb-2 space-y-1.5">
+            {pendingFiles.map((pending, idx) => (
+              <div key={`${pending.file.name}-${pending.file.lastModified}`} className="flex items-center gap-2 p-2 rounded-lg border border-[var(--editor-border-subtle)]
+                              bg-[var(--editor-bg-surface)]">
+                <div className="w-8 h-8 rounded bg-[var(--editor-bg-hover)] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                  {pendingPreviewUrls[idx] ? (
+                    <img src={pendingPreviewUrls[idx]!} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Image className="w-4 h-4 text-[var(--editor-text-muted)]" />
+                  )}
                 </div>
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="text"
+                    value={pending.label}
+                    onChange={(e) => updatePendingLabel(idx, e.target.value)}
+                    placeholder="Label (e.g. Company logo)"
+                    className="w-full bg-transparent text-xs text-[var(--editor-text-primary)]
+                               placeholder:text-[var(--editor-text-muted)] outline-none"
+                    onKeyDown={(e) => e.key === 'Enter' && handleUpload()}
+                    autoFocus={idx === pendingFiles.length - 1}
+                  />
+                  <div className="text-[10px] text-[var(--editor-text-muted)] truncate">
+                    {pending.file.name}
+                  </div>
+                </div>
+                <button
+                  onClick={() => removePending(idx)}
+                  className="p-0.5 text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
+            ))}
+            <div className="flex items-center gap-2 pt-1">
               <button
-                onClick={() => { setPendingFile(null); setPendingLabel(''); }}
-                className="p-0.5 text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-[10px] text-[var(--editor-accent)] hover:underline"
               >
-                <X className="w-3.5 h-3.5" />
+                + Add more
+              </button>
+              <div className="flex-1" />
+              <button
+                onClick={() => setPendingFiles([])}
+                className="px-2 py-1 rounded text-[10px] text-[var(--editor-text-muted)]
+                           hover:text-[var(--editor-text-secondary)] transition-colors"
+              >
+                Cancel
               </button>
               <button
                 onClick={handleUpload}
@@ -343,7 +398,7 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
                 className="px-2 py-1 rounded text-[10px] font-medium bg-[var(--editor-accent)]
                            text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
-                {uploading ? `${uploadProgress}%` : 'Add'}
+                {uploading ? `${uploadProgress}%` : pendingFiles.length > 1 ? `Upload (${pendingFiles.length})` : 'Upload'}
               </button>
             </div>
           </div>
@@ -389,7 +444,7 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
               );
             })}
           </div>
-        ) : !pendingFile && (
+        ) : pendingFiles.length === 0 && (
           <div
             className="mx-4 mb-3 p-3 rounded-lg border border-dashed border-[var(--editor-border-subtle)]
                         text-center cursor-pointer hover:border-[var(--editor-accent)]/50 hover:bg-[var(--editor-accent)]/5
@@ -488,7 +543,7 @@ export function AssetsPanel({ className = '', onEditWithAI }: AssetsPanelProps) 
       )}
 
       {/* Empty state — no visuals, no uploaded assets */}
-      {assets.length === 0 && uploadedAssets.length === 0 && !pendingFile && (
+      {assets.length === 0 && uploadedAssets.length === 0 && pendingFiles.length === 0 && (
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center">
             <Layers className="w-8 h-8 mx-auto mb-2 text-[var(--editor-text-muted)] opacity-50" />

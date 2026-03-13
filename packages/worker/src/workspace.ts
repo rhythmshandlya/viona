@@ -5,10 +5,10 @@
  * This avoids copying node_modules for every job.
  */
 
-import { existsSync, mkdirSync, copyFileSync, readdirSync, statSync, rmSync } from 'fs';
-import { join, relative } from 'path';
-import { execSync, spawn } from 'child_process';
-import { config } from './config';
+import { existsSync, mkdirSync, copyFileSync, readdirSync, rmSync } from 'fs';
+import { join } from 'path';
+import { execSync } from 'child_process';
+import { config } from './config.js';
 
 /**
  * Copy directory recursively, excluding node_modules.
@@ -183,126 +183,6 @@ export function createProjectDir(projectId: string): string {
   }
 
   return projectPath;
-}
-
-/**
- * Clean up a project directory after bundling.
- *
- * @param projectId - The project ID to clean up
- */
-export function cleanupProject(projectId: string): void {
-  const projectPath = join(config.worker.workspacePath, 'src', projectId);
-
-  if (existsSync(projectPath)) {
-    console.log(`[Workspace] Cleaning up project: ${projectId}`);
-    rmSync(projectPath, { recursive: true, force: true });
-  }
-}
-
-/**
- * Run TypeScript validation on the workspace.
- *
- * @returns Object with success status and any errors
- */
-export async function runTypeScriptValidation(): Promise<{ success: boolean; errors: string[] }> {
-  const workspacePath = config.worker.workspacePath;
-
-  return new Promise((resolve) => {
-    const tsc = spawn('npx', ['tsc', '--noEmit', '--pretty', 'false'], {
-      cwd: workspacePath,
-      shell: true,
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    tsc.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    tsc.stderr.on('data', (data) => {
-      stderr += data.toString();
-    });
-
-    tsc.on('close', (code) => {
-      if (code === 0) {
-        resolve({ success: true, errors: [] });
-      } else {
-        const output = stdout + stderr;
-        const errors = output
-          .split('\n')
-          .filter((line) => line.includes('error TS'))
-          .map((line) => line.trim());
-
-        resolve({ success: false, errors });
-      }
-    });
-
-    tsc.on('error', (error) => {
-      resolve({ success: false, errors: [error.message] });
-    });
-  });
-}
-
-/**
- * Bundle the Remotion project.
- *
- * @param projectId - The project ID to bundle
- * @param outputDir - Output directory for the bundle
- * @returns Path to the bundled output
- */
-export async function bundleProject(
-  projectId: string,
-  outputDir: string
-): Promise<string> {
-  const workspacePath = config.worker.workspacePath;
-  const bundlePath = join(outputDir, projectId);
-
-  console.log(`[Workspace] Bundling project: ${projectId}`);
-  console.log(`[Workspace] Output: ${bundlePath}`);
-
-  // Create output directory
-  if (!existsSync(bundlePath)) {
-    mkdirSync(bundlePath, { recursive: true });
-  }
-
-  return new Promise((resolve, reject) => {
-    const bundle = spawn(
-      'npx',
-      ['remotion', 'bundle', '--out-dir', bundlePath],
-      {
-        cwd: workspacePath,
-        shell: true,
-      }
-    );
-
-    let stdout = '';
-    let stderr = '';
-
-    bundle.stdout.on('data', (data) => {
-      const output = data.toString();
-      stdout += output;
-      console.log(`[Bundle] ${output.trim()}`);
-    });
-
-    bundle.stderr.on('data', (data) => {
-      const output = data.toString();
-      stderr += output;
-      console.error(`[Bundle] ${output.trim()}`);
-    });
-
-    bundle.on('close', (code) => {
-      if (code === 0) {
-        resolve(bundlePath);
-      } else {
-        reject(new Error(`Bundle failed with code ${code}: ${stderr}`));
-      }
-    });
-
-    bundle.on('error', (error) => {
-      reject(new Error(`Bundle process error: ${error.message}`));
-    });
-  });
 }
 
 /**

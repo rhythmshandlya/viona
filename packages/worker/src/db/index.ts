@@ -111,6 +111,10 @@ export const visuals = pgTable('visuals', {
 
 const pool = new pg.Pool({
   connectionString: config.database.url,
+  max: 10,                      // Workers have fewer concurrent queries
+  min: 1,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 10_000,
 });
 
 export const db = drizzle(pool, {

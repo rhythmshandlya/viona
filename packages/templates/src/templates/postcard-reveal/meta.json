@@ -1,0 +1,24 @@
+{
+  "slug": "postcard-reveal",
+  "name": "Postcard Reveal",
+  "description": "Map animation that zooms into destination then flips into a vintage postcard with greeting text and stamp",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "postcard",
+    "vintage",
+    "greeting",
+    "souvenir",
+    "retro",
+    "destination",
+    "travel",
+    "romantic",
+    "nostalgic",
+    "keepsake"
+  ],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "10s",
+  "thumbnail": "thumbnail.png"
+}

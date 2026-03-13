@@ -1,323 +1,21 @@
 import { buildReferenceExamplesSection } from './visual-references.js';
-import { AD_MOTION_UTILITIES } from './motion-utilities.js';
+import { loadPrompt } from './loader.js';
+import { getStyleGuide, getTheme } from './theme-loader.js';
 
 /**
- * Style guidelines with SPECIFIC design tokens.
- * Each style includes exact CSS values the AI should use.
+ * Style guidelines loaded from theme manifest.
+ * Falls back to empty string for unknown presets.
  */
-export const STYLE_GUIDELINES: Record<string, string> = {
-  minimal: `
-Style: Minimal (Clean & Professional)
-
-**COLOR PALETTE:**
-- Background: #1a1a1a (dark gray)
-- Elements: #ffffff (white)
-- Accent: #3b82f6 (blue)
-- Muted: #6b7280
-
-**DESIGN:**
-- Clean geometric shapes, generous whitespace
-- Monochrome diagrams with single accent color for highlights
-- Thin lines, subtle shadows, elegant simplicity
-- Icons: Line-style, single weight, consistent sizing
-
-**ANIMATION:**
-- Use spring({ damping: 20, stiffness: 60 }) - smooth, no bounce
-- Stagger elements by 20 frames
-- Fade in with interpolate over 20 frames
-- Elements fade in smoothly, subtle position shifts`,
-
-  modern: `
-Style: Modern (Vibrant & Dynamic)
-
-**COLOR PALETTE:**
-- Background: #0f0f23 (deep navy/purple)
-- Primary gradient: Purple #8b5cf6 to Blue #3b82f6
-- Accent: Cyan #06b6d4
-- Success: #22c55e
-- White: #ffffff
-
-**DESIGN:**
-- Gradient-filled shapes, rounded corners on everything
-- Vibrant colors that pop, glass morphism effects
-- Icons: Filled style, colorful, modern flat design
-- Colorful nodes, gradient connections, depth with shadows
-
-**EFFECTS:**
-- Glass cards: background blur, subtle borders
-- Soft glows on key elements
-- Gradient backgrounds
-
-**LAYOUT (CRITICAL - avoid overlapping):**
-- Stack elements vertically with clear separation
-- Title/heading at TOP (first 15% of height)
-- Main visual in MIDDLE (next 70% of height)
-- Keep bottom 15% CLEAR for subtitle overlay (rendered separately)
-- Use flexbox with RESPONSIVE gap: display: 'flex', flexDirection: 'column', gap: minDim * 0.03
-- NEVER place text directly on top of diagrams
-- NEVER add captions or subtitle text — subtitles are handled by a separate system
-
-**ANIMATION:**
-- Use spring({ damping: 12, stiffness: 80 }) - bouncy, satisfying
-- Stagger elements by 15 frames
-- Spring physics, elements bounce in, satisfying motion`,
-
-  playful: `
-Style: Playful (Fun & Energetic)
-
-**COLOR PALETTE:**
-- Background: #1a1a2e (dark purple)
-- Primary: Orange #f97316
-- Secondary: Yellow #eab308
-- Accent: Pink #ec4899
-- Success: Green #22c55e
-
-**DESIGN:**
-- Bright saturated colors, rounded bubbly shapes
-- Hand-drawn style elements, imperfect circles, wobbly lines
-- Icons: Emoji-style, illustrated, character-based
-- Cartoon-like, characters pointing at things, fun illustrations
-
-**ANIMATION:**
-- Use spring({ damping: 8, stiffness: 200 }) - very bouncy with overshoot
-- Add wiggle: rotation oscillates ±3 degrees
-- Stagger by 10 frames for rapid fire effect
-- Bouncy entrances, wiggle effects, playful transitions`,
-
-  bold: `
-Style: Bold (High Contrast & Impactful)
-
-**COLOR PALETTE:**
-- Background: #000000 (pure black)
-- Primary: #ffffff (pure white)
-- Accent: #ef4444 (red) or #eab308 (yellow)
-
-**DESIGN:**
-- Maximum contrast: black/white with ONE neon accent
-- Large, chunky shapes that command attention
-- Icons: Solid, heavy weight, impossible to miss
-- Thick borders, heavy arrows, stark contrasts
-
-**ANIMATION:**
-- Use spring({ damping: 15, stiffness: 150 }) - snappy, powerful
-- Scale from 0 to 1 for dramatic reveals
-- Dramatic reveals, scale from zero, powerful presence`,
-
-  classic: `
-Style: Classic (Trustworthy & Educational)
-
-**COLOR PALETTE:**
-- Background: Navy #1e3a5f
-- Primary: Gold #d4af37
-- Text: Cream #f5f5dc
-- Muted: Charcoal #374151
-
-**DESIGN:**
-- Traditional diagram layouts, clean data visualization
-- Muted, professional color palette
-- Icons: Traditional, professional, outline or subtle fill
-- Academic charts, clean axes, proper labels, traditional graphs
-
-**ANIMATION:**
-- Use spring({ damping: 25, stiffness: 50 }) - dignified, no bounce
-- Smooth fades over 30 frames
-- Smooth fades, professional transitions, no gimmicks
-- Understated motion, nothing flashy`,
-
-  apple: `
-Style: Apple (Premium Minimalism)
-
-**COLOR PALETTE:**
-- Background: #000000 (pure black) or #ffffff (pure white)
-- Accent: #0071e3 (Apple blue)
-- Text: #f5f5f7 (on dark) or #1d1d1f (on light)
-- No gradients — flat, clean surfaces
-
-**DESIGN:**
-- Extreme minimalism, maximum whitespace
-- One focal element at a time
-- Typography-driven: product name + one line of copy
-- No borders, no shadows, no ornaments
-- Max 3 visible elements at any moment
-
-**ANIMATION:**
-- Use spring({ damping: 30, stiffness: 40 }) - slow, deliberate, premium
-- Stagger elements by 30 frames (one second apart)
-- Fade + blur transitions: opacity 0→1 with filter blur(4px→0)
-- Scale 0.95→1.0 (subtle settle, never overshoot)
-- Hold each element for at least 60 frames before transitioning
-- Movement should feel like breathing — unhurried, confident`,
-
-  studio: `
-Style: Studio (Polished Card Animations)
-
-**DESIGN SYSTEM — DotGrid Theme:**
-This style has a complete template library. When possible, USE EXISTING TEMPLATES as building blocks (see template catalog below). Copy their code into the workspace, customize props, and compose them into scenes.
-
-**DESIGN:**
-- Polished card-based layouts floating on dot-grid backgrounds
-- Centered content containers with generous padding and rounded corners
-- Dark/light mode support with consistent color tokens
-- Clean typography hierarchy using Google Font pairs
-
-**COLOR PALETTE:**
-- Dark mode: Background #0B0F1A, text #FFFFFF, muted #94A3B8, grid #FFFFFF08
-- Light mode: Background #F8FAFC, text #0F172A, muted #64748B, grid #0F172A08
-- Accent: Indigo #6366F1 (primary), customizable per-scene
-
-**BACKGROUND:**
-Every scene MUST include a DotGrid SVG background layer:
-\`\`\`tsx
-<svg style={{ position: 'absolute', inset: 0 }} width="100%" height="100%">
-  <pattern id="dots" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
-    <circle cx="2" cy="2" r="1" fill={gridColor} />
-  </pattern>
-  <rect width="100%" height="100%" fill={bg} />
-  <rect width="100%" height="100%" fill="url(#dots)" />
-</svg>
-\`\`\`
-
-**TYPOGRAPHY (FONT_PAIRS):**
-Use Google Fonts pairs. Default: boldImpact (Oswald + Inter).
-Available: modernTech (Space Grotesk + IBM Plex Mono), friendlyTech (Nunito + Source Code Pro), strongReadable (Bebas Neue + Open Sans), elegantEditorial (Cormorant Garamond + Lato), cleanMinimal (Plus Jakarta Sans + JetBrains Mono).
-
-**CARD LAYOUT:**
-Scenes use centered card containers with rounded corners (borderRadius: 20px), padding: 48px, maxWidth: 85%. Cards float on the dot-grid background.
-
-**ANIMATION:**
-- Use spring({ damping: 14, stiffness: 80 }) for card entrances
-- Stagger elements by 8-12 frames
-- Standard timeline: fade-in (0-15 frames), content animate (20-260), hold (280-330), fade-out (330-360)
-- Progress bars, counters, charts use smooth interpolate over 100+ frames
-
-**MANDATORY: { extrapolateRight: 'clamp' } on ALL interpolate calls**
-`,
-
-  google: `
-Style: Google (Material Design 3)
-
-**COLOR PALETTE:**
-- Background: #ffffff or #f8f9fa (light gray)
-- Primary: #1a73e8 (Google Blue)
-- Secondary: #34a853 (Google Green)
-- Tertiary: #ea4335 (Google Red)
-- Accent: #fbbc04 (Google Yellow)
-- Text: #202124 (dark gray)
-
-**DESIGN:**
-- Material Design 3 principles: card-based, elevation shadows
-- Rounded corners (28px on cards, pill-shaped buttons)
-- Colorful but balanced — use Google's 4-color palette purposefully
-- Elevation: cards float with box-shadow 0 2px 8px rgba(0,0,0,0.1)
-- Clean iconography, product-grade UI elements
-
-**ANIMATION:**
-- Use spring({ damping: 18, stiffness: 100 }) - snappy, responsive, Material motion
-- Stagger elements by 12 frames (fast, cascading)
-- Slide-up motion: translateY(16→0) with fade
-- Cards rise into view with subtle shadow growth
-- Emphasize spatial relationships — elements come from where they "live"`,
-
-  'kinetic-typography': `
-Style: Kinetic Typography (Bold Text Cards — Apple Ad Style)
-
-**CONCEPT:** Full-screen text cards synced to narration. Every word the narrator says
-appears as large bold text on solid colored backgrounds. Words grouped into short
-phrases (2-8 words per card). One emphasis word per card gets a hand-drawn doodle
-annotation (underline, circle, arrow, or checkmark).
-
-**COLOR PALETTE:**
-- Accent: #00E556 (neon green)
-- Dark: #000000 (black)
-- Light: #EBEBEB (light gray)
-- Rotate through these 3 as backgrounds, never 3x same in a row
-- Text: white on dark backgrounds, black on light backgrounds
-
-**TYPOGRAPHY:**
-- Font: Inter Black (900 weight), 60-120px
-- Fewer words = larger font size
-- All text centered on screen
-- No data visualizations, no charts — ONLY text cards
-
-**ANIMATION:**
-- Phrase mode: scale 0.7→1 with spring({ damping: 12, stiffness: 100 })
-- Word-by-word mode: each word scale 0.5→1 synced to timestamps
-- Doodles: SVG stroke-draw animation, appear 6 frames after text
-- Hard cuts between cards — NO dissolves or fades
-- Pacing: 0.6-4 seconds per card`,
-};
+export function getStyleGuidelines(stylePreset: string): string {
+  if (!getTheme(stylePreset)) return '';
+  return getStyleGuide(stylePreset);
+}
 
 /**
  * AutoAE-inspired scene composition patterns.
  * Teaches the AI about motion graphics templates for different content types.
  */
-const AUTOAE_SCENE_PATTERNS = `
-## 🎬 SCENE COMPOSITION PATTERNS (AutoAE-Inspired)
-
-Use these composition templates when the transcript content matches. These are proven motion graphics patterns that create professional, engaging visuals.
-
-### 1. Versus Comparison
-**When:** Speaker compares two options, approaches, or technologies ("X vs Y", "unlike", "compared to")
-- Split screen with two sides, each with an icon/visual + label
-- Dramatic divider line between sides (animated, glowing)
-- Staggered reveal: left side appears, then divider, then right side
-- Use contrasting accent colors (e.g., blue vs red)
-- Optional: one side pulses/scales slightly to indicate the "winner"
-
-### 2. Podium Ranking
-**When:** Speaker ranks items, lists "top 3", or establishes a hierarchy
-- Three pedestals at different heights (1st tallest, centered)
-- Items reveal from 3rd → 2nd → 1st with spring physics
-- Each podium slot has an icon + label + optional number
-- Gold/silver/bronze accent colors for ranking emphasis
-- Final state: all three visible with the winner highlighted
-
-### 3. Hub & Orbit
-**When:** Speaker describes a central concept with related features/properties ("X has these benefits", "core principle with...")
-- Central element (larger, glowing) with orbiting satellite elements
-- Satellites appear one by one, each with a connection line to hub
-- Gentle rotation animation for the orbit ring
-- Use for: frameworks, architectures, ecosystems, feature sets
-
-### 4. Card Flip Reveal
-**When:** Speaker reveals information, answers a question, or does a "before/after" ("the answer is...", "turns out...")
-- Card element that rotates 180° on Y-axis to reveal back side
-- Front shows question/teaser, back shows answer/solution
-- Use perspective transform for 3D depth
-- Pause briefly before flip for dramatic tension
-
-### 5. Process Steps
-**When:** Speaker walks through a sequence ("first... then... finally", step-by-step instructions)
-- Horizontal or vertical step chain with numbered nodes
-- Each step appears with a connecting arrow/line animation
-- Active step is highlighted, previous steps are dimmed
-- Progress bar or connecting line fills between steps
-- Use warm transition effects between step reveals
-
-### 6. Spotlight Feature
-**When:** Speaker highlights a single important item/feature/concept
-- Dark background with a single illuminated element
-- Radial gradient "spotlight" that draws attention to center
-- Element scales up slightly with a subtle glow
-- Supporting details fade in around the spotlight area
-- Use for: key stats, hero features, important takeaways
-
-### 7. Graph Draw
-**When:** Speaker mentions data, growth, trends, metrics
-- Animated line graph or bar chart that draws progressively
-- Axis labels and values animate in sync with the drawing
-- Key data points get a pulse/glow when reached
-- Use smooth interpolation for the drawing animation
-- Optional: counter that shows current value as line progresses
-
-### 8. Speech Bubble
-**When:** Speaker quotes someone, presents dialogue, or shows audience reactions
-- Rounded bubble frame with a tail pointing to source
-- Text types in or fades in within the bubble
-- Multiple bubbles can stack in a conversation flow
-- Bubbles can have different colors for different speakers
-- Use spring physics for bubble entrance (scale from 0)
-`;
+const AUTOAE_SCENE_PATTERNS = loadPrompt('generate-visuals/scene-patterns');
 
 interface TranscriptWord {
   text: string;
@@ -348,7 +46,6 @@ export function buildGenerateVisualsPrompt(options: PromptOptions): string {
     : `Stacked layout (${width}×${height}) - REDUCED HEIGHT. Stack elements tightly, use smaller fonts.`;
 
   const referenceExamples = buildReferenceExamplesSection(projectId);
-  const adMotionSection = (stylePreset === 'apple' || stylePreset === 'google') ? `\n\n${AD_MOTION_UTILITIES}\n` : '';
 
   return `You are a world-class Motion Graphics Designer creating animated visuals for viral social media content.
 
@@ -425,7 +122,7 @@ const frame = useCurrentFrame();
 // ✅ CORRECT - Every value is relative AND all variables are used
 const titleOpacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
 const titleY = interpolate(frame, [0, 30], [-20, 0], { extrapolateRight: 'clamp' });
-const contentScale = spring({ frame: frame - 15, fps, config: { damping: 12, stiffness: 80 } });
+const contentScale = spring({ frame: frame - 15, fps, config: { damping: 20, stiffness: 80 } });
 
 <div style={{
   fontSize: height * 0.035,      // ← uses height
@@ -467,7 +164,7 @@ const { width, height, fps } = useVideoConfig();
 
 // Animation: pure function of frame
 const opacity = interpolate(frame, [0, 30], [0, 1], { extrapolateRight: 'clamp' });
-const scale = spring({ frame, fps, config: { damping: 12, stiffness: 80 } });
+const scale = spring({ frame, fps, config: { damping: 20, stiffness: 80 } });
 \`\`\`
 
 ### 5. NO UNUSED DECLARATIONS (TypeScript Strict Mode)
@@ -481,14 +178,14 @@ The variable was declared for a reason. Find where it should be used and USE IT.
 \`\`\`tsx
 // ❌ WRONG PATTERN - Declare animation vars, then don't use them
 const rotationInner = interpolate(frame, [0, 60], [0, 360]);
-const springScale = spring({ frame, fps, config: { damping: 12 } });
+const springScale = spring({ frame, fps, config: { damping: 20 } });
 const yPos = interpolate(frame, [0, 30], [100, 0]);
 // Then render with HARDCODED or DIFFERENT values:
 <div style={{ transform: 'rotate(45deg) scale(1)', top: 50 }}>  // ← WRONG! Use the vars!
 
 // ✅ CORRECT PATTERN - Declare and USE in the same component
 const rotationInner = interpolate(frame, [0, 60], [0, 360]);
-const springScale = spring({ frame, fps, config: { damping: 12 } });
+const springScale = spring({ frame, fps, config: { damping: 20 } });
 const yPos = interpolate(frame, [0, 30], [100, 0]);
 <div style={{
   transform: \`rotate(\${rotationInner}deg) scale(\${springScale})\`,  // ← USES rotationInner, springScale
@@ -505,7 +202,7 @@ const frame = useCurrentFrame();
 
 // Step 2: Declare animations (only what you'll use!)
 const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
-const scale = spring({ frame, fps, config: { damping: 12 } });
+const scale = spring({ frame, fps, config: { damping: 20 } });
 
 // Step 3: USE EVERYTHING in the render
 <div style={{
@@ -527,7 +224,7 @@ ${transcriptText}
 
 **Style: ${stylePreset}**
 ${styleGuidelines}
-${adMotionSection}
+
 ---
 
 ## 📐 Video Specifications

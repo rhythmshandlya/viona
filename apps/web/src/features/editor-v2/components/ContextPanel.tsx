@@ -14,7 +14,11 @@ import {
   useApplyStyleToAll,
   useVideoSettings,
   useEditorActions,
+  useItems,
+  useItemIds,
 } from '../store/use-editor-store';
+import { ZoneSelector } from './ZoneSelector';
+import { SegmentationStatus } from './SegmentationStatus';
 import {
   CaptionDisplayMode,
   CaptionAnimationLegacy,
@@ -23,6 +27,8 @@ import {
   AudioItemData,
   VisualItemData,
   VisualDisplayMode,
+  VideoItemData,
+  OverlayZone,
 } from '../store/types';
 import { SUBTITLE_PRESETS, PRESET_ORDER } from '@/lib/subtitle-presets';
 
@@ -486,14 +492,37 @@ function AudioPanel() {
 function VisualPropertiesPanel() {
   const selectedIds = useSelectedIds();
   const visualItem = useItem(selectedIds[0] || '');
-  const { updateVisualDisplayMode, updateOverlayOpacity } = useEditorActions();
+  const { updateVisualDisplayMode, updateItemData, updateVisualOverlayZone } = useEditorActions();
+
+  // Get all items to find video for segmentation status
+  const allItems = useItems();
+  const allItemIds = useItemIds();
 
   if (!visualItem || visualItem.type !== 'visual') return null;
 
   const data = visualItem.data as VisualItemData;
   const rawDm = data.displayMode;
   const displayMode = (!rawDm || (rawDm as string) === 'pip') ? 'default' : rawDm;
-  const overlayOpacity = data.overlayOpacity ?? 0.85;
+  // Find first video item for segmentation data
+  const videoItem = allItemIds
+    .map(id => allItems[id])
+    .find(item => item?.type === 'video');
+  const videoData = videoItem?.data as VideoItemData | undefined;
+  const segmentation = videoData?.segmentation;
+  const segmentationReady = segmentation?.status === 'ready';
+
+  // Get overlay zone for this visual
+  const overlayZone = (data.overlayZone || 'none') as OverlayZone;
+
+  // Check if this is a template-based visual
+  const isYouTubeClip = data.templateId === 'youtube-clip';
+  const templateProps = data.templateProps || {};
+
+  const updateTemplateProps = (updates: Record<string, unknown>) => {
+    updateItemData(visualItem.id, {
+      templateProps: { ...templateProps, ...updates },
+    });
+  };
 
   return (
     <div className="p-4 space-y-6">
@@ -509,23 +538,150 @@ function VisualPropertiesPanel() {
         />
       </Section>
 
-      {displayMode === 'overlay' && (
+      <Divider />
+
+      {/* Overlay Zone */}
+      <Section label="Overlay Zone">
+        <ZoneSelector
+          value={overlayZone}
+          onChange={(zone) => updateVisualOverlayZone(visualItem.id, zone)}
+          segmentationReady={segmentationReady}
+        />
+      </Section>
+
+      {/* Segmentation Status */}
+      {videoItem && (
+        <SegmentationStatus segmentation={segmentation} className="mt-2" />
+      )}
+
+
+      {/* YouTube Clip Template Properties */}
+      {isYouTubeClip && (
         <>
           <Divider />
-          <Section label="Overlay Opacity">
+          <Section label="Clip Timing">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <span className="text-[10px] text-[var(--editor-text-secondary)]">Trim Start</span>
+                <div className="flex items-center gap-3">
+                  <Slider
+                    value={[Number(templateProps.trimStartSeconds) || 0]}
+                    min={0}
+                    max={60}
+                    step={0.5}
+                    onValueChange={([v]) => updateTemplateProps({ trimStartSeconds: v })}
+                    className="flex-1"
+                  />
+                  <span className="text-xs text-[var(--editor-text-secondary)] w-10 text-right">
+                    {(Number(templateProps.trimStartSeconds) || 0).toFixed(1)}s
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          <Section label="Volume">
             <div className="flex items-center gap-3">
               <Slider
-                value={[Math.round(overlayOpacity * 100)]}
-                min={20}
+                value={[Math.round((Number(templateProps.volume) ?? 1) * 100)]}
+                min={0}
                 max={100}
                 step={5}
-                onValueChange={([op]) => updateOverlayOpacity(visualItem.id, op / 100)}
+                onValueChange={([v]) => updateTemplateProps({ volume: v / 100 })}
                 className="flex-1"
               />
               <span className="text-xs text-[var(--editor-text-secondary)] w-10 text-right">
-                {Math.round(overlayOpacity * 100)}%
+                {Math.round((Number(templateProps.volume) ?? 1) * 100)}%
               </span>
             </div>
+          </Section>
+
+          <Section label="Border">
+            <SegmentedControl
+              options={[
+                { value: 'none', label: 'None' },
+                { value: 'thin', label: 'Thin' },
+                { value: 'medium', label: 'Med' },
+                { value: 'thick', label: 'Thick' },
+              ]}
+              value={String(templateProps.border || 'none')}
+              onChange={(value) => updateTemplateProps({ border: value })}
+            />
+            {Boolean(templateProps.border) && (templateProps.border as string) !== 'none' && (
+              <div className="mt-3 flex items-center gap-3">
+                <ColorPicker
+                  label="Color"
+                  value={String(templateProps.borderColor || '#FFFFFF')}
+                  onChange={(color) => updateTemplateProps({ borderColor: color })}
+                />
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="text-[10px] text-[var(--editor-text-secondary)]">Radius</span>
+                  <Slider
+                    value={[Number(templateProps.borderRadius) || 0]}
+                    min={0}
+                    max={50}
+                    step={2}
+                    onValueChange={([v]) => updateTemplateProps({ borderRadius: v })}
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+            )}
+          </Section>
+
+          <Section label="Frame">
+            <SegmentedControl
+              options={[
+                { value: 'none', label: 'None' },
+                { value: 'phone', label: 'Phone' },
+                { value: 'browser', label: 'Browser' },
+                { value: 'polaroid', label: 'Polaroid' },
+              ]}
+              value={String(templateProps.frame || 'none')}
+              onChange={(value) => updateTemplateProps({ frame: value })}
+            />
+          </Section>
+
+          <Section label="Shadow">
+            <SegmentedControl
+              options={[
+                { value: 'none', label: 'None' },
+                { value: 'subtle', label: 'Subtle' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'strong', label: 'Strong' },
+              ]}
+              value={String(templateProps.shadowIntensity || 'none')}
+              onChange={(value) => updateTemplateProps({ shadowIntensity: value })}
+            />
+          </Section>
+
+          <Section label="Transform">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <span className="text-[10px] text-[var(--editor-text-secondary)]">Scale</span>
+                <div className="flex items-center gap-3">
+                  <Slider
+                    value={[(Number(templateProps.scale) || 1) * 100]}
+                    min={50}
+                    max={150}
+                    step={5}
+                    onValueChange={([v]) => updateTemplateProps({ scale: v / 100 })}
+                    className="flex-1"
+                  />
+                  <span className="text-xs text-[var(--editor-text-secondary)] w-10 text-right">
+                    {Math.round((Number(templateProps.scale) || 1) * 100)}%
+                  </span>
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          <Section label="Background">
+            <ColorPicker
+              label="Color"
+              value={String(templateProps.backgroundColor || '#000000')}
+              onChange={(color) => updateTemplateProps({ backgroundColor: color })}
+            />
           </Section>
         </>
       )}

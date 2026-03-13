@@ -19,11 +19,12 @@ FROM base AS deps
 
 # Copy workspace config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
+
 
 # Copy package.json files for all packages needed
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/renderer/package.json ./packages/renderer/
+COPY packages/templates/package.json ./packages/templates/
 COPY apps/web/package.json ./apps/web/
 
 # Install dependencies
@@ -44,17 +45,20 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
 ENV NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN=${NEXT_PUBLIC_STYTCH_PUBLIC_TOKEN}
 ENV NEXT_PUBLIC_URL=${NEXT_PUBLIC_URL}
+ENV NEXT_STANDALONE=1
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=deps /app/packages/renderer/node_modules ./packages/renderer/node_modules
+COPY --from=deps /app/packages/templates/node_modules ./packages/templates/node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
 # Copy source files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
+
 COPY packages/shared ./packages/shared
 COPY packages/renderer ./packages/renderer
+COPY packages/templates ./packages/templates
 COPY apps/web ./apps/web
 
 # Cache bust to ensure build args are re-evaluated
@@ -63,6 +67,7 @@ ARG CACHEBUST=1
 # Build packages in order
 RUN pnpm --filter @viona/shared build && \
     pnpm --filter @viona/renderer build && \
+    pnpm --filter @viona/templates build && \
     pnpm --filter web build
 
 # ============================================

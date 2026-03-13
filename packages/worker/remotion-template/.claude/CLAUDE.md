@@ -7,8 +7,9 @@
 ## Code Style (CRITICAL)
 - TypeScript with React functional components
 - Use `useCurrentFrame()` and `useVideoConfig()` for all animation timing
-- Use `spring()` for entrances/exits — import SPRINGS from constants.ts (SMOOTH: `{ damping: 26, stiffness: 120, mass: 1.0 }`, SNAPPY: `{ damping: 18, stiffness: 180, mass: 0.8 }`)
-- Use `interpolate()` with `extrapolateRight: 'clamp'` ALWAYS
+- Use `spring()` for entrances/exits — import SPRINGS from constants.ts (SMOOTH: `{ damping: 26, stiffness: 120, mass: 1.0 }`, SNAPPY: `{ damping: 22, stiffness: 170, mass: 0.8 }`)
+- Use `interpolate()` with BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'` ALWAYS
+- inputRange array MUST be strictly monotonically increasing (each value > previous) — e.g. `[0, 15, 30]` not `[0, 1, 0.4]`
 - Stagger elements by 6+ frames minimum (NEVER animate all at once)
 
 ## File Structure
@@ -39,34 +40,34 @@ import { Background } from './components/Background';
 
 ## Common Gotchas
 - NEVER use `Math.sin/cos` on text positions (causes jittery text)
-- NEVER use damping < 20 (too bouncy)
+- NEVER use damping < 18 (too bouncy). SNAPPY (22) is the floor for hero reveals.
 - NEVER use R3F's `useFrame()` hook - breaks video rendering
 - For 3D: use `<ThreeCanvas>` from @remotion/three, NOT R3F `<Canvas>`
+- Vary visual techniques across scenes — don't put every scene in a card. Use path drawing, animated diagrams, morphing, particles as alternatives.
+- Non-card templates available: `path-draw-reveal`, `animated-diagram`, `shape-morph-transition`
 
-## Available Skills
+## MANDATORY: Use Skills Before Writing Code
 
-### Core Animation & Video
-- `remotion-best-practices` - Official Remotion patterns, 3D, audio, animations
-- `motion-one` - Animation principles and timing
-- `framer-motion` - Framer Motion patterns (adaptable to Remotion)
-- `interaction-design` - Interaction and motion design patterns
+**Before writing ANY scene code, you MUST read the relevant skills using the Skill tool.** Skills contain critical patterns, reusable components, and design principles that prevent common mistakes.
 
-### Visual Design & Graphics
-- `frontend-design` - Avoid generic AI aesthetics, bold design decisions
-- `graphic-designer` - Graphic design principles
-- `marketing-visual-design` - Marketing-focused visual design
-- `tailwind-v4-shadcn` - Modern styling patterns
+### Required Skills (read these FIRST)
+1. **`framer-motion`** - Animation patterns, reusable technique components (Card, ParticleEmitter, AnimatedCounter, FlowingStream), prohibited patterns
+2. **`motion-one`** - Spring configs, Disney's 12 principles, stagger timing, choreography phases
+3. **`video-engagement`** - Hook techniques, retention, color palettes, scene structure, visual metaphors
 
-### Code Quality
-- `vercel-react-best-practices` - React performance optimization from Vercel
-- `typescript-skills` - TypeScript patterns
+### Reference Skills (read when relevant)
+4. **`remotion-best-practices`** - Official Remotion patterns (shapes, noise, paths, transitions, 3D, audio). Read specific rule files for advanced effects.
+5. **`frontend-design`** - Avoid generic AI aesthetics, bold design decisions
+6. **`interaction-design`** - Interaction timing and motion design patterns
+7. **`typescript-skills`** - TypeScript patterns
 
-## Skill Usage
+### Skill Usage Flow
+```
+1. Read `framer-motion` for technique components and patterns
+2. Read `motion-one` for spring configs and timing
+3. Read `video-engagement` for engagement strategy and visual metaphors
+4. Check `remotion-best-practices` rules/ for specific Remotion APIs (@remotion/shapes, @remotion/noise, etc.)
+5. Write code using patterns from skills — do NOT reinvent what skills already provide
+```
 
-When implementing visual effects from a plan:
-1. Check `remotion-best-practices` for Remotion-specific patterns
-2. Check `motion-one` for animation timing and easing
-3. Check `frontend-design` to avoid generic/boring aesthetics
-4. Check `graphic-designer` for visual composition principles
-
-For techniques like particle-emitter, mask-reveal, cell-division - implement with physics-based animations, not simple fades.
+For techniques like particle-emitter, cards, counters, flowing-streams — use the implementations from `framer-motion` skill directly. Do NOT simplify or rewrite them.

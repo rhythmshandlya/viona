@@ -1,0 +1,41 @@
+# Viona
+
+> You Explain It. We Illustrate It.
+
+Viona is a web-based AI video editing platform that transforms talking-head videos into visually-rich content. Upload a video, and our AI analyzes your transcript to automatically generate contextual visuals—charts, diagrams, flowcharts, and graphics—synced precisely to your explanations.
+
+## Core Features
+
+- **AI Visual Generation**: Automatically creates flowcharts, timelines, bar charts, Venn diagrams, comparison matrices, stat cards, and more based on your spoken content.
+- **Smart Transcription**: Processes audio to produce accurate transcripts with word-level timestamps.
+- **20+ Caption Presets**: Animated subtitle styles including viral formats (MrBeast, Hormozi, Ali Abdaal), cinematic (Netflix, typewriter), and display modes (karaoke, word-by-word).
+- **AI Chat Editor**: Refine any generated visual with natural language—"make this chart blue" or "use a pie chart instead."
+- **Multi-Format Export**: Export the same project in 9:16 (Reels/Shorts), 16:9 (YouTube), and 1:1 (Instagram) from a single timeline.
+- **Safe Zone Preview**: See how your content appears across platforms before exporting.
+- **Custom Font & Color Theming**: Full control over typography, colors, glow effects, and positioning.
+
+## Use Cases
+
+- Course creators producing educational content
+- YouTube creators adding professional visuals to explainer videos
+- Social media managers repurposing long-form content across platforms
+- Product trainers building internal training materials
+- Marketing teams creating explainer videos at scale
+
+## Pricing
+
+- **Starter (Free)**: 5 videos/month, 720p export, watermark
+- **Pro ($29/month)**: 30 videos/month, 4K export, no watermark, priority processing
+- **Team ($79/month)**: 100 videos/month, 4K export, team collaboration, API access
+
+## Supported Formats
+
+- Upload: MP4, MOV, WebM (up to 60 minutes)
+- Export: MP4 (720p, 1080p, 4K)
+
+## Links
+
+- Website: https://viona.app
+- Studio: https://studio.viona.app
+- Pricing: https://viona.app/pricing/
+- About: https://viona.app/about/

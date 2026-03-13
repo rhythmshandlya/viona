@@ -243,6 +243,7 @@ async function callLLM(prompt: string): Promise<string> {
   // Try Anthropic SDK first (direct or via proxy), fall back to OpenRouter
   if (process.env.ANTHROPIC_API_KEY || process.env.CLAUDE_MAX_PROXY_URL) {
     try {
+      // @ts-expect-error — @anthropic-ai/sdk installed at runtime via Claude Code OAuth
       const Anthropic = (await import('@anthropic-ai/sdk')).default;
       const config: Record<string, string> = {};
       if (process.env.CLAUDE_MAX_PROXY_URL) {

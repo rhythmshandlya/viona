@@ -33,6 +33,7 @@ export interface VideoItemData {
   previewUrl?: string;
   muted?: boolean;
   separatedAudioItemId?: string;
+  segmentation?: SegmentationData;  // NEW: speaker segmentation data
 }
 
 export interface AudioItemData {
@@ -363,11 +364,32 @@ export interface ImageItemData {
 
 export type VisualDisplayMode = 'default' | 'fullscreen' | 'overlay';
 
+export type OverlayZone = 'behind' | 'lower-third' | 'top' | 'frame' | 'background' | 'none';
+
+export interface FaceBbox {
+  frame: number;
+  x: number;      // 0-1 normalized (left edge)
+  y: number;      // 0-1 normalized (top edge)
+  width: number;  // 0-1 normalized
+  height: number; // 0-1 normalized
+  confidence: number;
+}
+
+export interface SegmentationData {
+  status: 'pending' | 'processing' | 'ready' | 'failed';
+  progress?: number;
+  maskPath?: string;           // Path to mask images (e.g., /videos/{id}/masks/)
+  maskFps?: number;            // Frame rate of masks (e.g., 10)
+  faceBboxTimeline?: FaceBbox[];
+  error?: string;
+}
+
 export interface VisualItemData {
   visualId: string;
   compositionId: string;
   bundleUrl: string;
-  videoUrl?: string; // Rendered video URL for playback
+  videoUrl?: string; // Stream URL for preview (e.g., /api/youtube/proxy/{tokenId})
+  sourceVideoUrl?: string; // Original YouTube URL for export download
   type: string; // 'process' | 'chart' | 'diagram' etc.
   description: string;
   width: number;
@@ -381,15 +403,23 @@ export interface VisualItemData {
   effectiveHeight?: number;
   /** How this visual composites with speaker video. Defaults to 'default' for standard layout behavior. */
   displayMode?: VisualDisplayMode;
+  /** Zone-based positioning for overlay compositing */
+  overlayZone?: OverlayZone;
   /** Enter/exit transitions at segment boundaries */
   transition?: {
     enter: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
     exit: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
   };
-  /** Opacity for overlay mode (0-1). Default 0.85. Only used when displayMode === 'overlay'. */
-  overlayOpacity?: number;
   /** Speaker face bounding box for overlay masking (0-1 fractions of canvas). */
   speakerBbox?: { x: number; y: number; w: number; h: number };
+
+  // Template-based visual support (alternative to bundleUrl for registered templates)
+  /** Template slug from packages/templates registry (e.g., 'youtube-clip', 'watercolor-map') */
+  templateId?: string;
+  /** Props for the template component, validated against template schema */
+  templateProps?: Record<string, unknown>;
+  /** Whether this visual has an associated video clip (youtube-clip scenes) */
+  hasVideo?: boolean;
 }
 
 export interface BrollItemData {
@@ -557,6 +587,7 @@ export interface EditorState {
 
   // UI state
   isSaving: boolean;
+  isDirty: boolean;
 
   // Caption style toggle
   applyStyleToAll: boolean;
@@ -609,6 +640,7 @@ export interface EditorActions {
   // Project actions
   loadProject: (projectId: string) => Promise<void>;
   reloadVisuals: (projectId: string) => Promise<void>;
+  refreshMediaUrls: (projectId: string) => Promise<void>;
   saveProject: () => Promise<void>;
   setProject: (project: Project) => void;
 
@@ -722,7 +754,6 @@ export interface EditorActions {
 
   // Visual display mode
   updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => void;
-  updateOverlayOpacity: (itemId: string, opacity: number) => void;
   updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => void;
 
   // Transition picker
@@ -736,6 +767,9 @@ export interface EditorActions {
   // Scene split regeneration
   clearRegeneratingItems: (itemIds: string[]) => void;
   removeSplitJob: (jobId: string) => void;
+  // Overlay zone actions
+  updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => void;
+  getVideoSegmentation: (videoItemId: string) => SegmentationData | undefined;
 }
 
 export type EditorStore = EditorState & EditorActions;

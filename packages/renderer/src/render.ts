@@ -43,6 +43,11 @@ async function getBundleLocation(): Promise<string> {
   return bundleLocation;
 }
 
+/**
+ * @deprecated Use FullComposition + renderMedia() instead.
+ * This function is only kept for the no-visuals fallback paths.
+ * Will be removed when standalone FullComposition bundle is created.
+ */
 export async function renderVideo(options: RenderOptions): Promise<void> {
   const {
     videoUrl,
@@ -66,8 +71,10 @@ export async function renderVideo(options: RenderOptions): Promise<void> {
   // Copy the video file into the bundle directory so Remotion's dev server
   // can serve it via HTTP. Absolute paths don't work (they get concatenated
   // with the bundle root) and file:// URLs are rejected by Remotion.
+  // Handle both Unix (/) and Windows (C:\) absolute paths.
   let resolvedVideoUrl = videoUrl;
-  if (videoUrl.startsWith('/') && existsSync(videoUrl)) {
+  const isAbsolutePath = videoUrl.startsWith('/') || /^[A-Za-z]:[\\/]/.test(videoUrl);
+  if (isAbsolutePath && existsSync(videoUrl)) {
     const videoFileName = basename(videoUrl);
     const destPath = join(bundlePath, videoFileName);
     if (!existsSync(destPath)) {

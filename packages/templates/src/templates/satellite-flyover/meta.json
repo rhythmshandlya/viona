@@ -1,0 +1,24 @@
+{
+  "slug": "satellite-flyover",
+  "name": "Satellite Flyover",
+  "description": "Cinematic satellite imagery pan following a route with cloud overlays and documentary-style labels",
+  "category": "geographic",
+  "tags": [
+    "map",
+    "satellite",
+    "aerial",
+    "cinematic",
+    "documentary",
+    "flyover",
+    "earth",
+    "landscape",
+    "travel",
+    "nature",
+    "drone"
+  ],
+  "stylePreset": "cleanMinimal",
+  "aspectRatio": "16:9",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

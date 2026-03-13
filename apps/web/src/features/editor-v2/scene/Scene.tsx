@@ -11,6 +11,7 @@ import { Player } from '../player/Player';
 import { useProject, useSelectedElement, useElementPickerEnabled, useInspectModeEnabled, useIsPlaying } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
 import { ElementInspectOverlay } from './ElementInspectOverlay';
+import { VideoDragOverlay } from '../components/VideoDragOverlay';
 import { CaptionDragOverlay } from '../components/CaptionDragOverlay';
 import { PiPDragOverlay } from '../components/PiPDragOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
@@ -165,6 +166,13 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
           }}
         >
           <Player />
+
+          {/* Video drag-to-position overlay */}
+          <VideoDragOverlay
+            containerRef={playerContainerRef}
+            canvasWidth={videoWidth}
+            canvasHeight={videoHeight}
+          />
 
           {/* Element inspect mode overlay */}
           {inspectModeEnabled && !isPlaying && (
