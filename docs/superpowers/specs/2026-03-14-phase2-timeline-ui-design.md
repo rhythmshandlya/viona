@@ -47,6 +47,16 @@ The store updates locally first (optimistic) then dispatches to sandbox. This ke
 
 ### Store Type Changes
 
+Update `TimelineItemType` in `store/types.ts` to include v2 item types:
+
+```typescript
+// Current: 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll'
+// Updated: add 'scene' and 'shape', keep 'visual' and 'broll' for backward compat
+export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll' | 'scene' | 'shape';
+```
+
+The `scene` type is the v2 equivalent of `visual` (AI-generated Remotion compositions). `shape` is new (rectangles, circles, lines). Both `visual` and `scene` can coexist — `visual` from v1 manifests, `scene` from v2 manifests.
+
 Add to `TimelineItem` in `store/types.ts`:
 
 ```typescript
@@ -69,29 +79,43 @@ interface Transform {
 interface Keyframe {
   timeMs: number;
   props: Partial<Transform>;
-  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'spring';
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'spring' | `cubic-bezier(${string})`;
 }
 
 interface Filters {
-  brightness?: number;
-  contrast?: number;
-  saturation?: number;
-  blur?: number;
-  hue?: number;
-  grayscale?: number;
-  sepia?: number;
+  brightness?: number;  // 0–2, default 1 (maps to CSS filter 0%–200%)
+  contrast?: number;    // 0–2, default 1
+  saturation?: number;  // 0–2, default 1
+  blur?: number;        // 0–50, default 0 (pixels)
+  hue?: number;         // -180–180, default 0 (degrees)
+  grayscale?: number;   // 0–1, default 0
+  sepia?: number;       // 0–1, default 0
+}
+```
+
+Add `ShapeItemData` type for `shape` items (field name `shape` matches v2 Zod schema `shapeItemDataV2Schema`):
+
+```typescript
+interface ShapeItemData {
+  shape: 'rectangle' | 'circle' | 'line';  // NOT 'shapeType' — matches manifest-v2.ts
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  borderRadius?: number;
 }
 ```
 
 ### manifestToStore() Updates
 
-Detect manifest version. For v2 manifests:
+Detect manifest version (check for `version: 2` field or presence of per-item `transform` fields). For v2 manifests:
 
-- Map v2 track types directly (`video|audio|overlay|caption`). The store track types need to accept `overlay` as a valid type.
+- Map v2 track types directly (`video|audio|overlay|caption`). The store `Track['type']` union needs to accept `overlay` as a valid type (add it alongside existing types).
 - Read per-item `transform`, `keyframes`, `filters` into the new store fields.
-- Map v2 item types: `scene` → store's `visual` type (with sceneFile in data), `shape` → new store type.
-- No global `layout` to process — transforms are per-item.
-- Store `assets` map in store state for player access.
+- Map v2 item types directly — `scene` maps to store's `scene` type (not `visual`), `shape` maps to `shape`. The v2 tools accept `scene` directly.
+- **layoutSettings**: v2 manifests don't have a global `layout` field. When converting v2, return default `layoutSettings` (stacked mode with defaults). The `ManifestToStoreResult` keeps `layoutSettings` for backward compat with v1 manifests but the properties panel ignores it for v2 — per-item transforms replace global layout.
+- **videoSettings**: v2 manifests don't use global `videoSettings` (crop/scale). Return defaults (`cropX: 50, cropY: 50, scale: 1`) and use `canvas.width/height` for dimensions. Per-item crop is in `item.data.crop` for video items.
+- **ManifestToStoreContext**: Update to make `videoUrl` optional for v2 (v2 uses `assets` map for source URLs). Add `assets?: Record<string, string>` field. For v2, store `assets` map in the editor store state for player access.
+- Store `assets` map in a new `assets` field on the store state (alongside existing fields).
 - Caption word timestamps: v2 stores absolute timestamps. Convert to relative (relative to item.startMs) for the store, matching existing store convention.
 
 ### storeToManifest() (New)
@@ -104,30 +128,67 @@ Reverse conversion for persistence. Called when syncing store → sandbox:
 - Convert caption word timestamps from relative back to absolute.
 - Build `assets` map from store state.
 
+### Sandbox API for Granular Ops
+
+The sandbox's `PATCH /manifest` endpoint currently replaces the entire manifest via `updateManifestTool`. The sandbox also has granular tools (`addTrack`, `updateItem`, `removeItem`, etc.) but they're only accessible via the agent MCP interface, not HTTP.
+
+**Solution:** Add a new `POST /ops` endpoint to the sandbox agent-server that accepts an operation name + input and routes to the correct granular tool:
+
+```typescript
+// In agent-server.ts
+app.post('/ops', async (req, res) => {
+  const { tool, input } = req.body;
+  const toolMap: Record<string, any> = {
+    addTrack: addTrackTool,
+    updateTrack: updateTrackTool,
+    removeTrack: removeTrackTool,
+    addItem: addItemTool,
+    updateItem: updateItemTool,
+    removeItem: removeItemTool,
+    splitVideo: splitVideoTool,
+  };
+  const t = toolMap[tool];
+  if (!t) return res.status(400).json({ error: `Unknown tool: ${tool}` });
+  const resultStr = await t.execute(input);
+  // Tools return strings — parse to detect errors vs structured results
+  try {
+    const parsed = JSON.parse(resultStr);
+    res.json({ ok: true, result: parsed });
+  } catch {
+    // Non-JSON result = error message (e.g., "Item not found: ...")
+    res.status(400).json({ ok: false, error: resultStr });
+  }
+});
+```
+
+**Note:** All manifest tools return strings (JSON-stringified objects on success, error message strings on failure). They don't throw — errors are returned as plain text like `"Item not found: item-abc"`. The `/ops` endpoint parses the result to detect success vs failure and uses appropriate HTTP status codes so `dispatchToSandbox()` can rely on response status.
+
+This reuses the existing tool implementations with their mutex, deep-merge, and `notifyManifestUpdated()` calls.
+
 ### Manifest Op Mapping
 
-The sandbox already has granular tools (from Phase 1 Task 10). Map store actions to sandbox API calls:
+Map store actions to sandbox ops via `POST /ops`:
 
-| Store Action | Sandbox Endpoint | Notes |
+| Store Action | Sandbox Tool | Notes |
 |---|---|---|
-| `moveItem` | `PATCH /manifest` with `updateItem` tool | startMs, endMs, trackId |
-| `resizeItem` | `PATCH /manifest` with `updateItem` tool | startMs, endMs |
-| `updateItem` | `PATCH /manifest` with `updateItem` tool | any field |
-| `updateItemData` | `PATCH /manifest` with `updateItem` tool | data deep-merge |
-| `addItem` | `PATCH /manifest` with `addItem` tool | full item |
-| `deleteItems` | `PATCH /manifest` with `removeItem` tool | per item |
-| `addTrack` | `PATCH /manifest` with `addTrack` tool | type, name |
-| `deleteTrack` | `PATCH /manifest` with `removeTrack` tool | trackId |
-| `updateTrack` | `PATCH /manifest` with `updateTrack` tool | name, position |
-| `reorderTracks` | `PATCH /manifest` with `updateTrack` tool | position per track |
-| `splitItem` | `PATCH /manifest` with `splitVideo` tool | itemId, atMs |
-| `nudgeItems` | `PATCH /manifest` with `updateItem` tool | startMs, endMs per item |
-| `trimItems` | `PATCH /manifest` with `updateItem` tool | startMs or endMs |
-| `pasteItems` | `PATCH /manifest` with `addItem` tool | per item |
-| `duplicateItems` | `PATCH /manifest` with `addItem` tool | per item |
-| `updateTransform` | `PATCH /manifest` with `updateItem` tool | transform deep-merge |
-| `updateFilters` | `PATCH /manifest` with `updateItem` tool | filters deep-merge |
-| `updateKeyframes` | `PATCH /manifest` with `updateItem` tool | keyframes replace |
+| `moveItem` | `updateItem` | startMs, endMs, trackId |
+| `resizeItem` | `updateItem` | startMs, endMs |
+| `updateItem` | `updateItem` | any field |
+| `updateItemData` | `updateItem` | data deep-merge |
+| `addItem` | `addItem` | full item |
+| `deleteItems` | `removeItem` | per item |
+| `addTrack` | `addTrack` | type, name |
+| `deleteTrack` | `removeTrack` | trackId |
+| `updateTrack` | `updateTrack` | name, position |
+| `reorderTracks` | `updateTrack` | position per track |
+| `splitItem` | `splitVideo` (video only) or `removeItem` + 2× `addItem` (other types) | itemId, atMs |
+| `nudgeItems` | `updateItem` | startMs, endMs per item |
+| `trimItems` | `updateItem` | startMs or endMs |
+| `pasteItems` | `addItem` | per item |
+| `duplicateItems` | `addItem` | per item |
+| `updateTransform` | `updateItem` | transform deep-merge |
+| `updateFilters` | `updateItem` | filters deep-merge |
+| `updateKeyframes` | `updateItem` | keyframes replace |
 
 ### Dispatch Helper
 
@@ -140,9 +201,17 @@ async function dispatchToSandbox(
 ): Promise<void>
 ```
 
-This replaces the old `dispatchManifestOp()` which called the workspace service. The new version calls the sandbox API at `PATCH /api/projects/:id/sandbox/manifest` with the appropriate tool invocation.
+Each `SandboxOp` has `{ tool: string; input: object }`. The dispatch helper calls `POST /api/projects/:id/sandbox/ops` which the API proxies to the sandbox's `POST /ops` endpoint.
 
 For batch operations (e.g., `deleteItems` with multiple IDs, `nudgeItems` with multiple items), send ops sequentially to the sandbox (the mutex in manifest-ops.ts handles serialization).
+
+### Implementation Notes
+
+**splitVideo limitation:** The sandbox `splitVideo` tool only works on `video` type items. For splitting captions, audio, or other types, `dispatchToSandbox()` should decompose into `removeItem` + two `addItem` ops (calculating the split data client-side).
+
+**updateManifestTool gap:** The existing `PATCH /manifest` endpoint (which calls `updateManifestTool`) does NOT call `notifyManifestUpdated()` — it only calls `triggerRebuild()`. This is a pre-existing issue. As a Phase 2 prerequisite, add `notifyManifestUpdated()` to `updateManifestTool.execute()` so that any code path writing to manifest.json triggers the DB sync flow. However, since Phase 2 uses `POST /ops` (which routes to granular tools that already call `notifyManifestUpdated()`), this gap only affects the agent's direct manifest writes.
+
+**v2 asset resolution:** In v2 manifests, `item.data.src` contains an asset key (e.g., `"source.mp4"`) that maps to a presigned URL via the manifest's `assets` map. The `manifestToStore()` function should resolve these: `const resolvedSrc = assets[item.data.src] ?? item.data.src`. If `assets` is unavailable (e.g., sandbox not booted yet), fall back to the raw src value. Store the `assets` map in a new `assets: Record<string, string>` field on the editor store state for the player.
 
 ---
 
@@ -224,15 +293,19 @@ Layout: two-column grid for X/Y and W/H, single row for Rotation and Opacity.
 
 #### Filters Tab
 
-| Control | Type | Range | Default |
-|---|---|---|---|
-| Brightness | Slider + numeric | 0–200% | 100% |
-| Contrast | Slider + numeric | 0–200% | 100% |
-| Saturation | Slider + numeric | 0–200% | 100% |
-| Blur | Slider + numeric | 0–50px | 0 |
-| Hue | Slider + numeric | -180° to 180° | 0° |
-| Grayscale | Slider + numeric | 0–100% | 0% |
-| Sepia | Slider + numeric | 0–100% | 0% |
+The UI shows percentages for user-friendliness, but the store and manifest use **decimal values** (matching CSS filter function conventions and `TransformWrapper.tsx`'s `buildFilterString()`):
+
+| Control | UI Range | Store Value Range | Default (store) | CSS Function |
+|---|---|---|---|---|
+| Brightness | 0–200% | 0–2 | 1 | `brightness(1)` |
+| Contrast | 0–200% | 0–2 | 1 | `contrast(1)` |
+| Saturation | 0–200% | 0–2 | 1 | `saturate(1)` |
+| Blur | 0–50px | 0–50 | 0 | `blur(0px)` |
+| Hue | -180° to 180° | -180–180 | 0 | `hue-rotate(0deg)` |
+| Grayscale | 0–100% | 0–1 | 0 | `grayscale(0)` |
+| Sepia | 0–100% | 0–1 | 0 | `sepia(0)` |
+
+The slider component converts between UI percentage and store decimal (e.g., brightness slider at 150% → store value 1.5). No conversion needed when writing to manifest — store values pass through directly.
 
 Each filter has a reset button (appears when non-default). "Reset All Filters" button at top.
 
@@ -321,7 +394,34 @@ A table below the curve editor:
 
 ### Easing Extension
 
-The v2 schema defines easing as `'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'spring'`. Extend to also accept `cubic-bezier(...)` strings for custom curves. The `TransformWrapper.tsx` component needs a corresponding update to parse and apply custom bezier curves via Remotion's `interpolate()` with custom easing functions.
+The v2 schema defines easing as `'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'spring'`. Extend to also accept `cubic-bezier(...)` strings for custom curves.
+
+**Zod schema change** in `packages/shared/src/manifest.ts` — wherever keyframe easing is validated, change from a strict enum to a union:
+
+```typescript
+const easingSchema = z.union([
+  z.enum(['linear', 'ease-in', 'ease-out', 'ease-in-out', 'spring']),
+  z.string().regex(/^cubic-bezier\(\s*[\d.]+\s*,\s*[\d.-]+\s*,\s*[\d.]+\s*,\s*[\d.-]+\s*\)$/),
+]);
+```
+
+**TransformWrapper.tsx update** — add cubic-bezier parsing to `getEasingFn()`:
+
+```typescript
+function getEasingFn(easing?: string): ((t: number) => number) | undefined {
+  if (!easing) return undefined;
+  if (easing.startsWith('cubic-bezier(')) {
+    const match = easing.match(/cubic-bezier\(([\d.]+),\s*([\d.-]+),\s*([\d.]+),\s*([\d.-]+)\)/);
+    if (match) {
+      const [, x1, y1, x2, y2] = match.map(Number);
+      return Easing.bezier(x1, y1, x2, y2);
+    }
+  }
+  // ... existing switch cases ...
+}
+```
+
+Remotion's `Easing.bezier(x1, y1, x2, y2)` returns a function compatible with `interpolate()`'s `easing` option.
 
 ---
 
@@ -513,7 +613,7 @@ apps/web/src/features/editor-v2/
   timeline/interactions/DragManager.ts — keyframe diamond drag
   timeline/ContextMenu.tsx        — add v2 context menu items
 
-packages/api/src/sandbox/routes.ts — update manifest-updated handler to sync DB
+packages/api/src/sandbox/routes.ts — update POST /internal/sandbox/:id/manifest-updated handler: add debounced call to syncManifestToDb() after fetching manifest from sandbox, add proxy route for POST /ops endpoint
 packages/sandbox/template/src/composition/TransformWrapper.tsx — custom bezier easing
 ```
 
