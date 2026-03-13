@@ -8,8 +8,8 @@ import { logger } from '../logger.js';
 import { withProjectMutex } from './mutex.js';
 import { proxyFileRequest, proxyPrompt, proxyManifestOp } from './proxy.js';
 import { touchActivity, onSandboxIdle, removeActivity } from './health.js';
-import { dbToManifest, manifestToDb, manifestSchema } from '@viona/shared';
-import { redis } from '../services/redis.js';
+import { dbToManifest } from '@viona/shared';
+import { emitWorkspaceReady, emitBundleReady, emitWorkspaceTeardown } from '../workspace/workspace-ws.js';
 import type { SandboxProvider } from './provider.js';
 import { DockerSandboxProvider } from './docker.js';
 
@@ -296,10 +296,8 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
     const projectId = await validateInternalCallback(request, reply);
     if (!projectId) return;
     logger.info({ projectId }, 'Sandbox reports ready');
-    await redis.publish(`project:${projectId}`, JSON.stringify({
-      type: 'sandbox:ready',
-      projectId,
-    }));
+    const bundleBaseUrl = `/api/projects/${projectId}/sandbox/bundle`;
+    await emitWorkspaceReady(projectId, { bundleUrl: bundleBaseUrl });
     return { ok: true };
   });
 
@@ -309,64 +307,17 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
     if (!projectId) return;
     const { version } = request.body as { version: number };
     logger.info({ projectId, version }, 'Bundle ready');
-    await redis.publish(`project:${projectId}`, JSON.stringify({
-      type: 'bundle:ready',
-      projectId,
-      version,
-    }));
+    const bundleBaseUrl = `/api/projects/${projectId}/sandbox/bundle`;
+    await emitBundleReady(projectId, { bundleUrl: bundleBaseUrl });
     return { ok: true };
   });
 
-  // POST /internal/sandbox/:id/checkpoint — Full manifest sync
+  // POST /internal/sandbox/:id/checkpoint — Accept but don't persist to DB
   fastify.post('/internal/sandbox/:id/checkpoint', async (request, reply) => {
     const projectId = await validateInternalCallback(request, reply);
     if (!projectId) return;
-    const { manifest } = request.body as { manifest: object };
-
-    try {
-      const parsed = manifestSchema.parse(manifest);
-      const { tracks: manifestTracks, items: manifestItems, videoSettings } = manifestToDb(parsed);
-
-      await db.transaction(async (tx) => {
-        await tx.update(projects)
-          .set({
-            videoSettings: videoSettings as any,
-            durationMs: Math.round(parsed.durationMs),
-          })
-          .where(eq(projects.id, projectId));
-
-        await tx.delete(tracks).where(eq(tracks.projectId, projectId));
-
-        for (const t of manifestTracks) {
-          await tx.insert(tracks).values({
-            id: t.id,
-            projectId,
-            type: t.type,
-            name: t.name,
-            position: t.position,
-            locked: false,
-            visible: true,
-          });
-        }
-
-        for (const item of manifestItems) {
-          await tx.insert(timelineItems).values({
-            id: item.id,
-            trackId: item.trackId,
-            type: item.type,
-            startMs: item.startMs,
-            endMs: item.endMs,
-            data: item.data as any,
-          });
-        }
-      });
-
-      logger.debug({ projectId }, 'Manifest checkpoint saved (full sync)');
-    } catch (err) {
-      logger.error({ err, projectId }, 'Checkpoint save failed');
-      return reply.status(500).send({ error: 'Checkpoint failed' });
-    }
-
+    // Checkpoint data lives in sandbox volume only — no DB sync
+    logger.debug({ projectId }, 'Checkpoint received (not persisted to DB)');
     return { ok: true };
   });
 }
@@ -417,10 +368,7 @@ async function suspendSandbox(projectId: string): Promise<void> {
 
       removeActivity(projectId);
 
-      await redis.publish(`project:${projectId}`, JSON.stringify({
-        type: 'sandbox:destroyed',
-        projectId,
-      }));
+      await emitWorkspaceTeardown(projectId);
 
       logger.info({ projectId }, 'Sandbox suspended');
     } catch (err) {
