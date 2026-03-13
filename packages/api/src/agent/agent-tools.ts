@@ -40,9 +40,7 @@ export const TOOL_NAMES = [
   `mcp__${MCP_SERVER_NAME}__edit_visuals`,
   `mcp__${MCP_SERVER_NAME}__search_youtube`,
   `mcp__${MCP_SERVER_NAME}__read_manifest`,
-  `mcp__${MCP_SERVER_NAME}__set_layout`,
-  `mcp__${MCP_SERVER_NAME}__set_display_mode`,
-  `mcp__${MCP_SERVER_NAME}__set_transition`,
+  // set_layout, set_display_mode, set_transition removed — v2 uses AI-generated Composition.tsx
   `mcp__${MCP_SERVER_NAME}__move_item`,
   `mcp__${MCP_SERVER_NAME}__update_caption_style`,
   `mcp__${MCP_SERVER_NAME}__split_scene`,
