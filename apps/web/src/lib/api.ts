@@ -758,6 +758,7 @@ class ApiClient {
     workspaceStatus: string;
     cachedBundleUrl?: string | null;
     bundleUrl?: string | null;
+    bundleReady?: boolean;
   }> {
     return this.request(`/api/projects/${projectId}/workspace`, {
       method: 'POST',
@@ -821,7 +822,86 @@ class ApiClient {
 
   /** Get the base URL for workspace bundle assets */
   getWorkspaceBundleUrl(projectId: string): string {
-    return `${this.baseUrl}/api/projects/${projectId}/workspace/bundle`;
+    return `/api/projects/${projectId}/workspace/bundle`;
+  }
+
+  // ---- Sandbox ----
+
+  /** Spin up (or resume) a sandbox for this project */
+  async createSandbox(projectId: string): Promise<{ status: string; internalUrl: string }> {
+    return this.request(`/api/projects/${projectId}/sandbox`, {
+      method: 'POST',
+    });
+  }
+
+  /** Get sandbox status */
+  async getSandboxStatus(projectId: string): Promise<{ status: string; previewUrl: string | null }> {
+    return this.request(`/api/projects/${projectId}/sandbox/status`);
+  }
+
+  /** Suspend sandbox */
+  async suspendSandbox(projectId: string): Promise<{ status: string }> {
+    return this.request(`/api/projects/${projectId}/sandbox`, {
+      method: 'DELETE',
+    });
+  }
+
+  /** Read manifest from active sandbox */
+  async readSandboxManifest(projectId: string): Promise<any> {
+    return this.request(`/api/projects/${projectId}/sandbox/manifest`);
+  }
+
+  /** Apply manifest operation to sandbox */
+  async applySandboxManifestOp(projectId: string, op: Record<string, unknown>): Promise<any> {
+    return this.request(`/api/projects/${projectId}/sandbox/manifest`, {
+      method: 'PATCH',
+      body: JSON.stringify(op),
+    });
+  }
+
+  /** Get the base URL for sandbox bundle assets */
+  getSandboxBundleUrl(projectId: string): string {
+    return `/api/projects/${projectId}/sandbox/bundle`;
+  }
+
+  /** Send prompt to sandbox agent — returns SSE stream.
+   * Note: context/widgetResponse/lastEventId not yet supported by sandbox agent (Phase 2).
+   */
+  async chatWithSandboxAgent(
+    projectId: string,
+    body: {
+      prompt: string;
+      conversationId?: string;
+    },
+    signal?: AbortSignal,
+  ): Promise<ReadableStream<Uint8Array>> {
+    const url = `${this.baseUrl}/api/projects/${projectId}/sandbox/prompt`;
+    const token = getSessionToken();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(body),
+      signal,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+      throw new Error(error.error || `Request failed: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('No response body');
+    }
+
+    return response.body;
   }
 }
 
