@@ -20,7 +20,6 @@ FROM base AS deps
 
 # Copy workspace config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
 
 # Copy package.json files for all packages needed
 COPY packages/shared/package.json ./packages/shared/
@@ -44,7 +43,6 @@ COPY --from=deps /app/packages/worker/node_modules ./packages/worker/node_module
 
 # Copy source files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
 COPY packages/shared ./packages/shared
 COPY packages/renderer ./packages/renderer
 COPY packages/templates ./packages/templates
@@ -148,7 +146,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy package files for production install
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/renderer/package.json ./packages/renderer/
 COPY packages/templates/package.json ./packages/templates/
