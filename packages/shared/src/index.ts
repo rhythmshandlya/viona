@@ -7,3 +7,4 @@ export * from './manifest';
 export * from './manifest-ops';
 export * from './manifest-convert';
 export * from './manifest-v2';
+export * from './manifest-migrate';
