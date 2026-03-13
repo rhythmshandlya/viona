@@ -5,6 +5,13 @@ import { spawn } from 'child_process';
 import { workspaceConfig, getWorkspacePath, getWorkspaceSrcPath } from './workspace-config.js';
 import { emitBundleReady, emitBundleError } from './workspace-ws.js';
 
+// Resolve binaries from packages/worker which has both remotion and esbuild installed
+const WORKER_ROOT = resolve(process.cwd(), '..', 'worker');
+const WORKER_BIN = join(WORKER_ROOT, 'node_modules', '.bin');
+const REMOTION_TEMPLATE_DIR = join(WORKER_ROOT, 'remotion-template');
+const REMOTION_BIN = join(WORKER_BIN, process.platform === 'win32' ? 'remotion.CMD' : 'remotion');
+const ESBUILD_BIN = join(WORKER_BIN, process.platform === 'win32' ? 'esbuild.CMD' : 'esbuild');
+
 interface BuildRequest {
   projectId: string;
   priority: 'user' | 'background';
@@ -29,7 +36,7 @@ class BundlerService {
     const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
     this.bundleOutputDir = resolve(
       process.env.BUNDLE_OUTPUT_DIR ||
-      (isProduction ? '/tmp/bundles' : join(process.cwd(), '..', 'bundles'))
+      (isProduction ? '/tmp/bundles' : join(process.cwd(), '..', '..', 'bundles'))
     );
   }
 
@@ -74,7 +81,7 @@ class BundlerService {
     try {
       const bundlePath = await this.buildBundle(request.projectId);
       request.resolve(bundlePath);
-      await emitBundleReady(request.projectId, { bundleUrl: `/api/workspace/${request.projectId}/bundle/` });
+      await emitBundleReady(request.projectId, { bundleUrl: `/api/projects/${request.projectId}/workspace/bundle` });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown build error';
       request.reject(error instanceof Error ? error : new Error(message));
@@ -100,12 +107,18 @@ class BundlerService {
     // Ensure output directory exists
     await mkdir(outDir, { recursive: true });
 
-    // Run Remotion bundle
-    const entryPoint = join(srcPath, 'index.tsx');
-    await this.runRemotionBundle(entryPoint, outDir, workspacePath);
-
-    // Compile PlayerComposition to CJS (for frontend preview)
+    // Compile PlayerComposition to CJS (for frontend preview) — this is the critical path
+    // for the editor preview. Must run before the Remotion bundle which can fail.
     await this.compilePlayerCjs(srcPath, outDir);
+
+    // Run Remotion bundle (for server-side rendering/export) — non-blocking for preview.
+    // Uses remotion-template as cwd so Node resolves @remotion/* from worker's deps.
+    // Output to a subdirectory so it doesn't conflict with the CJS file above.
+    const entryPoint = resolve(srcPath, 'index.ts');
+    const remotionOutDir = resolve(outDir, 'remotion-bundle');
+    this.runRemotionBundle(entryPoint, remotionOutDir, REMOTION_TEMPLATE_DIR).catch((err) => {
+      console.warn(`[bundler] Remotion bundle failed (preview still works): ${err.message?.slice(0, 200)}`);
+    });
 
     // Update cache
     this.cache.set(projectId, { bundlePath: outDir, hash, builtAt: Date.now() });
@@ -116,21 +129,23 @@ class BundlerService {
   private runRemotionBundle(entryPoint: string, outDir: string, cwd: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const args = [
-        'remotion', 'bundle',
+        'bundle',
         entryPoint,
         '--out-dir', outDir,
         '--log', 'error',
       ];
 
-      const proc = spawn('npx', args, {
+      const proc = spawn(REMOTION_BIN, args, {
         cwd,
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: process.platform === 'win32',
       });
 
       let stderr = '';
+      let stdout = '';
       let settled = false;
       proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+      proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
 
       const timeout = setTimeout(() => {
         if (settled) return;
@@ -146,7 +161,10 @@ class BundlerService {
         if (code === 0) {
           resolve();
         } else {
-          reject(new Error(`Remotion bundle failed (exit ${code}): ${stderr.slice(0, 500)}`));
+          // Log full output for debugging, but keep error message reasonable
+          console.error(`[bundler] FULL STDERR (${stderr.length} chars):\n${stderr}`);
+          console.error(`[bundler] FULL STDOUT (${stdout.length} chars):\n${stdout}`);
+          reject(new Error(`Remotion bundle failed (exit ${code}): ${stderr.slice(-1000)}`));
         }
       });
 
@@ -165,7 +183,6 @@ class BundlerService {
       const cjsOutput = join(outDir, 'player-composition.cjs.js');
 
       const args = [
-        'esbuild',
         entryPoint,
         '--bundle',
         '--format=cjs',
@@ -184,7 +201,7 @@ class BundlerService {
         `--outfile=${cjsOutput}`,
       ];
 
-      const proc = spawn('npx', args, {
+      const proc = spawn(ESBUILD_BIN, args, {
         cwd: join(srcPath, '..'),
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: process.platform === 'win32',

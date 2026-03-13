@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile, readdir, rm, access, cp } from 'fs/promises';
+import { mkdir, writeFile, readFile, readdir, rm, access, cp, symlink } from 'fs/promises';
 import { join, resolve } from 'path';
 import { eq, inArray } from 'drizzle-orm';
 import {
@@ -93,7 +93,19 @@ export async function spinUpWorkspace(projectId: string): Promise<{ manifest: Ma
   const visualCompositionMap = buildVisualCompositionMap(dbItemsForScenes);
   remapManifestSceneFiles(manifest, visualCompositionMap, downloadedCompositions);
 
-  // 3c. Copy composition infrastructure from worker template
+  // 3c. Symlink node_modules so webpack can resolve @remotion/* and other packages
+  const workerNodeModules = resolve(process.cwd(), '..', 'worker', 'node_modules');
+  const workspaceNodeModules = join(workspacePath, 'node_modules');
+  try {
+    await symlink(workerNodeModules, workspaceNodeModules, 'junction');
+  } catch (err: any) {
+    // EEXIST is fine — symlink already exists from a previous spin-up
+    if (err.code !== 'EEXIST') {
+      console.warn(`[workspace] Failed to symlink node_modules:`, err);
+    }
+  }
+
+  // 3d. Copy composition infrastructure from worker template
   const templateCompositionDir = resolve(
     process.cwd(), '..', 'worker', 'remotion-template', 'src', 'composition',
   );
@@ -132,7 +144,7 @@ export async function spinUpWorkspace(projectId: string): Promise<{ manifest: Ma
   const cachedBundleUrl = project.activeBundleUrl ?? null;
   bundlerService.enqueueBuild(projectId, 'user').then(async () => {
     await emitWorkspaceReady(projectId, {
-      bundleUrl: `/api/workspace/${projectId}/bundle/`,
+      bundleUrl: `/api/projects/${projectId}/workspace/bundle`,
     });
   }).catch((err) => {
     console.error(`[workspace] Bundle build failed for ${projectId}:`, err);
@@ -222,9 +234,9 @@ export async function snapshotManifest(projectId: string): Promise<Manifest | nu
  * Check if a workspace is currently active.
  */
 export async function isWorkspaceActive(projectId: string): Promise<boolean> {
-  const workspacePath = getWorkspacePath(projectId);
+  const manifestPath = getManifestPath(projectId);
   try {
-    await access(workspacePath);
+    await access(manifestPath);
     return true;
   } catch {
     return false;

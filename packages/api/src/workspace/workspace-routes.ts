@@ -43,7 +43,25 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
     if (await isWorkspaceActive(id)) {
       const manifest = await readManifest(id);
       touchActivity(id);
-      return reply.send({ manifest, workspaceStatus: 'active', bundleUrl: null });
+
+      // Check if CJS bundle already exists — if so, tell frontend it's ready
+      const bundlePath = bundlerService.getBundlePath(id);
+      const cjsPath = join(bundlePath, 'player-composition.cjs.js');
+      let bundleReady = false;
+      try {
+        await stat(cjsPath);
+        bundleReady = true;
+      } catch {
+        // Bundle doesn't exist yet — trigger a build
+        bundlerService.enqueueBuild(id, 'user').catch(() => {});
+      }
+
+      return reply.send({
+        manifest,
+        workspaceStatus: 'active',
+        bundleUrl: bundleReady ? `/api/projects/${id}/workspace/bundle` : null,
+        bundleReady,
+      });
     }
 
     try {
