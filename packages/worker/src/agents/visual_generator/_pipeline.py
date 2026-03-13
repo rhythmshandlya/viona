@@ -101,23 +101,40 @@ class PipelineMixin:
 
                 # Check for resumable state from previous attempt
                 index_tsx_path = self.src_dir / "index.tsx"
+                composition_tsx_path = self.src_dir / "Composition.tsx"
+                segments_dir = self.src_dir / "segments"
                 metadata_path = self.src_dir / "metadata.json"
                 scenes_path = self.src_dir / "scenes.json"
-                can_resume = (
-                    attempt == 0
-                    and index_tsx_path.exists()
+                scenes_json_exists = scenes_path.exists()
+
+                # V1 checkpoint: index.tsx + metadata.json + scenes.json
+                has_v1_checkpoint = (
+                    index_tsx_path.exists()
                     and metadata_path.exists()
-                    and scenes_path.exists()
+                    and scenes_json_exists
                 )
+                # V2 checkpoint: Composition.tsx + segments/ + scenes.json
+                has_v2_checkpoint = (
+                    composition_tsx_path.exists()
+                    and segments_dir.is_dir()
+                    and scenes_json_exists
+                )
+                can_resume = attempt == 0 and (has_v1_checkpoint or has_v2_checkpoint)
 
                 if can_resume:
-                    print(f"[ClaudeGenerator] Found existing sources from previous attempt — skipping to TS verify + bundle")
+                    checkpoint_version = "v2" if has_v2_checkpoint else "v1"
+                    print(f"[ClaudeGenerator] Found existing sources ({checkpoint_version}) from previous attempt — skipping to TS verify + bundle")
                     emit_progress(55, "Resuming from previous attempt — skipping to verification...", {"phase": "self_heal", "phaseName": "Fixing errors"})
                     try:
                         with open(scenes_path, "r", encoding="utf-8") as f:
                             existing_scenes = json.load(f)
-                        scene_count = len(existing_scenes.get("scenes", []))
-                        print(f"[ClaudeGenerator] Resuming with {scene_count} existing scenes")
+                        version = existing_scenes.get("version", 1)
+                        if version >= 2:
+                            scene_count = len(existing_scenes.get("segments", []))
+                            print(f"[ClaudeGenerator] Resuming with {scene_count} existing segments (v2)")
+                        else:
+                            scene_count = len(existing_scenes.get("scenes", []))
+                            print(f"[ClaudeGenerator] Resuming with {scene_count} existing scenes (v1)")
                     except Exception:
                         scene_count = 0
 
@@ -155,8 +172,13 @@ class PipelineMixin:
                         raise RuntimeError(f"Director failed: {director_result.get('error', 'Unknown error')}")
 
                     scene_count = director_result['sceneCount']
-                    print(f"[ClaudeGenerator] Director created {scene_count} scenes")
-                    emit_progress(35, f"Director complete: {scene_count} scenes planned", {"phase": "plan", "phaseName": "Planning scenes", "totalScenes": scene_count})
+                    plan_version = director_result.get('version', 1)
+                    if plan_version >= 2:
+                        print(f"[ClaudeGenerator] Director created {scene_count} segments (v2)")
+                        emit_progress(35, f"Director complete: {scene_count} segments planned", {"phase": "plan", "phaseName": "Planning scenes", "totalScenes": scene_count})
+                    else:
+                        print(f"[ClaudeGenerator] Director created {scene_count} scenes")
+                        emit_progress(35, f"Director complete: {scene_count} scenes planned", {"phase": "plan", "phaseName": "Planning scenes", "totalScenes": scene_count})
 
                     # Phase 1.5: Fetch images
                     emit_progress(36, "Fetching images for scenes...", {"phase": "workspace", "phaseName": "Setting up workspace"})

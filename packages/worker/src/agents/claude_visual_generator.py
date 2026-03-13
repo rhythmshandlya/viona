@@ -291,14 +291,24 @@ async def _main_inner(args, heartbeat: HeartbeatEmitter):
         with open(scene_plan_path, encoding="utf-8") as f:
             plan_markdown = f.read()
 
+        plan_version = scenes_data.get("version", 1)
         plan_payload = {
             "scenePlan": plan_markdown,
             "scenes": scenes_data,
         }
+        if plan_version >= 2:
+            plan_payload["version"] = plan_version
+            plan_payload["segments"] = scenes_data.get("segments", [])
+            segment_count = len(plan_payload["segments"])
+            plan_payload["sceneCount"] = segment_count
         print(f"PLAN_READY:{json.dumps(plan_payload)}")
         sys.stdout.flush()
 
-        emit_progress(35, f"Director complete: {director_result.get('sceneCount', 0)} scenes planned", {"phase": "plan", "phaseName": "Planning scenes", "totalScenes": director_result.get('sceneCount', 0)})
+        scene_count = director_result.get('sceneCount', 0)
+        if plan_version >= 2:
+            emit_progress(35, f"Director complete: {scene_count} segments planned", {"phase": "plan", "phaseName": "Planning scenes", "totalScenes": scene_count})
+        else:
+            emit_progress(35, f"Director complete: {scene_count} scenes planned", {"phase": "plan", "phaseName": "Planning scenes", "totalScenes": scene_count})
 
         result = director_result
 
