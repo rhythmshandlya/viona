@@ -12,8 +12,18 @@ from typing import Any
 # Platform detection for subprocess shell parameter
 IS_WINDOWS = platform.system() == "Windows"
 
-# Add packages/mcp-servers to Python path for registry loader
-_MCP_SERVERS_PKG = Path(__file__).resolve().parent.parent.parent.parent / "mcp-servers"
+# Add packages/mcp-servers to Python path for registry loader.
+# Walk up to find the "worker" package root, then go to sibling "mcp-servers".
+def _find_mcp_servers_pkg() -> Path:
+    p = Path(__file__).resolve().parent
+    while p != p.parent:
+        if (p / "package.json").exists() and p.name == "worker":
+            return p.parent / "mcp-servers"
+        p = p.parent
+    # Fallback: assume src/agents layout (4 levels up)
+    return Path(__file__).resolve().parent.parent.parent.parent / "mcp-servers"
+
+_MCP_SERVERS_PKG = _find_mcp_servers_pkg()
 if str(_MCP_SERVERS_PKG) not in sys.path:
     sys.path.insert(0, str(_MCP_SERVERS_PKG))
 from registry import load_mcp_registry, validate_mcp_registry

@@ -25,10 +25,11 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/renderer/package.json ./packages/renderer/
 COPY packages/templates/package.json ./packages/templates/
+COPY packages/mcp-servers/package.json ./packages/mcp-servers/
 COPY packages/worker/package.json ./packages/worker/
 
 # Install dependencies
-RUN pnpm install --frozen-lockfile --filter @viona/worker...
+RUN pnpm install --frozen-lockfile --filter @viona/worker... --filter @viona/mcp-servers...
 
 # ============================================
 # Build stage
@@ -39,6 +40,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=deps /app/packages/renderer/node_modules ./packages/renderer/node_modules
 COPY --from=deps /app/packages/templates/node_modules ./packages/templates/node_modules
+COPY --from=deps /app/packages/mcp-servers/node_modules ./packages/mcp-servers/node_modules
 COPY --from=deps /app/packages/worker/node_modules ./packages/worker/node_modules
 
 # Copy source files
@@ -46,12 +48,14 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/shared ./packages/shared
 COPY packages/renderer ./packages/renderer
 COPY packages/templates ./packages/templates
+COPY packages/mcp-servers ./packages/mcp-servers
 COPY packages/worker ./packages/worker
 
 # Build packages in order
 RUN pnpm --filter @viona/shared build && \
     pnpm --filter @viona/renderer build && \
     pnpm --filter @viona/templates build && \
+    pnpm --filter @viona/mcp-servers build && \
     pnpm --filter @viona/worker build
 
 # ============================================
@@ -149,10 +153,11 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/renderer/package.json ./packages/renderer/
 COPY packages/templates/package.json ./packages/templates/
+COPY packages/mcp-servers/package.json ./packages/mcp-servers/
 COPY packages/worker/package.json ./packages/worker/
 
 # Install production dependencies only
-RUN pnpm install --frozen-lockfile --filter @viona/worker... --prod
+RUN pnpm install --frozen-lockfile --filter @viona/worker... --filter @viona/mcp-servers... --prod
 
 # Install Claude Code CLI globally for visual generation OAuth
 RUN npm install -g @anthropic-ai/claude-code
@@ -161,6 +166,11 @@ RUN npm install -g @anthropic-ai/claude-code
 COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
 # Copy themes directory (JSON assets not included by tsup build)
 COPY --from=builder /app/packages/worker/src/prompts/themes ./packages/worker/dist/themes
+# Copy mcp-servers package (Python registry + JSON config + built JS servers)
+COPY --from=builder /app/packages/mcp-servers/registry.py ./packages/mcp-servers/registry.py
+COPY --from=builder /app/packages/mcp-servers/mcp-servers.json ./packages/mcp-servers/mcp-servers.json
+COPY --from=builder /app/packages/mcp-servers/dist ./packages/mcp-servers/dist
+COPY --from=builder /app/packages/mcp-servers/node_modules ./packages/mcp-servers/node_modules
 # Copy agents folder to where the compiled JS expects it (../agents from dist/)
 COPY --from=builder /app/packages/worker/src/agents ./packages/worker/agents
 COPY --from=builder /app/packages/worker/scripts ./packages/worker/scripts
