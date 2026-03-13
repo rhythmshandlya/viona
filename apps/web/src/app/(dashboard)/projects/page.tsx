@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useDropzone } from "react-dropzone";
 import { api, UserProject } from "@/lib/api";
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload, JobErrorPayload } from "@/lib/ws";
@@ -208,19 +207,23 @@ function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) 
 function ProjectCard({
   project,
   onDelete,
+  onOpen,
+  isBooting,
   className,
 }: {
   project: UserProject;
   onDelete: (project: UserProject) => void;
+  onOpen: (projectId: string) => void;
+  isBooting: boolean;
   className?: string;
 }) {
   const status = getStatusConfig(project.status);
   const projectName = project.title || project.videoKey?.split("/").pop() || `Project ${project.id.slice(0, 8)}`;
 
   return (
-    <Link
-      href={`/project/${project.id}`}
-      className={`group block bg-white rounded-2xl shadow-card cursor-pointer overflow-hidden ${className || ""}`}
+    <div
+      onClick={() => !isBooting && onOpen(project.id)}
+      className={`group block bg-white rounded-2xl shadow-card cursor-pointer overflow-hidden ${isBooting ? "opacity-70" : ""} ${className || ""}`}
     >
       {/* Thumbnail Area */}
       <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-50 relative overflow-hidden">
@@ -246,6 +249,13 @@ function ProjectCard({
         <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-medium border ${status.className}`}>
           {status.label}
         </div>
+
+        {/* Booting Overlay */}
+        {isBooting && (
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
+            <Loader2 className="w-8 h-8 text-white animate-spin" />
+          </div>
+        )}
 
         {/* Play Button Overlay (on hover) */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -286,7 +296,7 @@ function ProjectCard({
           {formatDate(project.createdAt)}
         </p>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -829,12 +839,14 @@ function EmptyState() {
 // ============================================
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<UserProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserProject | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bootingProjectId, setBootingProjectId] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -867,6 +879,36 @@ export default function ProjectsPage() {
       setIsDeleting(false);
     }
   };
+
+  const handleOpenProject = useCallback(async (projectId: string) => {
+    if (bootingProjectId) return;
+    setBootingProjectId(projectId);
+
+    try {
+      const result = await api.createSandbox(projectId);
+
+      if (result.status === 'ready') {
+        router.push(`/project/${projectId}`);
+        return;
+      }
+
+      // Poll for readiness
+      for (let i = 0; i < 90; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const status = await api.getSandboxStatus(projectId);
+        if (status.status === 'ready') {
+          router.push(`/project/${projectId}`);
+          return;
+        }
+      }
+
+      throw new Error('Sandbox failed to start in time');
+    } catch (err) {
+      console.error('Failed to open project:', err);
+    } finally {
+      setBootingProjectId(null);
+    }
+  }, [bootingProjectId, router]);
 
   if (loading) {
     return (
@@ -929,6 +971,8 @@ export default function ProjectsPage() {
             key={project.id}
             project={project}
             onDelete={setDeleteTarget}
+            onOpen={handleOpenProject}
+            isBooting={bootingProjectId === project.id}
             className={`animate-fade-in-up ${getStaggerClass(index)}`}
           />
         ))}
