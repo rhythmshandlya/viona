@@ -142,7 +142,7 @@ async function cleanTempFiles(jobId: string, tempFiles: TempFiles): Promise<void
 /** Build subprocess args for the Python visual generator */
 function buildGeneratorArgs(options: ClaudeCodeOptions, tempFiles: TempFiles): string[] {
   const { projectId, durationFrames, fps, width, height, stylePreset, layoutMode, pipWidth, pipHeight, safePlacement, planJobId } = options;
-  const agentScript = join(__dirname, '..', '..', 'agents', 'claude_visual_generator.py');
+  const agentScript = join(__dirname, '..', 'agents', 'claude_visual_generator.py');
   const workspacePath = getWorkspacePath();
   const bundleOutputDir = config.remotion.bundleOutputDir;
 
