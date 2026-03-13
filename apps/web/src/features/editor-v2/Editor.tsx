@@ -195,7 +195,7 @@ export function Editor({ projectId }: EditorProps) {
     onManifestUpdated: async (data) => {
       if (data.source === 'ai' && projectId) {
         try {
-          const manifest = await api.readManifest(projectId);
+          const manifest = await api.readSandboxManifest(projectId);
           useEditorStore.getState().applyRemoteManifestUpdate(manifest);
         } catch (err) {
           console.error('Failed to apply remote manifest update:', err);
@@ -227,13 +227,13 @@ export function Editor({ projectId }: EditorProps) {
     },
   });
 
-  // Workspace cleanup on unmount (Plan 3)
+  // Sandbox cleanup on unmount
   useEffect(() => {
     return () => {
       const state = useEditorStore.getState();
-      if (state.project && state.workspaceStatus === 'active') {
-        api.tearDownWorkspace(state.project.id).catch((err: any) => {
-          console.warn('Failed to tear down workspace on unmount:', err);
+      if (state.project && state.sandboxStatus === 'ready') {
+        api.suspendSandbox(state.project.id).catch((err: any) => {
+          console.warn('Failed to suspend sandbox on unmount:', err);
         });
       }
     };
