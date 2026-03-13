@@ -649,6 +649,11 @@ export interface EditorState {
   safeZonePlatform: string;  // 'tiktok' | 'instagram-reels' | etc.
   showSafeZone: boolean;
 
+  // Sandbox state (replaces workspace state)
+  sandboxStatus: 'inactive' | 'creating' | 'ready' | 'suspending';
+  sandboxPreviewUrl: string | null;
+  sandboxBundleVersion: number;
+
   // Visual scene regeneration tracking (not persisted to DB)
   regeneratingVisualItemIds: Set<string>;
   splitJobToItems: Record<string, [string, string]>;  // jobId -> [leftId, rightId]
@@ -798,6 +803,11 @@ export interface EditorActions {
   setWorkspaceLockHolder: (holder: 'user' | 'ai' | null) => void;
   setWorkspaceBundleError: (error: string | null) => void;
   applyRemoteManifestUpdate: (manifest: any) => void;
+
+  // Sandbox actions
+  createSandbox: (projectId: string) => Promise<void>;
+  setSandboxStatus: (status: EditorState['sandboxStatus']) => void;
+  setSandboxBundleVersion: (version: number) => void;
 }
 
 export type EditorStore = EditorState & EditorActions;

@@ -169,6 +169,11 @@ const initialState: EditorState = {
   safeZonePlatform: 'none',
   showSafeZone: false,
 
+  // Sandbox state
+  sandboxStatus: 'inactive' as const,
+  sandboxPreviewUrl: null,
+  sandboxBundleVersion: 0,
+
   // Visual scene regeneration tracking
   regeneratingVisualItemIds: new Set<string>(),
   splitJobToItems: {},
@@ -2655,6 +2660,38 @@ export const useEditorStore = create<EditorStore>()(
 
       // Also store the raw manifest
       set((state) => { state.workspaceManifest = manifest as Record<string, unknown>; });
+    },
+
+    // ========================================
+    // Sandbox Actions
+    // ========================================
+
+    createSandbox: async (projectId: string) => {
+      set({ sandboxStatus: 'creating' });
+      try {
+        const res = await fetch(`/api/projects/${projectId}/sandbox`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (data.status === 'ready') {
+          set({
+            sandboxStatus: 'ready',
+            sandboxPreviewUrl: `/api/projects/${projectId}/sandbox/bundle/player-composition.cjs.js`,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to create sandbox:', err);
+        set({ sandboxStatus: 'inactive' });
+      }
+    },
+
+    setSandboxStatus: (status) => {
+      set({ sandboxStatus: status });
+    },
+
+    setSandboxBundleVersion: (version) => {
+      set({ sandboxBundleVersion: version });
     },
   }))
 );
