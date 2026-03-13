@@ -13,7 +13,7 @@ interface Transform {
 interface Keyframe {
   timeMs: number;
   props: Partial<Transform>;
-  easing?: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'spring';
+  easing?: string;
 }
 
 interface Filters {
@@ -35,7 +35,15 @@ interface TransformWrapperProps {
 }
 
 /** Map easing name to a Remotion Easing function */
-function getEasingFn(easing?: Keyframe['easing']): ((t: number) => number) | undefined {
+function getEasingFn(easing?: string): ((t: number) => number) | undefined {
+  if (!easing) return undefined;
+  if (easing.startsWith('cubic-bezier(')) {
+    const match = easing.match(/cubic-bezier\(([\d.]+),\s*([\d.-]+),\s*([\d.]+),\s*([\d.-]+)\)/);
+    if (match) {
+      const [, x1, y1, x2, y2] = match.map(Number);
+      return Easing.bezier(x1, y1, x2, y2);
+    }
+  }
   switch (easing) {
     case 'linear':
       return Easing.linear;
@@ -46,7 +54,6 @@ function getEasingFn(easing?: Keyframe['easing']): ((t: number) => number) | und
     case 'ease-in-out':
       return Easing.inOut(Easing.ease);
     case 'spring':
-      // Approximate spring as ease-out for now
       return Easing.out(Easing.ease);
     default:
       return undefined;

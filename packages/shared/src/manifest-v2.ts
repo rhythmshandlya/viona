@@ -15,7 +15,10 @@ export const transformSchema = z.object({
 export const keyframeSchema = z.object({
   timeMs: z.number().min(0),
   props: transformSchema.partial(),
-  easing: z.enum(['linear', 'ease-in', 'ease-out', 'ease-in-out', 'spring']).default('linear'),
+  easing: z.union([
+    z.enum(['linear', 'ease-in', 'ease-out', 'ease-in-out', 'spring']),
+    z.string().regex(/^cubic-bezier\(\s*[\d.]+\s*,\s*[\d.-]+\s*,\s*[\d.]+\s*,\s*[\d.-]+\s*\)$/),
+  ]).default('linear'),
 });
 
 export const filtersSchema = z.object({
