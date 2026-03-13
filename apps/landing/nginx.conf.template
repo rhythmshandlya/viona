@@ -4,6 +4,10 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Prevent port leak in redirects (internal port != public 443)
+    absolute_redirect off;
+    port_in_redirect off;
+
     # Gzip compression
     gzip on;
     gzip_vary on;

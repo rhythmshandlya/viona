@@ -11,14 +11,14 @@ export const siteConfig = {
     github: "https://github.com/viona",
   },
   nav: [
-    { label: "Features", href: "#features" },
-    { label: "How it Works", href: "#how-it-works" },
+    { label: "Features", href: "/#features" },
+    { label: "How it Works", href: "/#how-it-works" },
     { label: "Pricing", href: "/pricing/" },
     { label: "About", href: "/about/" },
   ],
   footer: {
     product: [
-      { label: "Features", href: "#features" },
+      { label: "Features", href: "/#features" },
       { label: "Pricing", href: "/pricing/" },
     ],
     company: [

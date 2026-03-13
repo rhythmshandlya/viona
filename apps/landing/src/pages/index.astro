@@ -11,7 +11,7 @@ import FAQ from "@/components/sections/FAQ.astro";
 import CTA from "@/components/sections/CTA.astro";
 ---
 
-<BaseLayout>
+<BaseLayout preloadImages={[{ href: "/assets/screenshots/editor-chat.png", type: "image/png" }]}>
   <Hero />
   <AppShowcase />
   <StatsBar />
