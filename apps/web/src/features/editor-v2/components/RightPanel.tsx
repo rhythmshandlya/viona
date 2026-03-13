@@ -10,6 +10,7 @@ import { X } from 'lucide-react';
 import { TranscriptPanel, PiPControlPanel } from '../panels';
 import { PropertiesContent } from './ContextPanel';
 import { PropertiesPanel } from './properties/PropertiesPanel';
+import { KeyframeEditor } from './keyframe-editor/KeyframeEditor';
 import { useSingleSelectedItem } from '../store/use-editor-store';
 
 export type RightPanelTab = 'properties' | 'transcript' | 'layout' | 'item-properties';
@@ -34,7 +35,12 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
         {activeTab === 'transcript' && <TranscriptPanel />}
         {activeTab === 'properties' && <PropertiesContent />}
         {activeTab === 'layout' && <PiPControlPanel />}
-        {activeTab === 'item-properties' && <PropertiesPanel />}
+        {activeTab === 'item-properties' && (
+            <>
+              <PropertiesPanel />
+              <KeyframeEditor />
+            </>
+          )}
       </div>
     );
   }
@@ -94,7 +100,12 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
           {activeTab === 'transcript' && <TranscriptPanel />}
           {activeTab === 'properties' && <PropertiesContent />}
           {activeTab === 'layout' && <PiPControlPanel />}
-          {activeTab === 'item-properties' && <PropertiesPanel />}
+          {activeTab === 'item-properties' && (
+            <>
+              <PropertiesPanel />
+              <KeyframeEditor />
+            </>
+          )}
         </div>
       </div>
     </div>
