@@ -9,6 +9,7 @@ import { withProjectMutex } from './mutex.js';
 import { proxyFileRequest, proxyPrompt, proxyManifestOp, proxyOps } from './proxy.js';
 import { touchActivity, onSandboxIdle, removeActivity } from './health.js';
 import { dbToManifest } from '@viona/shared';
+import { syncManifestToDb } from './sync.js';
 import { emitWorkspaceReady, emitBundleReady, emitWorkspaceTeardown, emitManifestUpdated } from '../workspace/workspace-ws.js';
 import type { SandboxProvider } from './provider.js';
 import { DockerSandboxProvider } from './docker.js';
@@ -27,6 +28,28 @@ function getProvider(): Promise<SandboxProvider> {
     })();
   }
   return providerPromise;
+}
+
+// Debounce map: projectId → timer
+const syncTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const SYNC_DEBOUNCE_MS = 2000;
+
+function debouncedSync(projectId: string, agentUrl: string, secret: string): void {
+  const existing = syncTimers.get(projectId);
+  if (existing) clearTimeout(existing);
+
+  syncTimers.set(projectId, setTimeout(async () => {
+    syncTimers.delete(projectId);
+    try {
+      const result = await proxyManifestOp(agentUrl, secret, 'GET');
+      if (result.status === 200) {
+        await syncManifestToDb(projectId, result.data);
+        logger.debug({ projectId }, 'Manifest synced to DB');
+      }
+    } catch (err) {
+      logger.error({ err, projectId }, 'Failed to sync manifest to DB');
+    }
+  }, SYNC_DEBOUNCE_MS));
 }
 
 export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
@@ -332,6 +355,16 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
     const projectId = await validateInternalCallback(request, reply);
     if (!projectId) return;
     await emitManifestUpdated(projectId, { source: 'ai' });
+
+    // Debounced DB sync
+    const session = await getActiveSession(projectId);
+    if (session) {
+      const agentUrl = (session.metadata as any)?.agentUrl;
+      if (agentUrl) {
+        debouncedSync(projectId, agentUrl, session.sandboxSecret);
+      }
+    }
+
     return { ok: true };
   });
 
