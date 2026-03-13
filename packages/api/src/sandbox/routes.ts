@@ -6,7 +6,7 @@ import { db } from '../db/index.js';
 import { sandboxSessions, projects, tracks, timelineItems } from '../db/index.js';
 import { logger } from '../logger.js';
 import { withProjectMutex } from './mutex.js';
-import { proxyFileRequest, proxyPrompt, proxyManifestOp } from './proxy.js';
+import { proxyFileRequest, proxyPrompt, proxyManifestOp, proxyOps } from './proxy.js';
 import { touchActivity, onSandboxIdle, removeActivity } from './health.js';
 import { dbToManifest } from '@viona/shared';
 import { emitWorkspaceReady, emitBundleReady, emitWorkspaceTeardown, emitManifestUpdated } from '../workspace/workspace-ws.js';
@@ -268,6 +268,21 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
     const agentUrl = (session.metadata as any)?.agentUrl;
     if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
     const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'PATCH', request.body as object);
+    return reply.status(result.status).send(result.data);
+  });
+
+  // POST /projects/:id/sandbox/ops — Granular manifest operations
+  fastify.post('/projects/:id/sandbox/ops', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    touchActivity(projectId);
+
+    const session = await getActiveSession(projectId);
+    if (!session) return reply.status(404).send({ error: 'No active sandbox' });
+
+    const agentUrl = (session.metadata as any)?.agentUrl;
+    if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
+
+    const result = await proxyOps(agentUrl, session.sandboxSecret, request.body as any);
     return reply.status(result.status).send(result.data);
   });
 
