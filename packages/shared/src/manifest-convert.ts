@@ -1,5 +1,44 @@
-import type { Manifest, ManifestTrack, ManifestItem, ManifestLayout, ManifestCaptionStyle, ManifestVideoSettings } from './manifest.js';
-import { manifestSchema } from './manifest.js';
+import type { ManifestV2, ManifestItemV2, ManifestTrackV2, TransformV2 } from './manifest-v2.js';
+import { manifestV2Schema } from './manifest-v2.js';
+
+/**
+ * Coerce string values to numbers for known numeric fields.
+ * DB JSONB can store numbers as strings from older writes.
+ */
+function coerceNumericFields<T extends Record<string, unknown>>(obj: T, fields: string[]): T {
+  const result = { ...obj };
+  for (const key of fields) {
+    if (key in result) {
+      const val = result[key];
+      if (typeof val === 'string') {
+        const num = Number(val);
+        if (!isNaN(num)) {
+          (result as any)[key] = num;
+        } else {
+          // Non-numeric string (e.g. "custom") — remove so Zod default kicks in
+          delete (result as any)[key];
+        }
+      } else if (typeof val === 'number' && isNaN(val)) {
+        // Already NaN — remove so Zod default kicks in
+        delete (result as any)[key];
+      }
+    }
+  }
+  return result;
+}
+
+/**
+ * The frontend store uses `size: 'small' | 'medium' | 'large' | 'custom'` (preset selector)
+ * and `customSize: number` (actual percentage). The manifest schema expects `size` as a number.
+ * If the DB has a non-numeric `size`, use `customSize` as the numeric value instead.
+ */
+function normalizePipSize(pip: Record<string, unknown>): Record<string, unknown> {
+  if (typeof pip.size === 'string' && isNaN(Number(pip.size))) {
+    const customSize = typeof pip.customSize === 'number' ? pip.customSize : 25;
+    return { ...pip, size: customSize };
+  }
+  return pip;
+}
 
 /**
  * Data structures matching what the DB returns.
@@ -39,91 +78,331 @@ export interface DbToManifestInput {
   canvasHeight?: number;
 }
 
+// ---- Transform helpers (same logic as manifest-migrate.ts) ----
+
+const FULLSCREEN_TRANSFORM: TransformV2 = {
+  x: 0,
+  y: 0,
+  width: '100%',
+  height: '100%',
+  rotation: 0,
+  opacity: 1,
+};
+
+function computePipTransformFromDb(pip: Record<string, unknown>): TransformV2 {
+  const size = (pip.size as number) || 25;
+  const offsetX = (pip.offsetX as number) || 0;
+  const offsetY = (pip.offsetY as number) || 0;
+  const position = (pip.position as string) || 'bottom-right';
+  const rotation = (pip.rotation as number) || 0;
+  const opacity = (pip.opacity as number) ?? 1;
+
+  let x: string;
+  let y: string;
+
+  switch (position) {
+    case 'top-left':
+      x = `${offsetX}%`;
+      y = `${offsetY}%`;
+      break;
+    case 'top-right':
+      x = `${100 - size - offsetX}%`;
+      y = `${offsetY}%`;
+      break;
+    case 'bottom-left':
+      x = `${offsetX}%`;
+      y = `${100 - size - offsetY}%`;
+      break;
+    case 'bottom-right':
+    default:
+      x = `${100 - size - offsetX}%`;
+      y = `${100 - size - offsetY}%`;
+      break;
+  }
+
+  return { x, y, width: `${size}%`, height: `${size}%`, rotation, opacity };
+}
+
+function computeStackedTransformFromDb(
+  layoutSettings: Record<string, unknown>,
+  isVideo: boolean,
+): TransformV2 {
+  const split = (layoutSettings.split as Record<string, unknown>) || {};
+  const ratio = (split.ratio as number) || 50;
+  const position = (split.position as string) || 'visuals-first';
+  const gap = (split.gap as number) || 0;
+  const halfGap = gap / 2;
+
+  const firstPct = ratio;
+  const secondPct = 100 - ratio;
+
+  const isFirst =
+    (position === 'video-first' && isVideo) ||
+    (position === 'visuals-first' && !isVideo);
+
+  if (isFirst) {
+    return {
+      x: 0,
+      y: 0,
+      width: '100%',
+      height: `${firstPct - halfGap}%`,
+      rotation: 0,
+      opacity: 1,
+    };
+  } else {
+    return {
+      x: 0,
+      y: `${firstPct + halfGap}%`,
+      width: '100%',
+      height: `${secondPct - halfGap}%`,
+      rotation: 0,
+      opacity: 1,
+    };
+  }
+}
+
+/** Map DB track type → v2 manifest track type */
+function mapDbTrackType(dbType: string): ManifestTrackV2['type'] {
+  switch (dbType) {
+    case 'subtitle':
+      return 'caption';
+    case 'visual':
+    case 'text':
+    case 'image':
+      return 'overlay';
+    case 'broll':
+      return 'video';
+    case 'video':
+    case 'audio':
+    case 'caption':
+      return dbType;
+    default:
+      return 'overlay';
+  }
+}
+
 /**
- * Generate a manifest from DB state. Used on workspace spin-up.
+ * Generate a v2 manifest from DB state. Used on workspace spin-up.
  */
-export function dbToManifest(input: DbToManifestInput): Manifest {
+export function dbToManifest(input: DbToManifestInput): ManifestV2 {
   const { project, tracks, items } = input;
 
   const videoSettings = (project.videoSettings || {}) as Record<string, unknown>;
   const layoutSettings = (videoSettings.layoutSettings || {}) as Record<string, unknown>;
+  const layoutMode = (layoutSettings.mode as string) || 'stacked';
+  const rawPip = coerceNumericFields(
+    normalizePipSize((layoutSettings.pip as Record<string, unknown>) || {}),
+    ['size', 'offsetX', 'offsetY', 'borderRadius', 'borderWidth', 'shadowBlur', 'opacity', 'rotation'],
+  );
 
-  const manifestTracks: ManifestTrack[] = tracks.map(t => ({
+  // Determine video tracks for PiP second-track detection
+  const videoTrackIds = tracks.filter(t => t.type === 'video').map(t => t.id);
+  const secondVideoTrackId =
+    layoutMode === 'pip' && videoTrackIds.length > 1
+      ? videoTrackIds[1]!
+      : null;
+
+  const manifestTracks: ManifestTrackV2[] = tracks.map(t => ({
     id: t.id,
-    type: t.type as ManifestTrack['type'],
+    type: mapDbTrackType(t.type),
     name: t.name,
     position: t.position,
   }));
 
-  const manifestItems: ManifestItem[] = items.map(item => {
+  const manifestItems: ManifestItemV2[] = items.map(item => {
     const data = item.data || {};
 
-    // DB uses 'subtitle' but manifest uses 'caption' — map between them
-    const itemType = item.type === 'subtitle' ? 'caption' : item.type;
+    // Normalize DB type: subtitle → caption in DB convention
+    const dbType = item.type === 'subtitle' ? 'caption' : item.type;
 
-    // Map existing DB item data to manifest format
-    if (itemType === 'visual') {
+    // --- VIDEO items ---
+    if (dbType === 'video') {
+      const videoEndMs = (item.endMs <= item.startMs && project.durationMs > 0)
+        ? project.durationMs
+        : item.endMs;
+
+      let transform: TransformV2;
+      let crop: { x: number; y: number; scale: number } | undefined;
+
+      if (layoutMode === 'pip') {
+        if (item.trackId === secondVideoTrackId) {
+          transform = computePipTransformFromDb(rawPip);
+          const pipCrop = (rawPip.crop as Record<string, unknown>) || {};
+          crop = {
+            x: (pipCrop.cropX as number) ?? 50,
+            y: (pipCrop.cropY as number) ?? 50,
+            scale: (pipCrop.zoom as number) ?? 1,
+          };
+        } else {
+          transform = { ...FULLSCREEN_TRANSFORM };
+          // Use global crop from videoSettings for main video in pip
+          const cropX = (videoSettings.cropX as number) ?? 50;
+          const cropY = (videoSettings.cropY as number) ?? 50;
+          const scale = (videoSettings.scale as number) ?? 1;
+          if (cropX !== 50 || cropY !== 50 || scale !== 1) {
+            crop = { x: cropX, y: cropY, scale };
+          }
+        }
+      } else if (layoutMode === 'stacked') {
+        transform = computeStackedTransformFromDb(layoutSettings, true);
+        // Per-item crop from data, fallback to global
+        const itemCropX = (data.crop as any)?.x ?? (videoSettings.cropX as number) ?? 50;
+        const itemCropY = (data.crop as any)?.y ?? (videoSettings.cropY as number) ?? 50;
+        const itemScale = (data.crop as any)?.scale ?? (videoSettings.scale as number) ?? 1;
+        if (itemCropX !== 50 || itemCropY !== 50 || itemScale !== 1) {
+          crop = { x: itemCropX, y: itemCropY, scale: itemScale };
+        }
+      } else {
+        // Fullscreen / default layout
+        transform = { ...FULLSCREEN_TRANSFORM };
+        const cropX = (videoSettings.cropX as number) ?? 50;
+        const cropY = (videoSettings.cropY as number) ?? 50;
+        const scale = (videoSettings.scale as number) ?? 1;
+        if (cropX !== 50 || cropY !== 50 || scale !== 1) {
+          crop = { x: cropX, y: cropY, scale };
+        }
+      }
+
       return {
         id: item.id,
-        type: 'visual' as const,
+        type: 'video' as const,
         trackId: item.trackId,
         startMs: item.startMs,
-        endMs: item.endMs,
+        endMs: videoEndMs,
+        transform,
+        keyframes: [],
         data: {
-          sceneFile: `scenes/Scene${(data as any).sourceSceneId || 1}.tsx`,
-          displayMode: ((data as any).displayMode || 'default') as 'default' | 'fullscreen' | 'overlay',
-          frameOffset: 0,
-          transition: (data as any).transition,
-          overlayZone: (data as any).overlayZone,
-          speakerBbox: (data as any).speakerBbox,
+          src: (data as any).src || 'source.mp4',
+          startFrom: 0,
+          volume: (data as any).volume ?? 1,
+          playbackRate: (data as any).playbackRate ?? 1,
+          ...(crop ? { crop } : {}),
         },
       };
     }
 
-    if (itemType === 'video') {
+    // --- AUDIO items ---
+    if (dbType === 'audio') {
+      const audioEndMs = (item.endMs <= item.startMs && project.durationMs > 0)
+        ? project.durationMs
+        : item.endMs;
+      // Prefer enhancedSrc over src
+      const src = (data as any).enhancedSrc || (data as any).src || 'source.mp4';
+
+      return {
+        id: item.id,
+        type: 'audio' as const,
+        trackId: item.trackId,
+        startMs: item.startMs,
+        endMs: audioEndMs,
+        // No transform on audio items
+        keyframes: [],
+        data: {
+          src,
+          volume: (data as any).volume ?? 1,
+          playbackRate: 1,
+        },
+      };
+    }
+
+    // --- VISUAL items → scene type ---
+    if (dbType === 'visual') {
+      const displayMode = ((data as any).displayMode || 'default') as string;
+      const overlayZone = (data as any).overlayZone as string | undefined;
+
+      let transform: TransformV2;
+
+      if (displayMode === 'fullscreen' || displayMode === 'default') {
+        if (layoutMode === 'stacked') {
+          transform = computeStackedTransformFromDb(layoutSettings, false);
+        } else {
+          transform = { ...FULLSCREEN_TRANSFORM };
+        }
+      } else if (displayMode === 'overlay') {
+        switch (overlayZone) {
+          case 'lower-third':
+            transform = { x: 0, y: '70%', width: '100%', height: '30%', rotation: 0, opacity: 1 };
+            break;
+          case 'top':
+            transform = { x: 0, y: 0, width: '100%', height: '30%', rotation: 0, opacity: 1 };
+            break;
+          case 'frame':
+          case 'background':
+          case 'behind':
+          case 'none':
+          default:
+            transform = { ...FULLSCREEN_TRANSFORM };
+            break;
+        }
+      } else {
+        transform = { ...FULLSCREEN_TRANSFORM };
+      }
+
+      return {
+        id: item.id,
+        type: 'scene' as const,
+        trackId: item.trackId,
+        startMs: item.startMs,
+        endMs: item.endMs,
+        transform,
+        keyframes: [],
+        data: {
+          sceneFile: (data as any).sceneFile || `scenes/Scene${(data as any).sourceSceneId || 1}.tsx`,
+        },
+      };
+    }
+
+    // --- BROLL items → video type ---
+    if (dbType === 'broll') {
+      const src = (data as any).src || (data as any).previewUrl || (data as any).filename || '';
+
       return {
         id: item.id,
         type: 'video' as const,
         trackId: item.trackId,
         startMs: item.startMs,
         endMs: item.endMs,
+        transform: { ...FULLSCREEN_TRANSFORM },
+        keyframes: [],
         data: {
-          src: (data as any).src || 'source.mp4',
-          crop: {
-            x: (videoSettings.cropX as number) ?? 50,
-            y: (videoSettings.cropY as number) ?? 50,
-            scale: (videoSettings.scale as number) ?? 1,
-          },
+          src,
+          startFrom: 0,
           volume: (data as any).volume ?? 1,
-          playbackRate: (data as any).playbackRate ?? 1,
+          playbackRate: 1,
         },
       };
     }
 
-    if (itemType === 'audio') {
-      return {
-        id: item.id,
-        type: 'audio' as const,
-        trackId: item.trackId,
-        startMs: item.startMs,
-        endMs: item.endMs,
-        data: {
-          src: (data as any).src || 'source.mp4',
-          volume: (data as any).volume ?? 1,
-          enhancedSrc: (data as any).enhancedSrc || null,
-        },
-      };
-    }
+    // --- CAPTION items ---
+    if (dbType === 'caption') {
+      const rawWords: any[] = (data as any).words || [];
 
-    if (itemType === 'caption') {
+      // Detect and fix corrupted word timestamps (same logic as v1)
+      let words = rawWords;
+      if (rawWords.length > 0 && item.endMs > item.startMs) {
+        const first = rawWords[0];
+        const itemRange = item.endMs - item.startMs;
+        if (first.startMs > item.endMs + itemRange) {
+          const corrected = Math.round(first.startMs / 10);
+          if (corrected >= item.startMs - itemRange && corrected <= item.endMs + itemRange) {
+            words = rawWords.map((w: any) => ({
+              ...w,
+              startMs: Math.round(w.startMs / 10),
+              endMs: Math.round(w.endMs / 10),
+            }));
+          }
+        }
+      }
+
       return {
         id: item.id,
         type: 'caption' as const,
         trackId: item.trackId,
         startMs: item.startMs,
         endMs: item.endMs,
+        keyframes: [],
         data: {
-          words: ((data as any).words || []).map((w: any) => ({
+          words: words.map((w: any) => ({
             text: w.text,
             startMs: w.startMs,
             endMs: w.endMs,
@@ -134,19 +413,78 @@ export function dbToManifest(input: DbToManifestInput): Manifest {
       };
     }
 
-    // For broll, text, image — pass data through as-is
+    // --- TEXT items ---
+    if (dbType === 'text') {
+      const style = (data as any).style ?? {};
+      const transform: TransformV2 = {
+        x: (data as any).position?.x ?? 0,
+        y: (data as any).position?.y ?? 0,
+        width: (data as any).size?.width != null ? `${(data as any).size.width}%` : '100%',
+        height: (data as any).size?.height != null ? `${(data as any).size.height}%` : '100%',
+        rotation: 0,
+        opacity: 1,
+      };
+
+      return {
+        id: item.id,
+        type: 'text' as const,
+        trackId: item.trackId,
+        startMs: item.startMs,
+        endMs: item.endMs,
+        transform,
+        keyframes: [],
+        data: {
+          text: (data as any).text || '',
+          fontFamily: (style.fontFamily as string) ?? 'Inter',
+          fontSize: (style.fontSize as number) ?? 48,
+          fontWeight: (style.fontWeight as number) ?? 600,
+          color: (style.color as string) ?? '#FFFFFF',
+          textAlign: ((style.textAlign as string) ?? 'center') as 'left' | 'center' | 'right',
+          textTransform: ((style.textTransform as string) ?? 'none') as 'none' | 'uppercase' | 'lowercase',
+        },
+      };
+    }
+
+    // --- IMAGE items ---
+    if (dbType === 'image') {
+      const transform: TransformV2 = {
+        x: (data as any).position?.x ?? 0,
+        y: (data as any).position?.y ?? 0,
+        width: (data as any).width != null ? `${(data as any).width}%` : '100%',
+        height: (data as any).height != null ? `${(data as any).height}%` : '100%',
+        rotation: 0,
+        opacity: (data as any).opacity ?? 1,
+      };
+
+      return {
+        id: item.id,
+        type: 'image' as const,
+        trackId: item.trackId,
+        startMs: item.startMs,
+        endMs: item.endMs,
+        transform,
+        keyframes: [],
+        data: {
+          src: (data as any).src || '',
+        },
+      };
+    }
+
+    // Fallback: treat unknown types as scene on overlay track
     return {
       id: item.id,
-      type: itemType as ManifestItem['type'],
+      type: 'scene' as const,
       trackId: item.trackId,
       startMs: item.startMs,
       endMs: item.endMs,
-      data: data as any,
+      transform: { ...FULLSCREEN_TRANSFORM },
+      keyframes: [],
+      data: { sceneFile: '' },
     };
   });
 
   const raw = {
-    version: 1 as const,
+    version: 2 as const,
     fps: project.fps || 30,
     durationMs: project.durationMs || 0,
     canvas: {
@@ -155,35 +493,31 @@ export function dbToManifest(input: DbToManifestInput): Manifest {
     },
     tracks: manifestTracks,
     items: manifestItems,
-    layout: {
-      mode: (layoutSettings.mode as string) || 'stacked',
-      split: (layoutSettings.split as any) || { position: 'visuals-first', ratio: 50, gap: 0 },
-      pip: (layoutSettings.pip as any) || { position: 'bottom-right', size: 25, shape: 'circle' },
-    },
+    assets: {},
     captionStyle: (videoSettings.captionStyle as any) || {},
     videoSettings: {
-      cropX: (videoSettings.cropX as number) ?? 50,
-      cropY: (videoSettings.cropY as number) ?? 50,
-      scale: (videoSettings.scale as number) ?? 1,
       sourceWidth: project.sourceWidth || 1920,
       sourceHeight: project.sourceHeight || 1080,
     },
   };
 
-  return manifestSchema.parse(raw);
+  return manifestV2Schema.parse(raw);
 }
 
 /**
- * Extract DB-compatible data from a manifest. Used on workspace teardown/checkpoint.
+ * Extract DB-compatible data from a v2 manifest. Used on workspace teardown/checkpoint.
  */
-export function manifestToDb(manifest: Manifest): {
+export function manifestToDb(manifest: ManifestV2): {
   tracks: Omit<DbTrack, 'locked' | 'visible'>[];
   items: DbTimelineItem[];
   videoSettings: Record<string, unknown>;
 } {
   const tracks = manifest.tracks.map(t => ({
     id: t.id,
-    type: t.type,
+    // Manifest uses 'caption' but DB uses 'subtitle' — map back
+    // Manifest 'overlay' maps back to specific DB types based on items, but for tracks
+    // we store the v2 type (overlay stays overlay in DB)
+    type: t.type === 'caption' ? 'subtitle' : t.type,
     name: t.name,
     position: t.position,
   }));
@@ -191,17 +525,37 @@ export function manifestToDb(manifest: Manifest): {
   const items: DbTimelineItem[] = manifest.items.map(item => {
     const data: Record<string, unknown> = { ...(item.data as any) };
 
-    // Manifest uses 'caption' but DB uses 'subtitle' — map back
-    const dbType = item.type === 'caption' ? 'subtitle' : item.type;
+    // Preserve transform, keyframes, filters in data for round-trip survival
+    if (item.type !== 'audio' && (item as any).transform) {
+      data.transform = (item as any).transform;
+    }
+    if ((item as any).keyframes?.length > 0) {
+      data.keyframes = (item as any).keyframes;
+    }
+    if ((item as any).filters) {
+      data.filters = (item as any).filters;
+    }
 
-    // Convert visual sceneFile back to sourceSceneId
-    if (item.type === 'visual') {
-      const match = (data.sceneFile as string)?.match(/Scene(\d+)\.tsx$/);
-      if (match) {
-        data.sourceSceneId = parseInt(match[1], 10);
-      }
-      delete data.sceneFile;
-      // Preserve frameOffset — needed for split scenes to know where in the scene to start
+    // Map v2 item types back to DB types
+    let dbType: string;
+    switch (item.type) {
+      case 'scene':
+        dbType = 'visual';
+        // sceneFile preserved as-is in data (v2 uses sceneFile directly)
+        break;
+      case 'caption':
+        dbType = 'subtitle';
+        break;
+      case 'video':
+      case 'audio':
+      case 'text':
+      case 'image':
+      case 'shape':
+        dbType = item.type;
+        break;
+      default:
+        dbType = (item as any).type;
+        break;
     }
 
     return {
@@ -214,13 +568,58 @@ export function manifestToDb(manifest: Manifest): {
     };
   });
 
+  // Reconstruct videoSettings for DB storage
+  // Get crop from first video item if available
+  const firstVideoItem = manifest.items.find(i => i.type === 'video');
+  const videoCrop = firstVideoItem?.data && 'crop' in firstVideoItem.data
+    ? firstVideoItem.data.crop
+    : undefined;
+
+  // Reconstruct layoutSettings from video item transforms
+  const videoItems = manifest.items.filter(i => i.type === 'video');
+  const sceneItems = manifest.items.filter(i => i.type === 'scene');
+
+  // Try to infer layout mode from transforms
+  let layoutSettings: Record<string, unknown> = {};
+  if (videoItems.length > 0) {
+    const firstVideo = videoItems[0]!;
+    const transform = (firstVideo as any).transform as TransformV2 | undefined;
+    if (transform) {
+      const h = String(transform.height);
+      const y = String(transform.y);
+      // If video doesn't take full height, it's likely stacked
+      if (h.endsWith('%') && parseFloat(h) < 100) {
+        layoutSettings = {
+          mode: 'stacked',
+          split: {
+            position: parseFloat(y) === 0 ? 'video-first' : 'visuals-first',
+            ratio: parseFloat(h) + (parseFloat(y) > 0 ? parseFloat(y) - parseFloat(h) : 0),
+            gap: 0,
+          },
+        };
+      } else if (videoItems.length > 1) {
+        // Check if second video has pip-style transform
+        const secondVideo = videoItems[1]!;
+        const pipTransform = (secondVideo as any).transform as TransformV2 | undefined;
+        if (pipTransform) {
+          const pw = String(pipTransform.width);
+          if (pw.endsWith('%') && parseFloat(pw) < 50) {
+            layoutSettings = { mode: 'pip' };
+          }
+        }
+      }
+    }
+  }
+
   const videoSettings: Record<string, unknown> = {
     canvasWidth: manifest.canvas.width,
     canvasHeight: manifest.canvas.height,
-    cropX: manifest.videoSettings.cropX,
-    cropY: manifest.videoSettings.cropY,
-    scale: manifest.videoSettings.scale,
-    layoutSettings: manifest.layout,
+    cropX: videoCrop?.x ?? 50,
+    cropY: videoCrop?.y ?? 50,
+    scale: videoCrop?.scale ?? 1,
+    sourceWidth: manifest.videoSettings.sourceWidth,
+    sourceHeight: manifest.videoSettings.sourceHeight,
+    layoutSettings,
     captionStyle: manifest.captionStyle,
   };
 
