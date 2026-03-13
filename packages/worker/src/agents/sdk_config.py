@@ -191,7 +191,17 @@ CLAUDE_CLI_PATH = get_claude_cli_path()
 # MCP Server Configuration
 # ---------------------------------------------------------------------------
 
-_WORKER_PKG_ROOT = Path(__file__).resolve().parent.parent.parent  # packages/worker
+def _find_worker_root() -> Path:
+    """Find packages/worker root by walking up from this file."""
+    p = Path(__file__).resolve().parent
+    while p != p.parent:
+        if (p / "package.json").exists() and p.name == "worker":
+            return p
+        p = p.parent
+    # Fallback: assume src/agents layout (3 levels up)
+    return Path(__file__).resolve().parent.parent.parent
+
+_WORKER_PKG_ROOT = _find_worker_root()
 _NODE_MODULES = _WORKER_PKG_ROOT / "node_modules"
 
 _MCP_REMOTE_JS = str(_NODE_MODULES / "mcp-remote" / "dist" / "proxy.js")
