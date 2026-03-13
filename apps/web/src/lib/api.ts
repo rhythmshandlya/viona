@@ -864,6 +864,14 @@ class ApiClient {
     return `/api/projects/${projectId}/sandbox/bundle`;
   }
 
+  /** Send a granular manifest op to the sandbox */
+  async sandboxOps(projectId: string, tool: string, input: object): Promise<any> {
+    return this.request(`/api/projects/${projectId}/sandbox/ops`, {
+      method: 'POST',
+      body: JSON.stringify({ tool, input }),
+    });
+  }
+
   /** Send prompt to sandbox agent — returns SSE stream.
    * Note: context/widgetResponse/lastEventId not yet supported by sandbox agent (Phase 2).
    */
