@@ -425,5 +425,49 @@ async function suspendSandbox(projectId: string): Promise<void> {
   });
 }
 
+/**
+ * On API restart, rehydrate sandbox state from DB.
+ * Any sandbox marked 'ready' or 'creating' in DB needs to be:
+ * - health-checked (if 'ready')
+ * - cleaned up (if 'creating' — partial creation interrupted by crash)
+ * - idle timers re-established
+ */
+export async function rehydrateActiveSandboxes(): Promise<void> {
+  const activeSessions = await db.select().from(sandboxSessions)
+    .where(inArray(sandboxSessions.status, ['ready', 'creating', 'suspending']));
+
+  logger.info({ count: activeSessions.length }, 'Rehydrating sandbox sessions after restart');
+
+  for (const session of activeSessions) {
+    if (session.status === 'creating' || session.status === 'suspending') {
+      // Partial operation interrupted by crash — mark as failed and clean up
+      logger.warn({ projectId: session.projectId, status: session.status },
+        'Found interrupted sandbox operation, cleaning up');
+      await db.update(sandboxSessions)
+        .set({ status: 'suspended', suspendedAt: new Date() })
+        .where(eq(sandboxSessions.id, session.id));
+      continue;
+    }
+
+    // Status is 'ready' — verify the sandbox is actually reachable
+    if (session.internalUrl) {
+      const p = await getProvider();
+      const healthy = await p.isReady(session.internalUrl);
+
+      if (healthy) {
+        // Re-establish idle tracking
+        touchActivity(session.projectId);
+        logger.info({ projectId: session.projectId }, 'Sandbox still alive after restart');
+      } else {
+        // Sandbox died (container was removed, etc.) — mark suspended
+        logger.warn({ projectId: session.projectId }, 'Sandbox unreachable after restart, marking suspended');
+        await db.update(sandboxSessions)
+          .set({ status: 'suspended', suspendedAt: new Date() })
+          .where(eq(sandboxSessions.id, session.id));
+      }
+    }
+  }
+}
+
 // Exported for crash recovery (Task 27)
 export { getProvider, getActiveSession, suspendSandbox };

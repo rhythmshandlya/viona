@@ -23,7 +23,7 @@ import { jobRoutes } from './routes/jobs.js';
 import { setupWebSocket } from './ws/handler.js';
 import { authMiddleware } from './middleware/auth.js';
 import { workspaceRoutes } from './workspace/workspace-routes.js';
-import { sandboxRoutes } from './sandbox/routes.js';
+import { sandboxRoutes, rehydrateActiveSandboxes } from './sandbox/routes.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -347,6 +347,11 @@ async function main() {
       cleanupOrphanedWorkspaces().catch((err) => {
         fastify.log.error(err, '[startup] Failed to clean up orphaned workspaces');
       });
+    });
+
+    // Rehydrate active sandboxes after restart
+    rehydrateActiveSandboxes().catch((err) => {
+      console.error('[sandbox] Failed to rehydrate active sandboxes:', err);
     });
   } catch (err) {
     fastify.log.error(err);
