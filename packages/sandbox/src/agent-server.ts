@@ -5,6 +5,7 @@ import { isInitialized, initWorkspace, ensureNodeModulesSymlink } from './worksp
 import { startWatcher, onBundle, getBundleVersion } from './esbuild-watcher.js';
 import { checkpoint, startCheckpointing } from './manifest-checkpoint.js';
 import { readManifestRaw, updateManifestTool } from './tools/manifest-ops.js';
+import { mountOpsEndpoint } from './ops-endpoint.js';
 
 const logger = pino({ name: 'agent-server' });
 
@@ -73,6 +74,9 @@ export function startAgentServer(port = 8081): void {
 
   // All other routes require auth
   app.use(authMiddleware);
+
+  // Granular manifest operations endpoint
+  mountOpsEndpoint(app);
 
   // Init endpoint — first boot only
   app.post('/init', async (req, res) => {

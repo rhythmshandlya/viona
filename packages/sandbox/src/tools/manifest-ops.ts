@@ -230,6 +230,7 @@ export const addItemTool = {
       trackId: { type: 'string', description: 'Track ID to place the item on' },
       startMs: { type: 'number', description: 'Start time in milliseconds' },
       endMs: { type: 'number', description: 'End time in milliseconds' },
+      id: { type: 'string', description: 'Optional item ID (if not provided, auto-generates one)' },
       data: { type: 'object', description: 'Type-specific data (src, text, etc.)' },
       transform: {
         type: 'object',
@@ -248,6 +249,7 @@ export const addItemTool = {
     required: ['type', 'trackId', 'startMs', 'endMs', 'data'],
   },
   async execute(input: {
+    id?: string;
     type: string;
     trackId: string;
     startMs: number;
@@ -261,7 +263,7 @@ export const addItemTool = {
       try {
         const manifest = await readManifest();
         const item: any = {
-          id: `item-${randomUUID().slice(0, 8)}`,
+          id: input.id ?? `item-${randomUUID().slice(0, 8)}`,
           type: input.type,
           trackId: input.trackId,
           startMs: input.startMs,
