@@ -4,8 +4,6 @@ import { authMiddleware } from './auth.js';
 import { isInitialized, initWorkspace, ensureNodeModulesSymlink } from './workspace-init.js';
 import { startWatcher, onBundle, getBundleVersion } from './esbuild-watcher.js';
 import { checkpoint, startCheckpointing } from './manifest-checkpoint.js';
-import { triggerRebuildTool } from './tools/trigger-rebuild.js';
-import { renderStillTool } from './tools/render-still.js';
 import { readManifestTool, updateManifestTool } from './tools/manifest-ops.js';
 
 const logger = pino({ name: 'agent-server' });
@@ -143,6 +141,21 @@ export function startAgentServer(port = 8081): void {
       processing,
       bundleVersion: getBundleVersion(),
     });
+  });
+
+  // Manifest GET/PATCH — used by API proxy
+  app.get('/manifest', async (_req, res) => {
+    const content = await readManifestTool.execute();
+    try {
+      res.json(JSON.parse(content));
+    } catch {
+      res.status(500).json({ error: content });
+    }
+  });
+
+  app.patch('/manifest', async (req, res) => {
+    const result = await updateManifestTool.execute({ manifest: req.body });
+    res.json({ ok: true, message: result });
   });
 
   app.listen(port, '0.0.0.0', () => {

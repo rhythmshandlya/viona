@@ -16,7 +16,7 @@ function allocatePort(): number {
 export class DockerSandboxProvider implements SandboxProvider {
   async create(opts: CreateSandboxOpts): Promise<Sandbox> {
     const { projectId, userId, backupId, env = {} } = opts;
-    const containerName = `sandbox-${projectId.slice(0, 8)}`;
+    const containerName = `sandbox-${projectId}`;
     const volumeName = `viona-${projectId}`;
     const secret = randomUUID();
     const filePort = allocatePort();

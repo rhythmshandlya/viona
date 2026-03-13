@@ -13,19 +13,20 @@ import { redis } from '../services/redis.js';
 import type { SandboxProvider } from './provider.js';
 import { DockerSandboxProvider } from './docker.js';
 
-// Initialize provider based on config
-let provider: SandboxProvider;
+// Initialize provider based on config — promise-based singleton prevents race
+let providerPromise: Promise<SandboxProvider> | null = null;
 
-async function getProvider(): Promise<SandboxProvider> {
-  if (!provider) {
-    if (config.sandbox.provider === 'railway') {
-      const { RailwaySandboxProvider } = await import('./railway.js');
-      provider = new RailwaySandboxProvider();
-    } else {
-      provider = new DockerSandboxProvider();
-    }
+function getProvider(): Promise<SandboxProvider> {
+  if (!providerPromise) {
+    providerPromise = (async () => {
+      if (config.sandbox.provider === 'railway') {
+        const { RailwaySandboxProvider } = await import('./railway.js');
+        return new RailwaySandboxProvider();
+      }
+      return new DockerSandboxProvider();
+    })();
   }
-  return provider;
+  return providerPromise;
 }
 
 export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
@@ -363,6 +364,7 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
       logger.debug({ projectId }, 'Manifest checkpoint saved (full sync)');
     } catch (err) {
       logger.error({ err, projectId }, 'Checkpoint save failed');
+      return reply.status(500).send({ error: 'Checkpoint failed' });
     }
 
     return { ok: true };

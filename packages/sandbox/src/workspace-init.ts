@@ -115,7 +115,7 @@ export async function ensureNodeModulesSymlink(): Promise<void> {
   }
 
   try {
-    await symlink(NODE_MODULES_SRC, target, 'junction');
+    await symlink(NODE_MODULES_SRC, target);
     logger.info('node_modules symlinked');
   } catch (err: any) {
     if (err.code !== 'EEXIST') throw err;
