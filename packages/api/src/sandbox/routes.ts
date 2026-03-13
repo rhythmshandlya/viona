@@ -9,7 +9,7 @@ import { withProjectMutex } from './mutex.js';
 import { proxyFileRequest, proxyPrompt, proxyManifestOp } from './proxy.js';
 import { touchActivity, onSandboxIdle, removeActivity } from './health.js';
 import { dbToManifest } from '@viona/shared';
-import { emitWorkspaceReady, emitBundleReady, emitWorkspaceTeardown } from '../workspace/workspace-ws.js';
+import { emitWorkspaceReady, emitBundleReady, emitWorkspaceTeardown, emitManifestUpdated } from '../workspace/workspace-ws.js';
 import type { SandboxProvider } from './provider.js';
 import { DockerSandboxProvider } from './docker.js';
 
@@ -309,6 +309,14 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
     logger.info({ projectId, version }, 'Bundle ready');
     const bundleBaseUrl = `/api/projects/${projectId}/sandbox/bundle`;
     await emitBundleReady(projectId, { bundleUrl: bundleBaseUrl });
+    return { ok: true };
+  });
+
+  // POST /internal/sandbox/:id/manifest-updated
+  fastify.post('/internal/sandbox/:id/manifest-updated', async (request, reply) => {
+    const projectId = await validateInternalCallback(request, reply);
+    if (!projectId) return;
+    await emitManifestUpdated(projectId, { source: 'ai' });
     return { ok: true };
   });
 
