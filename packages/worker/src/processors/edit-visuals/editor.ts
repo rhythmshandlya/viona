@@ -43,6 +43,13 @@ export async function runClaudeEditor(options: ClaudeEditorOptions): Promise<Cla
 
   const startTime = Date.now();
 
+  // Detect v2 projects (Composition.tsx + segments/ instead of index.tsx + scenes/)
+  let isV2 = false;
+  try {
+    await readFile(join(projectDir, 'Composition.tsx'));
+    isV2 = true;
+  } catch { /* v1 */ }
+
   // List source files for Claude to read on demand (don't embed contents — too large for prompt)
   const fileList = existingFiles.join('\n- ');
   let targetSceneContext = '';
@@ -50,19 +57,39 @@ export async function runClaudeEditor(options: ClaudeEditorOptions): Promise<Cla
     try {
       const scenesRaw = await readFile(join(projectDir, 'scenes.json'), 'utf-8');
       const parsed = JSON.parse(scenesRaw);
-      const allScenes = parsed.scenes || [];
-      const parts: string[] = [];
-      for (const id of allTargetIds) {
-        const scene = allScenes.find((s: any) => s.id === id);
-        if (scene) {
-          parts.push(`- Scene ${scene.id}: "${scene.name}" · File: scenes/Scene${scene.id}.tsx · Frames: ${scene.frames[0]}–${scene.frames[1]} · ${scene.timestampRange[0]}s–${scene.timestampRange[1]}s · ${scene.visual || scene.description || 'N/A'}`);
-        } else {
-          parts.push(`- Scene ${id} (file: scenes/Scene${id}.tsx)`);
+
+      if (isV2) {
+        const segments = parsed.segments || [];
+        const parts: string[] = [];
+        for (const id of allTargetIds) {
+          const segment = segments.find((s: any) => s.id === id);
+          if (segment) {
+            const beatNames = segment.beats?.map((b: any) => b.name).join(' → ') || '';
+            parts.push(`- Segment ${segment.id}: "${beatNames}" · File: segments/Segment${segment.id}.tsx · Layout: ${segment.layout} · Frames: ${segment.frames[0]}–${segment.frames[1]}`);
+          } else {
+            parts.push(`- Segment ${id} (file: segments/Segment${id}.tsx)`);
+          }
         }
+        targetSceneContext = `\nUSER-SELECTED TARGET${allTargetIds.length > 1 ? 'S' : ''}:\n${parts.join('\n')}`;
+      } else {
+        const allScenes = parsed.scenes || [];
+        const parts: string[] = [];
+        for (const id of allTargetIds) {
+          const scene = allScenes.find((s: any) => s.id === id);
+          if (scene) {
+            parts.push(`- Scene ${scene.id}: "${scene.name}" · File: scenes/Scene${scene.id}.tsx · Frames: ${scene.frames[0]}–${scene.frames[1]} · ${scene.timestampRange[0]}s–${scene.timestampRange[1]}s · ${scene.visual || scene.description || 'N/A'}`);
+          } else {
+            parts.push(`- Scene ${id} (file: scenes/Scene${id}.tsx)`);
+          }
+        }
+        targetSceneContext = `\nUSER-SELECTED TARGET${allTargetIds.length > 1 ? 'S' : ''}:\n${parts.join('\n')}`;
       }
-      targetSceneContext = `\nUSER-SELECTED TARGET${allTargetIds.length > 1 ? 'S' : ''}:\n${parts.join('\n')}`;
     } catch {
-      targetSceneContext = `\nUSER-SELECTED TARGET${allTargetIds.length > 1 ? 'S' : ''}: ${allTargetIds.map(id => `Scene ${id} (scenes/Scene${id}.tsx)`).join(', ')}`;
+      if (isV2) {
+        targetSceneContext = `\nUSER-SELECTED TARGET${allTargetIds.length > 1 ? 'S' : ''}: ${allTargetIds.map(id => `Segment ${id} (segments/Segment${id}.tsx)`).join(', ')}`;
+      } else {
+        targetSceneContext = `\nUSER-SELECTED TARGET${allTargetIds.length > 1 ? 'S' : ''}: ${allTargetIds.map(id => `Scene ${id} (scenes/Scene${id}.tsx)`).join(', ')}`;
+      }
     }
   }
 
@@ -149,7 +176,7 @@ USER'S REQUEST:
 PROJECT FILES (read them from disk as needed — do NOT ask the user for file contents):
 - ${fileList}
 
-START by reading the files most relevant to the user's request. At minimum read scenes.json and index.tsx to understand the structure, then read specific scene files you need to edit.
+START by reading the files most relevant to the user's request. At minimum read scenes.json and ${isV2 ? 'Composition.tsx' : 'index.tsx'} to understand the structure, then read specific ${isV2 ? 'segment' : 'scene'} files you need to edit.
 
 YOUR JOB:
 You understand what the speaker is saying, what the visuals currently show, and what the user wants changed. Make edits that result in visuals that accurately illustrate the spoken content.
@@ -165,7 +192,13 @@ TECHNICAL GUIDELINES:
 - Remotion best practices: useCurrentFrame(), spring() with damping >= 20, interpolate() with extrapolateRight: 'clamp'.
 - Do NOT modify files that aren't relevant to the request.
 - After making changes, run: npx remotion bundle src/${projectId}/index.tsx --out-dir ${bundleOutputDir}/${projectId.replace(/_/g, '-')}
-${allTargetIds.length > 0 ? `
+${isV2 && allTargetIds.length > 0 ? `
+SCOPE RESTRICTION (MANDATORY):
+- For ANIMATION/VISUAL changes (colors, motion, text): edit ${allTargetIds.map(id => `segments/Segment${id}.tsx`).join(', ')} and their dependencies (components/ or constants.ts).
+- For LAYOUT/POSITIONING changes (split ratio, overlay position, segment order): edit Composition.tsx.
+- If the request involves both animation AND layout, you may edit both Composition.tsx and the segment files.
+- Do NOT touch other segment files that aren't listed above.
+` : allTargetIds.length > 0 ? `
 SCOPE RESTRICTION (MANDATORY):
 - You MUST ONLY edit ${allTargetIds.map(id => `scenes/Scene${id}.tsx`).join(', ')} and their direct dependencies (components/ or constants.ts).
 - Do NOT touch other scene files — they are NOT part of this edit.

@@ -88,6 +88,11 @@ export async function buildLayoutContext(
     const scenesContent = await readFile(scenesPath, 'utf-8');
     const scenesData = JSON.parse(scenesContent);
 
+    // v2 projects use segments instead of scenes
+    if (scenesData.version >= 2 && scenesData.segments) {
+      return buildV2LayoutContext(scenesData, targetSceneId, canvasWidth, canvasHeight);
+    }
+
     if (!scenesData.scenes || !Array.isArray(scenesData.scenes)) {
       return '';
     }
@@ -178,6 +183,34 @@ Canvas: ${canvasWidth}x${canvasHeight} | Scene effective area: ${ew}x${eh} | Dis
 - Bottom-right ~15%: avoid placing critical content (PiP bubble overlaps).
 - All sizes relative to EW/EH (const EW = ${ew}, EH = ${eh}). NEVER hardcoded pixels.
 - Clipping container required with overflow: 'hidden'.`;
+}
+
+/**
+ * Build layout context for v2 projects (segments-based).
+ */
+function buildV2LayoutContext(
+  scenesJson: any,
+  targetSegmentId: number | undefined,
+  canvasWidth: number,
+  canvasHeight: number,
+): string {
+  const segments = scenesJson.segments || [];
+  const lines = ['COMPOSITION LAYOUT (v2 — AI-generated Composition.tsx):'];
+
+  for (const seg of segments) {
+    const [startF, endF] = seg.frames;
+    const dur = endF - startF;
+    const marker = targetSegmentId === seg.id ? ' ← TARGET' : '';
+    lines.push(`  Segment ${seg.id}: ${seg.layout} | frames ${startF}–${endF} (${dur}f) | ${seg.beats?.length || 0} beats${marker}`);
+    if (seg.layoutProps && Object.keys(seg.layoutProps).length > 0) {
+      lines.push(`    Props: ${JSON.stringify(seg.layoutProps)}`);
+    }
+  }
+
+  lines.push(`  Canvas: ${canvasWidth}×${canvasHeight}`);
+  lines.push('  Layout is defined in Composition.tsx (AI-generated). Animation content is in segments/SegmentN.tsx files.');
+
+  return lines.join('\n');
 }
 
 /**
