@@ -94,6 +94,7 @@ const initialState: EditorState = {
   itemIds: [],
   duration: 0,
   fps: DEFAULT_FPS,
+  assets: {},
 
   // Selection
   selectedIds: [],

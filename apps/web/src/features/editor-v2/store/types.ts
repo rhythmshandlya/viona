@@ -7,7 +7,7 @@
 // Timeline Item Types
 // ============================================
 
-export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll';
+export type TimelineItemType = 'video' | 'audio' | 'caption' | 'text' | 'image' | 'visual' | 'broll' | 'scene' | 'shape';
 
 export interface TimelineItem {
   id: string;
@@ -21,7 +21,44 @@ export interface TimelineItem {
     endMs: number;
   };
   // Type-specific data
-  data: VideoItemData | AudioItemData | CaptionItemData | TextItemData | ImageItemData | VisualItemData | BrollItemData;
+  data: VideoItemData | AudioItemData | CaptionItemData | TextItemData | ImageItemData | VisualItemData | BrollItemData | ShapeItemData;
+  // V2 optional fields
+  transform?: Transform;
+  keyframes?: Keyframe[];
+  filters?: Filters;
+}
+
+export interface Transform {
+  x: number | string;
+  y: number | string;
+  width: number | string;
+  height: number | string;
+  rotation: number;
+  opacity: number;
+}
+
+export interface Keyframe {
+  timeMs: number;
+  props: Partial<Transform>;
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'spring' | `cubic-bezier(${string})`;
+}
+
+export interface Filters {
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  blur?: number;
+  hue?: number;
+  grayscale?: number;
+  sepia?: number;
+}
+
+export interface ShapeItemData {
+  shape: 'rectangle' | 'circle' | 'line';
+  fill?: string;
+  stroke?: string;
+  strokeWidth?: number;
+  borderRadius?: number;
 }
 
 export interface VideoItemData {
@@ -573,6 +610,9 @@ export interface EditorState {
   itemIds: string[];
   duration: number;  // Total duration in ms
   fps: number;
+
+  // Asset registry (v2)
+  assets: Record<string, string>;
 
   // Selection
   selectedIds: string[];

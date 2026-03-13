@@ -51,6 +51,8 @@ export interface CanvasRendererOptions {
     image: string;
     visual: string;
     broll: string;
+    scene: string;
+    shape: string;
   };
   selectedBorderColor: string;
   playheadColor: string;
@@ -80,6 +82,8 @@ const DEFAULT_OPTIONS: CanvasRendererOptions = {
     image: '#ec4899', // pink-500
     visual: '#8b5cf6', // purple-500
     broll: '#06b6d4', // cyan-500
+    scene: '#f59e0b', // amber-500
+    shape: '#64748b', // slate-500
   },
   selectedBorderColor: '#7C3AED', // violet for selection
   playheadColor: '#7C3AED', // violet playhead
