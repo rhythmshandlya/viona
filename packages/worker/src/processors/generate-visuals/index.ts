@@ -159,7 +159,9 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
           logger.info({ projectDir, planJobId: job.data.planJobId }, 'Plan changed — cleaning stale generation artifacts');
           const scenesDir = join(projectDir, 'scenes');
           await rm(scenesDir, { recursive: true, force: true }).catch(() => {});
-          for (const f of ['constants.ts', 'index.tsx', 'metadata.json']) {
+          const segmentsDir = join(projectDir, 'segments');
+          await rm(segmentsDir, { recursive: true, force: true }).catch(() => {});
+          for (const f of ['constants.ts', 'index.tsx', 'Composition.tsx', 'metadata.json']) {
             await rm(join(projectDir, f), { force: true }).catch(() => {});
           }
         }
@@ -208,8 +210,50 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
             scene.videoKeyword = sceneVideo.keyword;
           }
         }
+        // V2 enrichment: segments with nested beats
+        if ((scenesObj as any).version >= 2 && (scenesObj as any).segments) {
+          const segments = (scenesObj as any).segments as Array<Record<string, unknown>>;
+          for (const segment of segments) {
+            const segLayout = (segment.layout as string) || 'fullscreen';
+            const beats = (segment.beats as Array<Record<string, unknown>>) || [];
+            for (const beat of beats) {
+              // Compute per-beat effectiveDimensions based on segment layout type
+              if (segLayout === 'fullscreen' || segLayout === 'overlay') {
+                beat.effectiveDimensions = { width: canvasWidth, height: canvasHeight };
+              } else {
+                // stacked — visual panel dimensions
+                beat.effectiveDimensions = { width: pipEffective.width, height: pipEffective.height };
+              }
+
+              // Pre-inject speaker grid for overlay segments
+              if (segLayout === 'overlay' && project.headTrackingData) {
+                const beatFrames = beat.frames as [number, number] | undefined;
+                if (beatFrames) {
+                  const startMs = (beatFrames[0] / fps) * 1000;
+                  const endMs = (beatFrames[1] / fps) * 1000;
+                  beat.speakerGrid = computeSpeakerGrid(
+                    project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } },
+                    startMs,
+                    endMs,
+                  );
+                }
+              }
+
+              // Enrich beats with video indicator
+              const beatIdStr = String(beat.id);
+              const beatVideo = videoManifest.videos.find(v => v.sceneId === beatIdStr);
+              if (beatVideo) {
+                beat.hasVideo = true;
+                beat.videoKeyword = beatVideo.keyword;
+              }
+            }
+          }
+          await writeFile(scenesJsonPath, JSON.stringify(scenesObj, null, 2), 'utf-8');
+          logger.info({ projectDir, planJobId: job.data.planJobId, segmentCount: segments.length }, 'Wrote enriched v2 plan files from plan job for Animator-only run');
+        } else {
         await writeFile(scenesJsonPath, JSON.stringify({ ...scenesObj, scenes: scenesArray }, null, 2), 'utf-8');
         logger.info({ projectDir, planJobId: job.data.planJobId, sceneCount: scenesArray.length }, 'Wrote enriched plan files from plan job for Animator-only run');
+        }
       } else {
         logger.warn({ planJobId: job.data.planJobId }, 'Plan job not found or has no planData');
       }
@@ -225,33 +269,22 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       await writeFile(rootTsx, `import "./index.css";
 import React from "react";
 import { Composition } from "remotion";
-import MainComposition from "./${compositionId}";
-import { FullComposition } from "./composition";
-import type { FullCompositionProps } from "./composition";
-
-const Wrapped: React.FC<FullCompositionProps> = (props) => {
-  return (
-    <FullComposition {...props}>
-      <MainComposition />
-    </FullComposition>
-  );
-};
+import { ProjectComposition } from "./${compositionId}/Composition";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
         id="${compositionIdDashed}"
-        component={Wrapped}
+        component={ProjectComposition}
         durationInFrames={${durationFrames}}
         fps={${project.fps || 30}}
         width={${dimensions?.width || 1080}}
         height={${dimensions?.height || 1920}}
         defaultProps={{
-          splitSettings: { position: "visuals-first", ratio: 50, gap: 0 },
-          layoutSegments: [],
-          videoCropSettings: { sourceWidth: 1920, sourceHeight: 1080, cropX: 50, cropY: 50, scale: 1.0 },
-          sourceVideoFile: "source.mp4",
+          videoUrl: "source.mp4",
+          subtitles: [],
+          captionStyle: {},
         }}
       />
     </>

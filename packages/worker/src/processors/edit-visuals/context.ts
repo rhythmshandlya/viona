@@ -23,6 +23,53 @@ export async function extractAssets(projectDir: string): Promise<ExtractedAsset[
     const scenesContent = await readFile(scenesPath, 'utf-8');
     const scenesData = JSON.parse(scenesContent);
 
+    // V2: segments with nested beats (check before v1)
+    if (scenesData.version >= 2 && scenesData.segments) {
+      for (const segment of scenesData.segments) {
+        const segmentId = segment.id;
+        const segmentName = segment.layout || `Segment ${segmentId}`;
+
+        for (const beat of (segment.beats || [])) {
+          const beatId = beat.id;
+          const beatName = beat.name || `Beat ${beatId}`;
+
+          if (beat.layout && typeof beat.layout === 'object') {
+            for (const [key, value] of Object.entries(beat.layout as Record<string, any>)) {
+              if (key === 'background') continue;
+
+              let assetType: ExtractedAsset['type'] = 'element';
+              const lowerKey = key.toLowerCase();
+              if (lowerKey.includes('text') || lowerKey.includes('title') || lowerKey.includes('label')) {
+                assetType = 'text';
+              } else if (lowerKey.includes('icon')) {
+                assetType = 'icon';
+              } else if (lowerKey.includes('shape') || lowerKey.includes('circle') || lowerKey.includes('rect')) {
+                assetType = 'shape';
+              } else if (lowerKey.includes('particle') || lowerKey.includes('bg')) {
+                assetType = 'background';
+              }
+
+              assets.push({
+                id: `seg${segmentId}-beat${beatId}-${key}`,
+                name: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').trim(),
+                type: assetType,
+                sceneId: beatId,
+                sceneName: `${segmentName} / ${beatName}`,
+                description: beat.visual || beatName,
+                position: value?.x || value?.y ? { x: value.x || 'center', y: value.y || '50%' } : undefined,
+                size: value?.width || value?.height ? { width: value.width || 'auto', height: value.height || 'auto' } : undefined,
+              });
+            }
+          }
+        }
+      }
+
+      const assetsPath = join(projectDir, 'assets.json');
+      await writeFile(assetsPath, JSON.stringify({ assets, extractedAt: new Date().toISOString() }, null, 2));
+      logger.info({ projectDir, assetCount: assets.length }, 'Extracted assets from v2 composition');
+      return assets;
+    }
+
     if (!scenesData.scenes || !Array.isArray(scenesData.scenes)) {
       return assets;
     }
