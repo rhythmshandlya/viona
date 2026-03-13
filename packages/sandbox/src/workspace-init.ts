@@ -6,6 +6,7 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { Client as MinioClient } from 'minio';
 import pino from 'pino';
+import { syncAssets } from './asset-sync.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -78,6 +79,10 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
   await mkdir(join(WORKSPACE, '.build'), { recursive: true });
   await mkdir(join(WORKSPACE, '.claude'), { recursive: true });
 
+  // Create empty scene-registry.ts stub (PlayerComposition imports it statically)
+  await writeFile(join(WORKSPACE, 'src', 'scene-registry.ts'),
+    `// AUTO-GENERATED — do not edit\nimport React from 'react';\nexport const sceneRegistry: Record<string, React.ComponentType<any>> = {};\n`);
+
   // Download video from MinIO
   const minio = getMinioClient();
   const bucket = process.env.MINIO_BUCKET || 'viona';
@@ -114,6 +119,10 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
     }
   }
 
+  // Ensure v2 manifest fields
+  if (!manifest.version) manifest.version = 2;
+  if (!manifest.assets) manifest.assets = {};
+
   // Write manifest
   await writeFile(
     join(WORKSPACE, 'manifest.json'),
@@ -125,6 +134,9 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
     recursive: true,
     force: false,  // Don't overwrite existing files
   });
+
+  // Initial asset sync — generate presigned URLs for downloaded media
+  await syncAssets();
 
   logger.info('Workspace initialized');
 }
