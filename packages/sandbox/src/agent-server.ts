@@ -125,12 +125,12 @@ export function startAgentServer(port = 8081): void {
     res.setHeader('Connection', 'keep-alive');
 
     // Send initial event
-    res.write(`data: ${JSON.stringify({ type: 'agent:progress', message: 'Processing...' })}\n\n`);
+    res.write(`event: text\ndata: ${JSON.stringify({ text: 'Processing your request...' })}\n\n`);
 
     await enqueuePrompt(prompt, conversationId);
 
     // Send completion event
-    res.write(`data: ${JSON.stringify({ type: 'agent:complete', filesChanged: [] })}\n\n`);
+    res.write(`event: done\ndata: ${JSON.stringify({})}\n\n`);
     res.end();
   });
 
