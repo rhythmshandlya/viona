@@ -173,6 +173,8 @@ COPY --from=builder /app/packages/mcp-servers/dist ./packages/mcp-servers/dist
 COPY --from=builder /app/packages/mcp-servers/node_modules ./packages/mcp-servers/node_modules
 # Copy agents folder to where the compiled JS expects it (../agents from dist/)
 COPY --from=builder /app/packages/worker/src/agents ./packages/worker/agents
+# Copy prompts package (Python imports from agents reference prompts as sibling under src/)
+COPY --from=builder /app/packages/worker/src/prompts ./packages/worker/prompts
 COPY --from=builder /app/packages/worker/scripts ./packages/worker/scripts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/renderer/dist ./packages/renderer/dist
