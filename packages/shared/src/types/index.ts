@@ -318,18 +318,19 @@ export interface VisualData {
 // Dynamic Layout Types
 // ============================================
 
-/** How a visual item composites with the speaker video */
+/** @deprecated v1 only — v2 uses segment-level layout in AI-generated Composition.tsx */
 export type DisplayMode = 'default' | 'fullscreen' | 'overlay';
 
-/** Transition type for layout segment boundaries */
+/** @deprecated v1 only — v2 handles transitions in AI-generated Composition.tsx */
 export type LayoutTransitionType = 'cut' | 'fade' | 'zoom-in' | 'zoom-out';
 
-/** Enter/exit transition for a visual layout segment */
+/** @deprecated v1 only — v2 handles transitions in AI-generated Composition.tsx */
 export interface LayoutTransition {
   enter: { type: LayoutTransitionType; durationMs: number };
   exit: { type: LayoutTransitionType; durationMs: number };
 }
 
+/** @deprecated v1 only */
 export const DEFAULT_LAYOUT_TRANSITION: LayoutTransition = {
   enter: { type: 'cut', durationMs: 0 },
   exit: { type: 'cut', durationMs: 0 },
