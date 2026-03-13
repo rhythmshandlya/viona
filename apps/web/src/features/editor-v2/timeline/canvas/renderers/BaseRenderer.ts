@@ -15,6 +15,10 @@ const ITEM_COLORS: Record<string, string> = {
   caption: '#a855f7', // purple-500
   text: '#A78BFA',    // violet-400
   image: '#ec4899',   // pink-500
+  visual: '#8b5cf6',  // purple-500
+  broll: '#06b6d4',   // cyan-500
+  scene: '#f59e0b',   // amber-500
+  shape: '#64748b',   // slate-500
 };
 
 export class BaseRenderer implements ItemRenderer {
