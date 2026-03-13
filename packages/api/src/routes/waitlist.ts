@@ -3,8 +3,15 @@ import { sql } from 'drizzle-orm';
 import { db, waitlist } from '../db/index.js';
 
 export async function waitlistRoutes(fastify: FastifyInstance) {
-  // Submit email to waitlist
-  fastify.post('/waitlist', async (request, reply) => {
+  // Submit email to waitlist — strict rate limit (5 per minute per IP)
+  fastify.post('/waitlist', {
+    config: {
+      rateLimit: {
+        max: 5,
+        timeWindow: '1 minute',
+      },
+    },
+  }, async (request, reply) => {
     const body = request.body as { email?: string };
 
     if (!body.email || typeof body.email !== 'string') {
