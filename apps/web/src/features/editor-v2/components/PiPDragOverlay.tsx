@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useLayoutSettings, useLayoutActions } from '../store/use-editor-store';
+import { useEditorStore, useEditorActions } from '../store/use-editor-store';
+import { DEFAULT_LAYOUT_SETTINGS } from '../store/types';
 import type { PiPSettings, PiPPosition, PiPCrop } from '../store/types';
 import { PIP_SIZE_MAP, DEFAULT_PIP_CROP } from '../store/types';
 
@@ -130,8 +131,9 @@ interface PiPDragOverlayProps {
 }
 
 export function PiPDragOverlay({ containerRef, canvasWidth, canvasHeight }: PiPDragOverlayProps) {
-  const layoutSettings = useLayoutSettings();
-  const { updatePiPSettings, updatePiPCrop } = useLayoutActions();
+  const layoutSettings = useEditorStore((s) => s.layoutSettings) ?? DEFAULT_LAYOUT_SETTINGS;
+  const { updatePiPSettings } = useEditorActions();
+  const updatePiPCrop = useEditorStore((s) => s.updatePiPCrop);
 
   const [box, setBox] = useState<BoundingBox | null>(null);
   const [isSelected, setIsSelected] = useState(false);

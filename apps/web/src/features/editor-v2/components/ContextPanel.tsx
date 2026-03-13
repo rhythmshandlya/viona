@@ -26,7 +26,6 @@ import {
   CaptionPosition,
   AudioItemData,
   VisualItemData,
-  VisualDisplayMode,
   VideoItemData,
   OverlayZone,
 } from '../store/types';
@@ -492,7 +491,7 @@ function AudioPanel() {
 function VisualPropertiesPanel() {
   const selectedIds = useSelectedIds();
   const visualItem = useItem(selectedIds[0] || '');
-  const { updateVisualDisplayMode, updateItemData, updateVisualOverlayZone } = useEditorActions();
+  const { updateItemData, updateVisualOverlayZone } = useEditorActions();
 
   // Get all items to find video for segmentation status
   const allItems = useItems();
@@ -526,6 +525,7 @@ function VisualPropertiesPanel() {
 
   return (
     <div className="p-4 space-y-6">
+      {/* V2: Display Mode is in AI-generated Composition.tsx — shown read-only */}
       <Section label="Display Mode">
         <SegmentedControl
           options={[
@@ -534,7 +534,7 @@ function VisualPropertiesPanel() {
             { value: 'overlay', label: 'Overlay' },
           ]}
           value={displayMode}
-          onChange={(value) => updateVisualDisplayMode(visualItem.id, value as VisualDisplayMode)}
+          onChange={() => {/* V2: layout is in AI-generated Composition.tsx */}}
         />
       </Section>
 

@@ -22,7 +22,6 @@ import {
   DEFAULT_VIDEO_SETTINGS,
   DEFAULT_CAPTION_STYLE,
   DEFAULT_LAYOUT_SETTINGS,
-  LAYOUT_PRESETS,
   CaptionItemData,
   CaptionWord,
   VideoItemData,
@@ -35,7 +34,6 @@ import {
   WordStyleOverrides,
   LayoutSettings,
   LayoutPresetId,
-  LayoutMode,
   PiPSettings,
   PiPCrop,
   SplitSettings,
@@ -143,9 +141,9 @@ const initialState: EditorState = {
   clipboard: null,
   splitMode: false,
 
-  // Layout settings
-  layoutSettings: DEFAULT_LAYOUT_SETTINGS,
-  layoutPresetId: 'stacked-equal' as LayoutPresetId,
+  // Layout settings — V2: optional, kept for v1 backward compat
+  layoutSettings: undefined,
+  layoutPresetId: undefined,
 
   // Scene selection for AI editing
   selectedSceneId: null,
@@ -731,7 +729,9 @@ export const useEditorStore = create<EditorStore>()(
             state.layoutPresetId = bridgeResult.layoutPresetId as LayoutPresetId;
             state.workspaceStatus = wsResult.workspaceStatus as any;
             state.workspaceBundleUrl = bundleBaseUrl;
-            state.workspaceBundleVersion = 0;
+            // If workspace was already active and bundle exists, set version to 1
+            // so useWorkspaceComposition fetches it immediately
+            state.workspaceBundleVersion = wsResult.bundleReady ? 1 : 0;
             state.workspaceBundleError = null;
             state.workspaceManifest = wsResult.manifest as Record<string, unknown>;
             state.workspaceLockHolder = null;
@@ -744,6 +744,29 @@ export const useEditorStore = create<EditorStore>()(
           get().pushHistory();
           cancelDebouncedSave();
           set((state) => { state.isDirty = false; });
+
+          // If bundle isn't ready yet, poll until the CJS file exists.
+          // This handles the race where bundle:ready WS event fires before
+          // the frontend WebSocket connects.
+          if (!wsResult.bundleReady) {
+            const pollBundle = async () => {
+              for (let i = 0; i < 30; i++) {
+                await new Promise(r => setTimeout(r, 2000));
+                if (get().workspaceBundleVersion > 0) return; // WS event arrived
+                try {
+                  const res = await fetch(`${API_URL}${bundleBaseUrl}/player-composition.cjs.js`, {
+                    method: 'HEAD',
+                    credentials: 'include',
+                  });
+                  if (res.ok) {
+                    set((state) => { state.workspaceBundleVersion = 1; });
+                    return;
+                  }
+                } catch { /* retry */ }
+              }
+            };
+            pollBundle();
+          }
 
           // Auto-load caption fonts (same as existing path)
           const captionFonts = new Set<string>();
@@ -2363,22 +2386,11 @@ export const useEditorStore = create<EditorStore>()(
     // Layout Actions
     // ========================================
 
-    updateLayoutSettings: (settings: Partial<LayoutSettings>) => {
-      set((state) => {
-        state.layoutSettings = {
-          ...state.layoutSettings,
-          ...settings,
-        };
-        state.layoutPresetId = 'custom';
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-      const ls = get().layoutSettings;
-      dispatchManifestOp({ op: 'set_layout', layout: { mode: ls.mode, pip: ls.pip, split: ls.split } });
-    },
+    // V2: updateLayoutSettings removed — layout is in AI-generated Composition.tsx
 
     updatePiPSettings: (settings: Partial<PiPSettings>) => {
       set((state) => {
+        if (!state.layoutSettings) return;
         state.layoutSettings.pip = {
           ...state.layoutSettings.pip,
           ...settings,
@@ -2391,6 +2403,7 @@ export const useEditorStore = create<EditorStore>()(
 
     updatePiPCrop: (crop: Partial<PiPCrop>) => {
       set((state) => {
+        if (!state.layoutSettings) return;
         state.layoutSettings.pip.crop = {
           ...state.layoutSettings.pip.crop,
           ...crop,
@@ -2402,6 +2415,7 @@ export const useEditorStore = create<EditorStore>()(
 
     updateSplitSettings: (settings: Partial<SplitSettings>) => {
       set((state) => {
+        if (!state.layoutSettings) return;
         state.layoutSettings.split = {
           ...state.layoutSettings.split,
           ...settings,
@@ -2412,30 +2426,7 @@ export const useEditorStore = create<EditorStore>()(
       debouncedSave(() => get().saveProject());
     },
 
-    setLayoutPreset: (presetId: LayoutPresetId) => {
-      const preset = LAYOUT_PRESETS.find((p) => p.id === presetId);
-      if (!preset) return;
-
-      set((state) => {
-        state.layoutPresetId = presetId;
-        state.layoutSettings = JSON.parse(JSON.stringify(preset.settings));
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-      const ls = get().layoutSettings;
-      dispatchManifestOp({ op: 'set_layout', layout: { mode: ls.mode, pip: ls.pip, split: ls.split } });
-    },
-
-    setLayoutMode: (mode: LayoutMode) => {
-      set((state) => {
-        state.layoutSettings.mode = mode;
-        state.layoutPresetId = 'custom';
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-      const ls = get().layoutSettings;
-      dispatchManifestOp({ op: 'set_layout', layout: { mode: ls.mode, pip: ls.pip, split: ls.split } });
-    },
+    // V2: setLayoutPreset, setLayoutMode removed — layout is in AI-generated Composition.tsx
 
     // Scene selection for AI editing
     setSelectedScene: (sceneId: number | null) => {
@@ -2505,9 +2496,9 @@ export const useEditorStore = create<EditorStore>()(
 
       const canvasWidth = state.project?.videoSettings.canvasWidth || 1080;
       const canvasHeight = state.project?.videoSettings.canvasHeight || 1920;
-      const layoutMode = state.layoutSettings.mode;
-      const splitRatio = state.layoutSettings.split.ratio;
-      const splitGap = state.layoutSettings.split.gap;
+      const layoutMode = state.layoutSettings?.mode ?? 'stacked';
+      const splitRatio = state.layoutSettings?.split?.ratio ?? 50;
+      const splitGap = state.layoutSettings?.split?.gap ?? 0;
 
       // Compute effective dimensions for a given display mode
       const getEffectiveDims = (dm: VisualDisplayMode) => {
@@ -2529,8 +2520,14 @@ export const useEditorStore = create<EditorStore>()(
       // Capture timing before mutating state
       const { startMs, endMs } = item;
 
-      // Apply the display mode change immediately
-      get().updateVisualDisplayMode(itemId, newDisplayMode);
+      // Apply the display mode change immediately (inline — updateVisualDisplayMode removed in v2)
+      set((state) => {
+        const stateItem = state.items[itemId];
+        if (stateItem?.type === 'visual') {
+          (stateItem.data as VisualItemData).displayMode = newDisplayMode;
+        }
+      });
+      get().pushHistory();
 
       // Build human-readable mode labels
       const modeLabel = (dm: VisualDisplayMode): string => {
@@ -2562,33 +2559,7 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
-    // ========================================
-    // Visual Display Mode Actions
-    // ========================================
-
-    updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => {
-      set((state) => {
-        const item = state.items[itemId];
-        if (item?.type === 'visual') {
-          (item.data as VisualItemData).displayMode = displayMode;
-        }
-      });
-      get().pushHistory();
-      dispatchManifestOp({ op: 'set_display_mode', itemId, displayMode });
-    },
-
-    updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => {
-      set((state) => {
-        const item = state.items[itemId];
-        if (item?.type === 'visual') {
-          (item.data as VisualItemData).transition = transition;
-        }
-      });
-      get().pushHistory();
-      if (transition) {
-        dispatchManifestOp({ op: 'set_transition', itemId, enter: transition.enter, exit: transition.exit });
-      }
-    },
+    // V2: updateVisualDisplayMode, updateVisualTransition removed — display mode and transitions are in AI-generated Composition.tsx
 
     openTransitionPicker: (itemId: string) => {
       set((state) => { state.transitionPickerItemId = itemId; });

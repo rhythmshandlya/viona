@@ -3,16 +3,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   useVideoSettings,
-  useLayoutSettings,
   useSourceDimensions,
   useEditorStore,
 } from '../store/use-editor-store';
+import {
+  DEFAULT_LAYOUT_SETTINGS,
+  PIP_SIZE_MAP,
+} from '../store/types';
 import type {
   VisualItemData,
   PiPSettings,
   SplitSettings,
 } from '../store/types';
-import { PIP_SIZE_MAP } from '../store/types';
 
 // --- Types ---
 
@@ -126,7 +128,7 @@ interface VideoDragOverlayProps {
 
 export function VideoDragOverlay({ containerRef, canvasWidth, canvasHeight }: VideoDragOverlayProps) {
   const videoSettings = useVideoSettings();
-  const layoutSettings = useLayoutSettings();
+  const layoutSettings = useEditorStore((s) => s.layoutSettings) ?? DEFAULT_LAYOUT_SETTINGS;
   const sourceDimensions = useSourceDimensions();
 
   const [isHovered, setIsHovered] = useState(false);

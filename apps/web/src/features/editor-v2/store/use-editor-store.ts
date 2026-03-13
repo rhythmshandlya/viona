@@ -8,7 +8,7 @@
 import { useMemo, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
-import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData, SegmentationData } from './types';
+import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, SelectedElement, AIEditingContext, VisualItemData, SegmentationData } from './types';
 import { migrateDisplayModeToZone } from '../utils/overlay-zones';
 
 /**
@@ -253,33 +253,9 @@ export const useShowCaptions = () => useEditorStore((s) => s.showCaptions);
 
 // ============================================
 // Layout Selectors
+// V2: layout is in AI-generated Composition.tsx
+// useLayoutSettings, useLayoutPresetId, useLayoutMode, useLayoutActions removed
 // ============================================
-
-export function useLayoutSettings(): LayoutSettings {
-  return useEditorStore((state) => state.layoutSettings);
-}
-
-export function useLayoutPresetId(): LayoutPresetId {
-  return useEditorStore((state) => state.layoutPresetId);
-}
-
-export function useLayoutMode(): LayoutMode {
-  return useEditorStore((state) => state.layoutSettings.mode);
-}
-
-
-export function useLayoutActions() {
-  return useEditorStore(
-    useShallow((state) => ({
-      updateLayoutSettings: state.updateLayoutSettings,
-      updatePiPSettings: state.updatePiPSettings,
-      updatePiPCrop: state.updatePiPCrop,
-      updateSplitSettings: state.updateSplitSettings,
-      setLayoutPreset: state.setLayoutPreset,
-      setLayoutMode: state.setLayoutMode,
-    }))
-  );
-}
 
 /**
  * Get the caption style for the first selected caption item.
@@ -537,12 +513,9 @@ export function useEditorActions() {
       mergeCaptions: state.mergeCaptions,
       updateCaptionText: state.updateCaptionText,
 
-      // Layout
-      updateLayoutSettings: state.updateLayoutSettings,
+      // Layout (v1 compat — PiP/Split still used by some components)
       updatePiPSettings: state.updatePiPSettings,
       updateSplitSettings: state.updateSplitSettings,
-      setLayoutPreset: state.setLayoutPreset,
-      setLayoutMode: state.setLayoutMode,
 
       // Scene selection
       setSelectedScene: state.setSelectedScene,
@@ -562,9 +535,7 @@ export function useEditorActions() {
       setPendingAIMessage: state.setPendingAIMessage,
       changeDisplayModeWithAI: state.changeDisplayModeWithAI,
 
-      // Visual display mode
-      updateVisualDisplayMode: state.updateVisualDisplayMode,
-      updateVisualTransition: state.updateVisualTransition,
+      // V2: updateVisualDisplayMode, updateVisualTransition removed — in AI-generated Composition.tsx
       openTransitionPicker: state.openTransitionPicker,
       closeTransitionPicker: state.closeTransitionPicker,
 

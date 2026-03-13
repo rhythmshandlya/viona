@@ -214,7 +214,7 @@ function TransitionIcon({ type, color }: { type: string; color: string }) {
 export function TransitionPickerModal() {
   const itemId = useTransitionPickerItemId();
   const item = useItem(itemId ?? '');
-  const { updateVisualTransition, closeTransitionPicker } = useEditorActions();
+  const { updateItemData, closeTransitionPicker } = useEditorActions();
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Inject CSS keyframes once
@@ -240,9 +240,12 @@ export function TransitionPickerModal() {
   const currentType = (item.data as VisualItemData).transition?.enter?.type ?? 'fade';
 
   const apply = (type: typeof TRANSITIONS[number]['type'], durationMs: number) => {
-    updateVisualTransition(itemId, {
-      enter: { type, durationMs },
-      exit:  { type, durationMs },
+    // V2: updateVisualTransition removed — use updateItemData directly
+    updateItemData<VisualItemData>(itemId, {
+      transition: {
+        enter: { type, durationMs },
+        exit:  { type, durationMs },
+      },
     });
     closeTransitionPicker();
   };

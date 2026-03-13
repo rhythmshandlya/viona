@@ -82,7 +82,6 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     updateTrack,
     select,
     requestAIEdit,
-    updateVisualDisplayMode,
     changeDisplayModeWithAI,
     openTransitionPicker,
   } = useEditorActions();
@@ -213,27 +212,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           ...(item?.type === 'visual'
             ? [
                 { type: 'separator' as const },
-                {
-                  type: 'submenu' as const,
-                  label: 'Display Mode',
-                  items: [
-                    {
-                      label: 'Standard',
-                      action: withSelection(() => updateVisualDisplayMode(itemId, 'default')),
-                      checked: ((item.data as VisualItemData).displayMode || 'default') === 'default' || ((item.data as VisualItemData).displayMode as string) === 'pip',
-                    },
-                    {
-                      label: 'Fullscreen (animation only)',
-                      action: withSelection(() => updateVisualDisplayMode(itemId, 'fullscreen')),
-                      checked: (item.data as VisualItemData).displayMode === 'fullscreen',
-                    },
-                    {
-                      label: 'Overlay (animation over speaker)',
-                      action: withSelection(() => updateVisualDisplayMode(itemId, 'overlay')),
-                      checked: (item.data as VisualItemData).displayMode === 'overlay',
-                    },
-                  ],
-                },
+                // V2: Display Mode submenu removed — layout is in AI-generated Composition.tsx
                 {
                   type: 'submenu' as const,
                   label: 'Change & AI Adapt',
@@ -329,7 +308,6 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       pasteItems,
       updateTrack,
       requestAIEdit,
-      updateVisualDisplayMode,
       changeDisplayModeWithAI,
       openTransitionPicker,
     ]

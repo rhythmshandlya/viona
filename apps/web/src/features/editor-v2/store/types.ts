@@ -420,6 +420,14 @@ export interface VisualItemData {
   templateProps?: Record<string, unknown>;
   /** Whether this visual has an associated video clip (youtube-clip scenes) */
   hasVideo?: boolean;
+
+  // V2 segment fields
+  /** Segment index from the director plan (0-based) */
+  segmentId?: number;
+  /** Layout type for timeline UI color coding: 'stacked' | 'fullscreen' | 'overlay' */
+  layout?: string;
+  /** Number of musical beats in this segment */
+  beatCount?: number;
 }
 
 export interface BrollItemData {
@@ -613,8 +621,9 @@ export interface EditorState {
   splitMode: boolean;
 
   // Layout settings (video + visuals arrangement)
-  layoutSettings: LayoutSettings;
-  layoutPresetId: LayoutPresetId;
+  // V2: layout is in AI-generated Composition.tsx — these are kept optional for v1 backward compat
+  layoutSettings?: LayoutSettings;
+  layoutPresetId?: LayoutPresetId;
 
   // Scene selection for AI editing
   selectedSceneId: number | null;
@@ -739,13 +748,12 @@ export interface EditorActions {
   mergeCaptions: (captionId1: string, captionId2: string) => void;
   updateCaptionText: (captionId: string, newText: string) => void;
 
-  // Layout actions
-  updateLayoutSettings: (settings: Partial<LayoutSettings>) => void;
+  // Layout actions (kept for v1 backward compat — PiP/Split still used by some components)
   updatePiPSettings: (settings: Partial<PiPSettings>) => void;
   updatePiPCrop: (crop: Partial<PiPCrop>) => void;
   updateSplitSettings: (settings: Partial<SplitSettings>) => void;
-  setLayoutPreset: (presetId: LayoutPresetId) => void;
-  setLayoutMode: (mode: LayoutMode) => void;
+  // V2: removed — layout is in AI-generated Composition.tsx
+  // updateLayoutSettings, setLayoutPreset, setLayoutMode
 
   // Scene selection for AI editing
   setSelectedScene: (sceneId: number | null) => void;
@@ -765,9 +773,8 @@ export interface EditorActions {
   setPendingAIMessage: (message: string | null) => void;
   changeDisplayModeWithAI: (itemId: string, newDisplayMode: VisualDisplayMode) => void;
 
-  // Visual display mode
-  updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => void;
-  updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => void;
+  // V2: removed — display mode and transitions are in AI-generated Composition.tsx
+  // updateVisualDisplayMode, updateVisualTransition
 
   // Transition picker
   openTransitionPicker: (itemId: string) => void;
