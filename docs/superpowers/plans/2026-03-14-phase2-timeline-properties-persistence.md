@@ -789,6 +789,10 @@ const sandboxUpdates: Record<string, unknown> = {};
 if (updates.startMs !== undefined) sandboxUpdates.startMs = updates.startMs;
 if (updates.endMs !== undefined) sandboxUpdates.endMs = updates.endMs;
 if (updates.trackId !== undefined) sandboxUpdates.trackId = updates.trackId;
+if ((updates as any).transform !== undefined) sandboxUpdates.transform = (updates as any).transform;
+if ((updates as any).filters !== undefined) sandboxUpdates.filters = (updates as any).filters;
+if ((updates as any).keyframes !== undefined) sandboxUpdates.keyframes = (updates as any).keyframes;
+if ((updates as any).data !== undefined) sandboxUpdates.data = (updates as any).data;
 if (Object.keys(sandboxUpdates).length > 0) {
   dispatchOps([{ tool: 'updateItem', input: { itemId: id, ...sandboxUpdates } }]);
 }
@@ -828,7 +832,25 @@ if (item) {
 }
 ```
 
-**Note:** The sandbox generates its own ID, but both IDs will reconcile on the next `manifest:updated` event. This is acceptable for optimistic updates.
+**IMPORTANT:** The store generates the item ID locally. The sandbox `addItem` tool normally auto-generates its own ID, which would cause ID drift (store has `abc-123`, sandbox has `item-def456`). To fix this, modify the sandbox `addItem` tool in `packages/sandbox/src/tools/manifest-ops.ts` to accept an optional `id` field in its input. If provided, use it instead of generating a new one:
+
+```typescript
+// In addItemTool.execute(), change:
+const item: any = {
+  id: input.id ?? `item-${randomUUID().slice(0, 8)}`,
+  // ... rest unchanged
+};
+```
+
+Add `id` to the tool's `input_schema.properties` (optional string). This ensures the store and sandbox use the same ID. Update the dispatch above to pass the store's ID:
+
+```typescript
+input: {
+  id: newId,  // pass store-generated ID to sandbox
+  type: item.type,
+  // ... rest as before
+},
+```
 
 - [ ] **Step 8: Wire deleteItems (line ~1260)**
 
@@ -914,16 +936,39 @@ After the loop that creates cloned items, dispatch an `addItem` per item. Simila
 After `set()`:
 
 ```typescript
-const item = get().items[itemId];
-if (item?.type === 'video') {
+const origItem = get().items[itemId];
+if (!origItem) return;
+
+if (origItem.type === 'video') {
   dispatchOps([{ tool: 'splitVideo', input: { itemId, atMs } }]);
 } else {
   // Non-video: remove original + add two halves
-  dispatchOps([
+  // The store's splitItem already computed leftItem and rightItem above.
+  // Read the new items from the store after set():
+  const allItems = get().items;
+  const leftItem = Object.values(allItems).find(
+    (i) => i.trackId === origItem.trackId && i.endMs === atMs && i.startMs === origItem.startMs
+  );
+  const rightItem = Object.values(allItems).find(
+    (i) => i.trackId === origItem.trackId && i.startMs === atMs && i.endMs === origItem.endMs
+  );
+
+  const ops: SandboxOp[] = [
     { tool: 'removeItem', input: { itemId } },
-    { tool: 'addItem', input: { /* left half */ } },
-    { tool: 'addItem', input: { /* right half */ } },
-  ]);
+  ];
+  if (leftItem) {
+    ops.push({
+      tool: 'addItem',
+      input: { id: leftItem.id, type: leftItem.type, trackId: leftItem.trackId, startMs: leftItem.startMs, endMs: leftItem.endMs, data: leftItem.data },
+    });
+  }
+  if (rightItem) {
+    ops.push({
+      tool: 'addItem',
+      input: { id: rightItem.id, type: rightItem.type, trackId: rightItem.trackId, startMs: rightItem.startMs, endMs: rightItem.endMs, data: rightItem.data },
+    });
+  }
+  dispatchOps(ops);
 }
 ```
 
@@ -937,64 +982,64 @@ Each follows the same pattern — after `set()`, dispatch `updateItem` or `remov
 
 ```typescript
 updateTransform: (itemId: string, transform: Partial<Transform>) => {
-  set(produce((draft) => {
+  set((draft) => {
     const item = draft.items[itemId];
     if (!item) return;
     item.transform = { ...(item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 }), ...transform };
-  }));
+  });
   pushHistory();
   dispatchOps([{ tool: 'updateItem', input: { itemId, transform } }]);
 },
 
 updateFilters: (itemId: string, filters: Partial<Filters>) => {
-  set(produce((draft) => {
+  set((draft) => {
     const item = draft.items[itemId];
     if (!item) return;
     item.filters = { ...(item.filters ?? {}), ...filters };
-  }));
+  });
   pushHistory();
   dispatchOps([{ tool: 'updateItem', input: { itemId, filters } }]);
 },
 
 updateKeyframes: (itemId: string, keyframes: Keyframe[]) => {
-  set(produce((draft) => {
+  set((draft) => {
     const item = draft.items[itemId];
     if (!item) return;
     item.keyframes = keyframes;
-  }));
+  });
   pushHistory();
   dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes } }]);
 },
 
 addKeyframeAtTime: (itemId: string, timeMs: number, props: Partial<Transform>, easing?: string) => {
-  set(produce((draft) => {
+  set((draft) => {
     const item = draft.items[itemId];
     if (!item) return;
     const kf: Keyframe = { timeMs, props, easing: easing ?? 'linear' };
     item.keyframes = [...(item.keyframes ?? []), kf].sort((a, b) => a.timeMs - b.timeMs);
-  }));
+  });
   pushHistory();
   const item = get().items[itemId];
   if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes } }]);
 },
 
 deleteKeyframe: (itemId: string, index: number) => {
-  set(produce((draft) => {
+  set((draft) => {
     const item = draft.items[itemId];
     if (!item?.keyframes) return;
     item.keyframes.splice(index, 1);
-  }));
+  });
   pushHistory();
   const item = get().items[itemId];
   if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes ?? [] } }]);
 },
 
 updateKeyframeEasing: (itemId: string, index: number, easing: string) => {
-  set(produce((draft) => {
+  set((draft) => {
     const item = draft.items[itemId];
     if (!item?.keyframes?.[index]) return;
     item.keyframes[index].easing = easing;
-  }));
+  });
   pushHistory();
   const item = get().items[itemId];
   if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes } }]);
@@ -1026,20 +1071,30 @@ Create `packages/api/src/sandbox/sync.ts`:
 
 ```typescript
 import { db, tracks as tracksTable, timelineItems, projects } from '../db/index.js';
-import { eq, notInArray } from 'drizzle-orm';
+import { eq, and, notInArray, inArray } from 'drizzle-orm';
 import { logger } from '../logger.js';
 
 /**
  * Sync a v2 manifest to the database.
  * Upserts tracks and items, removes orphans, updates project metadata.
  * Runs in a single transaction.
+ *
+ * IMPORTANT: `timelineItems` has NO `projectId` column — items link to projects
+ * only via `trackId` → `tracks.projectId`. Orphan deletion must go through tracks.
  */
 export async function syncManifestToDb(
   projectId: string,
   manifest: any,
 ): Promise<void> {
   await db.transaction(async (tx) => {
-    // 1. Upsert tracks
+    // 1. Get existing track IDs for this project (needed for item orphan cleanup)
+    const existingTracks = await tx
+      .select({ id: tracksTable.id })
+      .from(tracksTable)
+      .where(eq(tracksTable.projectId, projectId));
+    const existingTrackIds = existingTracks.map((t) => t.id);
+
+    // 2. Upsert tracks
     const manifestTrackIds = (manifest.tracks ?? []).map((t: any) => t.id);
     for (const track of manifest.tracks ?? []) {
       await tx
@@ -1056,14 +1111,20 @@ export async function syncManifestToDb(
           set: { type: track.type, name: track.name, position: track.position },
         });
     }
-    // Remove tracks not in manifest
+    // Remove orphan tracks (in project but not in manifest)
     if (manifestTrackIds.length > 0) {
       await tx.delete(tracksTable)
-        .where(eq(tracksTable.projectId, projectId))
-        .where(notInArray(tracksTable.id, manifestTrackIds));
+        .where(and(
+          eq(tracksTable.projectId, projectId),
+          notInArray(tracksTable.id, manifestTrackIds),
+        ));
+    } else {
+      // Manifest has no tracks — delete all tracks for this project
+      await tx.delete(tracksTable)
+        .where(eq(tracksTable.projectId, projectId));
     }
 
-    // 2. Upsert items
+    // 3. Upsert items
     const manifestItemIds = (manifest.items ?? []).map((i: any) => i.id);
     for (const item of manifest.items ?? []) {
       const data = {
@@ -1076,7 +1137,6 @@ export async function syncManifestToDb(
         .insert(timelineItems)
         .values({
           id: item.id,
-          projectId,
           trackId: item.trackId,
           type: item.type,
           startMs: item.startMs,
@@ -1094,14 +1154,22 @@ export async function syncManifestToDb(
           },
         });
     }
-    // Remove items not in manifest
-    if (manifestItemIds.length > 0) {
-      await tx.delete(timelineItems)
-        .where(eq(timelineItems.projectId, projectId))
-        .where(notInArray(timelineItems.id, manifestItemIds));
+    // Remove orphan items — items on this project's tracks but not in manifest
+    // timelineItems has no projectId, so filter by trackId membership
+    if (existingTrackIds.length > 0) {
+      if (manifestItemIds.length > 0) {
+        await tx.delete(timelineItems)
+          .where(and(
+            inArray(timelineItems.trackId, existingTrackIds),
+            notInArray(timelineItems.id, manifestItemIds),
+          ));
+      } else {
+        await tx.delete(timelineItems)
+          .where(inArray(timelineItems.trackId, existingTrackIds));
+      }
     }
 
-    // 3. Update project metadata
+    // 4. Update project metadata
     await tx
       .update(projects)
       .set({
@@ -1113,7 +1181,7 @@ export async function syncManifestToDb(
 }
 ```
 
-**Note:** The exact Drizzle column names and table schemas may vary. The implementer should check `packages/api/src/db/schema.ts` for exact column names and adjust. The `.onConflictDoUpdate()` pattern is the Drizzle upsert idiom.
+**Note:** The exact Drizzle column names and table schemas may vary. The implementer MUST check `packages/api/src/db/schema.ts` for exact column names (e.g., `startMs` vs `start_ms`) and adjust. Use `and()` from drizzle-orm for compound WHERE conditions — never chain `.where()` calls.
 
 - [ ] **Step 2: Add debounced sync to manifest-updated handler**
 
