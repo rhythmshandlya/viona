@@ -4,6 +4,7 @@ import { join } from 'path';
 import { access } from 'fs/promises';
 import pino from 'pino';
 import { generateSceneRegistry } from './scene-registry-generator.js';
+import { syncAssets } from './asset-sync.js';
 
 const logger = pino({ name: 'esbuild-watcher' });
 
@@ -52,6 +53,7 @@ async function doBuild(): Promise<void> {
   const start = Date.now();
 
   try {
+    await syncAssets();
     await generateSceneRegistry();
     await build({
       entryPoints: [ENTRY_POINT],

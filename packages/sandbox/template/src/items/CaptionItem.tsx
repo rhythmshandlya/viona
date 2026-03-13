@@ -54,8 +54,8 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
         : textAlign === 'right'
           ? 'flex-end'
           : 'center',
-    paddingLeft: offsetX,
-    paddingRight: -offsetX,
+    paddingLeft: Math.max(0, offsetX),
+    paddingRight: Math.max(0, -offsetX),
   };
 
   if (anchor === 'top') {

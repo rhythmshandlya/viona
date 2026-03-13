@@ -191,8 +191,9 @@ export const TransformWrapper: React.FC<TransformWrapperProps> = ({
     top: toCss(y),
     width: toCss(width),
     height: toCss(height),
-    transform: `rotate(${rotation}deg)`,
+    transform: rotation !== 0 ? `rotate(${rotation}deg)` : undefined,
     opacity,
+    overflow: 'hidden',
     filter: filterStr !== 'none' ? filterStr : undefined,
   };
 

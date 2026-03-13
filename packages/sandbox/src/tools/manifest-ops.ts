@@ -1,8 +1,12 @@
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { notifyManifestUpdated } from '../ws-notify.js';
 
 const MANIFEST_PATH = join('/workspace', 'manifest.json');
+
+// Simple mutex to prevent concurrent read-modify-write races
+let writeLock: Promise<void> = Promise.resolve();
 
 async function readManifest(): Promise<any> {
   const raw = await readFile(MANIFEST_PATH, 'utf-8');
@@ -16,6 +20,21 @@ export async function readManifestRaw(): Promise<string> {
 
 async function writeManifest(manifest: any): Promise<void> {
   await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+  // Notify frontend of manifest change (best-effort)
+  notifyManifestUpdated().catch(() => {});
+}
+
+/** Run a read-modify-write operation with mutex to prevent concurrent overwrites. */
+async function withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
+  const prev = writeLock;
+  let resolve: () => void;
+  writeLock = new Promise<void>((r) => { resolve = r; });
+  await prev;
+  try {
+    return await fn();
+  } finally {
+    resolve!();
+  }
 }
 
 // ---- Tool definitions ----
@@ -117,23 +136,25 @@ export const addTrackTool = {
     required: ['type', 'name'],
   },
   async execute(input: { type: string; name: string }): Promise<string> {
-    try {
-      const manifest = await readManifest();
-      const tracks: any[] = manifest.tracks ?? [];
-      const maxPos = tracks.reduce((max: number, t: any) => Math.max(max, t.position ?? 0), -1);
-      const track = {
-        id: `track-${randomUUID().slice(0, 8)}`,
-        type: input.type,
-        name: input.name,
-        position: maxPos + 1,
-      };
-      tracks.push(track);
-      manifest.tracks = tracks;
-      await writeManifest(manifest);
-      return JSON.stringify(track);
-    } catch (err: any) {
-      return `Failed to add track: ${err.message}`;
-    }
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const tracks: any[] = manifest.tracks ?? [];
+        const maxPos = tracks.reduce((max: number, t: any) => Math.max(max, t.position ?? 0), -1);
+        const track = {
+          id: `track-${randomUUID().slice(0, 8)}`,
+          type: input.type,
+          name: input.name,
+          position: maxPos + 1,
+        };
+        tracks.push(track);
+        manifest.tracks = tracks;
+        await writeManifest(manifest);
+        return JSON.stringify(track);
+      } catch (err: any) {
+        return `Failed to add track: ${err.message}`;
+      }
+    });
   },
 };
 
@@ -150,18 +171,20 @@ export const updateTrackTool = {
     required: ['trackId'],
   },
   async execute(input: { trackId: string; name?: string; position?: number }): Promise<string> {
-    try {
-      const manifest = await readManifest();
-      const tracks: any[] = manifest.tracks ?? [];
-      const track = tracks.find((t: any) => t.id === input.trackId);
-      if (!track) return `Track not found: ${input.trackId}`;
-      if (input.name !== undefined) track.name = input.name;
-      if (input.position !== undefined) track.position = input.position;
-      await writeManifest(manifest);
-      return JSON.stringify(track);
-    } catch (err: any) {
-      return `Failed to update track: ${err.message}`;
-    }
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const tracks: any[] = manifest.tracks ?? [];
+        const track = tracks.find((t: any) => t.id === input.trackId);
+        if (!track) return `Track not found: ${input.trackId}`;
+        if (input.name !== undefined) track.name = input.name;
+        if (input.position !== undefined) track.position = input.position;
+        await writeManifest(manifest);
+        return JSON.stringify(track);
+      } catch (err: any) {
+        return `Failed to update track: ${err.message}`;
+      }
+    });
   },
 };
 
@@ -176,18 +199,20 @@ export const removeTrackTool = {
     required: ['trackId'],
   },
   async execute(input: { trackId: string }): Promise<string> {
-    try {
-      const manifest = await readManifest();
-      const trackIdx = (manifest.tracks ?? []).findIndex((t: any) => t.id === input.trackId);
-      if (trackIdx === -1) return `Track not found: ${input.trackId}`;
-      manifest.tracks.splice(trackIdx, 1);
-      const removedCount = (manifest.items ?? []).filter((i: any) => i.trackId === input.trackId).length;
-      manifest.items = (manifest.items ?? []).filter((i: any) => i.trackId !== input.trackId);
-      await writeManifest(manifest);
-      return `Removed track ${input.trackId} and ${removedCount} item(s).`;
-    } catch (err: any) {
-      return `Failed to remove track: ${err.message}`;
-    }
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const trackIdx = (manifest.tracks ?? []).findIndex((t: any) => t.id === input.trackId);
+        if (trackIdx === -1) return `Track not found: ${input.trackId}`;
+        manifest.tracks.splice(trackIdx, 1);
+        const removedCount = (manifest.items ?? []).filter((i: any) => i.trackId === input.trackId).length;
+        manifest.items = (manifest.items ?? []).filter((i: any) => i.trackId !== input.trackId);
+        await writeManifest(manifest);
+        return `Removed track ${input.trackId} and ${removedCount} item(s).`;
+      } catch (err: any) {
+        return `Failed to remove track: ${err.message}`;
+      }
+    });
   },
 };
 
@@ -232,26 +257,28 @@ export const addItemTool = {
     keyframes?: any[];
     filters?: object;
   }): Promise<string> {
-    try {
-      const manifest = await readManifest();
-      const item: any = {
-        id: `item-${randomUUID().slice(0, 8)}`,
-        type: input.type,
-        trackId: input.trackId,
-        startMs: input.startMs,
-        endMs: input.endMs,
-        data: input.data,
-        keyframes: input.keyframes ?? [],
-      };
-      if (input.transform) item.transform = input.transform;
-      if (input.filters) item.filters = input.filters;
-      manifest.items = manifest.items ?? [];
-      manifest.items.push(item);
-      await writeManifest(manifest);
-      return JSON.stringify(item);
-    } catch (err: any) {
-      return `Failed to add item: ${err.message}`;
-    }
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const item: any = {
+          id: `item-${randomUUID().slice(0, 8)}`,
+          type: input.type,
+          trackId: input.trackId,
+          startMs: input.startMs,
+          endMs: input.endMs,
+          data: input.data,
+          keyframes: input.keyframes ?? [],
+        };
+        if (input.transform) item.transform = input.transform;
+        if (input.filters) item.filters = input.filters;
+        manifest.items = manifest.items ?? [];
+        manifest.items.push(item);
+        await writeManifest(manifest);
+        return JSON.stringify(item);
+      } catch (err: any) {
+        return `Failed to add item: ${err.message}`;
+      }
+    });
   },
 };
 
@@ -288,30 +315,32 @@ export const updateItemTool = {
     filters?: object;
     keyframes?: any[];
   }): Promise<string> {
-    try {
-      const manifest = await readManifest();
-      const items: any[] = manifest.items ?? [];
-      const item = items.find((i: any) => i.id === input.itemId);
-      if (!item) return `Item not found: ${input.itemId}`;
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const items: any[] = manifest.items ?? [];
+        const item = items.find((i: any) => i.id === input.itemId);
+        if (!item) return `Item not found: ${input.itemId}`;
 
-      // Top-level scalars
-      if (input.startMs !== undefined) item.startMs = input.startMs;
-      if (input.endMs !== undefined) item.endMs = input.endMs;
-      if (input.trackId !== undefined) item.trackId = input.trackId;
+        // Top-level scalars
+        if (input.startMs !== undefined) item.startMs = input.startMs;
+        if (input.endMs !== undefined) item.endMs = input.endMs;
+        if (input.trackId !== undefined) item.trackId = input.trackId;
 
-      // Deep-merge nested objects
-      if (input.data) item.data = { ...item.data, ...input.data };
-      if (input.transform) item.transform = { ...(item.transform ?? {}), ...input.transform };
-      if (input.filters) item.filters = { ...(item.filters ?? {}), ...input.filters };
+        // Deep-merge nested objects
+        if (input.data) item.data = { ...item.data, ...input.data };
+        if (input.transform) item.transform = { ...(item.transform ?? {}), ...input.transform };
+        if (input.filters) item.filters = { ...(item.filters ?? {}), ...input.filters };
 
-      // Replace keyframes array
-      if (input.keyframes !== undefined) item.keyframes = input.keyframes;
+        // Replace keyframes array
+        if (input.keyframes !== undefined) item.keyframes = input.keyframes;
 
-      await writeManifest(manifest);
-      return JSON.stringify(item);
-    } catch (err: any) {
-      return `Failed to update item: ${err.message}`;
-    }
+        await writeManifest(manifest);
+        return JSON.stringify(item);
+      } catch (err: any) {
+        return `Failed to update item: ${err.message}`;
+      }
+    });
   },
 };
 
@@ -326,17 +355,19 @@ export const removeItemTool = {
     required: ['itemId'],
   },
   async execute(input: { itemId: string }): Promise<string> {
-    try {
-      const manifest = await readManifest();
-      const items: any[] = manifest.items ?? [];
-      const idx = items.findIndex((i: any) => i.id === input.itemId);
-      if (idx === -1) return `Item not found: ${input.itemId}`;
-      items.splice(idx, 1);
-      await writeManifest(manifest);
-      return `Removed item ${input.itemId}.`;
-    } catch (err: any) {
-      return `Failed to remove item: ${err.message}`;
-    }
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const items: any[] = manifest.items ?? [];
+        const idx = items.findIndex((i: any) => i.id === input.itemId);
+        if (idx === -1) return `Item not found: ${input.itemId}`;
+        items.splice(idx, 1);
+        await writeManifest(manifest);
+        return `Removed item ${input.itemId}.`;
+      } catch (err: any) {
+        return `Failed to remove item: ${err.message}`;
+      }
+    });
   },
 };
 
@@ -354,48 +385,50 @@ export const splitVideoTool = {
     required: ['itemId', 'atMs'],
   },
   async execute(input: { itemId: string; atMs: number }): Promise<string> {
-    try {
-      const manifest = await readManifest();
-      const items: any[] = manifest.items ?? [];
-      const item = items.find((i: any) => i.id === input.itemId);
-      if (!item) return `Item not found: ${input.itemId}`;
-      if (item.type !== 'video') return `Item ${input.itemId} is not a video (type: ${item.type})`;
-      if (input.atMs <= item.startMs || input.atMs >= item.endMs) {
-        return `atMs (${input.atMs}) must be between startMs (${item.startMs}) and endMs (${item.endMs})`;
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const items: any[] = manifest.items ?? [];
+        const item = items.find((i: any) => i.id === input.itemId);
+        if (!item) return `Item not found: ${input.itemId}`;
+        if (item.type !== 'video') return `Item ${input.itemId} is not a video (type: ${item.type})`;
+        if (input.atMs <= item.startMs || input.atMs >= item.endMs) {
+          return `atMs (${input.atMs}) must be between startMs (${item.startMs}) and endMs (${item.endMs})`;
+        }
+
+        const splitOffset = input.atMs - item.startMs;
+        const newId = `item-${randomUUID().slice(0, 8)}`;
+
+        // Build the new (right) item
+        const newItem: any = {
+          id: newId,
+          type: 'video',
+          trackId: item.trackId,
+          startMs: input.atMs,
+          endMs: item.endMs,
+          data: {
+            ...item.data,
+            startFrom: (item.data.startFrom ?? 0) + splitOffset,
+          },
+          keyframes: (item.keyframes ?? [])
+            .filter((kf: any) => kf.timeMs >= splitOffset)
+            .map((kf: any) => ({ ...kf, timeMs: kf.timeMs - splitOffset })),
+        };
+        if (item.transform) newItem.transform = { ...item.transform };
+        if (item.filters) newItem.filters = { ...item.filters };
+        if (item.data.crop) newItem.data.crop = { ...item.data.crop };
+
+        // Trim the original (left) item
+        item.endMs = input.atMs;
+        item.keyframes = (item.keyframes ?? []).filter((kf: any) => kf.timeMs < splitOffset);
+
+        items.push(newItem);
+        await writeManifest(manifest);
+        return JSON.stringify({ originalId: item.id, newId });
+      } catch (err: any) {
+        return `Failed to split video: ${err.message}`;
       }
-
-      const splitOffset = input.atMs - item.startMs;
-      const newId = `item-${randomUUID().slice(0, 8)}`;
-
-      // Build the new (right) item
-      const newItem: any = {
-        id: newId,
-        type: 'video',
-        trackId: item.trackId,
-        startMs: input.atMs,
-        endMs: item.endMs,
-        data: {
-          ...item.data,
-          startFrom: (item.data.startFrom ?? 0) + splitOffset,
-        },
-        keyframes: (item.keyframes ?? [])
-          .filter((kf: any) => kf.timeMs >= splitOffset)
-          .map((kf: any) => ({ ...kf, timeMs: kf.timeMs - splitOffset })),
-      };
-      if (item.transform) newItem.transform = { ...item.transform };
-      if (item.filters) newItem.filters = { ...item.filters };
-      if (item.data.crop) newItem.data.crop = { ...item.data.crop };
-
-      // Trim the original (left) item
-      item.endMs = input.atMs;
-      item.keyframes = (item.keyframes ?? []).filter((kf: any) => kf.timeMs < splitOffset);
-
-      items.push(newItem);
-      await writeManifest(manifest);
-      return JSON.stringify({ originalId: item.id, newId });
-    } catch (err: any) {
-      return `Failed to split video: ${err.message}`;
-    }
+    });
   },
 };
 
