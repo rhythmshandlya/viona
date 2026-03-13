@@ -549,6 +549,12 @@ export function useEditorActions() {
       // Overlay zones
       updateVisualOverlayZone: state.updateVisualOverlayZone,
       getVideoSegmentation: state.getVideoSegmentation,
+
+      // Transform & keyframes (v2)
+      updateTransform: state.updateTransform,
+      updateFilters: state.updateFilters,
+      updateKeyframes: state.updateKeyframes,
+      addKeyframeAtTime: state.addKeyframeAtTime,
     }))
   );
 }

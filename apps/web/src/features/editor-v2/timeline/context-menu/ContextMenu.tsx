@@ -84,6 +84,10 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     requestAIEdit,
     changeDisplayModeWithAI,
     openTransitionPicker,
+    updateTransform,
+    updateFilters,
+    updateKeyframes,
+    addKeyframeAtTime,
   } = useEditorActions();
 
   // Close on outside click
@@ -208,6 +212,44 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             },
             disabled: !track,
           },
+          { type: 'separator' as const },
+          {
+            label: 'Edit Properties',
+            action: withSelection(() => {
+              // TODO: wire up onEditProperties callback to open Properties panel
+              console.log('[ContextMenu] Edit Properties for', itemId);
+            }),
+          },
+          {
+            label: 'Add Keyframe at Playhead',
+            action: withSelection(() => {
+              const currentItem = items[itemId];
+              if (!currentItem) return;
+              const relativeTime = currentTimeMs - currentItem.startMs;
+              const currentTransform = currentItem.transform || {
+                x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1,
+              };
+              addKeyframeAtTime(itemId, relativeTime, currentTransform);
+            }),
+          },
+          { type: 'separator' as const },
+          {
+            label: 'Clear All Keyframes',
+            action: withSelection(() => updateKeyframes(itemId, [])),
+            disabled: !item?.keyframes || item.keyframes.length === 0,
+          },
+          {
+            label: 'Reset Transform',
+            action: withSelection(() =>
+              updateTransform(itemId, { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 })
+            ),
+          },
+          {
+            label: 'Reset Filters',
+            action: withSelection(() =>
+              updateFilters(itemId, { brightness: 1, contrast: 1, saturation: 1, blur: 0, hue: 0, grayscale: 0, sepia: 0 })
+            ),
+          },
           // Display Mode submenu and "Edit with AI" for visual items
           ...(item?.type === 'visual'
             ? [
@@ -310,6 +352,10 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       requestAIEdit,
       changeDisplayModeWithAI,
       openTransitionPicker,
+      updateTransform,
+      updateFilters,
+      updateKeyframes,
+      addKeyframeAtTime,
     ]
   );
 
