@@ -159,6 +159,8 @@ RUN npm install -g @anthropic-ai/claude-code
 
 # Copy built files
 COPY --from=builder /app/packages/worker/dist ./packages/worker/dist
+# Copy themes directory (JSON assets not included by tsup build)
+COPY --from=builder /app/packages/worker/src/prompts/themes ./packages/worker/dist/prompts/themes
 # Copy agents folder to where the compiled JS expects it (../agents from dist/)
 COPY --from=builder /app/packages/worker/src/agents ./packages/worker/agents
 COPY --from=builder /app/packages/worker/scripts ./packages/worker/scripts
