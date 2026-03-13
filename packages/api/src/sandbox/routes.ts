@@ -1,0 +1,429 @@
+import type { FastifyInstance } from 'fastify';
+import { eq, and, inArray, sql } from 'drizzle-orm';
+import { authMiddleware } from '../middleware/auth.js';
+import { config } from '../config.js';
+import { db } from '../db/index.js';
+import { sandboxSessions, projects, tracks, timelineItems } from '../db/index.js';
+import { logger } from '../logger.js';
+import { withProjectMutex } from './mutex.js';
+import { proxyFileRequest, proxyPrompt, proxyManifestOp } from './proxy.js';
+import { touchActivity, onSandboxIdle, removeActivity } from './health.js';
+import { dbToManifest, manifestToDb, manifestSchema } from '@viona/shared';
+import { redis } from '../services/redis.js';
+import type { SandboxProvider } from './provider.js';
+import { DockerSandboxProvider } from './docker.js';
+
+// Initialize provider based on config
+let provider: SandboxProvider;
+
+async function getProvider(): Promise<SandboxProvider> {
+  if (!provider) {
+    if (config.sandbox.provider === 'railway') {
+      const { RailwaySandboxProvider } = await import('./railway.js');
+      provider = new RailwaySandboxProvider();
+    } else {
+      provider = new DockerSandboxProvider();
+    }
+  }
+  return provider;
+}
+
+export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
+  // Register idle suspension callback
+  onSandboxIdle(async (projectId) => {
+    await suspendSandbox(projectId);
+  });
+
+  // === Sandbox Lifecycle ===
+
+  // POST /projects/:id/sandbox — Create or resume sandbox
+  fastify.post('/projects/:id/sandbox', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    const userId = request.user!.id;
+
+    // Touch activity
+    touchActivity(projectId);
+
+    return withProjectMutex(projectId, async () => {
+      // Check if sandbox already exists and is active
+      const [existing] = await db.select().from(sandboxSessions)
+        .where(and(eq(sandboxSessions.projectId, projectId), eq(sandboxSessions.status, 'ready')))
+        .limit(1);
+
+      if (existing) {
+        return { status: 'ready', internalUrl: existing.internalUrl };
+      }
+
+      // Check global concurrent limit
+      const [{ count: activeCount }] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sandboxSessions)
+        .where(eq(sandboxSessions.status, 'ready'));
+      if (activeCount >= config.sandbox.maxConcurrent) {
+        return reply.status(503).send({ error: 'Maximum concurrent sandboxes reached' });
+      }
+
+      // Check per-user limit (1 active sandbox)
+      const [activeForUser] = await db.select().from(sandboxSessions)
+        .where(and(eq(sandboxSessions.userId, userId), eq(sandboxSessions.status, 'ready')))
+        .limit(1);
+
+      if (activeForUser && activeForUser.projectId !== projectId) {
+        // Suspend the other sandbox first
+        await suspendSandbox(activeForUser.projectId);
+      }
+
+      // Check for suspended session (has backup)
+      const [suspended] = await db.select().from(sandboxSessions)
+        .where(and(eq(sandboxSessions.projectId, projectId), eq(sandboxSessions.status, 'suspended')))
+        .limit(1);
+
+      // Get project data for manifest generation
+      const [project] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+      if (!project) {
+        return reply.status(404).send({ error: 'Project not found' });
+      }
+
+      // Build env vars for sandbox
+      const env: Record<string, string> = {};
+      if (process.env.ANTHROPIC_API_KEY) {
+        env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+      }
+
+      const p = await getProvider();
+
+      // Create sandbox
+      const sandbox = await p.create({
+        projectId,
+        userId,
+        backupId: suspended?.backupId || undefined,
+        env,
+      });
+
+      // Upsert DB record — persist internalUrl AND agentUrl
+      const sessionData = {
+        status: 'ready' as const,
+        railwayServiceId: sandbox.id,
+        railwayVolumeId: sandbox.volumeId,
+        railwayVolumeInstanceId: sandbox.volumeInstanceId,
+        sandboxSecret: sandbox.secret,
+        internalUrl: sandbox.internalUrl,
+        metadata: { agentUrl: sandbox.agentUrl },
+        lastActivityAt: new Date(),
+        suspendedAt: null,
+      };
+
+      if (suspended) {
+        await db.update(sandboxSessions)
+          .set(sessionData)
+          .where(eq(sandboxSessions.id, suspended.id));
+      } else {
+        await db.insert(sandboxSessions).values({
+          projectId,
+          userId,
+          provider: config.sandbox.provider,
+          ...sessionData,
+        });
+      }
+
+      // If first boot (no backup), send init data
+      if (!suspended?.backupId) {
+        try {
+          const projectTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
+          const trackIds = projectTracks.map(t => t.id);
+          const allItems = trackIds.length > 0
+            ? await db.select().from(timelineItems).where(inArray(timelineItems.trackId, trackIds))
+            : [];
+
+          const manifest = dbToManifest({
+            project: {
+              fps: project.fps || 30,
+              durationMs: project.durationMs || 0,
+              sourceWidth: project.sourceWidth || 1920,
+              sourceHeight: project.sourceHeight || 1080,
+              videoSettings: (project.videoSettings as Record<string, unknown>) || null,
+            },
+            tracks: projectTracks,
+            items: allItems,
+          });
+
+          // Send init to sandbox
+          const initRes = await fetch(`${sandbox.agentUrl}/init`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sandbox.secret}`,
+            },
+            body: JSON.stringify({
+              videoUrl: project.videoKey ? `uploads/${project.videoKey}` : '',
+              audioUrl: project.audioKey ? `uploads/${project.audioKey}` : undefined,
+              manifest,
+            }),
+          });
+
+          if (!initRes.ok) {
+            logger.error({ status: initRes.status }, 'Sandbox init failed');
+          }
+        } catch (err) {
+          logger.error({ err }, 'Failed to send init data to sandbox');
+        }
+      }
+
+      return { status: 'ready', internalUrl: sandbox.internalUrl };
+    });
+  });
+
+  // DELETE /projects/:id/sandbox — Suspend sandbox
+  fastify.delete('/projects/:id/sandbox', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    await suspendSandbox(projectId);
+    return { status: 'suspended' };
+  });
+
+  // GET /projects/:id/sandbox/status
+  fastify.get('/projects/:id/sandbox/status', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    touchActivity(projectId);
+
+    const [session] = await db.select().from(sandboxSessions)
+      .where(eq(sandboxSessions.projectId, projectId))
+      .limit(1);
+
+    if (!session) {
+      return { status: 'inactive' };
+    }
+
+    return {
+      status: session.status,
+      previewUrl: session.status === 'ready' ? `/api/projects/${projectId}/sandbox/bundle/player-composition.cjs.js` : null,
+    };
+  });
+
+  // === Proxy Routes ===
+
+  // GET /projects/:id/sandbox/bundle/* — Proxy bundle files
+  fastify.get('/projects/:id/sandbox/bundle/*', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    const path = (request.params as { '*': string })['*'];
+    touchActivity(projectId);
+
+    const session = await getActiveSession(projectId);
+    if (!session) return reply.status(404).send({ error: 'No active sandbox' });
+
+    await proxyFileRequest(session.internalUrl!, session.sandboxSecret, `/bundle/${path}`, request, reply);
+  });
+
+  // GET /projects/:id/sandbox/public/* — Proxy public files
+  fastify.get('/projects/:id/sandbox/public/*', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    const path = (request.params as { '*': string })['*'];
+    touchActivity(projectId);
+
+    const session = await getActiveSession(projectId);
+    if (!session) return reply.status(404).send({ error: 'No active sandbox' });
+
+    await proxyFileRequest(session.internalUrl!, session.sandboxSecret, `/public/${path}`, request, reply);
+  });
+
+  // POST /projects/:id/sandbox/prompt — Forward prompt to agent
+  fastify.post('/projects/:id/sandbox/prompt', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    touchActivity(projectId);
+
+    const session = await getActiveSession(projectId);
+    if (!session) return reply.status(404).send({ error: 'No active sandbox' });
+
+    const agentUrl = (session.metadata as any)?.agentUrl;
+    if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
+
+    await proxyPrompt(agentUrl, session.sandboxSecret, request.body as any, reply);
+  });
+
+  // GET /projects/:id/sandbox/manifest — Read manifest from sandbox
+  fastify.get('/projects/:id/sandbox/manifest', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    touchActivity(projectId);
+
+    const session = await getActiveSession(projectId);
+    if (!session) return reply.status(404).send({ error: 'No active sandbox' });
+
+    const agentUrl = (session.metadata as any)?.agentUrl;
+    if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
+    const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'GET');
+    return reply.status(result.status).send(result.data);
+  });
+
+  // PATCH /projects/:id/sandbox/manifest — Write manifest op to sandbox
+  fastify.patch('/projects/:id/sandbox/manifest', { preHandler: [authMiddleware] }, async (request, reply) => {
+    const { id: projectId } = request.params as { id: string };
+    touchActivity(projectId);
+
+    const session = await getActiveSession(projectId);
+    if (!session) return reply.status(404).send({ error: 'No active sandbox' });
+
+    const agentUrl = (session.metadata as any)?.agentUrl;
+    if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
+    const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'PATCH', request.body as object);
+    return reply.status(result.status).send(result.data);
+  });
+
+  // === Internal Callbacks (Sandbox → API) ===
+
+  async function validateInternalCallback(request: any, reply: any): Promise<string | null> {
+    const { id: projectId } = request.params as { id: string };
+    const authHeader = request.headers.authorization;
+    if (!authHeader?.startsWith('Bearer ')) {
+      reply.status(401).send({ error: 'Missing authorization' });
+      return null;
+    }
+    const token = authHeader.slice(7);
+    const [session] = await db.select().from(sandboxSessions)
+      .where(and(eq(sandboxSessions.projectId, projectId), eq(sandboxSessions.sandboxSecret, token)))
+      .limit(1);
+    if (!session) {
+      reply.status(403).send({ error: 'Invalid secret' });
+      return null;
+    }
+    return projectId;
+  }
+
+  // POST /internal/sandbox/:id/ready
+  fastify.post('/internal/sandbox/:id/ready', async (request, reply) => {
+    const projectId = await validateInternalCallback(request, reply);
+    if (!projectId) return;
+    logger.info({ projectId }, 'Sandbox reports ready');
+    await redis.publish(`project:${projectId}`, JSON.stringify({
+      type: 'sandbox:ready',
+      projectId,
+    }));
+    return { ok: true };
+  });
+
+  // POST /internal/sandbox/:id/bundle-ready
+  fastify.post('/internal/sandbox/:id/bundle-ready', async (request, reply) => {
+    const projectId = await validateInternalCallback(request, reply);
+    if (!projectId) return;
+    const { version } = request.body as { version: number };
+    logger.info({ projectId, version }, 'Bundle ready');
+    await redis.publish(`project:${projectId}`, JSON.stringify({
+      type: 'bundle:ready',
+      projectId,
+      version,
+    }));
+    return { ok: true };
+  });
+
+  // POST /internal/sandbox/:id/checkpoint — Full manifest sync
+  fastify.post('/internal/sandbox/:id/checkpoint', async (request, reply) => {
+    const projectId = await validateInternalCallback(request, reply);
+    if (!projectId) return;
+    const { manifest } = request.body as { manifest: object };
+
+    try {
+      const parsed = manifestSchema.parse(manifest);
+      const { tracks: manifestTracks, items: manifestItems, videoSettings } = manifestToDb(parsed);
+
+      await db.transaction(async (tx) => {
+        await tx.update(projects)
+          .set({
+            videoSettings: videoSettings as any,
+            durationMs: Math.round(parsed.durationMs),
+          })
+          .where(eq(projects.id, projectId));
+
+        await tx.delete(tracks).where(eq(tracks.projectId, projectId));
+
+        for (const t of manifestTracks) {
+          await tx.insert(tracks).values({
+            id: t.id,
+            projectId,
+            type: t.type,
+            name: t.name,
+            position: t.position,
+            locked: false,
+            visible: true,
+          });
+        }
+
+        for (const item of manifestItems) {
+          await tx.insert(timelineItems).values({
+            id: item.id,
+            trackId: item.trackId,
+            type: item.type,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: item.data as any,
+          });
+        }
+      });
+
+      logger.debug({ projectId }, 'Manifest checkpoint saved (full sync)');
+    } catch (err) {
+      logger.error({ err, projectId }, 'Checkpoint save failed');
+    }
+
+    return { ok: true };
+  });
+}
+
+// Helper: get active sandbox session from DB
+async function getActiveSession(projectId: string) {
+  const [session] = await db.select().from(sandboxSessions)
+    .where(and(eq(sandboxSessions.projectId, projectId), eq(sandboxSessions.status, 'ready')))
+    .limit(1);
+  return session;
+}
+
+// Suspend a sandbox: checkpoint, backup, destroy, update DB
+async function suspendSandbox(projectId: string): Promise<void> {
+  await withProjectMutex(projectId, async () => {
+    const session = await getActiveSession(projectId);
+    if (!session) return;
+
+    const p = await getProvider();
+
+    try {
+      await db.update(sandboxSessions)
+        .set({ status: 'suspending' })
+        .where(eq(sandboxSessions.id, session.id));
+
+      const sandboxMeta = {
+        id: session.railwayServiceId!,
+        projectId: session.projectId,
+        volumeId: session.railwayVolumeId!,
+        volumeInstanceId: session.railwayVolumeInstanceId!,
+      };
+
+      const backupId = await p.backup(sandboxMeta);
+      await p.destroy(sandboxMeta);
+
+      await db.update(sandboxSessions)
+        .set({
+          status: 'suspended',
+          backupId,
+          railwayServiceId: null,
+          railwayVolumeId: null,
+          railwayVolumeInstanceId: null,
+          internalUrl: null,
+          metadata: {},
+          suspendedAt: new Date(),
+        })
+        .where(eq(sandboxSessions.id, session.id));
+
+      removeActivity(projectId);
+
+      await redis.publish(`project:${projectId}`, JSON.stringify({
+        type: 'sandbox:destroyed',
+        projectId,
+      }));
+
+      logger.info({ projectId }, 'Sandbox suspended');
+    } catch (err) {
+      logger.error({ err, projectId }, 'Failed to suspend sandbox');
+      throw err;
+    }
+  });
+}
+
+// Exported for crash recovery (Task 27)
+export { getProvider, getActiveSession, suspendSandbox };
