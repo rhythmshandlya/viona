@@ -18,7 +18,7 @@ import { getWorkspacePath, createProjectDir } from '../../workspace.js';
 import { uploadFile } from '../../services/minio.js';
 import { buildTemplateCatalog } from '../../prompts/studio-templates.js';
 import { getTheme } from '../../prompts/theme-loader.js';
-import type { GenerateVisualsJobData, HeadTrackingFrame, VisualMetadata, JobMetrics } from './types.js';
+import type { GenerateVisualsJobData, HeadTrackingFrame, VisualMetadata, SegmentMetadata, JobMetrics } from './types.js';
 import { findPackagesRoot, copyDirRecursive, computeSpeakerGrid, extractAssets, injectUserAssets, prepareVideoAssets } from './validation.js';
 import { uploadBundleToStorage, uploadSourceToStorage } from './storage.js';
 import { runMonitoredClaudeGenerator } from './subprocess.js';
@@ -426,6 +426,28 @@ registerRoot(RemotionRoot);
 
       logger.info({ projectId, visualCount: metadata.visuals.length }, 'Metadata validated successfully');
 
+      // V2 segment detection — read scenes.json for segment-based timeline
+      try {
+        const scenesJsonContent = await readFile(scenesPath, 'utf-8');
+        const scenesJson = JSON.parse(scenesJsonContent);
+        const fps = metadata.fps || 30;
+        if (scenesJson.version >= 2 && scenesJson.segments) {
+          metadata.version = 2;
+          metadata.segments = scenesJson.segments.map((seg: any): SegmentMetadata => ({
+            id: seg.id,
+            layout: seg.layout,
+            layoutProps: seg.layoutProps || {},
+            startMs: (seg.frames[0] / fps) * 1000,
+            endMs: (seg.frames[1] / fps) * 1000,
+            beatCount: seg.beats?.length || 1,
+            description: seg.beats?.map((b: any) => b.name).join(' → ') || `Segment ${seg.id}`,
+          }));
+          logger.info({ projectId, segmentCount: metadata.segments!.length, version: 2 }, 'V2 segments detected');
+        }
+      } catch (segErr) {
+        logger.debug({ projectId, error: segErr }, 'Could not read scenes.json for v2 segments (non-fatal)');
+      }
+
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error reading metadata';
 
@@ -581,7 +603,31 @@ registerRoot(RemotionRoot);
         visualsTrack = newTrack;
       }
 
-      // Create one timeline item per scene so they appear as separate blocks on the track
+      // Create timeline items — V2 uses segments, V1 uses per-scene items
+      if (metadata.version === 2 && metadata.segments) {
+        // V2: One timeline item per segment
+        for (const segment of metadata.segments) {
+          await tx.insert(timelineItems).values({
+            trackId: visualsTrack.id,
+            type: 'visual',
+            startMs: segment.startMs,
+            endMs: segment.endMs,
+            data: {
+              visualId,
+              compositionId: metadata.compositionId,
+              bundleUrl,
+              description: segment.description,
+              width: canvasWidth,
+              height: canvasHeight,
+              fps: metadata.fps,
+              segmentId: segment.id,
+              layout: segment.layout,
+              beatCount: segment.beatCount,
+            },
+          });
+        }
+      } else {
+      // V1: Legacy per-scene items (existing code unchanged)
       for (let sceneIndex = 0; sceneIndex < metadata.visuals.length; sceneIndex++) {
         const scene = metadata.visuals[sceneIndex];
         // Compute per-scene effective dimensions
@@ -672,6 +718,7 @@ registerRoot(RemotionRoot);
           },
         });
       }
+      } // end V1/V2 branch
 
       // Update job and project status
       await tx.update(jobs)
@@ -684,22 +731,33 @@ registerRoot(RemotionRoot);
 
       // Persist layoutMode into project videoSettings so the editor/export
       // uses the same layout the user selected at generation time.
-      const existingVideoSettings = (project.videoSettings as Record<string, unknown>) || {};
-      const existingLayoutSettings = (existingVideoSettings.layoutSettings as Record<string, unknown>) || {};
-      await tx.update(projects)
-        .set({
-          status: 'ready',
-          outputKey: null,
-          updatedAt: new Date(),
-          videoSettings: {
-            ...existingVideoSettings,
-            layoutSettings: {
-              ...existingLayoutSettings,
-              mode: layoutMode,
+      // V2 uses per-segment layout — skip global layoutMode persistence.
+      if (!metadata.version || metadata.version < 2) {
+        const existingVideoSettings = (project.videoSettings as Record<string, unknown>) || {};
+        const existingLayoutSettings = (existingVideoSettings.layoutSettings as Record<string, unknown>) || {};
+        await tx.update(projects)
+          .set({
+            status: 'ready',
+            outputKey: null,
+            updatedAt: new Date(),
+            videoSettings: {
+              ...existingVideoSettings,
+              layoutSettings: {
+                ...existingLayoutSettings,
+                mode: layoutMode,
+              },
             },
-          },
-        })
-        .where(eq(projects.id, projectId));
+          })
+          .where(eq(projects.id, projectId));
+      } else {
+        await tx.update(projects)
+          .set({
+            status: 'ready',
+            outputKey: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(projects.id, projectId));
+      }
     });
 
     // Only AFTER transaction succeeds — notify frontend
