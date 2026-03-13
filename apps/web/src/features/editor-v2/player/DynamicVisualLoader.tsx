@@ -91,7 +91,7 @@ export function DynamicVisualLoader({
 
     try {
       // Fetch the CommonJS module code
-      const response = await fetch(fullUrl);
+      const response = await fetch(fullUrl, { credentials: 'include' });
       if (!response.ok) {
         throw new Error(`Failed to fetch composition: ${response.status}`);
       }
