@@ -19,81 +19,11 @@ import { siteConfig } from "@/data/site";
 
     <!-- Stacked screenshots -->
     <div class="relative w-full max-w-5xl mx-auto" data-showcase-screens>
-      <!-- Back screenshot (offset right & up) -->
+      <!-- App screenshot -->
       <div
-        class="absolute top-0 left-[8%] sm:left-[12%] w-[88%] sm:w-[82%] z-10"
-        data-showcase-back
-        style="transform: perspective(1200px) rotateY(2deg) rotateX(1deg);"
-      >
-        <div class="rounded-lg sm:rounded-xl overflow-hidden border border-white/10 shadow-2xl shadow-black/40">
-          <!-- Browser chrome -->
-          <div class="bg-[#2a2a2a] px-3 sm:px-4 py-2 sm:py-2.5 flex items-center gap-1.5 sm:gap-2">
-            <div class="flex gap-1 sm:gap-1.5">
-              <div class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white/20"></div>
-              <div class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white/20"></div>
-              <div class="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-white/20"></div>
-            </div>
-            <div class="flex-1 mx-2 sm:mx-8">
-              <div class="bg-white/10 rounded-md px-3 py-1 text-[10px] sm:text-xs text-white/40 max-w-[200px] sm:max-w-xs mx-auto text-center truncate">
-                app.viona.app/editor
-              </div>
-            </div>
-            <div class="w-12 sm:w-16"></div>
-          </div>
-          <!-- App content placeholder -->
-          <div class="bg-[#1e1e24] aspect-[16/10] p-3 sm:p-5 flex gap-3 sm:gap-4">
-            <!-- Sidebar -->
-            <div class="w-[15%] flex flex-col gap-2 sm:gap-3">
-              <div class="h-6 sm:h-8 rounded bg-white/[0.06]"></div>
-              <div class="h-4 sm:h-5 rounded bg-white/[0.04] w-[80%]"></div>
-              <div class="h-4 sm:h-5 rounded bg-primary/20 w-[90%]"></div>
-              <div class="h-4 sm:h-5 rounded bg-white/[0.04] w-[70%]"></div>
-              <div class="h-4 sm:h-5 rounded bg-white/[0.04] w-[85%]"></div>
-              <div class="flex-1"></div>
-              <div class="h-6 sm:h-8 rounded bg-white/[0.04]"></div>
-            </div>
-            <!-- Main area -->
-            <div class="flex-1 flex flex-col gap-3 sm:gap-4">
-              <!-- Video player -->
-              <div class="flex-1 bg-white/[0.04] rounded-lg flex items-center justify-center relative">
-                <div class="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-primary/30 flex items-center justify-center">
-                  <svg class="w-3 h-3 sm:w-5 sm:h-5 text-primary ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z"/>
-                  </svg>
-                </div>
-                <!-- PiP indicator -->
-                <div class="absolute bottom-2 right-2 w-10 h-7 sm:w-16 sm:h-11 bg-white/[0.08] rounded border border-white/10"></div>
-              </div>
-              <!-- Timeline -->
-              <div class="h-8 sm:h-12 bg-white/[0.04] rounded-lg flex items-center px-2 sm:px-3 gap-1 sm:gap-2">
-                <div class="w-3 h-3 sm:w-4 sm:h-4 rounded bg-white/10"></div>
-                <div class="flex-1 h-1.5 sm:h-2 rounded-full bg-white/10 relative">
-                  <div class="absolute left-0 top-0 h-full w-[35%] bg-primary/50 rounded-full"></div>
-                  <div class="absolute left-[35%] top-1/2 -translate-y-1/2 w-2 h-2 sm:w-3 sm:h-3 bg-primary rounded-full"></div>
-                </div>
-                <div class="text-[8px] sm:text-[10px] text-white/30 tabular-nums">02:34</div>
-              </div>
-            </div>
-            <!-- Right panel -->
-            <div class="hidden sm:flex w-[18%] flex-col gap-3">
-              <div class="h-6 rounded bg-white/[0.06] flex items-center justify-center">
-                <span class="text-[9px] text-white/30 font-medium">Visuals</span>
-              </div>
-              <div class="flex-1 flex flex-col gap-2">
-                <div class="aspect-video rounded bg-primary/10 border border-primary/20"></div>
-                <div class="aspect-video rounded bg-white/[0.04]"></div>
-                <div class="aspect-video rounded bg-white/[0.04]"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Front screenshot (main, center-left) -->
-      <div
-        class="relative w-[88%] sm:w-[82%] z-20 mt-[4%]"
+        class="relative w-full z-20"
         data-showcase-front
-        style="transform: perspective(1200px) rotateY(-2deg) rotateX(1deg);"
+        style="transform: perspective(1200px) rotateX(2deg);"
       >
         <div class="rounded-lg sm:rounded-xl overflow-hidden border border-white/[0.15] shadow-2xl shadow-black/60">
           <!-- Browser chrome -->
@@ -105,70 +35,18 @@ import { siteConfig } from "@/data/site";
             </div>
             <div class="flex-1 mx-2 sm:mx-8">
               <div class="bg-white/10 rounded-md px-3 py-1 text-[10px] sm:text-xs text-white/40 max-w-[200px] sm:max-w-xs mx-auto text-center truncate">
-                app.viona.app/projects
+                app.viona.app/editor
               </div>
             </div>
             <div class="w-12 sm:w-16"></div>
           </div>
-          <!-- App content placeholder — project dashboard -->
-          <div class="bg-[#141418] aspect-[16/10] p-3 sm:p-5">
-            <!-- Top bar -->
-            <div class="flex items-center justify-between mb-3 sm:mb-5">
-              <div class="flex items-center gap-2 sm:gap-3">
-                <div class="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-                  <span class="text-[8px] sm:text-xs font-bold text-primary">V</span>
-                </div>
-                <div>
-                  <div class="h-3 sm:h-4 w-16 sm:w-24 rounded bg-white/15 mb-1"></div>
-                  <div class="h-2 sm:h-2.5 w-24 sm:w-36 rounded bg-white/[0.06]"></div>
-                </div>
-              </div>
-              <div class="flex gap-2">
-                <div class="h-6 sm:h-8 px-2 sm:px-3 rounded-md bg-primary flex items-center">
-                  <span class="text-[8px] sm:text-[10px] text-white font-medium">+ New Project</span>
-                </div>
-              </div>
-            </div>
-            <!-- Project cards grid -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-              <!-- Project card 1 -->
-              <div class="rounded-lg bg-white/[0.04] border border-white/[0.06] overflow-hidden">
-                <div class="aspect-video bg-gradient-to-br from-primary/20 to-accent/10 flex items-center justify-center">
-                  <svg class="w-4 h-4 sm:w-6 sm:h-6 text-primary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                  </svg>
-                </div>
-                <div class="p-1.5 sm:p-2.5">
-                  <div class="h-2.5 sm:h-3 w-[70%] rounded bg-white/15 mb-1"></div>
-                  <div class="h-2 w-[50%] rounded bg-white/[0.06]"></div>
-                </div>
-              </div>
-              <!-- Project card 2 -->
-              <div class="rounded-lg bg-white/[0.04] border border-white/[0.06] overflow-hidden">
-                <div class="aspect-video bg-gradient-to-br from-secondary/15 to-primary/10 flex items-center justify-center">
-                  <svg class="w-4 h-4 sm:w-6 sm:h-6 text-secondary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                  </svg>
-                </div>
-                <div class="p-1.5 sm:p-2.5">
-                  <div class="h-2.5 sm:h-3 w-[60%] rounded bg-white/15 mb-1"></div>
-                  <div class="h-2 w-[40%] rounded bg-white/[0.06]"></div>
-                </div>
-              </div>
-              <!-- Project card 3 (hidden on mobile) -->
-              <div class="hidden sm:block rounded-lg bg-white/[0.04] border border-white/[0.06] overflow-hidden">
-                <div class="aspect-video bg-gradient-to-br from-accent/15 to-secondary/10 flex items-center justify-center">
-                  <svg class="w-6 h-6 text-accent/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
-                  </svg>
-                </div>
-                <div class="p-2.5">
-                  <div class="h-3 w-[80%] rounded bg-white/15 mb-1"></div>
-                  <div class="h-2 w-[55%] rounded bg-white/[0.06]"></div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <!-- Real screenshot -->
+          <img
+            src="/app-editor.png"
+            alt="Viona AI video editor — chat-driven editing with video preview, timeline, and AI-generated visuals"
+            class="w-full block"
+            loading="eager"
+          />
         </div>
       </div>
 
@@ -190,7 +68,6 @@ import { siteConfig } from "@/data/site";
       [
         "[data-showcase-heading]",
         "[data-showcase-sub]",
-        "[data-showcase-back]",
         "[data-showcase-front]",
       ],
       { opacity: 0, y: 40 }
@@ -215,14 +92,9 @@ import { siteConfig } from "@/data/site";
               "-=0.3"
             )
             .to(
-              "[data-showcase-back]",
-              { y: 0, opacity: 1, duration: 0.7 },
-              "-=0.2"
-            )
-            .to(
               "[data-showcase-front]",
               { y: 0, opacity: 1, duration: 0.7 },
-              "-=0.4"
+              "-=0.2"
             );
         });
       },
