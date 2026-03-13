@@ -3,6 +3,7 @@ import { watch } from 'chokidar';
 import { join } from 'path';
 import { access } from 'fs/promises';
 import pino from 'pino';
+import { generateSceneRegistry } from './scene-registry-generator.js';
 
 const logger = pino({ name: 'esbuild-watcher' });
 
@@ -51,6 +52,7 @@ async function doBuild(): Promise<void> {
   const start = Date.now();
 
   try {
+    await generateSceneRegistry();
     await build({
       entryPoints: [ENTRY_POINT],
       bundle: true,
@@ -115,7 +117,7 @@ export async function startWatcher(): Promise<void> {
   // Watch for changes
   const watcher = watch(SRC_DIR, {
     ignoreInitial: true,
-    ignored: /node_modules/,
+    ignored: [/node_modules/, /scene-registry\.ts$/],
     persistent: true,
     awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 50 },
   });
