@@ -9,8 +9,10 @@ import React from 'react';
 import { X } from 'lucide-react';
 import { TranscriptPanel, PiPControlPanel } from '../panels';
 import { PropertiesContent } from './ContextPanel';
+import { PropertiesPanel } from './properties/PropertiesPanel';
+import { useSingleSelectedItem } from '../store/use-editor-store';
 
-export type RightPanelTab = 'properties' | 'transcript' | 'layout';
+export type RightPanelTab = 'properties' | 'transcript' | 'layout' | 'item-properties';
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -23,6 +25,7 @@ interface RightPanelProps {
 
 export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false }: RightPanelProps) {
   const isSideBySide = layout === 'side-by-side';
+  const selectedItem = useSingleSelectedItem();
 
   // Embedded mode - just render content without wrapper
   if (embedded) {
@@ -31,6 +34,7 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
         {activeTab === 'transcript' && <TranscriptPanel />}
         {activeTab === 'properties' && <PropertiesContent />}
         {activeTab === 'layout' && <PiPControlPanel />}
+        {activeTab === 'item-properties' && <PropertiesPanel />}
       </div>
     );
   }
@@ -66,6 +70,13 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
               isActive={activeTab === 'layout'}
               onClick={() => onTabChange('layout')}
             />
+            {selectedItem && (
+              <TabButton
+                label="Item"
+                isActive={activeTab === 'item-properties'}
+                onClick={() => onTabChange('item-properties')}
+              />
+            )}
           </div>
           {!isSideBySide && (
             <button
@@ -83,6 +94,7 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
           {activeTab === 'transcript' && <TranscriptPanel />}
           {activeTab === 'properties' && <PropertiesContent />}
           {activeTab === 'layout' && <PiPControlPanel />}
+          {activeTab === 'item-properties' && <PropertiesPanel />}
         </div>
       </div>
     </div>
