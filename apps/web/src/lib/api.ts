@@ -1,4 +1,4 @@
-import type { RenderOptions } from '@viona/shared';
+import type { RenderOptions, GenerateVisualsOptions } from '@viona/shared';
 import { getSessionToken } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
