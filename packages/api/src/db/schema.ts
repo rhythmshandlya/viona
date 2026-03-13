@@ -165,6 +165,26 @@ export const conversationMessages = pgTable('conversation_messages', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
+// Sandbox sessions — one per project, tracks sandbox lifecycle
+export const sandboxSessions = pgTable('sandbox_sessions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }).notNull(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  status: varchar('status', { length: 20 }).notNull().default('creating'),
+  railwayServiceId: varchar('railway_service_id', { length: 255 }),
+  railwayVolumeId: varchar('railway_volume_id', { length: 255 }),
+  railwayVolumeInstanceId: varchar('railway_volume_instance_id', { length: 255 }),
+  backupId: varchar('backup_id', { length: 255 }),
+  sandboxSecret: varchar('sandbox_secret', { length: 255 }).notNull(),
+  internalUrl: varchar('internal_url', { length: 512 }),
+  sandboxPort: integer('sandbox_port'),
+  provider: varchar('provider', { length: 20 }).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  lastActivityAt: timestamp('last_activity_at').defaultNow().notNull(),
+  suspendedAt: timestamp('suspended_at'),
+  metadata: jsonb('metadata').default({}).$type<Record<string, unknown>>(),
+});
+
 // Waitlist signups
 export const waitlist = pgTable('waitlist', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -193,5 +213,7 @@ export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
 export type ConversationMessage = typeof conversationMessages.$inferSelect;
 export type NewConversationMessage = typeof conversationMessages.$inferInsert;
+export type SandboxSession = typeof sandboxSessions.$inferSelect;
+export type NewSandboxSession = typeof sandboxSessions.$inferInsert;
 export type WaitlistEntry = typeof waitlist.$inferSelect;
 export type NewWaitlistEntry = typeof waitlist.$inferInsert;
