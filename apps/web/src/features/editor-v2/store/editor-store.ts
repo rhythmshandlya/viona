@@ -689,167 +689,112 @@ export const useEditorStore = create<EditorStore>()(
         const videoUrl = (apiProject as any).videoPresignedUrl
           || (apiProject.videoKey ? `${API_URL}/api/projects/${projectId}/video` : '');
 
-        // --- Workspace path (Plan 3) ---
-        try {
-          const wsResult = await api.spinUpWorkspace(projectId);
-          const bundleBaseUrl = api.getWorkspaceBundleUrl(projectId);
-          const initialBundleUrl = wsResult.cachedBundleUrl ?? wsResult.bundleUrl ?? bundleBaseUrl;
-
-          const bridgeResult = manifestToStore(wsResult.manifest, {
-            videoUrl,
-            bundleUrl: initialBundleUrl,
-            compositionId: (apiProject as any).compositionId ?? '',
-            visualMeta: (apiProject as any).visualMeta,
-          });
-
-          // Build project object from API data (we still need this for metadata)
-          const project = {
-            id: apiProject.id,
-            title: apiProject.title,
-            status: apiProject.status,
-            projectType: apiProject.projectType,
-            videoKey: apiProject.videoKey,
-            audioKey: (apiProject as any).audioKey,
-            videoUrl,
-            audioUrl: (apiProject as any).audioPresignedUrl || null,
-            outputKey: apiProject.outputKey,
-            durationMs: bridgeResult.duration,
-            fps: bridgeResult.fps,
-            sourceWidth: apiProject.width,
-            sourceHeight: apiProject.height,
-            videoSettings: bridgeResult.videoSettings,
-          };
-
-          set((state) => {
-            state.project = project;
-            state.tracks = bridgeResult.tracks;
-            state.items = bridgeResult.items;
-            state.itemIds = bridgeResult.itemIds;
-            state.duration = bridgeResult.duration;
-            state.fps = bridgeResult.fps;
-            state.isLoading = false;
-            state.currentTimeMs = 0;
-            state.selectedIds = [];
-            state.layoutSettings = bridgeResult.layoutSettings;
-            state.layoutPresetId = bridgeResult.layoutPresetId as LayoutPresetId;
-            state.workspaceStatus = wsResult.workspaceStatus as any;
-            state.workspaceBundleUrl = bundleBaseUrl;
-            // If workspace was already active and bundle exists, set version to 1
-            // so useWorkspaceComposition fetches it immediately
-            state.workspaceBundleVersion = wsResult.bundleReady ? 1 : 0;
-            state.workspaceBundleError = null;
-            state.workspaceManifest = wsResult.manifest as Record<string, unknown>;
-            state.workspaceLockHolder = null;
-            state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
-            state.history = [];
-            state.historyIndex = -1;
-            state.isDirty = false;
-          });
-
-          get().pushHistory();
-          cancelDebouncedSave();
-          set((state) => { state.isDirty = false; });
-
-          // If bundle isn't ready yet, poll until the CJS file exists.
-          // This handles the race where bundle:ready WS event fires before
-          // the frontend WebSocket connects.
-          if (!wsResult.bundleReady) {
-            const pollBundle = async () => {
-              for (let i = 0; i < 30; i++) {
-                await new Promise(r => setTimeout(r, 2000));
-                if (get().workspaceBundleVersion > 0) return; // WS event arrived
-                try {
-                  const res = await fetch(`${API_URL}${bundleBaseUrl}/player-composition.cjs.js`, {
-                    method: 'HEAD',
-                    credentials: 'include',
-                  });
-                  if (res.ok) {
-                    set((state) => { state.workspaceBundleVersion = 1; });
-                    return;
-                  }
-                } catch { /* retry */ }
+        // --- Sandbox path (replaces workspace) ---
+        const loadFromSandbox = async (): Promise<any> => {
+          try {
+            return await api.readSandboxManifest(projectId);
+          } catch (err) {
+            // Sandbox may not be running (page refresh, idle timeout, bookmark).
+            // Spin it up and retry.
+            console.warn('Sandbox manifest not available, creating sandbox...', err);
+            await api.createSandbox(projectId);
+            // Poll until ready
+            for (let i = 0; i < 60; i++) {
+              await new Promise(r => setTimeout(r, 2000));
+              const status = await api.getSandboxStatus(projectId);
+              if (status.status === 'ready') {
+                return await api.readSandboxManifest(projectId);
               }
-            };
-            pollBundle();
-          }
-
-          // Auto-load caption fonts (same as existing path)
-          const captionFonts = new Set<string>();
-          for (const id of bridgeResult.itemIds) {
-            const item = bridgeResult.items[id];
-            if (item?.type === 'caption') {
-              const fontFamily = (item.data as CaptionItemData).style?.fontFamily;
-              if (fontFamily) captionFonts.add(fontFamily.split(',')[0].trim());
             }
+            throw new Error('Sandbox failed to start');
           }
-          for (const family of captionFonts) {
-            const entry = findFont(family);
-            if (entry) loadFont(entry);
-          }
+        };
 
-          return; // Workspace path succeeded — skip legacy path
-        } catch (wsError) {
-          console.warn('Workspace spin-up failed, falling back to DB loading:', wsError);
-          // Fall through to existing convertApiProject path
-        }
-        // --- End workspace path ---
+        const manifest = await loadFromSandbox();
+        const bundleBaseUrl = api.getSandboxBundleUrl(projectId);
 
-        const { project, tracks, items, itemIds, duration } = convertApiProject(
-          apiProject,
-          videoUrl
-        );
+        const bridgeResult = manifestToStore(manifest, {
+          videoUrl,
+          bundleUrl: bundleBaseUrl,
+          compositionId: (apiProject as any).compositionId ?? '',
+          visualMeta: (apiProject as any).visualMeta,
+        });
 
-        // Restore persisted settings from videoSettings JSONB
-        const savedVideoSettings = (apiProject as any).videoSettings;
-        const savedLayoutSettings = savedVideoSettings?.layoutSettings;
-        const savedLayoutPresetId = savedVideoSettings?.layoutPresetId;
+        const project = {
+          id: apiProject.id,
+          title: apiProject.title,
+          status: apiProject.status,
+          projectType: apiProject.projectType,
+          videoKey: apiProject.videoKey,
+          audioKey: (apiProject as any).audioKey,
+          videoUrl,
+          audioUrl: (apiProject as any).audioPresignedUrl || null,
+          outputKey: apiProject.outputKey,
+          durationMs: bridgeResult.duration,
+          fps: bridgeResult.fps,
+          sourceWidth: apiProject.width,
+          sourceHeight: apiProject.height,
+          videoSettings: bridgeResult.videoSettings,
+        };
 
         set((state) => {
           state.project = project;
-          state.tracks = tracks;
-          state.items = items;
-          state.itemIds = itemIds;
-          state.duration = duration;
-          state.fps = project.fps;
+          state.tracks = bridgeResult.tracks;
+          state.items = bridgeResult.items;
+          state.itemIds = bridgeResult.itemIds;
+          state.duration = bridgeResult.duration;
+          state.fps = bridgeResult.fps;
           state.isLoading = false;
           state.currentTimeMs = 0;
           state.selectedIds = [];
-          // Restore layout settings (merge with defaults for forward compat)
-          if (savedLayoutSettings) {
-            state.layoutSettings = {
-              ...DEFAULT_LAYOUT_SETTINGS,
-              ...savedLayoutSettings,
-              // Normalize legacy layout mode values (split-horizontal → stacked)
-              mode: normalizeLayoutMode(savedLayoutSettings.mode || 'stacked'),
-              pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
-              split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
-            };
-          }
-          if (savedLayoutPresetId) {
-            state.layoutPresetId = savedLayoutPresetId;
-          }
-          // Reset viewport
-          state.viewport = {
-            zoom: DEFAULT_ZOOM,
-            scrollX: 0,
-            scrollY: 0,
-          };
-          // Clear history on load
+          state.layoutSettings = bridgeResult.layoutSettings;
+          state.layoutPresetId = bridgeResult.layoutPresetId as LayoutPresetId;
+          state.sandboxStatus = 'ready';
+          state.sandboxPreviewUrl = `${bundleBaseUrl}/player-composition.cjs.js`;
+          state.sandboxBundleVersion = 1;
+          // Set workspace fields too — existing components (Player, useWorkspaceComposition) read these
+          state.workspaceStatus = 'active';
+          state.workspaceBundleUrl = bundleBaseUrl;
+          state.workspaceBundleVersion = 1;
+          state.workspaceBundleError = null;
+          state.workspaceManifest = manifest as Record<string, unknown>;
+          state.workspaceLockHolder = null;
+          state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
           state.history = [];
           state.historyIndex = -1;
           state.isDirty = false;
         });
 
-        // Push initial state to history
         get().pushHistory();
-        // Reset dirty flag and cancel the debounced save — the initial pushHistory is not a user change
         cancelDebouncedSave();
         set((state) => { state.isDirty = false; });
 
-        // Auto-load caption fonts used in the project
+        // Poll for bundle readiness (handles race where bundle:ready WS event fires
+        // before the frontend WebSocket connects)
+        {
+          const pollBundle = async () => {
+            for (let i = 0; i < 30; i++) {
+              await new Promise(r => setTimeout(r, 2000));
+              if (get().workspaceBundleVersion > 1) return; // WS event arrived
+              try {
+                const res = await fetch(`${API_URL}${bundleBaseUrl}/player-composition.cjs.js`, {
+                  method: 'HEAD',
+                  credentials: 'include',
+                });
+                if (res.ok) {
+                  set((state) => { state.workspaceBundleVersion = 2; });
+                  return;
+                }
+              } catch { /* retry */ }
+            }
+          };
+          pollBundle();
+        }
+
+        // Auto-load caption fonts
         const captionFonts = new Set<string>();
-        for (const id of itemIds) {
-          const item = items[id];
+        for (const id of bridgeResult.itemIds) {
+          const item = bridgeResult.items[id];
           if (item?.type === 'caption') {
             const fontFamily = (item.data as CaptionItemData).style?.fontFamily;
             if (fontFamily) captionFonts.add(fontFamily.split(',')[0].trim());
@@ -859,6 +804,7 @@ export const useEditorStore = create<EditorStore>()(
           const entry = findFont(family);
           if (entry) loadFont(entry);
         }
+        // --- End sandbox path ---
       } catch (err) {
         set((state) => {
           state.error = err instanceof Error ? err.message : 'Failed to load project';
