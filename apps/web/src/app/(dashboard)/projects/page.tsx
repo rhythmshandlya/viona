@@ -613,18 +613,12 @@ function NewProjectModal({
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const jobProgressRef = useRef<Record<string, number>>({});
-  const cleanupRef = useRef<(() => void) | null>(null);
-
   const resetState = () => {
-    cleanupRef.current?.();
-    cleanupRef.current = null;
     setProjectName("");
     setUploadState("idle");
     setProgress(0);
     setStatusMessage("");
     setError(null);
-    jobProgressRef.current = {};
   };
 
   const handleFileDrop = useCallback(
@@ -635,55 +629,40 @@ function NewProjectModal({
       setStatusMessage("Creating project...");
 
       try {
-        // Use filename as fallback title
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
+        const { projectId } = await api.createProject(file.name, title);
+        setStatusMessage("Uploading video...");
 
-        // Step 1: Create project
-        const { projectId, projectType } = await api.createProject(file.name, title);
-        const isAudio = projectType === "audio";
-        setStatusMessage(isAudio ? "Uploading audio..." : "Uploading video...");
-
-        // Step 2: Upload file
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage(isAudio ? "Processing audio..." : "Processing video...");
+        setStatusMessage("Setting up workspace...");
         setUploadState("processing");
         setProgress(0);
 
-        // Step 3: Connect WebSocket and start processing
-        wsClient.connect(projectId);
+        // Create sandbox and wait for it to be ready
+        const result = await api.createSandbox(projectId);
 
-        // Step 4: Start processing
-        const { transcribeJobId, enhanceJobId, headTrackJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
-        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : []), ...(headTrackJobId ? [headTrackJobId] : [])];
-        const totalJobs = serverTotalJobs || jobIds.length;
+        if (result.status !== 'ready') {
+          // Poll for readiness
+          for (let i = 0; i < 90; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            const status = await api.getSandboxStatus(projectId);
+            if (status.status === 'ready') break;
+            setProgress(Math.min(90, Math.round((i / 90) * 100)));
+          }
+        }
 
-        // Step 5: Monitor jobs via WS + polling fallback
-        cleanupRef.current = startJobMonitor({
-          projectId,
-          jobIds,
-          totalJobs,
-          jobProgressRef,
-          setProgress,
-          setStatusMessage,
-          onAllComplete: () => {
-            setUploadState("complete");
-            setStatusMessage("Processing complete!");
-            setProgress(100);
+        setUploadState("complete");
+        setStatusMessage("Ready!");
+        setProgress(100);
 
-            setTimeout(() => {
-              onOpenChange(false);
-              resetState();
-              router.push(`/project/${projectId}`);
-            }, 800);
-          },
-          onError: (errMsg) => {
-            setUploadState("error");
-            setError(errMsg);
-          },
-        });
+        setTimeout(() => {
+          onOpenChange(false);
+          resetState();
+          router.push(`/project/${projectId}`);
+        }, 500);
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
@@ -731,18 +710,12 @@ function EmptyState() {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const jobProgressRef = useRef<Record<string, number>>({});
-  const cleanupRef = useRef<(() => void) | null>(null);
-
   const resetState = () => {
-    cleanupRef.current?.();
-    cleanupRef.current = null;
     setProjectName("");
     setUploadState("idle");
     setProgress(0);
     setStatusMessage("");
     setError(null);
-    jobProgressRef.current = {};
   };
 
   const handleFileDrop = useCallback(
@@ -754,45 +727,38 @@ function EmptyState() {
 
       try {
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
-        const { projectId, projectType } = await api.createProject(file.name, title);
-        const isAudio = projectType === "audio";
-        setStatusMessage(isAudio ? "Uploading audio..." : "Uploading video...");
+        const { projectId } = await api.createProject(file.name, title);
+        setStatusMessage("Uploading video...");
 
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage(isAudio ? "Processing audio..." : "Processing video...");
+        setStatusMessage("Setting up workspace...");
         setUploadState("processing");
         setProgress(0);
 
-        wsClient.connect(projectId);
+        // Create sandbox and wait for it to be ready
+        const result = await api.createSandbox(projectId);
 
-        const { transcribeJobId, enhanceJobId, headTrackJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
-        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : []), ...(headTrackJobId ? [headTrackJobId] : [])];
-        const totalJobs = serverTotalJobs || jobIds.length;
+        if (result.status !== 'ready') {
+          // Poll for readiness
+          for (let i = 0; i < 90; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            const status = await api.getSandboxStatus(projectId);
+            if (status.status === 'ready') break;
+            setProgress(Math.min(90, Math.round((i / 90) * 100)));
+          }
+        }
 
-        cleanupRef.current = startJobMonitor({
-          projectId,
-          jobIds,
-          totalJobs,
-          jobProgressRef,
-          setProgress,
-          setStatusMessage,
-          onAllComplete: () => {
-            setUploadState("complete");
-            setStatusMessage("Processing complete!");
-            setProgress(100);
+        setUploadState("complete");
+        setStatusMessage("Ready!");
+        setProgress(100);
 
-            setTimeout(() => {
-              router.push(`/project/${projectId}`);
-            }, 800);
-          },
-          onError: (errMsg) => {
-            setUploadState("error");
-            setError(errMsg);
-          },
-        });
+        setTimeout(() => {
+          resetState();
+          router.push(`/project/${projectId}`);
+        }, 500);
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
