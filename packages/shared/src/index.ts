@@ -6,3 +6,4 @@ export * from './progress-types';
 export * from './manifest';
 export * from './manifest-ops';
 export * from './manifest-convert';
+export * from './manifest-v2';
