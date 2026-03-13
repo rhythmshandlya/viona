@@ -48,7 +48,96 @@ export async function discoverScenes(projectId: string): Promise<SceneEntry[]> {
 }
 
 /**
- * Generate PlayerComposition.tsx in the workspace's src/ directory.
+ * Generate PlayerComposition.tsx — detects v2 (AI-generated Composition.tsx) vs v1 (legacy codegen).
+ */
+export async function generatePlayerComposition(projectId: string): Promise<void> {
+  const srcPath = getWorkspaceSrcPath(projectId);
+  const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
+  const compositionDir = join(srcPath, compositionId);
+
+  // Check if AI-generated Composition.tsx exists (v2)
+  let hasCompositionTsx = false;
+  try {
+    await readFile(join(compositionDir, 'Composition.tsx'));
+    hasCompositionTsx = true;
+  } catch {
+    // No Composition.tsx — fall back to legacy v1 codegen
+  }
+
+  if (hasCompositionTsx) {
+    await generateV2PlayerComposition(projectId, srcPath, compositionId);
+  } else {
+    await generateV1PlayerComposition(projectId, srcPath);
+  }
+}
+
+/**
+ * v2 codegen — thin wrapper around AI-generated Composition.tsx with error boundary.
+ */
+async function generateV2PlayerComposition(
+  projectId: string,
+  srcPath: string,
+  compositionId: string,
+): Promise<void> {
+  const code = `import React from 'react';
+import { Composition } from './${compositionId}/Composition';
+
+class CompositionErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  state = { hasError: false, error: undefined as Error | undefined };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ width: '100%', height: '100%', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p style={{ color: '#f44', fontFamily: 'monospace', fontSize: 14, padding: 20, textAlign: 'center' }}>
+            Composition error: {this.state.error?.message || 'Unknown error'}
+          </p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export const PlayerComposition: React.FC<{
+  manifest: any;
+  videoUrl?: string;
+  audioUrl?: string;
+}> = ({ manifest, videoUrl, audioUrl }) => {
+  const subtitles = (manifest?.items || [])
+    .filter((it: any) => it.type === 'caption')
+    .map((it: any) => ({
+      startMs: it.startMs,
+      endMs: it.endMs,
+      words: (it.data?.words || []).map((w: any) => ({
+        text: w.text,
+        startMs: w.startMs + it.startMs,
+        endMs: w.endMs + it.startMs,
+      })),
+    }));
+
+  return (
+    <CompositionErrorBoundary>
+      <Composition
+        videoUrl={videoUrl || ''}
+        subtitles={subtitles}
+        captionStyle={manifest?.captionStyle}
+      />
+    </CompositionErrorBoundary>
+  );
+};
+`;
+
+  await writeFile(join(srcPath, 'PlayerComposition.tsx'), code, 'utf-8');
+}
+
+/**
+ * v1 codegen (legacy) — generates PlayerComposition.tsx with inline layout conversion logic.
  *
  * This file:
  * - Imports FullComposition from the local composition/ directory
@@ -56,8 +145,7 @@ export async function discoverScenes(projectId: string): Promise<SceneEntry[]> {
  * - Converts manifest JSON props → FullCompositionProps inline
  * - Renders FullComposition with the converted props
  */
-export async function generatePlayerComposition(projectId: string): Promise<void> {
-  const srcPath = getWorkspaceSrcPath(projectId);
+async function generateV1PlayerComposition(projectId: string, srcPath: string): Promise<void> {
   const scenes = await discoverScenes(projectId);
 
   // Read manifest to determine caption font family for static import
@@ -107,8 +195,9 @@ function buildLayoutSegments(
     .sort((a: any, b: any) => a.startMs - b.startMs);
 
   if (visualItems.length === 0) {
+    // No visuals — use overlay so video fills the entire canvas
     const totalFrames = Math.ceil((totalDurationMs / 1000) * fps);
-    return [{ startFrame: 0, endFrame: totalFrames, displayMode: 'default' }];
+    return [{ startFrame: 0, endFrame: totalFrames, displayMode: 'overlay' }];
   }
 
   const segments: LayoutSegment[] = [];
@@ -120,19 +209,19 @@ function buildLayoutSegments(
     let displayMode: string = item.data?.displayMode || 'default';
     if (displayMode === 'pip') displayMode = 'default'; // Normalise pip → default
 
-    // Fill gap before this visual with 'default'
+    // Fill gap before this visual — video fullscreen during gaps
     if (startFrame > lastEndFrame) {
-      segments.push({ startFrame: lastEndFrame, endFrame: startFrame, displayMode: 'default' });
+      segments.push({ startFrame: lastEndFrame, endFrame: startFrame, displayMode: 'overlay' });
     }
 
     segments.push({ startFrame, endFrame, displayMode });
     lastEndFrame = Math.max(lastEndFrame, endFrame);
   }
 
-  // Fill trailing gap
+  // Fill trailing gap — video fullscreen after last visual
   const totalFrames = Math.ceil((totalDurationMs / 1000) * fps);
   if (lastEndFrame < totalFrames) {
-    segments.push({ startFrame: lastEndFrame, endFrame: totalFrames, displayMode: 'default' });
+    segments.push({ startFrame: lastEndFrame, endFrame: totalFrames, displayMode: 'overlay' });
   }
 
   return segments;
@@ -289,4 +378,12 @@ export const RemotionRoot: React.FC = () => {
 `;
 
   await writeFile(join(srcPath, 'Root.tsx'), code, 'utf-8');
+
+  // Generate the Remotion entry point (index.ts) that registers the root component
+  const entryCode = `import { registerRoot } from "remotion";
+import { RemotionRoot } from "./Root";
+
+registerRoot(RemotionRoot);
+`;
+  await writeFile(join(srcPath, 'index.ts'), entryCode, 'utf-8');
 }
