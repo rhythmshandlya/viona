@@ -19,7 +19,7 @@ FROM base AS deps
 
 # Copy workspace config files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
+
 
 # Copy package.json files for all packages needed
 COPY packages/shared/package.json ./packages/shared/
@@ -52,7 +52,7 @@ COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 
 # Copy source files
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY patches ./patches/
+
 COPY packages/shared ./packages/shared
 COPY packages/renderer ./packages/renderer
 COPY apps/web ./apps/web
