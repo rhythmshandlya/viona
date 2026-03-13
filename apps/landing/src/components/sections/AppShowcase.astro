@@ -41,12 +41,17 @@ import { siteConfig } from "@/data/site";
             <div class="w-12 sm:w-16"></div>
           </div>
           <!-- Real screenshot -->
-          <img
-            src="/app-editor.png"
-            alt="Viona AI video editor — chat-driven editing with video preview, timeline, and AI-generated visuals"
-            class="w-full block"
-            loading="eager"
-          />
+          <picture>
+            <source srcset="/app-editor.webp" type="image/webp" />
+            <img
+              src="/app-editor.png"
+              alt="Viona AI video editor — chat-driven editing with video preview, timeline, and AI-generated visuals"
+              class="w-full block"
+              width="2556"
+              height="1252"
+              loading="lazy"
+            />
+          </picture>
         </div>
       </div>
 

@@ -4,6 +4,9 @@ server {
     root /usr/share/nginx/html;
     index index.html;
 
+    # Use the public domain for redirects (avoid port leak)
+    absolute_redirect off;
+
     # Gzip compression
     gzip on;
     gzip_vary on;
@@ -25,12 +28,13 @@ server {
         font/woff
         font/woff2;
 
-    # Security headers
+    # Security headers (applied to all responses)
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 
     # Static assets - cache for 1 year (immutable)
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|webp|avif)$ {
@@ -40,11 +44,16 @@ server {
         access_log off;
     }
 
-    # HTML files - no cache for fresh content
+    # Video files - cache with revalidation
+    location ~* \.(mp4|webm)$ {
+        expires 7d;
+        add_header Cache-Control "public, max-age=604800";
+        access_log off;
+    }
+
+    # HTML files - short cache with revalidation
     location ~* \.html$ {
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-        add_header Pragma "no-cache";
-        add_header Expires "0";
+        add_header Cache-Control "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400";
     }
 
     # Sitemap and robots - short cache
@@ -53,9 +62,15 @@ server {
         add_header Cache-Control "public, max-age=86400";
     }
 
-    # SPA fallback for clean URLs
+    # Redirect /sitemap.xml to /sitemap-index.xml
+    location = /sitemap.xml {
+        return 301 /sitemap-index.xml;
+    }
+
+    # Astro pages with clean URLs - try exact file, then trailing slash dir
     location / {
-        try_files $uri $uri/ $uri.html /index.html;
+        try_files $uri $uri/ $uri.html =404;
+        error_page 404 /404.html;
     }
 
     # Health check endpoint

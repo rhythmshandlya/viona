@@ -13,43 +13,41 @@ const websiteSchema = {
   name: siteConfig.name,
   url: siteConfig.url,
   description: siteConfig.description,
-  potentialAction: {
-    "@type": "SearchAction",
-    target: {
-      "@type": "EntryPoint",
-      urlTemplate: `${siteConfig.url}/search?q={search_term_string}`,
-    },
-    "query-input": "required name=search_term_string",
+  publisher: {
+    "@id": `${siteConfig.url}/#organization`,
   },
 };
 
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
+  "@id": `${siteConfig.url}/#organization`,
   name: siteConfig.name,
   url: siteConfig.url,
-  logo: `${siteConfig.url}/favicon.svg`,
-  sameAs: [
-    siteConfig.links.twitter,
-    siteConfig.links.github,
-  ],
+  logo: {
+    "@type": "ImageObject",
+    url: `${siteConfig.url}/og-image.png`,
+  },
+  description: siteConfig.description,
 };
 
 const softwareSchema = {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
+  "@id": `${siteConfig.url}/#software`,
   name: siteConfig.name,
-  operatingSystem: "Web",
+  url: siteConfig.url,
+  operatingSystem: "Any",
   applicationCategory: "MultimediaApplication",
+  description: siteConfig.description,
+  screenshot: `${siteConfig.url}/app-editor.png`,
+  author: {
+    "@id": `${siteConfig.url}/#organization`,
+  },
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-  },
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.8",
-    ratingCount: "1250",
   },
 };
 

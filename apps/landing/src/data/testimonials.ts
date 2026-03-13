@@ -3,55 +3,55 @@ export interface Testimonial {
   author: string;
   role: string;
   company: string;
-  avatar: string;
+  initials: string;
   featured?: boolean;
 }
 
 export const testimonials: Testimonial[] = [
   {
     quote: "I used to spend 4 hours editing each video. Now I upload, review the AI visuals, and export in 20 minutes. My audience says my videos are clearer than ever.",
-    author: "James Park",
+    author: "James P.",
     role: "Course Creator",
-    company: "CodeMentor Academy",
-    avatar: "https://i.pravatar.cc/150?img=11",
+    company: "Beta Tester",
+    initials: "JP",
     featured: true,
   },
   {
     quote: "The AI actually understands what I'm explaining and creates matching diagrams. Not generic stock footage — real, contextual visuals that help my viewers learn.",
-    author: "Dr. Lisa Chen",
+    author: "Lisa C.",
     role: "EdTech Founder",
-    company: "MedLearn Pro",
-    avatar: "https://i.pravatar.cc/150?img=5",
+    company: "Beta Tester",
+    initials: "LC",
     featured: true,
   },
   {
     quote: "We produce 30+ explainer videos a month for clients. Viona cut our production time in half while making the videos more professional.",
-    author: "Marcus Webb",
+    author: "Marcus W.",
     role: "Creative Director",
-    company: "Explainer Studio",
-    avatar: "https://i.pravatar.cc/150?img=12",
+    company: "Beta Tester",
+    initials: "MW",
     featured: true,
   },
   {
-    quote: "The caption presets are insane. I picked the Hormozi style, tweaked the colors, and my video looked like it had a $5K editor behind it. Took me 10 minutes.",
-    author: "Priya Sharma",
+    quote: "The caption presets are insane. I picked a bold style, tweaked the colors, and my video looked like it had a $5K editor behind it. Took me 10 minutes.",
+    author: "Priya S.",
     role: "YouTube Creator",
-    company: "LearnWithPriya",
-    avatar: "https://i.pravatar.cc/150?img=32",
+    company: "Beta Tester",
+    initials: "PS",
   },
   {
     quote: "Being able to export the same video in 9:16, 16:9, and 1:1 from one project saved me from using three different tools. The safe zone preview is a game-changer.",
-    author: "Alex Rivera",
+    author: "Alex R.",
     role: "Social Media Manager",
-    company: "GrowthLoop Agency",
-    avatar: "https://i.pravatar.cc/150?img=53",
+    company: "Beta Tester",
+    initials: "AR",
   },
   {
     quote: "I just told the AI assistant 'make the background darker and add a split layout' and it did it instantly. Feels like having a junior editor on call 24/7.",
-    author: "Tomoko Hayashi",
+    author: "Tomoko H.",
     role: "Product Trainer",
-    company: "Notion",
-    avatar: "https://i.pravatar.cc/150?img=23",
+    company: "Beta Tester",
+    initials: "TH",
   },
 ];
 

@@ -9,9 +9,9 @@ const rest = testimonials.filter((t) => !t.featured);
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <!-- Header -->
     <div class="text-center mb-10 sm:mb-14">
-      <p class="text-sm font-semibold text-primary mb-3 tracking-wide uppercase">Testimonials</p>
+      <p class="text-sm font-semibold text-primary mb-3 tracking-wide uppercase">Early Feedback</p>
       <h2 class="text-2xl sm:text-3xl lg:text-4xl font-semibold">
-        Loved by <span class="text-primary">Creators</span>
+        Loved by <span class="text-primary">Beta Testers</span>
       </h2>
     </div>
 
@@ -35,15 +35,12 @@ const rest = testimonials.filter((t) => !t.featured);
 
           <!-- Author -->
           <div class="flex items-center gap-3">
-            <img
-              src={t.avatar}
-              alt={t.author}
-              class="w-10 h-10 rounded-full object-cover ring-2 ring-primary/30"
-              loading="lazy"
-            />
+            <div class="w-10 h-10 rounded-full bg-primary/20 ring-2 ring-primary/30 flex items-center justify-center text-sm font-semibold text-primary">
+              {t.initials}
+            </div>
             <div>
               <div class="font-semibold text-sm">{t.author}</div>
-              <div class="text-xs text-white/50">{t.role}, {t.company}</div>
+              <div class="text-xs text-white/50">{t.role}</div>
             </div>
           </div>
         </div>
@@ -61,15 +58,12 @@ const rest = testimonials.filter((t) => !t.featured);
 
           <!-- Author -->
           <div class="flex items-center gap-3">
-            <img
-              src={t.avatar}
-              alt={t.author}
-              class="w-9 h-9 rounded-full object-cover ring-1 ring-white/10"
-              loading="lazy"
-            />
+            <div class="w-9 h-9 rounded-full bg-white/10 ring-1 ring-white/10 flex items-center justify-center text-xs font-medium text-white/60">
+              {t.initials}
+            </div>
             <div>
               <div class="font-medium text-sm">{t.author}</div>
-              <div class="text-xs text-white/40">{t.role}, {t.company}</div>
+              <div class="text-xs text-white/40">{t.role}</div>
             </div>
           </div>
         </div>
