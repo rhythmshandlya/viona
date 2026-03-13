@@ -5,20 +5,20 @@
 
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { CallbackListener } from '@remotion/player';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import type { PlayerRef, CallbackListener } from '@remotion/player';
 import { WorkspacePlayer } from './WorkspacePlayer';
 import {
   useProject,
   useDuration,
   useFps,
-  useCurrentTimeMs,
   useIsPlaying,
   useEditorActions,
   useSafeZonePlatform,
   useWorkspaceManifest,
   useWorkspaceBundleUrl,
   useWorkspaceBundleVersion,
+  useEditorStore,
 } from '../store/use-editor-store';
 import { SafeZoneOverlay } from '../components/SafeZoneOverlay';
 import { sharedPlayerRef } from './player-ref';
@@ -28,14 +28,22 @@ interface PlayerProps {
 }
 
 export function Player({ className }: PlayerProps) {
-  const playerRef = sharedPlayerRef;
   const isInternalUpdate = useRef(false);
+  // State counter that increments when the Remotion Player mounts/unmounts.
+  // This forces the event-listener effects to re-run.
+  const [playerInstance, setPlayerInstance] = useState<PlayerRef | null>(null);
+
+  // Callback ref: updates sharedPlayerRef AND triggers a state change so
+  // effects that depend on `playerInstance` re-run.
+  const playerCallbackRef = useCallback((node: PlayerRef | null) => {
+    sharedPlayerRef.current = node;
+    setPlayerInstance(node);
+  }, []);
 
   // State
   const project = useProject();
   const duration = useDuration();
   const fps = useFps();
-  const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const safeZonePlatform = useSafeZonePlatform();
   const manifest = useWorkspaceManifest();
@@ -45,31 +53,38 @@ export function Player({ className }: PlayerProps) {
   // Actions
   const { setCurrentTime, play, pause } = useEditorActions();
 
+  // Sync store currentTimeMs → Remotion player (user drags timeline).
+  // Uses a store subscription so frame updates don't trigger re-renders.
+  useEffect(() => {
+    if (!playerInstance) return;
+
+    let prevTimeMs = useEditorStore.getState().currentTimeMs;
+    const unsub = useEditorStore.subscribe((state) => {
+      const timeMs = state.currentTimeMs;
+      if (timeMs === prevTimeMs) return;
+      prevTimeMs = timeMs;
+      if (isInternalUpdate.current) return;
+      const frame = Math.round((timeMs / 1000) * fps);
+      playerInstance.seekTo(frame);
+    });
+
+    return unsub;
+  }, [playerInstance, fps]);
+
   // Sync playback state to Remotion player
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
+    if (!playerInstance) return;
 
     if (isPlaying) {
-      player.play();
+      playerInstance.play();
     } else {
-      player.pause();
+      playerInstance.pause();
     }
-  }, [isPlaying]);
-
-  // Sync current time to Remotion player
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player || isInternalUpdate.current) return;
-
-    const frame = Math.round((currentTimeMs / 1000) * fps);
-    player.seekTo(frame);
-  }, [currentTimeMs, fps]);
+  }, [isPlaying, playerInstance]);
 
   // Listen to Remotion player events
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
+    if (!playerInstance) return;
 
     const handleFrameChange: CallbackListener<'frameupdate'> = (data) => {
       const frame = data.detail.frame;
@@ -97,18 +112,18 @@ export function Player({ className }: PlayerProps) {
       setCurrentTime(0);
     };
 
-    player.addEventListener('frameupdate', handleFrameChange);
-    player.addEventListener('play', handlePlay);
-    player.addEventListener('pause', handlePause);
-    player.addEventListener('ended', handleEnded);
+    playerInstance.addEventListener('frameupdate', handleFrameChange);
+    playerInstance.addEventListener('play', handlePlay);
+    playerInstance.addEventListener('pause', handlePause);
+    playerInstance.addEventListener('ended', handleEnded);
 
     return () => {
-      player.removeEventListener('frameupdate', handleFrameChange);
-      player.removeEventListener('play', handlePlay);
-      player.removeEventListener('pause', handlePause);
-      player.removeEventListener('ended', handleEnded);
+      playerInstance.removeEventListener('frameupdate', handleFrameChange);
+      playerInstance.removeEventListener('play', handlePlay);
+      playerInstance.removeEventListener('pause', handlePause);
+      playerInstance.removeEventListener('ended', handleEnded);
     };
-  }, [fps, setCurrentTime, play, pause]);
+  }, [playerInstance, fps, setCurrentTime, play, pause]);
 
   if (!project) {
     return (
@@ -137,14 +152,13 @@ export function Player({ className }: PlayerProps) {
     <div className={`relative w-full h-full ${className || ''}`}>
       <WorkspacePlayer
         manifest={manifest}
-        videoUrl={project.videoUrl ?? undefined}
         bundleUrl={bundleUrl}
         bundleVersion={bundleVersion}
         compositionWidth={compositionWidth}
         compositionHeight={compositionHeight}
         durationMs={duration}
         fps={fps}
-        playerRef={playerRef}
+        playerRef={playerCallbackRef}
         className="w-full h-full"
       />
       <SafeZoneOverlay platform={safeZonePlatform} />

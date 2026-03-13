@@ -1,14 +1,12 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Player } from '@remotion/player';
 import { AbsoluteFill } from 'remotion';
-import { useWorkspaceComposition } from './useWorkspaceComposition';
+import { useWorkspaceComposition, setAssetsMap } from './useWorkspaceComposition';
 
 interface WorkspacePlayerProps {
   manifest: Record<string, unknown>;
-  videoUrl?: string;
-  audioUrl?: string;
   bundleUrl: string | null;
   bundleVersion: number;
   compositionWidth: number;
@@ -19,10 +17,8 @@ interface WorkspacePlayerProps {
   className?: string;
 }
 
-export function WorkspacePlayer({
+export const WorkspacePlayer = React.memo(function WorkspacePlayer({
   manifest,
-  videoUrl,
-  audioUrl,
   bundleUrl,
   bundleVersion,
   compositionWidth,
@@ -36,9 +32,14 @@ export function WorkspacePlayer({
 
   const durationInFrames = Math.max(1, Math.round((durationMs / 1000) * fps));
 
+  useEffect(() => {
+    const assets = (manifest as any)?.assets;
+    if (assets) setAssetsMap(assets);
+  }, [manifest]);
+
   const inputProps = useMemo(
-    () => ({ manifest, videoUrl, audioUrl }),
-    [manifest, videoUrl, audioUrl],
+    () => ({ manifest }),
+    [manifest],
   );
 
   if (loading || (!Component && !error)) {
@@ -123,4 +124,4 @@ export function WorkspacePlayer({
       acknowledgeRemotionLicense
     />
   );
-}
+});
