@@ -78,7 +78,54 @@ export class BaseRenderer implements ItemRenderer {
       ctx.globalAlpha = 1;
     }
 
-    // 5. Resize handles — show when selected or hovered
+    // 5. Transform badge — small blue icon when item has non-default transform
+    if (item.transform) {
+      const t = item.transform;
+      const hasCustomTransform =
+        t.x !== 0 || t.y !== 0 ||
+        t.width !== '100%' || t.height !== '100%' ||
+        t.rotation !== 0 || t.opacity !== 1;
+      if (hasCustomTransform) {
+        ctx.fillStyle = '#60a5fa';
+        ctx.font = '10px sans-serif';
+        ctx.fillText('\u229E', x + 4, y + 12);
+      }
+    }
+
+    // 6. Filter badge — small orange dot when item has active filters
+    if (item.filters) {
+      const f = item.filters;
+      const hasFilters =
+        (f.brightness !== undefined && f.brightness !== 1) ||
+        (f.contrast !== undefined && f.contrast !== 1) ||
+        (f.saturation !== undefined && f.saturation !== 1) ||
+        (f.blur !== undefined && f.blur !== 0) ||
+        (f.hue !== undefined && f.hue !== 0) ||
+        (f.grayscale !== undefined && f.grayscale !== 0) ||
+        (f.sepia !== undefined && f.sepia !== 0);
+      if (hasFilters) {
+        ctx.beginPath();
+        ctx.arc(x + width - 8, y + 8, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#f97316';
+        ctx.fill();
+      }
+    }
+
+    // 7. Keyframe diamonds — shown on selected items with keyframes
+    if (state.isSelected && item.keyframes?.length) {
+      const laneY = y + height - 6;
+      for (const kf of item.keyframes) {
+        const kfX = x + ((kf.timeMs / (item.endMs - item.startMs)) * width);
+        ctx.save();
+        ctx.translate(kfX, laneY);
+        ctx.rotate(Math.PI / 4);
+        ctx.fillStyle = '#a78bfa';
+        ctx.fillRect(-3, -3, 6, 6);
+        ctx.restore();
+      }
+    }
+
+    // 8. Resize handles — show when selected or hovered
     if ((state.isSelected || state.isHovered) && !state.isDragPreview) {
       this.drawResizeHandles(ctx, rect);
     }
