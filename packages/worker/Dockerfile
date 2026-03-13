@@ -175,6 +175,8 @@ COPY --from=builder /app/packages/mcp-servers/node_modules ./packages/mcp-server
 COPY --from=builder /app/packages/worker/src/agents ./packages/worker/agents
 # Copy prompts package (Python imports from agents reference prompts as sibling under src/)
 COPY --from=builder /app/packages/worker/src/prompts ./packages/worker/prompts
+# Copy processors source for resolve-templates-cli.ts (run via npx tsx at runtime)
+COPY --from=builder /app/packages/worker/src/processors ./packages/worker/src/processors
 COPY --from=builder /app/packages/worker/scripts ./packages/worker/scripts
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/renderer/dist ./packages/renderer/dist

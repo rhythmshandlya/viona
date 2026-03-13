@@ -44,11 +44,17 @@ class AnimatorMixin:
             return
 
         try:
-            resolve_script = Path(__file__).parent.parent.parent / "processors" / "generate-visuals" / "resolve-templates-cli.ts"
+            # Walk up to find worker root (works in both source and Docker layouts)
+            worker_root = Path(__file__).resolve().parent
+            while worker_root != worker_root.parent:
+                if (worker_root / "package.json").exists() and worker_root.name == "worker":
+                    break
+                worker_root = worker_root.parent
+            resolve_script = worker_root / "src" / "processors" / "generate-visuals" / "resolve-templates-cli.ts"
             result = subprocess.run(
                 ["npx", "tsx", str(resolve_script), str(scenes_path), str(self.workspace / "src")],
                 capture_output=True, text=True, timeout=30,
-                cwd=str(Path(__file__).parent.parent.parent.parent),
+                cwd=str(worker_root),
                 shell=IS_WINDOWS,
             )
             if result.returncode == 0:
