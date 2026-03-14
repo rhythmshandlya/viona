@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useRef } from 'react';
-import { Type, ImageIcon, Music, Film } from 'lucide-react';
+import { Type, ImageIcon, Music, Film, Square } from 'lucide-react';
 import { useEditorStore, useEditorActions } from '../store/use-editor-store';
 import { api } from '@/lib/api';
 import { findOrCreateTrack } from '../utils/track-utils';
-import type { TimelineItem, TextItemData, TextStyle } from '../store/types';
+import type { TimelineItem, TextItemData, TextStyle, ShapeItemData } from '../store/types';
 
 export function AddItemToolbar() {
   const actions = useEditorActions();
@@ -83,6 +83,29 @@ export function AddItemToolbar() {
     }
   };
 
+  const handleAddShape = () => {
+    const state = useEditorStore.getState();
+    const trackId = findOrCreateTrack(state.tracks, 'overlay', actions.addTrack);
+    const startMs = state.currentTimeMs;
+    const id = `item-shape-${Date.now()}`;
+    const data: ShapeItemData = {
+      shape: 'rectangle',
+      fill: '#3B82F6',
+      borderRadius: 8,
+    };
+    const item: TimelineItem = {
+      id,
+      type: 'shape',
+      trackId,
+      startMs,
+      endMs: startMs + 3000,
+      data,
+      transform: { x: '25%', y: '25%', width: '50%', height: '50%', rotation: 0, opacity: 1 },
+    };
+    actions.addItem(trackId, item);
+    actions.select([id]);
+  };
+
   const buttonStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
@@ -129,6 +152,9 @@ export function AddItemToolbar() {
         title="Add video clip"
       >
         <Film size={14} /> Video
+      </button>
+      <button style={buttonStyle} onClick={handleAddShape} title="Add shape">
+        <Square size={14} /> Shape
       </button>
 
       {/* Hidden file inputs */}

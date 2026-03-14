@@ -3,7 +3,8 @@ import { AbsoluteFill, Sequence } from 'remotion';
 import { TextOverlay } from './TextOverlay';
 import { ImageOverlay } from './ImageOverlay';
 import { VideoOverlay } from './VideoOverlay';
-
+import { ShapeOverlay } from './ShapeOverlay';
+import { useKeyframeInterpolation } from './useKeyframeInterpolation';
 
 interface OverlayItemFilters {
   brightness?: number;
@@ -15,7 +16,7 @@ interface OverlayItemFilters {
   sepia?: number;
 }
 
-interface OverlayItem {
+interface OverlayItemType {
   id: string;
   type: string;
   startMs: number;
@@ -29,11 +30,23 @@ interface OverlayItem {
     rotation: number;
     opacity: number;
   };
+  keyframes?: {
+    timeMs: number;
+    props: Partial<{
+      x: number | string;
+      y: number | string;
+      width: number | string;
+      height: number | string;
+      rotation: number;
+      opacity: number;
+    }>;
+    easing?: string;
+  }[];
   filters?: OverlayItemFilters;
 }
 
 interface OverlayLayerProps {
-  items: OverlayItem[];
+  items: OverlayItemType[];
   fps: number;
 }
 
@@ -67,6 +80,38 @@ function buildFilterString(filters?: OverlayItemFilters): string | undefined {
   return parts.length > 0 ? parts.join(' ') : undefined;
 }
 
+/** Per-item renderer — uses hooks for keyframe interpolation */
+const OverlayItem: React.FC<{ item: OverlayItemType }> = ({ item }) => {
+  const interpolatedTransform = useKeyframeInterpolation(
+    item.transform,
+    item.keyframes,
+  );
+
+  const filterStr = buildFilterString(item.filters);
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: interpolatedTransform.x,
+        top: interpolatedTransform.y,
+        width: interpolatedTransform.width,
+        height: interpolatedTransform.height,
+        transform: interpolatedTransform.rotation
+          ? `rotate(${interpolatedTransform.rotation}deg)`
+          : undefined,
+        opacity: interpolatedTransform.opacity,
+        filter: filterStr,
+      }}
+    >
+      {item.type === 'text' && <TextOverlay data={item.data} />}
+      {item.type === 'image' && <ImageOverlay data={item.data} />}
+      {item.type === 'video' && <VideoOverlay data={item.data} />}
+      {item.type === 'shape' && <ShapeOverlay data={item.data} />}
+    </div>
+  );
+};
+
 export const OverlayLayer: React.FC<OverlayLayerProps> = ({ items, fps }) => {
   return (
     <AbsoluteFill>
@@ -75,34 +120,13 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ items, fps }) => {
         const endFrame = Math.round((item.endMs / 1000) * fps);
         const durationInFrames = Math.max(1, endFrame - startFrame);
 
-        // Visual items: text, image, video
-        const { transform, filters } = item;
-        const filterStr = buildFilterString(filters);
-
         return (
           <Sequence
             key={item.id}
             from={startFrame}
             durationInFrames={durationInFrames}
           >
-            <div
-              style={{
-                position: 'absolute',
-                left: transform?.x ?? 0,
-                top: transform?.y ?? 0,
-                width: transform?.width ?? '100%',
-                height: transform?.height ?? '100%',
-                transform: transform?.rotation
-                  ? `rotate(${transform.rotation}deg)`
-                  : undefined,
-                opacity: transform?.opacity ?? 1,
-                filter: filterStr,
-              }}
-            >
-              {item.type === 'text' && <TextOverlay data={item.data} />}
-              {item.type === 'image' && <ImageOverlay data={item.data} />}
-              {item.type === 'video' && <VideoOverlay data={item.data} />}
-            </div>
+            <OverlayItem item={item} />
           </Sequence>
         );
       })}
