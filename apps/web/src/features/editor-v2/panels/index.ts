@@ -5,3 +5,4 @@ export { TranscriptPanel } from './TranscriptPanel';
 export { VideoPositionPanel } from './VideoPositionPanel';
 export { WordToolbar } from './WordToolbar';
 export { AssetsPanel } from './AssetsPanel';
+export { ItemPropertiesPanel } from './ItemPropertiesPanel';
