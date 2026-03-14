@@ -297,8 +297,16 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Note: Sidebar no longer auto-opens on selection to allow easy multi-select
-  // Users can open Style panel manually via icon rail after selecting captions
+  // Auto-switch to Style tab when a single non-caption item is selected and sidebar is open
+  useEffect(() => {
+    if (selectedIds.length === 1 && leftSidebarOpen) {
+      const state = useEditorStore.getState();
+      const item = state.items[selectedIds[0]];
+      if (item && item.type !== 'caption' && item.type !== 'visual') {
+        setLeftSidebarTab('style');
+      }
+    }
+  }, [selectedIds, leftSidebarOpen]);
 
   // Handle timeline resize
   const handleResizeStart = (e: React.MouseEvent) => {
