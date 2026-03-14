@@ -142,7 +142,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     const observer = new ResizeObserver(() => {
       if (rendererRef.current) {
         rendererRef.current.resize();
-        rendererRef.current.render(renderStateRef.current);
+        rendererRef.current.requestRender(renderStateRef.current);
       }
     });
 

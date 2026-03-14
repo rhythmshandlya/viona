@@ -102,9 +102,19 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
     const el = containerRef.current;
     if (!el) return;
     calculateScale();
-    const ro = new ResizeObserver(() => calculateScale());
+    let rafId: number | null = null;
+    const ro = new ResizeObserver(() => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        calculateScale();
+        rafId = null;
+      });
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, [calculateScale]);
 
   // Look for data-element-name in the rendered composition DOM
