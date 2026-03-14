@@ -151,11 +151,7 @@ export function manifestToStore(
       };
 
   const layoutSettings = isV2
-    ? {
-        mode: 'stacked' as const,
-        pip: DEFAULT_PIP_SETTINGS,
-        split: DEFAULT_SPLIT_SETTINGS,
-      }
+    ? {} as any
     : convertManifestLayout(manifest.layout);
 
   return {
