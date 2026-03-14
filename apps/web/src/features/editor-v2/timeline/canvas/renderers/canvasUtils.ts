@@ -4,6 +4,8 @@
  * individual item renderers.
  */
 
+import { getCachedTextWidth } from '../text-cache';
+
 /**
  * Trace a rounded-rectangle path on the context (does NOT fill or stroke).
  * Callers must call ctx.fill() / ctx.stroke() after this.
@@ -38,12 +40,13 @@ export function truncateText(
   text: string,
   maxWidth: number
 ): string {
-  const metrics = ctx.measureText(text);
-  if (metrics.width <= maxWidth) {
+  const currentFont = ctx.font;
+  const width = getCachedTextWidth(ctx, text, currentFont);
+  if (width <= maxWidth) {
     return text;
   }
   let truncated = text;
-  while (truncated.length > 0 && ctx.measureText(truncated + '...').width > maxWidth) {
+  while (truncated.length > 0 && getCachedTextWidth(ctx, truncated + '...', currentFont) > maxWidth) {
     truncated = truncated.slice(0, -1);
   }
   return truncated + '...';
@@ -60,8 +63,8 @@ export function drawPill(
   options: { bg: string; textColor: string; fontSize: number }
 ): void {
   const padding = 6;
-  ctx.font = `${options.fontSize}px system-ui, sans-serif`;
-  const textWidth = ctx.measureText(text).width;
+  const pillFont = `${options.fontSize}px system-ui, sans-serif`;
+  const textWidth = getCachedTextWidth(ctx, text, pillFont);
   const pillWidth = textWidth + padding * 2;
   const pillHeight = options.fontSize + padding;
 
