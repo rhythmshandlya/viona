@@ -30,7 +30,7 @@ import {
   useSplitMode,
   useEditorActions,
 } from '../store/use-editor-store';
-import { DragState, SnapTarget } from '../store/types';
+import { DragState, SnapTarget, Track, TimelineItem } from '../store/types';
 import { useContextMenu, ContextMenu } from './context-menu';
 
 interface TimelineCanvasProps {
@@ -487,6 +487,84 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     [getCanvasCoords, viewport, duration, setCurrentTime]
   );
 
+  // Handle drag-over for asset drops
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  // Handle drop from AssetsPanel
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const assetJson = e.dataTransfer.getData('application/x-project-asset')
+        || e.dataTransfer.getData('application/x-broll-asset');
+      if (!assetJson) return;
+
+      try {
+        const asset = JSON.parse(assetJson);
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const x = e.clientX - rect.left;
+        const hitTester = hitTesterRef.current;
+        const timeMs = hitTester.xToTime(x, viewport);
+
+        let itemType: string;
+        let trackType: string;
+        if (asset.mimeType?.startsWith('audio/')) {
+          itemType = 'audio';
+          trackType = 'audio';
+        } else if (asset.mimeType?.startsWith('video/')) {
+          itemType = 'video';
+          trackType = 'video';
+        } else {
+          itemType = 'image';
+          trackType = 'overlay';
+        }
+
+        const state = useEditorStore.getState();
+        // Find or create a track of the right type
+        let trackId = state.tracks.find((t: Track) => t.type === trackType)?.id;
+        if (!trackId) {
+          const count = state.tracks.filter((t: Track) => t.type === trackType).length;
+          const names: Record<string, string> = { video: 'Video', audio: 'Audio', overlay: 'Overlay' };
+          trackId = state.addTrack({
+            type: trackType as Track['type'],
+            name: `${names[trackType] || trackType} ${count + 1}`,
+            position: state.tracks.length,
+            height: 60,
+            locked: false,
+            visible: true,
+            collapsed: false,
+          });
+        }
+
+        const id = `item-${itemType}-${Date.now()}`;
+        const durationMs = itemType === 'image' ? 5000 : 10000;
+        const startMs = Math.max(0, timeMs);
+
+        const item: Partial<TimelineItem> = {
+          id,
+          type: itemType as any,
+          trackId,
+          startMs,
+          endMs: startMs + durationMs,
+          data: { src: asset.url, volume: 1 } as any,
+          ...(itemType !== 'audio' ? {
+            transform: { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 },
+          } : {}),
+        };
+
+        state.addItem(trackId, item as TimelineItem);
+        state.select([id]);
+      } catch (err) {
+        console.error('Drop failed:', err);
+      }
+    },
+    [viewport]
+  );
+
   // Handle right-click context menu
   const handleContextMenu = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -520,7 +598,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   );
 
   return (
-    <div ref={containerRef} className={`relative w-full h-full ${className || ''}`}>
+    <div ref={containerRef} className={`relative w-full h-full ${className || ''}`} onDragOver={handleDragOver} onDrop={handleDrop}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"
