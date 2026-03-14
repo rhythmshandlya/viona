@@ -644,10 +644,9 @@ function NewProjectModal({
       setUploadState("uploading");
       setProgress(0);
       setError(null);
-      setStatusMessage("Creating project...");
-
       try {
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
+        setStatusMessage("Creating project...");
         const { projectId } = await api.createProject(file.name, title, description);
         if (description.trim()) {
           sessionStorage.setItem(`project-brief-${projectId}`, description.trim());

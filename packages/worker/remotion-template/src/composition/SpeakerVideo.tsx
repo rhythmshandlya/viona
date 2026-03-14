@@ -1,5 +1,6 @@
 import React from 'react';
-import { OffthreadVideo, staticFile } from 'remotion';
+import { OffthreadVideo } from 'remotion';
+import { resolveVideoSrc } from './utils';
 import type { Rect, VideoCropSettings } from './types';
 
 interface SpeakerVideoProps {
@@ -14,24 +15,6 @@ export const SpeakerVideo: React.FC<SpeakerVideoProps> = ({ rect, src, crop }) =
   // Hide when effectively off-canvas (fullscreen mode transitions)
   if (rect.h <= 10) return null;
 
-  const aspectRatio = crop.sourceWidth / crop.sourceHeight;
-  const rectAspect = rect.w / Math.max(rect.h, 1); // prevent division by zero
-
-  let scaledW: number;
-  let scaledH: number;
-  if (aspectRatio > rectAspect) {
-    scaledH = rect.h * crop.scale;
-    scaledW = scaledH * aspectRatio;
-  } else {
-    scaledW = rect.w * crop.scale;
-    scaledH = scaledW / aspectRatio;
-  }
-
-  const maxOffsetX = scaledW - rect.w;
-  const maxOffsetY = scaledH - rect.h;
-  const offsetX = -(crop.cropX / 100) * maxOffsetX;
-  const offsetY = -(crop.cropY / 100) * maxOffsetY;
-
   return (
     <div
       style={{
@@ -44,12 +27,12 @@ export const SpeakerVideo: React.FC<SpeakerVideoProps> = ({ rect, src, crop }) =
       }}
     >
       <OffthreadVideo
-        src={staticFile(src)}
+        src={resolveVideoSrc(src)!}
+        crossOrigin="anonymous"
         style={{
-          width: scaledW,
-          height: scaledH,
+          width: '100%',
+          height: '100%',
           objectFit: 'cover',
-          transform: `translate(${offsetX}px, ${offsetY}px)`,
         }}
       />
     </div>

@@ -1,5 +1,12 @@
-import { interpolate } from 'remotion';
+import { interpolate, staticFile } from 'remotion';
 import type { Rect, DisplayMode, LayoutSegment, SplitSettings } from './types';
+
+/** Resolve video source: use URL directly for http(s)/blob, staticFile for local paths */
+export function resolveVideoSrc(src: string | undefined): string | undefined {
+  if (!src) return undefined;
+  if (src.startsWith('http://') || src.startsWith('https://') || src.startsWith('blob:')) return src;
+  return staticFile(src);
+}
 
 const TRANSITION_FRAMES = 12;
 

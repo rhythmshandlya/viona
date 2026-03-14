@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill, Audio, OffthreadVideo, useCurrentFrame, useVideoConfig, staticFile } from 'remotion';
-import { computeLayoutForFrame, computePiPLayoutForFrame } from './utils';
+import { computeLayoutForFrame, computePiPLayoutForFrame, resolveVideoSrc } from './utils';
 import { SpeakerVideo } from './SpeakerVideo';
 import { PiPVideo } from './PiPVideo';
 import { VisualsLayer } from './VisualsLayer';
@@ -66,7 +66,7 @@ export const FullComposition: React.FC<Props> = ({
             defaultStyle={defaultSubtitleStyle}
           />
         )}
-        {audioFile && <Audio src={staticFile(audioFile)} />}
+        {audioFile && <Audio src={resolveVideoSrc(audioFile)!} />}
       </AbsoluteFill>
     );
   }
@@ -82,10 +82,13 @@ export const FullComposition: React.FC<Props> = ({
       <AbsoluteFill style={{ backgroundColor: backgroundColor || '#000' }}>
         {/* Persistent audio carrier — always rendered so audio never drops
             during display mode transitions. Hidden visually (1x1, opacity 0). */}
-        <OffthreadVideo
-          src={staticFile(sourceVideoFile)}
-          style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
-        />
+        {hasVideo && (
+          <OffthreadVideo
+            src={resolveVideoSrc(sourceVideoFile)!}
+            crossOrigin="anonymous"
+            style={{ position: 'absolute', width: 1, height: 1, opacity: 0 }}
+          />
+        )}
 
         {/* Overlay mode: video fullscreen behind visuals */}
         {isOverlay && (

@@ -11,6 +11,7 @@ import {
   isWorkspaceActive,
   touchActivity,
 } from './workspace-service.js';
+import { getPublicPath } from './workspace-config.js';
 import { acquireLock, releaseLock, extendLock, getLockInfo } from './workspace-lock.js';
 import { emitManifestUpdated, emitLockAcquired, emitLockReleased } from './workspace-ws.js';
 import { bundlerService } from './bundler-service.js';
@@ -25,10 +26,19 @@ const MIME_TYPES: Record<string, string> = {
   '.json': 'application/json',
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
   '.svg': 'image/svg+xml',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
   '.ttf': 'font/ttf',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
+  '.mp3': 'audio/mpeg',
+  '.wav': 'audio/wav',
+  '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg',
 };
 
 export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
@@ -217,6 +227,45 @@ export async function workspaceRoutes(fastify: FastifyInstance): Promise<void> {
 
       reply.header('Content-Type', contentType);
       reply.header('Cache-Control', 'no-cache'); // Always fresh during development
+      return reply.send(createReadStream(fullPath));
+    } catch {
+      return reply.status(404).send({ error: 'Not found' });
+    }
+  });
+
+  // ---- Workspace public file serving ----
+
+  /** Serve files from the workspace's public/ directory (video, audio, etc.) */
+  fastify.get('/projects/:id/workspace/public/*', { preHandler: authMiddleware }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const filePath = (request.params as any)['*'] || '';
+
+    if (!filePath) {
+      return reply.status(400).send({ error: 'No file path specified' });
+    }
+
+    const publicDir = getPublicPath(id);
+    const fullPath = join(publicDir, filePath);
+
+    // Security: prevent path traversal
+    if (!fullPath.startsWith(publicDir)) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    try {
+      const fileStat = await stat(fullPath);
+      if (!fileStat.isFile()) {
+        return reply.status(404).send({ error: 'Not found' });
+      }
+
+      // Determine MIME type
+      const ext = Object.keys(MIME_TYPES).find(e => fullPath.endsWith(e)) || '';
+      const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+
+      reply.header('Content-Type', contentType);
+      reply.header('Content-Length', fileStat.size);
+      reply.header('Accept-Ranges', 'bytes');
+      reply.header('Cache-Control', 'no-cache');
       return reply.send(createReadStream(fullPath));
     } catch {
       return reply.status(404).send({ error: 'Not found' });

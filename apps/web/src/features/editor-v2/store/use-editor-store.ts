@@ -555,6 +555,8 @@ export function useEditorActions() {
       updateFilters: state.updateFilters,
       updateKeyframes: state.updateKeyframes,
       addKeyframeAtTime: state.addKeyframeAtTime,
+      deleteKeyframe: state.deleteKeyframe,
+      updateKeyframeEasing: state.updateKeyframeEasing,
     }))
   );
 }

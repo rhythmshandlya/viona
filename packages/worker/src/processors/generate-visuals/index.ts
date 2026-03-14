@@ -470,8 +470,8 @@ registerRoot(RemotionRoot);
             id: seg.id,
             layout: seg.layout,
             layoutProps: seg.layoutProps || {},
-            startMs: (seg.frames[0] / fps) * 1000,
-            endMs: (seg.frames[1] / fps) * 1000,
+            startMs: Math.round((seg.frames[0] / fps) * 1000),
+            endMs: Math.round((seg.frames[1] / fps) * 1000),
             beatCount: seg.beats?.length || 1,
             description: seg.beats?.map((b: any) => b.name).join(' → ') || `Segment ${seg.id}`,
           }));

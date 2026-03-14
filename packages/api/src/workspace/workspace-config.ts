@@ -53,3 +53,8 @@ export function getWorkspaceSrcPath(projectId: string): string {
 export function getScenesPath(projectId: string): string {
   return join(getWorkspacePath(projectId), 'src', 'scenes');
 }
+
+/** Get path to the public/ directory inside a workspace */
+export function getPublicPath(projectId: string): string {
+  return join(getWorkspacePath(projectId), 'public');
+}

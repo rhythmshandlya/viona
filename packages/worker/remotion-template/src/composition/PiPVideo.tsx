@@ -1,5 +1,6 @@
 import React from 'react';
-import { OffthreadVideo, staticFile } from 'remotion';
+import { OffthreadVideo } from 'remotion';
+import { resolveVideoSrc } from './utils';
 import type { PiPSettings, VideoCropSettings } from './types';
 
 interface PiPVideoProps {
@@ -76,7 +77,7 @@ export const PiPVideo: React.FC<PiPVideoProps> = ({
     >
       <OffthreadVideo
         muted
-        src={staticFile(src)}
+        src={resolveVideoSrc(src)!}
         style={{
           width: scaledW,
           height: scaledH,

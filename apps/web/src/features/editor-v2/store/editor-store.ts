@@ -996,6 +996,9 @@ export const useEditorStore = create<EditorStore>()(
                 ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
                 ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
               },
+              ...(item.transform ? { transform: item.transform } : {}),
+              ...(item.filters ? { filters: item.filters } : {}),
+              ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
             };
           });
 
@@ -1010,6 +1013,9 @@ export const useEditorStore = create<EditorStore>()(
             startMs: item.startMs,
             endMs: item.endMs,
             data: item.data as unknown as Record<string, unknown>,
+            ...(item.transform ? { transform: item.transform } : {}),
+            ...(item.filters ? { filters: item.filters } : {}),
+            ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
           }));
 
         // Save video items (persists splits across reload)
@@ -1034,6 +1040,9 @@ export const useEditorStore = create<EditorStore>()(
                 separatedAudioItemId: d.separatedAudioItemId,
                 ...(item.trim ? { trimStartMs: item.trim.startMs, trimEndMs: item.trim.endMs } : {}),
               },
+              ...(item.transform ? { transform: item.transform } : {}),
+              ...(item.filters ? { filters: item.filters } : {}),
+              ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
             };
           });
 
@@ -1057,6 +1066,9 @@ export const useEditorStore = create<EditorStore>()(
                 enhancementStatus: d.enhancementStatus,
                 enhancementProgress: d.enhancementProgress,
               },
+              ...(item.transform ? { transform: item.transform } : {}),
+              ...(item.filters ? { filters: item.filters } : {}),
+              ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
             };
           });
 

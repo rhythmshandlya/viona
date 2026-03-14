@@ -98,24 +98,25 @@ export const manifestItemSchema = z.object({
   ]),
 });
 
+// DB JSONB can store numbers as strings — use z.coerce.number() for all numeric pip fields
 export const manifestPiPSettingsSchema = z.object({
   position: z.enum(['top-left', 'top-right', 'bottom-left', 'bottom-right']),
-  offsetX: z.number().default(0),
-  offsetY: z.number().default(0),
-  size: z.number().min(5).max(50).default(25),
+  offsetX: z.coerce.number().default(0),
+  offsetY: z.coerce.number().default(0),
+  size: z.coerce.number().min(5).max(50).default(25),
   shape: z.enum(['square', 'circle', 'rounded']).default('circle'),
-  borderRadius: z.number().default(9999),
-  borderWidth: z.number().default(2),
+  borderRadius: z.coerce.number().default(9999),
+  borderWidth: z.coerce.number().default(2),
   borderColor: z.string().default('#FFFFFF'),
   shadowEnabled: z.boolean().default(true),
   shadowColor: z.string().default('#000000'),
-  shadowBlur: z.number().default(10),
-  opacity: z.number().min(0).max(1).default(1),
-  rotation: z.number().default(0),
+  shadowBlur: z.coerce.number().default(10),
+  opacity: z.coerce.number().min(0).max(1).default(1),
+  rotation: z.coerce.number().default(0),
   crop: z.object({
-    cropX: z.number().min(0).max(100).default(50),
-    cropY: z.number().min(0).max(100).default(50),
-    zoom: z.number().min(0.5).max(3).default(1),
+    cropX: z.coerce.number().min(0).max(100).default(50),
+    cropY: z.coerce.number().min(0).max(100).default(50),
+    zoom: z.coerce.number().min(0.5).max(3).default(1),
   }).default(() => ({ cropX: 50, cropY: 50, zoom: 1 })),
 });
 

@@ -1,5 +1,7 @@
 import { mkdir, writeFile, readFile, readdir, rm, access, cp, symlink } from 'fs/promises';
+import { createWriteStream } from 'fs';
 import { join, resolve } from 'path';
+import { pipeline } from 'stream/promises';
 import { eq, inArray } from 'drizzle-orm';
 import {
   workspaceConfig,
@@ -7,6 +9,7 @@ import {
   getManifestPath,
   getWorkspaceSrcPath,
   getScenesPath,
+  getPublicPath,
 } from './workspace-config.js';
 import { bundlerService } from './bundler-service.js';
 import { forceReleaseLock } from './workspace-lock.js';
@@ -21,6 +24,7 @@ import { emitWorkspaceReady, emitWorkspaceTeardown } from './workspace-ws.js';
 import { dbToManifest, manifestToDb, validateManifest, applyManifestOp } from '@viona/shared';
 import type { Manifest, ManifestOp, DbToManifestInput } from '@viona/shared';
 import { db, projects, tracks, timelineItems } from '../db/index.js';
+import { getObjectStream } from '../services/minio.js';
 
 // Track active workspaces and their idle timers
 const activeWorkspaces = new Map<string, { idleTimer: ReturnType<typeof setTimeout> }>();
@@ -79,6 +83,10 @@ export async function spinUpWorkspace(projectId: string): Promise<{ manifest: Ma
   };
 
   const manifest = dbToManifest(dbInput);
+
+  // 2b. Download video/audio assets to workspace public/
+  const publicPath = getPublicPath(projectId);
+  await downloadProjectAssets(publicPath, project.videoKey, project.audioKey);
 
   // 3. Download scene sources from S3 for existing visuals
   const dbItemsForScenes = allItems.map(item => ({
@@ -315,6 +323,47 @@ async function syncManifestToDb(projectId: string, manifest: Manifest): Promise<
       });
     }
   });
+}
+
+/**
+ * Download project video/audio from MinIO to the workspace public/ directory.
+ */
+async function downloadProjectAssets(
+  publicPath: string,
+  videoKey: string | null,
+  audioKey: string | null,
+): Promise<void> {
+  const downloads: Promise<void>[] = [];
+
+  if (videoKey) {
+    downloads.push(
+      downloadAsset('uploads', videoKey, join(publicPath, 'source.mp4')),
+    );
+  }
+
+  if (audioKey && audioKey !== videoKey) {
+    // Preserve original extension
+    const ext = audioKey.includes('.') ? audioKey.slice(audioKey.lastIndexOf('.')) : '.mp4';
+    downloads.push(
+      downloadAsset('uploads', audioKey, join(publicPath, `audio${ext}`)),
+    );
+  }
+
+  await Promise.all(downloads);
+}
+
+async function downloadAsset(
+  prefix: 'uploads' | 'outputs',
+  key: string,
+  destPath: string,
+): Promise<void> {
+  try {
+    const stream = await getObjectStream(prefix, key);
+    await pipeline(stream, createWriteStream(destPath));
+    console.log(`[workspace] Downloaded ${prefix}/${key} → ${destPath}`);
+  } catch (err) {
+    console.warn(`[workspace] Failed to download ${prefix}/${key}:`, err);
+  }
 }
 
 /**
