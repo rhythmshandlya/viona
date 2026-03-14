@@ -6,6 +6,7 @@ import { startWatcher, onBundle, getBundleVersion } from './esbuild-watcher.js';
 import { checkpoint, startCheckpointing } from './manifest-checkpoint.js';
 import { readManifestRaw, updateManifestTool } from './tools/manifest-ops.js';
 import { mountOpsEndpoint } from './ops-endpoint.js';
+import { runOrchestrator, type OrchestratorRequest } from './orchestrator.js';
 
 const logger = pino({ name: 'agent-server' });
 
@@ -14,51 +15,7 @@ const SANDBOX_ID = process.env.SANDBOX_ID;
 const SANDBOX_SECRET = process.env.SANDBOX_SECRET;
 const CHECKPOINT_INTERVAL = parseInt(process.env.CHECKPOINT_INTERVAL_MS || '60000', 10);
 
-// Prompt queue — sequential execution per Ramp pattern
-interface PromptRequest {
-  prompt: string;
-  conversationId?: string;
-  resolve: (value: void) => void;
-}
-
-const promptQueue: PromptRequest[] = [];
-let processing = false;
-
-async function processNext(): Promise<void> {
-  if (promptQueue.length === 0) {
-    processing = false;
-    return;
-  }
-
-  processing = true;
-  const req = promptQueue.shift()!;
-
-  try {
-    // TODO: Phase 1 — integrate Agent SDK here
-    // For now, this is a stub that acknowledges the prompt
-    logger.info({ prompt: req.prompt.slice(0, 100) }, 'Processing prompt');
-
-    // The actual Agent SDK integration will:
-    // 1. Create/resume Agent with system prompt from /workspace/.claude/
-    // 2. Run agent turn with prompt + custom tools
-    // 3. Stream events to the response
-    // 4. Checkpoint manifest after completion
-
-    await checkpoint();
-  } catch (err) {
-    logger.error({ err }, 'Prompt processing failed');
-  } finally {
-    req.resolve();
-    processNext();
-  }
-}
-
-function enqueuePrompt(prompt: string, conversationId?: string): Promise<void> {
-  return new Promise((resolve) => {
-    promptQueue.push({ prompt, conversationId, resolve });
-    if (!processing) processNext();
-  });
-}
+let currentAbortController: AbortController | null = null;
 
 /**
  * Start the agent HTTP server on the given port.
@@ -69,7 +26,7 @@ export function startAgentServer(port = 8081): void {
 
   // Health check — no auth
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', queueLength: promptQueue.length, processing });
+    res.json({ status: 'ok' });
   });
 
   // All other routes require auth
@@ -114,35 +71,67 @@ export function startAgentServer(port = 8081): void {
     }
   });
 
-  // Prompt endpoint — enqueue and process sequentially
-  app.post('/prompt', async (req, res) => {
-    const { prompt, conversationId } = req.body;
-    if (!prompt || typeof prompt !== 'string') {
+  // Prompt endpoint — streams orchestrator output via SSE
+  app.post('/prompt', async (req: express.Request, res: express.Response) => {
+    const body = req.body as OrchestratorRequest;
+    if (!body.prompt || typeof body.prompt !== 'string') {
       res.status(400).json({ error: 'prompt is required' });
       return;
     }
 
-    // For Phase 1: simple acknowledgement
-    // TODO: Replace with SSE streaming when Agent SDK is integrated
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
+    // Set SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
 
-    // Send initial event
-    res.write(`event: text\ndata: ${JSON.stringify({ text: 'Processing your request...' })}\n\n`);
+    let eventId = 0;
+    const sendSSE = (event: string, data: unknown) => {
+      eventId++;
+      res.write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
 
-    await enqueuePrompt(prompt, conversationId);
+    // Heartbeat to keep connection alive
+    const heartbeat = setInterval(() => sendSSE('heartbeat', {}), 15000);
 
-    // Send completion event
-    res.write(`event: done\ndata: ${JSON.stringify({})}\n\n`);
-    res.end();
+    // Wire cancellation to connection close
+    const abortController = new AbortController();
+    currentAbortController = abortController;
+    req.on('close', () => abortController.abort());
+
+    try {
+      await runOrchestrator(body, {
+        onText: (text) => sendSSE('text', { text }),
+        onWidget: (widget) => sendSSE('widget', widget),
+        onProgress: (progress) => sendSSE('progress', progress),
+        onDone: async (result) => {
+          sendSSE('done', result);
+          await checkpoint();
+        },
+        onError: (error) => sendSSE('error', { message: error }),
+        signal: abortController.signal,
+      });
+    } catch (err) {
+      sendSSE('error', { message: err instanceof Error ? err.message : 'Internal error' });
+    } finally {
+      clearInterval(heartbeat);
+      currentAbortController = null;
+      res.end();
+    }
+  });
+
+  // Cancel endpoint — aborts the current orchestrator run
+  app.post('/cancel', (_req, res) => {
+    if (currentAbortController) {
+      currentAbortController.abort();
+    }
+    res.json({ ok: true });
   });
 
   // Status endpoint
   app.get('/status', (_req, res) => {
     res.json({
-      queueLength: promptQueue.length,
-      processing,
       bundleVersion: getBundleVersion(),
     });
   });
