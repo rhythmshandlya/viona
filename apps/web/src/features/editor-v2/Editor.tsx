@@ -82,6 +82,7 @@ export function Editor({ projectId }: EditorProps) {
   // Social preview state
   const [activePlatform, setActivePlatform] = useState<SocialPlatform | null>(null);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('mockup');
+  const [zoomLevel, setZoomLevel] = useState<'fit' | '50' | '75' | '100'>('fit');
   const lastPlatformRef = useRef<SocialPlatform>('instagram');
 
   // Job logs panel state
@@ -130,6 +131,16 @@ export function Editor({ projectId }: EditorProps) {
       userRequestedTabRef.current = 'transcript';
     }
   }, []);
+
+  // Auto-open right panel when an item is selected
+  useEffect(() => {
+    if (selectedIds.length > 0) {
+      setPanelOpen(true);
+      setActiveTab('item-properties');
+    } else {
+      setPanelOpen(false);
+    }
+  }, [selectedIds.length]);
 
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
@@ -439,10 +450,13 @@ export function Editor({ projectId }: EditorProps) {
   // Fallback polling when WebSocket is not connected
   useEffect(() => {
     if (!visualsJobId || !isGeneratingVisuals) return;
-    // If WebSocket is connected, skip polling
     if (wsConnected) return;
 
-    const pollInterval = setInterval(async () => {
+    let delay = 2000;
+    const MAX_DELAY = 15000;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
       try {
         const job = await api.getJob(visualsJobId);
         setVisualsProgress(job.progress || 0);
@@ -451,16 +465,10 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsStatus('Complete!');
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
-
-          // Clear cached bundle so workspace composition fetches fresh content
           clearCompositionCache();
-
-          // Reload visuals only (preserves playback position and selection)
-          if (project?.id) {
-            reloadVisuals(project.id);
-          }
-
+          if (project?.id) reloadVisuals(project.id);
           setVisualsJobId(null);
+          return;
         } else if (job.status === 'failed' || job.status === 'cancelled') {
           const errorMsg = job.status === 'cancelled'
             ? 'Generation was cancelled'
@@ -469,15 +477,20 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsError(errorMsg);
           setIsGeneratingVisuals(false);
           setVisualsJobId(null);
+          return;
         } else if (job.status === 'processing') {
           setVisualsStatus('Generating visuals with AI...');
         }
       } catch (err) {
         console.error('Failed to poll job status:', err);
       }
-    }, 2000); // Poll every 2 seconds
 
-    return () => clearInterval(pollInterval);
+      delay = Math.min(delay * 2, MAX_DELAY);
+      timeoutId = setTimeout(poll, delay);
+    };
+
+    timeoutId = setTimeout(poll, delay);
+    return () => clearTimeout(timeoutId);
   }, [visualsJobId, isGeneratingVisuals, project, reloadVisuals, wsConnected]);
 
   // Cancel visual generation
@@ -686,7 +699,9 @@ export function Editor({ projectId }: EditorProps) {
           )}
         </AnimatePresence>
 
-        {/* Main content */}
+        {/* Main content + right panel */}
+        <div className="flex-1 flex min-w-0 overflow-hidden">
+        {/* Center: preview + timeline */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Video Preview Area */}
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
@@ -707,7 +722,7 @@ export function Editor({ projectId }: EditorProps) {
 
             {/* Zoom control */}
             <div className="absolute top-4 left-4 z-10">
-              <Select defaultValue="fit">
+              <Select value={zoomLevel} onValueChange={(v) => setZoomLevel(v as 'fit' | '50' | '75' | '100')}>
                 <SelectTrigger className="h-7 w-[72px] text-xs bg-[var(--editor-bg-surface)]/90 backdrop-blur-sm border-[var(--editor-border-subtle)] text-[var(--editor-text-secondary)]">
                   <SelectValue />
                 </SelectTrigger>
@@ -722,7 +737,7 @@ export function Editor({ projectId }: EditorProps) {
 
             {/* Scene */}
             <ErrorBoundary name="Scene">
-              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
+              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} zoomLevel={zoomLevel} />
             </ErrorBoundary>
           </div>
 
@@ -765,6 +780,17 @@ export function Editor({ projectId }: EditorProps) {
               <Timeline className="h-full" />
             </ErrorBoundary>
           </div>
+        </div>
+
+        {/* Right Panel - Item Properties */}
+        {panelOpen && (
+          <RightPanel
+            isOpen={panelOpen}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            onClose={handleClosePanel}
+          />
+        )}
         </div>
 
       </div>
