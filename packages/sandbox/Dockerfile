@@ -9,6 +9,9 @@ COPY tsconfig.json ./
 COPY src/ ./src/
 RUN npx tsc
 
+# Copy shared prompt modules from worker
+COPY packages/worker/src/prompts/shared/ /app/prompts/shared/
+
 # Stage 2: Production image
 FROM node:20-slim
 
@@ -31,6 +34,12 @@ RUN npm install --production
 
 # Copy compiled JS from builder
 COPY --from=builder /app/dist/ /app/dist/
+
+# Copy shared prompt modules
+COPY --from=builder /app/prompts/shared/ /app/prompts/shared/
+
+# Copy orchestrator prompt .md files
+COPY --from=builder /app/dist/prompts/ /app/dist/prompts/
 
 # Copy template files (composition infrastructure, .claude/, configs)
 COPY template/ /app/template/
