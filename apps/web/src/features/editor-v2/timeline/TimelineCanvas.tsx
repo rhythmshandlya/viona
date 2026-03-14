@@ -22,7 +22,6 @@ import {
   useItems,
   useItemIds,
   useSelectedIds,
-  useCurrentTimeMs,
   useDuration,
   useViewport,
   useSelectionBox,
@@ -61,7 +60,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   const items = useItems();
   const itemIds = useItemIds();
   const selectedIds = useSelectedIds();
-  const currentTimeMs = useCurrentTimeMs();
+  const currentTimeMsRef = useRef(useEditorStore.getState().currentTimeMs);
   const duration = useDuration();
   const viewport = useViewport();
   const selectionBox = useSelectionBox();
@@ -89,7 +88,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       items,
       itemIds,
       selectedIds,
-      currentTimeMs,
+      currentTimeMs: currentTimeMsRef.current,
       duration,
       viewport,
       selectionBox,
@@ -100,12 +99,28 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       splitCursorTimeMs,
       splitHoveredItemId,
     }),
-    [tracks, items, itemIds, selectedIds, currentTimeMs, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs, splitHoveredItemId]
+    [tracks, items, itemIds, selectedIds, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs, splitHoveredItemId]
   );
 
   // Keep render state in a ref so the ResizeObserver callback always has the latest
   const renderStateRef = useRef<RenderState>(renderState);
   renderStateRef.current = renderState;
+
+  // Transient playhead subscription — redraws canvas without React re-renders
+  useEffect(() => {
+    let prev = useEditorStore.getState().currentTimeMs;
+    const unsub = useEditorStore.subscribe((state) => {
+      if (state.currentTimeMs !== prev) {
+        prev = state.currentTimeMs;
+        currentTimeMsRef.current = state.currentTimeMs;
+        if (rendererRef.current) {
+          renderStateRef.current = { ...renderStateRef.current, currentTimeMs: state.currentTimeMs };
+          rendererRef.current.requestRender(renderStateRef.current);
+        }
+      }
+    });
+    return unsub;
+  }, []);
 
   // Initialize renderer
   useEffect(() => {
@@ -186,7 +201,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMs,
+          currentTimeMsRef.current,
         });
 
         if (track) {
@@ -204,7 +219,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         items,
         itemIds,
         viewport,
-        currentTimeMs,
+        currentTimeMsRef.current,
       });
 
       const dragType = hitTester.getDragTypeFromHit(hit);
@@ -250,7 +265,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
             itemIds,
             selectedIds: hit.itemId && selectedIds.includes(hit.itemId) ? selectedIds : [hit.itemId!],
             viewport,
-            currentTimeMs,
+            currentTimeMsRef.current,
           });
           setDragPreviews(operation.previews);
         }
@@ -265,7 +280,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       items,
       itemIds,
       viewport,
-      currentTimeMs,
       selectedIds,
       splitMode,
       select,
@@ -298,7 +312,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMs,
+          currentTimeMsRef.current,
         });
         setSplitHoveredItemId(hit.type === 'item' && hit.itemId ? hit.itemId : null);
         return;
@@ -311,7 +325,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMs,
+          currentTimeMsRef.current,
         });
         const cursor = hitTester.getCursorForHit(hit);
         if (canvasRef.current) {
@@ -347,7 +361,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
               endX: x,
               endY: y,
             },
-            { tracks, items, itemIds, viewport, currentTimeMs }
+            { tracks, items, itemIds, viewport, currentTimeMs: currentTimeMsRef.current }
           );
           select(idsInBox, 'replace');
           break;
@@ -369,7 +383,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
             itemIds,
             selectedIds,
             viewport,
-            currentTimeMs,
+            currentTimeMsRef.current,
           });
 
           if (operation) {
@@ -397,7 +411,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       items,
       itemIds,
       viewport,
-      currentTimeMs,
       selectedIds,
       duration,
       updateDrag,
@@ -534,7 +547,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items: state.items,
           itemIds: state.itemIds,
           viewport,
-          currentTimeMs,
+          currentTimeMsRef.current,
         });
         const trackId = hitTrack?.id || findOrCreateTrack(state.tracks, trackType, state.addTrack);
 
@@ -580,7 +593,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         items,
         itemIds,
         viewport,
-        currentTimeMs,
+        currentTimeMsRef.current,
       });
 
       const timeMs = hitTester.xToTime(x, viewport);
@@ -592,7 +605,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         timeMs,
       });
     },
-    [tracks, items, itemIds, viewport, currentTimeMs, contextMenu]
+    [tracks, items, itemIds, viewport, contextMenu]
   );
 
   return (

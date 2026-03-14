@@ -52,6 +52,12 @@ export function Player({ className }: PlayerProps) {
 
   // Actions
   const { setCurrentTime, play, pause } = usePlaybackActions();
+  const setCurrentTimeRef = useRef(setCurrentTime);
+  const playRef = useRef(play);
+  const pauseRef = useRef(pause);
+  useEffect(() => { setCurrentTimeRef.current = setCurrentTime; }, [setCurrentTime]);
+  useEffect(() => { playRef.current = play; }, [play]);
+  useEffect(() => { pauseRef.current = pause; }, [pause]);
 
   // Sync store currentTimeMs → Remotion player (user drags timeline).
   // Uses a store subscription so frame updates don't trigger re-renders.
@@ -89,27 +95,20 @@ export function Player({ className }: PlayerProps) {
     const handleFrameChange: CallbackListener<'frameupdate'> = (data) => {
       const frame = data.detail.frame;
       const timeMs = (frame / fps) * 1000;
-
       isInternalUpdate.current = true;
-      setCurrentTime(timeMs);
-
-      // Reset flag after a short delay
+      // Direct setState with clamping — bypasses React subscription churn
+      const { duration } = useEditorStore.getState();
+      useEditorStore.setState({ currentTimeMs: Math.max(0, Math.min(timeMs, duration)) });
       requestAnimationFrame(() => {
         isInternalUpdate.current = false;
       });
     };
 
-    const handlePlay: CallbackListener<'play'> = () => {
-      play();
-    };
-
-    const handlePause: CallbackListener<'pause'> = () => {
-      pause();
-    };
-
+    const handlePlay: CallbackListener<'play'> = () => playRef.current();
+    const handlePause: CallbackListener<'pause'> = () => pauseRef.current();
     const handleEnded: CallbackListener<'ended'> = () => {
-      pause();
-      setCurrentTime(0);
+      pauseRef.current();
+      setCurrentTimeRef.current(0);
     };
 
     playerInstance.addEventListener('frameupdate', handleFrameChange);
@@ -123,7 +122,7 @@ export function Player({ className }: PlayerProps) {
       playerInstance.removeEventListener('pause', handlePause);
       playerInstance.removeEventListener('ended', handleEnded);
     };
-  }, [playerInstance, fps, setCurrentTime, play, pause]);
+  }, [playerInstance, fps]); // Only re-run when player or fps changes
 
   if (!project) {
     return (
