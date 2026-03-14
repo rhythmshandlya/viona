@@ -299,10 +299,10 @@ class ApiClient {
   }
 
   // Projects
-  async createProject(filename: string, title?: string): Promise<CreateProjectResponse> {
+  async createProject(filename: string, title?: string, description?: string): Promise<CreateProjectResponse> {
     return this.request('/api/projects', {
       method: 'POST',
-      body: JSON.stringify({ filename, title }),
+      body: JSON.stringify({ filename, title, description }),
     });
   }
 
