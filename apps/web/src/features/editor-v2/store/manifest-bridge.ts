@@ -463,6 +463,7 @@ function convertManifestItemV2(
         height: d.height || 1080,
         volume: d.volume ?? 1,
         playbackRate: d.playbackRate ?? 1,
+        startFrom: d.startFrom ?? 0,
       };
       return { ...base, data } as TimelineItem;
     }
@@ -535,15 +536,22 @@ function convertManifestItemV2(
     case 'text': {
       const data: TextItemData = {
         text: d.text || '',
-        style: d.style || {
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 48,
-          fontWeight: 600,
-          color: '#ffffff',
-          textAlign: 'center' as const,
+        style: {
+          fontFamily: d.fontFamily || 'Inter',
+          fontSize: d.fontSize || 48,
+          fontWeight: d.fontWeight || 600,
+          color: d.color || '#FFFFFF',
+          backgroundColor: d.backgroundColor,
+          textAlign: d.textAlign || 'center',
         },
-        position: d.position || { x: 0, y: 0 },
-        size: d.size || { width: 400, height: 100 },
+        position: {
+          x: typeof item.transform?.x === 'number' ? item.transform.x : 0,
+          y: typeof item.transform?.y === 'number' ? item.transform.y : 0,
+        },
+        size: {
+          width: typeof item.transform?.width === 'number' ? item.transform.width : 800,
+          height: typeof item.transform?.height === 'number' ? item.transform.height : 200,
+        },
       };
       return { ...base, data } as TimelineItem;
     }
@@ -551,10 +559,13 @@ function convertManifestItemV2(
     case 'image': {
       const data: ImageItemData = {
         src: resolvedSrc(d.src || ''),
-        width: d.width || 400,
-        height: d.height || 300,
-        position: d.position || { x: 0, y: 0 },
-        opacity: d.opacity ?? 1,
+        width: typeof item.transform?.width === 'number' ? item.transform.width : 1920,
+        height: typeof item.transform?.height === 'number' ? item.transform.height : 1080,
+        position: {
+          x: typeof item.transform?.x === 'number' ? item.transform.x : 0,
+          y: typeof item.transform?.y === 'number' ? item.transform.y : 0,
+        },
+        opacity: item.transform?.opacity ?? 1,
       };
       return { ...base, data } as TimelineItem;
     }
@@ -589,6 +600,7 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
         crop: { x: 50, y: 50, scale: 1 },
         volume: d.volume ?? 1,
         playbackRate: d.playbackRate ?? 1,
+        startFrom: d.startFrom ?? 0,
       };
 
     case 'audio':
@@ -632,21 +644,22 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
         volume: d.volume ?? 1,
       };
 
-    case 'text':
+    case 'text': {
+      const td = d as any;
       return {
-        text: d.text || '',
-        style: d.style,
-        position: d.position,
-        size: d.size,
+        text: td.text || '',
+        fontFamily: td.style?.fontFamily || 'Inter',
+        fontSize: td.style?.fontSize || 48,
+        fontWeight: td.style?.fontWeight || 600,
+        color: td.style?.color || '#FFFFFF',
+        backgroundColor: td.style?.backgroundColor,
+        textAlign: td.style?.textAlign || 'center',
       };
+    }
 
     case 'image':
       return {
         src: d.src || '',
-        width: d.width,
-        height: d.height,
-        position: d.position,
-        opacity: d.opacity ?? 1,
       };
 
     case 'shape':

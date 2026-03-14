@@ -67,6 +67,7 @@ export interface VideoItemData {
   height: number;
   volume: number;
   playbackRate: number;
+  startFrom?: number;  // ms offset into source clip (v2)
   previewUrl?: string;
   muted?: boolean;
   separatedAudioItemId?: string;
