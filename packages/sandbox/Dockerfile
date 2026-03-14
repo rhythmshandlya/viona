@@ -2,14 +2,14 @@
 FROM node:20-slim AS builder
 
 WORKDIR /app
-COPY package.json package-lock.json* ./
+COPY packages/sandbox/package.json packages/sandbox/package-lock.json* ./
 RUN npm install
 
-COPY tsconfig.json ./
-COPY src/ ./src/
+COPY packages/sandbox/tsconfig.json ./
+COPY packages/sandbox/src/ ./src/
 RUN npx tsc
 
-# Copy shared prompt modules from worker
+# Copy shared prompt modules from worker (available because build context is repo root)
 COPY packages/worker/src/prompts/shared/ /app/prompts/shared/
 
 # Stage 2: Production image
@@ -29,7 +29,7 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 WORKDIR /app
 
 # Install production dependencies only
-COPY package.json package-lock.json* ./
+COPY packages/sandbox/package.json packages/sandbox/package-lock.json* ./
 RUN npm install --production
 
 # Copy compiled JS from builder
@@ -38,11 +38,8 @@ COPY --from=builder /app/dist/ /app/dist/
 # Copy shared prompt modules
 COPY --from=builder /app/prompts/shared/ /app/prompts/shared/
 
-# Copy orchestrator prompt .md files
-COPY --from=builder /app/dist/prompts/ /app/dist/prompts/
-
 # Copy template files (composition infrastructure, .claude/, configs)
-COPY template/ /app/template/
+COPY packages/sandbox/template/ /app/template/
 
 # Workspace will be mounted as a volume at /workspace
 VOLUME /workspace
