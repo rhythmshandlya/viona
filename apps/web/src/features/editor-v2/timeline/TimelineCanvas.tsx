@@ -30,7 +30,8 @@ import {
   useSplitMode,
   useEditorActions,
 } from '../store/use-editor-store';
-import { DragState, SnapTarget, Track, TimelineItem } from '../store/types';
+import { DragState, SnapTarget, TimelineItem } from '../store/types';
+import { findOrCreateTrack } from '../utils/track-utils';
 import { useContextMenu, ContextMenu } from './context-menu';
 
 interface TimelineCanvasProps {
@@ -507,6 +508,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         if (!rect) return;
 
         const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
         const hitTester = hitTesterRef.current;
         const timeMs = hitTester.xToTime(x, viewport);
 
@@ -524,21 +526,16 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         }
 
         const state = useEditorStore.getState();
-        // Find or create a track of the right type
-        let trackId = state.tracks.find((t: Track) => t.type === trackType)?.id;
-        if (!trackId) {
-          const count = state.tracks.filter((t: Track) => t.type === trackType).length;
-          const names: Record<string, string> = { video: 'Video', audio: 'Audio', overlay: 'Overlay' };
-          trackId = state.addTrack({
-            type: trackType as Track['type'],
-            name: `${names[trackType] || trackType} ${count + 1}`,
-            position: state.tracks.length,
-            height: 60,
-            locked: false,
-            visible: true,
-            collapsed: false,
-          });
-        }
+
+        // Try to drop onto the track under cursor, fall back to find/create
+        const hitTrack = hitTester.getTrackAtY(y, {
+          tracks: state.tracks,
+          items: state.items,
+          itemIds: state.itemIds,
+          viewport,
+          currentTimeMs,
+        });
+        const trackId = hitTrack?.id || findOrCreateTrack(state.tracks, trackType, state.addTrack);
 
         const id = `item-${itemType}-${Date.now()}`;
         const durationMs = itemType === 'image' ? 5000 : 10000;
