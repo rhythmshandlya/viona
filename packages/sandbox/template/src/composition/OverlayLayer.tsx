@@ -3,7 +3,7 @@ import { AbsoluteFill, Sequence } from 'remotion';
 import { TextOverlay } from './TextOverlay';
 import { ImageOverlay } from './ImageOverlay';
 import { VideoOverlay } from './VideoOverlay';
-import { AudioOverlay } from './AudioOverlay';
+
 
 interface OverlayItemFilters {
   brightness?: number;
@@ -74,19 +74,6 @@ export const OverlayLayer: React.FC<OverlayLayerProps> = ({ items, fps }) => {
         const startFrame = Math.round((item.startMs / 1000) * fps);
         const endFrame = Math.round((item.endMs / 1000) * fps);
         const durationInFrames = Math.max(1, endFrame - startFrame);
-
-        // Audio items: no visual wrapper
-        if (item.type === 'audio') {
-          return (
-            <Sequence
-              key={item.id}
-              from={startFrame}
-              durationInFrames={durationInFrames}
-            >
-              <AudioOverlay data={item.data} />
-            </Sequence>
-          );
-        }
 
         // Visual items: text, image, video
         const { transform, filters } = item;

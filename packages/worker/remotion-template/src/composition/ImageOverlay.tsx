@@ -9,9 +9,12 @@ interface ImageOverlayProps {
 }
 
 export const ImageOverlay: React.FC<ImageOverlayProps> = ({ data }) => {
+  const src = resolveVideoSrc(data.src);
+  if (!src) return null;
+
   return (
     <Img
-      src={resolveVideoSrc(data.src)!}
+      src={src}
       style={{
         width: '100%',
         height: '100%',

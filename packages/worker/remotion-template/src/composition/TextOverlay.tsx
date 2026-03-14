@@ -47,6 +47,8 @@ export const TextOverlay: React.FC<TextOverlayProps> = ({ data }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: textAlignToJustify[textAlign] || 'center',
+        overflow: 'hidden',
+        wordBreak: 'break-word' as const,
       }}
     >
       <div

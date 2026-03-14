@@ -13,11 +13,14 @@ interface VideoOverlayProps {
 
 export const VideoOverlay: React.FC<VideoOverlayProps> = ({ data }) => {
   const { fps } = useVideoConfig();
+  const src = resolveVideoSrc(data.src);
+  if (!src) return null;
+
   const startFromFrames = Math.round(((data.startFrom || 0) / 1000) * fps);
 
   return (
     <OffthreadVideo
-      src={resolveVideoSrc(data.src)!}
+      src={src}
       startFrom={startFromFrames}
       volume={data.volume ?? 1}
       playbackRate={data.playbackRate ?? 1}

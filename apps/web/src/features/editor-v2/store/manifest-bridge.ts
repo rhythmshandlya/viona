@@ -208,8 +208,36 @@ export function storeToManifest(
         data: convertStoreItemData(item),
       };
 
-      // Attach v2 fields if present
-      if (item.transform) base.transform = item.transform;
+      // For text items, position/size live in TextItemData, not item.transform
+      if (item.type === 'text') {
+        const td = item.data as any;
+        base.transform = {
+          x: td.position?.x ?? 0,
+          y: td.position?.y ?? 0,
+          width: td.size?.width ?? 800,
+          height: td.size?.height ?? 200,
+          rotation: item.transform?.rotation ?? 0,
+          opacity: item.transform?.opacity ?? 1,
+          ...(item.transform || {}),  // let explicit transform override
+        };
+      }
+
+      // For image items, position lives in ImageItemData
+      if (item.type === 'image') {
+        const id = item.data as any;
+        base.transform = {
+          x: id.position?.x ?? 0,
+          y: id.position?.y ?? 0,
+          width: id.width ?? '100%',
+          height: id.height ?? '100%',
+          rotation: item.transform?.rotation ?? 0,
+          opacity: id.opacity ?? item.transform?.opacity ?? 1,
+          ...(item.transform || {}),
+        };
+      }
+
+      // Attach v2 fields if present (for non-text/image, or override)
+      if (item.transform && item.type !== 'text' && item.type !== 'image') base.transform = item.transform;
       if (item.keyframes && item.keyframes.length > 0) base.keyframes = item.keyframes;
       if (item.filters) base.filters = item.filters;
 
