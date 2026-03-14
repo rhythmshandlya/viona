@@ -551,17 +551,22 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
     case 'video':
       return {
         src: d.src || '',
-        crop: { x: 50, y: 50, scale: 1 },
         volume: d.volume ?? 1,
         playbackRate: d.playbackRate ?? 1,
         startFrom: d.startFrom ?? 0,
+        ...(d.crop ? { crop: d.crop } : {}),
+        ...(d.fadeInMs ? { fadeInMs: d.fadeInMs } : {}),
+        ...(d.fadeOutMs ? { fadeOutMs: d.fadeOutMs } : {}),
       };
 
     case 'audio':
       return {
         src: d.src || '',
         volume: d.volume ?? 1,
-        enhancedSrc: d.enhancedSrc || null,
+        playbackRate: d.playbackRate ?? 1,
+        ...(d.enhancedSrc ? { enhancedSrc: d.enhancedSrc } : {}),
+        ...(d.fadeInMs ? { fadeInMs: d.fadeInMs } : {}),
+        ...(d.fadeOutMs ? { fadeOutMs: d.fadeOutMs } : {}),
       };
 
     case 'caption': {
@@ -608,6 +613,11 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
         color: td.style?.color || '#FFFFFF',
         backgroundColor: td.style?.backgroundColor,
         textAlign: td.style?.textAlign || 'center',
+        textTransform: td.style?.textTransform || 'none',
+        ...(td.style?.lineHeight != null ? { lineHeight: td.style.lineHeight } : {}),
+        ...(td.style?.letterSpacing != null ? { letterSpacing: td.style.letterSpacing } : {}),
+        ...(td.style?.borderRadius != null ? { borderRadius: td.style.borderRadius } : {}),
+        ...(td.style?.padding != null ? { padding: td.style.padding } : {}),
       };
     }
 
