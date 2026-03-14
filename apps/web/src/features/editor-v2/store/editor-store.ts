@@ -5,7 +5,6 @@
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { nanoid } from 'nanoid';
 import { api, Project as ApiProject } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
@@ -1658,7 +1657,7 @@ export const useEditorStore = create<EditorStore>()(
     // ========================================
 
     addTrack: (trackData) => {
-      const id = trackData.id || nanoid(10);
+      const id = trackData.id || crypto.randomUUID();
 
       set((state) => {
         const newTrack: Track = {

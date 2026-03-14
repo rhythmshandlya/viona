@@ -142,7 +142,7 @@ export const addTrackTool = {
         const tracks: any[] = manifest.tracks ?? [];
         const maxPos = tracks.reduce((max: number, t: any) => Math.max(max, t.position ?? 0), -1);
         const track = {
-          id: `track-${randomUUID().slice(0, 8)}`,
+          id: randomUUID(),
           type: input.type,
           name: input.name,
           position: maxPos + 1,
@@ -263,7 +263,7 @@ export const addItemTool = {
       try {
         const manifest = await readManifest();
         const item: any = {
-          id: input.id ?? `item-${randomUUID().slice(0, 8)}`,
+          id: input.id ?? randomUUID(),
           type: input.type,
           trackId: input.trackId,
           startMs: input.startMs,
@@ -399,7 +399,7 @@ export const splitVideoTool = {
         }
 
         const splitOffset = input.atMs - item.startMs;
-        const newId = `item-${randomUUID().slice(0, 8)}`;
+        const newId = randomUUID();
 
         // Build the new (right) item
         const newItem: any = {
