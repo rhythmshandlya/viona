@@ -5,31 +5,11 @@
  * Provides optimized selectors for components to subscribe to specific state slices
  */
 
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
 import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, SelectedElement, AIEditingContext, VisualItemData, SegmentationData } from './types';
 import { migrateDisplayModeToZone } from '../utils/overlay-zones';
-
-/**
- * Like useShallow but uses JSON.stringify for deep comparison.
- * Needed for selectors that create nested objects (where useShallow's
- * shallow comparison would always see new references).
- */
-function useDeepSelector<S, U>(selector: (state: S) => U): (state: S) => U {
-  const prev = useRef<U>(undefined as U);
-  const prevJson = useRef<string>(undefined as unknown as string);
-  return (state) => {
-    const next = selector(state);
-    const nextJson = JSON.stringify(next);
-    if (nextJson === prevJson.current) {
-      return prev.current as U;
-    }
-    prevJson.current = nextJson;
-    prev.current = next;
-    return next;
-  };
-}
 
 // ============================================
 // Direct Store Access
