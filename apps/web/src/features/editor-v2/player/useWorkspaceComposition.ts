@@ -99,7 +99,8 @@ function createRequire(bundleBaseUrl: string, apiUrl: string) {
     const publicBase = projectIdMatch
       ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
       : `${bundleBaseUrl}/public`;
-    return `${apiUrl}${publicBase}/${cleanPath}`;
+    const resolved = `${apiUrl}${publicBase}/${cleanPath}`;
+    return resolved;
   };
 
   const jsx = makeJsx();
