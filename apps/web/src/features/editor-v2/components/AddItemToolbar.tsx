@@ -2,33 +2,10 @@
 
 import React, { useRef } from 'react';
 import { Type, ImageIcon, Music, Film } from 'lucide-react';
-import { useEditorStore } from '../store/use-editor-store';
-import { useEditorActions } from '../store/use-editor-store';
+import { useEditorStore, useEditorActions } from '../store/use-editor-store';
 import { api } from '@/lib/api';
-import type { Track, TimelineItem, TextItemData, TextStyle } from '../store/types';
-
-/** Find or create a track of the given type */
-function findOrCreateTrack(
-  tracks: Track[],
-  trackType: string,
-  addTrack: (track: Partial<Track>) => string,
-): string {
-  const existing = tracks.find((t) => t.type === trackType);
-  if (existing) return existing.id;
-
-  const count = tracks.filter((t) => t.type === trackType).length;
-  const names: Record<string, string> = { video: 'Video', audio: 'Audio', overlay: 'Overlay' };
-  const name = `${names[trackType] || trackType} ${count + 1}`;
-  return addTrack({
-    type: trackType as Track['type'],
-    name,
-    position: tracks.length,
-    height: 60,
-    locked: false,
-    visible: true,
-    collapsed: false,
-  });
-}
+import { findOrCreateTrack } from '../utils/track-utils';
+import type { TimelineItem, TextItemData, TextStyle } from '../store/types';
 
 export function AddItemToolbar() {
   const actions = useEditorActions();

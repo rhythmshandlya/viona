@@ -10,7 +10,8 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight, Upload, Trash2, X, Plus, Music, Film, ImageIcon, type LucideIcon } from 'lucide-react';
 import { api, ExtractedAsset, ProjectMediaAsset, SceneInfo } from '@/lib/api';
 import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItems, useEditorStore } from '../store/use-editor-store';
-import type { Track, TimelineItem } from '../store/types';
+import { findOrCreateTrack } from '../utils/track-utils';
+import type { TimelineItem } from '../store/types';
 
 interface AssetsPanelProps {
   className?: string;
@@ -56,26 +57,6 @@ function getAssetTypeIcon(mimeType: string) {
   return null;
 }
 
-/** Find or create a track of the given type */
-function findOrCreateTrack(
-  tracks: Track[],
-  trackType: string,
-  addTrack: (track: Partial<Track>) => string,
-): string {
-  const existing = tracks.find((t) => t.type === trackType);
-  if (existing) return existing.id;
-  const count = tracks.filter((t) => t.type === trackType).length;
-  const names: Record<string, string> = { video: 'Video', audio: 'Audio', overlay: 'Overlay' };
-  return addTrack({
-    type: trackType as Track['type'],
-    name: `${names[trackType] || trackType} ${count + 1}`,
-    position: tracks.length,
-    height: 60,
-    locked: false,
-    visible: true,
-    collapsed: false,
-  });
-}
 
 export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }: AssetsPanelProps) {
   const [assets, setAssets] = useState<ExtractedAsset[]>([]);
