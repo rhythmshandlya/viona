@@ -48,104 +48,25 @@ export async function discoverScenes(projectId: string): Promise<SceneEntry[]> {
 }
 
 /**
- * Generate PlayerComposition.tsx — detects v2 (AI-generated Composition.tsx) vs v1 (legacy codegen).
+ * Generate PlayerComposition.tsx for the workspace.
+ *
+ * If an AI-generated Composition.tsx exists, wraps it with an error boundary.
+ * Otherwise, uses FullComposition with scene discovery and manifest conversion.
  */
 export async function generatePlayerComposition(projectId: string): Promise<void> {
   const srcPath = getWorkspaceSrcPath(projectId);
   const compositionId = `proj_${projectId.replace(/-/g, '_')}`;
   const compositionDir = join(srcPath, compositionId);
 
-  // Check if AI-generated Composition.tsx exists (v2)
+  // Check if AI-generated Composition.tsx exists
   let hasCompositionTsx = false;
   try {
     await readFile(join(compositionDir, 'Composition.tsx'));
     hasCompositionTsx = true;
   } catch {
-    // No Composition.tsx — fall back to legacy v1 codegen
+    // No Composition.tsx
   }
 
-  if (hasCompositionTsx) {
-    await generateV2PlayerComposition(projectId, srcPath, compositionId);
-  } else {
-    await generateV1PlayerComposition(projectId, srcPath);
-  }
-}
-
-/**
- * v2 codegen — thin wrapper around AI-generated Composition.tsx with error boundary.
- */
-async function generateV2PlayerComposition(
-  projectId: string,
-  srcPath: string,
-  compositionId: string,
-): Promise<void> {
-  const code = `import React from 'react';
-import { Composition } from './${compositionId}/Composition';
-
-class CompositionErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean; error?: Error }
-> {
-  state = { hasError: false, error: undefined as Error | undefined };
-  static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
-  }
-  render() {
-    if (this.state.hasError) {
-      return (
-        <div style={{ width: '100%', height: '100%', background: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <p style={{ color: '#f44', fontFamily: 'monospace', fontSize: 14, padding: 20, textAlign: 'center' }}>
-            Composition error: {this.state.error?.message || 'Unknown error'}
-          </p>
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-export const PlayerComposition: React.FC<{
-  manifest: any;
-  videoUrl?: string;
-  audioUrl?: string;
-}> = ({ manifest, videoUrl, audioUrl }) => {
-  const subtitles = (manifest?.items || [])
-    .filter((it: any) => it.type === 'caption')
-    .map((it: any) => ({
-      startMs: it.startMs,
-      endMs: it.endMs,
-      words: (it.data?.words || []).map((w: any) => ({
-        text: w.text,
-        startMs: w.startMs + it.startMs,
-        endMs: w.endMs + it.startMs,
-      })),
-    }));
-
-  return (
-    <CompositionErrorBoundary>
-      <Composition
-        videoUrl={videoUrl || ''}
-        subtitles={subtitles}
-        captionStyle={manifest?.captionStyle}
-      />
-    </CompositionErrorBoundary>
-  );
-};
-`;
-
-  await writeFile(join(srcPath, 'PlayerComposition.tsx'), code, 'utf-8');
-}
-
-/**
- * v1 codegen (legacy) — generates PlayerComposition.tsx with inline layout conversion logic.
- *
- * This file:
- * - Imports FullComposition from the local composition/ directory
- * - Imports all discovered scene entry points
- * - Converts manifest JSON props → FullCompositionProps inline
- * - Renders FullComposition with the converted props
- */
-async function generateV1PlayerComposition(projectId: string, srcPath: string): Promise<void> {
   const scenes = await discoverScenes(projectId);
 
   // Read manifest to determine caption font family for static import
@@ -159,10 +80,27 @@ async function generateV1PlayerComposition(projectId: string, srcPath: string): 
     // Manifest may not exist yet during initial codegen — default to Inter
   }
 
-  const fontModuleName = captionFontFamily.replace(/[^a-zA-Z0-9]/g, '');
-  const fontImport = captionFontFamily !== 'Inter'
-    ? `import { loadFont } from '@remotion/google-fonts/${fontModuleName}';\nloadFont();\n`
-    : '';
+  // Collect fonts from text overlay items as well
+  let textFontFamilies: string[] = [];
+  try {
+    const manifestJson2 = await readFile(manifestPath, 'utf-8');
+    const manifest2 = JSON.parse(manifestJson2);
+    textFontFamilies = (manifest2.items || [])
+      .filter((i: any) => i.type === 'text' && i.data?.fontFamily)
+      .map((i: any) => i.data.fontFamily as string);
+  } catch {
+    // ignore
+  }
+  const allFonts = [...new Set([captionFontFamily, ...textFontFamilies].filter(Boolean))];
+
+  const fontImportLines = allFonts
+    .filter(f => f !== 'Inter')
+    .map(f => {
+      const mod = f.replace(/[^a-zA-Z0-9]/g, '');
+      return `import { loadFont as loadFont_${mod} } from '@remotion/google-fonts/${mod}';\nloadFont_${mod}();`;
+    })
+    .join('\n');
+  const fontImport = fontImportLines ? fontImportLines + '\n' : '';
 
   const sceneImports = scenes
     .map(s => `import { MainComposition as ${s.importName} } from '${s.importPath}';`)
@@ -172,18 +110,63 @@ async function generateV1PlayerComposition(projectId: string, srcPath: string): 
     .map(s => `  '${s.sceneFileKey}': ${s.importName},`)
     .join('\n');
 
+  // AI Composition import (when available)
+  const aiCompositionImport = hasCompositionTsx
+    ? `import { ProjectComposition } from './${compositionId}/Composition';`
+    : '';
+
   const code = `import React from 'react';
-import { useVideoConfig } from 'remotion';
+import { useVideoConfig, AbsoluteFill, Sequence, Audio, staticFile } from 'remotion';
 import { FullComposition } from './composition/index';
+import { OverlayLayer } from './composition/OverlayLayer';
 import type { SceneItem, SubtitleItemData, SubtitleWordData, SubtitleStyle, LayoutSegment } from './composition/types';
 ${sceneImports}
+${aiCompositionImport}
 ${fontImport}
 // Scene registry — maps sceneFile paths to React components
 const SCENE_MAP: Record<string, React.FC<any>> = {
 ${sceneMapEntries}
 };
 
-// ---- Inline conversion helpers (manifest JSON → FullCompositionProps) ----
+const HAS_AI_COMPOSITION = ${hasCompositionTsx};
+
+// ---- Error boundary for AI compositions ----
+
+class CompositionErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: React.ReactNode },
+  { hasError: boolean; error?: Error }
+> {
+  state = { hasError: false, error: undefined as Error | undefined };
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+// ---- Subtitle builder (shared by both paths) ----
+
+function buildSubtitles(items: any[]): SubtitleItemData[] {
+  return items
+    .filter((it: any) => it.type === 'caption')
+    .map((it: any) => ({
+      startMs: it.startMs,
+      endMs: it.endMs,
+      words: (it.data?.words || []).map((w: any) => ({
+        text: w.text,
+        // Word timings in the manifest are absolute ms (from DB via dbToManifest)
+        startMs: w.startMs,
+        endMs: w.endMs,
+        styleOverrides: w.styleOverrides,
+      })),
+    }));
+}
+
+// ---- Layout / scene helpers for FullComposition ----
 
 function buildLayoutSegments(
   items: any[],
@@ -191,11 +174,10 @@ function buildLayoutSegments(
   totalDurationMs: number,
 ): LayoutSegment[] {
   const visualItems = items
-    .filter((it: any) => it.type === 'visual')
+    .filter((it: any) => it.type === 'visual' || it.type === 'scene')
     .sort((a: any, b: any) => a.startMs - b.startMs);
 
   if (visualItems.length === 0) {
-    // No visuals — use overlay so video fills the entire canvas
     const totalFrames = Math.ceil((totalDurationMs / 1000) * fps);
     return [{ startFrame: 0, endFrame: totalFrames, displayMode: 'overlay' }];
   }
@@ -207,9 +189,8 @@ function buildLayoutSegments(
     const startFrame = Math.round((item.startMs / 1000) * fps);
     const endFrame = Math.round((item.endMs / 1000) * fps);
     let displayMode: string = item.data?.displayMode || 'default';
-    if (displayMode === 'pip') displayMode = 'default'; // Normalise pip → default
+    if (displayMode === 'pip') displayMode = 'default';
 
-    // Fill gap before this visual — video fullscreen during gaps
     if (startFrame > lastEndFrame) {
       segments.push({ startFrame: lastEndFrame, endFrame: startFrame, displayMode: 'overlay' });
     }
@@ -218,7 +199,6 @@ function buildLayoutSegments(
     lastEndFrame = Math.max(lastEndFrame, endFrame);
   }
 
-  // Fill trailing gap — video fullscreen after last visual
   const totalFrames = Math.ceil((totalDurationMs / 1000) * fps);
   if (lastEndFrame < totalFrames) {
     segments.push({ startFrame: lastEndFrame, endFrame: totalFrames, displayMode: 'overlay' });
@@ -229,7 +209,7 @@ function buildLayoutSegments(
 
 function buildSceneItems(items: any[], fps: number): SceneItem[] {
   return items
-    .filter((it: any) => it.type === 'visual')
+    .filter((it: any) => it.type === 'visual' || it.type === 'scene')
     .map((it: any) => {
       const startFrame = Math.round((it.startMs / 1000) * fps);
       const endFrame = Math.round((it.endMs / 1000) * fps);
@@ -261,26 +241,6 @@ function buildSceneItems(items: any[], fps: number): SceneItem[] {
     });
 }
 
-function buildSubtitles(items: any[]): SubtitleItemData[] {
-  return items
-    .filter((it: any) => it.type === 'caption')
-    .map((it: any) => {
-      const words: SubtitleWordData[] = (it.data?.words || []).map((w: any) => ({
-        text: w.text,
-        // Word timings are relative to item start — convert to absolute
-        startMs: w.startMs + it.startMs,
-        endMs: w.endMs + it.startMs,
-        styleOverrides: w.styleOverrides,
-      }));
-
-      return {
-        startMs: it.startMs,
-        endMs: it.endMs,
-        words,
-      } as SubtitleItemData;
-    });
-}
-
 // ---- Main component ----
 
 export const PlayerComposition: React.FC<{
@@ -294,45 +254,86 @@ export const PlayerComposition: React.FC<{
     return null;
   }
 
+  const subtitles = buildSubtitles(manifest.items);
+  const captionStyle: SubtitleStyle | undefined = manifest.captionStyle;
+
+  const overlayTypes = new Set(['text', 'image', 'video', 'shape']);
+  const overlayItems = (manifest.items || []).filter((i: any) => overlayTypes.has(i.type));
+  const audioOverlayItems = (manifest.items || []).filter((i: any) => i.type === 'audio');
+
+  // AI-generated composition: render it with an error boundary that falls back to FullComposition
+  ${hasCompositionTsx ? `if (HAS_AI_COMPOSITION) {
+    const fullCompositionFallback = renderFullComposition(manifest, videoUrl, audioUrl, fps, subtitles, captionStyle, overlayItems, audioOverlayItems);
+    return (
+      <CompositionErrorBoundary fallback={fullCompositionFallback}>
+        <ProjectComposition
+          videoUrl={videoUrl || ''}
+          subtitles={subtitles}
+          captionStyle={captionStyle}
+        />
+      </CompositionErrorBoundary>
+    );
+  }` : ''}
+
+  return renderFullComposition(manifest, videoUrl, audioUrl, fps, subtitles, captionStyle, overlayItems, audioOverlayItems);
+};
+
+function renderFullComposition(
+  manifest: any,
+  videoUrl: string | undefined,
+  audioUrl: string | undefined,
+  fps: number,
+  subtitles: SubtitleItemData[],
+  captionStyle: SubtitleStyle | undefined,
+  overlayItems: any[],
+  audioOverlayItems: any[],
+) {
   const layoutSegments = buildLayoutSegments(manifest.items, fps, manifest.durationMs);
   const sceneItems = buildSceneItems(manifest.items, fps);
-  const subtitles = buildSubtitles(manifest.items);
+  const layout = manifest.layout || {};
+  const videoSettings = manifest.videoSettings || {};
 
   const renderScene = (sceneFile: string, frameOffset: number): React.ReactNode => {
     const SceneComponent = SCENE_MAP[sceneFile];
-    if (!SceneComponent) {
-      return null;
-    }
+    if (!SceneComponent) return null;
     return <SceneComponent />;
   };
 
-  const layout = manifest.layout || {};
-  const videoSettings = manifest.videoSettings || {};
-  const captionStyle: SubtitleStyle | undefined = manifest.captionStyle;
-
   return (
-    <FullComposition
-      layoutMode={layout.mode || 'stacked'}
-      splitSettings={layout.split || { position: 'visuals-first', ratio: 50, gap: 0 }}
-      pipSettings={layout.pip}
-      layoutSegments={layoutSegments}
-      videoCropSettings={{
-        sourceWidth: videoSettings.sourceWidth || 1920,
-        sourceHeight: videoSettings.sourceHeight || 1080,
-        cropX: videoSettings.cropX ?? 50,
-        cropY: videoSettings.cropY ?? 50,
-        scale: videoSettings.scale ?? 1,
-      }}
-      sourceVideoFile={videoUrl}
-      audioFile={audioUrl}
-      backgroundColor="#000000"
-      subtitles={subtitles}
-      defaultSubtitleStyle={captionStyle}
-      sceneItems={sceneItems}
-      renderScene={renderScene}
-    />
+    <AbsoluteFill>
+      <FullComposition
+        layoutMode={layout.mode || 'stacked'}
+        splitSettings={layout.split || { position: 'visuals-first', ratio: 50, gap: 0 }}
+        pipSettings={layout.pip}
+        layoutSegments={layoutSegments}
+        videoCropSettings={{
+          sourceWidth: videoSettings.sourceWidth || 1920,
+          sourceHeight: videoSettings.sourceHeight || 1080,
+          cropX: videoSettings.cropX ?? 50,
+          cropY: videoSettings.cropY ?? 50,
+          scale: videoSettings.scale ?? 1,
+        }}
+        sourceVideoFile={videoUrl}
+        audioFile={audioUrl}
+        backgroundColor="#000000"
+        subtitles={subtitles}
+        defaultSubtitleStyle={captionStyle}
+        sceneItems={sceneItems}
+        renderScene={renderScene}
+      />
+      {overlayItems.length > 0 && <OverlayLayer items={overlayItems} fps={fps} />}
+      {audioOverlayItems.map((item: any) => {
+        const sf = Math.round((item.startMs / 1000) * fps);
+        const ef = Math.round((item.endMs / 1000) * fps);
+        return (
+          <Sequence key={item.id} from={sf} durationInFrames={Math.max(1, ef - sf)}>
+            <Audio src={staticFile(item.data?.src || '')} volume={item.data?.volume ?? 1} />
+          </Sequence>
+        );
+      })}
+    </AbsoluteFill>
   );
-};
+}
 `;
 
   await writeFile(join(srcPath, 'PlayerComposition.tsx'), code, 'utf-8');
