@@ -1025,7 +1025,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         const errorMsg = err instanceof Error ? err.message : String(err);
         if ((errorMsg.includes('Sandbox') || errorMsg.includes('502')) && !sandboxBootAttempted.current) {
           sandboxBootAttempted.current = true;
-          bootAndRetry(fullMessage, widgetResponse);
+          bootAndRetryRef.current?.(fullMessage, widgetResponse).catch(console.error);
           return;
         }
 
@@ -1138,11 +1138,13 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       await api.createSandbox(projectId);
 
       // Poll until ready (max 2 minutes)
+      let ready = false;
       for (let i = 0; i < 60; i++) {
         await new Promise(r => setTimeout(r, 2000));
         const status = await api.getSandboxStatus(projectId);
-        if (status.status === 'ready') break;
+        if (status.status === 'ready') { ready = true; break; }
       }
+      if (!ready) throw new Error('Sandbox failed to start within 2 minutes');
 
       // Retry the message
       sandboxBootAttempted.current = false;
@@ -1162,6 +1164,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       setIsStreaming(false);
     }
   }, [projectId, _executeMessage]);
+  bootAndRetryRef.current = bootAndRetry;
 
   // -----------------------------------------------------------------------
   // Attachment helpers
@@ -1406,6 +1409,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
   const autoGreetSent = useRef(false);
   const sandboxBootAttempted = useRef(false);
+  const bootAndRetryRef = useRef<((message: string, widgetResponse?: { widgetId: string; value: unknown }) => Promise<void>) | null>(null);
   useEffect(() => {
     if (historyLoaded && messages.length === 0 && !isStreaming && !autoGreetSent.current) {
       autoGreetSent.current = true;

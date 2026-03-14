@@ -8,13 +8,13 @@ import { type WidgetCallbacks } from './tools/widget-tools.js';
 
 /**
  * Wrap a sandbox tool object (with raw JSON schema + execute method) into an SDK tool() call.
- * We use z.object({}).passthrough() since our tools use raw JSON schema, not Zod.
+ * We pass an empty Zod shape since our tools use raw JSON schema internally.
  */
 function wrapTool(t: { name: string; description: string; execute: (input: any) => Promise<string> }) {
   return tool(
     t.name,
     t.description,
-    z.object({}).passthrough(),
+    {},
     async (input: Record<string, unknown>) => {
       const result = await t.execute(input);
       return { content: [{ type: 'text' as const, text: result }] };
@@ -48,13 +48,14 @@ export function createMcpServers(widgetCallbacks: WidgetCallbacks) {
       tool(
         'show_widget',
         'Show an interactive widget to the user in the chat panel. Use this to present choices, plans for approval, theme pickers, and confirmations. The widget appears inline in the conversation and the user can interact with it.',
-        z.object({
+        {
           kind: z.enum(['theme_picker', 'layout_picker', 'scene_plan', 'choice', 'confirmation']),
           id: z.string(),
           data: z.record(z.unknown()).optional(),
-        }),
+        },
         async (input) => {
-          widgetCallbacks.onWidget({ ...input });
+          // Spread data to top level so frontend sees widget.scenes, not widget.data.scenes
+          widgetCallbacks.onWidget({ kind: input.kind, id: input.id, ...input.data });
           return {
             content: [{ type: 'text' as const, text: JSON.stringify({
               widgetId: input.id,
@@ -67,11 +68,11 @@ export function createMcpServers(widgetCallbacks: WidgetCallbacks) {
       tool(
         'report_progress',
         'Report progress to the user during long-running operations like generating animations or processing sections. Shows a progress indicator in the chat.',
-        z.object({
+        {
           phase: z.string(),
           percent: z.number(),
           message: z.string(),
-        }),
+        },
         async (input) => {
           widgetCallbacks.onProgress(input);
           return { content: [{ type: 'text' as const, text: 'Progress reported.' }] };
