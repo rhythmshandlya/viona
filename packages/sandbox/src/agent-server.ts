@@ -7,6 +7,7 @@ import { checkpoint, startCheckpointing } from './manifest-checkpoint.js';
 import { readManifestRaw, updateManifestTool } from './tools/manifest-ops.js';
 import { mountOpsEndpoint } from './ops-endpoint.js';
 import { runOrchestrator, type OrchestratorRequest } from './orchestrator.js';
+import { createMcpServers } from './mcp-servers.js';
 
 const logger = pino({ name: 'agent-server' });
 
@@ -100,6 +101,11 @@ export function startAgentServer(port = 8081): void {
     currentAbortController = abortController;
     req.on('close', () => abortController.abort());
 
+    const mcpServers = createMcpServers({
+      onWidget: (widget) => sendSSE('widget', widget),
+      onProgress: (progress) => sendSSE('progress', progress),
+    });
+
     try {
       await runOrchestrator(body, {
         onText: (text) => sendSSE('text', { text }),
@@ -111,7 +117,7 @@ export function startAgentServer(port = 8081): void {
         },
         onError: (error) => sendSSE('error', { message: error }),
         signal: abortController.signal,
-      });
+      }, mcpServers);
     } catch (err) {
       sendSSE('error', { message: err instanceof Error ? err.message : 'Internal error' });
     } finally {

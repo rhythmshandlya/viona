@@ -47,6 +47,8 @@ const RENDER_TOOL_NAMES = [
   `mcp__render__${triggerRebuildTool.name}`,
 ];
 
+const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress'];
+
 // ---- Build SDK query options ----
 
 /**
@@ -55,7 +57,8 @@ const RENDER_TOOL_NAMES = [
  * and trimmer.
  */
 export async function buildOrchestratorOptions(
-  ctx: PromptContext
+  ctx: PromptContext,
+  mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
   const [orchestratorPrompt, animatorPrompt, researcherPrompt, trimmerPrompt] =
     await Promise.all([
@@ -76,6 +79,7 @@ export async function buildOrchestratorOptions(
       ...MANIFEST_TOOL_NAMES,
       ...SCENE_TOOL_NAMES,
       ...RENDER_TOOL_NAMES,
+      ...WIDGET_TOOL_NAMES,
     ],
     permissionMode: 'bypassPermissions' as const,
     allowDangerouslySkipPermissions: true,
@@ -114,6 +118,7 @@ export async function buildOrchestratorOptions(
     includePartialMessages: true,
     thinking: { type: 'adaptive' as const },
     persistSession: true,
+    ...(mcpServers ? { mcpServers } : {}),
   };
 }
 
@@ -127,8 +132,9 @@ export async function buildOrchestratorOptions(
 export async function runOrchestrator(
   request: OrchestratorRequest,
   callbacks: OrchestratorCallbacks,
+  mcpServers?: Record<string, unknown>,
 ): Promise<void> {
-  const options = await buildOrchestratorOptions(request.projectContext);
+  const options = await buildOrchestratorOptions(request.projectContext, mcpServers);
 
   // ---- Assemble user message ----
 
@@ -235,4 +241,4 @@ export async function runOrchestrator(
 
 // ---- Exported tool name lists (for agent-server MCP registration) ----
 
-export { MANIFEST_TOOL_NAMES, SCENE_TOOL_NAMES, RENDER_TOOL_NAMES };
+export { MANIFEST_TOOL_NAMES, SCENE_TOOL_NAMES, RENDER_TOOL_NAMES, WIDGET_TOOL_NAMES };
