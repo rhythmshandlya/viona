@@ -126,6 +126,15 @@ async function renderFromManifest(
   const propsPath = join(workDir, 'input-props.json');
   await writeFile(propsPath, JSON.stringify(inputProps), 'utf-8');
 
+  // Build map of public assets that must survive bundle rebuilds.
+  // rebuildBundleFromCJS() overwrites the bundle dir, destroying files copied above.
+  const publicAssets: Record<string, string> = {};
+  if (sourceVideoPath) publicAssets['source.mp4'] = sourceVideoPath;
+  if (audioPath) {
+    const audioFilename = `audio${audioPath.match(/\.[^.]+$/)?.[0] || '.mp3'}`;
+    publicAssets[audioFilename] = audioPath;
+  }
+
   // 7. Render with Remotion
   const outputPath = join(workDir, 'output.mp4');
   await renderWithRemotion({
@@ -133,6 +142,7 @@ async function renderFromManifest(
     compositionId: 'Preview',
     outputPath,
     propsPath,
+    publicAssets,
     onProgress: (progress) => {
       const jobProgress = 25 + Math.round(progress * 65);
       publishJobProgress(jobId, jobProgress, `Rendering: ${Math.round(progress * 100)}%`);

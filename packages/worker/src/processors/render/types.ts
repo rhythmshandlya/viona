@@ -83,6 +83,8 @@ export interface RenderRemotionOptions {
   outputPath: string;
   propsPath?: string;  // Path to JSON file with composition inputProps
   onProgress?: (progress: number) => void;
+  /** Files to copy into the bundle's public/ dir after any rebuild (filename → source path) */
+  publicAssets?: Record<string, string>;
 }
 
 /**

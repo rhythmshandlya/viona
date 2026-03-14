@@ -569,7 +569,7 @@ registerRoot(RemotionRoot);
  * If the composition is not found, attempts to rebuild the bundle from source.
  */
 export async function renderWithRemotion(options: RenderRemotionOptions): Promise<void> {
-  const { bundlePath, compositionId, outputPath, propsPath, onProgress } = options;
+  const { bundlePath, compositionId, outputPath, propsPath, onProgress, publicAssets } = options;
 
   logger.info({ bundlePath, compositionId, outputPath }, 'Starting Remotion SSR render');
 
@@ -657,6 +657,19 @@ export async function renderWithRemotion(options: RenderRemotionOptions): Promis
     fps: composition.fps,
     durationInFrames: composition.durationInFrames,
   }, 'Composition selected');
+
+  // Re-copy public assets into the (possibly rebuilt) bundle's public/ directory.
+  // rebuildBundleFromCJS() calls Remotion's bundle() which overwrites outDir,
+  // so any files previously copied to public/ (e.g. source.mp4) get destroyed.
+  if (publicAssets && Object.keys(publicAssets).length > 0) {
+    const publicDir = join(serveUrl, 'public');
+    await mkdir(publicDir, { recursive: true });
+    for (const [filename, sourcePath] of Object.entries(publicAssets)) {
+      const dest = join(publicDir, filename);
+      await copyFile(sourcePath, dest);
+      logger.info({ dest, sourcePath }, 'Re-copied public asset into bundle');
+    }
+  }
 
   // Render the composition to video
   // Railway containers have limited RAM — use concurrency 1 and 'faster' preset
