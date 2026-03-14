@@ -487,13 +487,13 @@ export function manifestToDb(manifest: ManifestV2): {
 
     // Preserve transform, keyframes, filters in data for round-trip survival
     if (item.type !== 'audio' && (item as any).transform) {
-      data.transform = (item as any).transform;
+      data._transform = (item as any).transform;
     }
     if ((item as any).keyframes?.length > 0) {
-      data.keyframes = (item as any).keyframes;
+      data._keyframes = (item as any).keyframes;
     }
     if ((item as any).filters) {
-      data.filters = (item as any).filters;
+      data._filters = (item as any).filters;
     }
 
     // Map v2 item types back to DB types
@@ -535,42 +535,6 @@ export function manifestToDb(manifest: ManifestV2): {
     ? firstVideoItem.data.crop
     : undefined;
 
-  // Reconstruct layoutSettings from video item transforms
-  const videoItems = manifest.items.filter(i => i.type === 'video');
-  const sceneItems = manifest.items.filter(i => i.type === 'scene');
-
-  // Try to infer layout mode from transforms
-  let layoutSettings: Record<string, unknown> = {};
-  if (videoItems.length > 0) {
-    const firstVideo = videoItems[0]!;
-    const transform = (firstVideo as any).transform as TransformV2 | undefined;
-    if (transform) {
-      const h = String(transform.height);
-      const y = String(transform.y);
-      // If video doesn't take full height, it's likely stacked
-      if (h.endsWith('%') && parseFloat(h) < 100) {
-        layoutSettings = {
-          mode: 'stacked',
-          split: {
-            position: parseFloat(y) === 0 ? 'video-first' : 'visuals-first',
-            ratio: parseFloat(h) + (parseFloat(y) > 0 ? parseFloat(y) - parseFloat(h) : 0),
-            gap: 0,
-          },
-        };
-      } else if (videoItems.length > 1) {
-        // Check if second video has pip-style transform
-        const secondVideo = videoItems[1]!;
-        const pipTransform = (secondVideo as any).transform as TransformV2 | undefined;
-        if (pipTransform) {
-          const pw = String(pipTransform.width);
-          if (pw.endsWith('%') && parseFloat(pw) < 50) {
-            layoutSettings = { mode: 'pip' };
-          }
-        }
-      }
-    }
-  }
-
   const videoSettings: Record<string, unknown> = {
     canvasWidth: manifest.canvas.width,
     canvasHeight: manifest.canvas.height,
@@ -579,7 +543,6 @@ export function manifestToDb(manifest: ManifestV2): {
     scale: videoCrop?.scale ?? 1,
     sourceWidth: manifest.videoSettings.sourceWidth,
     sourceHeight: manifest.videoSettings.sourceHeight,
-    layoutSettings,
     captionStyle: manifest.captionStyle,
   };
 
