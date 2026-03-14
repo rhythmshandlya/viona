@@ -6,7 +6,7 @@
 
 'use client';
 
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { TimelineCanvas } from './TimelineCanvas';
 import { TimelineRuler } from './TimelineRuler';
 import { Playhead } from './Playhead';
@@ -16,9 +16,10 @@ import {
   useViewport,
   useCurrentTimeMs,
   useIsPlaying,
-  useEditorActions,
+  useViewportActions,
 } from '../store/use-editor-store';
-import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize2, Magnet } from 'lucide-react';
+import { getSnapEngine } from './interactions/SnapEngine';
 
 interface TimelineProps {
   className?: string;
@@ -36,7 +37,36 @@ export function Timeline({ className }: TimelineProps) {
   const isPlaying = useIsPlaying();
 
   // Actions
-  const { setZoom, setScrollX, setScrollY, zoomToFit } = useEditorActions();
+  const { setZoom, setScrollX, setScrollY, zoomToFit } = useViewportActions();
+
+  // Snap settings
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [showSnapSettings, setShowSnapSettings] = useState(false);
+  const [snapToPlayhead, setSnapToPlayhead] = useState(true);
+  const [snapToItems, setSnapToItems] = useState(true);
+  const snapSettingsRef = useRef<HTMLDivElement>(null);
+
+  // Sync snap settings to engine
+  useEffect(() => {
+    const engine = getSnapEngine();
+    engine.setOptions({
+      threshold: snapEnabled ? 10 : 0,
+      snapToPlayhead: snapEnabled && snapToPlayhead,
+      snapToItems: snapEnabled && snapToItems,
+    });
+  }, [snapEnabled, snapToPlayhead, snapToItems]);
+
+  // Close snap popover on outside click
+  useEffect(() => {
+    if (!showSnapSettings) return;
+    const handleClick = (e: MouseEvent) => {
+      if (snapSettingsRef.current && !snapSettingsRef.current.contains(e.target as Node)) {
+        setShowSnapSettings(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showSnapSettings]);
 
   // AutoScroll: keep playhead visible during playback
   useEffect(() => {
@@ -115,9 +145,55 @@ export function Timeline({ className }: TimelineProps) {
         {/* Playhead overlay */}
         <Playhead rulerHeight={RULER_HEIGHT} />
 
-        {/* Zoom controls - floating bottom right */}
+        {/* Zoom + snap controls - floating bottom right */}
         <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-[var(--editor-bg-elevated)]/90
                         backdrop-blur-sm rounded-md border border-[var(--editor-border-subtle)] p-0.5">
+          {/* Snap toggle */}
+          <div className="relative" ref={snapSettingsRef}>
+            <button
+              onClick={() => setSnapEnabled(!snapEnabled)}
+              onContextMenu={(e) => { e.preventDefault(); setShowSnapSettings(!showSnapSettings); }}
+              className={`p-1.5 rounded transition-all active:scale-[0.97] ${
+                snapEnabled
+                  ? 'bg-[var(--editor-accent)]/20 text-[var(--editor-accent)] hover:bg-[var(--editor-accent)]/30'
+                  : 'text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)] hover:bg-[var(--editor-bg-hover)]'
+              }`}
+              title={`Snapping ${snapEnabled ? 'on' : 'off'} (right-click for options)`}
+            >
+              <Magnet size={14} />
+            </button>
+
+            {/* Snap settings popover */}
+            {showSnapSettings && (
+              <div className="absolute bottom-full right-0 mb-1 w-44 bg-[var(--editor-bg-elevated)] border border-[var(--editor-border-subtle)]
+                              rounded-lg shadow-xl p-2 space-y-1.5 z-50">
+                <div className="text-[10px] font-medium text-[var(--editor-text-muted)] uppercase tracking-wider px-1 pb-0.5">
+                  Snap To
+                </div>
+                <label className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-[var(--editor-bg-hover)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={snapToPlayhead}
+                    onChange={(e) => setSnapToPlayhead(e.target.checked)}
+                    className="w-3 h-3 rounded accent-[var(--editor-accent)]"
+                  />
+                  <span className="text-xs text-[var(--editor-text-secondary)]">Playhead</span>
+                </label>
+                <label className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-[var(--editor-bg-hover)] cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={snapToItems}
+                    onChange={(e) => setSnapToItems(e.target.checked)}
+                    className="w-3 h-3 rounded accent-[var(--editor-accent)]"
+                  />
+                  <span className="text-xs text-[var(--editor-text-secondary)]">Item edges</span>
+                </label>
+              </div>
+            )}
+          </div>
+
+          <div className="w-px h-4 bg-[var(--editor-border-subtle)]" />
+
           <button
             onClick={handleZoomOut}
             className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-secondary)]

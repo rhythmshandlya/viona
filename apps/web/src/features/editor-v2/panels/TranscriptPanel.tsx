@@ -5,7 +5,10 @@ import { AlignLeft, Search, LocateFixed, LocateOff, Layers } from 'lucide-react'
 import {
   useCaptionItems,
   useCurrentTimeMs,
-  useEditorActions,
+  usePlaybackActions,
+  useCaptionActions,
+  useTimelineActions,
+  useAIActions,
   useProject,
   useSelectedSceneId,
 } from '../store/use-editor-store';
@@ -36,7 +39,10 @@ export function TranscriptPanel() {
   const currentTimeMs = useCurrentTimeMs();
   const project = useProject();
   const selectedSceneId = useSelectedSceneId();
-  const { seek, updateCaptionText, select, setSelectedScene } = useEditorActions();
+  const { seek } = usePlaybackActions();
+  const { updateCaptionText } = useCaptionActions();
+  const { select } = useTimelineActions();
+  const { setSelectedScene } = useAIActions();
 
   // Fetch scenes when project loads
   useEffect(() => {

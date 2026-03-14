@@ -13,7 +13,9 @@ import {
   useProjectId,
   useItemIds,
   useItems,
-  useEditorActions,
+  useTimelineActions,
+  usePlaybackActions,
+  useProjectActions,
   useCurrentTimeMs,
 } from '../store/use-editor-store';
 import { BrollItemData } from '../store/types';
@@ -48,7 +50,9 @@ export function BrollPanel({ className = '' }: BrollPanelProps) {
   const itemIds = useItemIds();
   const items = useItems();
   const currentTimeMs = useCurrentTimeMs();
-  const { deleteItems, updateItemData, pause, seek, loadProject } = useEditorActions();
+  const { deleteItems, updateItemData } = useTimelineActions();
+  const { pause, seek } = usePlaybackActions();
+  const { loadProject } = useProjectActions();
 
   // Filter B-roll items
   const brollItems = itemIds

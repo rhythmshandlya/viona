@@ -6,7 +6,10 @@ import { Slider } from '@/components/ui/slider';
 import {
   useFirstCaptionStyle,
   useSelectedIds,
-  useEditorActions,
+  useCaptionActions,
+  useTimelineActions,
+  useSafeZoneActions,
+  useProjectActions,
   useSafeZonePlatform,
   useVideoUrl,
   useCurrentTimeMs,
@@ -90,8 +93,10 @@ export function StylePanel() {
   const selectedIds = useSelectedIds();
   const safeZonePlatform = useSafeZonePlatform();
   const projectId = useProjectId();
-  const { updateAllCaptionStyles, updateSelectedCaptionStyles, clearSelection, selectAll, setSafeZonePlatform, setShowSafeZone, loadProject } =
-    useEditorActions();
+  const { updateAllCaptionStyles, updateSelectedCaptionStyles } = useCaptionActions();
+  const { clearSelection, selectAll } = useTimelineActions();
+  const { setSafeZonePlatform, setShowSafeZone } = useSafeZoneActions();
+  const { loadProject } = useProjectActions();
 
   const videoUrl = useVideoUrl();
   const currentTimeMs = useCurrentTimeMs();

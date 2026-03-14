@@ -5,7 +5,7 @@ import {
   useShowCaptions,
   useCaptionItems,
   useSelectedIds,
-  useEditorActions,
+  useCaptionActions,
 } from '../store/use-editor-store';
 import type { CaptionItemData, CaptionStyle, CaptionPosition } from '../store/types';
 import { anchorToFreeCoords } from '../store/types';
@@ -148,7 +148,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const showCaptions = useShowCaptions();
   const captionItems = useCaptionItems();
   const selectedIds = useSelectedIds();
-  const { updateAllCaptionStyles, updateSelectedCaptionStyles } = useEditorActions();
+  const { updateAllCaptionStyles, updateSelectedCaptionStyles } = useCaptionActions();
 
   const [box, setBox] = useState<BoundingBox | null>(null);
   const [isHovered, setIsHovered] = useState(false);

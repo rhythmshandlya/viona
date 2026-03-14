@@ -7,7 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { useEditorActions } from '../store/use-editor-store';
+import { usePlaybackActions, useHistoryActions, useProjectActions, useTimelineActions } from '../store/use-editor-store';
 
 interface Command {
   id: string;
@@ -28,14 +28,10 @@ export function CommandPalette({ isOpen, onClose }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const {
-    togglePlayback,
-    seek,
-    undo,
-    redo,
-    saveProject,
-    deleteItems,
-  } = useEditorActions();
+  const { togglePlayback, seek } = usePlaybackActions();
+  const { undo, redo } = useHistoryActions();
+  const { saveProject } = useProjectActions();
+  const { deleteItems } = useTimelineActions();
 
   // Define commands
   const commands: Command[] = useMemo(() => [

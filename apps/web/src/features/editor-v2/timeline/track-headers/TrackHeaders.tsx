@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { useTracks, useViewport, useEditorActions } from '../../store/use-editor-store';
+import { useTracks, useViewport, useTrackActions } from '../../store/use-editor-store';
 import { TrackHeader } from './TrackHeader';
 import type { Track } from '../../store/types';
 
@@ -14,7 +14,7 @@ interface TrackHeadersProps {
 export function TrackHeaders({ rulerHeight = 24, className }: TrackHeadersProps) {
   const tracks = useTracks();
   const viewport = useViewport();
-  const actions = useEditorActions();
+  const actions = useTrackActions();
   const [showAddMenu, setShowAddMenu] = useState(false);
 
   const handleAddTrack = (type: string) => {

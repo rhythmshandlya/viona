@@ -28,7 +28,8 @@ import {
   useSelectionBox,
   useDragState,
   useSplitMode,
-  useEditorActions,
+  useTimelineActions,
+  usePlaybackActions,
 } from '../store/use-editor-store';
 import { DragState, SnapTarget, TimelineItem } from '../store/types';
 import { findOrCreateTrack } from '../utils/track-utils';
@@ -72,14 +73,14 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     select,
     clearSelection,
     setSelectionBox,
-    setCurrentTime,
     startDrag,
     updateDrag,
     endDrag,
     moveItem,
     resizeItem,
     splitItem,
-  } = useEditorActions();
+  } = useTimelineActions();
+  const { setCurrentTime } = usePlaybackActions();
 
   // Build render state
   const renderState: RenderState = useMemo(

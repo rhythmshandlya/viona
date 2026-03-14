@@ -12,7 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useProject, useEditorActions } from '../store/use-editor-store';
+import { useProject, useProjectActions } from '../store/use-editor-store';
 
 interface CanvasFormat {
   id: string;
@@ -37,7 +37,7 @@ function getCurrentFormat(width: number, height: number): CanvasFormat {
 
 export function CanvasFormatSelector() {
   const project = useProject();
-  const { updateVideoSettings } = useEditorActions();
+  const { updateVideoSettings } = useProjectActions();
 
   if (!project) return null;
 

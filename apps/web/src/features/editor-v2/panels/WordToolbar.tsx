@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Bold, Maximize2, Palette, Highlighter, X, Type } from 'lucide-react';
-import { useEditorActions, useFirstCaptionStyle } from '../store/use-editor-store';
+import { useCaptionActions, useFirstCaptionStyle } from '../store/use-editor-store';
 import type { CaptionWord } from '../store/types';
 import { FONT_REGISTRY, loadFont, findFont } from '@/lib/font-registry';
 
@@ -15,7 +15,7 @@ interface WordToolbarProps {
 }
 
 export function WordToolbar({ captionId, wordIndex, word, position, onClose }: WordToolbarProps) {
-  const { updateWordStyleOverrides } = useEditorActions();
+  const { updateWordStyleOverrides } = useCaptionActions();
   const captionStyle = useFirstCaptionStyle();
   const overrides = word.styleOverrides || {};
   const [expanded, setExpanded] = useState(false);

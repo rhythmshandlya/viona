@@ -13,7 +13,11 @@ import {
   useActiveCaptionStyle,
   useApplyStyleToAll,
   useVideoSettings,
-  useEditorActions,
+  useCaptionActions,
+  useProjectActions,
+  useAudioActions,
+  useTimelineActions,
+  useTransformActions,
   useItems,
   useItemIds,
 } from '../store/use-editor-store';
@@ -61,7 +65,7 @@ function CaptionStylePanel() {
   const style = useActiveCaptionStyle();
   const applyToAll = useApplyStyleToAll();
   const selectedIds = useSelectedIds();
-  const { updateAllCaptionStyles, updateSelectedCaptionStyles, setApplyStyleToAll } = useEditorActions();
+  const { updateAllCaptionStyles, updateSelectedCaptionStyles, setApplyStyleToAll } = useCaptionActions();
 
   // Default: apply-to-all when single selection, per-selection when multi
   useEffect(() => {
@@ -332,7 +336,7 @@ function VideoPanel() {
   const selectedIds = useSelectedIds();
   const videoItem = useItem(selectedIds[0] || '');
   const videoSettings = useVideoSettings();
-  const { updateVideoSettings } = useEditorActions();
+  const { updateVideoSettings } = useProjectActions();
 
   if (!videoSettings || !videoItem) return null;
 
@@ -412,7 +416,8 @@ function VideoPanel() {
 function AudioPanel() {
   const selectedIds = useSelectedIds();
   const audioItem = useItem(selectedIds[0] || '');
-  const { toggleEnhancement, updateItemData } = useEditorActions();
+  const { toggleEnhancement } = useAudioActions();
+  const { updateItemData } = useTimelineActions();
 
   if (!audioItem || audioItem.type !== 'audio') return null;
 
@@ -491,7 +496,8 @@ function AudioPanel() {
 function VisualPropertiesPanel() {
   const selectedIds = useSelectedIds();
   const visualItem = useItem(selectedIds[0] || '');
-  const { updateItemData, updateVisualOverlayZone } = useEditorActions();
+  const { updateItemData } = useTimelineActions();
+  const { updateVisualOverlayZone } = useTransformActions();
 
   // Get all items to find video for segmentation status
   const allItems = useItems();

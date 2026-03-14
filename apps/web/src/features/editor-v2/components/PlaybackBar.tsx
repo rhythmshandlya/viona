@@ -11,7 +11,10 @@ import {
   useCurrentTimeMs,
   useIsPlaying,
   useDuration,
-  useEditorActions,
+  usePlaybackActions,
+  useTimelineActions,
+  useCaptionActions,
+  useAIActions,
   useShowCaptions,
   useInspectModeEnabled,
   useSplitMode,
@@ -30,7 +33,10 @@ export function PlaybackBar() {
   const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const duration = useDuration();
-  const { togglePlayback, seek, setShowCaptions, setInspectModeEnabled, pause, splitAllAtPlayhead } = useEditorActions();
+  const { togglePlayback, seek, pause } = usePlaybackActions();
+  const { splitAllAtPlayhead } = useTimelineActions();
+  const { setShowCaptions } = useCaptionActions();
+  const { setInspectModeEnabled } = useAIActions();
   const showCaptions = useShowCaptions();
   const inspectModeEnabled = useInspectModeEnabled();
   const splitMode = useSplitMode();

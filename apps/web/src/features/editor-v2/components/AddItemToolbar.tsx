@@ -2,13 +2,15 @@
 
 import React, { useRef } from 'react';
 import { Type, ImageIcon, Music, Film, Square } from 'lucide-react';
-import { useEditorStore, useEditorActions } from '../store/use-editor-store';
+import { useEditorStore, useTimelineActions, useTrackActions } from '../store/use-editor-store';
 import { api } from '@/lib/api';
 import { findOrCreateTrack } from '../utils/track-utils';
 import type { TimelineItem, TextItemData, TextStyle, ShapeItemData } from '../store/types';
 
 export function AddItemToolbar() {
-  const actions = useEditorActions();
+  const timelineActions = useTimelineActions();
+  const trackActions = useTrackActions();
+  const actions = { ...timelineActions, ...trackActions };
   const projectId = useEditorStore((s) => s.project?.id);
   const audioInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);

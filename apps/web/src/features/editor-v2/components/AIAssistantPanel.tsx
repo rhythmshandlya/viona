@@ -13,7 +13,7 @@ import { Sparkles, Send, Loader2, Target, Box, Layers, X, RotateCcw, RefreshCw, 
 import { api } from '@/lib/api';
 import { parseSSEStream, SSETimeoutError } from '@/lib/sse-parser';
 import { clearCompositionCache } from '../player/useWorkspaceComposition';
-import { useVideoSettings, useEditorActions, useAIEditingContext, useAIEditRequested, usePendingAIMessage, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
+import { useVideoSettings, useProjectActions, useAIActions, useTimelineActions, useAIEditingContext, useAIEditRequested, usePendingAIMessage, useSelectedTimeRange, useEditorStore } from '../store/use-editor-store';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
 import { useProgress } from '../hooks/use-progress';
 import { ProgressBar } from './ProgressBar';
@@ -252,6 +252,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const progressSourceRef = useRef<'sse' | 'ws' | 'http' | null>(null);
   const pendingWidgetResponseRef = useRef<Array<{ widgetId: string; value: unknown }>>([]);
   const lastEventIdRef = useRef<number | undefined>(undefined);
+  const sandboxBootAttempted = useRef(false);
+  const bootAndRetryRef = useRef<((message: string, widgetResponse?: { widgetId: string; value: unknown }) => Promise<void>) | null>(null);
 
   // Attachment state (supports multiple files)
   const [attachmentFiles, setAttachmentFiles] = useState<{ file: File; label: string }[]>([]);
@@ -297,7 +299,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const selectedTimeRange = useSelectedTimeRange();
   const aiEditRequested = useAIEditRequested();
   const pendingAIMessage = usePendingAIMessage();
-  const { reloadVisuals, setSelectedScene, setSelectedElement, setSelectedTimeRange, clearSelection, setPendingAIMessage } = useEditorActions();
+  const { reloadVisuals } = useProjectActions();
+  const { setSelectedScene, setSelectedElement, setSelectedTimeRange, setPendingAIMessage } = useAIActions();
+  const { clearSelection } = useTimelineActions();
 
   // WebSocket for real-time job progress (survives page refresh, unlike SSE)
   const { subscribeToJob, isConnected: wsConnected } = useJobWebSocket(projectId, {
@@ -1408,8 +1412,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -----------------------------------------------------------------------
 
   const autoGreetSent = useRef(false);
-  const sandboxBootAttempted = useRef(false);
-  const bootAndRetryRef = useRef<((message: string, widgetResponse?: { widgetId: string; value: unknown }) => Promise<void>) | null>(null);
   useEffect(() => {
     if (historyLoaded && messages.length === 0 && !isStreaming && !autoGreetSent.current) {
       autoGreetSent.current = true;

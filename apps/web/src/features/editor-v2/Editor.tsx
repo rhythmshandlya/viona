@@ -41,7 +41,11 @@ import {
   useProject,
   useIsLoading,
   useError,
-  useEditorActions,
+  useProjectActions,
+  useTimelineActions,
+  useAudioActions,
+  usePlaybackActions,
+  useAIActions,
   useSelectedIds,
   useCaptionItems,
   useAIEditRequested,
@@ -122,7 +126,11 @@ export function Editor({ projectId }: EditorProps) {
   const workspaceBundleError = useEditorStore((s) => s.workspaceBundleError);
 
   // Actions
-  const { loadProject, reloadVisuals, refreshMediaUrls, clearSelection, updateEnhancementStatus, setInspectModeEnabled, pause } = useEditorActions();
+  const { loadProject, reloadVisuals, refreshMediaUrls } = useProjectActions();
+  const { clearSelection } = useTimelineActions();
+  const { updateEnhancementStatus } = useAudioActions();
+  const { pause } = usePlaybackActions();
+  const { setInspectModeEnabled } = useAIActions();
 
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {

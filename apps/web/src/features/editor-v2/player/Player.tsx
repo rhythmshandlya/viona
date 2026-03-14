@@ -13,7 +13,7 @@ import {
   useDuration,
   useFps,
   useIsPlaying,
-  useEditorActions,
+  usePlaybackActions,
   useSafeZonePlatform,
   useWorkspaceManifest,
   useWorkspaceBundleUrl,
@@ -51,7 +51,7 @@ export function Player({ className }: PlayerProps) {
   const bundleVersion = useWorkspaceBundleVersion();
 
   // Actions
-  const { setCurrentTime, play, pause } = useEditorActions();
+  const { setCurrentTime, play, pause } = usePlaybackActions();
 
   // Sync store currentTimeMs → Remotion player (user drags timeline).
   // Uses a store subscription so frame updates don't trigger re-renders.

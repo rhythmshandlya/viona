@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
-import { useEditorActions } from '../store/use-editor-store';
+import { useProjectActions } from '../store/use-editor-store';
 
 interface ExportModalProps {
   open: boolean;
@@ -34,7 +34,7 @@ export function ExportModal({
   projectStatus,
   hasOutputKey,
 }: ExportModalProps) {
-  const { saveProject } = useEditorActions();
+  const { saveProject } = useProjectActions();
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
   const jobIdRef = useRef<string | null>(null);

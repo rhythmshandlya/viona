@@ -10,7 +10,11 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenuState, ContextMenuTarget } from './useContextMenu';
 import {
-  useEditorActions,
+  useTimelineActions,
+  useTrackActions,
+  useAIActions,
+  useSafeZoneActions,
+  useTransformActions,
   useSelectedIds,
   useItems,
   useTracks,
@@ -79,16 +83,12 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     deleteItems,
     deleteTimeRange,
     pasteItems,
-    updateTrack,
     select,
-    requestAIEdit,
-    changeDisplayModeWithAI,
-    openTransitionPicker,
-    updateTransform,
-    updateFilters,
-    updateKeyframes,
-    addKeyframeAtTime,
-  } = useEditorActions();
+  } = useTimelineActions();
+  const { updateTrack } = useTrackActions();
+  const { requestAIEdit, changeDisplayModeWithAI } = useAIActions();
+  const { openTransitionPicker } = useSafeZoneActions();
+  const { updateTransform, updateFilters, updateKeyframes, addKeyframeAtTime } = useTransformActions();
 
   // Close on outside click
   useEffect(() => {
@@ -216,8 +216,8 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           {
             label: 'Edit Properties',
             action: withSelection(() => {
-              // TODO: wire up onEditProperties callback to open Properties panel
-              console.log('[ContextMenu] Edit Properties for', itemId);
+              // Selection triggers auto-open of the properties panel via Editor.tsx useEffect
+              select([itemId], 'replace');
             }),
           },
           {

@@ -12,7 +12,7 @@ import {
   useIsPlaying,
   useFps,
   useDuration,
-  useEditorActions,
+  usePlaybackActions,
 } from '../store/use-editor-store';
 
 interface UsePlayerSyncOptions {
@@ -24,7 +24,7 @@ export function usePlayerSync({ playerRef }: UsePlayerSyncOptions) {
   const isPlaying = useIsPlaying();
   const fps = useFps();
   const duration = useDuration();
-  const { setCurrentTime, play, pause } = useEditorActions();
+  const { setCurrentTime, play, pause } = usePlaybackActions();
 
   // Track if we're updating from player events to avoid loops
   const isPlayerUpdate = useRef(false);

@@ -6,14 +6,14 @@ import { RotateCcw } from 'lucide-react';
 import {
   useVideoSettings,
   useSourceDimensions,
-  useEditorActions,
+  useProjectActions,
 } from '../store/use-editor-store';
 import { DEFAULT_VIDEO_SETTINGS } from '../store/types';
 
 export function VideoPositionPanel() {
   const videoSettings = useVideoSettings();
   const sourceDimensions = useSourceDimensions();
-  const { updateVideoSettings } = useEditorActions();
+  const { updateVideoSettings } = useProjectActions();
 
   if (!videoSettings || !sourceDimensions) {
     return (

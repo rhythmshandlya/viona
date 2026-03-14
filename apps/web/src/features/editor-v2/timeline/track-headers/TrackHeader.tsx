@@ -3,7 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Film, Volume2, MessageSquare, Type, Image, Lock, Unlock, Eye, EyeOff, ChevronRight, ChevronDown, Sparkles } from 'lucide-react';
 import { Track } from '../../store/types';
-import { useEditorActions } from '../../store/use-editor-store';
+import { useTrackActions } from '../../store/use-editor-store';
 
 interface TrackHeaderProps {
   track: Track;
@@ -23,7 +23,7 @@ export function TrackHeader({ track }: TrackHeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(track.name);
   const inputRef = useRef<HTMLInputElement>(null);
-  const { updateTrack } = useEditorActions();
+  const { updateTrack } = useTrackActions();
 
   const Icon = TRACK_ICONS[track.type] || Type;
 

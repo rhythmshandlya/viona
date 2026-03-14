@@ -402,6 +402,12 @@ export const useVideoSegmentation = (videoItemId: string): SegmentationData | un
 // Action Hooks
 // ============================================
 
+/**
+ * @deprecated Use domain-specific hooks instead:
+ * usePlaybackActions, useTimelineActions, useCaptionActions, useViewportActions,
+ * useHistoryActions, useProjectActions, useAIActions, useTrackActions,
+ * useAudioActions, useTransformActions, useSafeZoneActions
+ */
 export function useEditorActions() {
   return useEditorStore(
     useShallow((state) => ({
@@ -533,6 +539,164 @@ export function useEditorActions() {
       addKeyframeAtTime: state.addKeyframeAtTime,
       deleteKeyframe: state.deleteKeyframe,
       updateKeyframeEasing: state.updateKeyframeEasing,
+    }))
+  );
+}
+
+// ============================================
+// Domain-Specific Action Hooks
+// ============================================
+
+export function usePlaybackActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      play: state.play,
+      pause: state.pause,
+      togglePlayback: state.togglePlayback,
+      seek: state.seek,
+      setCurrentTime: state.setCurrentTime,
+    }))
+  );
+}
+
+export function useTimelineActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      select: state.select,
+      selectRange: state.selectRange,
+      selectAll: state.selectAll,
+      clearSelection: state.clearSelection,
+      setSelectionBox: state.setSelectionBox,
+      addItem: state.addItem,
+      updateItem: state.updateItem,
+      updateItemData: state.updateItemData,
+      deleteItems: state.deleteItems,
+      moveItem: state.moveItem,
+      resizeItem: state.resizeItem,
+      startDrag: state.startDrag,
+      updateDrag: state.updateDrag,
+      endDrag: state.endDrag,
+      splitItem: state.splitItem,
+      splitAllAtPlayhead: state.splitAllAtPlayhead,
+      setSplitMode: state.setSplitMode,
+      nudgeItems: state.nudgeItems,
+      trimItems: state.trimItems,
+      copyItems: state.copyItems,
+      pasteItems: state.pasteItems,
+      duplicateItems: state.duplicateItems,
+      deleteTimeRange: state.deleteTimeRange,
+    }))
+  );
+}
+
+export function useCaptionActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      updateAllCaptionStyles: state.updateAllCaptionStyles,
+      updateSelectedCaptionStyles: state.updateSelectedCaptionStyles,
+      updateWordStyleOverrides: state.updateWordStyleOverrides,
+      setApplyStyleToAll: state.setApplyStyleToAll,
+      selectAllCaptionsOnTrack: state.selectAllCaptionsOnTrack,
+      splitCaption: state.splitCaption,
+      mergeCaptions: state.mergeCaptions,
+      updateCaptionText: state.updateCaptionText,
+      setShowCaptions: state.setShowCaptions,
+    }))
+  );
+}
+
+export function useViewportActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      setZoom: state.setZoom,
+      setScrollX: state.setScrollX,
+      setScrollY: state.setScrollY,
+      zoomToFit: state.zoomToFit,
+    }))
+  );
+}
+
+export function useHistoryActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      undo: state.undo,
+      redo: state.redo,
+      pushHistory: state.pushHistory,
+    }))
+  );
+}
+
+export function useProjectActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      loadProject: state.loadProject,
+      reloadVisuals: state.reloadVisuals,
+      refreshMediaUrls: state.refreshMediaUrls,
+      saveProject: state.saveProject,
+      setProject: state.setProject,
+      updateVideoSettings: state.updateVideoSettings,
+    }))
+  );
+}
+
+export function useAIActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      setSelectedScene: state.setSelectedScene,
+      setSelectedTimeRange: state.setSelectedTimeRange,
+      setSelectedElement: state.setSelectedElement,
+      setElementPickerEnabled: state.setElementPickerEnabled,
+      setInspectModeEnabled: state.setInspectModeEnabled,
+      requestAIEdit: state.requestAIEdit,
+      setPendingAIMessage: state.setPendingAIMessage,
+      changeDisplayModeWithAI: state.changeDisplayModeWithAI,
+    }))
+  );
+}
+
+export function useTrackActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      addTrack: state.addTrack,
+      updateTrack: state.updateTrack,
+      deleteTrack: state.deleteTrack,
+      reorderTracks: state.reorderTracks,
+    }))
+  );
+}
+
+export function useAudioActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      separateAudio: state.separateAudio,
+      toggleEnhancement: state.toggleEnhancement,
+      updateEnhancementStatus: state.updateEnhancementStatus,
+    }))
+  );
+}
+
+export function useTransformActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      updateTransform: state.updateTransform,
+      updateFilters: state.updateFilters,
+      updateKeyframes: state.updateKeyframes,
+      addKeyframeAtTime: state.addKeyframeAtTime,
+      deleteKeyframe: state.deleteKeyframe,
+      updateKeyframeEasing: state.updateKeyframeEasing,
+      updateVisualOverlayZone: state.updateVisualOverlayZone,
+    }))
+  );
+}
+
+export function useSafeZoneActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      setSafeZonePlatform: state.setSafeZonePlatform,
+      setShowSafeZone: state.setShowSafeZone,
+      openTransitionPicker: state.openTransitionPicker,
+      closeTransitionPicker: state.closeTransitionPicker,
+      getVideoSegmentation: state.getVideoSegmentation,
     }))
   );
 }

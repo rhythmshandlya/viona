@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   useSingleSelectedItem,
   useEditorStore,
@@ -87,7 +87,7 @@ interface ItemDragOverlayProps {
 
 export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: ItemDragOverlayProps) {
   const selectedItem = useSingleSelectedItem();
-  const store = useEditorStore();
+  const updateTransform = useEditorStore((s) => s.updateTransform);
 
   const dragRef = useRef<DragState | null>(null);
   const [offset, setOffset] = useState<{ dx: number; dy: number; dw: number; dh: number }>({ dx: 0, dy: 0, dw: 0, dh: 0 });
@@ -150,6 +150,7 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
       setOffset={setOffset}
       setIsDragging={setIsDragging}
       handleMouseDown={handleMouseDown}
+      updateTransform={updateTransform}
     />
   );
 }
@@ -169,10 +170,10 @@ interface ItemDragOverlayInnerProps {
   setOffset: React.Dispatch<React.SetStateAction<{ dx: number; dy: number; dw: number; dh: number }>>;
   setIsDragging: React.Dispatch<React.SetStateAction<boolean>>;
   handleMouseDown: (e: React.MouseEvent, mode: DragMode, handle?: HandlePosition) => void;
+  updateTransform: (itemId: string, updates: Record<string, number | string>) => void;
 }
 
 function ItemDragOverlayInner({
-  containerRef,
   canvasWidth,
   canvasHeight,
   selectedItemId,
@@ -185,8 +186,18 @@ function ItemDragOverlayInner({
   setOffset,
   setIsDragging,
   handleMouseDown,
+  updateTransform,
 }: ItemDragOverlayInnerProps) {
-  const updateTransform = useEditorStore((s) => s.updateTransform);
+  // Ref to hold pending transform updates (applied after render, not inside setOffset)
+  const pendingUpdate = useRef<Record<string, number> | null>(null);
+
+  // Apply pending transform update after render
+  useEffect(() => {
+    if (pendingUpdate.current) {
+      updateTransform(selectedItemId, pendingUpdate.current);
+      pendingUpdate.current = null;
+    }
+  });
 
   // Window-level mousemove/mouseup during drag
   useEffect(() => {
@@ -221,6 +232,7 @@ function ItemDragOverlayInner({
       const drag = dragRef.current;
       if (!drag) return;
 
+      // Read current offset from the ref-backed state
       setOffset((currentOffset) => {
         const finalX = drag.startX + currentOffset.dx;
         const finalY = drag.startY + currentOffset.dy;
@@ -234,7 +246,8 @@ function ItemDragOverlayInner({
         if (Math.round(finalH) !== Math.round(drag.startH)) updates.height = Math.round(finalH);
 
         if (Object.keys(updates).length > 0) {
-          updateTransform(selectedItemId, updates);
+          // Defer store update to after render via ref
+          pendingUpdate.current = updates;
         }
 
         return { dx: 0, dy: 0, dw: 0, dh: 0 };

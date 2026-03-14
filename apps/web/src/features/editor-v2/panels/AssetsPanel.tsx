@@ -9,7 +9,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight, Upload, Trash2, X, Plus, Music, Film, ImageIcon, type LucideIcon } from 'lucide-react';
 import { api, ExtractedAsset, ProjectMediaAsset, SceneInfo } from '@/lib/api';
-import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItems, useEditorStore } from '../store/use-editor-store';
+import { useProjectId, useAIActions, usePlaybackActions, useSelectedElement, useItemIds, useItems, useEditorStore } from '../store/use-editor-store';
 import { findOrCreateTrack } from '../utils/track-utils';
 import type { TimelineItem } from '../store/types';
 
@@ -75,7 +75,8 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
 
   const projectId = useProjectId();
   const selectedElement = useSelectedElement();
-  const { setSelectedElement, pause, seek, setElementPickerEnabled } = useEditorActions();
+  const { setSelectedElement, setElementPickerEnabled } = useAIActions();
+  const { pause, seek } = usePlaybackActions();
 
   // Watch visual items — refetch assets when they change
   const itemIds = useItemIds();
