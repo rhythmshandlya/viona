@@ -434,6 +434,16 @@ export async function rebuildBundleFromCJS(bundlePath: string, compositionId: st
       logger.warn({ localCompositionDir }, 'Composition infrastructure not found locally either');
     }
   }
+  // Copy fonts.ts into src/ so generated compositions can resolve '../fonts'
+  const fontsSource = join(config.worker.templatePath, 'src', 'fonts.ts');
+  const fontsDest = join(tempDir, 'src', 'fonts.ts');
+  try {
+    await copyFile(fontsSource, fontsDest);
+    logger.info({ fontsSource, fontsDest }, 'Copied fonts.ts for bundle rebuild');
+  } catch (err) {
+    logger.warn({ err, fontsSource }, 'Could not copy fonts.ts, font imports may fail');
+  }
+
   let hasCompositionInfra = false;
   try {
     await access(compositionSrcDir, constants.R_OK);
