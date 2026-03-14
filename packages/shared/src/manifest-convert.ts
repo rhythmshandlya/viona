@@ -2,45 +2,6 @@ import type { ManifestV2, ManifestItemV2, ManifestTrackV2, TransformV2 } from '.
 import { manifestV2Schema } from './manifest-v2.js';
 
 /**
- * Coerce string values to numbers for known numeric fields.
- * DB JSONB can store numbers as strings from older writes.
- */
-function coerceNumericFields<T extends Record<string, unknown>>(obj: T, fields: string[]): T {
-  const result = { ...obj };
-  for (const key of fields) {
-    if (key in result) {
-      const val = result[key];
-      if (typeof val === 'string') {
-        const num = Number(val);
-        if (!isNaN(num)) {
-          (result as any)[key] = num;
-        } else {
-          // Non-numeric string (e.g. "custom") — remove so Zod default kicks in
-          delete (result as any)[key];
-        }
-      } else if (typeof val === 'number' && isNaN(val)) {
-        // Already NaN — remove so Zod default kicks in
-        delete (result as any)[key];
-      }
-    }
-  }
-  return result;
-}
-
-/**
- * The frontend store uses `size: 'small' | 'medium' | 'large' | 'custom'` (preset selector)
- * and `customSize: number` (actual percentage). The manifest schema expects `size` as a number.
- * If the DB has a non-numeric `size`, use `customSize` as the numeric value instead.
- */
-function normalizePipSize(pip: Record<string, unknown>): Record<string, unknown> {
-  if (typeof pip.size === 'string' && isNaN(Number(pip.size))) {
-    const customSize = typeof pip.customSize === 'number' ? pip.customSize : 25;
-    return { ...pip, size: customSize };
-  }
-  return pip;
-}
-
-/**
  * Data structures matching what the DB returns.
  * These mirror the Drizzle schema shapes without importing Drizzle.
  */
@@ -78,7 +39,7 @@ export interface DbToManifestInput {
   canvasHeight?: number;
 }
 
-// ---- Transform helpers (same logic as manifest-migrate.ts) ----
+// ---- Transform helpers ----
 
 const FULLSCREEN_TRANSFORM: TransformV2 = {
   x: 0,
@@ -88,78 +49,6 @@ const FULLSCREEN_TRANSFORM: TransformV2 = {
   rotation: 0,
   opacity: 1,
 };
-
-function computePipTransformFromDb(pip: Record<string, unknown>): TransformV2 {
-  const size = (pip.size as number) || 25;
-  const offsetX = (pip.offsetX as number) || 0;
-  const offsetY = (pip.offsetY as number) || 0;
-  const position = (pip.position as string) || 'bottom-right';
-  const rotation = (pip.rotation as number) || 0;
-  const opacity = (pip.opacity as number) ?? 1;
-
-  let x: string;
-  let y: string;
-
-  switch (position) {
-    case 'top-left':
-      x = `${offsetX}%`;
-      y = `${offsetY}%`;
-      break;
-    case 'top-right':
-      x = `${100 - size - offsetX}%`;
-      y = `${offsetY}%`;
-      break;
-    case 'bottom-left':
-      x = `${offsetX}%`;
-      y = `${100 - size - offsetY}%`;
-      break;
-    case 'bottom-right':
-    default:
-      x = `${100 - size - offsetX}%`;
-      y = `${100 - size - offsetY}%`;
-      break;
-  }
-
-  return { x, y, width: `${size}%`, height: `${size}%`, rotation, opacity };
-}
-
-function computeStackedTransformFromDb(
-  layoutSettings: Record<string, unknown>,
-  isVideo: boolean,
-): TransformV2 {
-  const split = (layoutSettings.split as Record<string, unknown>) || {};
-  const ratio = (split.ratio as number) || 50;
-  const position = (split.position as string) || 'visuals-first';
-  const gap = (split.gap as number) || 0;
-  const halfGap = gap / 2;
-
-  const firstPct = ratio;
-  const secondPct = 100 - ratio;
-
-  const isFirst =
-    (position === 'video-first' && isVideo) ||
-    (position === 'visuals-first' && !isVideo);
-
-  if (isFirst) {
-    return {
-      x: 0,
-      y: 0,
-      width: '100%',
-      height: `${firstPct - halfGap}%`,
-      rotation: 0,
-      opacity: 1,
-    };
-  } else {
-    return {
-      x: 0,
-      y: `${firstPct + halfGap}%`,
-      width: '100%',
-      height: `${secondPct - halfGap}%`,
-      rotation: 0,
-      opacity: 1,
-    };
-  }
-}
 
 /** Map DB track type → v2 manifest track type */
 function mapDbTrackType(dbType: string): ManifestTrackV2['type'] {
