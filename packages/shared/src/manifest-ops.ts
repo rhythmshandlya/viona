@@ -61,6 +61,11 @@ export const manifestOpSchema = z.discriminatedUnion('op', [
     op: z.literal('update_video_settings'),
     updates: z.record(z.string(), z.unknown()),
   }),
+  z.object({
+    op: z.literal('update_transform'),
+    itemId: z.string(),
+    transform: z.record(z.string(), z.union([z.number(), z.string()])),
+  }),
 ]);
 
 export type ManifestOp = z.infer<typeof manifestOpSchema>;
@@ -171,6 +176,14 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
 
     case 'update_video_settings': {
       m.videoSettings = { ...m.videoSettings, ...op.updates } as any;
+      break;
+    }
+
+    case 'update_transform': {
+      const item = m.items.find((i: any) => i.id === op.itemId);
+      if (item) {
+        (item as any).transform = { ...((item as any).transform || {}), ...op.transform };
+      }
       break;
     }
   }
