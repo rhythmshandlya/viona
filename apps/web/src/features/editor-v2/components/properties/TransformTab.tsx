@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { NumberInput } from './NumberInput';
 import { KeyframeToggle } from './KeyframeToggle';
 import { useEditorStore } from '../../store/use-editor-store';
@@ -21,6 +21,14 @@ const DEFAULT_TRANSFORM: Transform = {
 
 type TransformKey = keyof Transform;
 
+function debounce<T extends (...args: any[]) => void>(fn: T, ms: number): T {
+  let timer: ReturnType<typeof setTimeout>;
+  return ((...args: any[]) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  }) as T;
+}
+
 /** Parse a number value that might be a string like "100%" */
 function numVal(v: number | string): number {
   return typeof v === 'number' ? v : parseFloat(v) || 0;
@@ -33,6 +41,12 @@ export const TransformTab: React.FC<TransformTabProps> = ({ item }) => {
 
   // Track which properties have keyframe mode active
   const [keyframeModes, setKeyframeModes] = useState<Record<string, boolean>>({});
+
+  const debouncedUpdate = useRef(
+    debounce((itemId: string, prop: string, value: number) => {
+      store.updateTransform(itemId, { [prop]: value });
+    }, 300)
+  ).current;
 
   const toggleKeyframeMode = useCallback((prop: string) => {
     setKeyframeModes((prev) => ({ ...prev, [prop]: !prev[prop] }));
@@ -48,10 +62,10 @@ export const TransformTab: React.FC<TransformTabProps> = ({ item }) => {
       if (keyframeModes[prop]) {
         store.addKeyframeAtTime(item.id, store.currentTimeMs, { [prop]: value });
       } else {
-        store.updateTransform(item.id, { [prop]: value });
+        debouncedUpdate(item.id, prop, value);
       }
     },
-    [store, item.id, keyframeModes],
+    [store, item.id, keyframeModes, debouncedUpdate],
   );
 
   const renderRow = (label: string, prop: TransformKey, opts: { min?: number; max?: number; step?: number; unit?: string }) => (

@@ -21,12 +21,13 @@ interface DragState {
   startY: number;
   startW: number;
   startH: number;
+  scale: number;
 }
 
 // --- Constants ---
 
-const HANDLE_SIZE = 8;
-const HANDLE_HIT_AREA = 20;
+const HANDLE_SIZE = 10;
+const HANDLE_HIT_AREA = 24;
 const ACCENT = '#a855f7';
 const HANDLE_POSITIONS: HandlePosition[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
 
@@ -128,6 +129,7 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
       startY: itemY,
       startW: itemW,
       startH: itemH,
+      scale: getScale(),
     };
     setIsDragging(true);
     setOffset({ dx: 0, dy: 0, dw: 0, dh: 0 });
@@ -147,7 +149,6 @@ export function ItemDragOverlay({ containerRef, canvasWidth, canvasHeight }: Ite
       dragRef={dragRef}
       setOffset={setOffset}
       setIsDragging={setIsDragging}
-      getScale={getScale}
       handleMouseDown={handleMouseDown}
     />
   );
@@ -167,7 +168,6 @@ interface ItemDragOverlayInnerProps {
   dragRef: React.MutableRefObject<DragState | null>;
   setOffset: React.Dispatch<React.SetStateAction<{ dx: number; dy: number; dw: number; dh: number }>>;
   setIsDragging: React.Dispatch<React.SetStateAction<boolean>>;
-  getScale: () => number;
   handleMouseDown: (e: React.MouseEvent, mode: DragMode, handle?: HandlePosition) => void;
 }
 
@@ -184,10 +184,9 @@ function ItemDragOverlayInner({
   dragRef,
   setOffset,
   setIsDragging,
-  getScale,
   handleMouseDown,
 }: ItemDragOverlayInnerProps) {
-  const store = useEditorStore();
+  const updateTransform = useEditorStore((s) => s.updateTransform);
 
   // Window-level mousemove/mouseup during drag
   useEffect(() => {
@@ -197,7 +196,7 @@ function ItemDragOverlayInner({
       const drag = dragRef.current;
       if (!drag) return;
 
-      const scale = getScale();
+      const scale = drag.scale;
       const dx = (e.clientX - drag.startMouseX) / scale;
       const dy = (e.clientY - drag.startMouseY) / scale;
 
@@ -222,23 +221,21 @@ function ItemDragOverlayInner({
       const drag = dragRef.current;
       if (!drag) return;
 
-      const scale = getScale();
-      // We need the final mouse position, but we already have the offset state.
-      // Read current offset from the latest render. We'll commit based on drag state.
-      // Use the current offset values for commit.
       setOffset((currentOffset) => {
         const finalX = drag.startX + currentOffset.dx;
         const finalY = drag.startY + currentOffset.dy;
         const finalW = Math.max(10, drag.startW + currentOffset.dw);
         const finalH = Math.max(10, drag.startH + currentOffset.dh);
 
-        // Dispatch update_transform via store
-        store.updateTransform(selectedItemId, {
-          x: Math.round(finalX),
-          y: Math.round(finalY),
-          width: Math.round(finalW),
-          height: Math.round(finalH),
-        });
+        const updates: Record<string, number> = {};
+        if (Math.round(finalX) !== Math.round(drag.startX)) updates.x = Math.round(finalX);
+        if (Math.round(finalY) !== Math.round(drag.startY)) updates.y = Math.round(finalY);
+        if (Math.round(finalW) !== Math.round(drag.startW)) updates.width = Math.round(finalW);
+        if (Math.round(finalH) !== Math.round(drag.startH)) updates.height = Math.round(finalH);
+
+        if (Object.keys(updates).length > 0) {
+          updateTransform(selectedItemId, updates);
+        }
 
         return { dx: 0, dy: 0, dw: 0, dh: 0 };
       });
@@ -253,7 +250,7 @@ function ItemDragOverlayInner({
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, dragRef, setOffset, setIsDragging, getScale, store, selectedItemId, canvasWidth, canvasHeight]);
+  }, [isDragging, dragRef, setOffset, setIsDragging, updateTransform, selectedItemId, canvasWidth, canvasHeight]);
 
   return (
     <div
@@ -268,13 +265,34 @@ function ItemDragOverlayInner({
           top: displayY,
           width: displayW,
           height: displayH,
-          border: `1px solid ${ACCENT}`,
+          border: isDragging ? `2px solid ${ACCENT}` : `1px solid ${ACCENT}`,
+          boxShadow: isDragging ? '0 0 12px rgba(168, 85, 247, 0.4)' : 'none',
           cursor: 'move',
           pointerEvents: 'auto',
           boxSizing: 'border-box',
         }}
         onMouseDown={(e) => handleMouseDown(e, 'move')}
       />
+
+      {/* Dimension label during resize */}
+      {isDragging && dragRef.current?.mode === 'resize' && (
+        <div style={{
+          position: 'absolute',
+          left: displayX + displayW / 2,
+          top: displayY - 24,
+          transform: 'translateX(-50%)',
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          color: ACCENT,
+          fontSize: 11,
+          padding: '2px 6px',
+          borderRadius: 4,
+          whiteSpace: 'nowrap',
+          pointerEvents: 'none',
+          zIndex: 10,
+        }}>
+          {Math.round(displayW)} × {Math.round(displayH)}
+        </div>
+      )}
 
       {/* 8 resize handles */}
       {HANDLE_POSITIONS.map((handle) => {
