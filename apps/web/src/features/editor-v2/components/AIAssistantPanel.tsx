@@ -1409,13 +1409,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   useEffect(() => {
     if (historyLoaded && messages.length === 0 && !isStreaming && !autoGreetSent.current) {
       autoGreetSent.current = true;
-      sendMessage('[Start the conversation. Greet the user and offer to help.]', undefined, { hidden: true })
-        .catch(() => {
-          // Allow retry if the greet fails (e.g. server temporarily down)
-          autoGreetSent.current = false;
-        });
+
+      // Check for creative brief from upload flow
+      const brief = sessionStorage.getItem(`project-brief-${projectId}`);
+      if (brief) {
+        sessionStorage.removeItem(`project-brief-${projectId}`);
+        // Send the brief as the first user message — AI jumps straight to planning
+        sendMessage(brief, undefined, { hidden: false })
+          .catch(() => { autoGreetSent.current = false; });
+      } else {
+        // No brief — generic greet
+        sendMessage('[Start the conversation. Greet the user and offer to help.]', undefined, { hidden: true })
+          .catch(() => { autoGreetSent.current = false; });
+      }
     }
-  }, [historyLoaded, messages.length, isStreaming, sendMessage]);
+  }, [historyLoaded, messages.length, isStreaming, sendMessage, projectId]);
 
   // -----------------------------------------------------------------------
   // Reset (clear visuals + conversation, restart from scratch)
