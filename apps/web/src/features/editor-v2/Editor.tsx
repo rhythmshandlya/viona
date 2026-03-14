@@ -31,6 +31,7 @@ import { AIAssistantPanel } from './components/AIAssistantPanel';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
+import { AddItemToolbar } from './components/AddItemToolbar';
 import { Timeline } from './timeline/Timeline';
 import { AssetsPanel } from './panels/AssetsPanel';
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
@@ -774,6 +775,9 @@ export function Editor({ projectId }: EditorProps) {
             isComplete={visualsComplete}
             onCancel={handleCancelVisuals}
           />
+
+          {/* Add Item Toolbar */}
+          <AddItemToolbar />
 
           {/* Timeline */}
           <div style={{ height: timelineHeight }} className="flex-shrink-0 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
