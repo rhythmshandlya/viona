@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Loader2, MessageSquareText, Captions, Paintbrush, FolderOpen, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
@@ -22,18 +22,19 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
-import { StylePanel } from './panels/StylePanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { JobLogsPanel } from './components/JobLogsPanel';
-import { ExportModal } from './components/ExportModal';
-import { TransitionPickerModal } from './components/TransitionPickerModal';
-import { AIAssistantPanel } from './components/AIAssistantPanel';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
 import { AddItemToolbar } from './components/AddItemToolbar';
 import { Timeline } from './timeline/Timeline';
-import { AssetsPanel } from './panels/AssetsPanel';
+// Lazy-loaded panels and modals (heavy components, only one visible at a time)
+const AIAssistantPanel = lazy(() => import('./components/AIAssistantPanel').then(m => ({ default: m.AIAssistantPanel })));
+const StylePanel = lazy(() => import('./panels/StylePanel').then(m => ({ default: m.StylePanel })));
+const AssetsPanel = lazy(() => import('./panels/AssetsPanel').then(m => ({ default: m.AssetsPanel })));
+const ExportModal = lazy(() => import('./components/ExportModal').then(m => ({ default: m.ExportModal })));
+const TransitionPickerModal = lazy(() => import('./components/TransitionPickerModal').then(m => ({ default: m.TransitionPickerModal })));
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useJobWebSocket } from './hooks/use-job-websocket';
 import { useWorkspaceWS } from './hooks/use-workspace-ws';
@@ -642,11 +643,13 @@ export function Editor({ projectId }: EditorProps) {
               className="flex-shrink-0 overflow-hidden"
             >
               <ErrorBoundary name="AI Assistant">
-                <AIAssistantPanel
-                  projectId={project.id}
-                  onEditComplete={() => reloadVisuals(project.id)}
-                  className="w-[488px]"
-                />
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                  <AIAssistantPanel
+                    projectId={project.id}
+                    onEditComplete={() => reloadVisuals(project.id)}
+                    className="w-[488px]"
+                  />
+                </Suspense>
               </ErrorBoundary>
             </motion.div>
           )}
@@ -689,17 +692,21 @@ export function Editor({ projectId }: EditorProps) {
                   )}
                   {leftSidebarTab === 'style' && (
                     <ErrorBoundary name="Style Panel">
-                      <StylePanel />
+                      <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                        <StylePanel />
+                      </Suspense>
                     </ErrorBoundary>
                   )}
                   {leftSidebarTab === 'assets' && (
-                    <AssetsPanel
-                      onEditWithAI={() => {
-                        setLeftSidebarTab('agent');
-                        useEditorStore.setState({ aiEditRequested: true });
-                      }}
-                      onYouTubeClipAdded={handleYouTubeClipAdded}
-                    />
+                    <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                      <AssetsPanel
+                        onEditWithAI={() => {
+                          setLeftSidebarTab('agent');
+                          useEditorStore.setState({ aiEditRequested: true });
+                        }}
+                        onYouTubeClipAdded={handleYouTubeClipAdded}
+                      />
+                    </Suspense>
                   )}
                 </div>
               </div>
@@ -810,16 +817,20 @@ export function Editor({ projectId }: EditorProps) {
       />
 
       {/* Export Modal */}
-      <ExportModal
-        open={showExportModal}
-        onOpenChange={setShowExportModal}
-        projectId={project.id}
-        projectStatus={project.status}
-        hasOutputKey={!!project.outputKey}
-      />
+      <Suspense fallback={null}>
+        <ExportModal
+          open={showExportModal}
+          onOpenChange={setShowExportModal}
+          projectId={project.id}
+          projectStatus={project.status}
+          hasOutputKey={!!project.outputKey}
+        />
+      </Suspense>
 
       {/* Transition Picker Modal */}
-      <TransitionPickerModal />
+      <Suspense fallback={null}>
+        <TransitionPickerModal />
+      </Suspense>
     </div>
   );
 }
