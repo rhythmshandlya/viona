@@ -72,7 +72,7 @@ export async function buildOrchestratorOptions(
     systemPrompt,
     allowedTools: [
       'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
-      'WebSearch', 'WebFetch', 'Agent',
+      'WebSearch', 'WebFetch', 'Agent', 'Skill',
       ...MANIFEST_TOOL_NAMES,
       ...SCENE_TOOL_NAMES,
       ...RENDER_TOOL_NAMES,
@@ -84,7 +84,7 @@ export async function buildOrchestratorOptions(
         description: 'Writes Remotion .tsx scene files for animation sections.',
         prompt: injectContext(animatorPrompt, ctx),
         tools: [
-          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
           ...MANIFEST_TOOL_NAMES,
           ...SCENE_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,

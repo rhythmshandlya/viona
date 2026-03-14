@@ -103,6 +103,7 @@ export async function proxyPrompt(
       .header('Content-Type', 'text/event-stream')
       .header('Cache-Control', 'no-cache')
       .header('Connection', 'keep-alive')
+      .header('X-Accel-Buffering', 'no')
       .send(passthrough);
 
     if (res.body) {
@@ -183,6 +184,7 @@ export async function proxyPromptWithIntercept(
       .header('Content-Type', 'text/event-stream')
       .header('Cache-Control', 'no-cache')
       .header('Connection', 'keep-alive')
+      .header('X-Accel-Buffering', 'no')
       .send(passthrough);
 
     if (res.body) {

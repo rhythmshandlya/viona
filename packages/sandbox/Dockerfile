@@ -9,6 +9,9 @@ COPY packages/sandbox/tsconfig.json ./
 COPY packages/sandbox/src/ ./src/
 RUN npx tsc
 
+# Copy prompt .md files (tsc only compiles .ts, not .md)
+RUN mkdir -p dist/prompts && cp src/prompts/*.md dist/prompts/
+
 # Copy shared prompt modules from worker (available because build context is repo root)
 COPY packages/worker/src/prompts/shared/ /app/prompts/shared/
 
