@@ -178,6 +178,11 @@ export class CanvasRenderer {
       this.drawSplitLine(state);
     }
 
+    // Draw time tooltip and duration delta during resize
+    if (state.dragState?.type === 'resize-left' || state.dragState?.type === 'resize-right') {
+      this.drawResizeTooltip(state);
+    }
+
     // Draw playhead
     this.drawPlayhead(state);
   }
@@ -778,6 +783,73 @@ export class CanvasRenderer {
     ctx.strokeStyle = options.trackBorderColor;
     ctx.lineWidth = 1;
     ctx.strokeRect(x + width - handleSize / 2, handleY, handleSize, handleSize);
+  }
+
+  /**
+   * Draw time tooltip near cursor during resize drag, plus duration delta label
+   */
+  private drawResizeTooltip(state: RenderState): void {
+    const { ctx } = this;
+    const { dragState, viewport, items, dragPreviews } = state;
+    if (!dragState) return;
+
+    const cursorX = dragState.currentX;
+    const timeMs = Math.max(0, (cursorX + viewport.scrollX) / viewport.zoom);
+
+    // Time tooltip
+    this.drawTimeTooltip(ctx, cursorX, dragState.currentY - 20, timeMs);
+
+    // Duration delta label
+    const itemId = dragState.itemId;
+    if (itemId && items[itemId] && dragPreviews) {
+      const item = items[itemId];
+      const originalDuration = item.endMs - item.startMs;
+      const preview = dragPreviews.find((p) => p.itemId === itemId);
+      if (preview) {
+        const newDuration = preview.previewEndMs - preview.previewStartMs;
+        const deltaMs = newDuration - originalDuration;
+        const deltaS = (deltaMs / 1000).toFixed(1);
+        const deltaLabel = deltaMs >= 0 ? `+${deltaS}s` : `${deltaS}s`;
+
+        ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+        ctx.fillStyle = deltaMs >= 0 ? '#4ade80' : '#f87171';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(deltaLabel, cursorX, dragState.currentY - 32);
+      }
+    }
+  }
+
+  private drawTimeTooltip(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    timeMs: number,
+  ): void {
+    const minutes = Math.floor(timeMs / 60000);
+    const seconds = Math.floor((timeMs % 60000) / 1000);
+    const ms = Math.floor(timeMs % 1000);
+    const label = `${minutes}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
+
+    ctx.font = '11px Inter, system-ui, sans-serif';
+    const metrics = ctx.measureText(label);
+    const padding = 4;
+    const boxW = metrics.width + padding * 2;
+    const boxH = 18;
+    const boxX = x - boxW / 2;
+    const boxY = y - boxH - 6;
+
+    // Background
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.beginPath();
+    this.roundRect(boxX, boxY, boxW, boxH, 4);
+    ctx.fill();
+
+    // Text
+    ctx.fillStyle = '#ffffff';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x, boxY + boxH / 2);
   }
 
   /**
