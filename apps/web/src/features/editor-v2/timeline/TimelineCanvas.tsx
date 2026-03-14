@@ -201,7 +201,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMsRef.current,
+          currentTimeMs: currentTimeMsRef.current,
         });
 
         if (track) {
@@ -219,7 +219,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         items,
         itemIds,
         viewport,
-        currentTimeMsRef.current,
+        currentTimeMs: currentTimeMsRef.current,
       });
 
       const dragType = hitTester.getDragTypeFromHit(hit);
@@ -265,7 +265,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
             itemIds,
             selectedIds: hit.itemId && selectedIds.includes(hit.itemId) ? selectedIds : [hit.itemId!],
             viewport,
-            currentTimeMsRef.current,
+            currentTimeMs: currentTimeMsRef.current,
           });
           setDragPreviews(operation.previews);
         }
@@ -312,7 +312,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMsRef.current,
+          currentTimeMs: currentTimeMsRef.current,
         });
         setSplitHoveredItemId(hit.type === 'item' && hit.itemId ? hit.itemId : null);
         return;
@@ -325,7 +325,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMsRef.current,
+          currentTimeMs: currentTimeMsRef.current,
         });
         const cursor = hitTester.getCursorForHit(hit);
         if (canvasRef.current) {
@@ -383,7 +383,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
             itemIds,
             selectedIds,
             viewport,
-            currentTimeMsRef.current,
+            currentTimeMs: currentTimeMsRef.current,
           });
 
           if (operation) {
@@ -547,7 +547,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items: state.items,
           itemIds: state.itemIds,
           viewport,
-          currentTimeMsRef.current,
+          currentTimeMs: currentTimeMsRef.current,
         });
         const trackId = hitTrack?.id || findOrCreateTrack(state.tracks, trackType, state.addTrack);
 
@@ -593,7 +593,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         items,
         itemIds,
         viewport,
-        currentTimeMsRef.current,
+        currentTimeMs: currentTimeMsRef.current,
       });
 
       const timeMs = hitTester.xToTime(x, viewport);

@@ -12,7 +12,7 @@ import type {
   Manifest,
   ManifestItem,
   ManifestCaptionStyle,
-} from '@viona/shared/manifest';
+} from '@viona/shared';
 
 import type {
   Track,

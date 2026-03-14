@@ -1,4 +1,5 @@
 import type { RenderOptions } from '@viona/shared';
+import type { StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions } from '@viona/shared/queue-types';
 import { getSessionToken } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -121,8 +122,8 @@ export interface SeparateAudioResponse {
 }
 
 // StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions
-// are imported from @viona/shared
-export type { StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions } from '@viona/shared';
+// are imported from @viona/shared/queue-types
+export type { StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions } from '@viona/shared/queue-types';
 
 export interface GenerateVisualsResponse {
   jobId: string;

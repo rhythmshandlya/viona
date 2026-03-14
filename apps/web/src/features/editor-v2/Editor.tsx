@@ -752,7 +752,7 @@ export function Editor({ projectId }: EditorProps) {
 
             {/* Scene */}
             <ErrorBoundary name="Scene">
-              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} zoomLevel={zoomLevel} />
+              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
             </ErrorBoundary>
           </div>
 
