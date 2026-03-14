@@ -223,27 +223,19 @@ export async function generatePlayerComposition(projectId: string): Promise<void
 
   const scenes = await discoverScenes(projectId);
 
-  // Read manifest to determine caption font family for static import
+  // Read manifest once to discover fonts for static imports
   const manifestPath = getManifestPath(projectId);
   let captionFontFamily = 'Inter';
+  let textFontFamilies: string[] = [];
   try {
     const manifestJson = await readFile(manifestPath, 'utf-8');
     const manifest = JSON.parse(manifestJson);
     captionFontFamily = manifest.captionStyle?.fontFamily || 'Inter';
-  } catch {
-    // Manifest may not exist yet during initial codegen — default to Inter
-  }
-
-  // Collect fonts from text overlay items as well
-  let textFontFamilies: string[] = [];
-  try {
-    const manifestJson2 = await readFile(manifestPath, 'utf-8');
-    const manifest2 = JSON.parse(manifestJson2);
-    textFontFamilies = (manifest2.items || [])
+    textFontFamilies = (manifest.items || [])
       .filter((i: any) => i.type === 'text' && i.data?.fontFamily)
       .map((i: any) => i.data.fontFamily as string);
   } catch {
-    // ignore
+    // Manifest may not exist yet during initial codegen — default to Inter
   }
   const allFonts = [...new Set([captionFontFamily, ...textFontFamilies].filter(Boolean))];
 
@@ -311,6 +303,8 @@ const ItemRenderer: React.FC<{ item: any }> = ({ item }) => {
         <Video
           src={staticFile(d.src || '')}
           volume={d.volume ?? 1}
+          startFrom={d.startFrom ?? 0}
+          playbackRate={d.playbackRate ?? 1}
           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       );
