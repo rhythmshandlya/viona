@@ -6,7 +6,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, MessageSquareText, Captions, Paintbrush, PanelsTopLeft, FolderOpen, X } from 'lucide-react';
+import { Loader2, MessageSquareText, Captions, Paintbrush, FolderOpen, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -59,7 +59,7 @@ interface EditorProps {
 export function Editor({ projectId }: EditorProps) {
   // Layout state - simplified unified layout
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout' | 'assets' | 'agent'>('agent');
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'assets' | 'agent'>('agent');
 
   // Right panel state (settings/properties)
   const [panelOpen, setPanelOpen] = useState(false);
@@ -594,21 +594,6 @@ export function Editor({ projectId }: EditorProps) {
           </button>
           <button
             onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'layout') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('layout');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'layout' ? 'active' : ''}`}
-            title="Layout"
-          >
-            <PanelsTopLeft className="w-5 h-5" />
-            <span className="text-[11px]">Layout</span>
-          </button>
-          <button
-            onClick={() => {
               if (leftSidebarOpen && leftSidebarTab === 'assets') {
                 setLeftSidebarOpen(false);
               } else {
@@ -658,7 +643,6 @@ export function Editor({ projectId }: EditorProps) {
                   <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
                     {leftSidebarTab === 'captions' && 'Caption Settings'}
                     {leftSidebarTab === 'style' && 'Style Settings'}
-                    {leftSidebarTab === 'layout' && 'Layout Settings'}
                     {leftSidebarTab === 'assets' && 'Visual Assets'}
                   </h3>
                   <button
@@ -686,18 +670,6 @@ export function Editor({ projectId }: EditorProps) {
                     <ErrorBoundary name="Style Panel">
                       <StylePanel />
                     </ErrorBoundary>
-                  )}
-                  {leftSidebarTab === 'layout' && (
-                    <div className="px-4 pb-4">
-                      <RightPanel
-                        isOpen={true}
-                        activeTab="layout"
-                        onTabChange={handleTabChange}
-                        onClose={handleClosePanel}
-                        layout="stacked"
-                        embedded={true}
-                      />
-                    </div>
                   )}
                   {leftSidebarTab === 'assets' && (
                     <AssetsPanel

@@ -22,7 +22,6 @@ import {
   DEFAULT_FPS,
   DEFAULT_VIDEO_SETTINGS,
   DEFAULT_CAPTION_STYLE,
-  DEFAULT_LAYOUT_SETTINGS,
   CaptionItemData,
   CaptionWord,
   VideoItemData,
@@ -33,12 +32,6 @@ import {
   CaptionStyle,
   AnimationConfig,
   WordStyleOverrides,
-  LayoutSettings,
-  LayoutPresetId,
-  PiPSettings,
-  PiPCrop,
-  SplitSettings,
-  normalizeLayoutMode,
   OverlayZone,
   Transform,
   Keyframe,
@@ -152,10 +145,6 @@ const initialState: EditorState = {
   // Clipboard and split mode
   clipboard: null,
   splitMode: false,
-
-  // Layout settings — V2: optional, kept for v1 backward compat
-  layoutSettings: undefined,
-  layoutPresetId: undefined,
 
   // Scene selection for AI editing
   selectedSceneId: null,
@@ -703,23 +692,20 @@ export const useEditorStore = create<EditorStore>()(
 
         // --- Sandbox path (replaces workspace) ---
         const loadFromSandbox = async (): Promise<any> => {
-          try {
-            return await api.readSandboxManifest(projectId);
-          } catch (err) {
-            // Sandbox may not be running (page refresh, idle timeout, bookmark).
-            // Spin it up and retry.
-            console.warn('Sandbox manifest not available, creating sandbox...', err);
-            await api.createSandbox(projectId);
+          // Ensure sandbox is running first (idempotent — returns immediately if active)
+          const sandboxResult = await api.createSandbox(projectId);
+
+          if (sandboxResult.status !== 'ready') {
             // Poll until ready
             for (let i = 0; i < 60; i++) {
               await new Promise(r => setTimeout(r, 2000));
               const status = await api.getSandboxStatus(projectId);
-              if (status.status === 'ready') {
-                return await api.readSandboxManifest(projectId);
-              }
+              if (status.status === 'ready') break;
+              if (i === 59) throw new Error('Sandbox failed to start');
             }
-            throw new Error('Sandbox failed to start');
           }
+
+          return await api.readSandboxManifest(projectId);
         };
 
         const manifest = await loadFromSandbox();
@@ -759,8 +745,6 @@ export const useEditorStore = create<EditorStore>()(
           state.isLoading = false;
           state.currentTimeMs = 0;
           state.selectedIds = [];
-          state.layoutSettings = bridgeResult.layoutSettings;
-          state.layoutPresetId = bridgeResult.layoutPresetId as LayoutPresetId;
           state.sandboxStatus = 'ready';
           state.sandboxPreviewUrl = `${bundleBaseUrl}/player-composition.cjs.js`;
           state.sandboxBundleVersion = 1;
@@ -903,20 +887,6 @@ export const useEditorStore = create<EditorStore>()(
             state.project.status = apiProject.status;
           }
 
-          // Reload layout settings in case generation persisted a new layoutMode
-          const savedVideoSettings = (apiProject as any).videoSettings;
-          const savedLayoutSettings = savedVideoSettings?.layoutSettings;
-          if (savedLayoutSettings) {
-            state.layoutSettings = {
-              ...DEFAULT_LAYOUT_SETTINGS,
-              ...savedLayoutSettings,
-              // Normalize legacy layout mode values (split-horizontal → stacked)
-              mode: normalizeLayoutMode(savedLayoutSettings.mode || 'stacked'),
-              pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
-              split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
-            };
-          }
-
           // Don't reset playback position, selection, viewport, or history
         });
       } catch (err) {
@@ -964,7 +934,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     saveProject: async () => {
-      const { project, items, itemIds, layoutSettings, layoutPresetId } = get();
+      const { project, items, itemIds } = get();
       if (!project) return;
 
       set((state) => {
@@ -1085,11 +1055,8 @@ export const useEditorStore = create<EditorStore>()(
         const videoItemIds = videoItems.map((item) => item.id);
         const audioItemIds = audioItems.map((item) => item.id);
 
-        // Persist layout settings inside videoSettings JSONB
         const videoSettingsPayload = {
           ...project.videoSettings,
-          layoutSettings,
-          layoutPresetId,
         };
 
         await api.updateProject(project.id, {
@@ -2481,52 +2448,6 @@ export const useEditorStore = create<EditorStore>()(
       }
     },
 
-    // ========================================
-    // Layout Actions
-    // ========================================
-
-    // V2: updateLayoutSettings removed — layout is in AI-generated Composition.tsx
-
-    updatePiPSettings: (settings: Partial<PiPSettings>) => {
-      set((state) => {
-        if (!state.layoutSettings) return;
-        state.layoutSettings.pip = {
-          ...state.layoutSettings.pip,
-          ...settings,
-        };
-        state.layoutPresetId = 'custom';
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-    },
-
-    updatePiPCrop: (crop: Partial<PiPCrop>) => {
-      set((state) => {
-        if (!state.layoutSettings) return;
-        state.layoutSettings.pip.crop = {
-          ...state.layoutSettings.pip.crop,
-          ...crop,
-        };
-        state.layoutPresetId = 'custom';
-      });
-      debouncedSave(() => get().saveProject());
-    },
-
-    updateSplitSettings: (settings: Partial<SplitSettings>) => {
-      set((state) => {
-        if (!state.layoutSettings) return;
-        state.layoutSettings.split = {
-          ...state.layoutSettings.split,
-          ...settings,
-        };
-        state.layoutPresetId = 'custom';
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-    },
-
-    // V2: setLayoutPreset, setLayoutMode removed — layout is in AI-generated Composition.tsx
-
     // Scene selection for AI editing
     setSelectedScene: (sceneId: number | null) => {
       set((state) => {
@@ -2593,28 +2514,10 @@ export const useEditorStore = create<EditorStore>()(
       const oldDisplayMode = data.displayMode || 'default';
       if (oldDisplayMode === newDisplayMode) return;
 
-      const canvasWidth = state.project?.videoSettings.canvasWidth || 1080;
-      const canvasHeight = state.project?.videoSettings.canvasHeight || 1920;
-      const layoutMode = state.layoutSettings?.mode ?? 'stacked';
-      const splitRatio = state.layoutSettings?.split?.ratio ?? 50;
-      const splitGap = state.layoutSettings?.split?.gap ?? 0;
-
-      // Compute effective dimensions for a given display mode
-      const getEffectiveDims = (dm: VisualDisplayMode) => {
-        if (dm === 'fullscreen' || dm === 'overlay') {
-          return { w: canvasWidth, h: canvasHeight };
-        }
-        // 'default' mode depends on layout
-        if (layoutMode === 'pip') {
-          return { w: canvasWidth, h: canvasHeight };
-        }
-        // stacked mode
-        const visualH = Math.max(1, Math.round(canvasHeight * splitRatio / 100 - splitGap / 2));
-        return { w: canvasWidth, h: visualH };
-      };
-
-      const oldDims = getEffectiveDims(oldDisplayMode);
-      const newDims = getEffectiveDims(newDisplayMode);
+      const canvasW = state.project?.videoSettings?.canvasWidth || 1080;
+      const canvasH = state.project?.videoSettings?.canvasHeight || 1920;
+      const newDims = { w: canvasW, h: canvasH };
+      const oldDims = { w: canvasW, h: canvasH };
 
       // Capture timing before mutating state
       const { startMs, endMs } = item;
@@ -2630,9 +2533,7 @@ export const useEditorStore = create<EditorStore>()(
 
       // Build human-readable mode labels
       const modeLabel = (dm: VisualDisplayMode): string => {
-        if (dm === 'default') {
-          return layoutMode === 'pip' ? 'Standard (PiP)' : 'Standard (stacked)';
-        }
+        if (dm === 'default') return 'Standard';
         return dm === 'fullscreen' ? 'Fullscreen' : 'Overlay';
       };
 
@@ -2643,7 +2544,7 @@ export const useEditorStore = create<EditorStore>()(
       } else if (newDisplayMode === 'overlay') {
         suffix = "Since this is now overlay mode, the visual will be composited over the speaker video with reduced opacity \u2014 position elements to avoid the center where the speaker's face is.";
       } else {
-        suffix = `Since this is now standard mode, the visual occupies ${newDims.w}\u00d7${newDims.h} alongside the speaker video in ${layoutMode} layout.`;
+        suffix = `Since this is now standard mode, the visual occupies ${newDims.w}\u00d7${newDims.h} alongside the speaker video.`;
       }
 
       const prompt = `The display mode for this scene was changed from "${modeLabel(oldDisplayMode)}" to "${modeLabel(newDisplayMode)}". The effective viewport changed from ${oldDims.w}\u00d7${oldDims.h} to ${newDims.w}\u00d7${newDims.h}. Please adapt the scene's layout, sizing, and positioning to properly fill the new ${newDims.w}\u00d7${newDims.h} viewport. ${suffix}`;
@@ -2749,7 +2650,6 @@ export const useEditorStore = create<EditorStore>()(
         s.items = bridgeResult.items;
         s.itemIds = bridgeResult.itemIds;
         s.duration = bridgeResult.duration;
-        s.layoutSettings = bridgeResult.layoutSettings;
       });
 
       // Also store the raw manifest

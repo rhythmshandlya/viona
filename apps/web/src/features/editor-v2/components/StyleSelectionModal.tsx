@@ -15,10 +15,9 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
-import type { StylePreset, GenerateVisualsOptions, VisualsLayoutMode } from '@/lib/api';
-import { Sparkles, AlertTriangle, Rows, PictureInPicture } from 'lucide-react';
+import type { StylePreset, GenerateVisualsOptions } from '@/lib/api';
+import { Sparkles, AlertTriangle } from 'lucide-react';
 
 interface StyleOption {
   id: StylePreset;
@@ -80,23 +79,6 @@ interface StyleSelectionModalProps {
   canvasHeight?: number; // From project settings
 }
 
-// Calculate visuals dimensions based on layout
-function calculateVisualsDimensions(
-  canvasWidth: number,
-  canvasHeight: number,
-  layoutMode: VisualsLayoutMode,
-  splitRatio: number
-): { width: number; height: number } {
-  if (layoutMode === 'pip') {
-    // PiP: visuals take full canvas
-    return { width: canvasWidth, height: canvasHeight };
-  } else {
-    // Stacked: visuals get top portion based on ratio
-    const visualsHeight = Math.round(canvasHeight * (splitRatio / 100));
-    return { width: canvasWidth, height: visualsHeight };
-  }
-}
-
 export function StyleSelectionModal({
   open,
   onOpenChange,
@@ -114,15 +96,13 @@ export function StyleSelectionModal({
   canvasHeight = 1920,
 }: StyleSelectionModalProps) {
   const [selectedStyle, setSelectedStyle] = useState<StylePreset>('studio-dark');
-  const [layoutMode, setLayoutMode] = useState<VisualsLayoutMode>('stacked');
-  const [splitRatio, setSplitRatio] = useState(50); // Percentage for visuals
   const [styleGuide, setStyleGuide] = useState('');
-  const dimensions = calculateVisualsDimensions(canvasWidth, canvasHeight, layoutMode, splitRatio);
+  const dimensions = { width: canvasWidth, height: canvasHeight };
 
   const handleGenerate = () => {
     onSelect({
       stylePreset: selectedStyle,
-      layoutMode,
+      layoutMode: 'stacked',  // V1 layout mode removed from UI; default to stacked for API compat
       dimensions,
       styleGuide: styleGuide.trim() || undefined,
     });
@@ -317,88 +297,6 @@ export function StyleSelectionModal({
 
         {/* Scrollable content area */}
         <div className="flex-1 overflow-y-auto pr-2 -mr-2">
-          {/* Layout Selection */}
-          <div className="space-y-3 py-2">
-            <label className="text-sm font-medium text-gray-700">Layout Mode</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              onClick={() => setLayoutMode('pip')}
-              disabled={isLoading}
-              className={cn(
-                'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
-                layoutMode === 'pip'
-                  ? 'border-violet-500 bg-violet-50'
-                  : 'border-gray-200 bg-gray-50 hover:border-gray-300',
-                isLoading && 'opacity-50 cursor-not-allowed'
-              )}
-            >
-              <PictureInPicture className={cn(
-                'w-6 h-6',
-                layoutMode === 'pip' ? 'text-violet-500' : 'text-gray-400'
-              )} />
-              <div className="text-left">
-                <p className={cn(
-                  'font-medium text-sm',
-                  layoutMode === 'pip' ? 'text-violet-700' : 'text-gray-900'
-                )}>
-                  Picture-in-Picture
-                </p>
-                <p className="text-xs text-gray-500">
-                  Full-screen visuals, video overlay
-                </p>
-              </div>
-            </button>
-            <button
-              onClick={() => setLayoutMode('stacked')}
-              disabled={isLoading}
-              className={cn(
-                'flex items-center gap-3 p-4 rounded-lg border-2 transition-all',
-                layoutMode === 'stacked'
-                  ? 'border-violet-500 bg-violet-50'
-                  : 'border-gray-200 bg-gray-50 hover:border-gray-300',
-                isLoading && 'opacity-50 cursor-not-allowed'
-              )}
-            >
-              <Rows className={cn(
-                'w-6 h-6',
-                layoutMode === 'stacked' ? 'text-violet-500' : 'text-gray-400'
-              )} />
-              <div className="text-left">
-                <p className={cn(
-                  'font-medium text-sm',
-                  layoutMode === 'stacked' ? 'text-violet-700' : 'text-gray-900'
-                )}>
-                  Stacked
-                </p>
-                <p className="text-xs text-gray-500">
-                  Visuals top, video bottom
-                </p>
-              </div>
-            </button>
-          </div>
-
-          {/* Split ratio slider - only show for split mode */}
-          {layoutMode === 'stacked' && (
-            <div className="space-y-2 pt-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Split Ratio</span>
-                <span className="text-gray-700">{splitRatio}% visuals / {100 - splitRatio}% video</span>
-              </div>
-              <Slider
-                value={[splitRatio]}
-                min={30}
-                max={70}
-                step={10}
-                onValueChange={([v]) => setSplitRatio(v)}
-                disabled={isLoading}
-              />
-              <p className="text-xs text-gray-500">
-                Visuals: {dimensions.width}x{dimensions.height}px
-              </p>
-            </div>
-          )}
-        </div>
-
         {/* Style Selection */}
         <div className="space-y-3 py-2 border-t border-gray-200">
           <label className="text-sm font-medium text-gray-700">Visual Style</label>

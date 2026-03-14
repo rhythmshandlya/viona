@@ -513,10 +513,6 @@ export function useEditorActions() {
       mergeCaptions: state.mergeCaptions,
       updateCaptionText: state.updateCaptionText,
 
-      // Layout (v1 compat — PiP/Split still used by some components)
-      updatePiPSettings: state.updatePiPSettings,
-      updateSplitSettings: state.updateSplitSettings,
-
       // Scene selection
       setSelectedScene: state.setSelectedScene,
       setSelectedTimeRange: state.setSelectedTimeRange,

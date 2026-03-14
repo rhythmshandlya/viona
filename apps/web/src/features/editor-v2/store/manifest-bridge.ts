@@ -12,15 +12,12 @@ import type {
   Manifest,
   ManifestItem,
   ManifestCaptionStyle,
-  ManifestLayout,
 } from '@viona/shared/manifest';
 
 import type {
   Track,
   TimelineItem,
   VideoSettings,
-  LayoutSettings,
-  LayoutPresetId,
   CaptionStyle,
   CaptionItemData,
   VideoItemData,
@@ -41,8 +38,6 @@ import type {
 } from './types';
 
 import {
-  DEFAULT_PIP_SETTINGS,
-  DEFAULT_SPLIT_SETTINGS,
   DEFAULT_CAPTION_STYLE,
 } from './types';
 
@@ -70,15 +65,12 @@ export interface ManifestToStoreResult {
   duration: number;
   fps: number;
   videoSettings: VideoSettings;
-  layoutSettings: LayoutSettings;
-  layoutPresetId: LayoutPresetId;
 }
 
 export type StoreManifestOp =
   | { op: 'update_item'; itemId: string; updates: { startMs?: number; endMs?: number; trackId?: string } }
   | { op: 'update_item_data'; itemId: string; dataUpdates: Record<string, unknown> }
   | { op: 'delete_item'; itemId: string }
-  | { op: 'set_layout'; layout: Record<string, unknown> }
   | { op: 'set_display_mode'; itemId: string; displayMode: 'default' | 'fullscreen' | 'overlay' }
   | { op: 'set_transition'; itemId: string; enter?: { type: string; durationMs: number }; exit?: { type: string; durationMs: number } }
   | { op: 'move_item'; itemId: string; startMs: number; endMs: number }
@@ -150,10 +142,6 @@ export function manifestToStore(
         scale: manifest.videoSettings.scale,
       };
 
-  const layoutSettings = isV2
-    ? {} as any
-    : convertManifestLayout(manifest.layout);
-
   return {
     tracks,
     items,
@@ -161,8 +149,6 @@ export function manifestToStore(
     duration: manifest.durationMs,
     fps: manifest.fps,
     videoSettings,
-    layoutSettings,
-    layoutPresetId: 'custom' as LayoutPresetId,
   };
 }
 
@@ -178,7 +164,6 @@ export function storeToManifest(
     duration: number;
     fps: number;
     videoSettings: VideoSettings;
-    layoutSettings?: LayoutSettings;
     assets?: Record<string, string>;
   },
   captionStyle: CaptionStyle,
@@ -260,34 +245,6 @@ export function storeToManifest(
       sourceHeight: 1080,
     },
   };
-
-  // Include layout if present (v1 backward compat)
-  if (state.layoutSettings) {
-    manifest.layout = {
-      mode: state.layoutSettings.mode,
-      pip: {
-        position: state.layoutSettings.pip.position,
-        offsetX: state.layoutSettings.pip.offsetX,
-        offsetY: state.layoutSettings.pip.offsetY,
-        size: state.layoutSettings.pip.customSize,
-        shape: state.layoutSettings.pip.shape,
-        borderRadius: state.layoutSettings.pip.borderRadius,
-        rotation: state.layoutSettings.pip.rotation,
-        borderWidth: state.layoutSettings.pip.borderWidth,
-        borderColor: state.layoutSettings.pip.borderColor,
-        shadowEnabled: state.layoutSettings.pip.shadowEnabled,
-        shadowColor: state.layoutSettings.pip.shadowColor,
-        shadowBlur: state.layoutSettings.pip.shadowBlur,
-        opacity: state.layoutSettings.pip.opacity,
-        crop: state.layoutSettings.pip.crop,
-      },
-      split: {
-        position: state.layoutSettings.split.position,
-        ratio: state.layoutSettings.split.ratio,
-        gap: state.layoutSettings.split.gap,
-      },
-    };
-  }
 
   return manifest;
 }
@@ -804,36 +761,3 @@ function convertManifestCaptionStyle(mcs: ManifestCaptionStyle): CaptionStyle {
   };
 }
 
-function convertManifestLayout(ml: ManifestLayout): LayoutSettings {
-  return {
-    mode: ml.mode as LayoutSettings['mode'],
-    pip: {
-      position: (ml.pip.position as any) || DEFAULT_PIP_SETTINGS.position,
-      offsetX: ml.pip.offsetX ?? DEFAULT_PIP_SETTINGS.offsetX,
-      offsetY: ml.pip.offsetY ?? DEFAULT_PIP_SETTINGS.offsetY,
-      size: 'custom',
-      customSize: ml.pip.size ?? DEFAULT_PIP_SETTINGS.customSize,
-      shape: (ml.pip.shape as any) || DEFAULT_PIP_SETTINGS.shape,
-      borderRadius: ml.pip.borderRadius ?? DEFAULT_PIP_SETTINGS.borderRadius,
-      rotation: ml.pip.rotation ?? DEFAULT_PIP_SETTINGS.rotation,
-      borderWidth: ml.pip.borderWidth ?? DEFAULT_PIP_SETTINGS.borderWidth,
-      borderColor: ml.pip.borderColor || DEFAULT_PIP_SETTINGS.borderColor,
-      shadowEnabled: ml.pip.shadowEnabled ?? DEFAULT_PIP_SETTINGS.shadowEnabled,
-      shadowColor: ml.pip.shadowColor || DEFAULT_PIP_SETTINGS.shadowColor,
-      shadowBlur: ml.pip.shadowBlur ?? DEFAULT_PIP_SETTINGS.shadowBlur,
-      opacity: ml.pip.opacity ?? DEFAULT_PIP_SETTINGS.opacity,
-      crop: ml.pip.crop
-        ? {
-            cropX: ml.pip.crop.cropX ?? 50,
-            cropY: ml.pip.crop.cropY ?? 50,
-            zoom: ml.pip.crop.zoom ?? 1,
-          }
-        : DEFAULT_PIP_SETTINGS.crop,
-    },
-    split: {
-      position: (ml.split.position as any) || DEFAULT_SPLIT_SETTINGS.position,
-      ratio: ml.split.ratio ?? DEFAULT_SPLIT_SETTINGS.ratio,
-      gap: ml.split.gap ?? DEFAULT_SPLIT_SETTINGS.gap,
-    },
-  };
-}
