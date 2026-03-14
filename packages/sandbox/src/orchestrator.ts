@@ -5,7 +5,12 @@
 // to the caller via callbacks.
 
 import { query, type SDKPartialAssistantMessage, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { BetaRawContentBlockDeltaEvent } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs';
+
+// Inline type — avoids importing from @anthropic-ai/sdk which may not be directly installed
+interface ContentBlockDeltaEvent {
+  type: 'content_block_delta';
+  delta: { type: string; text?: string };
+}
 import { loadPrompt, loadPromptWithShared, injectContext, type PromptContext } from './prompts/prompt-loader.js';
 import { allManifestTools } from './tools/manifest-ops.js';
 import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js';
@@ -182,7 +187,7 @@ export async function runOrchestrator(
 
       if (message.type === 'stream_event') {
         const partial = message as SDKPartialAssistantMessage;
-        const evt = partial.event as BetaRawContentBlockDeltaEvent;
+        const evt = partial.event as ContentBlockDeltaEvent;
 
         if (evt?.type === 'content_block_delta') {
           const delta = evt.delta as { type: string; text?: string };
