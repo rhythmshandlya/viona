@@ -307,6 +307,8 @@ function ProjectCard({
 function UploadZone({
   projectName,
   onProjectNameChange,
+  description,
+  onDescriptionChange,
   onFileDrop,
   uploadState,
   progress,
@@ -317,6 +319,8 @@ function UploadZone({
 }: {
   projectName: string;
   onProjectNameChange: (name: string) => void;
+  description: string;
+  onDescriptionChange: (desc: string) => void;
   onFileDrop: (file: File) => void;
   uploadState: UploadState;
   progress: number;
@@ -371,6 +375,18 @@ function UploadZone({
           onChange={(e) => onProjectNameChange(e.target.value)}
           placeholder="Untitled Project"
           className="text-lg h-12 bg-background border-border/50 focus:border-primary"
+          disabled={uploadState === "complete"}
+        />
+      </div>
+
+      {/* Creative Brief */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-muted-foreground">Creative brief <span className="text-muted-foreground/50">(optional)</span></label>
+        <textarea
+          value={description}
+          onChange={(e) => onDescriptionChange(e.target.value)}
+          placeholder="Describe your vision — what style, mood, and scenes you want. Or leave blank and chat with AI after upload."
+          className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-border/50 bg-background focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
           disabled={uploadState === "complete"}
         />
       </div>
@@ -609,12 +625,14 @@ function NewProjectModal({
 }) {
   const router = useRouter();
   const [projectName, setProjectName] = useState("");
+  const [description, setDescription] = useState("");
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const resetState = () => {
     setProjectName("");
+    setDescription("");
     setUploadState("idle");
     setProgress(0);
     setStatusMessage("");
@@ -630,7 +648,10 @@ function NewProjectModal({
 
       try {
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
-        const { projectId } = await api.createProject(file.name, title);
+        const { projectId } = await api.createProject(file.name, title, description);
+        if (description.trim()) {
+          sessionStorage.setItem(`project-brief-${projectId}`, description.trim());
+        }
         setStatusMessage("Uploading video...");
 
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
@@ -668,7 +689,7 @@ function NewProjectModal({
         setError(err instanceof Error ? err.message : "Upload failed");
       }
     },
-    [projectName, router, onOpenChange]
+    [projectName, description, router, onOpenChange]
   );
 
   const handleClose = (open: boolean) => {
@@ -687,6 +708,8 @@ function NewProjectModal({
         <UploadZone
           projectName={projectName}
           onProjectNameChange={setProjectName}
+          description={description}
+          onDescriptionChange={setDescription}
           onFileDrop={handleFileDrop}
           uploadState={uploadState}
           progress={progress}
@@ -706,12 +729,14 @@ function NewProjectModal({
 function EmptyState() {
   const router = useRouter();
   const [projectName, setProjectName] = useState("");
+  const [description, setDescription] = useState("");
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
   const resetState = () => {
     setProjectName("");
+    setDescription("");
     setUploadState("idle");
     setProgress(0);
     setStatusMessage("");
@@ -727,7 +752,10 @@ function EmptyState() {
 
       try {
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
-        const { projectId } = await api.createProject(file.name, title);
+        const { projectId } = await api.createProject(file.name, title, description);
+        if (description.trim()) {
+          sessionStorage.setItem(`project-brief-${projectId}`, description.trim());
+        }
         setStatusMessage("Uploading video...");
 
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
@@ -764,7 +792,7 @@ function EmptyState() {
         setError(err instanceof Error ? err.message : "Upload failed");
       }
     },
-    [projectName, router]
+    [projectName, description, router]
   );
 
   return (
@@ -787,6 +815,8 @@ function EmptyState() {
         <UploadZone
           projectName={projectName}
           onProjectNameChange={setProjectName}
+          description={description}
+          onDescriptionChange={setDescription}
           onFileDrop={handleFileDrop}
           uploadState={uploadState}
           progress={progress}

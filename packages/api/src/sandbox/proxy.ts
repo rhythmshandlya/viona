@@ -103,6 +103,7 @@ export async function proxyPrompt(
       .header('Content-Type', 'text/event-stream')
       .header('Cache-Control', 'no-cache')
       .header('Connection', 'keep-alive')
+      .header('X-Accel-Buffering', 'no')
       .send(passthrough);
 
     if (res.body) {
@@ -127,6 +128,152 @@ export async function proxyPrompt(
       reply.status(502).send({ error: 'Sandbox agent unavailable' });
     }
   }
+}
+
+/**
+ * Callbacks for intercepting SSE events as they flow through to the browser.
+ * Used by the agent router to persist conversation messages in the DB.
+ */
+export interface InterceptCallbacks {
+  onText?: (text: string) => void;
+  onDone?: (data: { sessionId?: string; cost?: number }) => Promise<void>;
+  onWidget?: (widget: Record<string, unknown>) => void;
+  onError?: (error: string) => void;
+}
+
+/**
+ * Forward a prompt to the sandbox agent server with SSE event interception.
+ * Same streaming pattern as proxyPrompt, but also parses SSE events and
+ * calls the appropriate callback for DB persistence. The raw SSE data
+ * flows to the browser unchanged.
+ */
+export async function proxyPromptWithIntercept(
+  agentUrl: string,
+  secret: string,
+  body: {
+    prompt: string;
+    conversationHistory: Array<{ role: string; content: string }>;
+    projectContext: Record<string, unknown>;
+    sessionId?: string | null;
+    widgetResponse?: { widgetId: string; value: unknown };
+    editingContext?: { type: string; itemId?: string; sceneId?: number };
+  },
+  reply: FastifyReply,
+  callbacks: InterceptCallbacks,
+): Promise<void> {
+  const url = `${agentUrl}/prompt`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${secret}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      reply.status(res.status).send({ error: `Agent returned ${res.status}` });
+      return;
+    }
+
+    const passthrough = new PassThrough();
+
+    reply
+      .header('Content-Type', 'text/event-stream')
+      .header('Cache-Control', 'no-cache')
+      .header('Connection', 'keep-alive')
+      .header('X-Accel-Buffering', 'no')
+      .send(passthrough);
+
+    if (res.body) {
+      const reader = (res.body as ReadableStream).getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          // Write raw chunk to browser immediately
+          passthrough.write(chunk);
+
+          // Buffer and parse SSE events for interception
+          buffer += chunk;
+          const events = buffer.split('\n\n');
+          // Last element is incomplete — keep it in the buffer
+          buffer = events.pop() || '';
+
+          for (const raw of events) {
+            if (!raw.trim()) continue;
+            try {
+              let eventType = 'message';
+              let dataStr = '';
+
+              for (const line of raw.split('\n')) {
+                if (line.startsWith('event:')) {
+                  eventType = line.slice(6).trim();
+                } else if (line.startsWith('data:')) {
+                  dataStr += line.slice(5).trim();
+                }
+              }
+
+              if (!dataStr) continue;
+              const data = JSON.parse(dataStr);
+
+              switch (eventType) {
+                case 'text':
+                  callbacks.onText?.(data.text ?? data);
+                  break;
+                case 'done':
+                  // onDone is async (DB write) — fire and forget so we don't block the stream
+                  callbacks.onDone?.(data).catch((err) =>
+                    logger.error({ err }, 'InterceptCallbacks.onDone failed'),
+                  );
+                  break;
+                case 'widget':
+                  callbacks.onWidget?.(data);
+                  break;
+                case 'error':
+                  callbacks.onError?.(data.message ?? data.error ?? String(data));
+                  break;
+              }
+            } catch {
+              // Non-JSON or malformed event — ignore, data still flows to browser
+            }
+          }
+        }
+      } finally {
+        passthrough.end();
+      }
+    } else {
+      passthrough.end();
+    }
+  } catch (err: any) {
+    logger.error({ err, url }, 'Prompt proxy (intercept) failed');
+    if (!reply.sent) {
+      reply.status(502).send({ error: 'Sandbox agent unavailable' });
+    }
+  }
+}
+
+/**
+ * Send a cancel request to the sandbox agent.
+ */
+export async function proxyCancelAgent(
+  agentUrl: string,
+  secret: string,
+): Promise<void> {
+  await fetch(`${agentUrl}/cancel`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${secret}`,
+      'Content-Type': 'application/json',
+    },
+  });
 }
 
 /**

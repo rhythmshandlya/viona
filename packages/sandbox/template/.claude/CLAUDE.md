@@ -1,3 +1,23 @@
+## Skill Loading Order
+
+### When planning (orchestrator mode):
+1. FIRST: editorial-planning (content type detection, edit plan format)
+2. SECOND: visual-treatment-guide (treatment selection decision tree)
+3. THIRD: narrative-structure (story arc, emotional pacing)
+4. FOURTH: transcript-analysis (sync points, filler detection)
+
+### When editing code (animator mode):
+1. FIRST: framer-motion (technique components)
+2. SECOND: motion-one (spring configs, timing)
+3. THIRD: video-engagement (hooks, retention, visual metaphors)
+4. REFERENCE: remotion-best-practices, graphic-designer, interaction-design
+
+### When researching (researcher mode):
+1. FIRST: screenshot-and-research (web research, screenshot framing)
+
+### When cutting (trimmer mode):
+1. FIRST: cutting-and-pacing (cut rules, retention rhythm)
+
 # Remotion Visual Generator
 
 ## Commands

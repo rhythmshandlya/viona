@@ -991,9 +991,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         };
 
         try {
-          const stream = await api.chatWithSandboxAgent(projectId, {
-            prompt: fullMessage,
-          }, controller.signal);
+          const stream = await api.chatWithAgent(projectId, {
+            message: fullMessage,
+            context: Object.keys(context).length > 0 ? context : undefined,
+            widgetResponse,
+          }, controller.signal, lastEventIdRef.current ?? undefined);
 
           for await (const event of parseSSEStream(stream, { signal: controller.signal, inactivityTimeoutMs: 90_000 })) {
             resetSafetyTimeout();
@@ -1018,6 +1020,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
         const isTimeout = err instanceof SSETimeoutError;
         console.error('Chat error:', isTimeout ? 'SSE stream timed out' : err);
+
+        // Check if error indicates sandbox needs booting
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        if ((errorMsg.includes('Sandbox') || errorMsg.includes('502')) && !sandboxBootAttempted.current) {
+          sandboxBootAttempted.current = true;
+          bootAndRetryRef.current?.(fullMessage, widgetResponse).catch(console.error);
+          return;
+        }
 
         // Try to recover by loading the latest conversation state from the server.
         // The backend may have completed successfully even though the stream dropped.
@@ -1106,6 +1116,55 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     },
     [projectId, aiContext, handleSSEEvent, reloadVisuals, selectedTimeRange, setSelectedTimeRange]
   );
+
+  // -----------------------------------------------------------------------
+  // Boot sandbox & retry message if sandbox was sleeping
+  // -----------------------------------------------------------------------
+
+  const bootAndRetry = useCallback(async (message: string, widgetResponse?: { widgetId: string; value: unknown }) => {
+    try {
+      // Show status to user
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant') {
+          return prev.map((m, i) => i === prev.length - 1
+            ? { ...m, content: [{ type: 'text' as const, text: 'Starting sandbox environment...' }] }
+            : m
+          );
+        }
+        return prev;
+      });
+
+      await api.createSandbox(projectId);
+
+      // Poll until ready (max 2 minutes)
+      let ready = false;
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const status = await api.getSandboxStatus(projectId);
+        if (status.status === 'ready') { ready = true; break; }
+      }
+      if (!ready) throw new Error('Sandbox failed to start within 2 minutes');
+
+      // Retry the message
+      sandboxBootAttempted.current = false;
+      await _executeMessage({ messageText: message, fullMessage: message, widgetResponse });
+    } catch (err) {
+      sandboxBootAttempted.current = false;
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant') {
+          return prev.map((m, i) => i === prev.length - 1
+            ? { ...m, content: [{ type: 'text' as const, text: 'Failed to start sandbox. Please try again.' }] }
+            : m
+          );
+        }
+        return prev;
+      });
+      setIsStreaming(false);
+    }
+  }, [projectId, _executeMessage]);
+  bootAndRetryRef.current = bootAndRetry;
 
   // -----------------------------------------------------------------------
   // Attachment helpers
@@ -1349,16 +1408,26 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -----------------------------------------------------------------------
 
   const autoGreetSent = useRef(false);
+  const sandboxBootAttempted = useRef(false);
+  const bootAndRetryRef = useRef<((message: string, widgetResponse?: { widgetId: string; value: unknown }) => Promise<void>) | null>(null);
   useEffect(() => {
     if (historyLoaded && messages.length === 0 && !isStreaming && !autoGreetSent.current) {
       autoGreetSent.current = true;
-      sendMessage('[Start the conversation. Greet the user and offer to help.]', undefined, { hidden: true })
-        .catch(() => {
-          // Allow retry if the greet fails (e.g. server temporarily down)
-          autoGreetSent.current = false;
-        });
+
+      // Check for creative brief from upload flow
+      const brief = sessionStorage.getItem(`project-brief-${projectId}`);
+      if (brief) {
+        sessionStorage.removeItem(`project-brief-${projectId}`);
+        // Send the brief as the first user message — AI jumps straight to planning
+        sendMessage(brief, undefined, { hidden: false })
+          .catch(() => { autoGreetSent.current = false; });
+      } else {
+        // No brief — generic greet
+        sendMessage('[Start the conversation. Greet the user and offer to help.]', undefined, { hidden: true })
+          .catch(() => { autoGreetSent.current = false; });
+      }
     }
-  }, [historyLoaded, messages.length, isStreaming, sendMessage]);
+  }, [historyLoaded, messages.length, isStreaming, sendMessage, projectId]);
 
   // -----------------------------------------------------------------------
   // Reset (clear visuals + conversation, restart from scratch)

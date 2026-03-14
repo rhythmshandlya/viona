@@ -46,8 +46,8 @@ services:
 
   sandbox-build:
     build:
-      context: ./packages/sandbox
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: packages/sandbox/Dockerfile
     image: viona-sandbox:latest
     profiles:
       - build  # Only used for building, not running

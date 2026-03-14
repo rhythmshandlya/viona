@@ -1,4 +1,4 @@
-import { mkdir, writeFile, cp, access, symlink, readlink } from 'fs/promises';
+import { mkdir, writeFile, cp, access, symlink, readlink, copyFile } from 'fs/promises';
 import { createWriteStream } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
@@ -134,6 +134,18 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
     recursive: true,
     force: false,  // Don't overwrite existing files
   });
+
+  // Copy shared prompt modules into workspace for orchestrator access
+  const sharedSrc = join('/app', 'prompts', 'shared');
+  const sharedDst = join(WORKSPACE, 'docs', 'shared');
+  await mkdir(sharedDst, { recursive: true });
+  for (const file of ['technical-rules.md', 'motion-design-principles.md', 'vocabulary.md', 'quality-checklist.md']) {
+    try {
+      await copyFile(join(sharedSrc, file), join(sharedDst, file));
+    } catch {
+      logger.warn(`Shared module ${file} not found — skipping`);
+    }
+  }
 
   // Initial asset sync — generate presigned URLs for downloaded media
   await syncAssets();

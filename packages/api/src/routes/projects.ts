@@ -17,6 +17,7 @@ const createProjectSchema = z.object({
   filename: z.string().min(1),
   title: z.string().max(255).optional(),
   contentType: z.string().optional(),
+  description: z.string().optional(),
 });
 
 const updateProjectSchema = z.object({
@@ -71,6 +72,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const [project] = await db.insert(projects).values({
       status: 'uploading' as ProjectStatus,
       title: body.title || null,
+      description: body.description || null,
       projectType: isAudio ? 'audio' : 'video',
       videoKey: isAudio ? null : storageKey,
       audioKey: isAudio ? storageKey : null,

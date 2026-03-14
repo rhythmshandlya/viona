@@ -29,6 +29,7 @@ export const projects = pgTable('projects', {
   workspaceStatus: varchar('workspace_status', { length: 50 }).default('inactive').notNull(),
   workspaceLastActivity: timestamp('workspace_last_activity'),
   activeBundleUrl: varchar('active_bundle_url', { length: 1024 }),
+  description: text('description'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
