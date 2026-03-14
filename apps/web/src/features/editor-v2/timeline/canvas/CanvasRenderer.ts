@@ -17,6 +17,7 @@ import {
 import { DragPreview } from '../interactions/DragManager';
 import { getRenderer } from './renderers/registry';
 import { ItemRect, RenderItemState } from './renderers/types';
+import { getCachedTextWidth } from './text-cache';
 
 export interface RenderState {
   tracks: Track[];
@@ -104,6 +105,7 @@ export class CanvasRenderer {
   private options: CanvasRendererOptions;
   private dpr: number;
   private animationFrameId: number | null = null;
+  private cachedTrackYMap: Map<string, number> = new Map();
 
   constructor(canvas: HTMLCanvasElement, options?: Partial<CanvasRendererOptions>) {
     this.canvas = canvas;
@@ -148,6 +150,9 @@ export class CanvasRenderer {
     // Clear canvas
     ctx.fillStyle = options.backgroundColor;
     ctx.fillRect(0, 0, width, height);
+
+    // Cache track Y positions once per render frame
+    this.cachedTrackYMap = this.buildTrackYMap(state);
 
     // Draw track backgrounds
     this.drawTrackBackgrounds(state);
@@ -243,7 +248,7 @@ export class CanvasRenderer {
     const visibleEndMs = (viewport.scrollX + width) / viewport.zoom;
 
     // Build track position map
-    const trackYMap = this.buildTrackYMap(state);
+    const trackYMap = this.cachedTrackYMap;
 
     // Draw each visible item
     for (const itemId of itemIds) {
@@ -459,9 +464,10 @@ export class CanvasRenderer {
     if (maxTextWidth > 20) {
       // Truncate text if needed
       let text = data.text || '';
-      const metrics = ctx.measureText(text);
-      if (metrics.width > maxTextWidth) {
-        while (ctx.measureText(text + '...').width > maxTextWidth && text.length > 0) {
+      const font = '11px system-ui, sans-serif';
+      const textWidth = getCachedTextWidth(ctx, text, font);
+      if (textWidth > maxTextWidth) {
+        while (getCachedTextWidth(ctx, text + '...', font) > maxTextWidth && text.length > 0) {
           text = text.slice(0, -1);
         }
         text += '...';
@@ -528,7 +534,7 @@ export class CanvasRenderer {
     if (splitHoveredItemId) {
       const item = items[splitHoveredItemId];
       if (item) {
-        const trackYMap = this.buildTrackYMap(state);
+        const trackYMap = this.cachedTrackYMap;
         const trackY = trackYMap.get(item.trackId);
         const track = tracks.find((t) => t.id === item.trackId);
         if (trackY !== undefined && track) {
@@ -570,9 +576,9 @@ export class CanvasRenderer {
     const ms = Math.floor((splitCursorTimeMs % 1000) / 10);
     const label = `${mins}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
 
-    ctx.font = '10px ui-monospace, SFMono-Regular, monospace';
-    const textMetrics = ctx.measureText(label);
-    const pillW = textMetrics.width + 10;
+    const pillFont = '10px ui-monospace, SFMono-Regular, monospace';
+    const pillTextWidth = getCachedTextWidth(ctx, label, pillFont);
+    const pillW = pillTextWidth + 10;
     const pillH = 18;
     const pillX = x - pillW / 2;
     const pillY = 4;
@@ -652,7 +658,7 @@ export class CanvasRenderer {
     if (!dragPreviews) return;
 
     // Build track position map
-    const trackYMap = this.buildTrackYMap(state);
+    const trackYMap = this.cachedTrackYMap;
 
     ctx.save();
     ctx.globalAlpha = options.previewOpacity;
@@ -753,7 +759,7 @@ export class CanvasRenderer {
     if (!item) return;
 
     // Build track position map
-    const trackYMap = this.buildTrackYMap(state);
+    const trackYMap = this.cachedTrackYMap;
 
     const trackY = trackYMap.get(item.trackId);
     if (trackY === undefined) return;
@@ -831,10 +837,10 @@ export class CanvasRenderer {
     const ms = Math.floor(timeMs % 1000);
     const label = `${minutes}:${String(seconds).padStart(2, '0')}.${String(ms).padStart(3, '0')}`;
 
-    ctx.font = '11px Inter, system-ui, sans-serif';
-    const metrics = ctx.measureText(label);
+    const tooltipFont = '11px Inter, system-ui, sans-serif';
+    const labelWidth = getCachedTextWidth(ctx, label, tooltipFont);
     const padding = 4;
-    const boxW = metrics.width + padding * 2;
+    const boxW = labelWidth + padding * 2;
     const boxH = 18;
     const boxX = x - boxW / 2;
     const boxY = y - boxH - 6;
