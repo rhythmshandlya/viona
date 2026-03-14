@@ -188,19 +188,6 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
   const { project, tracks, items } = input;
 
   const videoSettings = (project.videoSettings || {}) as Record<string, unknown>;
-  const layoutSettings = (videoSettings.layoutSettings || {}) as Record<string, unknown>;
-  const layoutMode = (layoutSettings.mode as string) || 'stacked';
-  const rawPip = coerceNumericFields(
-    normalizePipSize((layoutSettings.pip as Record<string, unknown>) || {}),
-    ['size', 'offsetX', 'offsetY', 'borderRadius', 'borderWidth', 'shadowBlur', 'opacity', 'rotation'],
-  );
-
-  // Determine video tracks for PiP second-track detection
-  const videoTrackIds = tracks.filter(t => t.type === 'video').map(t => t.id);
-  const secondVideoTrackId =
-    layoutMode === 'pip' && videoTrackIds.length > 1
-      ? videoTrackIds[1]!
-      : null;
 
   const manifestTracks: ManifestTrackV2[] = tracks.map(t => ({
     id: t.id,
@@ -221,46 +208,19 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         ? project.durationMs
         : item.endMs;
 
-      let transform: TransformV2;
-      let crop: { x: number; y: number; scale: number } | undefined;
+      const storedTransform = ((data as any)._transform || (data as any).transform) as TransformV2 | undefined;
+      const storedKeyframes = ((data as any)._keyframes || (data as any).keyframes) as any[] | undefined;
+      const storedFilters = ((data as any)._filters || (data as any).filters) as Record<string, unknown> | undefined;
 
-      if (layoutMode === 'pip') {
-        if (item.trackId === secondVideoTrackId) {
-          transform = computePipTransformFromDb(rawPip);
-          const pipCrop = (rawPip.crop as Record<string, unknown>) || {};
-          crop = {
-            x: (pipCrop.cropX as number) ?? 50,
-            y: (pipCrop.cropY as number) ?? 50,
-            scale: (pipCrop.zoom as number) ?? 1,
-          };
-        } else {
-          transform = { ...FULLSCREEN_TRANSFORM };
-          // Use global crop from videoSettings for main video in pip
-          const cropX = (videoSettings.cropX as number) ?? 50;
-          const cropY = (videoSettings.cropY as number) ?? 50;
-          const scale = (videoSettings.scale as number) ?? 1;
-          if (cropX !== 50 || cropY !== 50 || scale !== 1) {
-            crop = { x: cropX, y: cropY, scale };
-          }
-        }
-      } else if (layoutMode === 'stacked') {
-        transform = computeStackedTransformFromDb(layoutSettings, true);
-        // Per-item crop from data, fallback to global
-        const itemCropX = (data.crop as any)?.x ?? (videoSettings.cropX as number) ?? 50;
-        const itemCropY = (data.crop as any)?.y ?? (videoSettings.cropY as number) ?? 50;
-        const itemScale = (data.crop as any)?.scale ?? (videoSettings.scale as number) ?? 1;
-        if (itemCropX !== 50 || itemCropY !== 50 || itemScale !== 1) {
-          crop = { x: itemCropX, y: itemCropY, scale: itemScale };
-        }
-      } else {
-        // Fullscreen / default layout
-        transform = { ...FULLSCREEN_TRANSFORM };
-        const cropX = (videoSettings.cropX as number) ?? 50;
-        const cropY = (videoSettings.cropY as number) ?? 50;
-        const scale = (videoSettings.scale as number) ?? 1;
-        if (cropX !== 50 || cropY !== 50 || scale !== 1) {
-          crop = { x: cropX, y: cropY, scale };
-        }
+      const transform: TransformV2 = storedTransform || { ...FULLSCREEN_TRANSFORM };
+
+      // Per-item crop from data, fallback to global videoSettings
+      let crop: { x: number; y: number; scale: number } | undefined;
+      const itemCropX = (data.crop as any)?.x ?? (videoSettings.cropX as number) ?? 50;
+      const itemCropY = (data.crop as any)?.y ?? (videoSettings.cropY as number) ?? 50;
+      const itemScale = (data.crop as any)?.scale ?? (videoSettings.scale as number) ?? 1;
+      if (itemCropX !== 50 || itemCropY !== 50 || itemScale !== 1) {
+        crop = { x: itemCropX, y: itemCropY, scale: itemScale };
       }
 
       return {
@@ -270,10 +230,11 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         startMs: item.startMs,
         endMs: videoEndMs,
         transform,
-        keyframes: [],
+        keyframes: storedKeyframes || [],
+        ...(storedFilters ? { filters: storedFilters } : {}),
         data: {
           src: (data as any).src || 'source.mp4',
-          startFrom: 0,
+          startFrom: (data as any).startFrom ?? 0,
           volume: (data as any).volume ?? 1,
           playbackRate: (data as any).playbackRate ?? 1,
           ...(crop ? { crop } : {}),
@@ -307,36 +268,11 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
 
     // --- VISUAL items → scene type ---
     if (dbType === 'visual') {
-      const displayMode = ((data as any).displayMode || 'default') as string;
-      const overlayZone = (data as any).overlayZone as string | undefined;
+      const storedTransform = ((data as any)._transform || (data as any).transform) as TransformV2 | undefined;
+      const storedKeyframes = ((data as any)._keyframes || (data as any).keyframes) as any[] | undefined;
+      const storedFilters = ((data as any)._filters || (data as any).filters) as Record<string, unknown> | undefined;
 
-      let transform: TransformV2;
-
-      if (displayMode === 'fullscreen' || displayMode === 'default') {
-        if (layoutMode === 'stacked') {
-          transform = computeStackedTransformFromDb(layoutSettings, false);
-        } else {
-          transform = { ...FULLSCREEN_TRANSFORM };
-        }
-      } else if (displayMode === 'overlay') {
-        switch (overlayZone) {
-          case 'lower-third':
-            transform = { x: 0, y: '70%', width: '100%', height: '30%', rotation: 0, opacity: 1 };
-            break;
-          case 'top':
-            transform = { x: 0, y: 0, width: '100%', height: '30%', rotation: 0, opacity: 1 };
-            break;
-          case 'frame':
-          case 'background':
-          case 'behind':
-          case 'none':
-          default:
-            transform = { ...FULLSCREEN_TRANSFORM };
-            break;
-        }
-      } else {
-        transform = { ...FULLSCREEN_TRANSFORM };
-      }
+      const transform: TransformV2 = storedTransform || { ...FULLSCREEN_TRANSFORM };
 
       return {
         id: item.id,
@@ -345,7 +281,8 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         startMs: item.startMs,
         endMs: item.endMs,
         transform,
-        keyframes: [],
+        keyframes: storedKeyframes || [],
+        ...(storedFilters ? { filters: storedFilters } : {}),
         data: {
           sceneFile: (data as any).sceneFile || `scenes/Scene${(data as any).sourceSceneId || 1}.tsx`,
         },
@@ -355,6 +292,9 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
     // --- BROLL items → video type ---
     if (dbType === 'broll') {
       const src = (data as any).src || (data as any).previewUrl || (data as any).filename || '';
+      const storedTransform = ((data as any)._transform || (data as any).transform) as TransformV2 | undefined;
+      const storedKeyframes = ((data as any)._keyframes || (data as any).keyframes) as any[] | undefined;
+      const storedFilters = ((data as any)._filters || (data as any).filters) as Record<string, unknown> | undefined;
 
       return {
         id: item.id,
@@ -362,11 +302,12 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         trackId: item.trackId,
         startMs: item.startMs,
         endMs: item.endMs,
-        transform: { ...FULLSCREEN_TRANSFORM },
-        keyframes: [],
+        transform: storedTransform || { ...FULLSCREEN_TRANSFORM },
+        keyframes: storedKeyframes || [],
+        ...(storedFilters ? { filters: storedFilters } : {}),
         data: {
           src,
-          startFrom: 0,
+          startFrom: (data as any).startFrom ?? 0,
           volume: (data as any).volume ?? 1,
           playbackRate: 1,
         },
@@ -416,7 +357,11 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
     // --- TEXT items ---
     if (dbType === 'text') {
       const style = (data as any).style ?? {};
-      const transform: TransformV2 = {
+      const storedTransform = ((data as any)._transform || (data as any).transform) as TransformV2 | undefined;
+      const storedKeyframes = ((data as any)._keyframes || (data as any).keyframes) as any[] | undefined;
+      const storedFilters = ((data as any)._filters || (data as any).filters) as Record<string, unknown> | undefined;
+
+      const defaultTransform: TransformV2 = {
         x: (data as any).position?.x ?? 0,
         y: (data as any).position?.y ?? 0,
         width: (data as any).size?.width != null ? `${(data as any).size.width}%` : '100%',
@@ -425,6 +370,8 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         opacity: 1,
       };
 
+      const transform: TransformV2 = storedTransform || defaultTransform;
+
       return {
         id: item.id,
         type: 'text' as const,
@@ -432,7 +379,8 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         startMs: item.startMs,
         endMs: item.endMs,
         transform,
-        keyframes: [],
+        keyframes: storedKeyframes || [],
+        ...(storedFilters ? { filters: storedFilters } : {}),
         data: {
           text: (data as any).text || '',
           fontFamily: (style.fontFamily as string) ?? 'Inter',
@@ -447,7 +395,11 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
 
     // --- IMAGE items ---
     if (dbType === 'image') {
-      const transform: TransformV2 = {
+      const storedTransform = ((data as any)._transform || (data as any).transform) as TransformV2 | undefined;
+      const storedKeyframes = ((data as any)._keyframes || (data as any).keyframes) as any[] | undefined;
+      const storedFilters = ((data as any)._filters || (data as any).filters) as Record<string, unknown> | undefined;
+
+      const defaultTransform: TransformV2 = {
         x: (data as any).position?.x ?? 0,
         y: (data as any).position?.y ?? 0,
         width: (data as any).width != null ? `${(data as any).width}%` : '100%',
@@ -456,6 +408,8 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         opacity: (data as any).opacity ?? 1,
       };
 
+      const transform: TransformV2 = storedTransform || defaultTransform;
+
       return {
         id: item.id,
         type: 'image' as const,
@@ -463,7 +417,8 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         startMs: item.startMs,
         endMs: item.endMs,
         transform,
-        keyframes: [],
+        keyframes: storedKeyframes || [],
+        ...(storedFilters ? { filters: storedFilters } : {}),
         data: {
           src: (data as any).src || '',
         },
@@ -471,14 +426,19 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
     }
 
     // Fallback: treat unknown types as scene on overlay track
+    const storedTransformFallback = ((data as any)._transform || (data as any).transform) as TransformV2 | undefined;
+    const storedKeyframesFallback = ((data as any)._keyframes || (data as any).keyframes) as any[] | undefined;
+    const storedFiltersFallback = ((data as any)._filters || (data as any).filters) as Record<string, unknown> | undefined;
+
     return {
       id: item.id,
       type: 'scene' as const,
       trackId: item.trackId,
       startMs: item.startMs,
       endMs: item.endMs,
-      transform: { ...FULLSCREEN_TRANSFORM },
-      keyframes: [],
+      transform: storedTransformFallback || { ...FULLSCREEN_TRANSFORM },
+      keyframes: storedKeyframesFallback || [],
+      ...(storedFiltersFallback ? { filters: storedFiltersFallback } : {}),
       data: { sceneFile: '' },
     };
   });
