@@ -183,6 +183,7 @@ export function storeToManifest(
     fps: number;
     videoSettings: VideoSettings;
     layoutSettings?: LayoutSettings;
+    assets?: Record<string, string>;
   },
   captionStyle: CaptionStyle,
 ): Record<string, unknown> {
@@ -225,6 +226,7 @@ export function storeToManifest(
     },
     tracks,
     items,
+    assets: state.assets ?? {},
     captionStyle: convertStoreCaptionStyle(captionStyle),
     videoSettings: {
       cropX: state.videoSettings.cropX,

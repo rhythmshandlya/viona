@@ -1392,9 +1392,6 @@ export const useEditorStore = create<EditorStore>()(
       // Cancel the debounced save from pushHistory — we save immediately below
       cancelDebouncedSave();
 
-      for (const id of ids) {
-        dispatchManifestOp({ op: 'delete_item', itemId: id });
-      }
       dispatchOps(ids.map(id => ({ tool: 'removeItem' as const, input: { itemId: id } })));
 
       // If visual items were deleted, delete visuals from backend
@@ -1425,7 +1422,6 @@ export const useEditorStore = create<EditorStore>()(
 
       get().pushHistory();
       const movedItem = get().items[id];
-      dispatchManifestOp({ op: 'move_item', itemId: id, startMs: movedItem?.startMs ?? 0, endMs: movedItem?.endMs ?? 0 });
       if (movedItem) {
         dispatchOps([{ tool: 'updateItem', input: { itemId: id, trackId, startMs: movedItem.startMs, endMs: movedItem.endMs } }]);
       }
@@ -1442,7 +1438,6 @@ export const useEditorStore = create<EditorStore>()(
 
       get().pushHistory();
       const resizedItem = get().items[id];
-      dispatchManifestOp({ op: 'move_item', itemId: id, startMs: resizedItem?.startMs ?? 0, endMs: resizedItem?.endMs ?? 0 });
       if (resizedItem) {
         dispatchOps([{ tool: 'updateItem', input: { itemId: id, startMs: resizedItem.startMs, endMs: resizedItem.endMs } }]);
       }
@@ -1774,7 +1769,6 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-      dispatchManifestOp({ op: 'reorder_tracks', trackIds });
       dispatchOps(trackIds.map((id, i) => ({ tool: 'updateTrack' as const, input: { trackId: id, position: i } })));
     },
 
@@ -1917,8 +1911,6 @@ export const useEditorStore = create<EditorStore>()(
       debouncedSave(() => get().saveProject());
 
       if (splitResult) {
-        dispatchManifestOp({ op: 'split_item', itemId, atMs });
-
         if (item.type === 'video') {
           // Video items: use splitVideo tool
           dispatchOps([{ tool: 'splitVideo', input: { itemId, atMs } }]);
