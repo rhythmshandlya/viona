@@ -18,7 +18,7 @@ import { getWorkspacePath, createProjectDir } from '../../workspace.js';
 import { uploadFile } from '../../services/minio.js';
 import { buildTemplateCatalog } from '../../prompts/studio-templates.js';
 import { getTheme } from '../../prompts/theme-loader.js';
-import type { GenerateVisualsJobData, HeadTrackingFrame, VisualMetadata, JobMetrics } from './types.js';
+import type { GenerateVisualsJobData, HeadTrackingFrame, VisualMetadata, SegmentMetadata, JobMetrics } from './types.js';
 import { findPackagesRoot, copyDirRecursive, computeSpeakerGrid, extractAssets, injectUserAssets, prepareVideoAssets } from './validation.js';
 import { uploadBundleToStorage, uploadSourceToStorage } from './storage.js';
 import { runMonitoredClaudeGenerator } from './subprocess.js';
@@ -159,7 +159,9 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
           logger.info({ projectDir, planJobId: job.data.planJobId }, 'Plan changed — cleaning stale generation artifacts');
           const scenesDir = join(projectDir, 'scenes');
           await rm(scenesDir, { recursive: true, force: true }).catch(() => {});
-          for (const f of ['constants.ts', 'index.tsx', 'metadata.json']) {
+          const segmentsDir = join(projectDir, 'segments');
+          await rm(segmentsDir, { recursive: true, force: true }).catch(() => {});
+          for (const f of ['constants.ts', 'index.tsx', 'Composition.tsx', 'metadata.json']) {
             await rm(join(projectDir, f), { force: true }).catch(() => {});
           }
         }
@@ -208,8 +210,50 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
             scene.videoKeyword = sceneVideo.keyword;
           }
         }
+        // V2 enrichment: segments with nested beats
+        if ((scenesObj as any).version >= 2 && (scenesObj as any).segments) {
+          const segments = (scenesObj as any).segments as Array<Record<string, unknown>>;
+          for (const segment of segments) {
+            const segLayout = (segment.layout as string) || 'fullscreen';
+            const beats = (segment.beats as Array<Record<string, unknown>>) || [];
+            for (const beat of beats) {
+              // Compute per-beat effectiveDimensions based on segment layout type
+              if (segLayout === 'fullscreen' || segLayout === 'overlay') {
+                beat.effectiveDimensions = { width: canvasWidth, height: canvasHeight };
+              } else {
+                // stacked — visual panel dimensions
+                beat.effectiveDimensions = { width: pipEffective.width, height: pipEffective.height };
+              }
+
+              // Pre-inject speaker grid for overlay segments
+              if (segLayout === 'overlay' && project.headTrackingData) {
+                const beatFrames = beat.frames as [number, number] | undefined;
+                if (beatFrames) {
+                  const startMs = (beatFrames[0] / fps) * 1000;
+                  const endMs = (beatFrames[1] / fps) * 1000;
+                  beat.speakerGrid = computeSpeakerGrid(
+                    project.headTrackingData as { frames?: HeadTrackingFrame[]; video?: { width: number; height: number } },
+                    startMs,
+                    endMs,
+                  );
+                }
+              }
+
+              // Enrich beats with video indicator
+              const beatIdStr = String(beat.id);
+              const beatVideo = videoManifest.videos.find(v => v.sceneId === beatIdStr);
+              if (beatVideo) {
+                beat.hasVideo = true;
+                beat.videoKeyword = beatVideo.keyword;
+              }
+            }
+          }
+          await writeFile(scenesJsonPath, JSON.stringify(scenesObj, null, 2), 'utf-8');
+          logger.info({ projectDir, planJobId: job.data.planJobId, segmentCount: segments.length }, 'Wrote enriched v2 plan files from plan job for Animator-only run');
+        } else {
         await writeFile(scenesJsonPath, JSON.stringify({ ...scenesObj, scenes: scenesArray }, null, 2), 'utf-8');
         logger.info({ projectDir, planJobId: job.data.planJobId, sceneCount: scenesArray.length }, 'Wrote enriched plan files from plan job for Animator-only run');
+        }
       } else {
         logger.warn({ planJobId: job.data.planJobId }, 'Plan job not found or has no planData');
       }
@@ -225,33 +269,22 @@ export async function processGenerateVisualsJob(job: Job<GenerateVisualsJobData>
       await writeFile(rootTsx, `import "./index.css";
 import React from "react";
 import { Composition } from "remotion";
-import MainComposition from "./${compositionId}";
-import { FullComposition } from "./composition";
-import type { FullCompositionProps } from "./composition";
-
-const Wrapped: React.FC<FullCompositionProps> = (props) => {
-  return (
-    <FullComposition {...props}>
-      <MainComposition />
-    </FullComposition>
-  );
-};
+import { ProjectComposition } from "./${compositionId}/Composition";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
         id="${compositionIdDashed}"
-        component={Wrapped}
+        component={ProjectComposition}
         durationInFrames={${durationFrames}}
         fps={${project.fps || 30}}
         width={${dimensions?.width || 1080}}
         height={${dimensions?.height || 1920}}
         defaultProps={{
-          splitSettings: { position: "visuals-first", ratio: 50, gap: 0 },
-          layoutSegments: [],
-          videoCropSettings: { sourceWidth: 1920, sourceHeight: 1080, cropX: 50, cropY: 50, scale: 1.0 },
-          sourceVideoFile: "source.mp4",
+          videoUrl: "source.mp4",
+          subtitles: [],
+          captionStyle: {},
         }}
       />
     </>
@@ -426,6 +459,28 @@ registerRoot(RemotionRoot);
 
       logger.info({ projectId, visualCount: metadata.visuals.length }, 'Metadata validated successfully');
 
+      // V2 segment detection — read scenes.json for segment-based timeline
+      try {
+        const scenesJsonContent = await readFile(scenesPath, 'utf-8');
+        const scenesJson = JSON.parse(scenesJsonContent);
+        const fps = metadata.fps || 30;
+        if (scenesJson.version >= 2 && scenesJson.segments) {
+          metadata.version = 2;
+          metadata.segments = scenesJson.segments.map((seg: any): SegmentMetadata => ({
+            id: seg.id,
+            layout: seg.layout,
+            layoutProps: seg.layoutProps || {},
+            startMs: Math.round((seg.frames[0] / fps) * 1000),
+            endMs: Math.round((seg.frames[1] / fps) * 1000),
+            beatCount: seg.beats?.length || 1,
+            description: seg.beats?.map((b: any) => b.name).join(' → ') || `Segment ${seg.id}`,
+          }));
+          logger.info({ projectId, segmentCount: metadata.segments!.length, version: 2 }, 'V2 segments detected');
+        }
+      } catch (segErr) {
+        logger.debug({ projectId, error: segErr }, 'Could not read scenes.json for v2 segments (non-fatal)');
+      }
+
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Unknown error reading metadata';
 
@@ -581,7 +636,31 @@ registerRoot(RemotionRoot);
         visualsTrack = newTrack;
       }
 
-      // Create one timeline item per scene so they appear as separate blocks on the track
+      // Create timeline items — V2 uses segments, V1 uses per-scene items
+      if (metadata.version === 2 && metadata.segments) {
+        // V2: One timeline item per segment
+        for (const segment of metadata.segments) {
+          await tx.insert(timelineItems).values({
+            trackId: visualsTrack.id,
+            type: 'visual',
+            startMs: segment.startMs,
+            endMs: segment.endMs,
+            data: {
+              visualId,
+              compositionId: metadata.compositionId,
+              bundleUrl,
+              description: segment.description,
+              width: canvasWidth,
+              height: canvasHeight,
+              fps: metadata.fps,
+              segmentId: segment.id,
+              layout: segment.layout,
+              beatCount: segment.beatCount,
+            },
+          });
+        }
+      } else {
+      // V1: Legacy per-scene items (existing code unchanged)
       for (let sceneIndex = 0; sceneIndex < metadata.visuals.length; sceneIndex++) {
         const scene = metadata.visuals[sceneIndex];
         // Compute per-scene effective dimensions
@@ -672,6 +751,7 @@ registerRoot(RemotionRoot);
           },
         });
       }
+      } // end V1/V2 branch
 
       // Update job and project status
       await tx.update(jobs)
@@ -684,22 +764,33 @@ registerRoot(RemotionRoot);
 
       // Persist layoutMode into project videoSettings so the editor/export
       // uses the same layout the user selected at generation time.
-      const existingVideoSettings = (project.videoSettings as Record<string, unknown>) || {};
-      const existingLayoutSettings = (existingVideoSettings.layoutSettings as Record<string, unknown>) || {};
-      await tx.update(projects)
-        .set({
-          status: 'ready',
-          outputKey: null,
-          updatedAt: new Date(),
-          videoSettings: {
-            ...existingVideoSettings,
-            layoutSettings: {
-              ...existingLayoutSettings,
-              mode: layoutMode,
+      // V2 uses per-segment layout — skip global layoutMode persistence.
+      if (!metadata.version || metadata.version < 2) {
+        const existingVideoSettings = (project.videoSettings as Record<string, unknown>) || {};
+        const existingLayoutSettings = (existingVideoSettings.layoutSettings as Record<string, unknown>) || {};
+        await tx.update(projects)
+          .set({
+            status: 'ready',
+            outputKey: null,
+            updatedAt: new Date(),
+            videoSettings: {
+              ...existingVideoSettings,
+              layoutSettings: {
+                ...existingLayoutSettings,
+                mode: layoutMode,
+              },
             },
-          },
-        })
-        .where(eq(projects.id, projectId));
+          })
+          .where(eq(projects.id, projectId));
+      } else {
+        await tx.update(projects)
+          .set({
+            status: 'ready',
+            outputKey: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(projects.id, projectId));
+      }
     });
 
     // Only AFTER transaction succeeds — notify frontend

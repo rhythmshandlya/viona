@@ -5,8 +5,8 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Loader2, MessageSquareText, Captions, Paintbrush, PanelsTopLeft, FolderOpen, X } from 'lucide-react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Loader2, MessageSquareText, Captions, Paintbrush, FolderOpen, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -22,24 +22,31 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Header } from './components/Header';
 import { PlaybackBar } from './components/PlaybackBar';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
-import { StylePanel } from './panels/StylePanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { JobLogsPanel } from './components/JobLogsPanel';
-import { ExportModal } from './components/ExportModal';
-import { TransitionPickerModal } from './components/TransitionPickerModal';
-import { AIAssistantPanel } from './components/AIAssistantPanel';
 import { Scene } from './scene/Scene';
 import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
+import { AddItemToolbar } from './components/AddItemToolbar';
 import { Timeline } from './timeline/Timeline';
-import { AssetsPanel } from './panels/AssetsPanel';
+// Lazy-loaded panels and modals (heavy components, only one visible at a time)
+const AIAssistantPanel = lazy(() => import('./components/AIAssistantPanel').then(m => ({ default: m.AIAssistantPanel })));
+const StylePanel = lazy(() => import('./panels/StylePanel').then(m => ({ default: m.StylePanel })));
+const AssetsPanel = lazy(() => import('./panels/AssetsPanel').then(m => ({ default: m.AssetsPanel })));
+const ExportModal = lazy(() => import('./components/ExportModal').then(m => ({ default: m.ExportModal })));
+const TransitionPickerModal = lazy(() => import('./components/TransitionPickerModal').then(m => ({ default: m.TransitionPickerModal })));
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts';
 import { useJobWebSocket } from './hooks/use-job-websocket';
+import { useWorkspaceWS } from './hooks/use-workspace-ws';
 import {
   useProject,
   useIsLoading,
   useError,
-  useEditorActions,
+  useProjectActions,
+  useTimelineActions,
+  useAudioActions,
+  usePlaybackActions,
+  useAIActions,
   useSelectedIds,
   useCaptionItems,
   useAIEditRequested,
@@ -48,7 +55,7 @@ import {
 } from './store/use-editor-store';
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload } from '@/lib/ws';
 import { api } from '@/lib/api';
-import { clearVisualCache } from './player/DynamicVisualLoader';
+import { clearCompositionCache } from './player/useWorkspaceComposition';
 
 interface EditorProps {
   projectId: string;
@@ -57,7 +64,7 @@ interface EditorProps {
 export function Editor({ projectId }: EditorProps) {
   // Layout state - simplified unified layout
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
-  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'layout' | 'assets' | 'agent'>('agent');
+  const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'assets' | 'agent'>('agent');
 
   // Right panel state (settings/properties)
   const [panelOpen, setPanelOpen] = useState(false);
@@ -80,6 +87,7 @@ export function Editor({ projectId }: EditorProps) {
   // Social preview state
   const [activePlatform, setActivePlatform] = useState<SocialPlatform | null>(null);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('mockup');
+  const [zoomLevel, setZoomLevel] = useState<'fit' | '50' | '75' | '100'>('fit');
   const lastPlatformRef = useRef<SocialPlatform>('instagram');
 
   // Job logs panel state
@@ -114,8 +122,16 @@ export function Editor({ projectId }: EditorProps) {
   const selectedIds = useSelectedIds();
   const captionItems = useCaptionItems();
 
+  // Workspace state
+  const workspaceLockHolder = useEditorStore((s) => s.workspaceLockHolder);
+  const workspaceBundleError = useEditorStore((s) => s.workspaceBundleError);
+
   // Actions
-  const { loadProject, reloadVisuals, refreshMediaUrls, clearSelection, updateEnhancementStatus, setInspectModeEnabled, pause } = useEditorActions();
+  const { loadProject, reloadVisuals, refreshMediaUrls } = useProjectActions();
+  const { clearSelection } = useTimelineActions();
+  const { updateEnhancementStatus } = useAudioActions();
+  const { pause } = usePlaybackActions();
+  const { setInspectModeEnabled } = useAIActions();
 
   // Handle tab change from panel header
   const handleTabChange = useCallback((tab: RightPanelTab) => {
@@ -124,6 +140,16 @@ export function Editor({ projectId }: EditorProps) {
       userRequestedTabRef.current = 'transcript';
     }
   }, []);
+
+  // Auto-open right panel when an item is selected
+  useEffect(() => {
+    if (selectedIds.length > 0) {
+      setPanelOpen(true);
+      setActiveTab('item-properties');
+    } else {
+      setPanelOpen(false);
+    }
+  }, [selectedIds.length]);
 
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
@@ -178,6 +204,61 @@ export function Editor({ projectId }: EditorProps) {
       setLeftSidebarTab('agent');
     }
   }, [aiEditRequested]);
+
+  // Workspace WebSocket events (Plan 3)
+  useWorkspaceWS(projectId, {
+    onWorkspaceReady: (data) => {
+      useEditorStore.getState().setWorkspaceStatus('active');
+      if (data.bundleUrl) {
+        useEditorStore.getState().setWorkspaceBundleUrl(data.bundleUrl);
+      }
+    },
+    onManifestUpdated: async (data) => {
+      if (data.source === 'ai' && projectId) {
+        try {
+          const manifest = await api.readSandboxManifest(projectId);
+          useEditorStore.getState().applyRemoteManifestUpdate(manifest);
+        } catch (err) {
+          console.error('Failed to apply remote manifest update:', err);
+        }
+      }
+    },
+    onBundleReady: (data) => {
+      const s = useEditorStore.getState();
+      s.setWorkspaceBundleError(null);
+      s.incrementBundleVersion();
+      if (data.bundleUrl) {
+        s.setWorkspaceBundleUrl(data.bundleUrl);
+      }
+    },
+    onBundleError: (data) => {
+      useEditorStore.getState().setWorkspaceBundleError(data.error);
+    },
+    onLockAcquired: (data) => {
+      useEditorStore.getState().setWorkspaceLockHolder(data.holder);
+    },
+    onLockReleased: () => {
+      useEditorStore.getState().setWorkspaceLockHolder(null);
+    },
+    onWorkspaceTeardown: () => {
+      const s = useEditorStore.getState();
+      s.setWorkspaceStatus('inactive');
+      s.setWorkspaceBundleUrl(null);
+      s.setWorkspaceLockHolder(null);
+    },
+  });
+
+  // Sandbox cleanup on unmount
+  useEffect(() => {
+    return () => {
+      const state = useEditorStore.getState();
+      if (state.project && state.sandboxStatus === 'ready') {
+        api.suspendSandbox(state.project.id).catch((err: any) => {
+          console.warn('Failed to suspend sandbox on unmount:', err);
+        });
+      }
+    };
+  }, []);
 
   // Exit inspect mode and clear element selection when playback starts
   const isPlaying = useEditorStore((s) => s.isPlaying);
@@ -236,8 +317,16 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Note: Sidebar no longer auto-opens on selection to allow easy multi-select
-  // Users can open Style panel manually via icon rail after selecting captions
+  // Auto-switch to Style tab when a single non-caption item is selected and sidebar is open
+  useEffect(() => {
+    if (selectedIds.length === 1 && leftSidebarOpen) {
+      const state = useEditorStore.getState();
+      const item = state.items[selectedIds[0]];
+      if (item && item.type !== 'caption' && item.type !== 'visual') {
+        setLeftSidebarTab('style');
+      }
+    }
+  }, [selectedIds, leftSidebarOpen]);
 
   // Handle timeline resize
   const handleResizeStart = (e: React.MouseEvent) => {
@@ -337,8 +426,8 @@ export function Editor({ projectId }: EditorProps) {
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
 
-          // Clear cached bundle so DynamicVisualLoader fetches fresh content
-          clearVisualCache();
+          // Clear cached bundle so workspace composition fetches fresh content
+          clearCompositionCache();
 
           // Reload visuals only (preserves playback position and selection)
           if (project?.id) {
@@ -370,10 +459,13 @@ export function Editor({ projectId }: EditorProps) {
   // Fallback polling when WebSocket is not connected
   useEffect(() => {
     if (!visualsJobId || !isGeneratingVisuals) return;
-    // If WebSocket is connected, skip polling
     if (wsConnected) return;
 
-    const pollInterval = setInterval(async () => {
+    let delay = 2000;
+    const MAX_DELAY = 15000;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const poll = async () => {
       try {
         const job = await api.getJob(visualsJobId);
         setVisualsProgress(job.progress || 0);
@@ -382,16 +474,10 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsStatus('Complete!');
           setIsGeneratingVisuals(false);
           setVisualsComplete(true);
-
-          // Clear cached bundle so DynamicVisualLoader fetches fresh content
-          clearVisualCache();
-
-          // Reload visuals only (preserves playback position and selection)
-          if (project?.id) {
-            reloadVisuals(project.id);
-          }
-
+          clearCompositionCache();
+          if (project?.id) reloadVisuals(project.id);
           setVisualsJobId(null);
+          return;
         } else if (job.status === 'failed' || job.status === 'cancelled') {
           const errorMsg = job.status === 'cancelled'
             ? 'Generation was cancelled'
@@ -400,15 +486,20 @@ export function Editor({ projectId }: EditorProps) {
           setVisualsError(errorMsg);
           setIsGeneratingVisuals(false);
           setVisualsJobId(null);
+          return;
         } else if (job.status === 'processing') {
           setVisualsStatus('Generating visuals with AI...');
         }
       } catch (err) {
         console.error('Failed to poll job status:', err);
       }
-    }, 2000); // Poll every 2 seconds
 
-    return () => clearInterval(pollInterval);
+      delay = Math.min(delay * 2, MAX_DELAY);
+      timeoutId = setTimeout(poll, delay);
+    };
+
+    timeoutId = setTimeout(poll, delay);
+    return () => clearTimeout(timeoutId);
   }, [visualsJobId, isGeneratingVisuals, project, reloadVisuals, wsConnected]);
 
   // Cancel visual generation
@@ -525,21 +616,6 @@ export function Editor({ projectId }: EditorProps) {
           </button>
           <button
             onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'layout') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('layout');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'layout' ? 'active' : ''}`}
-            title="Layout"
-          >
-            <PanelsTopLeft className="w-5 h-5" />
-            <span className="text-[11px]">Layout</span>
-          </button>
-          <button
-            onClick={() => {
               if (leftSidebarOpen && leftSidebarTab === 'assets') {
                 setLeftSidebarOpen(false);
               } else {
@@ -567,11 +643,13 @@ export function Editor({ projectId }: EditorProps) {
               className="flex-shrink-0 overflow-hidden"
             >
               <ErrorBoundary name="AI Assistant">
-                <AIAssistantPanel
-                  projectId={project.id}
-                  onEditComplete={() => reloadVisuals(project.id)}
-                  className="w-[488px]"
-                />
+                <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                  <AIAssistantPanel
+                    projectId={project.id}
+                    onEditComplete={() => reloadVisuals(project.id)}
+                    className="w-[488px]"
+                  />
+                </Suspense>
               </ErrorBoundary>
             </motion.div>
           )}
@@ -589,7 +667,6 @@ export function Editor({ projectId }: EditorProps) {
                   <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
                     {leftSidebarTab === 'captions' && 'Caption Settings'}
                     {leftSidebarTab === 'style' && 'Style Settings'}
-                    {leftSidebarTab === 'layout' && 'Layout Settings'}
                     {leftSidebarTab === 'assets' && 'Visual Assets'}
                   </h3>
                   <button
@@ -615,29 +692,21 @@ export function Editor({ projectId }: EditorProps) {
                   )}
                   {leftSidebarTab === 'style' && (
                     <ErrorBoundary name="Style Panel">
-                      <StylePanel />
+                      <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                        <StylePanel />
+                      </Suspense>
                     </ErrorBoundary>
                   )}
-                  {leftSidebarTab === 'layout' && (
-                    <div className="px-4 pb-4">
-                      <RightPanel
-                        isOpen={true}
-                        activeTab="layout"
-                        onTabChange={handleTabChange}
-                        onClose={handleClosePanel}
-                        layout="stacked"
-                        embedded={true}
-                      />
-                    </div>
-                  )}
                   {leftSidebarTab === 'assets' && (
-                    <AssetsPanel
-                      onEditWithAI={() => {
-                        setLeftSidebarTab('agent');
-                        useEditorStore.setState({ aiEditRequested: true });
-                      }}
-                      onYouTubeClipAdded={handleYouTubeClipAdded}
-                    />
+                    <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
+                      <AssetsPanel
+                        onEditWithAI={() => {
+                          setLeftSidebarTab('agent');
+                          useEditorStore.setState({ aiEditRequested: true });
+                        }}
+                        onYouTubeClipAdded={handleYouTubeClipAdded}
+                      />
+                    </Suspense>
                   )}
                 </div>
               </div>
@@ -645,13 +714,30 @@ export function Editor({ projectId }: EditorProps) {
           )}
         </AnimatePresence>
 
-        {/* Main content */}
+        {/* Main content + right panel */}
+        <div className="flex-1 flex min-w-0 overflow-hidden">
+        {/* Center: preview + timeline */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           {/* Video Preview Area */}
           <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
+            {/* Workspace status indicators */}
+            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
+              {workspaceLockHolder === 'ai' && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-sm">
+                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                  AI is editing...
+                </div>
+              )}
+              {workspaceBundleError && (
+                <div className="px-3 py-1.5 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
+                  Bundle error: {workspaceBundleError}
+                </div>
+              )}
+            </div>
+
             {/* Zoom control */}
             <div className="absolute top-4 left-4 z-10">
-              <Select defaultValue="fit">
+              <Select value={zoomLevel} onValueChange={(v) => setZoomLevel(v as 'fit' | '50' | '75' | '100')}>
                 <SelectTrigger className="h-7 w-[72px] text-xs bg-[var(--editor-bg-surface)]/90 backdrop-blur-sm border-[var(--editor-border-subtle)] text-[var(--editor-text-secondary)]">
                   <SelectValue />
                 </SelectTrigger>
@@ -700,12 +786,26 @@ export function Editor({ projectId }: EditorProps) {
             onCancel={handleCancelVisuals}
           />
 
+          {/* Add Item Toolbar */}
+          <AddItemToolbar />
+
           {/* Timeline */}
           <div style={{ height: timelineHeight }} className="flex-shrink-0 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
             <ErrorBoundary name="Timeline">
               <Timeline className="h-full" />
             </ErrorBoundary>
           </div>
+        </div>
+
+        {/* Right Panel - Item Properties */}
+        {panelOpen && (
+          <RightPanel
+            isOpen={panelOpen}
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            onClose={handleClosePanel}
+          />
+        )}
         </div>
 
       </div>
@@ -717,16 +817,20 @@ export function Editor({ projectId }: EditorProps) {
       />
 
       {/* Export Modal */}
-      <ExportModal
-        open={showExportModal}
-        onOpenChange={setShowExportModal}
-        projectId={project.id}
-        projectStatus={project.status}
-        hasOutputKey={!!project.outputKey}
-      />
+      <Suspense fallback={null}>
+        <ExportModal
+          open={showExportModal}
+          onOpenChange={setShowExportModal}
+          projectId={project.id}
+          projectStatus={project.status}
+          hasOutputKey={!!project.outputKey}
+        />
+      </Suspense>
 
       {/* Transition Picker Modal */}
-      <TransitionPickerModal />
+      <Suspense fallback={null}>
+        <TransitionPickerModal />
+      </Suspense>
     </div>
   );
 }

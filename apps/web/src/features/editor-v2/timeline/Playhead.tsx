@@ -10,7 +10,8 @@ import {
   useCurrentTimeMs,
   useViewport,
   useDuration,
-  useEditorActions,
+  usePlaybackActions,
+  useTimelineActions,
 } from '../store/use-editor-store';
 
 interface PlayheadProps {
@@ -22,7 +23,8 @@ export function Playhead({ rulerHeight = 24, className }: PlayheadProps) {
   const currentTimeMs = useCurrentTimeMs();
   const viewport = useViewport();
   const duration = useDuration();
-  const { setCurrentTime, startDrag, updateDrag, endDrag } = useEditorActions();
+  const { setCurrentTime } = usePlaybackActions();
+  const { startDrag, updateDrag, endDrag } = useTimelineActions();
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {

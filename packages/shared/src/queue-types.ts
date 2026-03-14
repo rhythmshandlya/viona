@@ -99,19 +99,11 @@ export const layoutSettingsSchema = z.object({
 export type LayoutSettings = z.infer<typeof layoutSettingsSchema>;
 
 export const renderOptionsSchema = z.object({
-  layoutSettings: layoutSettingsSchema.optional(),
-  fullscreenSegments: z.array(z.object({
-    startMs: z.number(),
-    endMs: z.number(),
-  })).optional(),
-  visualDisplayData: z.array(z.object({
-    startMs: z.number(),
-    endMs: z.number(),
-    displayMode: z.string().optional(),
-    transition: z.object({
-      enter: z.object({ type: z.string(), durationMs: z.number() }),
-      exit: z.object({ type: z.string(), durationMs: z.number() }),
-    }).optional(),
+  videoClipData: z.array(z.object({
+    sourceSceneId: z.number(),
+    sourceVideoUrl: z.string(),
+    trimStartSeconds: z.number(),
+    trimEndSeconds: z.number(),
   })).optional(),
 });
 export type RenderOptions = z.infer<typeof renderOptionsSchema>;

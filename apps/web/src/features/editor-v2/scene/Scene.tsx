@@ -11,9 +11,8 @@ import { Player } from '../player/Player';
 import { useProject, useSelectedElement, useElementPickerEnabled, useInspectModeEnabled, useIsPlaying } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
 import { ElementInspectOverlay } from './ElementInspectOverlay';
-import { VideoDragOverlay } from '../components/VideoDragOverlay';
 import { CaptionDragOverlay } from '../components/CaptionDragOverlay';
-import { PiPDragOverlay } from '../components/PiPDragOverlay';
+import { ItemDragOverlay } from '../components/ItemDragOverlay';
 import { type SocialPlatform, type OverlayMode } from './social-platforms';
 
 interface HighlightRect {
@@ -103,9 +102,19 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
     const el = containerRef.current;
     if (!el) return;
     calculateScale();
-    const ro = new ResizeObserver(() => calculateScale());
+    let rafId: number | null = null;
+    const ro = new ResizeObserver(() => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        calculateScale();
+        rafId = null;
+      });
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => {
+      ro.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
+    };
   }, [calculateScale]);
 
   // Look for data-element-name in the rendered composition DOM
@@ -167,13 +176,6 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
         >
           <Player />
 
-          {/* Video drag-to-position overlay */}
-          <VideoDragOverlay
-            containerRef={playerContainerRef}
-            canvasWidth={videoWidth}
-            canvasHeight={videoHeight}
-          />
-
           {/* Element inspect mode overlay */}
           {inspectModeEnabled && !isPlaying && (
             <ElementInspectOverlay playerContainerRef={playerContainerRef} />
@@ -186,8 +188,8 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
             canvasHeight={videoHeight}
           />
 
-          {/* PiP drag/resize/border-radius overlay */}
-          <PiPDragOverlay
+          {/* Item drag/resize overlay for V2 transforms */}
+          <ItemDragOverlay
             containerRef={playerContainerRef}
             canvasWidth={videoWidth}
             canvasHeight={videoHeight}

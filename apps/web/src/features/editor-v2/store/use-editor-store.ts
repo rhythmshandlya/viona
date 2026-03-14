@@ -5,31 +5,11 @@
  * Provides optimized selectors for components to subscribe to specific state slices
  */
 
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
-import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, LayoutSettings, LayoutPresetId, LayoutMode, SelectedElement, AIEditingContext, VisualItemData, SegmentationData } from './types';
+import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, SelectedElement, AIEditingContext, VisualItemData, SegmentationData } from './types';
 import { migrateDisplayModeToZone } from '../utils/overlay-zones';
-
-/**
- * Like useShallow but uses JSON.stringify for deep comparison.
- * Needed for selectors that create nested objects (where useShallow's
- * shallow comparison would always see new references).
- */
-function useDeepSelector<S, U>(selector: (state: S) => U): (state: S) => U {
-  const prev = useRef<U>(undefined as U);
-  const prevJson = useRef<string>(undefined as unknown as string);
-  return (state) => {
-    const next = selector(state);
-    const nextJson = JSON.stringify(next);
-    if (nextJson === prevJson.current) {
-      return prev.current as U;
-    }
-    prevJson.current = nextJson;
-    prev.current = next;
-    return next;
-  };
-}
 
 // ============================================
 // Direct Store Access
@@ -253,33 +233,9 @@ export const useShowCaptions = () => useEditorStore((s) => s.showCaptions);
 
 // ============================================
 // Layout Selectors
+// V2: layout is in AI-generated Composition.tsx
+// useLayoutSettings, useLayoutPresetId, useLayoutMode, useLayoutActions removed
 // ============================================
-
-export function useLayoutSettings(): LayoutSettings {
-  return useEditorStore((state) => state.layoutSettings);
-}
-
-export function useLayoutPresetId(): LayoutPresetId {
-  return useEditorStore((state) => state.layoutPresetId);
-}
-
-export function useLayoutMode(): LayoutMode {
-  return useEditorStore((state) => state.layoutSettings.mode);
-}
-
-
-export function useLayoutActions() {
-  return useEditorStore(
-    useShallow((state) => ({
-      updateLayoutSettings: state.updateLayoutSettings,
-      updatePiPSettings: state.updatePiPSettings,
-      updatePiPCrop: state.updatePiPCrop,
-      updateSplitSettings: state.updateSplitSettings,
-      setLayoutPreset: state.setLayoutPreset,
-      setLayoutMode: state.setLayoutMode,
-    }))
-  );
-}
 
 /**
  * Get the caption style for the first selected caption item.
@@ -446,6 +402,12 @@ export const useVideoSegmentation = (videoItemId: string): SegmentationData | un
 // Action Hooks
 // ============================================
 
+/**
+ * @deprecated Use domain-specific hooks instead:
+ * usePlaybackActions, useTimelineActions, useCaptionActions, useViewportActions,
+ * useHistoryActions, useProjectActions, useAIActions, useTrackActions,
+ * useAudioActions, useTransformActions, useSafeZoneActions
+ */
 export function useEditorActions() {
   return useEditorStore(
     useShallow((state) => ({
@@ -537,13 +499,6 @@ export function useEditorActions() {
       mergeCaptions: state.mergeCaptions,
       updateCaptionText: state.updateCaptionText,
 
-      // Layout
-      updateLayoutSettings: state.updateLayoutSettings,
-      updatePiPSettings: state.updatePiPSettings,
-      updateSplitSettings: state.updateSplitSettings,
-      setLayoutPreset: state.setLayoutPreset,
-      setLayoutMode: state.setLayoutMode,
-
       // Scene selection
       setSelectedScene: state.setSelectedScene,
       setSelectedTimeRange: state.setSelectedTimeRange,
@@ -562,9 +517,7 @@ export function useEditorActions() {
       setPendingAIMessage: state.setPendingAIMessage,
       changeDisplayModeWithAI: state.changeDisplayModeWithAI,
 
-      // Visual display mode
-      updateVisualDisplayMode: state.updateVisualDisplayMode,
-      updateVisualTransition: state.updateVisualTransition,
+      // V2: updateVisualDisplayMode, updateVisualTransition removed — in AI-generated Composition.tsx
       openTransitionPicker: state.openTransitionPicker,
       closeTransitionPicker: state.closeTransitionPicker,
 
@@ -577,6 +530,172 @@ export function useEditorActions() {
 
       // Overlay zones
       updateVisualOverlayZone: state.updateVisualOverlayZone,
+      getVideoSegmentation: state.getVideoSegmentation,
+
+      // Transform & keyframes (v2)
+      updateTransform: state.updateTransform,
+      updateFilters: state.updateFilters,
+      updateKeyframes: state.updateKeyframes,
+      addKeyframeAtTime: state.addKeyframeAtTime,
+      deleteKeyframe: state.deleteKeyframe,
+      updateKeyframeEasing: state.updateKeyframeEasing,
+    }))
+  );
+}
+
+// ============================================
+// Domain-Specific Action Hooks
+// ============================================
+
+export function usePlaybackActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      play: state.play,
+      pause: state.pause,
+      togglePlayback: state.togglePlayback,
+      seek: state.seek,
+      setCurrentTime: state.setCurrentTime,
+    }))
+  );
+}
+
+export function useTimelineActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      select: state.select,
+      selectRange: state.selectRange,
+      selectAll: state.selectAll,
+      clearSelection: state.clearSelection,
+      setSelectionBox: state.setSelectionBox,
+      addItem: state.addItem,
+      updateItem: state.updateItem,
+      updateItemData: state.updateItemData,
+      deleteItems: state.deleteItems,
+      moveItem: state.moveItem,
+      resizeItem: state.resizeItem,
+      startDrag: state.startDrag,
+      updateDrag: state.updateDrag,
+      endDrag: state.endDrag,
+      splitItem: state.splitItem,
+      splitAllAtPlayhead: state.splitAllAtPlayhead,
+      setSplitMode: state.setSplitMode,
+      nudgeItems: state.nudgeItems,
+      trimItems: state.trimItems,
+      copyItems: state.copyItems,
+      pasteItems: state.pasteItems,
+      duplicateItems: state.duplicateItems,
+      deleteTimeRange: state.deleteTimeRange,
+    }))
+  );
+}
+
+export function useCaptionActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      updateAllCaptionStyles: state.updateAllCaptionStyles,
+      updateSelectedCaptionStyles: state.updateSelectedCaptionStyles,
+      updateWordStyleOverrides: state.updateWordStyleOverrides,
+      setApplyStyleToAll: state.setApplyStyleToAll,
+      selectAllCaptionsOnTrack: state.selectAllCaptionsOnTrack,
+      splitCaption: state.splitCaption,
+      mergeCaptions: state.mergeCaptions,
+      updateCaptionText: state.updateCaptionText,
+      setShowCaptions: state.setShowCaptions,
+    }))
+  );
+}
+
+export function useViewportActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      setZoom: state.setZoom,
+      setScrollX: state.setScrollX,
+      setScrollY: state.setScrollY,
+      zoomToFit: state.zoomToFit,
+    }))
+  );
+}
+
+export function useHistoryActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      undo: state.undo,
+      redo: state.redo,
+      pushHistory: state.pushHistory,
+    }))
+  );
+}
+
+export function useProjectActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      loadProject: state.loadProject,
+      reloadVisuals: state.reloadVisuals,
+      refreshMediaUrls: state.refreshMediaUrls,
+      saveProject: state.saveProject,
+      setProject: state.setProject,
+      updateVideoSettings: state.updateVideoSettings,
+    }))
+  );
+}
+
+export function useAIActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      setSelectedScene: state.setSelectedScene,
+      setSelectedTimeRange: state.setSelectedTimeRange,
+      setSelectedElement: state.setSelectedElement,
+      setElementPickerEnabled: state.setElementPickerEnabled,
+      setInspectModeEnabled: state.setInspectModeEnabled,
+      requestAIEdit: state.requestAIEdit,
+      setPendingAIMessage: state.setPendingAIMessage,
+      changeDisplayModeWithAI: state.changeDisplayModeWithAI,
+    }))
+  );
+}
+
+export function useTrackActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      addTrack: state.addTrack,
+      updateTrack: state.updateTrack,
+      deleteTrack: state.deleteTrack,
+      reorderTracks: state.reorderTracks,
+    }))
+  );
+}
+
+export function useAudioActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      separateAudio: state.separateAudio,
+      toggleEnhancement: state.toggleEnhancement,
+      updateEnhancementStatus: state.updateEnhancementStatus,
+    }))
+  );
+}
+
+export function useTransformActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      updateTransform: state.updateTransform,
+      updateFilters: state.updateFilters,
+      updateKeyframes: state.updateKeyframes,
+      addKeyframeAtTime: state.addKeyframeAtTime,
+      deleteKeyframe: state.deleteKeyframe,
+      updateKeyframeEasing: state.updateKeyframeEasing,
+      updateVisualOverlayZone: state.updateVisualOverlayZone,
+    }))
+  );
+}
+
+export function useSafeZoneActions() {
+  return useEditorStore(
+    useShallow((state) => ({
+      setSafeZonePlatform: state.setSafeZonePlatform,
+      setShowSafeZone: state.setShowSafeZone,
+      openTransitionPicker: state.openTransitionPicker,
+      closeTransitionPicker: state.closeTransitionPicker,
       getVideoSegmentation: state.getVideoSegmentation,
     }))
   );
@@ -687,3 +806,45 @@ export function useTrackY(): (trackId: string) => number {
     return 0;
   };
 }
+
+// ============================================
+// Workspace Selectors (Plan 3)
+// ============================================
+
+/** Workspace lifecycle status */
+export function useWorkspaceStatus() {
+  return useEditorStore((s) => s.workspaceStatus);
+}
+
+/** Whether workspace is active (ready for manifest ops) */
+export function useIsWorkspaceActive() {
+  return useEditorStore((s) => s.workspaceStatus === 'active');
+}
+
+/** Current workspace bundle URL */
+export function useWorkspaceBundleUrl() {
+  return useEditorStore((s) => s.workspaceBundleUrl);
+}
+
+/** Bundle version — changes trigger visual reload */
+export function useWorkspaceBundleVersion() {
+  return useEditorStore((s) => s.workspaceBundleVersion);
+}
+
+/** Who holds the workspace lock (null if unlocked) */
+export function useWorkspaceLockHolder() {
+  return useEditorStore((s) => s.workspaceLockHolder);
+}
+
+/** Bundle error message (null if no error) */
+export function useWorkspaceBundleError() {
+  return useEditorStore((s) => s.workspaceBundleError);
+}
+
+/** Raw workspace manifest JSON */
+export function useWorkspaceManifest() {
+  return useEditorStore((s) => s.workspaceManifest);
+}
+
+/** Error from last failed manifest operation dispatch */
+export const useManifestSyncError = () => useEditorStore((s) => s.manifestSyncError);

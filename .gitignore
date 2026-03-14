@@ -71,3 +71,4 @@ packages/worker/bundles/
 conda-env/
 
 bundles/
+.superpowers/

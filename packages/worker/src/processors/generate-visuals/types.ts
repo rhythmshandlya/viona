@@ -37,6 +37,16 @@ export interface ExtractedAsset {
 // VisualsLayoutMode, VisualsDimensions, VideoSelection, GenerateVisualsJobData
 // are imported and re-exported from @viona/shared above
 
+export interface SegmentMetadata {
+  id: number;
+  layout: string;  // 'stacked' | 'fullscreen' | 'overlay'
+  layoutProps: Record<string, unknown>;
+  startMs: number;
+  endMs: number;
+  beatCount: number;
+  description: string;
+}
+
 export interface VisualMetadata {
   compositionId: string;
   durationInFrames: number;
@@ -54,6 +64,8 @@ export interface VisualMetadata {
       exit: { type: string; durationMs: number };
     };
   }>;
+  segments?: SegmentMetadata[];
+  version?: number;
 }
 
 export interface JobMetrics {

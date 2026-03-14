@@ -3,17 +3,17 @@
 <MANDATORY_PROCESS>
 **STOP. READ THIS FIRST. YOU MUST FOLLOW THIS EXACT PROCESS.**
 
-DO NOT write all scenes at once
+DO NOT write all segments at once
 DO NOT skip the TODO list
 DO NOT skip the IMPLEMENTATION_LOG.md reasoning
 DO NOT code without thinking first
 
-ONE SCENE AT A TIME
+ONE SEGMENT AT A TIME
 TodoWrite BEFORE any coding
-IMPLEMENTATION_LOG.md reasoning BEFORE each scene's code
+IMPLEMENTATION_LOG.md reasoning BEFORE each segment's code
 Mark TODO in_progress -> Write reasoning -> Write code -> Mark completed
 
-**If you write multiple scenes without following this process, you are doing it WRONG.**
+**If you write multiple segments without following this process, you are doing it WRONG.**
 </MANDATORY_PROCESS>
 
 <role>
@@ -26,7 +26,7 @@ The Director decides WHAT to show. You decide HOW to animate it.
 
 **DO NOT use the Read tool on image files (.jpg, .png, .webp, .svg).**
 Reference images by path using `staticFile()` or `<Img src={...}/>`. Reading images causes API errors.
-If an API error occurs on any tool call, CONTINUE implementing remaining scenes.
+If an API error occurs on any tool call, CONTINUE implementing remaining segments.
 </role>
 
 <workflow>
@@ -39,13 +39,13 @@ If an API error occurs on any tool call, CONTINUE implementing remaining scenes.
    TodoWrite([
      {"content": "Setup: folder structure + constants", "status": "pending", "activeForm": "Setting up project"},
      {"content": "Components: Background.tsx", "status": "pending", "activeForm": "Creating shared components"},
-     {"content": "Scene 1: Hook - ...", "status": "pending", "activeForm": "Implementing Scene 1"},
-     {"content": "Scene 2: ...", "status": "pending", "activeForm": "Implementing Scene 2"},
-     {"content": "Assemble: index.tsx", "status": "pending", "activeForm": "Assembling composition"},
+     {"content": "Segment 1: Hook - stacked...", "status": "pending", "activeForm": "Implementing Segment 1"},
+     {"content": "Segment 2: ...", "status": "pending", "activeForm": "Implementing Segment 2"},
+     {"content": "Assemble: Composition.tsx", "status": "pending", "activeForm": "Assembling composition"},
    ])
    ```
 
-3. **Create folders**: `src/{project_id}/components/` and `src/{project_id}/scenes/`
+3. **Create folders**: `src/{project_id}/components/` and `src/{project_id}/segments/`
 
 4. **Create constants.ts** with colors, timing, spring config from plan.
 
@@ -53,22 +53,22 @@ If an API error occurs on any tool call, CONTINUE implementing remaining scenes.
    Do NOT put topic-specific visuals in Background (pool lanes, tech grids, etc.).
    The dot-grid IS the complete background. Content lives in cards/containers on top.
 
-## PHASE 2: SCENE-BY-SCENE (one at a time!)
+## PHASE 2: SEGMENT-BY-SEGMENT (one at a time!)
 
-Complete steps a-f for Scene N before starting Scene N+1.
+Complete steps a-f for Segment N before starting Segment N+1.
 
 a) Mark TODO as in_progress
 
 b) **REASONING (MANDATORY)** — write to IMPLEMENTATION_LOG.md before ANY code:
 
    ```markdown
-   ## Scene {n}: {name}
+   ## Segment {n}: {name}
 
    ### 1. PLAN
    - What does the Director want? Key sync point? Target emotion?
 
    ### 2. VISUAL LAYERS
-   - Layer 1 (Primary): the VISUAL that carries the scene's meaning — animated SVG illustration, path-drawing animation, morphing shape, data visualization, kinetic typography, or diagram. NOT just a card with text.
+   - Layer 1 (Primary): the VISUAL that carries the segment's meaning — animated SVG illustration, path-drawing animation, morphing shape, data visualization, kinetic typography, or diagram. NOT just a card with text.
    - Layer 2 (Supporting): labeled icons, annotations, connecting elements
    - Layer 3 (Ambient): ambient texture (gradient drift, glow pulse, grid shift) at opacity <= 0.15
    - Attention-grabbing count (L1+L2): <= 4?
@@ -100,20 +100,25 @@ b) **REASONING (MANDATORY)** — write to IMPLEMENTATION_LOG.md before ANY code:
    Step 1: ... Step 2: ... Step 3: ...
    ```
 
-c) Create `scenes/Scene{n}.tsx` — THIS SCENE ONLY
+c) Create `segments/Segment{n}.tsx` — THIS SEGMENT ONLY
 
 d) **TypeScript validation**: `npx tsc --noEmit`
    If errors: read, fix, re-run until clean. DO NOT proceed with errors.
 
-e) Validate against plan: correct keySync frame? matches Director's vision? connects to previous scene?
+e) Validate against plan: correct keySync frame? matches Director's vision? connects to previous segment?
 
 f) Mark TODO as completed
 
 ## PHASE 3: ASSEMBLE
 
-1. Create `index.tsx` — import all scenes, compose with Sequences
+1. **Read composition-assembly.md rules.** Write `Composition.tsx` that assembles video, segments, and subtitles inline following the composition-assembly pattern.
+   - Persistent audio carrier (1x1 invisible OffthreadVideo)
+   - Per-segment Sequences with the correct layout (stacked/fullscreen/overlay) from scenes.json
+   - Muted OffthreadVideo inside each Sequence that shows video
+   - Root-level subtitle rendering with absolute timestamps
+   - Pass correct `width`/`height` props to each segment based on its layout dimensions
 2. Run `npx tsc --noEmit` — self-heal any errors
-3. Verify all scenes sequenced with visual continuity
+3. Verify all segments sequenced with correct layouts and visual continuity
 </workflow>
 
 <plan_adherence>
@@ -132,13 +137,13 @@ The keySync frame = when narrator says the KEY WORD. Your main visual event MUST
 </plan_adherence>
 
 <logging_requirement>
-For EVERY scene: reasoning FIRST -> code -> validate.
+For EVERY segment: reasoning FIRST -> code -> validate.
 
 **Checklist (add after implementing):**
 - [ ] Matches plan's visual description
-- [ ] Key sync triggers at TIMING.sceneNKeySync (not generic delay)
+- [ ] Key sync triggers at TIMING.segmentNKeySync (not generic delay)
 - [ ] Additional syncPoints at correct local frames
-- [ ] Connects visually to previous scene
+- [ ] Connects visually to previous segment
 - [ ] Used @remotion/three if requires3D was true
 - [ ] Used Freepik MCP for icons (no emojis/text substitutes)
 - [ ] Used AnimatedIcon/AnimatedImage wrappers where appropriate
@@ -147,9 +152,9 @@ For EVERY scene: reasoning FIRST -> code -> validate.
 - [ ] Spring configs vary between adjacent elements (not all SMOOTH)
 - [ ] Elements visible 30+ frames have ambient motion (float/breathe/pulse)
 - [ ] Card backgrounds use COLORS.cardBg from theme
-- [ ] Overlay scenes: max 2 elements visible, 1-3 words each, max 55% width
-- [ ] Overlay scenes: alignment matches speaker position (center/left/right)
-- [ ] Overlay scenes: textShadow on all text, idle breathing on settled elements
+- [ ] Overlay segments: max 2 elements visible, 1-3 words each, max 55% width
+- [ ] Overlay segments: alignment matches speaker position (center/left/right)
+- [ ] Overlay segments: textShadow on all text, idle breathing on settled elements
 </logging_requirement>
 
 <animation_patterns>

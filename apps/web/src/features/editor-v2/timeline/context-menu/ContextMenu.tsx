@@ -10,7 +10,11 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenuState, ContextMenuTarget } from './useContextMenu';
 import {
-  useEditorActions,
+  useTimelineActions,
+  useTrackActions,
+  useAIActions,
+  useSafeZoneActions,
+  useTransformActions,
   useSelectedIds,
   useItems,
   useTracks,
@@ -79,13 +83,12 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     deleteItems,
     deleteTimeRange,
     pasteItems,
-    updateTrack,
     select,
-    requestAIEdit,
-    updateVisualDisplayMode,
-    changeDisplayModeWithAI,
-    openTransitionPicker,
-  } = useEditorActions();
+  } = useTimelineActions();
+  const { updateTrack } = useTrackActions();
+  const { requestAIEdit, changeDisplayModeWithAI } = useAIActions();
+  const { openTransitionPicker } = useSafeZoneActions();
+  const { updateTransform, updateFilters, updateKeyframes, addKeyframeAtTime } = useTransformActions();
 
   // Close on outside click
   useEffect(() => {
@@ -209,31 +212,49 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             },
             disabled: !track,
           },
+          { type: 'separator' as const },
+          {
+            label: 'Edit Properties',
+            action: withSelection(() => {
+              // Selection triggers auto-open of the properties panel via Editor.tsx useEffect
+              select([itemId], 'replace');
+            }),
+          },
+          {
+            label: 'Add Keyframe at Playhead',
+            action: withSelection(() => {
+              const currentItem = items[itemId];
+              if (!currentItem) return;
+              const relativeTime = currentTimeMs - currentItem.startMs;
+              const currentTransform = currentItem.transform || {
+                x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1,
+              };
+              addKeyframeAtTime(itemId, relativeTime, currentTransform);
+            }),
+          },
+          { type: 'separator' as const },
+          {
+            label: 'Clear All Keyframes',
+            action: withSelection(() => updateKeyframes(itemId, [])),
+            disabled: !item?.keyframes || item.keyframes.length === 0,
+          },
+          {
+            label: 'Reset Transform',
+            action: withSelection(() =>
+              updateTransform(itemId, { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 })
+            ),
+          },
+          {
+            label: 'Reset Filters',
+            action: withSelection(() =>
+              updateFilters(itemId, { brightness: 1, contrast: 1, saturation: 1, blur: 0, hue: 0, grayscale: 0, sepia: 0 })
+            ),
+          },
           // Display Mode submenu and "Edit with AI" for visual items
           ...(item?.type === 'visual'
             ? [
                 { type: 'separator' as const },
-                {
-                  type: 'submenu' as const,
-                  label: 'Display Mode',
-                  items: [
-                    {
-                      label: 'Standard',
-                      action: withSelection(() => updateVisualDisplayMode(itemId, 'default')),
-                      checked: ((item.data as VisualItemData).displayMode || 'default') === 'default' || ((item.data as VisualItemData).displayMode as string) === 'pip',
-                    },
-                    {
-                      label: 'Fullscreen (animation only)',
-                      action: withSelection(() => updateVisualDisplayMode(itemId, 'fullscreen')),
-                      checked: (item.data as VisualItemData).displayMode === 'fullscreen',
-                    },
-                    {
-                      label: 'Overlay (animation over speaker)',
-                      action: withSelection(() => updateVisualDisplayMode(itemId, 'overlay')),
-                      checked: (item.data as VisualItemData).displayMode === 'overlay',
-                    },
-                  ],
-                },
+                // V2: Display Mode submenu removed — layout is in AI-generated Composition.tsx
                 {
                   type: 'submenu' as const,
                   label: 'Change & AI Adapt',
@@ -329,9 +350,12 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       pasteItems,
       updateTrack,
       requestAIEdit,
-      updateVisualDisplayMode,
       changeDisplayModeWithAI,
       openTransitionPicker,
+      updateTransform,
+      updateFilters,
+      updateKeyframes,
+      addKeyframeAtTime,
     ]
   );
 

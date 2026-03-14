@@ -3,3 +3,8 @@ export * from './storage';
 export * from './dynamic-hierarchy';
 export * from './queue-types';
 export * from './progress-types';
+export * from './manifest';
+export * from './manifest-ops';
+export * from './manifest-convert';
+export * from './manifest-v2';
+export * from './manifest-migrate';

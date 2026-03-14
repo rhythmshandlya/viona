@@ -7,7 +7,9 @@ scene-by-scene animation plans that sync precisely with narration.
 
 
 from prompts._loader import load_prompt, load_shared_modules
-DIRECTOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('director/system')
+
+_SEGMENT_GROUPING = load_prompt('director/segment-grouping')
+DIRECTOR_SYSTEM_PROMPT = load_shared_modules() + "\n\n" + load_prompt('director/system') + "\n\n" + _SEGMENT_GROUPING
 
 
 import math
@@ -78,10 +80,6 @@ def _coverage_tier(source_width: int | None, source_height: int | None, canvas_w
     )
 
 
-# Shared display-mode reference table used by all layout contexts
-_DISPLAY_MODE_TABLE = load_prompt('director/display-mode-table')
-
-
 def get_layout_context(
     layout_mode: str,
     width: int,
@@ -91,64 +89,71 @@ def get_layout_context(
     pip_width: int | None = None,
     pip_height: int | None = None,
 ) -> str:
-    """Get layout-specific design guidance based on dimensions.
+    """Get v2 segment layout guidance based on dimensions.
 
     Args:
-        layout_mode: Layout mode (pip, stacked)
+        layout_mode: Layout mode (pip, stacked) — used to set default visual area
         width: Full canvas width
         height: Full canvas height
         source_width: Source video width (optional, for coverage-tier guidance)
         source_height: Source video height (optional, for coverage-tier guidance)
-        pip_width: Effective pip area width (for split layouts)
-        pip_height: Effective pip area height (for split layouts)
+        pip_width: Effective visual area width (for stacked layouts)
+        pip_height: Effective visual area height (for stacked layouts)
     """
     aspect = get_aspect_ratio_name(width, height)
     coverage = _coverage_tier(source_width, source_height, width, height)
     coverage_block = f"\n{coverage}\n" if coverage else ""
 
-    # Compute effective pip dimensions if not provided
+    # Compute effective visual dimensions for stacked layout
     eff_pip_w = pip_width or width
     eff_pip_h = pip_height or height
 
-    # Per-displayMode pixel dimensions block
-    per_dm_dims = f"""
-**Per-scene dimensions (based on displayMode):**
-- `"default"` → {eff_pip_w}x{eff_pip_h}px (the standard visual area for this layout)
-- `"fullscreen"` → {width}x{height}px (takes over entire canvas)
-- `"overlay"` → {width}x{height}px (full canvas, semi-transparent over speaker)
-"""
+    return f"""Canvas: {width}x{height}px ({aspect})
+This is a {'tall vertical format — stack elements vertically, large text for mobile viewing' if height > width else 'wide horizontal format — use horizontal layouts'}.
 
-    if layout_mode == "pip":
-        return f"""Picture-in-Picture (Full Canvas) with DYNAMIC LAYOUT SWITCHING
-- Your visuals fill the ENTIRE screen at {width}x{height}px ({aspect})
-- The speaker video will be overlaid as a small picture-in-picture window
-- Design for FULL-SCREEN IMPACT - use the entire canvas
-- This is a {'tall vertical format - stack elements vertically, large text for mobile viewing' if height > width else 'wide horizontal format - use horizontal layouts'}
-{_DISPLAY_MODE_TABLE}
-{per_dm_dims}{coverage_block}"""
+### Segment Layout Types (v2)
 
-    elif layout_mode == "stacked" or layout_mode == "split-horizontal":
-        return f"""Stacked Layout (Top/Bottom) with DYNAMIC LAYOUT SWITCHING
-- DEFAULT: Your visuals appear in the TOP portion, speaker video BELOW
-- Standard area: {eff_pip_w}x{eff_pip_h}px ({get_aspect_ratio_name(eff_pip_w, eff_pip_h)})
-- Full canvas: {width}x{height}px ({aspect})
-- Design for a {'wide horizontal strip' if eff_pip_w > eff_pip_h else 'compact area'} — arrange elements horizontally in the top half
-- Keep critical content centered, avoid edges that feel cramped
+Each **segment** specifies a `layout` that controls how visuals composite with the speaker video.
+Consecutive beats with the same layout are grouped into one segment (one animation file).
+
+| Layout | What happens | When to use |
+|--------|-------------|-------------|
+| `"stacked"` | Video + visuals split vertically. Visual area: {eff_pip_w}x{eff_pip_h}px. | DEFAULT — normal explanation, diagrams, animations (60-70% of beats) |
+| `"fullscreen"` | Visuals fill entire canvas ({width}x{height}px), speaker hidden. | 1-3 key moments — big reveals, complex diagrams, title cards |
+| `"overlay"` | Speaker fills canvas, visuals float on top ({width}x{height}px). | Speaker-focused moments — credibility, emotional beats, transitions |
+
+### Layout Props
+
+**stacked:**
+```json
+{{ "splitRatio": 70, "position": "video-first" }}
+```
+- `splitRatio`: 0-100, percentage of canvas for video (70 = video 70%, visuals 30%)
+- `position`: `"video-first"` (video on top) or `"visuals-first"` (visuals on top)
+- Effective visual area: {eff_pip_w}x{eff_pip_h}px
 - Bottom 15% of the visual area is reserved for subtitles — design above that line
 
-**However, each scene can BREAK OUT of the stacked layout to a different displayMode:**
-{_DISPLAY_MODE_TABLE}
-In stacked layout, the modes map as follows:
-- `"default"` → **Standard stacked**: visual in top half ({eff_pip_w}x{eff_pip_h}px), speaker in bottom half
-- `"fullscreen"` → **Takeover**: visual expands to fill the ENTIRE canvas ({width}x{height}px), speaker hidden. Great for complex diagrams or big reveals.
-- `"overlay"` → **Speaker focus**: speaker fills the canvas, your visual composites on top at ~70% opacity ({width}x{height}px). Use for credibility moments.
+**fullscreen:**
+```json
+{{}}
+```
+- No props needed — visuals take the full {width}x{height}px canvas
 
-This means most scenes stay in the familiar stacked layout, but 1-3 high-impact scenes can "punch out" to fullscreen or overlay for dramatic effect.
+**overlay:**
+```json
+{{ "x": "10%", "y": "60%", "width": "40%", "height": "35%" }}
+```
+- CSS percentage positions/dimensions for the visual overlay region
+- Keep overlays in safe zones: top strip (0-15% Y) or lower-third (58-85% Y)
 
-{per_dm_dims}{coverage_block}"""
-
-    else:
-        return f"Custom layout: {width}x{height}px ({aspect})"
+### Planning Guidelines
+- Use `"stacked"` for 60-70% of beats — the bread and butter
+- Use `"fullscreen"` for 1-2 key high-impact moments — big reveals, complex visuals
+- Use `"overlay"` for speaker-focused moments — personal stories, emotional beats
+- NEVER use the same layout for ALL segments — variety creates visual rhythm
+- A layout change = new segment = new animation file, so minimize unnecessary switching
+- Consecutive beats with the same layout MUST be in the same segment
+{coverage_block}"""
 
 
 def build_director_user_message(
@@ -187,26 +192,6 @@ def build_director_user_message(
 
     layout_context = get_layout_context(layout_mode, width, height, source_width, source_height, pip_width, pip_height)
     aspect_ratio = get_aspect_ratio_name(width, height)
-
-    # Display mode fields for scenes.json — enabled for ALL layout modes
-    display_mode_schema = """
-      "displayMode": "default",
-      "transition": {
-        "enter": { "type": "cut", "durationMs": 0 },
-        "exit": { "type": "cut", "durationMs": 0 }
-      },"""
-    display_mode_notes = """
-**DISPLAY MODE (ALL layouts — per-scene):**
-- Every scene MUST have a `displayMode` field: `"default"`, `"fullscreen"`, or `"overlay"`
-- Every scene MUST have a `transition` object with `enter` and `exit` sub-objects
-- Transition types: `"cut"` (instant), `"fade"`, `"zoom-in"`, `"zoom-out"`
-- Transition durations: 0 for cuts, 300-500ms for fades, 200-400ms for zooms
-- Use variety: do NOT make every scene the same displayMode
-- Use `"fullscreen"` for 1-3 key high-impact scenes (complex diagrams, big reveals)
-- Use `"overlay"` for speaker-focused moments (intro, credibility, emotional beats)
-- Use `"default"` for standard explanation scenes (the majority)
-"""
-    display_mode_checklist = "5. [ ] Each scene has a displayMode and transition (with variety — not all the same)\n"
 
     # Build optional user style guide section
     user_guide_section = ""
@@ -273,7 +258,7 @@ Your visuals MUST follow this style preset. Use colors, typography, and animatio
 
 ## YOUR TASK
 
-Analyze this transcript and create a scene-by-scene animation plan.
+Analyze this transcript and create a segment-based animation plan.
 
 ### Step 1: Identify Narrative Beats
 First, identify the narrative beats in the content (as many as needed — no cap):
@@ -285,12 +270,12 @@ First, identify the narrative beats in the content (as many as needed — no cap
 
 Vary the pacing: short beats (7-8s) for hook and payoff, longer beats (10-15s) for core explanation.
 
-**SPLIT RULE:** If a narrative section covers two distinct ideas (e.g., "problem" then "solution", or "chart analysis" then "comparison"), those are TWO separate beats — even if they're related. Each beat = one scene. A scene with a topic shift in the middle will have dead visual space where the first topic's visual sits stale while the narrator moves on. Always split at topic transitions.
+**SPLIT RULE:** If a narrative section covers two distinct ideas (e.g., "problem" then "solution", or "chart analysis" then "comparison"), those are TWO separate beats — even if they're related. Each beat = one visual. A beat with a topic shift in the middle will have dead visual space where the first topic's visual sits stale while the narrator moves on. Always split at topic transitions.
 
 ### Step 2: Design Visual Metaphor System
 Choose ONE primary visual metaphor that persists throughout:
 - What concrete object represents the abstract concept?
-- How does it transform across scenes?
+- How does it transform across beats?
 - What color palette fits the mood?
 
 ### Step 3: Map Key Sync Points
@@ -299,27 +284,29 @@ For each important word in the transcript:
 - Decide what visual event should trigger
 - This creates the "sync magic" - visuals match narration
 
-### Step 4: Plan Visual Continuity (Cross-Scene Anchoring)
-Ensure scenes connect through SPECIFIC visual anchors:
-- Each scene's ANCHOR-OUT element must appear as the next scene's ANCHOR-IN
-- Example: Scene 1 ends with a key flying rightward → Scene 2 opens with that key arriving at buckets
+### Step 4: Plan Visual Continuity (Cross-Beat Anchoring)
+Ensure beats connect through SPECIFIC visual anchors:
+- Each beat's ANCHOR-OUT element must appear as the next beat's ANCHOR-IN
+- Example: Beat 1 ends with a key flying rightward → Beat 2 opens with that key arriving at buckets
 - The `buildsFrom` and `connectsTo` fields must name the EXACT element, not "previous visual"
 - Never cut to completely unrelated visuals — always carry at least ONE element forward
+- Within a segment, motion flows continuously (no hard cuts). Hard cuts happen at segment boundaries.
 
 ### Step 5: Write Layered Visual Descriptions
-For each scene's "visual" field, describe in layers:
+For each beat's "visual" field, describe in layers:
 - Background → Primary element → Secondary elements → Accents → Motion → Text
 - Use one movement per sentence — don't combine multiple actions
 - Answer: WHAT appears, WHERE on canvas, WHEN it moves, HOW it moves, WHY it matters
 
 ### Step 6: Self-Verification (MANDATORY before writing scenes.json)
-Compute these values for EVERY planned scene and create the Verification Table:
+Compute these values for EVERY planned beat and create the Verification Table:
 - Duration in frames and seconds (must be 210-450 frames / 7-15 seconds)
 - Max gap between consecutive sync points (must be under 90 frames / 3 seconds)
-- Contiguity check (each scene starts where previous ends)
-- Total frame coverage (first scene starts at 0, last ends at total_frames)
+- Contiguity check (each beat starts where previous ends)
+- Total frame coverage (first beat starts at 0, last ends at total_frames)
+- Segment grouping check (consecutive beats with same layout are in the same segment)
 
-If ANY scene fails a check, adjust boundaries or split the scene BEFORE writing scenes.json.
+If ANY beat fails a check, adjust boundaries or split the beat BEFORE writing scenes.json.
 Write the verification table into SCENE_PLAN.md, then write scenes.json.
 
 ## OUTPUT FILES
@@ -332,156 +319,194 @@ Human-readable plan with:
 - Transcript analysis
 - Story arc breakdown
 - Visual metaphor system
-- Scene-by-scene breakdown with sync points
+- Beat-by-beat breakdown with sync points and segment grouping
 - **MANDATORY: Verification Table** (see below)
 
 **VERIFICATION TABLE** — You MUST include this table at the END of SCENE_PLAN.md, BEFORE writing scenes.json.
-Compute these values for EVERY scene and verify they pass. If any row FAILS, fix it before writing scenes.json.
+Compute these values for EVERY beat and verify they pass. If any row FAILS, fix it before writing scenes.json.
 
 ```
-## Scene Verification
+## Beat Verification
 
-| Scene | Frames | Duration | Status | Max Sync Gap | Gap Status | Sync Count |
-|-------|--------|----------|--------|--------------|------------|------------|
-| 1     | 0-360  | 12.0s    | OK     | 2.9s         | OK         | 5          |
-| 2     | 360-630| 9.0s     | OK     | 2.8s         | OK         | 3          |
-| ...   | ...    | ...      | ...    | ...          | ...        | ...        |
+| Beat | Segment | Layout | Frames | Duration | Status | Max Sync Gap | Gap Status | Sync Count |
+|------|---------|--------|--------|----------|--------|--------------|------------|------------|
+| 1    | 1       | stacked| 0-360  | 12.0s    | OK     | 2.9s         | OK         | 5          |
+| 2    | 1       | stacked| 360-630| 9.0s     | OK     | 2.8s         | OK         | 3          |
+| 3    | 2       | overlay| 630-900| 9.0s     | OK     | 2.5s         | OK         | 4          |
+| ...  | ...     | ...    | ...    | ...      | ...    | ...          | ...        | ...        |
 
 Duration rules: min 7s, max 15s. Max sync gap: 3s (90 frames). Min sync points: 2.
 Total frames: X / Y (must match exactly)
-Contiguous: YES/NO (each scene must start where previous ends)
+Contiguous: YES/NO (each beat must start where previous ends)
+Segments contiguous: YES/NO (each segment must start where previous ends)
+Same-layout grouping: YES/NO (consecutive beats with same layout in same segment)
 ```
 
-If any Status or Gap Status shows FAIL, you MUST adjust scene boundaries or add sync points BEFORE writing scenes.json.
+If any Status or Gap Status shows FAIL, you MUST adjust beat boundaries or add sync points BEFORE writing scenes.json.
 
 ### 2. scenes.json
 **EXACT path (use this VERBATIM in your Write tool call):** `{abs_scenes_path}`
-Machine-readable with this structure:
+Machine-readable v2 format with segments and beats:
 ```json
 {{
+  "version": 2,
   "projectId": "{project_id}",
   "fps": {fps},
   "totalFrames": {duration_frames},
   "durationSeconds": {duration_seconds:.1f},
-  "totalScenes": N,
   "primaryMetaphor": "description",
   "colorPalette": "palette name",
   "iconStyle": {{ "shape": "outline|fill|lineal-color|hand-drawn", "color": "solid-black|multicolor|white|blue|..." }},
-  "visualContinuity": "what persists across scenes",
-  "responsive": {{
-    "safeMargin": "10%",
-    "titleSize": "5% of height",
-    "bodySize": "3% of height",
-    "maxContentWidth": "80%"
-  }},
-  "scenes": [
+  "segments": [
     {{
       "id": 1,
-      "name": "Scene Name",
-      "type": "animation",  // "animation" (default) or "youtube-clip"
-      "archetype": "hook-title",
-      "frames": [startFrame, endFrame],
-      "timestampRange": [startSec, endSec],
-      "keySync": {{
-        "word": "the word",
-        "timestamp": secondsFloat,
-        "frame": frameNumber,
-        "visualEvent": "what happens"
-      }},
-      "syncPoints": [
+      "layout": "stacked",
+      "layoutProps": {{ "splitRatio": 70, "position": "video-first" }},
+      "frames": [0, 630],
+      "beats": [
         {{
-          "word": "important word",
-          "timestamp": secondsFloat,
-          "frame": frameNumber,
-          "visualEvent": "what visual change happens at this word"
+          "id": 1,
+          "name": "Beat Name",
+          "type": "animation",
+          "archetype": "hook-title",
+          "frames": [0, 360],
+          "keySync": 45,
+          "syncPoints": [
+            {{ "frame": 45, "action": "Title springs in with text-reveal" }},
+            {{ "frame": 120, "action": "Subtitle fades up below title" }}
+          ],
+          "technique": "path-drawing",
+          "visual": "AMBIENT: ... PRIMARY: ... SECONDARY: ...",
+          "buildsFrom": null,
+          "connectsTo": "the glowing key element in motion",
+          "icons": ["checkmark", "warning"],
+          "illustrations": ["concept search term if needed"],
+          "images": [
+            {{
+              "keyword": "search term for photo/illustration",
+              "type": "photo or illustration",
+              "purpose": "hero, accent, or background",
+              "description": "what the image should depict",
+              "placement": "center, background, left, or right",
+              "animation": "ken-burns"
+            }}
+          ],
+          "videos": [
+            {{
+              "keyword": "search terms for YouTube video",
+              "purpose": "hero, accent, or background",
+              "placement": "center, background, left, or right",
+              "trimHint": "optional hint for which part to use",
+              "muted": true
+            }}
+          ],
+          "layout": {{
+            "primary": {{ "element": "title", "y": "center" }},
+            "secondary": {{ "element": "metaphor visual", "y": "60%" }},
+            "alignment": "center"
+          }},
+          "suggestedTemplates": ["stat-counter"]
         }}
-      ],
-      "visual": "detailed description with RELATIVE positioning (percentages)",{display_mode_schema}
-      "layout": {{
-        "primary": {{ "x": "center", "y": "20%", "width": "60%", "height": "auto" }},
-        "secondary": {{ "x": "center", "y": "60%", "width": "80%", "height": "auto" }}
-      }},
-      "emotion": "what viewer feels",
-      "buildsFrom": "previous scene connection or null",
-      "connectsTo": "next scene connection",
-      "requires3D": false,
-      "icons": ["checkmark", "warning"],  // plain English nouns only — no hyphens, no library names
-      "illustrations": ["concept search term if needed"],
-      "iconAnimation": "pop",
-      "images": [
+      ]
+    }},
+    {{
+      "id": 2,
+      "layout": "overlay",
+      "layoutProps": {{ "x": "10%", "y": "60%", "width": "40%", "height": "35%" }},
+      "frames": [630, 900],
+      "beats": [
         {{
-          "keyword": "search term for photo/illustration",
-          "type": "photo or illustration",
-          "purpose": "hero, accent, or background",
-          "description": "what the image should depict",
-          "placement": "center, background, left, or right",
-          "animation": "ken-burns"
+          "id": 3,
+          "name": "Speaker Insight",
+          "type": "animation",
+          "archetype": "insight-reveal",
+          "frames": [630, 900],
+          "keySync": 90,
+          "syncPoints": [
+            {{ "frame": 90, "action": "Keyword appears in lower-third" }}
+          ],
+          "technique": "kinetic-typography",
+          "visual": "...",
+          "buildsFrom": "...",
+          "connectsTo": "...",
+          "icons": [],
+          "illustrations": [],
+          "images": [],
+          "videos": [],
+          "layout": {{
+            "primary": {{ "element": "keyword", "y": "65%" }},
+            "alignment": "center"
+          }}
         }}
-      ],
-      "videos": [
-        {{
-          "keyword": "search terms for YouTube video",
-          "purpose": "hero, accent, or background",
-          "placement": "center, background, left, or right",
-          "trimHint": "optional hint for which part to use",
-          "muted": true
-        }}
-      ],
-      // For type: "youtube-clip" scenes only:
-      "videoSearch": "search query for YouTube",  // Required for youtube-clip
-      "frameStyle": "browser",  // phone | laptop | browser | polaroid | film | none
-      "suggestedTemplates": ["stat-counter", "bar-chart-race"]
+      ]
     }}
   ]
 }}
 ```
 
+**KEY FORMAT RULES:**
+- `"version": 2` — REQUIRED at the top level
+- `"segments"` array (NOT flat `"scenes"` array)
+- Each segment has `layout`, `layoutProps`, `frames`, and `beats`
+- Beat `frames` are ABSOLUTE (relative to video timeline), NOT segment-relative
+- `keySync` is a LOCAL frame offset within the beat (relative to beat start frame)
+- `syncPoints[].frame` values are also LOCAL offsets within the beat
+- Segment `frames` must match the range of their beats: `[firstBeat.frames[0], lastBeat.frames[1]]`
+
 **CRITICAL: All positions use percentages or "center"/"auto". Never use pixel values.**
 
 **`suggestedTemplates` (studio preset only):**
 - An array of 1-2 template slug strings from the STUDIO_TEMPLATES.md catalog
-- Only include this field when style_preset is "studio" AND a template matches the scene's purpose
-- The Animator will read the template source and use it as a starting point for the scene
+- Only include this field when style_preset is "studio" AND a template matches the beat's purpose
+- The Animator will read the template source and use it as a starting point for the beat
 - If no template fits, omit this field entirely — the Animator will create custom visuals
 
 **SYNC POINTS:**
-- `keySync` is the SINGLE most important word-visual pair in the scene (required)
-- `syncPoints` is an array of ALL important word-visual pairs (2-5 per scene recommended)
-- Include the keySync word in syncPoints too, plus any other words that should trigger visual events
+- `keySync` is the LOCAL frame offset of the SINGLE most important sync moment in the beat
+- `syncPoints` is an array of ALL important sync moments (2-5 per beat recommended)
+- Include the keySync moment in syncPoints too, plus any other visual events
 - The Animator will use these to align animations precisely with the narration
-- Frame values MUST be calculated as: `round(timestamp_seconds * {fps})`
-- Example: if narrator says "overflow" at 4.5s in a 30fps video, frame = round(4.5 * 30) = 135
+- Frame values MUST be calculated as LOCAL offsets: `round(timestamp_seconds * {fps}) - beat_start_frame`
+- Example: if beat starts at frame 120, narrator says "overflow" at 4.5s (frame 135), keySync = 135 - 120 = 15
 
-{display_mode_notes}**CRITICAL DURATION CONSTRAINT:**
+**TECHNIQUE FIELD (required per beat):**
+Valid values: `"card-data"`, `"path-drawing"`, `"shape-morph"`, `"animated-diagram"`, `"split-composition"`, `"particle-scatter"`, `"svg-illustration"`, `"data-viz"`, `"kinetic-typography"`
+No two adjacent beats should share the same `technique` value.
+
+**CRITICAL DURATION CONSTRAINT:**
 - The video is EXACTLY {duration_frames} frames ({duration_seconds:.1f} seconds) at {fps} FPS
-- Scene 1 MUST start at frame 0
-- The LAST scene MUST end at frame {duration_frames}
-- Scenes MUST be contiguous with NO gaps — each scene starts exactly where the previous one ends
-- Scene frames MUST match transcript timestamps: frame = timestamp_seconds * {fps}
+- The first beat MUST start at frame 0
+- The LAST beat MUST end at frame {duration_frames}
+- Beats MUST be contiguous with NO gaps — each beat starts exactly where the previous one ends
+- Segments MUST be contiguous — each segment starts where the previous one ends
+- Beat frames MUST match transcript timestamps: frame = timestamp_seconds * {fps}
 - DO NOT invent your own duration. Use the EXACT frame count given.
 
 ## REMEMBER
-- One scene per narrative beat — use as many as the content needs, no arbitrary cap
-- Each scene: minimum 7 seconds (210 frames), maximum 15 seconds (450 frames)
-- No gap of 5+ seconds between sync points within a scene
-- Every scene needs a keySync point AND 2-5 syncPoints
-- Visual continuity: same element transforms across scenes
+- One beat per narrative topic — use as many as the content needs, no arbitrary cap
+- Each beat: minimum 7 seconds (210 frames), maximum 15 seconds (450 frames)
+- No gap of 5+ seconds between sync points within a beat
+- Every beat needs a keySync point AND 2-5 syncPoints
+- Visual continuity: same element transforms across beats
 - Be SPECIFIC about visuals, not generic
 - **TOTAL FRAMES MUST EQUAL {duration_frames}**
-- **NO GAPS between scenes** — scenes must be back-to-back, covering every frame
-- For studio preset: suggest matching template slugs in "suggestedTemplates" per scene
+- **NO GAPS between beats** — beats must be back-to-back, covering every frame
+- Consecutive beats with the same layout MUST be in the same segment
+- For studio preset: suggest matching template slugs in "suggestedTemplates" per beat
 
 ## FINAL CHECKLIST
 Before responding "PLANNING COMPLETE":
 1. [ ] Used Write tool to create `{abs_plan_path}` (includes Verification Table)
 2. [ ] Used Write tool to create `{abs_scenes_path}`
-3. [ ] scenes.json has valid JSON structure
+3. [ ] scenes.json has valid JSON structure with `"version": 2` and `"segments"` array
 4. [ ] Both files written to the EXACT paths above (not the workspace root!)
-{display_mode_checklist}6. [ ] Scenes are contiguous — no gaps between any two consecutive scenes
-7. [ ] Scene 1 starts at frame 0, last scene ends at frame {duration_frames}
-8. [ ] Every scene is 210-450 frames (7-15 seconds) — verified in the table
-9. [ ] Max sync gap within any scene is under 90 frames (3 seconds) — verified in the table
-10. [ ] SCENE_PLAN.md written BEFORE scenes.json (verification must happen first)
+5. [ ] Segments are contiguous — no gaps between any two consecutive segments
+6. [ ] Each segment has valid `layout` and `layoutProps` for its type
+7. [ ] Consecutive beats with same layout are grouped in the same segment
+8. [ ] First beat starts at frame 0, last beat ends at frame {duration_frames}
+9. [ ] Every beat is 210-450 frames (7-15 seconds) — verified in the table
+10. [ ] Max sync gap within any beat is under 90 frames (3 seconds) — verified in the table
+11. [ ] SCENE_PLAN.md written BEFORE scenes.json (verification must happen first)
 
 **You MUST write both files using the Write tool. The Animator cannot proceed without them.**
 

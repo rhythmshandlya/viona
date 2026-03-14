@@ -90,4 +90,20 @@ export const config = {
   youtube: {
     apiKey: process.env.YOUTUBE_API_KEY || '',
   },
+
+  // Sandbox configuration
+  sandbox: {
+    provider: (process.env.SANDBOX_PROVIDER || 'docker') as 'railway' | 'docker',
+    image: process.env.SANDBOX_IMAGE || 'viona-sandbox:latest',
+    idleTimeoutMs: parseInt(process.env.SANDBOX_IDLE_TIMEOUT_MS || '600000', 10),  // 10 min
+    checkpointIntervalMs: parseInt(process.env.SANDBOX_CHECKPOINT_MS || '60000', 10),  // 60s
+    maxConcurrent: parseInt(process.env.SANDBOX_MAX_CONCURRENT || '100', 10),
+    reconnectionGraceMs: 30_000,  // 30s grace period before idle timer starts
+    // Railway-specific (production)
+    railway: {
+      apiToken: process.env.RAILWAY_API_TOKEN || '',
+      projectId: process.env.RAILWAY_PROJECT_ID || '',
+      environmentId: process.env.RAILWAY_ENVIRONMENT_ID || '',
+    },
+  },
 } as const;

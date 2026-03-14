@@ -44,6 +44,10 @@ type MessageHandler = {
   onError?: (data: JobError) => void;
   onHealth?: (data: any) => void;
   onActivity?: (data: any) => void;
+  /** Sandbox orchestrator: bundle rebuilt, increment version to reload player */
+  onBundleReady?: (version: number) => void;
+  /** Sandbox orchestrator: manifest changed, trigger refresh */
+  onManifestUpdated?: () => void;
 };
 
 const MAX_RECONNECT_DELAY = 30_000;
@@ -116,6 +120,13 @@ export function useJobWebSocket(
               break;
             case 'job:activity':
               handlersRef.current.onActivity?.(payload);
+              break;
+            // Sandbox orchestrator events
+            case 'bundle-ready':
+              handlersRef.current.onBundleReady?.(payload.version);
+              break;
+            case 'manifest-updated':
+              handlersRef.current.onManifestUpdated?.();
               break;
           }
         } catch (err) {

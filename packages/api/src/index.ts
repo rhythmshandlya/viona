@@ -22,6 +22,8 @@ import { youtubeClipRoutes } from './routes/youtube-clips.js';
 import { jobRoutes } from './routes/jobs.js';
 import { setupWebSocket } from './ws/handler.js';
 import { authMiddleware } from './middleware/auth.js';
+import { workspaceRoutes } from './workspace/workspace-routes.js';
+import { sandboxRoutes, rehydrateActiveSandboxes } from './sandbox/routes.js';
 
 const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
 
@@ -310,6 +312,8 @@ async function main() {
   await fastify.register(waitlistRoutes, { prefix: '/api' });
   await fastify.register(youtubeClipRoutes, { prefix: '/api' });
   await fastify.register(jobRoutes, { prefix: '/api' });
+  await fastify.register(workspaceRoutes, { prefix: '/api' });
+  await fastify.register(sandboxRoutes, { prefix: '/api' });
 
   // Setup WebSocket
   await setupWebSocket(fastify);
@@ -337,6 +341,18 @@ async function main() {
   try {
     await fastify.listen({ port: config.port, host: '0.0.0.0' });
     fastify.log.info(`Server running at http://localhost:${config.port}`);
+
+    // Clean up orphaned workspaces from previous runs (fire-and-forget)
+    import('./workspace/workspace-service.js').then(({ cleanupOrphanedWorkspaces }) => {
+      cleanupOrphanedWorkspaces().catch((err) => {
+        fastify.log.error(err, '[startup] Failed to clean up orphaned workspaces');
+      });
+    });
+
+    // Rehydrate active sandboxes after restart
+    rehydrateActiveSandboxes().catch((err) => {
+      console.error('[sandbox] Failed to rehydrate active sandboxes:', err);
+    });
   } catch (err) {
     fastify.log.error(err);
     process.exit(1);

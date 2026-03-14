@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useProject, useEditorActions, useIsSaving } from '../store/use-editor-store';
+import { useProject, useProjectActions, useIsSaving } from '../store/use-editor-store';
 import { api } from '@/lib/api';
 import { CanvasFormatSelector } from './CanvasFormatSelector';
 
@@ -34,7 +34,7 @@ interface HeaderProps {
 export function Header({ onOpenCommandPalette, onExport, onToggleTranscript, isTranscriptActive, layout, onToggleLayout, onToggleLogs, isLogsActive, hasActiveJob }: HeaderProps) {
   const router = useRouter();
   const project = useProject();
-  const { saveProject } = useEditorActions();
+  const { saveProject } = useProjectActions();
   const isSaving = useIsSaving();
 
   const [isEditingTitle, setIsEditingTitle] = useState(false);

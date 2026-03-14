@@ -8,7 +8,14 @@ export type WSMessageType =
   | 'job:complete'
   | 'job:error'
   | 'job:logs'
-  | 'project:updated';
+  | 'project:updated'
+  | 'workspace:ready'
+  | 'manifest:updated'
+  | 'bundle:ready'
+  | 'bundle:error'
+  | 'workspace:lock_acquired'
+  | 'workspace:lock_released'
+  | 'workspace:teardown';
 
 export interface WSMessage<T = unknown> {
   type: WSMessageType;
@@ -62,6 +69,39 @@ export interface JobLogsPayload {
   jobId: string;
   logs: LogEntry[];
   timestamp: string;
+}
+
+// ---- Workspace event payloads ----
+
+export interface WorkspaceReadyPayload {
+  projectId: string;
+  bundleUrl: string;
+}
+
+export interface ManifestUpdatedPayload {
+  projectId: string;
+  source: 'user' | 'ai';
+  ops?: unknown[];
+}
+
+export interface BundleReadyPayload {
+  projectId: string;
+  bundleUrl?: string;
+  hash?: string;
+}
+
+export interface BundleErrorPayload {
+  projectId: string;
+  error: string;
+}
+
+export interface WorkspaceLockPayload {
+  projectId: string;
+  holder: 'user' | 'ai';
+}
+
+export interface WorkspaceTeardownPayload {
+  projectId: string;
 }
 
 type MessageHandler = (message: WSMessage) => void;

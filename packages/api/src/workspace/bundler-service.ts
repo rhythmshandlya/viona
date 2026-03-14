@@ -1,0 +1,307 @@
+import { resolve, join } from 'path';
+import { createHash } from 'crypto';
+import { readdir, readFile, mkdir } from 'fs/promises';
+import { spawn } from 'child_process';
+import { workspaceConfig, getWorkspacePath, getWorkspaceSrcPath } from './workspace-config.js';
+import { emitBundleReady, emitBundleError } from './workspace-ws.js';
+
+// Resolve binaries from packages/worker which has both remotion and esbuild installed
+const WORKER_ROOT = resolve(process.cwd(), '..', 'worker');
+const WORKER_BIN = join(WORKER_ROOT, 'node_modules', '.bin');
+const REMOTION_TEMPLATE_DIR = join(WORKER_ROOT, 'remotion-template');
+const REMOTION_BIN = join(WORKER_BIN, process.platform === 'win32' ? 'remotion.CMD' : 'remotion');
+const ESBUILD_BIN = join(WORKER_BIN, process.platform === 'win32' ? 'esbuild.CMD' : 'esbuild');
+
+interface BuildRequest {
+  projectId: string;
+  priority: 'user' | 'background';
+  resolve: (bundlePath: string) => void;
+  reject: (error: Error) => void;
+}
+
+interface CacheEntry {
+  bundlePath: string;
+  hash: string;
+  builtAt: number;
+}
+
+class BundlerService {
+  private queue: BuildRequest[] = [];
+  private processing = false;
+  private cache = new Map<string, CacheEntry>();
+  private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private bundleOutputDir: string;
+
+  constructor() {
+    const isProduction = !!process.env.RAILWAY_ENVIRONMENT;
+    this.bundleOutputDir = resolve(
+      process.env.BUNDLE_OUTPUT_DIR ||
+      (isProduction ? '/tmp/bundles' : join(process.cwd(), '..', '..', 'bundles'))
+    );
+  }
+
+  /**
+   * Enqueue a build for a project. Debounces rapid requests.
+   * Returns the bundle output path when the build completes.
+   */
+  enqueueBuild(projectId: string, priority: 'user' | 'background' = 'background'): Promise<string> {
+    return new Promise((resolve, reject) => {
+      // Clear existing debounce timer for this project
+      const existing = this.debounceTimers.get(projectId);
+      if (existing) clearTimeout(existing);
+
+      const timer = setTimeout(() => {
+        this.debounceTimers.delete(projectId);
+
+        // Remove any existing queued build for this project
+        this.queue = this.queue.filter(r => r.projectId !== projectId);
+
+        const request: BuildRequest = { projectId, priority, resolve, reject };
+
+        if (priority === 'user') {
+          // User-triggered rebuilds go to front of queue
+          this.queue.unshift(request);
+        } else {
+          this.queue.push(request);
+        }
+
+        this.processNext();
+      }, workspaceConfig.bundlerDebounceMs);
+
+      this.debounceTimers.set(projectId, timer);
+    });
+  }
+
+  private async processNext(): Promise<void> {
+    if (this.processing || this.queue.length === 0) return;
+
+    this.processing = true;
+    const request = this.queue.shift()!;
+
+    try {
+      const bundlePath = await this.buildBundle(request.projectId);
+      request.resolve(bundlePath);
+      await emitBundleReady(request.projectId, { bundleUrl: `/api/projects/${request.projectId}/workspace/bundle` });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown build error';
+      request.reject(error instanceof Error ? error : new Error(message));
+      await emitBundleError(request.projectId, { error: message });
+    } finally {
+      this.processing = false;
+      this.processNext(); // Process next in queue
+    }
+  }
+
+  private async buildBundle(projectId: string): Promise<string> {
+    const workspacePath = getWorkspacePath(projectId);
+    const srcPath = getWorkspaceSrcPath(projectId);
+    const outDir = join(this.bundleOutputDir, projectId);
+
+    // Compute hash of all source files
+    const hash = await this.computeSourceHash(srcPath);
+    const cached = this.cache.get(projectId);
+    if (cached && cached.hash === hash) {
+      return cached.bundlePath; // Skip rebuild
+    }
+
+    // Ensure output directory exists
+    await mkdir(outDir, { recursive: true });
+
+    // Compile PlayerComposition to CJS (for frontend preview) — this is the critical path
+    // for the editor preview. Must run before the Remotion bundle which can fail.
+    await this.compilePlayerCjs(srcPath, outDir);
+
+    // Run Remotion bundle (for server-side rendering/export) — non-blocking for preview.
+    // Uses remotion-template as cwd so Node resolves @remotion/* from worker's deps.
+    // Output to a subdirectory so it doesn't conflict with the CJS file above.
+    const entryPoint = resolve(srcPath, 'index.ts');
+    const remotionOutDir = resolve(outDir, 'remotion-bundle');
+    this.runRemotionBundle(entryPoint, remotionOutDir, REMOTION_TEMPLATE_DIR).catch((err) => {
+      console.warn(`[bundler] Remotion bundle failed (preview still works): ${err.message?.slice(0, 200)}`);
+    });
+
+    // Update cache
+    this.cache.set(projectId, { bundlePath: outDir, hash, builtAt: Date.now() });
+
+    return outDir;
+  }
+
+  private runRemotionBundle(entryPoint: string, outDir: string, cwd: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const args = [
+        'bundle',
+        entryPoint,
+        '--out-dir', outDir,
+        '--log', 'error',
+      ];
+
+      const proc = spawn(REMOTION_BIN, args, {
+        cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: process.platform === 'win32',
+      });
+
+      let stderr = '';
+      let stdout = '';
+      let settled = false;
+      proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+      proc.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
+
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.killProcessTree(proc);
+        reject(new Error('Remotion bundle timed out after 120s'));
+      }, 120_000);
+
+      proc.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (code === 0) {
+          resolve();
+        } else {
+          // Log full output for debugging, but keep error message reasonable
+          console.error(`[bundler] FULL STDERR (${stderr.length} chars):\n${stderr}`);
+          console.error(`[bundler] FULL STDOUT (${stdout.length} chars):\n${stdout}`);
+          reject(new Error(`Remotion bundle failed (exit ${code}): ${stderr.slice(-1000)}`));
+        }
+      });
+
+      proc.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(new Error(`Failed to spawn Remotion bundle: ${err.message}`));
+      });
+    });
+  }
+
+  private compilePlayerCjs(srcPath: string, outDir: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const entryPoint = join(srcPath, 'PlayerComposition.tsx');
+      const cjsOutput = join(outDir, 'player-composition.cjs.js');
+
+      const args = [
+        entryPoint,
+        '--bundle',
+        '--format=cjs',
+        '--platform=browser',
+        '--target=es2020',
+        '--external:react',
+        '--external:react/jsx-runtime',
+        '--external:react/jsx-dev-runtime',
+        '--external:remotion',
+        '--external:@remotion/noise',
+        '--external:@remotion/shapes',
+        '--external:@remotion/paths',
+        '--external:@remotion/three',
+        '--external:@remotion/google-fonts/*',
+        '--external:remotion/no-react',
+        `--outfile=${cjsOutput}`,
+      ];
+
+      const proc = spawn(ESBUILD_BIN, args, {
+        cwd: join(srcPath, '..'),
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: process.platform === 'win32',
+      });
+
+      let stderr = '';
+      let settled = false;
+      proc.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        this.killProcessTree(proc);
+        reject(new Error('CJS compilation timed out after 60s'));
+      }, 60_000);
+
+      proc.on('close', (code) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        if (code === 0) {
+          resolve();
+        } else {
+          reject(new Error(`CJS compilation failed (exit ${code}): ${stderr.slice(0, 500)}`));
+        }
+      });
+
+      proc.on('error', (err) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(new Error(`Failed to spawn esbuild: ${err.message}`));
+      });
+    });
+  }
+
+  private killProcessTree(proc: import('child_process').ChildProcess): void {
+    if (!proc.pid) return;
+    try {
+      if (process.platform === 'win32') {
+        spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+      } else {
+        proc.kill('SIGTERM');
+      }
+    } catch {
+      // Process may already be dead
+    }
+  }
+
+  private async computeSourceHash(srcDir: string): Promise<string> {
+    const hash = createHash('sha256');
+
+    try {
+      await this.hashDir(srcDir, hash);
+    } catch {
+      // If dir doesn't exist, return empty hash
+      return 'empty';
+    }
+
+    return hash.digest('hex').slice(0, 16);
+  }
+
+  private async hashDir(dir: string, hash: ReturnType<typeof createHash>): Promise<void> {
+    const entries = await readdir(dir, { withFileTypes: true });
+    // Sort for deterministic hash
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        // Skip node_modules
+        if (entry.name === 'node_modules') continue;
+        await this.hashDir(fullPath, hash);
+      } else if (entry.isFile() && /\.(tsx?|jsx?|css|json)$/.test(entry.name)) {
+        const content = await readFile(fullPath);
+        hash.update(entry.name);
+        hash.update(content);
+      }
+    }
+  }
+
+  /**
+   * Remove cached bundle for a project. Called on workspace teardown.
+   */
+  cleanup(projectId: string): void {
+    this.cache.delete(projectId);
+    const timer = this.debounceTimers.get(projectId);
+    if (timer) {
+      clearTimeout(timer);
+      this.debounceTimers.delete(projectId);
+    }
+    // Remove queued builds
+    this.queue = this.queue.filter(r => r.projectId !== projectId);
+  }
+
+  /** Get the bundle output directory for a project (may not exist yet) */
+  getBundlePath(projectId: string): string {
+    return join(this.bundleOutputDir, projectId);
+  }
+}
+
+// Singleton
+export const bundlerService = new BundlerService();

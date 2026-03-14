@@ -7,10 +7,13 @@
 
 import React from 'react';
 import { X } from 'lucide-react';
-import { TranscriptPanel, PiPControlPanel } from '../panels';
+import { TranscriptPanel } from '../panels';
 import { PropertiesContent } from './ContextPanel';
+import { PropertiesPanel } from './properties/PropertiesPanel';
+import { KeyframeEditor } from './keyframe-editor/KeyframeEditor';
+import { useSingleSelectedItem } from '../store/use-editor-store';
 
-export type RightPanelTab = 'properties' | 'transcript' | 'layout';
+export type RightPanelTab = 'properties' | 'transcript' | 'item-properties';
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -23,6 +26,7 @@ interface RightPanelProps {
 
 export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false }: RightPanelProps) {
   const isSideBySide = layout === 'side-by-side';
+  const selectedItem = useSingleSelectedItem();
 
   // Embedded mode - just render content without wrapper
   if (embedded) {
@@ -30,7 +34,12 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
       <div className="flex-1 overflow-y-auto -mx-4 -mt-3">
         {activeTab === 'transcript' && <TranscriptPanel />}
         {activeTab === 'properties' && <PropertiesContent />}
-        {activeTab === 'layout' && <PiPControlPanel />}
+        {activeTab === 'item-properties' && (
+            <>
+              <PropertiesPanel />
+              <KeyframeEditor />
+            </>
+          )}
       </div>
     );
   }
@@ -61,11 +70,13 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
               isActive={activeTab === 'properties'}
               onClick={() => onTabChange('properties')}
             />
-            <TabButton
-              label="Layout"
-              isActive={activeTab === 'layout'}
-              onClick={() => onTabChange('layout')}
-            />
+            {selectedItem && (
+              <TabButton
+                label="Item"
+                isActive={activeTab === 'item-properties'}
+                onClick={() => onTabChange('item-properties')}
+              />
+            )}
           </div>
           {!isSideBySide && (
             <button
@@ -82,7 +93,12 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
         <div className="flex-1 overflow-y-auto">
           {activeTab === 'transcript' && <TranscriptPanel />}
           {activeTab === 'properties' && <PropertiesContent />}
-          {activeTab === 'layout' && <PiPControlPanel />}
+          {activeTab === 'item-properties' && (
+            <>
+              <PropertiesPanel />
+              <KeyframeEditor />
+            </>
+          )}
         </div>
       </div>
     </div>

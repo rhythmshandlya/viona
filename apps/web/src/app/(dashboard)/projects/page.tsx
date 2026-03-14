@@ -2,7 +2,6 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useDropzone } from "react-dropzone";
 import { api, UserProject } from "@/lib/api";
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload, JobErrorPayload } from "@/lib/ws";
@@ -208,19 +207,23 @@ function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) 
 function ProjectCard({
   project,
   onDelete,
+  onOpen,
+  isBooting,
   className,
 }: {
   project: UserProject;
   onDelete: (project: UserProject) => void;
+  onOpen: (projectId: string) => void;
+  isBooting: boolean;
   className?: string;
 }) {
   const status = getStatusConfig(project.status);
   const projectName = project.title || project.videoKey?.split("/").pop() || `Project ${project.id.slice(0, 8)}`;
 
   return (
-    <Link
-      href={`/project/${project.id}`}
-      className={`group block bg-white rounded-2xl shadow-card cursor-pointer overflow-hidden ${className || ""}`}
+    <div
+      onClick={() => !isBooting && onOpen(project.id)}
+      className={`group block bg-white rounded-2xl shadow-card cursor-pointer overflow-hidden ${isBooting ? "opacity-70" : ""} ${className || ""}`}
     >
       {/* Thumbnail Area */}
       <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-50 relative overflow-hidden">
@@ -246,6 +249,13 @@ function ProjectCard({
         <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-medium border ${status.className}`}>
           {status.label}
         </div>
+
+        {/* Booting Overlay */}
+        {isBooting && (
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
+            <Loader2 className="w-8 h-8 text-white animate-spin" />
+          </div>
+        )}
 
         {/* Play Button Overlay (on hover) */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
@@ -286,7 +296,7 @@ function ProjectCard({
           {formatDate(project.createdAt)}
         </p>
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -297,6 +307,8 @@ function ProjectCard({
 function UploadZone({
   projectName,
   onProjectNameChange,
+  description,
+  onDescriptionChange,
   onFileDrop,
   uploadState,
   progress,
@@ -307,6 +319,8 @@ function UploadZone({
 }: {
   projectName: string;
   onProjectNameChange: (name: string) => void;
+  description: string;
+  onDescriptionChange: (desc: string) => void;
   onFileDrop: (file: File) => void;
   uploadState: UploadState;
   progress: number;
@@ -361,6 +375,18 @@ function UploadZone({
           onChange={(e) => onProjectNameChange(e.target.value)}
           placeholder="Untitled Project"
           className="text-lg h-12 bg-background border-border/50 focus:border-primary"
+          disabled={uploadState === "complete"}
+        />
+      </div>
+
+      {/* Creative Brief */}
+      <div className="space-y-2">
+        <label className="text-sm font-medium text-muted-foreground">Creative brief <span className="text-muted-foreground/50">(optional)</span></label>
+        <textarea
+          value={description}
+          onChange={(e) => onDescriptionChange(e.target.value)}
+          placeholder="Describe your vision — what style, mood, and scenes you want. Or leave blank and chat with AI after upload."
+          className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-border/50 bg-background focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
           disabled={uploadState === "complete"}
         />
       </div>
@@ -599,22 +625,18 @@ function NewProjectModal({
 }) {
   const router = useRouter();
   const [projectName, setProjectName] = useState("");
+  const [description, setDescription] = useState("");
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const jobProgressRef = useRef<Record<string, number>>({});
-  const cleanupRef = useRef<(() => void) | null>(null);
-
   const resetState = () => {
-    cleanupRef.current?.();
-    cleanupRef.current = null;
     setProjectName("");
+    setDescription("");
     setUploadState("idle");
     setProgress(0);
     setStatusMessage("");
     setError(null);
-    jobProgressRef.current = {};
   };
 
   const handleFileDrop = useCallback(
@@ -622,64 +644,51 @@ function NewProjectModal({
       setUploadState("uploading");
       setProgress(0);
       setError(null);
-      setStatusMessage("Creating project...");
-
       try {
-        // Use filename as fallback title
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
+        setStatusMessage("Creating project...");
+        const { projectId } = await api.createProject(file.name, title, description);
+        if (description.trim()) {
+          sessionStorage.setItem(`project-brief-${projectId}`, description.trim());
+        }
+        setStatusMessage("Uploading video...");
 
-        // Step 1: Create project
-        const { projectId, projectType } = await api.createProject(file.name, title);
-        const isAudio = projectType === "audio";
-        setStatusMessage(isAudio ? "Uploading audio..." : "Uploading video...");
-
-        // Step 2: Upload file
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage(isAudio ? "Processing audio..." : "Processing video...");
+        setStatusMessage("Setting up workspace...");
         setUploadState("processing");
         setProgress(0);
 
-        // Step 3: Connect WebSocket and start processing
-        wsClient.connect(projectId);
+        // Create sandbox and wait for it to be ready
+        const result = await api.createSandbox(projectId);
 
-        // Step 4: Start processing
-        const { transcribeJobId, enhanceJobId, headTrackJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
-        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : []), ...(headTrackJobId ? [headTrackJobId] : [])];
-        const totalJobs = serverTotalJobs || jobIds.length;
+        if (result.status !== 'ready') {
+          // Poll for readiness
+          for (let i = 0; i < 90; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            const status = await api.getSandboxStatus(projectId);
+            if (status.status === 'ready') break;
+            setProgress(Math.min(90, Math.round((i / 90) * 100)));
+          }
+        }
 
-        // Step 5: Monitor jobs via WS + polling fallback
-        cleanupRef.current = startJobMonitor({
-          projectId,
-          jobIds,
-          totalJobs,
-          jobProgressRef,
-          setProgress,
-          setStatusMessage,
-          onAllComplete: () => {
-            setUploadState("complete");
-            setStatusMessage("Processing complete!");
-            setProgress(100);
+        setUploadState("complete");
+        setStatusMessage("Ready!");
+        setProgress(100);
 
-            setTimeout(() => {
-              onOpenChange(false);
-              resetState();
-              router.push(`/project/${projectId}`);
-            }, 800);
-          },
-          onError: (errMsg) => {
-            setUploadState("error");
-            setError(errMsg);
-          },
-        });
+        setTimeout(() => {
+          onOpenChange(false);
+          resetState();
+          router.push(`/project/${projectId}`);
+        }, 500);
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
       }
     },
-    [projectName, router, onOpenChange]
+    [projectName, description, router, onOpenChange]
   );
 
   const handleClose = (open: boolean) => {
@@ -698,6 +707,8 @@ function NewProjectModal({
         <UploadZone
           projectName={projectName}
           onProjectNameChange={setProjectName}
+          description={description}
+          onDescriptionChange={setDescription}
           onFileDrop={handleFileDrop}
           uploadState={uploadState}
           progress={progress}
@@ -717,22 +728,18 @@ function NewProjectModal({
 function EmptyState() {
   const router = useRouter();
   const [projectName, setProjectName] = useState("");
+  const [description, setDescription] = useState("");
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const jobProgressRef = useRef<Record<string, number>>({});
-  const cleanupRef = useRef<(() => void) | null>(null);
-
   const resetState = () => {
-    cleanupRef.current?.();
-    cleanupRef.current = null;
     setProjectName("");
+    setDescription("");
     setUploadState("idle");
     setProgress(0);
     setStatusMessage("");
     setError(null);
-    jobProgressRef.current = {};
   };
 
   const handleFileDrop = useCallback(
@@ -744,51 +751,47 @@ function EmptyState() {
 
       try {
         const title = projectName.trim() || file.name.replace(/\.[^/.]+$/, "");
-        const { projectId, projectType } = await api.createProject(file.name, title);
-        const isAudio = projectType === "audio";
-        setStatusMessage(isAudio ? "Uploading audio..." : "Uploading video...");
+        const { projectId } = await api.createProject(file.name, title, description);
+        if (description.trim()) {
+          sessionStorage.setItem(`project-brief-${projectId}`, description.trim());
+        }
+        setStatusMessage("Uploading video...");
 
         await api.uploadViaProxy(projectId, file, (uploadProgress) => {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage(isAudio ? "Processing audio..." : "Processing video...");
+        setStatusMessage("Setting up workspace...");
         setUploadState("processing");
         setProgress(0);
 
-        wsClient.connect(projectId);
+        // Create sandbox and wait for it to be ready
+        const result = await api.createSandbox(projectId);
 
-        const { transcribeJobId, enhanceJobId, headTrackJobId, totalJobs: serverTotalJobs } = await api.processProject(projectId);
-        const jobIds = [transcribeJobId, ...(enhanceJobId ? [enhanceJobId] : []), ...(headTrackJobId ? [headTrackJobId] : [])];
-        const totalJobs = serverTotalJobs || jobIds.length;
+        if (result.status !== 'ready') {
+          // Poll for readiness
+          for (let i = 0; i < 90; i++) {
+            await new Promise(r => setTimeout(r, 2000));
+            const status = await api.getSandboxStatus(projectId);
+            if (status.status === 'ready') break;
+            setProgress(Math.min(90, Math.round((i / 90) * 100)));
+          }
+        }
 
-        cleanupRef.current = startJobMonitor({
-          projectId,
-          jobIds,
-          totalJobs,
-          jobProgressRef,
-          setProgress,
-          setStatusMessage,
-          onAllComplete: () => {
-            setUploadState("complete");
-            setStatusMessage("Processing complete!");
-            setProgress(100);
+        setUploadState("complete");
+        setStatusMessage("Ready!");
+        setProgress(100);
 
-            setTimeout(() => {
-              router.push(`/project/${projectId}`);
-            }, 800);
-          },
-          onError: (errMsg) => {
-            setUploadState("error");
-            setError(errMsg);
-          },
-        });
+        setTimeout(() => {
+          resetState();
+          router.push(`/project/${projectId}`);
+        }, 500);
       } catch (err) {
         setUploadState("error");
         setError(err instanceof Error ? err.message : "Upload failed");
       }
     },
-    [projectName, router]
+    [projectName, description, router]
   );
 
   return (
@@ -811,6 +814,8 @@ function EmptyState() {
         <UploadZone
           projectName={projectName}
           onProjectNameChange={setProjectName}
+          description={description}
+          onDescriptionChange={setDescription}
           onFileDrop={handleFileDrop}
           uploadState={uploadState}
           progress={progress}
@@ -829,12 +834,14 @@ function EmptyState() {
 // ============================================
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<UserProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isNewProjectOpen, setIsNewProjectOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UserProject | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [bootingProjectId, setBootingProjectId] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -867,6 +874,36 @@ export default function ProjectsPage() {
       setIsDeleting(false);
     }
   };
+
+  const handleOpenProject = useCallback(async (projectId: string) => {
+    if (bootingProjectId) return;
+    setBootingProjectId(projectId);
+
+    try {
+      const result = await api.createSandbox(projectId);
+
+      if (result.status === 'ready') {
+        router.push(`/project/${projectId}`);
+        return;
+      }
+
+      // Poll for readiness
+      for (let i = 0; i < 90; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const status = await api.getSandboxStatus(projectId);
+        if (status.status === 'ready') {
+          router.push(`/project/${projectId}`);
+          return;
+        }
+      }
+
+      throw new Error('Sandbox failed to start in time');
+    } catch (err) {
+      console.error('Failed to open project:', err);
+    } finally {
+      setBootingProjectId(null);
+    }
+  }, [bootingProjectId, router]);
 
   if (loading) {
     return (
@@ -929,6 +966,8 @@ export default function ProjectsPage() {
             key={project.id}
             project={project}
             onDelete={setDeleteTarget}
+            onOpen={handleOpenProject}
+            isBooting={bootingProjectId === project.id}
             className={`animate-fade-in-up ${getStaggerClass(index)}`}
           />
         ))}

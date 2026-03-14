@@ -9,12 +9,15 @@ import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth.js';
 import type { ProjectStatus } from '@viona/shared';
 import { apiProgressStore } from '../progress/progress-store.js';
 import { logger } from '../logger.js';
+import { isWorkspaceActive, snapshotManifest, spinUpWorkspace } from '../workspace/workspace-service.js';
+import { bundlerService } from '../workspace/bundler-service.js';
 
 // Validation schemas
 const createProjectSchema = z.object({
   filename: z.string().min(1),
   title: z.string().max(255).optional(),
   contentType: z.string().optional(),
+  description: z.string().optional(),
 });
 
 const updateProjectSchema = z.object({
@@ -69,6 +72,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
     const [project] = await db.insert(projects).values({
       status: 'uploading' as ProjectStatus,
       title: body.title || null,
+      description: body.description || null,
       projectType: isAudio ? 'audio' : 'video',
       videoKey: isAudio ? null : storageKey,
       audioKey: isAudio ? storageKey : null,
@@ -834,7 +838,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
   // Start rendering
   fastify.post('/projects/:id/render', { preHandler: authMiddleware }, async (request, reply) => {
     const { id } = request.params as { id: string };
-    const body = request.body as { layoutSettings?: any; fullscreenSegments?: Array<{ startMs: number; endMs: number }>; visualDisplayData?: Array<{ startMs: number; endMs: number; displayMode?: string; transition?: { enter: { type: string; durationMs: number }; exit: { type: string; durationMs: number } } }> } || {};
+    const body = request.body as { videoClipData?: Array<{ sourceSceneId: number; sourceVideoUrl: string; trimStartSeconds: number; trimEndSeconds: number }> } || {};
 
     const project = await db.query.projects.findFirst({
       where: eq(projects.id, id),
@@ -861,14 +865,35 @@ export async function projectRoutes(fastify: FastifyInstance) {
       .set({ status: 'rendering' })
       .where(eq(projects.id, id));
 
-    // Queue the job with layout settings, fullscreen segments, and visual display data for exact preview match
+    // Ensure workspace is active for rendering
+    if (!(await isWorkspaceActive(id))) {
+      // Spin up workspace — generates manifest, copies composition, runs codegen
+      // NOTE: spinUpWorkspace queues a bundle build async (fire-and-forget)
+      await spinUpWorkspace(id);
+    }
+
+    // Always await a bundle build to ensure it's ready for export.
+    // enqueueBuild is idempotent — if bundle is cached and hash matches,
+    // it returns immediately. If a build was queued by spinUpWorkspace,
+    // the debounce timer deduplicates.
+    await bundlerService.enqueueBuild(id, 'user');
+
+    // Snapshot workspace manifest (now guaranteed to exist)
+    const manifestSnapshot = await snapshotManifest(id);
+    if (!manifestSnapshot) {
+      return reply.status(500).send({ error: 'Failed to snapshot workspace manifest' });
+    }
+
+    const workspaceBundlePath = bundlerService.getBundlePath(id);
+
+    // Queue the render job — layout/visuals come from the workspace manifest
     await queueRenderJob({
       projectId: id,
       jobId: job.id,
       projectType: project.projectType || 'video',
-      layoutSettings: body.layoutSettings,
-      fullscreenSegments: body.fullscreenSegments,
-      visualDisplayData: body.visualDisplayData,
+      videoClipData: body.videoClipData,
+      manifest: manifestSnapshot,
+      workspaceBundlePath,
     });
 
     return { jobId: job.id };

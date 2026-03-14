@@ -1,21 +1,24 @@
 /**
  * Player Component
- * Remotion player wrapper with two-way sync to editor store
+ * WorkspacePlayer wrapper with two-way sync to editor store
  */
 
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { Player as RemotionPlayer, CallbackListener } from '@remotion/player';
-import { Composition } from './Composition';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import type { PlayerRef, CallbackListener } from '@remotion/player';
+import { WorkspacePlayer } from './WorkspacePlayer';
 import {
   useProject,
   useDuration,
   useFps,
-  useCurrentTimeMs,
   useIsPlaying,
-  useEditorActions,
+  usePlaybackActions,
   useSafeZonePlatform,
+  useWorkspaceManifest,
+  useWorkspaceBundleUrl,
+  useWorkspaceBundleVersion,
+  useEditorStore,
 } from '../store/use-editor-store';
 import { SafeZoneOverlay } from '../components/SafeZoneOverlay';
 import { sharedPlayerRef } from './player-ref';
@@ -25,84 +28,101 @@ interface PlayerProps {
 }
 
 export function Player({ className }: PlayerProps) {
-  const playerRef = sharedPlayerRef;
   const isInternalUpdate = useRef(false);
+  // State counter that increments when the Remotion Player mounts/unmounts.
+  // This forces the event-listener effects to re-run.
+  const [playerInstance, setPlayerInstance] = useState<PlayerRef | null>(null);
+
+  // Callback ref: updates sharedPlayerRef AND triggers a state change so
+  // effects that depend on `playerInstance` re-run.
+  const playerCallbackRef = useCallback((node: PlayerRef | null) => {
+    sharedPlayerRef.current = node;
+    setPlayerInstance(node);
+  }, []);
 
   // State
   const project = useProject();
   const duration = useDuration();
   const fps = useFps();
-  const currentTimeMs = useCurrentTimeMs();
   const isPlaying = useIsPlaying();
   const safeZonePlatform = useSafeZonePlatform();
+  const manifest = useWorkspaceManifest();
+  const bundleUrl = useWorkspaceBundleUrl();
+  const bundleVersion = useWorkspaceBundleVersion();
 
   // Actions
-  const { setCurrentTime, play, pause } = useEditorActions();
+  const { setCurrentTime, play, pause } = usePlaybackActions();
+  const setCurrentTimeRef = useRef(setCurrentTime);
+  const playRef = useRef(play);
+  const pauseRef = useRef(pause);
+  useEffect(() => { setCurrentTimeRef.current = setCurrentTime; }, [setCurrentTime]);
+  useEffect(() => { playRef.current = play; }, [play]);
+  useEffect(() => { pauseRef.current = pause; }, [pause]);
+
+  // Sync store currentTimeMs → Remotion player (user drags timeline).
+  // Uses a store subscription so frame updates don't trigger re-renders.
+  useEffect(() => {
+    if (!playerInstance) return;
+
+    let prevTimeMs = useEditorStore.getState().currentTimeMs;
+    const unsub = useEditorStore.subscribe((state) => {
+      const timeMs = state.currentTimeMs;
+      if (timeMs === prevTimeMs) return;
+      prevTimeMs = timeMs;
+      if (isInternalUpdate.current) return;
+      const frame = Math.round((timeMs / 1000) * fps);
+      playerInstance.seekTo(frame);
+    });
+
+    return unsub;
+  }, [playerInstance, fps]);
 
   // Sync playback state to Remotion player
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
+    if (!playerInstance) return;
 
     if (isPlaying) {
-      player.play();
+      playerInstance.play();
     } else {
-      player.pause();
+      playerInstance.pause();
     }
-  }, [isPlaying]);
-
-  // Sync current time to Remotion player
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!player || isInternalUpdate.current) return;
-
-    const frame = Math.round((currentTimeMs / 1000) * fps);
-    player.seekTo(frame);
-  }, [currentTimeMs, fps]);
+  }, [isPlaying, playerInstance]);
 
   // Listen to Remotion player events
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
+    if (!playerInstance) return;
 
     const handleFrameChange: CallbackListener<'frameupdate'> = (data) => {
       const frame = data.detail.frame;
       const timeMs = (frame / fps) * 1000;
-
       isInternalUpdate.current = true;
-      setCurrentTime(timeMs);
-
-      // Reset flag after a short delay
+      // Direct setState with clamping — bypasses React subscription churn
+      const { duration } = useEditorStore.getState();
+      useEditorStore.setState({ currentTimeMs: Math.max(0, Math.min(timeMs, duration)) });
       requestAnimationFrame(() => {
         isInternalUpdate.current = false;
       });
     };
 
-    const handlePlay: CallbackListener<'play'> = () => {
-      play();
-    };
-
-    const handlePause: CallbackListener<'pause'> = () => {
-      pause();
-    };
-
+    const handlePlay: CallbackListener<'play'> = () => playRef.current();
+    const handlePause: CallbackListener<'pause'> = () => pauseRef.current();
     const handleEnded: CallbackListener<'ended'> = () => {
-      pause();
-      setCurrentTime(0);
+      pauseRef.current();
+      setCurrentTimeRef.current(0);
     };
 
-    player.addEventListener('frameupdate', handleFrameChange);
-    player.addEventListener('play', handlePlay);
-    player.addEventListener('pause', handlePause);
-    player.addEventListener('ended', handleEnded);
+    playerInstance.addEventListener('frameupdate', handleFrameChange);
+    playerInstance.addEventListener('play', handlePlay);
+    playerInstance.addEventListener('pause', handlePause);
+    playerInstance.addEventListener('ended', handleEnded);
 
     return () => {
-      player.removeEventListener('frameupdate', handleFrameChange);
-      player.removeEventListener('play', handlePlay);
-      player.removeEventListener('pause', handlePause);
-      player.removeEventListener('ended', handleEnded);
+      playerInstance.removeEventListener('frameupdate', handleFrameChange);
+      playerInstance.removeEventListener('play', handlePlay);
+      playerInstance.removeEventListener('pause', handlePause);
+      playerInstance.removeEventListener('ended', handleEnded);
     };
-  }, [fps, setCurrentTime, play, pause]);
+  }, [playerInstance, fps]); // Only re-run when player or fps changes
 
   if (!project) {
     return (
@@ -112,30 +132,33 @@ export function Player({ className }: PlayerProps) {
     );
   }
 
-  const durationInFrames = Math.max(1, Math.round((duration / 1000) * fps));
-
   // Use canvas dimensions from videoSettings (9:16 for reels)
   const compositionWidth = project.videoSettings?.canvasWidth || 1080;
   const compositionHeight = project.videoSettings?.canvasHeight || 1920;
 
+  if (!manifest) {
+    return (
+      <div className={`relative w-full h-full ${className || ''}`}>
+        <div className="flex items-center justify-center h-full bg-slate-950">
+          <span className="text-slate-400 text-sm">Waiting for workspace...</span>
+        </div>
+        <SafeZoneOverlay platform={safeZonePlatform} />
+      </div>
+    );
+  }
+
   return (
     <div className={`relative w-full h-full ${className || ''}`}>
-      <RemotionPlayer
-        ref={playerRef}
-        component={Composition}
-        durationInFrames={durationInFrames}
+      <WorkspacePlayer
+        manifest={manifest}
+        bundleUrl={bundleUrl}
+        bundleVersion={bundleVersion}
         compositionWidth={compositionWidth}
         compositionHeight={compositionHeight}
+        durationMs={duration}
         fps={fps}
+        playerRef={playerCallbackRef}
         className="w-full h-full"
-        style={{
-          width: '100%',
-          height: '100%',
-        }}
-        controls={false}
-        loop={false}
-        clickToPlay={false}
-        acknowledgeRemotionLicense
       />
       <SafeZoneOverlay platform={safeZonePlatform} />
     </div>

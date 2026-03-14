@@ -22,15 +22,16 @@ import {
   useItems,
   useItemIds,
   useSelectedIds,
-  useCurrentTimeMs,
   useDuration,
   useViewport,
   useSelectionBox,
   useDragState,
   useSplitMode,
-  useEditorActions,
+  useTimelineActions,
+  usePlaybackActions,
 } from '../store/use-editor-store';
-import { DragState, SnapTarget } from '../store/types';
+import { DragState, SnapTarget, TimelineItem } from '../store/types';
+import { findOrCreateTrack } from '../utils/track-utils';
 import { useContextMenu, ContextMenu } from './context-menu';
 
 interface TimelineCanvasProps {
@@ -59,7 +60,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
   const items = useItems();
   const itemIds = useItemIds();
   const selectedIds = useSelectedIds();
-  const currentTimeMs = useCurrentTimeMs();
+  const currentTimeMsRef = useRef(useEditorStore.getState().currentTimeMs);
   const duration = useDuration();
   const viewport = useViewport();
   const selectionBox = useSelectionBox();
@@ -71,14 +72,14 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     select,
     clearSelection,
     setSelectionBox,
-    setCurrentTime,
     startDrag,
     updateDrag,
     endDrag,
     moveItem,
     resizeItem,
     splitItem,
-  } = useEditorActions();
+  } = useTimelineActions();
+  const { setCurrentTime } = usePlaybackActions();
 
   // Build render state
   const renderState: RenderState = useMemo(
@@ -87,7 +88,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       items,
       itemIds,
       selectedIds,
-      currentTimeMs,
+      currentTimeMs: currentTimeMsRef.current,
       duration,
       viewport,
       selectionBox,
@@ -98,12 +99,28 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       splitCursorTimeMs,
       splitHoveredItemId,
     }),
-    [tracks, items, itemIds, selectedIds, currentTimeMs, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs, splitHoveredItemId]
+    [tracks, items, itemIds, selectedIds, duration, viewport, selectionBox, dragState, dragPreviews, snapLines, splitMode, splitCursorTimeMs, splitHoveredItemId]
   );
 
   // Keep render state in a ref so the ResizeObserver callback always has the latest
   const renderStateRef = useRef<RenderState>(renderState);
   renderStateRef.current = renderState;
+
+  // Transient playhead subscription — redraws canvas without React re-renders
+  useEffect(() => {
+    let prev = useEditorStore.getState().currentTimeMs;
+    const unsub = useEditorStore.subscribe((state) => {
+      if (state.currentTimeMs !== prev) {
+        prev = state.currentTimeMs;
+        currentTimeMsRef.current = state.currentTimeMs;
+        if (rendererRef.current) {
+          renderStateRef.current = { ...renderStateRef.current, currentTimeMs: state.currentTimeMs };
+          rendererRef.current.requestRender(renderStateRef.current);
+        }
+      }
+    });
+    return unsub;
+  }, []);
 
   // Initialize renderer
   useEffect(() => {
@@ -141,7 +158,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     const observer = new ResizeObserver(() => {
       if (rendererRef.current) {
         rendererRef.current.resize();
-        rendererRef.current.render(renderStateRef.current);
+        rendererRef.current.requestRender(renderStateRef.current);
       }
     });
 
@@ -184,7 +201,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMs,
+          currentTimeMs: currentTimeMsRef.current,
         });
 
         if (track) {
@@ -202,7 +219,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         items,
         itemIds,
         viewport,
-        currentTimeMs,
+        currentTimeMs: currentTimeMsRef.current,
       });
 
       const dragType = hitTester.getDragTypeFromHit(hit);
@@ -248,7 +265,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
             itemIds,
             selectedIds: hit.itemId && selectedIds.includes(hit.itemId) ? selectedIds : [hit.itemId!],
             viewport,
-            currentTimeMs,
+            currentTimeMs: currentTimeMsRef.current,
           });
           setDragPreviews(operation.previews);
         }
@@ -263,7 +280,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       items,
       itemIds,
       viewport,
-      currentTimeMs,
       selectedIds,
       splitMode,
       select,
@@ -296,7 +312,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMs,
+          currentTimeMs: currentTimeMsRef.current,
         });
         setSplitHoveredItemId(hit.type === 'item' && hit.itemId ? hit.itemId : null);
         return;
@@ -309,7 +325,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
           items,
           itemIds,
           viewport,
-          currentTimeMs,
+          currentTimeMs: currentTimeMsRef.current,
         });
         const cursor = hitTester.getCursorForHit(hit);
         if (canvasRef.current) {
@@ -345,7 +361,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
               endX: x,
               endY: y,
             },
-            { tracks, items, itemIds, viewport, currentTimeMs }
+            { tracks, items, itemIds, viewport, currentTimeMs: currentTimeMsRef.current }
           );
           select(idsInBox, 'replace');
           break;
@@ -367,7 +383,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
             itemIds,
             selectedIds,
             viewport,
-            currentTimeMs,
+            currentTimeMs: currentTimeMsRef.current,
           });
 
           if (operation) {
@@ -395,7 +411,6 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
       items,
       itemIds,
       viewport,
-      currentTimeMs,
       selectedIds,
       duration,
       updateDrag,
@@ -487,6 +502,80 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
     [getCanvasCoords, viewport, duration, setCurrentTime]
   );
 
+  // Handle drag-over for asset drops
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  // Handle drop from AssetsPanel
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      const assetJson = e.dataTransfer.getData('application/x-project-asset')
+        || e.dataTransfer.getData('application/x-broll-asset');
+      if (!assetJson) return;
+
+      try {
+        const asset = JSON.parse(assetJson);
+        const rect = canvasRef.current?.getBoundingClientRect();
+        if (!rect) return;
+
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const hitTester = hitTesterRef.current;
+        const timeMs = hitTester.xToTime(x, viewport);
+
+        let itemType: string;
+        let trackType: string;
+        if (asset.mimeType?.startsWith('audio/')) {
+          itemType = 'audio';
+          trackType = 'audio';
+        } else if (asset.mimeType?.startsWith('video/')) {
+          itemType = 'video';
+          trackType = 'video';
+        } else {
+          itemType = 'image';
+          trackType = 'overlay';
+        }
+
+        const state = useEditorStore.getState();
+
+        // Try to drop onto the track under cursor, fall back to find/create
+        const hitTrack = hitTester.getTrackAtY(y, {
+          tracks: state.tracks,
+          items: state.items,
+          itemIds: state.itemIds,
+          viewport,
+          currentTimeMs: currentTimeMsRef.current,
+        });
+        const trackId = hitTrack?.id || findOrCreateTrack(state.tracks, trackType, state.addTrack);
+
+        const id = `item-${itemType}-${Date.now()}`;
+        const durationMs = itemType === 'image' ? 5000 : 10000;
+        const startMs = Math.max(0, timeMs);
+
+        const item: Partial<TimelineItem> = {
+          id,
+          type: itemType as any,
+          trackId,
+          startMs,
+          endMs: startMs + durationMs,
+          data: { src: asset.url, volume: 1 } as any,
+          ...(itemType !== 'audio' ? {
+            transform: { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 },
+          } : {}),
+        };
+
+        state.addItem(trackId, item as TimelineItem);
+        state.select([id]);
+      } catch (err) {
+        console.error('Drop failed:', err);
+      }
+    },
+    [viewport]
+  );
+
   // Handle right-click context menu
   const handleContextMenu = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -504,7 +593,7 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         items,
         itemIds,
         viewport,
-        currentTimeMs,
+        currentTimeMs: currentTimeMsRef.current,
       });
 
       const timeMs = hitTester.xToTime(x, viewport);
@@ -516,11 +605,11 @@ export function TimelineCanvas({ className }: TimelineCanvasProps) {
         timeMs,
       });
     },
-    [tracks, items, itemIds, viewport, currentTimeMs, contextMenu]
+    [tracks, items, itemIds, viewport, contextMenu]
   );
 
   return (
-    <div ref={containerRef} className={`relative w-full h-full ${className || ''}`}>
+    <div ref={containerRef} className={`relative w-full h-full ${className || ''}`} onDragOver={handleDragOver} onDrop={handleDrop}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full"

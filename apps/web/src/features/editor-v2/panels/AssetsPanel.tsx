@@ -7,9 +7,11 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight, Upload, Trash2, X, type LucideIcon } from 'lucide-react';
+import { Box, Type, Sparkles, Circle, Image, Layers, RefreshCw, ChevronRight, Upload, Trash2, X, Plus, Music, Film, ImageIcon, type LucideIcon } from 'lucide-react';
 import { api, ExtractedAsset, ProjectMediaAsset, SceneInfo } from '@/lib/api';
-import { useProjectId, useEditorActions, useSelectedElement, useItemIds, useItems } from '../store/use-editor-store';
+import { useProjectId, useAIActions, usePlaybackActions, useSelectedElement, useItemIds, useItems, useEditorStore } from '../store/use-editor-store';
+import { findOrCreateTrack } from '../utils/track-utils';
+import type { TimelineItem } from '../store/types';
 
 interface AssetsPanelProps {
   className?: string;
@@ -39,6 +41,8 @@ const AssetColor: Record<ExtractedAsset['type'], string> = {
 
 // File type badge colors
 const mimeTypeBadge = (mime: string) => {
+  if (mime.startsWith('audio/')) return { label: 'Audio', color: 'text-yellow-400 bg-yellow-400/10' };
+  if (mime.startsWith('video/')) return { label: 'Video', color: 'text-red-400 bg-red-400/10' };
   if (mime.includes('svg')) return { label: 'SVG', color: 'text-orange-400 bg-orange-400/10' };
   if (mime.includes('png')) return { label: 'PNG', color: 'text-blue-400 bg-blue-400/10' };
   if (mime.includes('jpeg') || mime.includes('jpg')) return { label: 'JPG', color: 'text-green-400 bg-green-400/10' };
@@ -46,6 +50,13 @@ const mimeTypeBadge = (mime: string) => {
   if (mime.includes('gif')) return { label: 'GIF', color: 'text-pink-400 bg-pink-400/10' };
   return { label: 'IMG', color: 'text-gray-400 bg-gray-400/10' };
 };
+
+function getAssetTypeIcon(mimeType: string) {
+  if (mimeType.startsWith('audio/')) return <Music className="w-4 h-4 text-yellow-400" />;
+  if (mimeType.startsWith('video/')) return <Film className="w-4 h-4 text-red-400" />;
+  return null;
+}
+
 
 export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }: AssetsPanelProps) {
   const [assets, setAssets] = useState<ExtractedAsset[]>([]);
@@ -64,7 +75,8 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
 
   const projectId = useProjectId();
   const selectedElement = useSelectedElement();
-  const { setSelectedElement, pause, seek, setElementPickerEnabled } = useEditorActions();
+  const { setSelectedElement, setElementPickerEnabled } = useAIActions();
+  const { pause, seek } = usePlaybackActions();
 
   // Watch visual items — refetch assets when they change
   const itemIds = useItemIds();
@@ -276,7 +288,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/') || f.type.startsWith('audio/') || f.type.startsWith('video/'));
     if (files.length > 0) {
       const newPending = files.map(file => ({
         file,
@@ -317,7 +329,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*,.svg"
+        accept="image/*,audio/*,video/*,.svg"
         multiple
         className="hidden"
         onChange={handleFileSelect}
@@ -409,18 +421,37 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
           <div className="px-4 pb-3 grid grid-cols-3 gap-2">
             {uploadedAssets.map((asset) => {
               const badge = mimeTypeBadge(asset.mimeType);
+              const isAudioVideo = asset.mimeType.startsWith('audio/') || asset.mimeType.startsWith('video/');
               return (
                 <div
                   key={asset.id}
                   className="group relative rounded-lg border border-[var(--editor-border-subtle)]
-                             bg-[var(--editor-bg-surface)] overflow-hidden"
+                             bg-[var(--editor-bg-surface)] overflow-hidden cursor-grab"
+                  draggable
+                  onDragStart={(e) => {
+                    e.dataTransfer.setData('application/x-project-asset', JSON.stringify({
+                      id: asset.id,
+                      url: asset.url,
+                      mimeType: asset.mimeType,
+                      filename: asset.filename,
+                      label: asset.label,
+                    }));
+                    e.dataTransfer.effectAllowed = 'copy';
+                  }}
                 >
                   <div className="aspect-square flex items-center justify-center bg-[var(--editor-bg-hover)] p-1">
-                    <img
-                      src={asset.url}
-                      alt={asset.label || asset.filename}
-                      className="w-full h-full object-contain"
-                    />
+                    {isAudioVideo ? (
+                      <div className="flex flex-col items-center gap-1">
+                        {getAssetTypeIcon(asset.mimeType)}
+                        <span className="text-[9px] text-[var(--editor-text-muted)]">{badge.label}</span>
+                      </div>
+                    ) : (
+                      <img
+                        src={asset.url}
+                        alt={asset.label || asset.filename}
+                        className="w-full h-full object-contain"
+                      />
+                    )}
                   </div>
                   <div className="px-1.5 py-1">
                     <div className="text-[10px] text-[var(--editor-text-primary)] truncate">
@@ -430,6 +461,47 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
                       {badge.label}
                     </span>
                   </div>
+                  {/* Insert at playhead — visible on hover */}
+                  <button
+                    onClick={() => {
+                      const state = useEditorStore.getState();
+                      let itemType: string;
+                      let trackType: string;
+                      if (asset.mimeType.startsWith('audio/')) {
+                        itemType = 'audio';
+                        trackType = 'audio';
+                      } else if (asset.mimeType.startsWith('video/')) {
+                        itemType = 'video';
+                        trackType = 'video';
+                      } else {
+                        itemType = 'image';
+                        trackType = 'overlay';
+                      }
+                      const trackId = findOrCreateTrack(state.tracks, trackType, state.addTrack);
+                      const startMs = state.currentTimeMs;
+                      const id = `item-${itemType}-${Date.now()}`;
+                      const durationMs = itemType === 'image' ? 5000 : 10000;
+                      const item: Partial<TimelineItem> = {
+                        id,
+                        type: itemType as any,
+                        trackId,
+                        startMs,
+                        endMs: startMs + durationMs,
+                        data: { src: asset.url, volume: 1 } as any,
+                        ...(itemType !== 'audio' ? {
+                          transform: { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 },
+                        } : {}),
+                      };
+                      state.addItem(trackId, item as TimelineItem);
+                      state.select([id]);
+                    }}
+                    className="absolute bottom-1 right-1 w-5 h-5 rounded flex items-center justify-center
+                               bg-[var(--editor-accent)]/80 text-white opacity-0 group-hover:opacity-100 transition-opacity
+                               hover:bg-[var(--editor-accent)]"
+                    title="Insert at playhead"
+                  >
+                    <Plus className="w-3 h-3" />
+                  </button>
                   {/* Delete button — visible on hover */}
                   <button
                     onClick={() => handleDelete(asset.id)}
@@ -455,7 +527,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
           >
             <Upload className="w-5 h-5 mx-auto mb-1 text-[var(--editor-text-muted)]" />
             <p className="text-[11px] text-[var(--editor-text-muted)]">
-              Drop logos, icons, or images here
+              Drop images, audio, or video here
             </p>
           </div>
         )}

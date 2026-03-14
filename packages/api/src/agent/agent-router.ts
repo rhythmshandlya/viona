@@ -1,14 +1,13 @@
 import { PassThrough } from 'stream';
 import { FastifyInstance } from 'fastify';
-import { query, type SDKPartialAssistantMessage, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import type { BetaRawContentBlockDeltaEvent } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs';
 import { eq, or, and } from 'drizzle-orm';
-import { db, projects, transcripts, visuals, jobs } from '../db/index.js';
+import { db, projects, transcripts, jobs } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
-import { config } from '../config.js';
 import { redis, publishJobError } from '../services/redis.js';
-import { buildSystemPrompt } from './agent-system-prompt.js';
-import { createAgentMcpServer, TOOL_NAMES, derivePhase, normalizeProgressMessage } from './agent-tools.js';
+import { releaseLock } from '../workspace/workspace-lock.js';
+import { emitLockReleased } from '../workspace/workspace-ws.js';
+import { proxyPromptWithIntercept, proxyCancelAgent } from '../sandbox/proxy.js';
+import { getActiveSession } from '../sandbox/routes.js';
 import {
   getOrCreateConversation,
   getConversationMessages,
@@ -119,17 +118,6 @@ function formatConversationHistory(
   return '\n\nCONVERSATION HISTORY:\n' + lines.join('\n\n');
 }
 
-// Check if a job is fresh enough to show progress for.
-// Jobs with completedAt are definitively done — never treat them as active.
-// Pending jobs older than 3 min are likely orphaned (worker should pick up fast).
-// Processing jobs older than 15 min are likely stalled.
-function isJobFresh(job: { status: string; createdAt: Date; completedAt: Date | null }, thresholdMs: number): boolean {
-  if (job.completedAt) return false;
-  const age = Date.now() - new Date(job.createdAt).getTime();
-  if (job.status === 'pending') return age < Math.min(thresholdMs, 3 * 60 * 1000);
-  return age < 15 * 60 * 1000; // 15 min for processing jobs
-}
-
 export async function agentRoutes(fastify: FastifyInstance) {
   // ─── POST /projects/:id/agent/chat — SSE streaming chat ──────────────────
 
@@ -195,36 +183,27 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
     activeStreams.set(projectId, currentCount + 1);
 
-    // 2. Gather context for system prompt
+    // 2. Gather project context for sandbox
     const transcript = await db.query.transcripts.findFirst({
       where: eq(transcripts.projectId, projectId),
     });
 
-    const visual = await db.query.visuals.findFirst({
-      where: eq(visuals.projectId, projectId),
-    });
-
     const videoSettings = (project.videoSettings as Record<string, unknown>) || {};
 
-    const systemPrompt = buildSystemPrompt({
-      projectId,
-      title: project.title,
-      projectType: project.projectType || 'video',
+    const projectContext = {
       canvasWidth: (videoSettings.canvasWidth as number) ?? 1080,
       canvasHeight: (videoSettings.canvasHeight as number) ?? 1920,
-      durationMs: project.durationMs,
       fps: project.fps ?? 30,
+      durationMs: project.durationMs,
       hasTranscript: !!transcript,
-      hasVisuals: !!visual,
-      sceneCount: visual?.timestamps ? (visual.timestamps as unknown[]).length : 0,
-      sourceWidth: project.sourceWidth ?? undefined,
-      sourceHeight: project.sourceHeight ?? undefined,
-    });
+      theme: (videoSettings.theme as string) || 'studio-dark',
+      projectType: project.projectType || 'video',
+    };
 
     // 3. Get or create conversation
     const conversation = await getOrCreateConversation(projectId);
 
-    // 4. Load previous messages (limit to last 50 for system prompt context)
+    // 4. Load previous messages (limit to last 50 for conversation context)
     const storedMessages = await getConversationMessages(conversation.id, 50);
 
     // 5. Build user message with optional context metadata
@@ -277,59 +256,39 @@ export async function agentRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // 6. Set up SSE response via PassThrough stream
-    // Using reply.send(stream) keeps Fastify's full plugin pipeline (including
-    // @fastify/cors) intact — unlike reply.hijack() which bypasses it entirely.
-    const sseStream = new PassThrough();
+    // 6. Get sandbox connection for this project
+    const session = await getActiveSession(projectId);
+    const agentUrl = (session?.metadata as any)?.agentUrl as string | undefined;
 
-    reply
-      .header('Content-Type', 'text/event-stream')
-      .header('Cache-Control', 'no-cache')
-      .header('Connection', 'keep-alive')
-      .header('X-Accel-Buffering', 'no')
-      .send(sseStream);
+    if (!session || !agentUrl) {
+      // No sandbox available — send error via SSE so frontend handles it gracefully
+      const sseStream = new PassThrough();
+      reply
+        .header('Content-Type', 'text/event-stream')
+        .header('Cache-Control', 'no-cache')
+        .header('Connection', 'keep-alive')
+        .header('X-Accel-Buffering', 'no')
+        .send(sseStream);
 
-    // Snapshot old event buffer BEFORE createSSEWriter replaces it with a fresh one
-    const prevBuffer = projectEventBuffers.get(projectId);
+      const { sendSSE } = createSSEWriter(sseStream, projectId);
+      sendSSE('error', { message: 'Sandbox not available. Please start the sandbox first.' });
+      sseStream.end();
 
-    const { sendSSE, bufferObj: streamBufferObj } = createSSEWriter(sseStream, projectId);
+      // Decrement counter
+      const c = activeStreams.get(projectId) || 1;
+      if (c <= 1) activeStreams.delete(projectId);
+      else activeStreams.set(projectId, c - 1);
 
-    // Replay missed events if client reconnects with Last-Event-ID
-    // Uses skipBuffer=true to prevent replayed events from being re-buffered
-    // (which would cause duplicates on subsequent reconnections)
-    const lastEventIdHeader = request.headers['last-event-id'];
-    if (lastEventIdHeader && prevBuffer && prevBuffer.events.length > 0) {
-      const lastId = parseInt(lastEventIdHeader as string, 10);
-      if (!isNaN(lastId)) {
-        const missed = prevBuffer.events.filter(e => e.id > lastId);
-        for (const e of missed) {
-          sendSSE(e.event, JSON.parse(e.data), true);
-        }
-      }
+      return;
     }
 
-    const conversationHistoryText = formatConversationHistory(storedMessages);
-
-    // 7. Create MCP server and run SDK query
-    const abortController = new AbortController();
-    request.raw.on('close', () => {
-      abortController.abort();
-    });
-
-    // Heartbeat to prevent idle connection drops (SDK subprocess startup can be slow)
-    const heartbeat = setInterval(() => {
-      if (!sseStream.destroyed) {
-        sendSSE('heartbeat', { ts: Date.now() });
-      }
-    }, 10_000);
+    // 7. Create assistant message row in DB immediately so it exists even if
+    //    the user refreshes mid-stream. We'll update its content as we go.
+    const assistantRow = await addMessage(conversation.id, 'assistant', []);
 
     // Track all content blocks (text + widgets) for persistence
     const contentBlocks: Array<{ type: string; [k: string]: unknown }> = [];
     let pendingText = '';
-
-    // Create assistant message row in DB immediately so it exists even if
-    // the user refreshes mid-stream. We'll update its content as we go.
-    const assistantRow = await addMessage(conversation.id, 'assistant', []);
 
     // Flush accumulated text into a content block
     function flushText() {
@@ -339,215 +298,80 @@ export async function agentRoutes(fastify: FastifyInstance) {
       }
     }
 
-    // Persist current content to DB (queued to avoid race conditions)
-    let persistPromise: Promise<void> = Promise.resolve();
-    function persistContent() {
-      // Chain saves sequentially — if one is in-flight, the next one queues behind it.
-      // This prevents concurrent writes that could lose data.
-      persistPromise = persistPromise.then(async () => {
-        try {
-          flushText();
-          if (contentBlocks.length > 0) {
-            await updateMessageContent(assistantRow.id, [...contentBlocks]);
-          }
-        } catch {
-          // Non-critical — final save in `finally` will catch up
-        }
-      });
-    }
+    // Build the body to forward to sandbox
+    const proxyBody = {
+      prompt: userText,
+      conversationHistory: storedMessages.map(m => ({
+        role: m.role,
+        content: typeof m.content === 'string' ? m.content :
+          (m.content as Array<{ type: string; text?: string }>)
+            .filter(b => b.type === 'text' && b.text)
+            .map(b => b.text!)
+            .join('\n'),
+      })),
+      projectContext,
+      sessionId: conversation.sdkSessionId,
+      widgetResponse: body.widgetResponse,
+      editingContext: body.context ? {
+        type: body.context.selectedVisualItem ? 'visual' : 'general',
+        sceneId: body.context.selectedSceneId,
+      } : undefined,
+    };
 
-    const mcpServer = createAgentMcpServer({
-      projectId,
-      sendSSE: (event, data) => {
-        sendSSE(event, data);
-        // Capture widget events for persistence and save to DB
-        if (event === 'widget') {
-          flushText();
-          contentBlocks.push({ type: 'widget', widget: data });
-          persistContent();
-        }
-      },
-      signal: abortController.signal,
-      userMessage: userText,
-    });
-
-    // Periodically save accumulated content so refreshes don't lose text.
-    // 2-second interval minimizes data loss on unexpected disconnections.
-    const persistInterval = setInterval(() => {
-      if (pendingText || contentBlocks.length > 0) {
-        persistContent();
-      }
-    }, 2_000);
-
-    // --- Stream processing helper ---
-    // Extracted so we can call it for both the primary path and resume-fallback
-    // without duplicating the for-await loop.
-    let capturedSessionId: string | null = null;
-
-    async function processStream(queryIterator: AsyncIterable<SDKMessage>) {
-      let hasEmittedText = false;
-      let lastEventWasToolUse = false;
-
-      for await (const message of queryIterator) {
-        // Capture session_id from the first message that carries one
-        if (!capturedSessionId && message.session_id) {
-          capturedSessionId = message.session_id;
-        }
-
-        if (message.type === 'stream_event') {
-          const partial = message as SDKPartialAssistantMessage;
-          const evt = partial.event as BetaRawContentBlockDeltaEvent;
-
-          // Detect content block boundaries for turn separation
-          const rawEvt = evt as { type: string; content_block?: { type: string } };
-          if (rawEvt.type === 'content_block_start') {
-            if (rawEvt.content_block?.type === 'tool_use') {
-              lastEventWasToolUse = true;
-            } else if (rawEvt.content_block?.type === 'text' && hasEmittedText && lastEventWasToolUse) {
-              // New text block after a tool call — inject paragraph break
-              sendSSE('text', { text: '\n\n' });
-              pendingText += '\n\n';
-            }
-          }
-
-          if (evt?.type === 'content_block_delta') {
-            const delta = evt.delta as { type: string; text?: string };
-            if (delta.type === 'text_delta' && delta.text) {
-              sendSSE('text', { text: delta.text });
-              pendingText += delta.text;
-              hasEmittedText = true;
-            }
-          }
-        }
-      }
-    }
-
-    // --- Build SDK options ---
-    const hasExistingSession = !!conversation.sdkSessionId;
-
-    function buildQueryOptions(useResume: boolean) {
-      const base = {
-        mcpServers: { 'creative-director': mcpServer },
-        allowedTools: TOOL_NAMES,
-        includePartialMessages: true,
-        permissionMode: 'bypassPermissions' as const,
-        allowDangerouslySkipPermissions: true,
-        model: config.anthropic.model,
-        abortController,
-        tools: [] as string[],
-        maxTurns: 15,
-        thinking: { type: 'adaptive' as const },
-        persistSession: true,
-        env: { ...process.env, CLAUDECODE: undefined },
-        stderr: (data: string) => fastify.log.warn({ stderr: data }, 'SDK stderr'),
-      };
-
-      if (useResume && conversation.sdkSessionId) {
-        // Resume: SDK replays full structured conversation history — no text blob needed
-        return {
-          ...base,
-          systemPrompt: systemPrompt,
-          resume: conversation.sdkSessionId,
-        };
-      }
-
-      // First message or fallback: include conversation history as text
-      return {
-        ...base,
-        systemPrompt: systemPrompt + conversationHistoryText,
-      };
-    }
+    // Note: proxyPromptWithIntercept sets up its own SSE headers and PassThrough,
+    // so we don't set them here. But we need to handle the finally cleanup.
 
     try {
-      fastify.log.info({ projectId, hasExistingSession }, 'Starting SDK query...');
+      fastify.log.info({ projectId }, 'Relaying prompt to sandbox agent...');
 
-      if (hasExistingSession) {
-        // Try to resume the existing session
-        try {
-          const iter = query({ prompt: userText, options: buildQueryOptions(true) });
-          await processStream(iter);
-        } catch (resumeErr) {
-          // Resume failed (stale session, deleted file, etc.) — clear and retry without resume
-          fastify.log.warn({ err: resumeErr, sessionId: conversation.sdkSessionId }, 'Session resume failed, falling back to text-based history');
-
-          // Don't retry if client already disconnected
-          if (abortController.signal.aborted) throw resumeErr;
-
-          await updateConversationSessionId(conversation.id, null);
-          capturedSessionId = null;
-
-          // Tell frontend to clear any partial text from the failed attempt
-          sendSSE('reset', {});
-
-          // Reset content state for the retry
-          contentBlocks.length = 0;
-          pendingText = '';
-          await updateMessageContent(assistantRow.id, []);
-
-          const iter = query({ prompt: userText, options: buildQueryOptions(false) });
-          await processStream(iter);
+      await proxyPromptWithIntercept(
+        agentUrl, session.sandboxSecret, proxyBody, reply,
+        {
+          onText: (text) => {
+            pendingText += text;
+          },
+          onDone: async (data) => {
+            if (data.sessionId) {
+              await updateConversationSessionId(conversation.id, data.sessionId);
+            }
+            // Final flush
+            flushText();
+            await updateMessageContent(assistantRow.id,
+              contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
+          },
+          onWidget: (widget) => {
+            flushText();
+            contentBlocks.push({ type: 'widget', widget });
+          },
+          onError: (error) => {
+            fastify.log.error({ error }, 'Sandbox orchestrator error');
+          },
         }
-      } else {
-        // First message — no session to resume
-        const iter = query({ prompt: userText, options: buildQueryOptions(false) });
-        await processStream(iter);
-      }
-
-      // Save the captured session ID so future messages can resume
-      if (capturedSessionId && capturedSessionId !== conversation.sdkSessionId) {
-        await updateConversationSessionId(conversation.id, capturedSessionId);
-      }
-
-      // 8. Flush all pending content to DB before signalling completion
-      flushText();
-      try { await persistPromise; } catch { /* handled below */ }
-      try {
-        await updateMessageContent(assistantRow.id, contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
-      } catch (saveErr) {
-        fastify.log.error({ err: saveErr }, 'Failed to save assistant message before done');
-      }
-
-      // 9. Send done event — DB is now consistent, frontend can safely reload
-      sendSSE('done', { conversationId: conversation.id });
+      );
     } catch (err) {
-      const rawMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-      fastify.log.error({ err }, 'Agent chat error');
-
-      // Provide user-friendly error messages for common SDK failures
-      let errorMessage = rawMessage;
-      if (rawMessage.includes('exited with code 1') || rawMessage.includes('process exited')) {
-        errorMessage = 'AI assistant is temporarily unavailable. The server may need Claude credentials configured.';
-      } else if (rawMessage.includes('authentication') || rawMessage.includes('unauthorized')) {
-        errorMessage = 'AI assistant authentication failed. Please check server credentials.';
-      }
-
-      sendSSE('error', { message: errorMessage });
+      fastify.log.error({ err }, 'Agent chat relay error');
     } finally {
-      clearInterval(heartbeat);
-      clearInterval(persistInterval);
-
       // Decrement concurrent SSE counter
       const c = activeStreams.get(projectId) || 1;
       if (c <= 1) activeStreams.delete(projectId);
       else activeStreams.set(projectId, c - 1);
 
-      // Clean up event buffer after 2 minutes (enough time for reconnection).
-      // Only delete if it's still OUR buffer — a newer stream may have replaced it.
-      setTimeout(() => {
-        if (projectEventBuffers.get(projectId) === streamBufferObj) {
-          projectEventBuffers.delete(projectId);
+      // Release workspace lock if AI acquired it during this turn
+      try {
+        const released = await releaseLock(projectId, 'ai');
+        if (released) {
+          await emitLockReleased(projectId, { holder: 'ai' });
         }
-      }, 2 * 60 * 1000);
+      } catch (lockErr) {
+        fastify.log.warn({ err: lockErr, projectId }, 'Failed to release AI lock after turn');
+      }
 
       // Safety net: flush any remaining content on error paths
-      // (happy path already persisted before 'done' event above)
       try {
-        await persistPromise;
         flushText();
-        await updateMessageContent(assistantRow.id, contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
-      } catch { /* best-effort — primary save already happened on success path */ }
-
-      sseStream.end();
+        await updateMessageContent(assistantRow.id,
+          contentBlocks.length > 0 ? contentBlocks : [{ type: 'text', text: '' }]);
+      } catch { /* best-effort — primary save already happened in onDone */ }
     }
   });
 
@@ -569,13 +393,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     // Check for active jobs so frontend can restore progress bar after refresh.
     // Only return jobs updated in the last 5 minutes — older ones are likely stale
-    // (e.g. worker crashed, server restarted). This prevents the "stuck in progress"
-    // issue when reopening the editor.
     const STALE_JOB_MS = 5 * 60 * 1000;
-    // Return any active job (including plan-visuals) so the frontend can restore
-    // progress after refresh. The frontend uses the `jobType` field to decide
-    // whether to subscribe to WebSocket (it skips plan-visuals to avoid false
-    // "visuals ready" notifications).
     const activeJobRows = await db.select().from(jobs).where(
       and(
         eq(jobs.projectId, projectId),
@@ -584,7 +402,6 @@ export async function agentRoutes(fastify: FastifyInstance) {
     );
     const activeJobRow = activeJobRows[0];
 
-    // Filter out stale/completed jobs — completed jobs or those older than threshold are ignored
     const activeJob = activeJobRow && isJobFresh(activeJobRow, STALE_JOB_MS) ? activeJobRow : null;
 
     const activeJobMeta = activeJob?.progressMeta as Record<string, unknown> | null;
@@ -593,8 +410,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
           id: activeJob.id,
           type: activeJob.type,
           progress: activeJob.progress,
-          message: normalizeProgressMessage(activeJob.type, activeJob.progress, activeJob.progressMessage || undefined),
-          phase: activeJobMeta?.phase || derivePhase(activeJob.type, activeJob.progress),
+          message: activeJob.progressMessage || undefined,
+          phase: activeJobMeta?.phase || undefined,
           phaseName: activeJobMeta?.phaseName || undefined,
           jobType: activeJob.type,
           progressMeta: activeJobMeta || undefined,
@@ -627,7 +444,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     return reply.send({ success: true });
   });
 
-  // ─── POST /projects/:id/agent/cancel — cancel active agent job ──────────
+  // ─── POST /projects/:id/agent/cancel — cancel active agent ──────────────
 
   fastify.post<{ Params: { id: string } }>(
     '/projects/:id/agent/cancel',
@@ -644,7 +461,20 @@ export async function agentRoutes(fastify: FastifyInstance) {
         return reply.code(403).send({ error: 'Forbidden' });
       }
 
-      // Find active job for this project
+      // Forward cancel to sandbox
+      const session = await getActiveSession(projectId);
+      if (session) {
+        const agentUrl = (session.metadata as any)?.agentUrl as string | undefined;
+        if (agentUrl) {
+          try {
+            await proxyCancelAgent(agentUrl, session.sandboxSecret);
+          } catch (err) {
+            fastify.log.warn({ err, projectId }, 'Failed to forward cancel to sandbox');
+          }
+        }
+      }
+
+      // Also cancel any active BullMQ jobs (visual generation etc.)
       const activeJob = await db.query.jobs.findFirst({
         where: and(
           eq(jobs.projectId, projectId),
@@ -653,19 +483,22 @@ export async function agentRoutes(fastify: FastifyInstance) {
       });
 
       if (activeJob) {
-        // Publish cancel to Redis — worker picks this up via registerCancelHandler
         await redis.publish('job:cancel', JSON.stringify({ jobId: activeJob.id }));
-
-        // Mark job as cancelled in DB
         await db.update(jobs)
           .set({ status: 'cancelled', error: 'Cancelled by user' })
           .where(eq(jobs.id, activeJob.id));
-
-        // Notify WebSocket clients
         await publishJobError(activeJob.id, 'Cancelled by user');
       }
 
       reply.send({ ok: true, cancelledJobId: activeJob?.id ?? null });
     }
   );
+}
+
+// Check if a job is fresh enough to show progress for.
+function isJobFresh(job: { status: string; createdAt: Date; completedAt: Date | null }, thresholdMs: number): boolean {
+  if (job.completedAt) return false;
+  const age = Date.now() - new Date(job.createdAt).getTime();
+  if (job.status === 'pending') return age < Math.min(thresholdMs, 3 * 60 * 1000);
+  return age < 15 * 60 * 1000;
 }

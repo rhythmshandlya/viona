@@ -33,6 +33,11 @@ class ValidatorsMixin:
             errors: list[str] - fatal issues that couldn't be auto-repaired
             repaired: bool - True if scenes were modified
         """
+        version = plan_data.get("version", 1)
+
+        if version >= 2:
+            return self._validate_segments(plan_data, fps, total_frames)
+
         MAX_FRAMES = 450   # 15 seconds
         MAX_SYNC_GAP = 150 # 5 seconds
 
@@ -308,6 +313,134 @@ class ValidatorsMixin:
             "repaired": repaired,
         }
 
+    def _validate_segments(
+        self,
+        plan_data: dict,
+        fps: int,
+        total_frames: int,
+    ) -> dict:
+        """Validate v2 segments format.
+
+        Checks:
+        1. Each segment has required fields (id, layout, frames)
+        2. Layout is one of: stacked, fullscreen, overlay
+        3. Each segment has at least one beat
+        4. Minimum segment duration (60 frames / ~2s)
+        5. Segment contiguity (no gaps)
+
+        Returns dict with:
+            valid: bool
+            warnings: list[str]
+            errors: list[str]
+            repaired: bool
+        """
+        segments = plan_data.get("segments", [])
+        warnings: list[str] = []
+        errors: list[str] = []
+        repaired = False
+
+        if not segments:
+            errors.append("scenes.json v2 has no segments")
+            return {"valid": False, "warnings": warnings, "errors": errors, "repaired": False}
+
+        VALID_LAYOUTS = ("stacked", "fullscreen", "overlay")
+
+        for seg in segments:
+            seg_id = seg.get("id", "?")
+
+            # Required fields
+            if "id" not in seg or "layout" not in seg or "frames" not in seg:
+                errors.append(
+                    f"Segment {seg_id} missing required fields (id, layout, frames)"
+                )
+                continue
+
+            # Layout validation
+            if seg["layout"] not in VALID_LAYOUTS:
+                errors.append(
+                    f"Segment {seg_id} has invalid layout: {seg['layout']} "
+                    f"(must be one of {', '.join(VALID_LAYOUTS)})"
+                )
+
+            # Beats validation
+            if not seg.get("beats"):
+                errors.append(f"Segment {seg_id} has no beats")
+
+            # Duration validation
+            frames = seg.get("frames", [0, 0])
+            if isinstance(frames, list) and len(frames) == 2:
+                start, end = frames
+                duration = end - start
+                if duration < 60:  # ~2 seconds minimum
+                    errors.append(
+                        f"Segment {seg_id} too short: {duration} frames "
+                        f"({duration / fps:.1f}s, minimum ~2s)"
+                    )
+            else:
+                errors.append(f"Segment {seg_id}: invalid frames format {frames}")
+
+        # Validate contiguity
+        for i in range(1, len(segments)):
+            prev_frames = segments[i - 1].get("frames", [0, 0])
+            curr_frames = segments[i].get("frames", [0, 0])
+            if isinstance(prev_frames, list) and isinstance(curr_frames, list):
+                prev_end = prev_frames[1]
+                curr_start = curr_frames[0]
+                if prev_end != curr_start:
+                    gap = curr_start - prev_end
+                    if abs(gap) <= 30:
+                        # Auto-fix small gaps by extending previous segment
+                        warnings.append(
+                            f"Segment {segments[i - 1].get('id', '?')}→{segments[i].get('id', '?')}: "
+                            f"{gap} frame gap. Auto-fixed."
+                        )
+                        segments[i - 1]["frames"][1] = curr_start
+                        repaired = True
+                    else:
+                        errors.append(
+                            f"Gap between segment {segments[i - 1].get('id', '?')} "
+                            f"(end={prev_end}) and segment {segments[i].get('id', '?')} "
+                            f"(start={curr_start})"
+                        )
+
+        # Validate total coverage
+        if segments:
+            first_start = segments[0].get("frames", [0, 0])[0]
+            last_end = segments[-1].get("frames", [0, 0])[1]
+
+            if first_start != 0:
+                warnings.append(
+                    f"First segment starts at frame {first_start}, not 0. Auto-fixed."
+                )
+                segments[0]["frames"][0] = 0
+                repaired = True
+
+            if last_end != total_frames:
+                diff = abs(last_end - total_frames)
+                if diff <= 30:
+                    warnings.append(
+                        f"Last segment ends at {last_end}, not {total_frames} "
+                        f"(off by {diff} frames). Auto-fixed."
+                    )
+                    segments[-1]["frames"][1] = total_frames
+                    repaired = True
+                else:
+                    warnings.append(
+                        f"Last segment ends at {last_end}, total video is {total_frames} "
+                        f"frames (off by {diff} frames). May need manual review."
+                    )
+
+        if repaired:
+            plan_data["segments"] = segments
+
+        valid = len(errors) == 0
+        return {
+            "valid": valid,
+            "warnings": warnings,
+            "errors": errors,
+            "repaired": repaired,
+        }
+
     def _validate_metadata(self, canvas_width: int, canvas_height: int) -> bool:
         """Validate and fix metadata.json dimensions if they don't match expected canvas."""
         metadata_path = self.src_dir / "metadata.json"
@@ -349,7 +482,9 @@ class ValidatorsMixin:
         """
         warnings = []
         scenes_dir = self.src_dir / "scenes"
-        if not scenes_dir.exists():
+        segments_dir = self.src_dir / "segments"
+        # Check both v1 (scenes/) and v2 (segments/) directories
+        if not scenes_dir.exists() and not segments_dir.exists():
             return warnings
 
         # Match full interpolate() calls — capture entire call for both checks
@@ -366,7 +501,14 @@ class ValidatorsMixin:
         # Pattern to extract numeric values from an array literal like [0, 1, 0.4]
         array_number_re = re.compile(r'[-+]?\d*\.?\d+')
 
-        for scene_file in sorted(scenes_dir.glob("Scene*.tsx")):
+        # Collect TSX files from both v1 and v2 directories
+        tsx_files = []
+        if scenes_dir.exists():
+            tsx_files.extend(sorted(scenes_dir.glob("Scene*.tsx")))
+        if segments_dir.exists():
+            tsx_files.extend(sorted(segments_dir.glob("*.tsx")))
+
+        for scene_file in tsx_files:
             content = scene_file.read_text(encoding="utf-8", errors="replace")
 
             # ── Check 1: Missing clamp options ──

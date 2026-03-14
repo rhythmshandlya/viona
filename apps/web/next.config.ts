@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
 	reactStrictMode: false,
+	experimental: {
+		reactCompiler: true,
+	},
 	eslint: {
 		// ESLint is run separately via `pnpm lint`. Don't block builds on pre-existing warnings.
 		ignoreDuringBuilds: true,

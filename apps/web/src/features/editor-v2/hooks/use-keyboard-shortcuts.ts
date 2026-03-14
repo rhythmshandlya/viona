@@ -29,7 +29,10 @@
 
 import { useEffect, useCallback } from 'react';
 import {
-  useEditorActions,
+  usePlaybackActions,
+  useTimelineActions,
+  useHistoryActions,
+  useCaptionActions,
   useEditorStore,
   useSelectedIds,
   useCanUndo,
@@ -56,27 +59,21 @@ export interface KeyboardShortcutOptions {
 export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
   const { onToggleTranscript, onClosePanel, onToggleInspectMode } = options;
 
+  const { togglePlayback, seek } = usePlaybackActions();
   const {
-    togglePlayback,
     deleteItems,
     deleteTimeRange,
     selectAll,
     clearSelection,
-    undo,
-    redo,
-    seek,
-    // Split
     setSplitMode,
-    // Clipboard
     copyItems,
     pasteItems,
     duplicateItems,
-    // Nudge & Trim
     nudgeItems,
     trimItems,
-    // Caption styles
-    updateAllCaptionStyles,
-  } = useEditorActions();
+  } = useTimelineActions();
+  const { undo, redo } = useHistoryActions();
+  const { updateAllCaptionStyles } = useCaptionActions();
 
   const selectedIds = useSelectedIds();
   const canUndo = useCanUndo();

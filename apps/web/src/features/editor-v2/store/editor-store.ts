@@ -5,10 +5,11 @@
 
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { nanoid } from 'nanoid';
 import { api, Project as ApiProject } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
+import { manifestToStore, StoreManifestOp } from './manifest-bridge';
+import { dispatchToSandbox, type SandboxOp } from './manifest-dispatch';
 import {
   EditorStore,
   EditorState,
@@ -20,8 +21,6 @@ import {
   DEFAULT_FPS,
   DEFAULT_VIDEO_SETTINGS,
   DEFAULT_CAPTION_STYLE,
-  DEFAULT_LAYOUT_SETTINGS,
-  LAYOUT_PRESETS,
   CaptionItemData,
   CaptionWord,
   VideoItemData,
@@ -32,14 +31,10 @@ import {
   CaptionStyle,
   AnimationConfig,
   WordStyleOverrides,
-  LayoutSettings,
-  LayoutPresetId,
-  LayoutMode,
-  PiPSettings,
-  PiPCrop,
-  SplitSettings,
-  normalizeLayoutMode,
   OverlayZone,
+  Transform,
+  Keyframe,
+  Filters,
 } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -62,6 +57,33 @@ const cancelDebouncedSave = () => {
   }
 };
 
+/** Dispatch a manifest operation to the workspace if active, otherwise no-op (legacy save handles it) */
+const dispatchManifestOp = async (op: StoreManifestOp): Promise<void> => {
+  const state = useEditorStore.getState();
+  if (state.workspaceStatus !== 'active' || !state.project) {
+    return;
+  }
+
+  try {
+    await api.applyManifestOp(state.project.id, op as any);
+    // Clear any previous sync error on success
+    if (useEditorStore.getState().manifestSyncError) {
+      useEditorStore.setState({ manifestSyncError: null });
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to sync edit';
+    console.error('Failed to apply manifest op:', err);
+    useEditorStore.setState({ manifestSyncError: message });
+  }
+};
+
+/** Fire-and-forget dispatch of sandbox ops (POST /ops). No-op if sandbox not active. */
+const dispatchOps = (ops: SandboxOp[]) => {
+  const state = useEditorStore.getState();
+  if (state.workspaceStatus !== 'active' || !state.project) return;
+  dispatchToSandbox(state.project.id, ops);
+};
+
 // Initial state
 const initialState: EditorState = {
   // Project
@@ -75,6 +97,7 @@ const initialState: EditorState = {
   itemIds: [],
   duration: 0,
   fps: DEFAULT_FPS,
+  assets: {},
 
   // Selection
   selectedIds: [],
@@ -103,6 +126,15 @@ const initialState: EditorState = {
   isSaving: false,
   isDirty: false,
 
+  // Workspace state (Plan 3)
+  workspaceStatus: 'inactive' as const,
+  workspaceBundleUrl: null,
+  workspaceBundleVersion: 0,
+  workspaceLockHolder: null,
+  workspaceBundleError: null,
+  workspaceManifest: null,
+  manifestSyncError: null,
+
   // Caption style toggle
   applyStyleToAll: false,
 
@@ -112,10 +144,6 @@ const initialState: EditorState = {
   // Clipboard and split mode
   clipboard: null,
   splitMode: false,
-
-  // Layout settings
-  layoutSettings: DEFAULT_LAYOUT_SETTINGS,
-  layoutPresetId: 'stacked-equal' as LayoutPresetId,
 
   // Scene selection for AI editing
   selectedSceneId: null,
@@ -140,6 +168,11 @@ const initialState: EditorState = {
   // Safe zone settings
   safeZonePlatform: 'none',
   showSafeZone: false,
+
+  // Sandbox state
+  sandboxStatus: 'inactive' as const,
+  sandboxPreviewUrl: null,
+  sandboxBundleVersion: 0,
 
   // Visual scene regeneration tracking
   regeneratingVisualItemIds: new Set<string>(),
@@ -656,62 +689,107 @@ export const useEditorStore = create<EditorStore>()(
         const videoUrl = (apiProject as any).videoPresignedUrl
           || (apiProject.videoKey ? `${API_URL}/api/projects/${projectId}/video` : '');
 
-        const { project, tracks, items, itemIds, duration } = convertApiProject(
-          apiProject,
-          videoUrl
-        );
+        // --- Sandbox path (replaces workspace) ---
+        const loadFromSandbox = async (): Promise<any> => {
+          // Ensure sandbox is running first (idempotent — returns immediately if active)
+          const sandboxResult = await api.createSandbox(projectId);
 
-        // Restore persisted settings from videoSettings JSONB
-        const savedVideoSettings = (apiProject as any).videoSettings;
-        const savedLayoutSettings = savedVideoSettings?.layoutSettings;
-        const savedLayoutPresetId = savedVideoSettings?.layoutPresetId;
+          if (sandboxResult.status !== 'ready') {
+            // Poll until ready
+            for (let i = 0; i < 60; i++) {
+              await new Promise(r => setTimeout(r, 2000));
+              const status = await api.getSandboxStatus(projectId);
+              if (status.status === 'ready') break;
+              if (i === 59) throw new Error('Sandbox failed to start');
+            }
+          }
+
+          return await api.readSandboxManifest(projectId);
+        };
+
+        const manifest = await loadFromSandbox();
+        const bundleBaseUrl = api.getSandboxBundleUrl(projectId);
+
+        const bridgeResult = manifestToStore(manifest, {
+          videoUrl,
+          bundleUrl: bundleBaseUrl,
+          compositionId: (apiProject as any).compositionId ?? '',
+          visualMeta: (apiProject as any).visualMeta,
+        });
+
+        const project = {
+          id: apiProject.id,
+          title: apiProject.title,
+          status: apiProject.status,
+          projectType: apiProject.projectType,
+          videoKey: apiProject.videoKey,
+          audioKey: (apiProject as any).audioKey,
+          videoUrl,
+          audioUrl: (apiProject as any).audioPresignedUrl || null,
+          outputKey: apiProject.outputKey,
+          durationMs: bridgeResult.duration,
+          fps: bridgeResult.fps,
+          sourceWidth: apiProject.width,
+          sourceHeight: apiProject.height,
+          videoSettings: bridgeResult.videoSettings,
+        };
 
         set((state) => {
           state.project = project;
-          state.tracks = tracks;
-          state.items = items;
-          state.itemIds = itemIds;
-          state.duration = duration;
-          state.fps = project.fps;
+          state.tracks = bridgeResult.tracks;
+          state.items = bridgeResult.items;
+          state.itemIds = bridgeResult.itemIds;
+          state.duration = bridgeResult.duration;
+          state.fps = bridgeResult.fps;
           state.isLoading = false;
           state.currentTimeMs = 0;
           state.selectedIds = [];
-          // Restore layout settings (merge with defaults for forward compat)
-          if (savedLayoutSettings) {
-            state.layoutSettings = {
-              ...DEFAULT_LAYOUT_SETTINGS,
-              ...savedLayoutSettings,
-              // Normalize legacy layout mode values (split-horizontal → stacked)
-              mode: normalizeLayoutMode(savedLayoutSettings.mode || 'stacked'),
-              pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
-              split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
-            };
-          }
-          if (savedLayoutPresetId) {
-            state.layoutPresetId = savedLayoutPresetId;
-          }
-          // Reset viewport
-          state.viewport = {
-            zoom: DEFAULT_ZOOM,
-            scrollX: 0,
-            scrollY: 0,
-          };
-          // Clear history on load
+          state.sandboxStatus = 'ready';
+          state.sandboxPreviewUrl = `${bundleBaseUrl}/player-composition.cjs.js`;
+          state.sandboxBundleVersion = 1;
+          // Set workspace fields too — existing components (Player, useWorkspaceComposition) read these
+          state.workspaceStatus = 'active';
+          state.workspaceBundleUrl = bundleBaseUrl;
+          state.workspaceBundleVersion = 1;
+          state.workspaceBundleError = null;
+          state.workspaceManifest = manifest as Record<string, unknown>;
+          state.workspaceLockHolder = null;
+          state.viewport = { zoom: DEFAULT_ZOOM, scrollX: 0, scrollY: 0 };
           state.history = [];
           state.historyIndex = -1;
           state.isDirty = false;
         });
 
-        // Push initial state to history
         get().pushHistory();
-        // Reset dirty flag and cancel the debounced save — the initial pushHistory is not a user change
         cancelDebouncedSave();
         set((state) => { state.isDirty = false; });
 
-        // Auto-load caption fonts used in the project
+        // Poll for bundle readiness (handles race where bundle:ready WS event fires
+        // before the frontend WebSocket connects)
+        {
+          const pollBundle = async () => {
+            for (let i = 0; i < 30; i++) {
+              await new Promise(r => setTimeout(r, 2000));
+              if (get().workspaceBundleVersion > 1) return; // WS event arrived
+              try {
+                const res = await fetch(`${API_URL}${bundleBaseUrl}/player-composition.cjs.js`, {
+                  method: 'HEAD',
+                  credentials: 'include',
+                });
+                if (res.ok) {
+                  set((state) => { state.workspaceBundleVersion = 2; });
+                  return;
+                }
+              } catch { /* retry */ }
+            }
+          };
+          pollBundle();
+        }
+
+        // Auto-load caption fonts
         const captionFonts = new Set<string>();
-        for (const id of itemIds) {
-          const item = items[id];
+        for (const id of bridgeResult.itemIds) {
+          const item = bridgeResult.items[id];
           if (item?.type === 'caption') {
             const fontFamily = (item.data as CaptionItemData).style?.fontFamily;
             if (fontFamily) captionFonts.add(fontFamily.split(',')[0].trim());
@@ -721,6 +799,7 @@ export const useEditorStore = create<EditorStore>()(
           const entry = findFont(family);
           if (entry) loadFont(entry);
         }
+        // --- End sandbox path ---
       } catch (err) {
         set((state) => {
           state.error = err instanceof Error ? err.message : 'Failed to load project';
@@ -807,20 +886,6 @@ export const useEditorStore = create<EditorStore>()(
             state.project.status = apiProject.status;
           }
 
-          // Reload layout settings in case generation persisted a new layoutMode
-          const savedVideoSettings = (apiProject as any).videoSettings;
-          const savedLayoutSettings = savedVideoSettings?.layoutSettings;
-          if (savedLayoutSettings) {
-            state.layoutSettings = {
-              ...DEFAULT_LAYOUT_SETTINGS,
-              ...savedLayoutSettings,
-              // Normalize legacy layout mode values (split-horizontal → stacked)
-              mode: normalizeLayoutMode(savedLayoutSettings.mode || 'stacked'),
-              pip: { ...DEFAULT_LAYOUT_SETTINGS.pip, ...savedLayoutSettings.pip },
-              split: { ...DEFAULT_LAYOUT_SETTINGS.split, ...savedLayoutSettings.split },
-            };
-          }
-
           // Don't reset playback position, selection, viewport, or history
         });
       } catch (err) {
@@ -868,7 +933,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     saveProject: async () => {
-      const { project, items, itemIds, layoutSettings, layoutPresetId } = get();
+      const { project, items, itemIds } = get();
       if (!project) return;
 
       set((state) => {
@@ -900,6 +965,9 @@ export const useEditorStore = create<EditorStore>()(
                 ...(data.styleOverrides ? { styleOverrides: data.styleOverrides } : {}),
                 ...(data.aiWordOverrides ? { aiWordOverrides: data.aiWordOverrides } : {}),
               },
+              ...(item.transform ? { transform: item.transform } : {}),
+              ...(item.filters ? { filters: item.filters } : {}),
+              ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
             };
           });
 
@@ -914,6 +982,9 @@ export const useEditorStore = create<EditorStore>()(
             startMs: item.startMs,
             endMs: item.endMs,
             data: item.data as unknown as Record<string, unknown>,
+            ...(item.transform ? { transform: item.transform } : {}),
+            ...(item.filters ? { filters: item.filters } : {}),
+            ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
           }));
 
         // Save video items (persists splits across reload)
@@ -938,6 +1009,9 @@ export const useEditorStore = create<EditorStore>()(
                 separatedAudioItemId: d.separatedAudioItemId,
                 ...(item.trim ? { trimStartMs: item.trim.startMs, trimEndMs: item.trim.endMs } : {}),
               },
+              ...(item.transform ? { transform: item.transform } : {}),
+              ...(item.filters ? { filters: item.filters } : {}),
+              ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
             };
           });
 
@@ -961,6 +1035,9 @@ export const useEditorStore = create<EditorStore>()(
                 enhancementStatus: d.enhancementStatus,
                 enhancementProgress: d.enhancementProgress,
               },
+              ...(item.transform ? { transform: item.transform } : {}),
+              ...(item.filters ? { filters: item.filters } : {}),
+              ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
             };
           });
 
@@ -977,11 +1054,8 @@ export const useEditorStore = create<EditorStore>()(
         const videoItemIds = videoItems.map((item) => item.id);
         const audioItemIds = audioItems.map((item) => item.id);
 
-        // Persist layout settings inside videoSettings JSONB
         const videoSettingsPayload = {
           ...project.videoSettings,
-          layoutSettings,
-          layoutPresetId,
         };
 
         await api.updateProject(project.id, {
@@ -1027,6 +1101,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      dispatchManifestOp({ op: 'update_video_settings', updates: { ...settings } });
     },
 
     // ========================================
@@ -1048,6 +1123,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      dispatchManifestOp({ op: 'update_caption_style', updates: { ...styleUpdates } });
     },
 
     updateSelectedCaptionStyles: (ids: string[], styleUpdates: Partial<CaptionStyle>) => {
@@ -1064,6 +1140,16 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      // Dispatch updateItem for each caption with updated data
+      const state = get();
+      const ops: SandboxOp[] = [];
+      for (const id of ids) {
+        const item = state.items[id];
+        if (item?.type === 'caption') {
+          ops.push({ tool: 'updateItem', input: { itemId: id, data: item.data } });
+        }
+      }
+      if (ops.length > 0) dispatchOps(ops);
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {
@@ -1097,6 +1183,10 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      const updatedItem = get().items[captionId];
+      if (updatedItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: captionId, data: updatedItem.data } }]);
+      }
     },
 
     setApplyStyleToAll: (value: boolean) => {
@@ -1146,6 +1236,12 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+
+      const addedItem = get().items[id];
+      if (addedItem) {
+        dispatchOps([{ tool: 'addItem', input: { id, trackId, type: addedItem.type, startMs: addedItem.startMs, endMs: addedItem.endMs, data: addedItem.data } }]);
+      }
+
       return id;
     },
 
@@ -1158,6 +1254,19 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+
+      // Build sandbox update payload from relevant keys
+      const sandboxUpdates: Record<string, unknown> = { itemId: id };
+      if (updates.startMs !== undefined) sandboxUpdates.startMs = updates.startMs;
+      if (updates.endMs !== undefined) sandboxUpdates.endMs = updates.endMs;
+      if (updates.trackId !== undefined) sandboxUpdates.trackId = updates.trackId;
+      if (updates.transform !== undefined) sandboxUpdates.transform = updates.transform;
+      if (updates.filters !== undefined) sandboxUpdates.filters = updates.filters;
+      if (updates.keyframes !== undefined) sandboxUpdates.keyframes = updates.keyframes;
+      if (updates.data !== undefined) sandboxUpdates.data = updates.data;
+      if (Object.keys(sandboxUpdates).length > 1) {
+        dispatchOps([{ tool: 'updateItem', input: sandboxUpdates }]);
+      }
     },
 
     updateItemData: (id, dataUpdates) => {
@@ -1169,6 +1278,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps([{ tool: 'updateItem', input: { itemId: id, data: dataUpdates } }]);
     },
 
     deleteItems: async (ids) => {
@@ -1260,6 +1370,8 @@ export const useEditorStore = create<EditorStore>()(
       // Cancel the debounced save from pushHistory — we save immediately below
       cancelDebouncedSave();
 
+      dispatchOps(ids.map(id => ({ tool: 'removeItem' as const, input: { itemId: id } })));
+
       // If visual items were deleted, delete visuals from backend
       if (hasVisualItems && project) {
         try {
@@ -1274,17 +1386,23 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     moveItem: (id, trackId, startMs) => {
-      set((state) => {
-        const item = state.items[id];
-        if (!item) return;
+      const item = get().items[id];
+      const duration = item ? item.endMs - item.startMs : 0;
 
-        const duration = item.endMs - item.startMs;
-        item.trackId = trackId;
-        item.startMs = Math.max(0, startMs);
-        item.endMs = item.startMs + duration;
+      set((state) => {
+        const stateItem = state.items[id];
+        if (!stateItem) return;
+
+        stateItem.trackId = trackId;
+        stateItem.startMs = Math.max(0, startMs);
+        stateItem.endMs = stateItem.startMs + (stateItem.endMs - stateItem.startMs > 0 ? duration : 0);
       });
 
       get().pushHistory();
+      const movedItem = get().items[id];
+      if (movedItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: id, trackId, startMs: movedItem.startMs, endMs: movedItem.endMs } }]);
+      }
     },
 
     resizeItem: (id, startMs, endMs) => {
@@ -1297,6 +1415,10 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      const resizedItem = get().items[id];
+      if (resizedItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: id, startMs: resizedItem.startMs, endMs: resizedItem.endMs } }]);
+      }
     },
 
     // ========================================
@@ -1535,7 +1657,7 @@ export const useEditorStore = create<EditorStore>()(
     // ========================================
 
     addTrack: (trackData) => {
-      const id = trackData.id || nanoid(10);
+      const id = trackData.id || crypto.randomUUID();
 
       set((state) => {
         const newTrack: Track = {
@@ -1554,6 +1676,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps([{ tool: 'addTrack', input: { type: trackData.type || 'overlay', name: trackData.name || 'New Track' } }]);
       return id;
     },
 
@@ -1566,6 +1689,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps([{ tool: 'updateTrack', input: { trackId: id, ...updates } }]);
     },
 
     deleteTrack: (id) => {
@@ -1604,6 +1728,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps([{ tool: 'removeTrack', input: { trackId: id } }]);
     },
 
     reorderTracks: (trackIds) => {
@@ -1622,6 +1747,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      dispatchOps(trackIds.map((id, i) => ({ tool: 'updateTrack' as const, input: { trackId: id, position: i } })));
     },
 
     // ========================================
@@ -1761,6 +1887,26 @@ export const useEditorStore = create<EditorStore>()(
 
       get().pushHistory();
       debouncedSave(() => get().saveProject());
+
+      if (splitResult) {
+        if (item.type === 'video') {
+          // Video items: use splitVideo tool
+          dispatchOps([{ tool: 'splitVideo', input: { itemId, atMs } }]);
+        } else {
+          // Non-video: remove original + add left/right
+          const [leftId, rightId] = splitResult;
+          const leftItem = get().items[leftId];
+          const rightItem = get().items[rightId];
+          const ops: SandboxOp[] = [{ tool: 'removeItem', input: { itemId } }];
+          if (leftItem) {
+            ops.push({ tool: 'addItem', input: { id: leftId, trackId: leftItem.trackId, type: leftItem.type, startMs: leftItem.startMs, endMs: leftItem.endMs, data: leftItem.data } });
+          }
+          if (rightItem) {
+            ops.push({ tool: 'addItem', input: { id: rightId, trackId: rightItem.trackId, type: rightItem.type, startMs: rightItem.startMs, endMs: rightItem.endMs, data: rightItem.data } });
+          }
+          dispatchOps(ops);
+        }
+      }
 
       // Trigger AI regeneration for visual splits
       if (isVisual && splitResult && visualData?.sourceSceneId) {
@@ -1998,6 +2144,15 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Dispatch addItem for each pasted item
+      const pasteOps: SandboxOp[] = [];
+      for (const newId of get().selectedIds) {
+        const item = get().items[newId];
+        if (item) {
+          pasteOps.push({ tool: 'addItem', input: { id: newId, trackId: item.trackId, type: item.type, startMs: item.startMs, endMs: item.endMs, data: item.data } });
+        }
+      }
+      if (pasteOps.length > 0) dispatchOps(pasteOps);
     },
 
     duplicateItems: (ids: string[]) => {
@@ -2025,6 +2180,15 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Dispatch addItem for each duplicated item
+      const dupOps: SandboxOp[] = [];
+      for (const newId of get().selectedIds) {
+        const item = get().items[newId];
+        if (item) {
+          dupOps.push({ tool: 'addItem', input: { id: newId, trackId: item.trackId, type: item.type, startMs: item.startMs, endMs: item.endMs, data: item.data } });
+        }
+      }
+      if (dupOps.length > 0) dispatchOps(dupOps);
     },
 
     // ========================================
@@ -2050,6 +2214,14 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      const nudgeOps: SandboxOp[] = [];
+      for (const id of ids) {
+        const item = get().items[id];
+        if (item) {
+          nudgeOps.push({ tool: 'updateItem', input: { itemId: id, startMs: item.startMs, endMs: item.endMs } });
+        }
+      }
+      if (nudgeOps.length > 0) dispatchOps(nudgeOps);
     },
 
     trimItems: (ids: string[], edge: 'start' | 'end', deltaMs: number) => {
@@ -2069,6 +2241,14 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      const trimOps: SandboxOp[] = [];
+      for (const id of ids) {
+        const item = get().items[id];
+        if (item) {
+          trimOps.push({ tool: 'updateItem', input: { itemId: id, startMs: item.startMs, endMs: item.endMs } });
+        }
+      }
+      if (trimOps.length > 0) dispatchOps(trimOps);
     },
 
     // ========================================
@@ -2138,6 +2318,20 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Dispatch removeItem + 2x addItem for the split caption
+      const splitOps: SandboxOp[] = [{ tool: 'removeItem', input: { itemId: captionId } }];
+      // Find the two new caption items (most recently added to itemIds)
+      const currentState = get();
+      for (const id of currentState.itemIds) {
+        const itm = currentState.items[id];
+        if (itm && itm.type === 'caption' && itm.trackId === item.trackId) {
+          // Check if this is one of the new items (not the original)
+          if (id !== captionId && itm.startMs >= item.startMs && itm.endMs <= item.endMs) {
+            splitOps.push({ tool: 'addItem', input: { id, trackId: itm.trackId, type: itm.type, startMs: itm.startMs, endMs: itm.endMs, data: itm.data } });
+          }
+        }
+      }
+      dispatchOps(splitOps);
     },
 
     mergeCaptions: (captionId1: string, captionId2: string) => {
@@ -2195,6 +2389,19 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      // Find the merged item (most recently added)
+      const mergeOps: SandboxOp[] = [
+        { tool: 'removeItem', input: { itemId: first.id } },
+        { tool: 'removeItem', input: { itemId: second.id } },
+      ];
+      // The merged item is the last added to itemIds
+      const mergeState = get();
+      const lastId = mergeState.itemIds[mergeState.itemIds.length - 1];
+      const mergedItem = mergeState.items[lastId];
+      if (mergedItem) {
+        mergeOps.push({ tool: 'addItem', input: { id: lastId, trackId: mergedItem.trackId, type: mergedItem.type, startMs: mergedItem.startMs, endMs: mergedItem.endMs, data: mergedItem.data } });
+      }
+      dispatchOps(mergeOps);
     },
 
     updateCaptionText: (captionId: string, newText: string) => {
@@ -2234,78 +2441,10 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
-    },
-
-    // ========================================
-    // Layout Actions
-    // ========================================
-
-    updateLayoutSettings: (settings: Partial<LayoutSettings>) => {
-      set((state) => {
-        state.layoutSettings = {
-          ...state.layoutSettings,
-          ...settings,
-        };
-        state.layoutPresetId = 'custom';
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-    },
-
-    updatePiPSettings: (settings: Partial<PiPSettings>) => {
-      set((state) => {
-        state.layoutSettings.pip = {
-          ...state.layoutSettings.pip,
-          ...settings,
-        };
-        state.layoutPresetId = 'custom';
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-    },
-
-    updatePiPCrop: (crop: Partial<PiPCrop>) => {
-      set((state) => {
-        state.layoutSettings.pip.crop = {
-          ...state.layoutSettings.pip.crop,
-          ...crop,
-        };
-        state.layoutPresetId = 'custom';
-      });
-      debouncedSave(() => get().saveProject());
-    },
-
-    updateSplitSettings: (settings: Partial<SplitSettings>) => {
-      set((state) => {
-        state.layoutSettings.split = {
-          ...state.layoutSettings.split,
-          ...settings,
-        };
-        state.layoutPresetId = 'custom';
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-    },
-
-    setLayoutPreset: (presetId: LayoutPresetId) => {
-      const preset = LAYOUT_PRESETS.find((p) => p.id === presetId);
-      if (!preset) return;
-
-      set((state) => {
-        state.layoutPresetId = presetId;
-        state.layoutSettings = JSON.parse(JSON.stringify(preset.settings));
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
-    },
-
-    setLayoutMode: (mode: LayoutMode) => {
-      set((state) => {
-        state.layoutSettings.mode = mode;
-        state.layoutPresetId = 'custom';
-        state.isDirty = true;
-      });
-      debouncedSave(() => get().saveProject());
+      const captionItem = get().items[captionId];
+      if (captionItem) {
+        dispatchOps([{ tool: 'updateItem', input: { itemId: captionId, data: captionItem.data } }]);
+      }
     },
 
     // Scene selection for AI editing
@@ -2374,40 +2513,26 @@ export const useEditorStore = create<EditorStore>()(
       const oldDisplayMode = data.displayMode || 'default';
       if (oldDisplayMode === newDisplayMode) return;
 
-      const canvasWidth = state.project?.videoSettings.canvasWidth || 1080;
-      const canvasHeight = state.project?.videoSettings.canvasHeight || 1920;
-      const layoutMode = state.layoutSettings.mode;
-      const splitRatio = state.layoutSettings.split.ratio;
-      const splitGap = state.layoutSettings.split.gap;
-
-      // Compute effective dimensions for a given display mode
-      const getEffectiveDims = (dm: VisualDisplayMode) => {
-        if (dm === 'fullscreen' || dm === 'overlay') {
-          return { w: canvasWidth, h: canvasHeight };
-        }
-        // 'default' mode depends on layout
-        if (layoutMode === 'pip') {
-          return { w: canvasWidth, h: canvasHeight };
-        }
-        // stacked mode
-        const visualH = Math.max(1, Math.round(canvasHeight * splitRatio / 100 - splitGap / 2));
-        return { w: canvasWidth, h: visualH };
-      };
-
-      const oldDims = getEffectiveDims(oldDisplayMode);
-      const newDims = getEffectiveDims(newDisplayMode);
+      const canvasW = state.project?.videoSettings?.canvasWidth || 1080;
+      const canvasH = state.project?.videoSettings?.canvasHeight || 1920;
+      const newDims = { w: canvasW, h: canvasH };
+      const oldDims = { w: canvasW, h: canvasH };
 
       // Capture timing before mutating state
       const { startMs, endMs } = item;
 
-      // Apply the display mode change immediately
-      get().updateVisualDisplayMode(itemId, newDisplayMode);
+      // Apply the display mode change immediately (inline — updateVisualDisplayMode removed in v2)
+      set((state) => {
+        const stateItem = state.items[itemId];
+        if (stateItem?.type === 'visual') {
+          (stateItem.data as VisualItemData).displayMode = newDisplayMode;
+        }
+      });
+      get().pushHistory();
 
       // Build human-readable mode labels
       const modeLabel = (dm: VisualDisplayMode): string => {
-        if (dm === 'default') {
-          return layoutMode === 'pip' ? 'Standard (PiP)' : 'Standard (stacked)';
-        }
+        if (dm === 'default') return 'Standard';
         return dm === 'fullscreen' ? 'Fullscreen' : 'Overlay';
       };
 
@@ -2418,7 +2543,7 @@ export const useEditorStore = create<EditorStore>()(
       } else if (newDisplayMode === 'overlay') {
         suffix = "Since this is now overlay mode, the visual will be composited over the speaker video with reduced opacity \u2014 position elements to avoid the center where the speaker's face is.";
       } else {
-        suffix = `Since this is now standard mode, the visual occupies ${newDims.w}\u00d7${newDims.h} alongside the speaker video in ${layoutMode} layout.`;
+        suffix = `Since this is now standard mode, the visual occupies ${newDims.w}\u00d7${newDims.h} alongside the speaker video.`;
       }
 
       const prompt = `The display mode for this scene was changed from "${modeLabel(oldDisplayMode)}" to "${modeLabel(newDisplayMode)}". The effective viewport changed from ${oldDims.w}\u00d7${oldDims.h} to ${newDims.w}\u00d7${newDims.h}. Please adapt the scene's layout, sizing, and positioning to properly fill the new ${newDims.w}\u00d7${newDims.h} viewport. ${suffix}`;
@@ -2433,29 +2558,7 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
-    // ========================================
-    // Visual Display Mode Actions
-    // ========================================
-
-    updateVisualDisplayMode: (itemId: string, displayMode: VisualDisplayMode) => {
-      set((state) => {
-        const item = state.items[itemId];
-        if (item?.type === 'visual') {
-          (item.data as VisualItemData).displayMode = displayMode;
-        }
-      });
-      get().pushHistory();
-    },
-
-    updateVisualTransition: (itemId: string, transition: VisualItemData['transition']) => {
-      set((state) => {
-        const item = state.items[itemId];
-        if (item?.type === 'visual') {
-          (item.data as VisualItemData).transition = transition;
-        }
-      });
-      get().pushHistory();
-    },
+    // V2: updateVisualDisplayMode, updateVisualTransition removed — display mode and transitions are in AI-generated Composition.tsx
 
     openTransitionPicker: (itemId: string) => {
       set((state) => { state.transitionPickerItemId = itemId; });
@@ -2509,6 +2612,147 @@ export const useEditorStore = create<EditorStore>()(
       const item = get().items[videoItemId];
       if (!item || item.type !== 'video') return undefined;
       return (item.data as VideoItemData).segmentation;
+    },
+
+    // ========================================
+    // Workspace Actions (Plan 3)
+    // ========================================
+
+    setWorkspaceStatus: (status) => set((state) => { state.workspaceStatus = status; }),
+    setWorkspaceBundleUrl: (url) => set((state) => { state.workspaceBundleUrl = url; }),
+    incrementBundleVersion: () => set((state) => { state.workspaceBundleVersion += 1; }),
+    setWorkspaceLockHolder: (holder) => set((state) => { state.workspaceLockHolder = holder; }),
+    setWorkspaceBundleError: (error) => set((state) => { state.workspaceBundleError = error; }),
+
+    applyRemoteManifestUpdate: async (manifest) => {
+      const state = get();
+      if (!state.project) return;
+
+      // Preserve existing visual metadata from current store items
+      const existingVideoItem = state.itemIds
+        .map(id => state.items[id])
+        .find(item => item?.type === 'video');
+      const existingVisualItem = state.itemIds
+        .map(id => state.items[id])
+        .find(item => item?.type === 'visual');
+      const existingVisualData = existingVisualItem?.data as VisualItemData | undefined;
+
+      const bridgeResult = manifestToStore(manifest, {
+        videoUrl: (existingVideoItem?.data as VideoItemData)?.src ?? '',
+        bundleUrl: state.workspaceBundleUrl ?? '',
+        compositionId: existingVisualData?.compositionId ?? '',
+        visualMeta: undefined,
+      });
+
+      set((s) => {
+        s.tracks = bridgeResult.tracks;
+        s.items = bridgeResult.items;
+        s.itemIds = bridgeResult.itemIds;
+        s.duration = bridgeResult.duration;
+      });
+
+      // Also store the raw manifest
+      set((state) => { state.workspaceManifest = manifest as Record<string, unknown>; });
+    },
+
+    // ========================================
+    // Transform / Filters / Keyframes Actions (V2)
+    // ========================================
+
+    updateTransform: (itemId: string, transform: Partial<Transform>) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item) return;
+        item.transform = { ...(item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 }), ...transform };
+      });
+      get().pushHistory();
+      dispatchOps([{ tool: 'updateItem', input: { itemId, transform } }]);
+    },
+
+    updateFilters: (itemId: string, filters: Partial<Filters>) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item) return;
+        item.filters = { ...(item.filters ?? {}), ...filters };
+      });
+      get().pushHistory();
+      dispatchOps([{ tool: 'updateItem', input: { itemId, filters } }]);
+    },
+
+    updateKeyframes: (itemId: string, keyframes: Keyframe[]) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item) return;
+        item.keyframes = keyframes;
+      });
+      get().pushHistory();
+      dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes } }]);
+    },
+
+    addKeyframeAtTime: (itemId: string, timeMs: number, props: Partial<Transform>, easing?: string) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item) return;
+        const kf: Keyframe = { timeMs, props, easing: (easing ?? 'linear') as Keyframe['easing'] };
+        item.keyframes = [...(item.keyframes ?? []), kf].sort((a, b) => a.timeMs - b.timeMs);
+      });
+      get().pushHistory();
+      const item = get().items[itemId];
+      if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes } }]);
+    },
+
+    deleteKeyframe: (itemId: string, index: number) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item?.keyframes) return;
+        item.keyframes.splice(index, 1);
+      });
+      get().pushHistory();
+      const item = get().items[itemId];
+      if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes ?? [] } }]);
+    },
+
+    updateKeyframeEasing: (itemId: string, index: number, easing: string) => {
+      set((draft) => {
+        const item = draft.items[itemId];
+        if (!item?.keyframes?.[index]) return;
+        item.keyframes[index].easing = easing as Keyframe['easing'];
+      });
+      get().pushHistory();
+      const item = get().items[itemId];
+      if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes } }]);
+    },
+
+    // ========================================
+    // Sandbox Actions
+    // ========================================
+
+    createSandbox: async (projectId: string) => {
+      set({ sandboxStatus: 'creating' });
+      try {
+        const res = await fetch(`/api/projects/${projectId}/sandbox`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        const data = await res.json();
+        if (data.status === 'ready') {
+          set({
+            sandboxStatus: 'ready',
+            sandboxPreviewUrl: `/api/projects/${projectId}/sandbox/bundle/player-composition.cjs.js`,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to create sandbox:', err);
+        set({ sandboxStatus: 'inactive' });
+      }
+    },
+
+    setSandboxStatus: (status) => {
+      set({ sandboxStatus: status });
+    },
+
+    setSandboxBundleVersion: (version) => {
+      set({ sandboxBundleVersion: version });
     },
   }))
 );

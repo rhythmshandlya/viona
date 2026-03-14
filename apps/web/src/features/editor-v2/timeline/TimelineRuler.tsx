@@ -12,7 +12,8 @@ import {
   useDuration,
   useCurrentTimeMs,
   useSelectedTimeRange,
-  useEditorActions,
+  usePlaybackActions,
+  useAIActions,
 } from '../store/use-editor-store';
 
 interface TimelineRulerProps {
@@ -61,7 +62,8 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
   const duration = useDuration();
   const currentTimeMs = useCurrentTimeMs();
   const selectedTimeRange = useSelectedTimeRange();
-  const { setCurrentTime, setSelectedTimeRange } = useEditorActions();
+  const { setCurrentTime } = usePlaybackActions();
+  const { setSelectedTimeRange } = useAIActions();
 
   // Track whether the current drag is a range selection (Alt+drag)
   const [rangeDrag, setRangeDrag] = useState<{ startMs: number; currentMs: number } | null>(null);
