@@ -1021,6 +1021,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         const isTimeout = err instanceof SSETimeoutError;
         console.error('Chat error:', isTimeout ? 'SSE stream timed out' : err);
 
+        // Check if error indicates sandbox needs booting
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        if ((errorMsg.includes('Sandbox') || errorMsg.includes('502')) && !sandboxBootAttempted.current) {
+          sandboxBootAttempted.current = true;
+          bootAndRetry(fullMessage, widgetResponse);
+          return;
+        }
+
         // Try to recover by loading the latest conversation state from the server.
         // The backend may have completed successfully even though the stream dropped.
         try {
@@ -1108,6 +1116,52 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     },
     [projectId, aiContext, handleSSEEvent, reloadVisuals, selectedTimeRange, setSelectedTimeRange]
   );
+
+  // -----------------------------------------------------------------------
+  // Boot sandbox & retry message if sandbox was sleeping
+  // -----------------------------------------------------------------------
+
+  const bootAndRetry = useCallback(async (message: string, widgetResponse?: { widgetId: string; value: unknown }) => {
+    try {
+      // Show status to user
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant') {
+          return prev.map((m, i) => i === prev.length - 1
+            ? { ...m, content: [{ type: 'text' as const, text: 'Starting sandbox environment...' }] }
+            : m
+          );
+        }
+        return prev;
+      });
+
+      await api.createSandbox(projectId);
+
+      // Poll until ready (max 2 minutes)
+      for (let i = 0; i < 60; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        const status = await api.getSandboxStatus(projectId);
+        if (status.status === 'ready') break;
+      }
+
+      // Retry the message
+      sandboxBootAttempted.current = false;
+      await _executeMessage({ messageText: message, fullMessage: message, widgetResponse });
+    } catch (err) {
+      sandboxBootAttempted.current = false;
+      setMessages(prev => {
+        const last = prev[prev.length - 1];
+        if (last?.role === 'assistant') {
+          return prev.map((m, i) => i === prev.length - 1
+            ? { ...m, content: [{ type: 'text' as const, text: 'Failed to start sandbox. Please try again.' }] }
+            : m
+          );
+        }
+        return prev;
+      });
+      setIsStreaming(false);
+    }
+  }, [projectId, _executeMessage]);
 
   // -----------------------------------------------------------------------
   // Attachment helpers
@@ -1351,6 +1405,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -----------------------------------------------------------------------
 
   const autoGreetSent = useRef(false);
+  const sandboxBootAttempted = useRef(false);
   useEffect(() => {
     if (historyLoaded && messages.length === 0 && !isStreaming && !autoGreetSent.current) {
       autoGreetSent.current = true;
