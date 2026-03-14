@@ -42,6 +42,15 @@ function mapEasing(easingStr: string | undefined): ((t: number) => number) {
   }
 }
 
+/** Deduplicate keyframes that map to the same frame (interpolate requires strictly increasing). */
+function deduplicateFrames<T extends { frame: number }>(kfs: T[]): T[] {
+  const seen = new Map<number, T>();
+  for (const kf of kfs) {
+    seen.set(kf.frame, kf); // last wins
+  }
+  return Array.from(seen.values()).sort((a, b) => a.frame - b.frame);
+}
+
 /**
  * Interpolates numeric transform properties between keyframes.
  * Returns the interpolated transform for the current frame.
@@ -88,9 +97,13 @@ export function useKeyframeInterpolation(
       continue;
     }
 
-    const frames = propKeyframes.map((kf) => kf.frame);
-    const values = propKeyframes.map((kf) => kf.value);
-    const easing = mapEasing(propKeyframes[1]?.easing);
+    // Deduplicate frames (interpolate requires strictly monotonically increasing)
+    const deduped = deduplicateFrames(propKeyframes);
+    const frames = deduped.map((kf) => kf.frame);
+    const values = deduped.map((kf) => kf.value);
+    // NOTE: Easing applies globally, not per-segment. For 3+ keyframes with
+    // different easings, a piecewise approach would be needed.
+    const easing = mapEasing(deduped[1]?.easing);
 
     (result as any)[prop] = interpolate(frame, frames, values, {
       easing,
@@ -114,9 +127,10 @@ export function useKeyframeInterpolation(
 
     const allNumeric = propKeyframes.every((kf) => typeof kf.value === 'number');
     if (allNumeric && propKeyframes.length >= 2) {
-      const frames = propKeyframes.map((kf) => kf.frame);
-      const values = propKeyframes.map((kf) => kf.value as number);
-      const easing = mapEasing(propKeyframes[1]?.easing);
+      const deduped = deduplicateFrames(propKeyframes);
+      const frames = deduped.map((kf) => kf.frame);
+      const values = deduped.map((kf) => kf.value as number);
+      const easing = mapEasing(deduped[1]?.easing);
       (result as any)[prop] = interpolate(frame, frames, values, {
         easing,
         extrapolateLeft: 'clamp',
