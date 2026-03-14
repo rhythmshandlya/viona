@@ -991,9 +991,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         };
 
         try {
-          const stream = await api.chatWithSandboxAgent(projectId, {
-            prompt: fullMessage,
-          }, controller.signal);
+          const stream = await api.chatWithAgent(projectId, {
+            message: fullMessage,
+            context: Object.keys(context).length > 0 ? context : undefined,
+            widgetResponse,
+          }, controller.signal, lastEventIdRef.current ?? undefined);
 
           for await (const event of parseSSEStream(stream, { signal: controller.signal, inactivityTimeoutMs: 90_000 })) {
             resetSafetyTimeout();
