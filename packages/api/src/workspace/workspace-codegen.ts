@@ -262,7 +262,7 @@ export async function generatePlayerComposition(projectId: string): Promise<void
     : '';
 
   const code = `import React from 'react';
-import { useVideoConfig, AbsoluteFill, Sequence, Audio, Video, Img, staticFile } from 'remotion';
+import { useCurrentFrame, useVideoConfig, AbsoluteFill, Sequence, Audio, Video, Img, staticFile } from 'remotion';
 import { TransformWrapper } from './TransformWrapper';
 ${sceneImports}
 ${aiCompositionImport}
@@ -291,6 +291,59 @@ class CompositionErrorBoundary extends React.Component<
     return this.props.children;
   }
 }
+
+// ---- Caption renderer (separate component to satisfy React hooks rules) ----
+
+const CaptionRenderer: React.FC<{ item: any }> = ({ item }) => {
+  const d = item.data || {};
+  const words: Array<{ text: string; startMs: number; endMs: number }> = d.words || [];
+
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const currentMs = (frame / fps) * 1000;
+
+  if (words.length === 0) return null;
+
+  const activeWords = words.filter(w => currentMs >= w.startMs && currentMs < w.endMs);
+  if (activeWords.length === 0) return null;
+
+  const cs = (item as any).__captionStyle || {};
+  const fontSize = cs.fontSize || 56;
+  const fontFamily = cs.fontFamily || 'Inter, system-ui, sans-serif';
+  const fontWeight = cs.fontWeight || 800;
+  const color = cs.color || '#FFFFFF';
+  const activeColor = cs.activeColor || color;
+  const bgColor = cs.backgroundColor || 'transparent';
+  const textAlign = cs.position?.textAlign || 'center';
+
+  return (
+    <div style={{
+      width: '100%',
+      height: '100%',
+      display: 'flex',
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      padding: '0 40px 120px',
+    }}>
+      <div style={{
+        fontFamily,
+        fontSize,
+        fontWeight,
+        color,
+        textAlign,
+        lineHeight: 1.2,
+        textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+        backgroundColor: bgColor !== 'transparent' ? bgColor : undefined,
+        borderRadius: bgColor !== 'transparent' ? 8 : undefined,
+        padding: bgColor !== 'transparent' ? '8px 16px' : undefined,
+      }}>
+        {activeWords.map((w, i) => (
+          <span key={i} style={{ color: activeColor }}>{w.text} </span>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 // ---- Item renderer ----
 
@@ -348,10 +401,30 @@ const ItemRenderer: React.FC<{ item: any }> = ({ item }) => {
       );
 
     case 'caption':
-      return null;
+      return <CaptionRenderer item={item} />;
 
-    case 'shape':
-      return null;
+    case 'shape': {
+      const shapeType = d.shape || 'rectangle';
+      const baseStyle: React.CSSProperties = {
+        width: '100%',
+        height: '100%',
+        backgroundColor: d.fill || 'transparent',
+        border: d.strokeWidth ? \`\${d.strokeWidth}px solid \${d.stroke || '#FFFFFF'}\` : 'none',
+      };
+
+      if (shapeType === 'circle') {
+        return <div style={{ ...baseStyle, borderRadius: '50%' }} />;
+      }
+      if (shapeType === 'line') {
+        return (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center' }}>
+            <div style={{ width: '100%', height: d.strokeWidth || 2, backgroundColor: d.stroke || d.fill || '#FFFFFF' }} />
+          </div>
+        );
+      }
+      // rectangle
+      return <div style={{ ...baseStyle, borderRadius: d.borderRadius || 0 }} />;
+    }
 
     default:
       return null;
@@ -385,7 +458,7 @@ export const PlayerComposition: React.FC<{
 
   ${hasCompositionTsx ? `// AI-generated composition: render with error boundary fallback
   if (HAS_AI_COMPOSITION) {
-    const fallback = renderNLEComposition(items, fps);
+    const fallback = renderNLEComposition(items, fps, manifest?.captionStyle || {});
     return (
       <CompositionErrorBoundary fallback={fallback}>
         <ProjectComposition
@@ -397,15 +470,14 @@ export const PlayerComposition: React.FC<{
     );
   }` : ''}
 
-  return renderNLEComposition(items, fps);
+  return renderNLEComposition(items, fps, manifest?.captionStyle || {});
 };
 
-function renderNLEComposition(items: any[], fps: number) {
+function renderNLEComposition(items: any[], fps: number, captionStyle?: any) {
   return (
     <AbsoluteFill style={{ backgroundColor: '#000000' }}>
       {items.map((item: any) => {
-        // Skip caption items
-        if (item.type === 'caption') return null;
+        const itemWithMeta = item.type === 'caption' ? { ...item, data: { ...item.data }, __captionStyle: captionStyle } : item;
 
         const startFrame = Math.round((item.startMs / 1000) * fps);
         const endFrame = Math.round((item.endMs / 1000) * fps);
@@ -415,7 +487,7 @@ function renderNLEComposition(items: any[], fps: number) {
         if (item.type === 'audio') {
           return (
             <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} layout="none">
-              <ItemRenderer item={item} />
+              <ItemRenderer item={itemWithMeta} />
             </Sequence>
           );
         }
@@ -432,7 +504,7 @@ function renderNLEComposition(items: any[], fps: number) {
               keyframes={item.keyframes}
               filters={item.filters}
             >
-              <ItemRenderer item={item} />
+              <ItemRenderer item={itemWithMeta} />
             </TransformWrapper>
           </Sequence>
         );
