@@ -19,7 +19,7 @@ import {
   buildVisualCompositionMap,
   remapManifestSceneFiles,
 } from './workspace-scenes.js';
-import { generatePlayerComposition, updateRootWithPlayerComposition } from './workspace-codegen.js';
+import { generateTransformWrapper, generatePlayerComposition, updateRootWithPlayerComposition } from './workspace-codegen.js';
 import { emitWorkspaceReady, emitWorkspaceTeardown } from './workspace-ws.js';
 import { dbToManifest, manifestToDb, validateManifest, applyManifestOp } from '@viona/shared';
 import type { Manifest, ManifestOp, DbToManifestInput } from '@viona/shared';
@@ -124,7 +124,8 @@ export async function spinUpWorkspace(projectId: string): Promise<{ manifest: Ma
     console.warn(`[workspace] Failed to copy composition infrastructure:`, err);
   }
 
-  // 3d. Generate PlayerComposition.tsx and Root.tsx (codegen)
+  // 3d. Generate TransformWrapper.tsx, PlayerComposition.tsx, and Root.tsx (codegen)
+  await generateTransformWrapper(projectId);
   await generatePlayerComposition(projectId);
   await updateRootWithPlayerComposition(
     projectId,

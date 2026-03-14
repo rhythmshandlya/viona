@@ -48,10 +48,164 @@ export async function discoverScenes(projectId: string): Promise<SceneEntry[]> {
 }
 
 /**
+ * Generate TransformWrapper.tsx in the workspace's src/ directory.
+ *
+ * Applies per-item spatial transforms (position, size, rotation, opacity),
+ * keyframe interpolation, and CSS filters.
+ */
+export async function generateTransformWrapper(projectId: string): Promise<void> {
+  const srcPath = getWorkspaceSrcPath(projectId);
+
+  const code = `import React from 'react';
+import { useCurrentFrame, useVideoConfig, interpolate, Easing } from 'remotion';
+
+interface Transform {
+  x: number | string;
+  y: number | string;
+  width: number | string;
+  height: number | string;
+  rotation: number;
+  opacity: number;
+}
+
+interface Keyframe {
+  timeMs: number;
+  props: Partial<Transform>;
+  easing: string;
+}
+
+interface Filters {
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  blur?: number;
+  hue?: number;
+  grayscale?: number;
+  sepia?: number;
+}
+
+function getEasingFn(easing: string): ((t: number) => number) {
+  switch (easing) {
+    case 'ease-in': return Easing.in(Easing.ease);
+    case 'ease-out': return Easing.out(Easing.ease);
+    case 'ease-in-out': return Easing.inOut(Easing.ease);
+    case 'spring': return Easing.out(Easing.bezier(0.25, 1.56, 0.42, 1));
+    default: {
+      // Handle cubic-bezier(a,b,c,d)
+      const match = easing.match(/cubic-bezier\\(([^,]+),([^,]+),([^,]+),([^)]+)\\)/);
+      if (match) {
+        return Easing.bezier(
+          parseFloat(match[1]),
+          parseFloat(match[2]),
+          parseFloat(match[3]),
+          parseFloat(match[4]),
+        );
+      }
+      return (t: number) => t; // linear
+    }
+  }
+}
+
+function toPixels(val: number | string, containerSize: number): number {
+  if (typeof val === 'number') return val;
+  const s = String(val);
+  if (s.endsWith('%')) {
+    return (parseFloat(s) / 100) * containerSize;
+  }
+  return parseFloat(s) || 0;
+}
+
+function buildFilterString(filters: Filters): string {
+  const parts: string[] = [];
+  if (filters.brightness != null && filters.brightness !== 1) parts.push(\`brightness(\${filters.brightness})\`);
+  if (filters.contrast != null && filters.contrast !== 1) parts.push(\`contrast(\${filters.contrast})\`);
+  if (filters.saturation != null && filters.saturation !== 1) parts.push(\`saturate(\${filters.saturation})\`);
+  if (filters.blur != null && filters.blur !== 0) parts.push(\`blur(\${filters.blur}px)\`);
+  if (filters.hue != null && filters.hue !== 0) parts.push(\`hue-rotate(\${filters.hue}deg)\`);
+  if (filters.grayscale != null && filters.grayscale !== 0) parts.push(\`grayscale(\${filters.grayscale})\`);
+  if (filters.sepia != null && filters.sepia !== 0) parts.push(\`sepia(\${filters.sepia})\`);
+  return parts.join(' ');
+}
+
+export const TransformWrapper: React.FC<{
+  transform: Transform;
+  keyframes?: Keyframe[];
+  filters?: Filters;
+  children: React.ReactNode;
+}> = ({ transform, keyframes, filters, children }) => {
+  const frame = useCurrentFrame();
+  const { fps, width: canvasW, height: canvasH } = useVideoConfig();
+  const currentTimeMs = (frame / fps) * 1000;
+
+  // Start from base transform values
+  let x = toPixels(transform.x, canvasW);
+  let y = toPixels(transform.y, canvasH);
+  let w = toPixels(transform.width, canvasW);
+  let h = toPixels(transform.height, canvasH);
+  let rotation = transform.rotation;
+  let opacity = transform.opacity;
+
+  // Apply keyframe interpolation
+  if (keyframes && keyframes.length > 0) {
+    const sortedKfs = [...keyframes].sort((a, b) => a.timeMs - b.timeMs);
+
+    const interpProp = (prop: keyof Transform, baseVal: number): number => {
+      // Collect keyframes that affect this property
+      const relevant = sortedKfs.filter(kf => kf.props[prop] !== undefined);
+      if (relevant.length === 0) return baseVal;
+
+      // Build input/output arrays including the base value at t=0
+      const inputRange = [0, ...relevant.map(kf => (kf.timeMs / 1000) * fps)];
+      const outputRange = [baseVal, ...relevant.map(kf => toPixels(kf.props[prop]!, prop === 'x' || prop === 'width' ? canvasW : prop === 'y' || prop === 'height' ? canvasH : 1))];
+
+      // Use easing from the next keyframe in sequence
+      const easing = relevant.length > 0 ? getEasingFn(relevant[0].easing) : (t: number) => t;
+
+      return interpolate(frame, inputRange, outputRange, {
+        extrapolateLeft: 'clamp',
+        extrapolateRight: 'clamp',
+        easing,
+      });
+    };
+
+    x = interpProp('x', x);
+    y = interpProp('y', y);
+    w = interpProp('width', w);
+    h = interpProp('height', h);
+    rotation = interpProp('rotation', rotation);
+    opacity = interpProp('opacity', opacity);
+  }
+
+  const style: React.CSSProperties = {
+    position: 'absolute',
+    left: x,
+    top: y,
+    width: w,
+    height: h,
+    transform: \`rotate(\${rotation}deg)\`,
+    opacity,
+    overflow: 'hidden',
+  };
+
+  if (filters) {
+    const filterStr = buildFilterString(filters);
+    if (filterStr) {
+      style.filter = filterStr;
+    }
+  }
+
+  return <div style={style}>{children}</div>;
+};
+`;
+
+  await writeFile(join(srcPath, 'TransformWrapper.tsx'), code, 'utf-8');
+}
+
+/**
  * Generate PlayerComposition.tsx for the workspace.
  *
+ * Renders items using NLE-style per-item transforms with TransformWrapper.
  * If an AI-generated Composition.tsx exists, wraps it with an error boundary.
- * Otherwise, uses FullComposition with scene discovery and manifest conversion.
  */
 export async function generatePlayerComposition(projectId: string): Promise<void> {
   const srcPath = getWorkspaceSrcPath(projectId);
@@ -116,10 +270,8 @@ export async function generatePlayerComposition(projectId: string): Promise<void
     : '';
 
   const code = `import React from 'react';
-import { useVideoConfig, AbsoluteFill, Sequence, Audio, staticFile } from 'remotion';
-import { FullComposition } from './composition/index';
-import { OverlayLayer } from './composition/OverlayLayer';
-import type { SceneItem, SubtitleItemData, SubtitleWordData, SubtitleStyle, LayoutSegment } from './composition/types';
+import { useVideoConfig, AbsoluteFill, Sequence, Audio, Video, Img, staticFile } from 'remotion';
+import { TransformWrapper } from './TransformWrapper';
 ${sceneImports}
 ${aiCompositionImport}
 ${fontImport}
@@ -148,98 +300,69 @@ class CompositionErrorBoundary extends React.Component<
   }
 }
 
-// ---- Subtitle builder (shared by both paths) ----
+// ---- Item renderer ----
 
-function buildSubtitles(items: any[]): SubtitleItemData[] {
-  return items
-    .filter((it: any) => it.type === 'caption')
-    .map((it: any) => ({
-      startMs: it.startMs,
-      endMs: it.endMs,
-      words: (it.data?.words || []).map((w: any) => ({
-        text: w.text,
-        // Word timings in the manifest are absolute ms (from DB via dbToManifest)
-        startMs: w.startMs,
-        endMs: w.endMs,
-        styleOverrides: w.styleOverrides,
-      })),
-    }));
-}
+const ItemRenderer: React.FC<{ item: any }> = ({ item }) => {
+  const d = item.data || {};
 
-// ---- Layout / scene helpers for FullComposition ----
+  switch (item.type) {
+    case 'video':
+      return (
+        <Video
+          src={staticFile(d.src || '')}
+          volume={d.volume ?? 1}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      );
 
-function buildLayoutSegments(
-  items: any[],
-  fps: number,
-  totalDurationMs: number,
-): LayoutSegment[] {
-  const visualItems = items
-    .filter((it: any) => it.type === 'visual' || it.type === 'scene')
-    .sort((a: any, b: any) => a.startMs - b.startMs);
+    case 'audio':
+      return <Audio src={staticFile(d.src || '')} volume={d.volume ?? 1} />;
 
-  if (visualItems.length === 0) {
-    const totalFrames = Math.ceil((totalDurationMs / 1000) * fps);
-    return [{ startFrame: 0, endFrame: totalFrames, displayMode: 'overlay' }];
-  }
-
-  const segments: LayoutSegment[] = [];
-  let lastEndFrame = 0;
-
-  for (const item of visualItems) {
-    const startFrame = Math.round((item.startMs / 1000) * fps);
-    const endFrame = Math.round((item.endMs / 1000) * fps);
-    let displayMode: string = item.data?.displayMode || 'default';
-    if (displayMode === 'pip') displayMode = 'default';
-
-    if (startFrame > lastEndFrame) {
-      segments.push({ startFrame: lastEndFrame, endFrame: startFrame, displayMode: 'overlay' });
+    case 'scene': {
+      const SceneComponent = SCENE_MAP[d.sceneFile || ''];
+      if (!SceneComponent) return null;
+      return <SceneComponent />;
     }
 
-    segments.push({ startFrame, endFrame, displayMode });
-    lastEndFrame = Math.max(lastEndFrame, endFrame);
+    case 'text':
+      return (
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: d.fontFamily || 'Inter, system-ui, sans-serif',
+            fontSize: d.fontSize || 48,
+            fontWeight: d.fontWeight || 600,
+            color: d.color || '#FFFFFF',
+            backgroundColor: d.backgroundColor || 'transparent',
+            textAlign: (d.textAlign as React.CSSProperties['textAlign']) || 'center',
+          }}
+        >
+          {d.text || ''}
+        </div>
+      );
+
+    case 'image':
+      return (
+        <Img
+          src={staticFile(d.src || '')}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      );
+
+    case 'caption':
+      return null;
+
+    case 'shape':
+      return null;
+
+    default:
+      return null;
   }
-
-  const totalFrames = Math.ceil((totalDurationMs / 1000) * fps);
-  if (lastEndFrame < totalFrames) {
-    segments.push({ startFrame: lastEndFrame, endFrame: totalFrames, displayMode: 'overlay' });
-  }
-
-  return segments;
-}
-
-function buildSceneItems(items: any[], fps: number): SceneItem[] {
-  return items
-    .filter((it: any) => it.type === 'visual' || it.type === 'scene')
-    .map((it: any) => {
-      const startFrame = Math.round((it.startMs / 1000) * fps);
-      const endFrame = Math.round((it.endMs / 1000) * fps);
-      const data = it.data || {};
-
-      const sceneItem: SceneItem = {
-        id: it.id,
-        startFrame,
-        endFrame,
-        sceneFile: data.sceneFile || '',
-        displayMode: data.displayMode || 'default',
-        frameOffset: data.frameOffset ?? undefined,
-      };
-
-      if (data.transition?.enter) {
-        sceneItem.enter = {
-          type: data.transition.enter.type || 'cut',
-          durationMs: data.transition.enter.durationMs || 0,
-        };
-      }
-      if (data.transition?.exit) {
-        sceneItem.exit = {
-          type: data.transition.exit.type || 'cut',
-          durationMs: data.transition.exit.durationMs || 0,
-        };
-      }
-
-      return sceneItem;
-    });
-}
+};
 
 // ---- Main component ----
 
@@ -254,80 +377,69 @@ export const PlayerComposition: React.FC<{
     return null;
   }
 
-  const subtitles = buildSubtitles(manifest.items);
-  const captionStyle: SubtitleStyle | undefined = manifest.captionStyle;
+  const tracks = (manifest.tracks || []).slice().sort((a: any, b: any) => a.position - b.position);
+  const trackOrder = new Map<string, number>();
+  tracks.forEach((t: any, i: number) => { trackOrder.set(t.id, i); });
 
-  const overlayTypes = new Set(['text', 'image', 'video', 'shape']);
-  const overlayItems = (manifest.items || []).filter((i: any) => overlayTypes.has(i.type));
-  const audioOverlayItems = (manifest.items || []).filter((i: any) => i.type === 'audio');
+  const items = (manifest.items || [])
+    .slice()
+    .sort((a: any, b: any) => {
+      const trackDiff = (trackOrder.get(a.trackId) ?? 0) - (trackOrder.get(b.trackId) ?? 0);
+      if (trackDiff !== 0) return trackDiff;
+      return a.startMs - b.startMs;
+    });
 
-  // AI-generated composition: render it with an error boundary that falls back to FullComposition
-  ${hasCompositionTsx ? `if (HAS_AI_COMPOSITION) {
-    const fullCompositionFallback = renderFullComposition(manifest, videoUrl, audioUrl, fps, subtitles, captionStyle, overlayItems, audioOverlayItems);
+  ${hasCompositionTsx ? `// AI-generated composition: render with error boundary fallback
+  if (HAS_AI_COMPOSITION) {
+    const fallback = renderNLEComposition(items, fps);
     return (
-      <CompositionErrorBoundary fallback={fullCompositionFallback}>
+      <CompositionErrorBoundary fallback={fallback}>
         <ProjectComposition
           videoUrl={videoUrl || ''}
-          subtitles={subtitles}
-          captionStyle={captionStyle}
+          subtitles={[]}
+          captionStyle={undefined}
         />
       </CompositionErrorBoundary>
     );
   }` : ''}
 
-  return renderFullComposition(manifest, videoUrl, audioUrl, fps, subtitles, captionStyle, overlayItems, audioOverlayItems);
+  return renderNLEComposition(items, fps);
 };
 
-function renderFullComposition(
-  manifest: any,
-  videoUrl: string | undefined,
-  audioUrl: string | undefined,
-  fps: number,
-  subtitles: SubtitleItemData[],
-  captionStyle: SubtitleStyle | undefined,
-  overlayItems: any[],
-  audioOverlayItems: any[],
-) {
-  const layoutSegments = buildLayoutSegments(manifest.items, fps, manifest.durationMs);
-  const sceneItems = buildSceneItems(manifest.items, fps);
-  const layout = manifest.layout || {};
-  const videoSettings = manifest.videoSettings || {};
-
-  const renderScene = (sceneFile: string, frameOffset: number): React.ReactNode => {
-    const SceneComponent = SCENE_MAP[sceneFile];
-    if (!SceneComponent) return null;
-    return <SceneComponent />;
-  };
-
+function renderNLEComposition(items: any[], fps: number) {
   return (
-    <AbsoluteFill>
-      <FullComposition
-        layoutMode={layout.mode || 'stacked'}
-        splitSettings={layout.split || { position: 'visuals-first', ratio: 50, gap: 0 }}
-        pipSettings={layout.pip}
-        layoutSegments={layoutSegments}
-        videoCropSettings={{
-          sourceWidth: videoSettings.sourceWidth || 1920,
-          sourceHeight: videoSettings.sourceHeight || 1080,
-          cropX: videoSettings.cropX ?? 50,
-          cropY: videoSettings.cropY ?? 50,
-          scale: videoSettings.scale ?? 1,
-        }}
-        sourceVideoFile={videoUrl}
-        audioFile={audioUrl}
-        backgroundColor="#000000"
-        subtitles={subtitles}
-        defaultSubtitleStyle={captionStyle}
-        sceneItems={sceneItems}
-        renderScene={renderScene}
-      />
-      {overlayItems.length > 0 && <OverlayLayer items={overlayItems} fps={fps} />}
-      {audioOverlayItems.map((item: any) => {
-        const sf = Math.round((item.startMs / 1000) * fps);
-        const ef = Math.round((item.endMs / 1000) * fps);
+    <AbsoluteFill style={{ backgroundColor: '#000000' }}>
+      {items.map((item: any) => {
+        // Skip caption items
+        if (item.type === 'caption') return null;
+
+        const startFrame = Math.round((item.startMs / 1000) * fps);
+        const endFrame = Math.round((item.endMs / 1000) * fps);
+        const durationInFrames = Math.max(1, endFrame - startFrame);
+
+        // Audio items: no transform wrapper
+        if (item.type === 'audio') {
+          return (
+            <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} layout="none">
+              <ItemRenderer item={item} />
+            </Sequence>
+          );
+        }
+
+        // Default transform: full canvas
+        const transform = item.transform || {
+          x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1,
+        };
+
         return (
-          <Sequence key={item.id} from={sf} durationInFrames={Math.max(1, ef - sf)}>
-            <Audio src={staticFile(item.data?.src || '')} volume={item.data?.volume ?? 1} />
+          <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} layout="none">
+            <TransformWrapper
+              transform={transform}
+              keyframes={item.keyframes}
+              filters={item.filters}
+            >
+              <ItemRenderer item={item} />
+            </TransformWrapper>
           </Sequence>
         );
       })}
