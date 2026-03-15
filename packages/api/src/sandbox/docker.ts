@@ -1,6 +1,9 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { randomUUID } from 'crypto';
+import { homedir } from 'os';
+import { join } from 'path';
+import { existsSync } from 'fs';
 import { logger } from '../logger.js';
 import { config } from '../config.js';
 import type { SandboxProvider, Sandbox, CreateSandboxOpts } from './provider.js';
@@ -56,8 +59,15 @@ export class DockerSandboxProvider implements SandboxProvider {
         '-v', `${volumeName}:/workspace`,
         '-p', `${filePort}:8080`, '-p', `${agentPort}:8081`,
         ...Object.entries(envEntries).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
-        config.sandbox.image,
       ];
+
+      // Mount Claude Code credentials for Agent SDK authentication
+      const claudeDir = join(homedir(), '.claude');
+      if (existsSync(claudeDir)) {
+        dockerArgs.push('-v', `${claudeDir}:/home/sandbox/.claude`);
+      }
+
+      dockerArgs.push(config.sandbox.image);
 
       // 4. Run container
       const { stdout } = await execFileAsync('docker', dockerArgs);
