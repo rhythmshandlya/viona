@@ -1,4 +1,4 @@
-C:\Users\armaa\Documents\cllipify\packages\worker\src\agents\oauth.py"""OAuth token management for Claude Agent SDK authentication."""
+"""OAuth token management for Claude Agent SDK authentication."""
 
 import json
 import os

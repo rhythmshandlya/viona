@@ -7,14 +7,70 @@ import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
 
 /**
- * Wrap a sandbox tool object (with raw JSON schema + execute method) into an SDK tool() call.
- * We pass an empty Zod shape since our tools use raw JSON schema internally.
+ * Convert a raw JSON schema property to a Zod type.
+ * Handles string (with optional enum), number, boolean, object, and array.
  */
-function wrapTool(t: { name: string; description: string; execute: (input: any) => Promise<string> }) {
+function jsonPropToZod(prop: any, isRequired: boolean): z.ZodTypeAny {
+  let zodType: z.ZodTypeAny;
+
+  switch (prop.type) {
+    case 'string':
+      zodType = prop.enum
+        ? z.enum(prop.enum as [string, ...string[]])
+        : z.string();
+      break;
+    case 'number':
+      zodType = z.number();
+      break;
+    case 'boolean':
+      zodType = z.boolean();
+      break;
+    case 'array':
+      zodType = z.array(z.unknown());
+      break;
+    case 'object':
+      zodType = z.record(z.unknown());
+      break;
+    default:
+      zodType = z.unknown();
+  }
+
+  if (prop.description) {
+    zodType = zodType.describe(prop.description);
+  }
+
+  if (!isRequired) {
+    zodType = zodType.optional();
+  }
+
+  return zodType;
+}
+
+/**
+ * Convert a raw JSON Schema input_schema to a Zod shape for the SDK's tool() function.
+ */
+function jsonSchemaToZodShape(schema: any): Record<string, z.ZodTypeAny> {
+  const shape: Record<string, z.ZodTypeAny> = {};
+  const props = schema?.properties ?? {};
+  const required: string[] = schema?.required ?? [];
+
+  for (const [key, prop] of Object.entries(props)) {
+    shape[key] = jsonPropToZod(prop as any, required.includes(key));
+  }
+
+  return shape;
+}
+
+/**
+ * Wrap a sandbox tool object (with raw JSON schema + execute method) into an SDK tool() call.
+ * Converts the tool's input_schema to a Zod shape so the LLM sees proper parameter definitions.
+ */
+function wrapTool(t: { name: string; description: string; input_schema?: any; execute: (input: any) => Promise<string> }) {
+  const zodShape = t.input_schema ? jsonSchemaToZodShape(t.input_schema) : {};
   return tool(
     t.name,
     t.description,
-    {},
+    zodShape,
     async (input: Record<string, unknown>) => {
       const result = await t.execute(input);
       return { content: [{ type: 'text' as const, text: result }] };

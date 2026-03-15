@@ -40,7 +40,7 @@ async function withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
 // ---- Tool definitions ----
 
 export const readManifestTool = {
-  name: 'readManifest',
+  name: 'read_manifest',
   description:
     'Read the manifest. No args → summary (tracks with item counts, duration, canvas, asset keys, total items). ' +
     'Pass trackId to get items on that track. Pass timeRange [start, end] to get items overlapping that range. ' +
@@ -100,7 +100,7 @@ export const readManifestTool = {
 };
 
 export const readItemTool = {
-  name: 'readItem',
+  name: 'read_item',
   description: 'Read a single item by its ID.',
   input_schema: {
     type: 'object' as const,
@@ -122,7 +122,7 @@ export const readItemTool = {
 };
 
 export const addTrackTool = {
-  name: 'addTrack',
+  name: 'add_track',
   description: 'Add a new track. Auto-generates an ID and assigns the next position.',
   input_schema: {
     type: 'object' as const,
@@ -160,7 +160,7 @@ export const addTrackTool = {
 };
 
 export const updateTrackTool = {
-  name: 'updateTrack',
+  name: 'update_track',
   description: 'Update an existing track\'s name or position.',
   input_schema: {
     type: 'object' as const,
@@ -190,7 +190,7 @@ export const updateTrackTool = {
 };
 
 export const removeTrackTool = {
-  name: 'removeTrack',
+  name: 'remove_track',
   description: 'Remove a track and all items on it.',
   input_schema: {
     type: 'object' as const,
@@ -218,7 +218,7 @@ export const removeTrackTool = {
 };
 
 export const addItemTool = {
-  name: 'addItem',
+  name: 'add_item',
   description: 'Add a new item to a track. Auto-generates an ID. Optional transform.',
   input_schema: {
     type: 'object' as const,
@@ -286,7 +286,7 @@ export const addItemTool = {
 };
 
 export const updateItemTool = {
-  name: 'updateItem',
+  name: 'update_item',
   description:
     'Update an existing item. Deep-merges nested objects (data, transform, filters). ' +
     'Replaces keyframes array if provided. Top-level scalars (startMs, endMs, trackId) set directly.',
@@ -348,7 +348,7 @@ export const updateItemTool = {
 };
 
 export const removeItemTool = {
-  name: 'removeItem',
+  name: 'remove_item',
   description: 'Remove an item by ID.',
   input_schema: {
     type: 'object' as const,
@@ -375,7 +375,7 @@ export const removeItemTool = {
 };
 
 export const splitVideoTool = {
-  name: 'splitVideo',
+  name: 'split_video',
   description:
     'Split a video item at a given time. The original item ends at atMs; a new item starts at atMs. ' +
     'Keyframes are adjusted accordingly. Returns both item IDs.',
@@ -436,7 +436,7 @@ export const splitVideoTool = {
 };
 
 export const updateCaptionStyleTool = {
-  name: 'updateCaptionStyle',
+  name: 'update_caption_style',
   description:
     'Update the global caption style. Deep-merges with existing style. ' +
     'Fields: displayMode (word-by-word|phrase|karaoke|dynamic-hierarchy), wordsPerPhrase, ' +
@@ -479,7 +479,7 @@ export const updateCaptionStyleTool = {
 };
 
 export const updateManifestTool = {
-  name: 'updateManifest',
+  name: 'update_manifest',
   description: 'Replace the entire manifest and trigger a preview rebuild. Use sparingly — prefer granular tools.',
   input_schema: {
     type: 'object' as const,

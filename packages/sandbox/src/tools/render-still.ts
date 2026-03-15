@@ -5,7 +5,7 @@ import { promisify } from 'util';
 const execFileAsync = promisify(execFile);
 
 export const renderStillTool = {
-  name: 'renderStill',
+  name: 'render_still',
   description: 'Render a still frame at a specific time as a PNG image. Use this to verify visual output.',
   input_schema: {
     type: 'object' as const,
