@@ -289,6 +289,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // Track all content blocks (text + widgets) for persistence
     const contentBlocks: Array<{ type: string; [k: string]: unknown }> = [];
     let pendingText = '';
+    let progressBlockIdx = -1; // Index of the current progress block in contentBlocks
 
     // Flush accumulated text into a content block
     function flushText() {
@@ -342,6 +343,17 @@ export async function agentRoutes(fastify: FastifyInstance) {
           onWidget: (widget) => {
             flushText();
             contentBlocks.push({ type: 'widget', widget });
+          },
+          onProgress: (progress) => {
+            flushText();
+            if (progressBlockIdx >= 0) {
+              // Replace existing progress block with updated state
+              contentBlocks[progressBlockIdx] = { type: 'progress', ...progress };
+            } else {
+              // First progress event — append new block
+              progressBlockIdx = contentBlocks.length;
+              contentBlocks.push({ type: 'progress', ...progress });
+            }
           },
           onError: (error) => {
             fastify.log.error({ error }, 'Sandbox orchestrator error');
