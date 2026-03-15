@@ -201,7 +201,7 @@ function migrateAnimationLegacy(legacy: string): AnimationConfig {
  * Track heights per type — taller for video/audio, compact for text-based tracks
  */
 const TRACK_HEIGHTS: Record<string, number> = {
-  video: 48,
+  video: 80,
   audio: 36,
   caption: 28,
   text: 28,
@@ -366,6 +366,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
               muted: (raw.muted as boolean) ?? false,
               separatedAudioItemId: (raw.separatedAudioItemId as string) || undefined,
               previewUrl: project.videoUrl,
+              thumbnailSrc: `/media-proxy/projects/${apiProject.id}/video`,
             } as VideoItemData,
           };
           // Only set trim if explicit trim data was saved — avoid defaulting to
@@ -404,6 +405,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             volume: 1,
             playbackRate: 1,
             previewUrl: project.videoUrl,
+            thumbnailSrc: `/media-proxy/projects/${apiProject.id}/video`,
           } as VideoItemData,
         };
         console.log('[convertApiProject] Synthetic video item:', {
@@ -717,6 +719,14 @@ export const useEditorStore = create<EditorStore>()(
           visualMeta: (apiProject as any).visualMeta,
         });
 
+        // Set same-origin thumbnailSrc on video items for timeline thumbnail extraction
+        for (const itemId of bridgeResult.itemIds) {
+          const item = bridgeResult.items[itemId];
+          if (item?.type === 'video') {
+            (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
+          }
+        }
+
         const project = {
           id: apiProject.id,
           title: apiProject.title,
@@ -915,6 +925,7 @@ export const useEditorStore = create<EditorStore>()(
             if (!item) continue;
             if (item.type === 'video' && videoUrl) {
               (item.data as any).src = videoUrl;
+              (item.data as any).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
             } else if (item.type === 'audio') {
               const audioData = item.data as any;
               // Only refresh items that use the project video/audio as source

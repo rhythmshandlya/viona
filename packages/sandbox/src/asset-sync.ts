@@ -13,6 +13,7 @@ const PRESIGNED_TTL = 8 * 60 * 60; // 8 hours in seconds
 const uploadedFiles = new Set<string>();
 
 let _minioClient: MinioClient | null = null;
+let _minioUrlClient: MinioClient | null = null;
 
 function getMinioClient(): MinioClient {
   if (!_minioClient) {
@@ -25,6 +26,23 @@ function getMinioClient(): MinioClient {
     });
   }
   return _minioClient;
+}
+
+/** Client for generating browser-accessible presigned URLs.
+ *  Uses localhost instead of host.docker.internal since presignedGetObject
+ *  is a local signing operation (no network call). */
+function getMinioUrlClient(): MinioClient {
+  if (!_minioUrlClient) {
+    const endpoint = process.env.MINIO_ENDPOINT || 'localhost';
+    _minioUrlClient = new MinioClient({
+      endPoint: endpoint === 'host.docker.internal' ? 'localhost' : endpoint,
+      port: parseInt(process.env.MINIO_PORT || '9000', 10),
+      useSSL: process.env.MINIO_USE_SSL === 'true',
+      accessKey: process.env.MINIO_ACCESS_KEY || '',
+      secretKey: process.env.MINIO_SECRET_KEY || '',
+    });
+  }
+  return _minioUrlClient;
 }
 
 export async function syncAssets(): Promise<void> {
@@ -67,7 +85,8 @@ export async function syncAssets(): Promise<void> {
     }
 
     try {
-      const url = await minio.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
+      const urlClient = getMinioUrlClient();
+      const url = await urlClient.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
       assets[file] = url;
     } catch (err) {
       logger.warn({ err, file }, 'Failed to generate presigned URL');

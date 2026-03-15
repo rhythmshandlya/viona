@@ -103,7 +103,7 @@ export function manifestToStore(
     position: t.position,
     locked: false,
     visible: true,
-    height: 48,
+    height: t.type === 'video' ? 80 : t.type === 'audio' ? 36 : t.type === 'visual' ? 48 : 28,
     collapsed: false,
   }));
 

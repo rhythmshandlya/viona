@@ -717,11 +717,8 @@ export function Editor({ projectId }: EditorProps) {
               onCancel={handleCancelVisuals}
             />
 
-            {/* Add Item Toolbar */}
-            <AddItemToolbar />
-
-            {/* Timeline */}
-            <div style={{ height: timelineHeight }} className="flex-shrink-0 overflow-hidden relative editor-panel">
+            {/* Timeline (with Add Item Toolbar inside) */}
+            <div style={{ height: timelineHeight }} className="flex-shrink-0 overflow-hidden relative editor-panel flex flex-col">
               {/* Resize handle */}
               <div
                 ref={resizeRef}
@@ -733,8 +730,10 @@ export function Editor({ projectId }: EditorProps) {
               >
                 <div className="w-10 h-0.5 rounded-full bg-white/[0.12] group-hover:bg-[var(--editor-accent)] transition-colors" />
               </div>
+              {/* Add Item Toolbar */}
+              <AddItemToolbar />
               <ErrorBoundary name="Timeline">
-                <Timeline className="h-full" />
+                <Timeline className="flex-1 min-h-0" />
               </ErrorBoundary>
             </div>
           </div>

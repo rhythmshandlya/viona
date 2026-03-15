@@ -1,7 +1,18 @@
 import type { NextConfig } from "next";
 
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
 const nextConfig: NextConfig = {
 	reactStrictMode: false,
+	async rewrites() {
+		return [
+			{
+				// Same-origin proxy for video/audio — avoids CORS issues for canvas thumbnail extraction
+				source: '/media-proxy/:path*',
+				destination: `${apiUrl}/api/:path*`,
+			},
+		];
+	},
 	experimental: {
 		reactCompiler: true,
 	},

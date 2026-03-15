@@ -36,10 +36,13 @@ export class VideoRenderer extends BaseRenderer {
     roundRect(ctx, x + 1, y + 1, width - 2, height - 2, 5);
     ctx.clip();
 
+    // Use same-origin proxy URL for thumbnails (avoids CORS issues with canvas extraction)
+    const thumbSrc = data.thumbnailSrc || data.src;
+
     for (let i = 0; i < thumbCount; i++) {
       const tileX = x + i * tileWidth;
       const timeMs = item.startMs + (tileX - x) / width * durationMs;
-      const bitmap = cache.getThumbnail(data.src, Math.round(timeMs));
+      const bitmap = cache.getThumbnail(thumbSrc, Math.round(timeMs));
 
       if (bitmap) {
         // Letterbox: scale full frame to fit tile, center with dark bars
@@ -64,7 +67,7 @@ export class VideoRenderer extends BaseRenderer {
         ctx.fillStyle = grad;
         ctx.fillRect(tileX, drawY, tileWidth, drawHeight);
         // Request async extraction
-        cache.requestThumbnail(data.src, Math.round(timeMs), this.requestRedraw);
+        cache.requestThumbnail(thumbSrc, Math.round(timeMs), this.requestRedraw);
       }
     }
 

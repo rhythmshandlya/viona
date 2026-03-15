@@ -179,21 +179,17 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions = {}) {
         return;
       }
 
-      // Cmd/Ctrl + C: Copy selected items
-      if (cmdOrCtrl && e.code === 'KeyC') {
+      // Cmd/Ctrl + C: Copy selected items (only intercept when items are selected)
+      if (cmdOrCtrl && e.code === 'KeyC' && selectedIds.length > 0) {
         e.preventDefault();
-        if (selectedIds.length > 0) {
-          copyItems(selectedIds);
-        }
+        copyItems(selectedIds);
         return;
       }
 
-      // Cmd/Ctrl + V: Paste at playhead
-      if (cmdOrCtrl && e.code === 'KeyV') {
+      // Cmd/Ctrl + V: Paste at playhead (only intercept when clipboard has items)
+      if (cmdOrCtrl && e.code === 'KeyV' && clipboard && clipboard.length > 0) {
         e.preventDefault();
-        if (clipboard && clipboard.length > 0) {
-          pasteItems(currentTimeMs);
-        }
+        pasteItems(currentTimeMs);
         return;
       }
 

@@ -108,63 +108,20 @@ export function AddItemToolbar() {
     actions.select([id]);
   };
 
-  const buttonStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '4px 10px',
-    fontSize: 12,
-    border: '1px solid var(--editor-border-subtle, #333)',
-    borderRadius: 6,
-    background: 'var(--editor-bg-secondary, #1a1a1a)',
-    color: 'var(--editor-text-secondary, #999)',
-    cursor: 'pointer',
-  };
-
   return (
-    <div
-      style={{
-        display: 'flex',
-        gap: 6,
-        padding: '4px 12px',
-        borderBottom: '1px solid var(--editor-border-subtle, #2a2a2a)',
-        background: 'var(--editor-bg-primary, #111)',
-      }}
-    >
-      <button style={buttonStyle} onClick={handleAddText} title="Add text overlay">
-        <Type size={14} /> Text
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() => imageInputRef.current?.click()}
-        title="Add image overlay"
-      >
-        <ImageIcon size={14} /> Image
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() => audioInputRef.current?.click()}
-        title="Add background audio"
-      >
-        <Music size={14} /> Audio
-      </button>
-      <button
-        style={buttonStyle}
-        onClick={() => videoInputRef.current?.click()}
-        title="Add video clip"
-      >
-        <Film size={14} /> Video
-      </button>
-      <button style={buttonStyle} onClick={handleAddShape} title="Add shape">
-        <Square size={14} /> Shape
-      </button>
+    <div className="flex items-center gap-1.5 px-3 py-1.5 border-b border-[var(--editor-border-subtle)] flex-shrink-0">
+      <ToolbarButton icon={<Type size={13} />} label="Text" onClick={handleAddText} />
+      <ToolbarButton icon={<ImageIcon size={13} />} label="Image" onClick={() => imageInputRef.current?.click()} />
+      <ToolbarButton icon={<Music size={13} />} label="Audio" onClick={() => audioInputRef.current?.click()} />
+      <ToolbarButton icon={<Film size={13} />} label="Video" onClick={() => videoInputRef.current?.click()} />
+      <ToolbarButton icon={<Square size={13} />} label="Shape" onClick={handleAddShape} />
 
       {/* Hidden file inputs */}
       <input
         ref={imageInputRef}
         type="file"
         accept="image/*"
-        style={{ display: 'none' }}
+        className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleMediaUpload(file, 'image', 'overlay');
@@ -175,7 +132,7 @@ export function AddItemToolbar() {
         ref={audioInputRef}
         type="file"
         accept="audio/*"
-        style={{ display: 'none' }}
+        className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleMediaUpload(file, 'audio', 'audio');
@@ -186,7 +143,7 @@ export function AddItemToolbar() {
         ref={videoInputRef}
         type="file"
         accept="video/*"
-        style={{ display: 'none' }}
+        className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) handleMediaUpload(file, 'video', 'video');
@@ -194,5 +151,20 @@ export function AddItemToolbar() {
         }}
       />
     </div>
+  );
+}
+
+function ToolbarButton({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg
+        bg-white/[0.04] border border-white/[0.08] text-[var(--editor-text-secondary)]
+        hover:bg-white/[0.08] hover:text-[var(--editor-text-primary)] hover:border-white/[0.14]
+        active:scale-[0.97] transition-all"
+    >
+      {icon}
+      {label}
+    </button>
   );
 }

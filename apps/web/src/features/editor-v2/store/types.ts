@@ -69,6 +69,7 @@ export interface VideoItemData {
   playbackRate: number;
   startFrom?: number;  // ms offset into source clip (v2)
   previewUrl?: string;
+  thumbnailSrc?: string; // Same-origin proxy URL for timeline thumbnail extraction (avoids CORS)
   muted?: boolean;
   separatedAudioItemId?: string;
   segmentation?: SegmentationData;  // NEW: speaker segmentation data

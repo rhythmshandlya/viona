@@ -906,10 +906,12 @@ export default function ProjectsPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] px-6 md:px-8 lg:px-12">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-[#8B5CF6]" />
-          <p className="text-white/40">Loading your projects...</p>
+      <div className="min-h-screen py-8 px-4 md:px-6 lg:px-8">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-10 md:p-14 min-h-[calc(100vh-8rem)] max-w-[1600px] mx-auto flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4">
+            <Loader2 className="h-8 w-8 animate-spin text-[#8B5CF6]" />
+            <p className="text-white/40">Loading your projects...</p>
+          </div>
         </div>
       </div>
     );

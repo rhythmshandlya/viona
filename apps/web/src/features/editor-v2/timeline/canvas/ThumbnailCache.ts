@@ -1,13 +1,22 @@
 /**
  * ThumbnailCache
  * LRU cache for video frame thumbnails extracted via hidden <video> elements.
+ *
+ * Handles both same-origin and cross-origin videos:
+ * - Same-origin: uses ImageBitmap (efficient, transferable)
+ * - Cross-origin without CORS: falls back to HTMLCanvasElement
+ *   (canvas gets tainted but drawImage still works for rendering)
  */
 
 const MAX_ENTRIES = 200;
-const MAX_CONCURRENT = 2;
+const MAX_CONCURRENT = 3;
+const LOAD_TIMEOUT = 15_000;
+const SEEK_TIMEOUT = 5_000;
+
+export type ThumbnailSource = ImageBitmap | HTMLCanvasElement;
 
 interface CacheEntry {
-  bitmap: ImageBitmap;
+  source: ThumbnailSource;
   lastUsed: number;
 }
 
@@ -21,12 +30,12 @@ class ThumbnailCache {
     return `${src}:${Math.round(timeMs / 500) * 500}`; // Round to 500ms intervals
   }
 
-  getThumbnail(src: string, timeMs: number): ImageBitmap | null {
+  getThumbnail(src: string, timeMs: number): ThumbnailSource | null {
     const key = this.makeKey(src, timeMs);
     const entry = this.cache.get(key);
     if (entry) {
       entry.lastUsed = Date.now();
-      return entry.bitmap;
+      return entry.source;
     }
     return null;
   }
@@ -49,45 +58,64 @@ class ThumbnailCache {
   }
 
   private async extractThumbnail(key: string, src: string, timeMs: number, callback: () => void): Promise<void> {
+    let video: HTMLVideoElement | null = null;
     try {
-      const video = document.createElement('video');
-      video.crossOrigin = 'anonymous';
+      video = document.createElement('video');
+      // Do NOT set crossOrigin — thumbnailSrc should be same-origin via /media-proxy rewrite.
       video.muted = true;
-      video.preload = 'metadata';
+      video.preload = 'auto';
 
+      // Load video with timeout
       await new Promise<void>((resolve, reject) => {
-        video.onloadedmetadata = () => resolve();
-        video.onerror = () => reject(new Error('Failed to load video'));
-        video.src = src;
+        const timeout = setTimeout(() => reject(new Error('Video load timeout')), LOAD_TIMEOUT);
+        video!.onloadeddata = () => { clearTimeout(timeout); resolve(); };
+        video!.onerror = () => { clearTimeout(timeout); reject(new Error('Video load error')); };
+        video!.src = src;
       });
 
-      // Seek to time
-      const seekTime = Math.min(timeMs / 1000, video.duration - 0.1);
-      video.currentTime = Math.max(0, seekTime);
-
+      // Seek — set handler BEFORE changing currentTime to avoid race condition
+      const seekTime = Math.min(timeMs / 1000, (video.duration || 1) - 0.1);
       await new Promise<void>((resolve) => {
-        video.onseeked = () => resolve();
+        const timeout = setTimeout(resolve, SEEK_TIMEOUT);
+        video!.onseeked = () => { clearTimeout(timeout); resolve(); };
+        video!.currentTime = Math.max(0, seekTime);
       });
 
-      // Draw to offscreen canvas
-      const thumbHeight = 56;
-      const aspect = video.videoWidth / video.videoHeight;
+      // Calculate thumbnail dimensions
+      const thumbHeight = 72;
+      const aspect = (video.videoWidth && video.videoHeight)
+        ? (video.videoWidth / video.videoHeight)
+        : (16 / 9);
       const thumbWidth = Math.round(thumbHeight * aspect);
 
-      const offscreen = new OffscreenCanvas(thumbWidth, thumbHeight);
-      const offCtx = offscreen.getContext('2d')!;
-      offCtx.drawImage(video, 0, 0, thumbWidth, thumbHeight);
+      // Try ImageBitmap (works for same-origin, throws on tainted canvas)
+      let source: ThumbnailSource;
+      try {
+        const offscreen = new OffscreenCanvas(thumbWidth, thumbHeight);
+        const offCtx = offscreen.getContext('2d')!;
+        offCtx.drawImage(video, 0, 0, thumbWidth, thumbHeight);
+        source = await createImageBitmap(offscreen);
+      } catch {
+        // Cross-origin fallback: draw to a regular canvas.
+        // The canvas is tainted but ctx.drawImage(canvas, ...) still works for rendering.
+        const canvas = document.createElement('canvas');
+        canvas.width = thumbWidth;
+        canvas.height = thumbHeight;
+        canvas.getContext('2d')!.drawImage(video, 0, 0, thumbWidth, thumbHeight);
+        source = canvas;
+      }
 
-      const bitmap = await createImageBitmap(offscreen);
-
-      // Evict if at capacity
       this.evictIfNeeded();
-
-      this.cache.set(key, { bitmap, lastUsed: Date.now() });
+      this.cache.set(key, { source, lastUsed: Date.now() });
       callback();
-    } catch {
-      // Silently fail — placeholder will remain
+    } catch (err) {
+      console.warn('[ThumbnailCache] extraction failed:', err);
     } finally {
+      // Release video resources
+      if (video) {
+        video.removeAttribute('src');
+        video.load();
+      }
       this.pending.delete(key);
       this.activeExtractions--;
       this.processQueue();
@@ -108,14 +136,14 @@ class ThumbnailCache {
     }
     if (oldestKey) {
       const entry = this.cache.get(oldestKey);
-      entry?.bitmap.close();
+      if (entry?.source instanceof ImageBitmap) entry.source.close();
       this.cache.delete(oldestKey);
     }
   }
 
   clear(): void {
     for (const [, entry] of this.cache) {
-      entry.bitmap.close();
+      if (entry.source instanceof ImageBitmap) entry.source.close();
     }
     this.cache.clear();
     this.pending.clear();
