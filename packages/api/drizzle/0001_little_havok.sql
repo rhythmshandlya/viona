@@ -17,15 +17,15 @@ CREATE TABLE IF NOT EXISTS "sandbox_sessions" (
 	"metadata" jsonb DEFAULT '{}'::jsonb
 );
 --> statement-breakpoint
-ALTER TABLE "conversations" ADD COLUMN "sdk_session_id" varchar(255);--> statement-breakpoint
-ALTER TABLE "jobs" ADD COLUMN "progress_meta" jsonb;--> statement-breakpoint
-ALTER TABLE "project_assets" ADD COLUMN "label" varchar(255);--> statement-breakpoint
-ALTER TABLE "project_assets" ADD COLUMN "description" text;--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "workspace_status" varchar(50) DEFAULT 'inactive' NOT NULL;--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "workspace_last_activity" timestamp;--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "active_bundle_url" varchar(1024);--> statement-breakpoint
-ALTER TABLE "projects" ADD COLUMN "description" text;--> statement-breakpoint
-ALTER TABLE "visuals" ADD COLUMN "source_scene_ids" jsonb;--> statement-breakpoint
+ALTER TABLE "conversations" ADD COLUMN IF NOT EXISTS "sdk_session_id" varchar(255);--> statement-breakpoint
+ALTER TABLE "jobs" ADD COLUMN IF NOT EXISTS "progress_meta" jsonb;--> statement-breakpoint
+ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "label" varchar(255);--> statement-breakpoint
+ALTER TABLE "project_assets" ADD COLUMN IF NOT EXISTS "description" text;--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "workspace_status" varchar(50) DEFAULT 'inactive' NOT NULL;--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "workspace_last_activity" timestamp;--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "active_bundle_url" varchar(1024);--> statement-breakpoint
+ALTER TABLE "projects" ADD COLUMN IF NOT EXISTS "description" text;--> statement-breakpoint
+ALTER TABLE "visuals" ADD COLUMN IF NOT EXISTS "source_scene_ids" jsonb;--> statement-breakpoint
 DO $$ BEGIN
  ALTER TABLE "sandbox_sessions" ADD CONSTRAINT "sandbox_sessions_project_id_projects_id_fk" FOREIGN KEY ("project_id") REFERENCES "projects"("id") ON DELETE cascade ON UPDATE no action;
 EXCEPTION
