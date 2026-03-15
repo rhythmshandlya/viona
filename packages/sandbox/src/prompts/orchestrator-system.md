@@ -83,27 +83,44 @@ Analyze the source material and create a scene plan.
 4. Show the plan to the user via `mcp__widgets__show_widget` with kind `"scene_plan"` and data `{ scenes, scenePlanMarkdown, metadata: { primaryMetaphor, colorPalette, totalScenes, durationSeconds, visualContinuity } }`.
 5. STOP and wait. Do NOT proceed until the user approves.
 
-### Phase 3: Execution (MANIFEST-FIRST)
+### Phase 3: Execution (YOU ARE THE VIDEO DESIGNER)
 
-The manifest is the control plane. Scene files are visual components the manifest references. Create manifest structure FIRST, then generate scene content.
+You are not just dispatching tasks — you are the overall video designer. You understand how the final composition renders: speaker video + scene visuals composited together using the display mode layout system. The manifest is your control plane. Scene files are visual components that render within the layout.
+
+**Layout system**: PlayerComposition delegates to FullComposition which splits the canvas:
+- `stacked` (default): Speaker on bottom (45%), visuals on top (55%). Scene renders at **{{CANVAS_WIDTH}}x{{STACKED_VISUAL_HEIGHT}}**.
+- `fullscreen`: No speaker. Scene fills the full canvas at **{{CANVAS_WIDTH}}x{{CANVAS_HEIGHT}}**.
+- `overlay`: Speaker fullscreen, visuals on top. Scene renders at full canvas with transparent background.
+
+**Effective dimensions** — CRITICAL for Animators:
+- Stacked scenes: `effectiveWidth={{CANVAS_WIDTH}}, effectiveHeight={{STACKED_VISUAL_HEIGHT}}` (55% of canvas)
+- Fullscreen scenes: `effectiveWidth={{CANVAS_WIDTH}}, effectiveHeight={{CANVAS_HEIGHT}}`
+- Overlay scenes: `effectiveWidth={{CANVAS_WIDTH}}, effectiveHeight={{CANVAS_HEIGHT}}` (transparent bg)
+
+#### Execution steps:
 
 1. **Create manifest structure**: Read `scenes.json` and translate beats into manifest items:
-   - For each segment in `scenes.json`, create a track via `mcp__manifest__add_track`.
+   - Create an overlay track for scenes via `mcp__manifest__add_track`.
    - For each beat, create a manifest item via `mcp__manifest__add_item`:
-     - `animation` beats → `type: "visual"` with `data.sceneFile` = beat's `sceneFile` value
+     - `animation` beats → `type: "scene"` with `data: { sceneFile: "<name>", displayMode: "<mode>" }`
      - `stock_video` beats → `type: "broll"` — dispatch Researcher to fetch the video
      - `screenshot` beats → `type: "image"` — dispatch Researcher to capture/download
      - `text_overlay` beats → `type: "text"` — create directly via manifest tools (no subagent)
      - `speaker_only` beats → no manifest item needed (gap = speaker visible)
    - Set timing from beat `frames`, display mode from segment `layout`.
+   - The `displayMode` on each item drives the layout system — it determines how the scene composites with the speaker video.
 
-2. **Dispatch Animator subagents**: For `animation` beats only. Provide the beat's plan details, meaningful `sceneFile` name, and sync points. Dispatch in parallel where possible.
+2. **Dispatch Animator subagents**: For `animation` beats only. In your dispatch message, ALWAYS include:
+   - The beat's plan details, meaningful `sceneFile` name, and sync points
+   - **Effective dimensions**: "This scene renders in STACKED mode at {{CANVAS_WIDTH}}x{{STACKED_VISUAL_HEIGHT}}" (or fullscreen/overlay equivalent)
+   - **Display mode context**: For stacked → "Design for the visual panel area, speaker is visible below"; for fullscreen → "Full canvas, no speaker"; for overlay → "Transparent background, speaker behind, max 2 elements"
+   - Dispatch sequentially (one at a time) to avoid file conflicts.
 
 3. **Emit progress** SSE events as scenes complete via `mcp__widgets__report_progress`.
 
 4. **After all scenes finish**, trigger a rebuild via `mcp__render__trigger_rebuild`.
 
-5. **Sighted verification**: Render key stills via `mcp__render__render_still` to see the complete composition (video + speaker + visuals together). Fix any issues.
+5. **Sighted verification**: Render key stills via `mcp__render__render_still` to see the complete composition (video + speaker + visuals together in the stacked layout). Check that scenes fit their panel area and don't overflow. Fix any issues.
 
 6. Report completion to the user. One sentence about what was created + "Want to tweak anything?"
 

@@ -64,10 +64,16 @@ export interface PromptContext {
   currentPhase?: string;
 }
 
+/** Split ratio for stacked layout: visuals get this percentage of canvas height. */
+const STACKED_VISUAL_RATIO = 0.55;
+
 export function injectContext(prompt: string, ctx: PromptContext): string {
+  const stackedVisualHeight = Math.round(ctx.canvasHeight * STACKED_VISUAL_RATIO);
+
   return prompt
     .replaceAll('{{CANVAS_WIDTH}}', String(ctx.canvasWidth))
     .replaceAll('{{CANVAS_HEIGHT}}', String(ctx.canvasHeight))
+    .replaceAll('{{STACKED_VISUAL_HEIGHT}}', String(stackedVisualHeight))
     .replaceAll('{{FPS}}', String(ctx.fps))
     .replaceAll('{{DURATION_MS}}', String(ctx.durationMs ?? 'unknown'))
     .replaceAll('{{THEME}}', ctx.theme ?? 'studio-dark')
