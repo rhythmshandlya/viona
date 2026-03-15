@@ -20,10 +20,6 @@ export async function regenerateSceneRegistry(): Promise<string[]> {
   }
 
   return files
-    .filter((f) => /^Scene\d+\.tsx$/.test(f))
-    .sort((a, b) => {
-      const numA = parseInt(a.match(/\d+/)![0], 10);
-      const numB = parseInt(b.match(/\d+/)![0], 10);
-      return numA - numB;
-    });
+    .filter((f) => /\.(tsx|ts)$/.test(f) && !f.startsWith('.'))
+    .sort();
 }
