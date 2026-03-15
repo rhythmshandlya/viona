@@ -28,10 +28,10 @@ export const renderStillTool = {
     try {
       await execFileAsync('npx', [
         'remotion', 'still',
-        `--composition=${compositionId}`,
+        'src/Root.tsx',
+        compositionId,
+        outputPath,
         `--frame=${input.frame}`,
-        `--output=${outputPath}`,
-        '--cwd=/workspace',
       ], {
         timeout: 60_000,
         cwd: '/workspace',

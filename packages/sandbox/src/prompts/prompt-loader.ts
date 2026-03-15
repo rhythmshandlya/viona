@@ -66,14 +66,14 @@ export interface PromptContext {
 
 export function injectContext(prompt: string, ctx: PromptContext): string {
   return prompt
-    .replace('{{CANVAS_WIDTH}}', String(ctx.canvasWidth))
-    .replace('{{CANVAS_HEIGHT}}', String(ctx.canvasHeight))
-    .replace('{{FPS}}', String(ctx.fps))
-    .replace('{{DURATION_MS}}', String(ctx.durationMs ?? 'unknown'))
-    .replace('{{THEME}}', ctx.theme ?? 'studio-dark')
-    .replace('{{PROJECT_TYPE}}', ctx.projectType ?? 'video')
-    .replace('{{BRIEF_SUMMARY}}', ctx.briefSummary ?? 'No brief provided')
-    .replace('{{HAS_HEAD_TRACKING}}', String(ctx.hasHeadTracking ?? false))
-    .replace('{{TOTAL_SCENES}}', String(ctx.totalScenes ?? 0))
-    .replace('{{CURRENT_PHASE}}', ctx.currentPhase ?? 'unknown');
+    .replaceAll('{{CANVAS_WIDTH}}', String(ctx.canvasWidth))
+    .replaceAll('{{CANVAS_HEIGHT}}', String(ctx.canvasHeight))
+    .replaceAll('{{FPS}}', String(ctx.fps))
+    .replaceAll('{{DURATION_MS}}', String(ctx.durationMs ?? 'unknown'))
+    .replaceAll('{{THEME}}', ctx.theme ?? 'studio-dark')
+    .replaceAll('{{PROJECT_TYPE}}', ctx.projectType ?? 'video')
+    .replaceAll('{{BRIEF_SUMMARY}}', ctx.briefSummary ?? 'No brief provided')
+    .replaceAll('{{HAS_HEAD_TRACKING}}', String(ctx.hasHeadTracking ?? false))
+    .replaceAll('{{TOTAL_SCENES}}', String(ctx.totalScenes ?? 0))
+    .replaceAll('{{CURRENT_PHASE}}', ctx.currentPhase ?? 'unknown');
 }

@@ -1,49 +1,61 @@
 /**
- * Remotion Root component.
+ * Remotion Root — entry point for CLI rendering (remotion still / remotion render).
  *
- * Claude Code will generate project-specific compositions in src/<project-id>/
- * and register them here dynamically.
- *
- * This file serves as a placeholder. During generation, Claude will:
- * 1. Create src/<project-id>/index.tsx with the main composition
- * 2. Create src/<project-id>/constants.ts with colors and timing
- * 3. Update this file to import and register the composition
+ * Registers MainComposition which reads manifest.json from the workspace
+ * and renders PlayerComposition.
  */
 
-import "./index.css";
-import { Composition } from "remotion";
-
-// Placeholder composition for initial setup verification
-const PlaceholderComposition: React.FC = () => {
-  return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#0f172a",
-        color: "#e2e8f0",
-        fontFamily: "system-ui, sans-serif",
-        fontSize: 48,
-      }}
-    >
-      Workspace Ready
-    </div>
-  );
-};
+import React from 'react';
+import { registerRoot, Composition } from 'remotion';
+import { PlayerComposition } from './PlayerComposition';
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <Composition
-        id="Placeholder"
-        component={PlaceholderComposition}
+        id="MainComposition"
+        component={PlayerComposition}
         durationInFrames={30}
         fps={30}
-        width={1920}
-        height={1080}
+        width={1080}
+        height={1920}
+        defaultProps={{
+          manifest: {
+            version: 2,
+            fps: 30,
+            durationMs: 1000,
+            canvas: { width: 1080, height: 1920 },
+            tracks: [],
+            items: [],
+            assets: {},
+          },
+        }}
+        calculateMetadata={async () => {
+          try {
+            const fs = await import('fs');
+            const raw = fs.readFileSync('/workspace/manifest.json', 'utf-8');
+            const manifest = JSON.parse(raw);
+            const fps = manifest.fps || 30;
+            const durationInFrames = Math.ceil((manifest.durationMs || 1000) / 1000 * fps);
+            return {
+              props: {
+                manifest: {
+                  ...manifest,
+                  canvas: { width: manifest.width, height: manifest.height },
+                },
+              },
+              durationInFrames,
+              fps,
+              width: manifest.width || 1080,
+              height: manifest.height || 1920,
+            };
+          } catch {
+            return {};
+          }
+        }}
       />
     </>
   );
 };
+
+registerRoot(RemotionRoot);
