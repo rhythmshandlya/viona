@@ -1,7 +1,6 @@
 ---
 import BaseLayout from "@/layouts/BaseLayout.astro";
 import Hero from "@/components/sections/Hero.astro";
-import BeforeAfter from "@/components/sections/BeforeAfter.astro";
 import AppShowcase from "@/components/sections/AppShowcase.astro";
 import StatsBar from "@/components/sections/StatsBar.astro";
 import HowItWorks from "@/components/sections/HowItWorks.astro";
@@ -11,9 +10,8 @@ import FAQ from "@/components/sections/FAQ.astro";
 import CTA from "@/components/sections/CTA.astro";
 ---
 
-<BaseLayout preloadImages={[{ href: "/assets/screenshots/editor-chat.png", type: "image/png" }]}>
+<BaseLayout>
   <Hero />
-  <BeforeAfter />
   <AppShowcase />
   <StatsBar />
   <HowItWorks />

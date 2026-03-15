@@ -2,7 +2,7 @@
 import { faqs } from "@/data/testimonials";
 ---
 
-<section id="faq" class="py-20 lg:py-28 border-t border-border">
+<section id="faq" class="py-20 lg:py-28">
   <div class="max-w-2xl mx-auto px-6">
     <div class="mb-16">
       <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
@@ -13,7 +13,7 @@ import { faqs } from "@/data/testimonials";
       </p>
     </div>
 
-    <div class="stagger-children">
+    <div class="glass-surface px-6 sm:px-8 py-2">
       {faqs.map((faq) => (
         <details>
           <summary>{faq.question}</summary>

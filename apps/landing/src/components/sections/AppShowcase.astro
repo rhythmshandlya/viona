@@ -1,249 +1,1382 @@
 ---
 ---
 
-<section class="bg-dark pt-16 sm:pt-20 lg:pt-28 pb-16 sm:pb-20 lg:pb-24 overflow-hidden">
+<section class="sc-section pt-16 sm:pt-20 lg:pt-28 pb-20 sm:pb-24 overflow-hidden">
   <div class="max-w-7xl mx-auto px-4 sm:px-6">
-    <!-- Header -->
-    <div class="text-center mb-12 sm:mb-16 lg:mb-20">
-      <h2
-        class="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white mb-3 sm:mb-4 tracking-tight"
-        data-showcase-heading
-      >
+
+    <div class="text-center mb-10 sm:mb-14">
+      <h2 class="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white mb-3 tracking-tight" data-sc-heading>
         Your AI Video Editor
       </h2>
-      <p
-        class="text-sm sm:text-base text-white/40 max-w-md mx-auto"
-        data-showcase-sub
-      >
-        Upload, enhance, export &mdash; it&rsquo;s that simple
+      <p class="text-sm sm:text-base text-white/40 max-w-md mx-auto" data-sc-sub>
+        Timeline, captions, styles — powered by AI
       </p>
     </div>
 
-    <!-- Screenshot stage -->
-    <div class="relative max-w-[1100px] mx-auto" data-showcase-screens>
-      <!-- Ambient glow -->
-      <div class="showcase-glow" aria-hidden="true"></div>
+    <!-- Browser chrome -->
+    <div class="browser-shell" data-sc-browser>
+      <div class="b-glow"></div>
 
-      <!-- Primary screenshot — Chat view -->
-      <div class="relative z-[2]" data-showcase-front>
-        <div class="showcase-window">
-          <div class="showcase-chrome">
-            <div class="showcase-dots">
-              <span></span><span></span><span></span>
-            </div>
-            <div class="showcase-url">studio.viona.app</div>
-            <div class="showcase-dots" style="visibility:hidden">
-              <span></span><span></span><span></span>
-            </div>
-          </div>
-          <img
-            src="/assets/screenshots/editor-chat.png"
-            alt="Viona editor with AI chat assistant, video preview, and multi-track timeline"
-            class="w-full block"
-            loading="eager"
-            decoding="async"
-            fetchpriority="high"
-          />
+      <!-- Browser bar -->
+      <div class="b-bar">
+        <div class="b-dots"><span></span><span></span><span></span></div>
+        <div class="b-url">
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          studio.viona.app
         </div>
+        <div style="width:56px"></div>
       </div>
 
-      <!-- Secondary screenshot — Captions view, floating bottom-right -->
-      <div class="showcase-float" data-showcase-back>
-        <div class="showcase-window showcase-window--float">
-          <div class="showcase-chrome showcase-chrome--sm">
-            <div class="showcase-dots showcase-dots--sm">
-              <span></span><span></span><span></span>
+      <!-- ═══════════ EDITOR BODY ═══════════ -->
+      <div class="editor-root">
+
+        <!-- ── HEADER (h-12, editor-panel, mx-gap mt-gap) ── -->
+        <div class="ed-header">
+          <div class="ed-h-left">
+            <button class="tb-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+            </button>
+          </div>
+          <div class="ed-h-center">
+            <button class="ed-title">
+              Product Demo.mp4
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+          <div class="ed-h-right">
+            <button class="export-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Export
+            </button>
+          </div>
+        </div>
+
+        <!-- ── MAIN BODY ── -->
+        <div class="ed-body">
+
+          <!-- Icon Rail (w-14) -->
+          <div class="icon-rail">
+            <button class="ir-btn ir-active" id="ir-chat">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+              <span>Chat</span>
+            </button>
+            <button class="ir-btn" id="ir-captions">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M7 12h3m3 0h4M7 16h7" stroke-linecap="round"/></svg>
+              <span>Captions</span>
+            </button>
+            <button class="ir-btn" id="ir-style">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              <span>Style</span>
+            </button>
+            <button class="ir-btn" id="ir-assets">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+              <span>Assets</span>
+            </button>
+          </div>
+
+          <!-- AI Chat Sidebar (w-[488px]) -->
+          <div class="chat-panel sidebar-panel sp-visible" id="chat-panel">
+            <div class="chat-header">
+              <span class="chat-header-title">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/></svg>
+                AI Chat
+              </span>
+              <button class="chat-close">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
             </div>
-            <div class="showcase-url showcase-url--sm">studio.viona.app</div>
-            <div class="showcase-dots showcase-dots--sm" style="visibility:hidden">
-              <span></span><span></span><span></span>
+            <div class="chat-messages">
+              <!-- AI greeting -->
+              <div class="msg msg-ai">
+                <div class="msg-icon">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </div>
+                <div class="msg-bubble msg-bubble-ai">
+                  Hey! I've loaded your video. What would you like to create?
+                </div>
+              </div>
+              <!-- User message -->
+              <div class="msg msg-user">
+                <div class="msg-bubble msg-bubble-user">
+                  Add dynamic captions with yellow highlights for key words
+                </div>
+              </div>
+              <!-- AI response with progress -->
+              <div class="msg msg-ai">
+                <div class="msg-icon">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </div>
+                <div class="msg-bubble msg-bubble-ai">
+                  <div class="msg-steps">
+                    <div class="step step-done">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+                      Transcribed audio
+                    </div>
+                    <div class="step step-done">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+                      Generated captions
+                    </div>
+                    <div class="step step-done">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+                      Applied Dynamic style
+                    </div>
+                  </div>
+                  Done! Added 24 caption segments with Dynamic style. Key words are highlighted in yellow.
+                </div>
+              </div>
+              <!-- User -->
+              <div class="msg msg-user">
+                <div class="msg-bubble msg-bubble-user">
+                  Make the font bigger and add a subtle background
+                </div>
+              </div>
+              <!-- AI streaming -->
+              <div class="msg msg-ai">
+                <div class="msg-icon">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+                </div>
+                <div class="msg-bubble msg-bubble-ai">
+                  Updated font size to <strong>72px</strong> and added a soft dark background to all captions.<span class="typing-cursor"></span>
+                </div>
+              </div>
+            </div>
+            <div class="chat-quick">
+              <button class="gen-btn" id="gen-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/></svg>
+                Generate Visuals
+              </button>
+            </div>
+            <div class="chat-input-wrap">
+              <div class="chat-input-row">
+                <div class="chat-input-field">Ask Viona anything...</div>
+                <button class="chat-send">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" stroke-linejoin="round"/></svg>
+                </button>
+              </div>
             </div>
           </div>
-          <img
-            src="/assets/screenshots/editor-captions.png"
-            alt="Viona editor showing caption settings with transcript scenes and timeline"
-            class="w-full block"
-            loading="lazy"
-            decoding="async"
-          />
-        </div>
+
+          <!-- ── CAPTIONS PANEL ── -->
+          <div class="sidebar-panel" id="captions-panel">
+            <div class="sp-header">
+              <span class="sp-header-title">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M7 12h3m3 0h4M7 16h7" stroke-linecap="round"/></svg>
+                Captions
+              </span>
+              <div style="display:flex;gap:4px">
+                <button class="sp-icon-btn">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="cp-list">
+              <div class="cp-item"><span class="cp-ts">0:00</span><span class="cp-text">Hey everyone welcome back to</span></div>
+              <div class="cp-item"><span class="cp-ts">0:02</span><span class="cp-text">the channel, today we're talking</span></div>
+              <div class="cp-item"><span class="cp-ts">0:05</span><span class="cp-text">about something really important</span></div>
+              <div class="cp-item cp-active"><span class="cp-ts">0:08</span><span class="cp-text">making amazing video content fast</span></div>
+              <div class="cp-item"><span class="cp-ts">0:11</span><span class="cp-text">with the help of AI tools</span></div>
+              <div class="cp-item"><span class="cp-ts">0:14</span><span class="cp-text">that actually understand your style</span></div>
+              <div class="cp-item"><span class="cp-ts">0:17</span><span class="cp-text">and match your brand perfectly</span></div>
+              <div class="cp-item"><span class="cp-ts">0:20</span><span class="cp-text">let me show you how it works</span></div>
+              <div class="cp-item"><span class="cp-ts">0:23</span><span class="cp-text">first upload your video file</span></div>
+              <div class="cp-item"><span class="cp-ts">0:26</span><span class="cp-text">and Viona handles everything else</span></div>
+            </div>
+            <div class="sp-footer">
+              <button class="sp-footer-btn">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+                Export SRT
+              </button>
+              <button class="sp-footer-btn sp-footer-btn-accent">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/></svg>
+                Restyle All
+              </button>
+            </div>
+          </div>
+
+          <!-- ── STYLE PANEL ── -->
+          <div class="sidebar-panel" id="style-panel">
+            <div class="sp-header">
+              <span class="sp-header-title">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                Style
+              </span>
+            </div>
+            <!-- Top tabs -->
+            <div class="sty-tabs">
+              <button class="sty-tab sty-tab-on">Templates</button>
+              <button class="sty-tab">Font</button>
+              <button class="sty-tab">Position</button>
+            </div>
+            <!-- Category chips -->
+            <div class="sty-cats">
+              <button class="sty-cat sty-cat-on">Viral</button>
+              <button class="sty-cat">Cinematic</button>
+              <button class="sty-cat">Minimal</button>
+              <button class="sty-cat">Ad</button>
+            </div>
+            <!-- Preset grid -->
+            <div class="sty-grid">
+              <div class="sty-card sty-card-sel">
+                <div class="sty-preview" style="background:#111;"><span style="color:#fbbf24;font-weight:900;font-size:13px;letter-spacing:.04em;text-shadow:0 0 8px rgba(251,191,36,.5)">BOLD</span></div>
+                <span class="sty-name">Bold Yellow</span>
+              </div>
+              <div class="sty-card">
+                <div class="sty-preview" style="background:linear-gradient(135deg,#0d0d0d,#1a0a2e);"><span style="color:#a78bfa;font-weight:800;font-size:12px;text-shadow:0 0 10px rgba(167,139,250,.7)">DYNAMIC</span></div>
+                <span class="sty-name">Dynamic</span>
+              </div>
+              <div class="sty-card">
+                <div class="sty-preview" style="background:#000;"><span style="color:#4ade80;font-weight:900;font-size:13px;text-shadow:0 0 12px rgba(74,222,128,.8)">NEON</span></div>
+                <span class="sty-name">Neon Green</span>
+              </div>
+              <div class="sty-card">
+                <div class="sty-preview" style="background:#0a0a0a;"><span style="color:#fff;font-weight:900;font-size:12px;-webkit-text-stroke:1.5px #000">STREET</span></div>
+                <span class="sty-name">Street</span>
+              </div>
+              <div class="sty-card">
+                <div class="sty-preview" style="background:linear-gradient(135deg,#0d1117,#1c1c2e);"><span style="color:#fff;font-weight:400;font-size:11px;font-style:italic;opacity:.9">Cinema</span></div>
+                <span class="sty-name">Cinematic</span>
+              </div>
+              <div class="sty-card">
+                <div class="sty-preview" style="background:rgba(0,0,0,.6);"><span style="color:rgba(255,255,255,.85);font-size:10px;font-weight:400">Clean text</span></div>
+                <span class="sty-name">Minimal</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── ASSETS PANEL ── -->
+          <div class="sidebar-panel" id="assets-panel">
+            <div class="sp-header">
+              <span class="sp-header-title">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+                Assets
+              </span>
+              <button class="sp-icon-btn">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              </button>
+            </div>
+            <!-- Tabs -->
+            <div class="sty-tabs">
+              <button class="sty-tab sty-tab-on">Media</button>
+              <button class="sty-tab">Shapes</button>
+              <button class="sty-tab">Extracted</button>
+            </div>
+            <!-- Upload zone -->
+            <div class="as-upload">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg>
+              <span>Drop files or click to upload</span>
+            </div>
+            <!-- Asset grid -->
+            <div class="as-grid">
+              <div class="as-item as-item-video">
+                <div class="as-thumb" style="background:linear-gradient(135deg,#1a1228,#0d1020)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:rgba(255,255,255,.4)"><polygon points="5 3 19 12 5 21"/></svg>
+                </div>
+                <span class="as-badge as-badge-vid">MP4</span>
+                <span class="as-label">before.mp4</span>
+              </div>
+              <div class="as-item as-item-video">
+                <div class="as-thumb" style="background:linear-gradient(135deg,#0d1a28,#081020)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="color:rgba(167,139,250,.6)"><polygon points="5 3 19 12 5 21"/></svg>
+                </div>
+                <span class="as-badge as-badge-ai">AI</span>
+                <span class="as-label">after.mp4</span>
+              </div>
+              <div class="as-item">
+                <div class="as-thumb" style="background:rgba(59,130,246,.12);border:1px dashed rgba(59,130,246,.25)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:rgba(96,165,250,.6)"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                </div>
+                <span class="as-label">bg_01.png</span>
+              </div>
+              <div class="as-item">
+                <div class="as-thumb" style="background:rgba(16,185,129,.1);border:1px dashed rgba(16,185,129,.2)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:rgba(52,211,153,.6)"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/></svg>
+                </div>
+                <span class="as-badge as-badge-aud">MP3</span>
+                <span class="as-label">music.mp3</span>
+              </div>
+              <div class="as-item">
+                <div class="as-thumb" style="background:rgba(245,158,11,.08);border:1px dashed rgba(245,158,11,.18)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:rgba(252,211,77,.5)"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8" stroke-linecap="round"/></svg>
+                </div>
+                <span class="as-label">logo.svg</span>
+              </div>
+              <div class="as-item">
+                <div class="as-thumb" style="background:rgba(139,92,246,.1);border:1px dashed rgba(139,92,246,.2)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:rgba(167,139,250,.6)"><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+                </div>
+                <span class="as-label">overlay.png</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center: Preview + Timeline -->
+          <div class="center-col">
+
+            <!-- Preview panel (editor-panel glass) -->
+            <div class="preview-panel">
+              <!-- Video canvas -->
+              <div class="video-canvas">
+                <!-- 9:16 phone frame centered -->
+                <div class="phone-frame">
+                  <div class="phone-video">
+                    <!-- Before: raw footage -->
+                    <video id="vid-before" class="pv-vid" src="/videos/before.mp4" muted playsinline preload="auto"></video>
+                    <!-- After: AI-enhanced -->
+                    <video id="vid-after" class="pv-vid pv-after" src="/videos/after.mp4" muted playsinline preload="auto"></video>
+                    <!-- Badge -->
+                    <div class="pv-badge" id="pv-badge">
+                      <span class="pv-dot pv-dot-raw"></span>Raw footage
+                    </div>
+                    <!-- Loading overlay -->
+                    <div class="pv-loading" id="pv-loading">
+                      <div class="pv-spinner"></div>
+                      <span>Generating visuals…</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Playback bar (inside preview panel, at bottom) -->
+              <div class="playback-bar">
+                <button class="pb-btn">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4"/><line x1="5" y1="4" x2="5" y2="20" stroke="currentColor" stroke-width="2"/></svg>
+                </button>
+                <button class="pb-btn pb-play">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21"/></svg>
+                </button>
+                <button class="pb-btn">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20"/><line x1="19" y1="4" x2="19" y2="20" stroke="currentColor" stroke-width="2"/></svg>
+                </button>
+                <span class="pb-time" id="pb-time">0:04.22</span>
+                <div class="pb-scrubber">
+                  <div class="pb-track">
+                    <div class="pb-fill" id="pb-fill"></div>
+                    <div class="pb-knob" id="pb-knob"></div>
+                  </div>
+                </div>
+                <span class="pb-dur">0:32.00</span>
+                <button class="pb-cc pb-cc-on">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M7 12h3m3 0h4M7 16h7" stroke-linecap="round"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Timeline panel -->
+            <div class="timeline-panel">
+              <!-- Resize handle -->
+              <div class="tl-resize-handle">
+                <div class="tl-resize-bar"></div>
+              </div>
+
+              <!-- Add Item Toolbar -->
+              <div class="add-toolbar">
+                {["Text","Image","Audio","Video","Shape"].map((label, i) => (
+                  <button class="add-btn">
+                    {i === 0 && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2zM12 8v8M8 12h8" stroke-linecap="round"/></svg>}
+                    {i === 1 && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>}
+                    {i === 2 && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>}
+                    {i === 3 && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16" fill="currentColor"/></svg>}
+                    {i === 4 && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>}
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <!-- Two-column: headers + canvas -->
+              <div class="tl-body">
+                <!-- Track headers -->
+                <div class="tl-headers">
+                  <div class="tl-ruler-spacer"></div>
+                  <div class="tl-th">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><polygon points="10 8 16 12 10 16" fill="currentColor"/></svg>
+                    Video
+                  </div>
+                  <div class="tl-th">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M7 12h3m3 0h4" stroke-linecap="round"/></svg>
+                    Captions
+                  </div>
+                  <div class="tl-th">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    Audio
+                  </div>
+                </div>
+
+                <!-- Canvas -->
+                <div class="tl-canvas">
+                  <!-- Ruler -->
+                  <div class="tl-ruler">
+                    {["0s","5s","10s","15s","20s","25s","30s"].map(t => <span>{t}</span>)}
+                  </div>
+                  <!-- Tracks -->
+                  <div class="tl-tracks">
+                    <!-- Video track -->
+                    <div class="tl-lane">
+                      <div class="clip clip-video">
+                        <div class="clip-thumb"></div><div class="clip-thumb"></div><div class="clip-thumb"></div>
+                        <div class="clip-thumb"></div><div class="clip-thumb"></div><div class="clip-thumb"></div>
+                        <span>Product Demo.mp4</span>
+                      </div>
+                    </div>
+                    <!-- Caption track -->
+                    <div class="tl-lane">
+                      <div class="clip clip-cap" style="width:9%;left:0.5%">TRANSFORM</div>
+                      <div class="clip clip-cap" style="width:11%;left:11%">your content</div>
+                      <div class="clip clip-cap clip-cap-active" style="width:8%;left:24%">WITH AI</div>
+                      <div class="clip clip-cap" style="width:10%;left:34%">in minutes</div>
+                      <div class="clip clip-cap" style="width:12%;left:46%">Auto captions</div>
+                      <div class="clip clip-cap" style="width:9%;left:60%">ready to</div>
+                      <div class="clip clip-cap" style="width:8%;left:71%">export</div>
+                      <div class="clip clip-cap" style="width:10%;left:81%">now live</div>
+                    </div>
+                    <!-- Audio track -->
+                    <div class="tl-lane">
+                      <div class="clip clip-audio">
+                        <div class="audio-wave">
+                          {Array.from({length:28}).map(() => <span></span>)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <!-- Playhead -->
+                  <div class="playhead" id="playhead">
+                    <div class="playhead-head"></div>
+                  </div>
+                  <!-- Zoom controls -->
+                  <div class="zoom-controls">
+                    <button class="zoom-btn zoom-snap-on" title="Snap">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    </button>
+                    <div class="zoom-divider"></div>
+                    <button class="zoom-btn">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M8 11h6" stroke-linecap="round"/></svg>
+                    </button>
+                    <span class="zoom-pct">100%</span>
+                    <button class="zoom-btn">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35M11 8v6M8 11h6" stroke-linecap="round"/></svg>
+                    </button>
+                    <div class="zoom-divider"></div>
+                    <button class="zoom-btn">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /center-col -->
+        </div><!-- /ed-body -->
+      </div><!-- /editor-root -->
+      <!-- Animated cursor -->
+      <div class="ai-cursor" id="ai-cursor">
+        <svg width="20" height="24" viewBox="0 0 20 24" fill="none">
+          <path d="M2 2 L2 18 L6.5 13.5 L10 21 L12.5 19.5 L9 12 L15 12 Z" fill="white" stroke="rgba(0,0,0,0.6)" stroke-width="1.2" stroke-linejoin="round"/>
+        </svg>
       </div>
-    </div>
+    </div><!-- /browser-shell -->
+
   </div>
 </section>
 
 <style>
-  /* ── Glow ── */
-  .showcase-glow {
-    position: absolute;
-    top: -5%;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 80%;
-    height: 70%;
-    background: radial-gradient(
-      ellipse at center,
-      rgba(124, 58, 237, 0.1) 0%,
-      rgba(124, 58, 237, 0.03) 50%,
-      transparent 75%
-    );
-    filter: blur(80px);
-    pointer-events: none;
-    z-index: 0;
-  }
+/* ─────────────────── Browser shell ─────────────────── */
+.b-glow {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 70%; height: 40%;
+  background: radial-gradient(ellipse at center, rgba(124,58,237,0.14) 0%, transparent 70%);
+  filter: blur(80px); pointer-events: none; z-index: 0;
+}
+.browser-shell {
+  position: relative; border-radius: 20px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    0 32px 80px rgba(0,0,0,0.5),
+    0 8px 24px rgba(0,0,0,0.3),
+    0 0 60px rgba(139,92,246,0.06),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.b-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 16px;
+  background: rgba(18,14,30,0.72);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.b-dots { display: flex; gap: 6px; }
+.b-dots span { width: 10px; height: 10px; border-radius: 50%; }
+.b-dots span:nth-child(1) { background: #ff5f57; }
+.b-dots span:nth-child(2) { background: #ffbd2e; }
+.b-dots span:nth-child(3) { background: #28c840; }
+.b-url {
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 14px; background: rgba(255,255,255,0.05);
+  border-radius: 6px; font-size: 11px; color: rgba(255,255,255,0.3);
+}
 
-  /* ── Window ── */
-  .showcase-window {
-    border-radius: 12px;
-    overflow: hidden;
-    background: #18181b;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.03),
-      0 4px 8px rgba(0, 0, 0, 0.15),
-      0 12px 24px rgba(0, 0, 0, 0.2),
-      0 32px 64px rgba(0, 0, 0, 0.3);
-  }
+/* ─────────────────── Editor root ─────────────────── */
+.editor-root {
+  display: flex; flex-direction: column;
+  height: 580px; position: relative; z-index: 1;
+  background:
+    radial-gradient(ellipse at 15% 20%, rgba(139,92,246,0.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 25%, rgba(59,130,246,0.07) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(168,85,247,0.06) 0%, transparent 50%),
+    rgba(8,6,14,0.65);
+  backdrop-filter: blur(60px) saturate(140%);
+  -webkit-backdrop-filter: blur(60px) saturate(140%);
+}
+@media (max-width: 900px) { .editor-root { height: 480px; } }
+@media (max-width: 640px) { .editor-root { height: 400px; } }
 
-  .showcase-window--float {
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.04),
-      0 8px 16px rgba(0, 0, 0, 0.25),
-      0 24px 48px rgba(0, 0, 0, 0.35),
-      0 0 80px rgba(124, 58, 237, 0.06);
-  }
+/* Glass panel mixin */
+.glass {
+  background: rgba(28,28,35,0.55);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-top-color: rgba(255,255,255,0.12);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.06);
+}
 
-  @media (min-width: 640px) {
-    .showcase-window { border-radius: 16px; }
-    .showcase-window--float { border-radius: 12px; }
-  }
+/* ─────────────────── Header ─────────────────── */
+.ed-header {
+  height: 48px; flex-shrink: 0;
+  display: flex; align-items: center;
+  margin: 8px 8px 0;
+  padding: 0 12px;
+  background: rgba(28,28,35,0.55);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-top-color: rgba(255,255,255,0.12);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.ed-h-left, .ed-h-right { display: flex; align-items: center; gap: 4px; }
+.ed-h-center { flex: 1; display: flex; align-items: center; justify-content: center; }
+.tb-btn {
+  width: 36px; height: 36px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.55); background: transparent; border: none; cursor: pointer;
+}
+.tb-btn:hover { background: rgba(255,255,255,0.06); }
+.ed-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.92);
+  background: transparent; border: none; cursor: pointer;
+  padding: 4px 10px; border-radius: 8px;
+}
+.ed-title:hover { background: rgba(255,255,255,0.06); }
+.export-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 16px; border-radius: 12px; border: none;
+  font-size: 12px; font-weight: 500; color: white; cursor: pointer;
+  background: linear-gradient(135deg, rgba(139,92,246,0.9), rgba(124,58,237,0.95));
+  box-shadow: 0 2px 12px rgba(139,92,246,0.3), inset 0 1px 0 rgba(255,255,255,0.15);
+}
 
-  /* ── Chrome ── */
-  .showcase-chrome {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    background: #1f1f23;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  }
+/* ─────────────────── Body ─────────────────── */
+.ed-body {
+  flex: 1; display: flex; gap: 8px;
+  padding: 8px; overflow: hidden; min-height: 0;
+}
 
-  .showcase-chrome--sm {
-    padding: 6px 10px;
-  }
+/* ─────────────────── Icon rail ─────────────────── */
+.icon-rail {
+  width: 56px; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 0; gap: 2px;
+  background: rgba(28,28,35,0.55);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-top-color: rgba(255,255,255,0.12);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.ir-btn {
+  width: 48px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 7px 4px; border-radius: 12px; border: none;
+  color: rgba(255,255,255,0.4); font-size: 9px; cursor: pointer;
+  background: transparent; transition: all 120ms ease;
+}
+.ir-btn:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+.ir-active {
+  background: rgba(139,92,246,0.15) !important;
+  color: #a78bfa !important;
+  box-shadow: inset 0 1px 0 rgba(139,92,246,0.15);
+}
 
-  @media (max-width: 639px) {
-    .showcase-chrome { padding: 6px 10px; }
-    .showcase-chrome--sm { padding: 5px 8px; }
-  }
+/* ─────────────────── Chat sidebar ─────────────────── */
+.chat-panel {
+  width: 300px; flex-shrink: 0;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: rgba(28,28,35,0.55);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-top-color: rgba(255,255,255,0.12);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
 
-  /* ── Dots ── */
-  .showcase-dots {
-    display: flex;
-    gap: 6px;
-    flex-shrink: 0;
-  }
-  .showcase-dots span {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-  }
-  .showcase-dots span:nth-child(1) { background: #ff5f57; }
-  .showcase-dots span:nth-child(2) { background: #ffbd2e; }
-  .showcase-dots span:nth-child(3) { background: #28c840; }
+.chat-header {
+  height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.chat-header-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.55);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  color: rgba(167,139,250,0.9);
+}
+.chat-close {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.3); background: transparent; border: none; cursor: pointer;
+}
 
-  .showcase-dots--sm { gap: 4px; }
-  .showcase-dots--sm span { width: 7px; height: 7px; }
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+  scrollbar-width: none;
+}
+.chat-messages::-webkit-scrollbar { display: none; }
 
-  @media (max-width: 639px) {
-    .showcase-dots { gap: 4px; }
-    .showcase-dots span { width: 7px; height: 7px; }
-    .showcase-dots--sm span { width: 5px; height: 5px; }
-  }
+.msg { display: flex; gap: 7px; align-items: flex-start; }
+.msg-ai { flex-direction: row; }
+.msg-user { flex-direction: row-reverse; }
 
-  /* ── URL ── */
-  .showcase-url {
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 6px;
-    padding: 4px 16px;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.3);
-    text-align: center;
-    max-width: 220px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
+.msg-icon {
+  width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0;
+  background: rgba(139,92,246,0.2); border: 1px solid rgba(139,92,246,0.3);
+  display: flex; align-items: center; justify-content: center;
+  color: #a78bfa; margin-top: 1px;
+}
+.msg-bubble {
+  max-width: 85%; font-size: 11.5px; line-height: 1.55;
+  border-radius: 12px; padding: 8px 11px;
+}
+.msg-bubble-ai {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.8);
+  border-radius: 12px 12px 12px 3px;
+}
+.msg-bubble-user {
+  background: linear-gradient(135deg, rgba(139,92,246,0.85), rgba(124,58,237,0.9));
+  color: white;
+  border-radius: 12px 12px 3px 12px;
+}
 
-  .showcase-url--sm {
-    font-size: 9px;
-    padding: 3px 10px;
-    max-width: 160px;
-  }
+.msg-steps { display: flex; flex-direction: column; gap: 3px; margin-bottom: 7px; }
+.step {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 10.5px; color: rgba(255,255,255,0.5);
+}
+.step-done { color: rgba(52,211,153,0.9); }
+.step-done svg { color: rgba(52,211,153,1); }
 
-  @media (max-width: 639px) {
-    .showcase-url { font-size: 9px; padding: 3px 10px; }
-    .showcase-url--sm { font-size: 7px; padding: 2px 6px; }
-  }
+.typing-cursor {
+  display: inline-block; width: 2px; height: 12px;
+  background: rgba(167,139,250,0.8); border-radius: 1px;
+  margin-left: 2px; vertical-align: middle;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
 
-  /* ── Float card ── */
-  .showcase-float {
-    position: absolute;
-    bottom: -6%;
-    right: -2%;
-    width: 42%;
-    z-index: 3;
-  }
+.chat-input-wrap {
+  flex-shrink: 0; padding: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.chat-input-row {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px; padding: 7px 10px;
+}
+.chat-input-field {
+  flex: 1; font-size: 11.5px; color: rgba(255,255,255,0.2);
+  pointer-events: none;
+}
+.chat-send {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(139,92,246,0.85); color: white;
+  border: none; cursor: pointer;
+}
 
-  @media (max-width: 639px) {
-    .showcase-float {
-      width: 52%;
-      right: -1%;
-      bottom: -4%;
-    }
-  }
+/* ─────────────────── Center column ─────────────────── */
+.center-col {
+  flex: 1; display: flex; flex-direction: column; gap: 8px;
+  min-width: 0; overflow: hidden;
+}
+
+/* ─────────────────── Preview panel ─────────────────── */
+.preview-panel {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  background: rgba(28,28,35,0.55);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-top-color: rgba(255,255,255,0.12);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+.video-canvas {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  background: rgba(6,4,12,0.7); padding: 12px; overflow: hidden;
+}
+
+.phone-frame {
+  height: 100%;
+  aspect-ratio: 9/16;
+  border-radius: 10px; overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+}
+.phone-video { position: relative; width: 100%; height: 100%; }
+
+/* ─── Phone videos ─── */
+.pv-vid {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%; object-fit: cover;
+  transition: opacity 0.6s ease;
+}
+.pv-after { opacity: 0; z-index: 2; }
+
+/* Badge */
+.pv-badge {
+  position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 99px; z-index: 10;
+  font-size: 9.5px; font-weight: 600; color: rgba(255,255,255,0.85);
+  background: rgba(0,0,0,0.55); backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.12);
+  transition: opacity 0.4s ease;
+  white-space: nowrap;
+}
+.pv-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.pv-dot-raw { background: #f59e0b; }
+.pv-dot-ai  { background: #a78bfa; box-shadow: 0 0 6px rgba(167,139,250,0.8); }
+
+/* Loading overlay */
+.pv-loading {
+  position: absolute; inset: 0; z-index: 20;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: rgba(6,4,14,0.72); backdrop-filter: blur(4px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.4s ease;
+  font-size: 10px; color: rgba(167,139,250,0.9); font-weight: 500;
+}
+.pv-spinner {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(139,92,246,0.2);
+  border-top-color: #a78bfa;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─────────────────── Playback bar ─────────────────── */
+.playback-bar {
+  height: 38px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 12px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  background: rgba(14,14,20,0.7);
+  border-radius: 0 0 16px 16px;
+}
+.pb-btn {
+  width: 26px; height: 26px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.45); background: transparent; border: none; cursor: pointer;
+}
+.pb-play {
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.07);
+}
+.pb-time, .pb-dur {
+  font-size: 10px; color: rgba(255,255,255,0.45);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.pb-dur { color: rgba(255,255,255,0.2); }
+.pb-scrubber { flex: 1; padding: 0 2px; }
+.pb-track {
+  position: relative; height: 3px;
+  background: rgba(255,255,255,0.1); border-radius: 9999px;
+}
+.pb-fill {
+  height: 100%; background: #8B5CF6; border-radius: 9999px;
+  width: 13%;
+}
+.pb-knob {
+  position: absolute; top: 50%; right: calc(87% - 5px);
+  transform: translateY(-50%);
+  width: 9px; height: 9px; border-radius: 50%;
+  background: white; box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+}
+.pb-cc {
+  width: 26px; height: 26px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.3); background: transparent; border: none; cursor: pointer;
+}
+.pb-cc-on {
+  color: #8B5CF6; background: rgba(139,92,246,0.12);
+}
+
+/* ─────────────────── Timeline panel ─────────────────── */
+.timeline-panel {
+  height: 180px; flex-shrink: 0; display: flex; flex-direction: column;
+  overflow: hidden; position: relative;
+  background: rgba(28,28,35,0.55);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-top-color: rgba(255,255,255,0.12);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+@media (max-width: 640px) { .timeline-panel { height: 140px; } }
+
+.tl-resize-handle {
+  position: absolute; top: 0; left: 0; right: 0; height: 6px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: ns-resize; z-index: 5;
+}
+.tl-resize-bar {
+  width: 40px; height: 2px; border-radius: 9999px;
+  background: rgba(255,255,255,0.12);
+}
+
+/* Add toolbar */
+.add-toolbar {
+  height: 34px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.add-btn {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px 8px; border-radius: 7px; border: none;
+  font-size: 10.5px; font-weight: 500;
+  color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  cursor: pointer; transition: all 120ms ease;
+}
+.add-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.85);
+  border-color: rgba(255,255,255,0.14);
+}
+
+/* Timeline body */
+.tl-body {
+  flex: 1; display: flex; overflow: hidden; min-height: 0;
+}
+
+/* Track headers */
+.tl-headers {
+  width: 80px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: rgba(16,16,22,0.5);
+  border-right: 1px solid rgba(255,255,255,0.05);
+}
+.tl-ruler-spacer { height: 24px; flex-shrink: 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.tl-th {
+  height: 38px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 5px;
+  padding: 0 10px;
+  font-size: 10px; color: rgba(255,255,255,0.3);
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+/* Canvas */
+.tl-canvas {
+  flex: 1; position: relative; overflow: hidden;
+}
+
+.tl-ruler {
+  height: 24px; flex-shrink: 0;
+  display: flex; align-items: flex-end;
+  padding: 0 8px 3px;
+  background: rgba(12,12,18,0.6);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.tl-ruler span {
+  flex: 1; font-size: 9px; color: rgba(255,255,255,0.2);
+  white-space: nowrap;
+}
+
+.tl-tracks { position: absolute; top: 24px; left: 0; right: 0; bottom: 0; }
+
+.tl-lane {
+  height: 38px; position: relative;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+/* Clips */
+.clip {
+  position: absolute; top: 4px; bottom: 4px;
+  border-radius: 5px; display: flex; align-items: center;
+  padding: 0 6px; overflow: hidden;
+}
+.clip-video {
+  left: 0; right: 4px;
+  background: rgba(59,130,246,0.18);
+  border: 1px solid rgba(59,130,246,0.28);
+  gap: 3px;
+}
+.clip-video span {
+  font-size: 9px; color: rgba(255,255,255,0.45);
+  white-space: nowrap; position: relative; z-index: 1;
+}
+.clip-thumb {
+  width: 18px; height: 26px; flex-shrink: 0;
+  background: rgba(30,60,120,0.5);
+  border: 1px solid rgba(59,130,246,0.2);
+  border-radius: 2px;
+}
+.clip-cap {
+  background: rgba(139,92,246,0.15);
+  border: 1px solid rgba(139,92,246,0.25);
+  font-size: 8px; color: rgba(255,255,255,0.4);
+  white-space: nowrap; cursor: pointer;
+  transition: background 120ms ease;
+}
+.clip-cap:hover { background: rgba(139,92,246,0.28); }
+.clip-cap-active {
+  background: rgba(139,92,246,0.3) !important;
+  border-color: rgba(139,92,246,0.55) !important;
+  color: rgba(255,255,255,0.9) !important;
+  box-shadow: 0 0 8px rgba(139,92,246,0.2);
+}
+.clip-audio {
+  left: 0; right: 4px;
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.22);
+}
+.audio-wave {
+  display: flex; align-items: center; gap: 1.5px; height: 100%; padding: 4px 4px;
+}
+.audio-wave span {
+  display: inline-block; width: 2px; border-radius: 1px;
+  background: rgba(52,211,153,0.5);
+  animation: audioWave 1.2s ease-in-out infinite;
+}
+.audio-wave span:nth-child(odd)  { animation-delay: calc(var(--i, 0) * 0.05s); }
+.audio-wave span:nth-child(even) { animation-delay: calc(var(--i, 0) * 0.07s + 0.1s); }
+.audio-wave span:nth-child(1)  { height: 40%; }  .audio-wave span:nth-child(2)  { height: 70%; }
+.audio-wave span:nth-child(3)  { height: 55%; }  .audio-wave span:nth-child(4)  { height: 85%; }
+.audio-wave span:nth-child(5)  { height: 60%; }  .audio-wave span:nth-child(6)  { height: 40%; }
+.audio-wave span:nth-child(7)  { height: 75%; }  .audio-wave span:nth-child(8)  { height: 50%; }
+.audio-wave span:nth-child(9)  { height: 90%; }  .audio-wave span:nth-child(10) { height: 65%; }
+.audio-wave span:nth-child(11) { height: 45%; }  .audio-wave span:nth-child(12) { height: 80%; }
+.audio-wave span:nth-child(13) { height: 60%; }  .audio-wave span:nth-child(14) { height: 35%; }
+.audio-wave span:nth-child(15) { height: 70%; }  .audio-wave span:nth-child(16) { height: 55%; }
+.audio-wave span:nth-child(17) { height: 85%; }  .audio-wave span:nth-child(18) { height: 40%; }
+.audio-wave span:nth-child(19) { height: 65%; }  .audio-wave span:nth-child(20) { height: 50%; }
+.audio-wave span:nth-child(21) { height: 78%; }  .audio-wave span:nth-child(22) { height: 42%; }
+.audio-wave span:nth-child(23) { height: 68%; }  .audio-wave span:nth-child(24) { height: 55%; }
+.audio-wave span:nth-child(25) { height: 88%; }  .audio-wave span:nth-child(26) { height: 45%; }
+.audio-wave span:nth-child(27) { height: 60%; }  .audio-wave span:nth-child(28) { height: 72%; }
+@keyframes audioWave {
+  0%,100% { transform: scaleY(0.6); }
+  50%      { transform: scaleY(1.4); }
+}
+
+/* Playhead */
+.playhead {
+  position: absolute; top: 0; bottom: 0; width: 1.5px;
+  background: white; left: 13%; pointer-events: none; z-index: 10;
+}
+.playhead-head {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid white;
+}
+
+/* Zoom controls */
+.zoom-controls {
+  position: absolute; bottom: 6px; right: 6px;
+  display: flex; align-items: center; gap: 1px;
+  background: rgba(38,38,48,0.9);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; padding: 2px;
+}
+.zoom-btn {
+  width: 22px; height: 22px; border-radius: 5px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.4); background: transparent; border: none; cursor: pointer;
+}
+.zoom-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.8); }
+.zoom-snap-on { color: #8B5CF6 !important; background: rgba(139,92,246,0.15) !important; }
+.zoom-divider { width: 1px; height: 14px; background: rgba(255,255,255,0.08); margin: 0 1px; }
+.zoom-pct { font-size: 9px; color: rgba(255,255,255,0.3); width: 28px; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ─────────────────── Shared sidebar panel ─────────────────── */
+.sidebar-panel {
+  width: 300px; flex-shrink: 0; display: none; flex-direction: column; overflow: hidden;
+  background: rgba(28,28,35,0.55);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-top-color: rgba(255,255,255,0.12);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.sidebar-panel.sp-visible { display: flex; }
+@media (max-width: 900px) { .sidebar-panel { display: none !important; } }
+
+.sp-header {
+  height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.sp-header-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600;
+  color: rgba(167,139,250,0.9);
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.sp-icon-btn {
+  width: 26px; height: 26px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,0.3); background: transparent; border: none; cursor: pointer;
+}
+.sp-icon-btn:hover { background: rgba(255,255,255,0.07); }
+
+.sp-footer {
+  flex-shrink: 0; padding: 8px 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  display: flex; gap: 6px;
+}
+.sp-footer-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 5px 8px; border-radius: 8px; border: none; cursor: pointer;
+  font-size: 10.5px; font-weight: 500;
+  color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.sp-footer-btn-accent {
+  color: rgba(167,139,250,0.9);
+  background: rgba(139,92,246,0.1);
+  border-color: rgba(139,92,246,0.22);
+}
+
+/* ── Captions panel ── */
+.cp-list {
+  flex: 1; overflow-y: auto; padding: 6px 8px;
+  display: flex; flex-direction: column; gap: 1px;
+  scrollbar-width: none;
+}
+.cp-list::-webkit-scrollbar { display: none; }
+.cp-item {
+  display: flex; gap: 8px; align-items: baseline;
+  padding: 5px 8px; border-radius: 7px; cursor: pointer;
+  transition: background 100ms ease;
+}
+.cp-item:hover { background: rgba(255,255,255,0.04); }
+.cp-active {
+  background: rgba(139,92,246,0.12) !important;
+  border: 1px solid rgba(139,92,246,0.2);
+}
+.cp-ts {
+  font-size: 9.5px; color: rgba(255,255,255,0.28);
+  font-variant-numeric: tabular-nums; flex-shrink: 0; width: 28px;
+}
+.cp-active .cp-ts { color: rgba(167,139,250,0.6); }
+.cp-text {
+  font-size: 11px; color: rgba(255,255,255,0.6); line-height: 1.45;
+}
+.cp-active .cp-text { color: rgba(255,255,255,0.9); }
+
+/* ── Style panel ── */
+.sty-tabs {
+  display: flex; gap: 2px; padding: 8px 10px 4px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.sty-tab {
+  flex: 1; padding: 5px 4px; border-radius: 7px; border: none;
+  font-size: 10.5px; font-weight: 500; cursor: pointer;
+  color: rgba(255,255,255,0.35); background: transparent;
+  transition: all 100ms ease;
+}
+.sty-tab:hover { color: rgba(255,255,255,0.7); background: rgba(255,255,255,0.05); }
+.sty-tab-on {
+  color: rgba(167,139,250,0.9) !important;
+  background: rgba(139,92,246,0.12) !important;
+}
+.sty-cats {
+  display: flex; gap: 4px; padding: 8px 10px 4px; flex-wrap: wrap;
+}
+.sty-cat {
+  padding: 3px 9px; border-radius: 99px; border: none; cursor: pointer;
+  font-size: 10px; font-weight: 500;
+  color: rgba(255,255,255,0.35);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  transition: all 100ms ease;
+}
+.sty-cat:hover { color: rgba(255,255,255,0.7); }
+.sty-cat-on {
+  color: rgba(167,139,250,1) !important;
+  background: rgba(139,92,246,0.18) !important;
+  border-color: rgba(139,92,246,0.35) !important;
+}
+.sty-grid {
+  flex: 1; overflow-y: auto; padding: 8px 10px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+  align-content: start; scrollbar-width: none;
+}
+.sty-grid::-webkit-scrollbar { display: none; }
+.sty-card {
+  display: flex; flex-direction: column; gap: 4px; cursor: pointer;
+  border-radius: 10px; padding: 4px; border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02); transition: all 100ms ease;
+}
+.sty-card:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.1); }
+.sty-card-sel { border-color: rgba(139,92,246,0.45) !important; background: rgba(139,92,246,0.08) !important; }
+.sty-preview {
+  height: 44px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+}
+.sty-name {
+  font-size: 9.5px; color: rgba(255,255,255,0.45); text-align: center;
+  padding: 0 2px 2px;
+}
+
+/* ── Assets panel ── */
+.as-upload {
+  margin: 8px 10px 4px;
+  padding: 10px; border-radius: 10px;
+  border: 1px dashed rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.02);
+  display: flex; flex-direction: column; align-items: center; gap: 5px; cursor: pointer;
+  transition: all 120ms ease;
+  color: rgba(255,255,255,0.25); font-size: 10px;
+}
+.as-upload:hover { border-color: rgba(139,92,246,0.35); background: rgba(139,92,246,0.05); color: rgba(167,139,250,0.7); }
+.as-grid {
+  flex: 1; overflow-y: auto; padding: 6px 10px 8px;
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
+  align-content: start; scrollbar-width: none;
+}
+.as-grid::-webkit-scrollbar { display: none; }
+.as-item {
+  display: flex; flex-direction: column; gap: 3px; cursor: pointer; position: relative;
+}
+.as-thumb {
+  height: 52px; border-radius: 7px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(255,255,255,0.05); overflow: hidden;
+  transition: all 120ms ease;
+}
+.as-item:hover .as-thumb { border-color: rgba(139,92,246,0.35); }
+.as-badge {
+  position: absolute; top: 4px; right: 4px;
+  padding: 1px 4px; border-radius: 3px; font-size: 7.5px; font-weight: 700;
+}
+.as-badge-vid { background: rgba(239,68,68,0.2); color: rgba(252,165,165,0.9); }
+.as-badge-ai  { background: rgba(139,92,246,0.25); color: rgba(196,181,253,0.9); }
+.as-badge-aud { background: rgba(234,179,8,0.2); color: rgba(253,224,71,0.9); }
+.as-label {
+  font-size: 9px; color: rgba(255,255,255,0.3);
+  text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ─────────────────── Generate Visuals quick-action ─────────────────── */
+.chat-quick { padding: 0 10px 8px; }
+.gen-btn {
+  width: 100%; display: flex; align-items: center; justify-content: center; gap: 5px;
+  padding: 7px 12px; border-radius: 10px; border: none; cursor: pointer;
+  font-size: 11px; font-weight: 500; color: rgba(167,139,250,0.85);
+  background: rgba(139,92,246,0.10);
+  border: 1px solid rgba(139,92,246,0.22);
+  transition: all 120ms ease;
+}
+.gen-btn:hover { background: rgba(139,92,246,0.18); border-color: rgba(139,92,246,0.38); }
+.gen-btn-pulse {
+  background: rgba(139,92,246,0.28) !important;
+  border-color: rgba(139,92,246,0.6) !important;
+  color: #c4b5fd !important;
+  box-shadow: 0 0 14px rgba(139,92,246,0.35);
+}
+
+/* ─────────────────── AI Cursor ─────────────────── */
+.ai-cursor {
+  position: absolute; pointer-events: none; z-index: 200;
+  opacity: 0; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.6));
+  will-change: transform, left, top;
+}
+
+/* ─────────────────── Section glass background ─────────────────── */
+.sc-section {
+  position: relative;
+}
+
+/* ─────────────────── Entrance ─────────────────── */
+[data-sc-heading], [data-sc-sub], [data-sc-browser] { opacity: 0; }
 </style>
 
 <script>
   import { gsap } from "@/scripts/animations";
 
   document.addEventListener("astro:page-load", () => {
-    const section = document
-      .querySelector("[data-showcase-heading]")
-      ?.closest("section");
+    const section = document.querySelector("[data-sc-heading]")?.closest("section");
     if (!section) return;
 
-    gsap.set("[data-showcase-heading]", { opacity: 0, y: 30 });
-    gsap.set("[data-showcase-sub]", { opacity: 0, y: 20 });
-    gsap.set("[data-showcase-front]", { opacity: 0, y: 50 });
-    gsap.set("[data-showcase-back]", { opacity: 0, y: 30, x: 20, scale: 0.96 });
+    // ── Helpers ──
+    const wait = (ms: number) => new Promise<void>(res => setTimeout(res, ms));
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!entry.isIntersecting) return;
-          observer.disconnect();
+    // ── Playhead + scrubber ──
+    const DURATION = 32;
+    const SPEED    = 14;
+    const start    = performance.now();
+    const playhead = document.getElementById("playhead");
+    const pbFill   = document.getElementById("pb-fill");
+    const pbKnob   = document.getElementById("pb-knob");
+    const pbTime   = document.getElementById("pb-time");
 
-          const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+    const fmt = (s: number) => {
+      const m  = Math.floor(s / 60);
+      const sc = Math.floor(s % 60);
+      const cs = Math.floor((s % 1) * 100);
+      return `${m}:${sc.toString().padStart(2,"0")}.${cs.toString().padStart(2,"0")}`;
+    };
+    const tick = () => {
+      const pct  = ((performance.now() - start) / 1000 % SPEED) / SPEED * 100;
+      const left = 6 + pct * 0.88;
+      if (playhead) playhead.style.left = left + "%";
+      if (pbFill)   pbFill.style.width  = pct + "%";
+      if (pbKnob)   pbKnob.style.right  = (100 - pct) + "%";
+      if (pbTime)   pbTime.textContent  = fmt((pct / 100) * DURATION);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
 
-          tl.to("[data-showcase-heading]", {
-            y: 0, opacity: 1, duration: 0.7,
-          })
-          .to("[data-showcase-sub]", {
-            y: 0, opacity: 1, duration: 0.5,
-          }, "-=0.4")
-          .to("[data-showcase-front]", {
-            y: 0, opacity: 1, duration: 1,
-          }, "-=0.2")
-          .to("[data-showcase-back]", {
-            y: 0, x: 0, scale: 1, opacity: 1, duration: 0.9,
-          }, "-=0.6");
+    // ── Icon rail interactivity ──
+    const irBtns = document.querySelectorAll<HTMLElement>(".ir-btn");
+    const panelMap: Record<string, string> = {
+      "ir-chat":     "chat-panel",
+      "ir-captions": "captions-panel",
+      "ir-style":    "style-panel",
+      "ir-assets":   "assets-panel",
+    };
+    irBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        irBtns.forEach(b => b.classList.remove("ir-active"));
+        btn.classList.add("ir-active");
+        // Hide all sidebar panels then show the matching one
+        Object.values(panelMap).forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.classList.remove("sp-visible");
         });
-      },
-      { threshold: 0.1 }
-    );
+        const target = document.getElementById(panelMap[btn.id] ?? "");
+        if (target) target.classList.add("sp-visible");
+      });
+    });
 
-    observer.observe(section);
+    // ── Before/After video sequence ──
+    const vidBefore = document.getElementById("vid-before")  as HTMLVideoElement;
+    const vidAfter  = document.getElementById("vid-after")   as HTMLVideoElement;
+    const badge     = document.getElementById("pv-badge")    as HTMLElement;
+    const loading   = document.getElementById("pv-loading")  as HTMLElement;
+    const cursor    = document.getElementById("ai-cursor")   as HTMLElement;
+    const genBtn    = document.getElementById("gen-btn")     as HTMLElement;
+    const shell     = document.querySelector(".browser-shell") as HTMLElement;
+
+    // Reliable GSAP promise wrapper using onComplete
+    const anim = (target: gsap.TweenTarget, vars: gsap.TweenVars) =>
+      new Promise<void>(res => gsap.to(target, { ...vars, onComplete: res }));
+
+    const runSequence = async () => {
+      // ── Reset to "before" state ──
+      gsap.set(cursor, { opacity: 0, x: 0, y: 0, scale: 1 });
+      vidBefore.style.opacity  = "1";
+      vidAfter.style.opacity   = "0";
+      loading.style.opacity    = "0";
+      badge.style.opacity      = "1";
+      badge.innerHTML = '<span class="pv-dot pv-dot-raw"></span>Raw footage';
+      genBtn.classList.remove("gen-btn-pulse");
+
+      vidBefore.currentTime = 0;
+      vidBefore.play().catch(() => {});
+
+      // ── Phase 1: let before play for 3s then show cursor ──
+      await wait(3000);
+
+      // ── Phase 2: cursor slowly drifts to "Generate Visuals" ──
+      const shellRect = shell.getBoundingClientRect();
+      const btnRect   = genBtn.getBoundingClientRect();
+      const sx = shellRect.width  * 0.62;
+      const sy = shellRect.height * 0.42;
+      const ex = btnRect.left - shellRect.left + 18;
+      const ey = btnRect.top  - shellRect.top  + btnRect.height / 2;
+
+      gsap.set(cursor, { x: sx, y: sy, opacity: 0, scale: 1 });
+      await anim(cursor, { opacity: 1, duration: 0.5 });
+      await anim(cursor, { x: ex, y: ey, duration: 2.2, ease: "power1.inOut" });
+      await wait(200);
+
+      // ── Phase 3: click ──
+      await anim(cursor, { scale: 0.82, duration: 0.1 });
+      genBtn.classList.add("gen-btn-pulse");
+      vidBefore.pause();
+      await anim(cursor, { scale: 1, duration: 0.1 });
+      await wait(300);
+
+      // ── Phase 4: loading overlay ──
+      loading.style.opacity = "1";
+      await anim(cursor, { opacity: 0, duration: 0.3 });
+      await wait(1800);
+
+      // ── Phase 5: reveal after ──
+      loading.style.opacity    = "0";
+      vidAfter.currentTime     = 0;
+      vidAfter.play().catch(() => {});
+      await wait(80); // let video start
+      vidAfter.style.opacity   = "1";
+      vidBefore.style.opacity  = "0";
+      badge.innerHTML = '<span class="pv-dot pv-dot-ai"></span>AI Enhanced';
+
+      // ── Phase 6: show after (12s) then loop back ──
+      await wait(12000);
+      vidAfter.pause();
+      genBtn.classList.remove("gen-btn-pulse");
+      // Fade back to before
+      vidBefore.style.opacity = "1";
+      vidBefore.currentTime   = 0;
+      await anim(vidAfter, { opacity: 0, duration: 0.8 });
+      await wait(800);
+      runSequence();
+    };
+
+    // ── Entrance animation → then start sequence ──
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        obs.disconnect();
+        gsap.set("[data-sc-heading]", { y: 30 });
+        gsap.set("[data-sc-sub]",     { y: 20 });
+        gsap.set("[data-sc-browser]", { y: 50, scale: 0.97 });
+        const tl = gsap.timeline({
+          defaults: { ease: "power3.out" },
+          onComplete: runSequence,
+        });
+        tl.to("[data-sc-heading]", { opacity:1, y:0, duration:0.7 })
+          .to("[data-sc-sub]",     { opacity:1, y:0, duration:0.5 }, "-=0.4")
+          .to("[data-sc-browser]", { opacity:1, y:0, scale:1, duration:1 }, "-=0.3");
+      });
+    }, { threshold: 0.08 });
+    obs.observe(section);
   });
 </script>

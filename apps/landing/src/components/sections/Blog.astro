@@ -39,187 +39,248 @@ const features = [
 ];
 ---
 
-<section id="capabilities" class="py-12 sm:py-16 lg:py-24">
+<section id="capabilities" class="caps-section py-16 sm:py-20 lg:py-28">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
+
     <!-- Header -->
-    <div class="text-center mb-10 sm:mb-14">
-      <p class="text-sm font-semibold text-primary mb-3 tracking-wide uppercase">What's inside</p>
-      <h2 class="font-serif text-2xl sm:text-3xl lg:text-4xl leading-tight mb-3">
-        Everything your videos<br /><em class="not-italic text-primary">were missing.</em>
+    <div class="text-center mb-12 sm:mb-16" data-caps-header>
+      <div class="caps-eyebrow">
+        <span class="caps-eyebrow-dot"></span>
+        What's inside
+      </div>
+      <h2 class="font-serif text-3xl sm:text-4xl lg:text-5xl leading-tight mt-4 mb-4">
+        Everything your videos<br />
+        <em class="not-italic text-primary caps-glow-text">were missing.</em>
       </h2>
+      <p class="text-white/40 text-sm sm:text-base max-w-md mx-auto">
+        Six AI-powered tools that work together seamlessly.
+      </p>
     </div>
 
-    <!-- Interactive layout -->
-    <div class="feat-layout">
+    <!-- Grid -->
+    <div class="caps-grid" data-caps-grid>
 
-      <!-- Left: visual panel -->
-      <div class="feat-visual-wrap">
+      <!-- ══ VISUAL PANEL ══ -->
+      <div class="caps-visual" id="caps-visual">
 
-        <!-- Captions demo -->
-        <div class="feat-panel feat-panel--active" data-panel="captions">
-          <div class="feat-scene feat-scene--dark">
-            <div class="captions-demo">
-              <!-- Fake video bg -->
-              <div class="cap-video-bg" aria-hidden="true">
-                <div class="cap-video-grain"></div>
-              </div>
+        <!-- 1. CAPTIONS -->
+        <div class="caps-panel caps-panel--active" data-panel="captions">
+          <div class="caps-bg caps-bg--captions"></div>
+          <div class="caps-person-silhouette"></div>
 
-              <!-- Caption display area -->
-              <div class="cap-display" id="cap-display">
-                <!-- words injected by JS -->
-              </div>
+          <div class="cap-display" id="cap-display"></div>
 
-              <!-- Style chips -->
-              <div class="cap-styles">
-                <button class="cap-style-chip cap-chip--active" data-style="mrbeast">MrBeast</button>
-                <button class="cap-style-chip" data-style="hormozi">Hormozi</button>
-                <button class="cap-style-chip" data-style="alibdaal">Ali Abdaal</button>
-                <button class="cap-style-chip" data-style="karaoke">Karaoke</button>
-              </div>
-            </div>
+          <div class="cap-styles">
+            <button class="cap-chip cap-chip--on" data-style="mrbeast">MrBeast</button>
+            <button class="cap-chip" data-style="hormozi">Hormozi</button>
+            <button class="cap-chip" data-style="alibdaal">Ali Abdaal</button>
+            <button class="cap-chip" data-style="karaoke">Karaoke</button>
           </div>
         </div>
 
-        <!-- AI Visuals demo -->
-        <div class="feat-panel" data-panel="ai-visuals">
-          <div class="feat-scene feat-scene--dark">
-            <div class="ai-demo-frame">
-              <div class="ai-demo-chart">
-                <div class="ai-demo-chart-title">Revenue Growth</div>
-                <div class="ai-demo-bars">
-                  <div class="ai-demo-bar-wrap"><div class="ai-demo-bar" style="--h:40%;--delay:0s"></div><span>Q1</span></div>
-                  <div class="ai-demo-bar-wrap"><div class="ai-demo-bar" style="--h:62%;--delay:0.1s"></div><span>Q2</span></div>
-                  <div class="ai-demo-bar-wrap"><div class="ai-demo-bar" style="--h:55%;--delay:0.2s"></div><span>Q3</span></div>
-                  <div class="ai-demo-bar-wrap"><div class="ai-demo-bar ai-demo-bar--hl" style="--h:88%;--delay:0.3s"></div><span>Q4</span></div>
-                </div>
-              </div>
-              <div class="ai-demo-badge">
-                <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+        <!-- 2. AI VISUALS -->
+        <div class="caps-panel" data-panel="ai-visuals">
+          <div class="caps-bg caps-bg--ai"></div>
+          <!-- Thinking state -->
+          <div class="aiv-thinking" id="aiv-thinking">
+            <div class="aiv-think-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17 5.8 21.3l2.4-7.4L2 9.4h7.6z"/></svg>
+            </div>
+            <div class="aiv-think-text">Analyzing narration<span class="aiv-dots"><span>.</span><span>.</span><span>.</span></span></div>
+          </div>
+          <!-- Chart state -->
+          <div class="aiv-chart-wrap" id="aiv-chart">
+            <div class="aiv-chart-header">
+              <span class="aiv-chart-title">Revenue Growth</span>
+              <span class="aiv-badge">
+                <svg width="8" height="8" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
                 AI generated
+              </span>
+            </div>
+            <div class="aiv-bars">
+              <div class="aiv-bar-col"><div class="aiv-bar" style="--h:42%;--c:rgba(139,92,246,.4);--d:0s"></div><span>Q1</span></div>
+              <div class="aiv-bar-col"><div class="aiv-bar" style="--h:61%;--c:rgba(139,92,246,.55);--d:.1s"></div><span>Q2</span></div>
+              <div class="aiv-bar-col"><div class="aiv-bar" style="--h:54%;--c:rgba(139,92,246,.48);--d:.2s"></div><span>Q3</span></div>
+              <div class="aiv-bar-col"><div class="aiv-bar aiv-bar--hl" style="--h:88%;--c:#8B5CF6;--d:.3s"></div><span>Q4</span></div>
+            </div>
+            <div class="aiv-line-chart">
+              <svg viewBox="0 0 200 60" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="lineFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="rgba(139,92,246,0.35)"/>
+                    <stop offset="100%" stop-color="rgba(139,92,246,0)"/>
+                  </linearGradient>
+                </defs>
+                <path class="aiv-area" d="M0 55 L50 38 L100 44 L150 15 L200 5 L200 60 L0 60 Z" fill="url(#lineFill)"/>
+                <path class="aiv-line" d="M0 55 L50 38 L100 44 L150 15 L200 5" fill="none" stroke="#8B5CF6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle class="aiv-dot" cx="200" cy="5" r="3.5" fill="#a78bfa"/>
+              </svg>
+            </div>
+          </div>
+          <div class="aiv-caption">
+            <span>revenue</span> <span class="aiv-cap-hl">grew</span> <span>88%</span> <span>last quarter</span>
+          </div>
+        </div>
+
+        <!-- 3. MULTI-PLATFORM -->
+        <div class="caps-panel" data-panel="multiplatform">
+          <div class="caps-bg caps-bg--mp"></div>
+          <div class="mp-wrap">
+            <div class="mp-device mp-916" id="mp-tiktok">
+              <div class="mp-platform">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.69a8.18 8.18 0 004.79 1.53V6.75a4.85 4.85 0 01-1.02-.06z"/></svg>
+                TikTok
               </div>
-              <div class="ai-demo-pip">
-                <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="8" r="4" opacity="0.6"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" opacity="0.4"/></svg>
+              <div class="mp-screen mp-screen--916">
+                <div class="mp-content"></div>
               </div>
-              <div class="ai-demo-caption">
-                <span class="aicap-word">revenue</span>
-                <span class="aicap-word aicap-word--hl">grew</span>
-                <span class="aicap-word">88%</span>
-                <span class="aicap-word">last</span>
-                <span class="aicap-word">quarter</span>
+            </div>
+            <div class="mp-device mp-169 mp-active" id="mp-yt">
+              <div class="mp-platform">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3 3 0 00-2.1-2.1C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.4.5A3 3 0 00.5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 002.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 002.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.75 15.5V8.5l6.25 3.5-6.25 3.5z"/></svg>
+                YouTube
               </div>
+              <div class="mp-screen mp-screen--169">
+                <div class="mp-content"></div>
+              </div>
+            </div>
+            <div class="mp-device mp-11" id="mp-ig">
+              <div class="mp-platform">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>
+                Instagram
+              </div>
+              <div class="mp-screen mp-screen--11">
+                <div class="mp-content"></div>
+              </div>
+            </div>
+          </div>
+          <div class="mp-label-bar" id="mp-label">YouTube 16:9</div>
+        </div>
+
+        <!-- 4. AUDIO -->
+        <div class="caps-panel" data-panel="audio">
+          <div class="caps-bg caps-bg--audio"></div>
+          <div class="aud-wrap">
+            <div class="aud-waveform" id="aud-wave">
+              {Array.from({length: 36}).map((_, i) => (
+                <div class="aud-bar" style={`--i:${i};--h:${18 + Math.abs(Math.sin(i * 0.7)) * 44 + (i % 3) * 8}%;`}></div>
+              ))}
+              <div class="aud-scanner" id="aud-scanner"></div>
+            </div>
+            <div class="aud-words" id="aud-words">
+              <span class="aw">so</span>
+              <span class="aw aw-filler" data-filler>um</span>
+              <span class="aw">today</span>
+              <span class="aw aw-filler" data-filler>like</span>
+              <span class="aw">we'll</span>
+              <span class="aw">cover</span>
+              <span class="aw aw-filler" data-filler>uh</span>
+              <span class="aw">growth</span>
+              <span class="aw aw-filler" data-filler>basically</span>
+              <span class="aw">strategies</span>
+            </div>
+            <div class="aud-result" id="aud-result">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+              4 fillers removed · Audio cleaned
             </div>
           </div>
         </div>
 
-        <!-- Multi-platform demo -->
-        <div class="feat-panel" data-panel="multiplatform">
-          <div class="feat-scene feat-scene--light">
-            <div class="mp-demo">
-              <div class="mp-device mp-device--916">
-                <div class="mp-label">TikTok 9:16</div>
-                <div class="mp-screen"></div>
+        <!-- 5. AI ASSISTANT -->
+        <div class="caps-panel" data-panel="ai-assistant">
+          <div class="caps-bg caps-bg--assistant"></div>
+          <div class="ass-wrap">
+            <div class="ass-video-thumb">
+              <div class="ass-thumb-before" id="ass-before">
+                <div class="ass-thumb-label">before</div>
               </div>
-              <div class="mp-device mp-device--169 mp-device--active">
-                <div class="mp-label">YouTube 16:9</div>
-                <div class="mp-screen"></div>
+              <div class="ass-thumb-after" id="ass-after">
+                <div class="ass-thumb-label">after</div>
               </div>
-              <div class="mp-device mp-device--11">
-                <div class="mp-label">Instagram 1:1</div>
-                <div class="mp-screen"></div>
+            </div>
+            <div class="ass-chat">
+              <div class="ass-msg ass-msg--user ass-m1">Make the background darker</div>
+              <div class="ass-msg ass-msg--ai ass-m2">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                <span class="ass-stream" id="ass-stream1">Done — darkened to #0a0a0a</span>
               </div>
+              <div class="ass-msg ass-msg--user ass-m3">Add floating caption style</div>
+              <div class="ass-msg ass-msg--ai ass-m4">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                <span class="ass-stream" id="ass-stream2">Applied Hormozi style captions</span>
+              </div>
+              <div class="ass-cursor ass-m5"></div>
             </div>
           </div>
         </div>
 
-        <!-- Audio & B-Roll demo -->
-        <div class="feat-panel" data-panel="audio">
-          <div class="feat-scene feat-scene--dark">
-            <div class="audio-demo">
-              <div class="audio-waveform">
-                {Array.from({length: 28}).map((_, i) => (
-                  <div class="audio-bar" style={`--i:${i};--h:${20 + Math.sin(i * 0.8) * 30 + Math.random() * 20}%`}></div>
-                ))}
+        <!-- 6. TIMELINE -->
+        <div class="caps-panel" data-panel="timeline">
+          <div class="caps-bg caps-bg--timeline"></div>
+          <div class="tl-wrap">
+            <div class="tl-header">
+              <span class="tl-time" id="tl-time">0:08.14</span>
+              <div class="tl-zoom">
+                <button class="tl-zbtn">−</button>
+                <span>100%</span>
+                <button class="tl-zbtn">+</button>
               </div>
-              <div class="audio-transcript">
-                <span class="at-word">so</span>
-                <span class="at-word at-filler">um</span>
-                <span class="at-word">today</span>
-                <span class="at-word at-filler">like</span>
-                <span class="at-word">we'll</span>
-                <span class="at-word">cover</span>
-                <span class="at-word at-filler">uh</span>
-                <span class="at-word">growth</span>
-              </div>
-              <div class="audio-badge">✓ Fillers removed</div>
             </div>
-          </div>
-        </div>
-
-        <!-- AI Assistant demo -->
-        <div class="feat-panel" data-panel="ai-assistant">
-          <div class="feat-scene feat-scene--dark">
-            <div class="chat-demo">
-              <div class="chat-msg chat-msg--user chat-m1">Make the background darker</div>
-              <div class="chat-msg chat-msg--ai chat-m2">
-                <svg viewBox="0 0 16 16" fill="currentColor" class="chat-spark"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
-                Done — darkened to #0a0a0a
+            <div class="tl-body">
+              <div class="tl-labels">
+                <div class="tl-lbl">Video</div>
+                <div class="tl-lbl">Visuals</div>
+                <div class="tl-lbl">Captions</div>
+                <div class="tl-lbl">Audio</div>
               </div>
-              <div class="chat-msg chat-msg--user chat-m3">Split screen layout</div>
-              <div class="chat-msg chat-msg--ai chat-m4">
-                <svg viewBox="0 0 16 16" fill="currentColor" class="chat-spark"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
-                Applied split-screen with PiP
-              </div>
-              <div class="chat-cursor chat-m5"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Timeline demo -->
-        <div class="feat-panel" data-panel="timeline">
-          <div class="feat-scene feat-scene--dark">
-            <div class="tl-demo">
-              <div class="tl-track">
-                <div class="tl-track-label">Video</div>
-                <div class="tl-track-body">
-                  <div class="tl-clip tl-clip--video" style="width:45%"></div>
-                  <div class="tl-clip tl-clip--video" style="width:35%;margin-left:2%"></div>
+              <div class="tl-tracks-wrap" id="tl-tracks">
+                <!-- Video -->
+                <div class="tl-row">
+                  <div class="tl-clip tl-clip--vid" style="left:0%;width:44%">
+                    <div class="tl-thumb"></div><div class="tl-thumb"></div><div class="tl-thumb"></div>
+                  </div>
+                  <div class="tl-clip tl-clip--vid" style="left:46%;width:38%">
+                    <div class="tl-thumb"></div><div class="tl-thumb"></div>
+                  </div>
+                </div>
+                <!-- Visuals -->
+                <div class="tl-row">
+                  <div class="tl-clip tl-clip--vis" style="left:8%;width:18%"></div>
+                  <div class="tl-clip tl-clip--vis" style="left:34%;width:22%"></div>
+                  <div class="tl-clip tl-clip--vis" style="left:62%;width:16%"></div>
+                </div>
+                <!-- Captions -->
+                <div class="tl-row">
+                  <div class="tl-clip tl-clip--cap" style="left:0%;width:82%"></div>
+                </div>
+                <!-- Audio -->
+                <div class="tl-row">
+                  <div class="tl-clip tl-clip--aud" style="left:0%;width:84%">
+                    <div class="tl-wave">
+                      {Array.from({length:18}).map((_, i) => <span style={`height:${20 + Math.abs(Math.sin(i * 0.9)) * 60}%`}></span>)}
+                    </div>
+                  </div>
+                </div>
+                <!-- Playhead -->
+                <div class="tl-ph" id="tl-ph">
+                  <div class="tl-ph-head"></div>
                 </div>
               </div>
-              <div class="tl-track">
-                <div class="tl-track-label">Visuals</div>
-                <div class="tl-track-body">
-                  <div class="tl-clip tl-clip--visual" style="width:20%;margin-left:8%"></div>
-                  <div class="tl-clip tl-clip--visual" style="width:25%;margin-left:35%"></div>
-                </div>
-              </div>
-              <div class="tl-track">
-                <div class="tl-track-label">Captions</div>
-                <div class="tl-track-body">
-                  <div class="tl-clip tl-clip--caption" style="width:80%"></div>
-                </div>
-              </div>
-              <div class="tl-track">
-                <div class="tl-track-label">Audio</div>
-                <div class="tl-track-body">
-                  <div class="tl-clip tl-clip--audio" style="width:82%"></div>
-                </div>
-              </div>
-              <div class="tl-playhead"></div>
             </div>
           </div>
         </div>
 
-      </div>
+      </div><!-- /caps-visual -->
 
-      <!-- Right: feature buttons -->
-      <div class="feat-buttons">
-        {features.map((f) => (
-          <button
-            class={`feat-btn ${f.id === 'captions' ? 'feat-btn--active' : ''}`}
-            data-feature={f.id}
-          >
-            <span class="feat-btn-label">{f.label}</span>
-            <div class="feat-btn-desc">{f.description}</div>
+      <!-- ══ BUTTONS ══ -->
+      <div class="caps-buttons" id="caps-buttons">
+        {features.map((f, i) => (
+          <button class={`caps-btn ${i === 0 ? 'caps-btn--on' : ''}`} data-feature={f.id}>
+            <div class="caps-btn-inner">
+              <span class="caps-btn-label">{f.label}</span>
+              <p class="caps-btn-desc">{f.description}</p>
+            </div>
+            <div class="caps-btn-progress"><div class="caps-btn-bar" style={i === 0 ? '' : 'width:0%'}></div></div>
           </button>
         ))}
       </div>
@@ -229,827 +290,807 @@ const features = [
 </section>
 
 <style>
-  /* ── Layout ── */
-  .feat-layout {
-    display: grid;
-    grid-template-columns: 1fr;
+/* ── Section ── */
+.caps-section { position: relative; }
+
+.caps-eyebrow {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: rgba(167,139,250,.8);
+}
+.caps-eyebrow-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #8B5CF6;
+  box-shadow: 0 0 8px rgba(139,92,246,.9);
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+@keyframes dot-pulse {
+  0%,100%{ box-shadow: 0 0 6px rgba(139,92,246,.8); }
+  50%    { box-shadow: 0 0 16px rgba(139,92,246,1), 0 0 28px rgba(139,92,246,.4); }
+}
+.caps-glow-text {
+  text-shadow: 0 0 40px rgba(139,92,246,.35);
+}
+
+/* ── Grid ── */
+.caps-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+@media(min-width:768px){
+  .caps-grid {
+    grid-template-columns: 1fr 320px;
     gap: 24px;
-  }
-
-  @media (min-width: 768px) {
-    .feat-layout {
-      grid-template-columns: 1fr 340px;
-      gap: 32px;
-      align-items: start;
-    }
-  }
-
-  /* ── Visual wrap ── */
-  .feat-visual-wrap {
-    position: relative;
-    aspect-ratio: 16 / 10;
-    border-radius: 16px;
-    overflow: hidden;
-    background: #111;
-    order: 2;
-  }
-
-  @media (min-width: 768px) {
-    .feat-visual-wrap { order: 1; }
-  }
-
-  /* ── Panels ── */
-  .feat-panel {
-    position: absolute;
-    inset: 0;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.35s ease;
-  }
-
-  .feat-panel--active {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .feat-scene {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-  }
-
-  .feat-scene--dark {
-    background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 100%);
-  }
-
-  .feat-scene--light {
-    background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%);
-  }
-
-  /* ── Buttons ── */
-  .feat-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    order: 1;
-  }
-
-  @media (min-width: 768px) {
-    .feat-buttons { order: 2; }
-  }
-
-  .feat-btn {
-    text-align: left;
-    padding: 12px 16px;
-    border-radius: 10px;
-    border: 1px solid transparent;
-    background: transparent;
-    cursor: pointer;
-    transition: all 0.2s ease;
-  }
-
-  .feat-btn:hover {
-    background: rgba(124, 58, 237, 0.06);
-    border-color: rgba(124, 58, 237, 0.15);
-  }
-
-  .feat-btn--active {
-    background: rgba(124, 58, 237, 0.08);
-    border-color: rgba(124, 58, 237, 0.3);
-  }
-
-  .feat-btn-label {
-    display: block;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-foreground);
-    margin-bottom: 2px;
-    transition: color 0.2s;
-  }
-
-  .feat-btn--active .feat-btn-label {
-    color: var(--color-primary);
-  }
-
-  .feat-btn-desc {
-    font-size: 12px;
-    color: var(--color-muted-foreground);
-    line-height: 1.4;
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.25s ease, opacity 0.25s ease;
-    opacity: 0;
-  }
-
-  .feat-btn--active .feat-btn-desc {
-    max-height: 60px;
-    opacity: 1;
-  }
-
-  /* ════════════════════════════
-     CAPTIONS demo
-  ════════════════════════════ */
-  .captions-demo {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-end;
-    padding-bottom: 20px;
-    gap: 16px;
-  }
-
-  /* Fake video background */
-  .cap-video-bg {
-    position: absolute;
-    inset: 0;
-    background:
-      radial-gradient(ellipse at 30% 40%, rgba(124,58,237,0.12) 0%, transparent 60%),
-      radial-gradient(ellipse at 75% 60%, rgba(59,130,246,0.08) 0%, transparent 50%),
-      linear-gradient(160deg, #0d0d1a 0%, #111827 100%);
-    overflow: hidden;
-  }
-
-  .cap-video-grain {
-    position: absolute;
-    inset: 0;
-    opacity: 0.03;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    background-size: 128px;
-  }
-
-  /* Caption display */
-  .cap-display {
-    position: relative;
-    z-index: 2;
-    min-height: 56px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 10px;
-    justify-content: center;
-    align-items: center;
-    padding: 0 24px;
-  }
-
-  /* Words injected by JS get these classes */
-  .cap-word {
-    display: inline-block;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    line-height: 1.1;
-    opacity: 0;
-    animation: cap-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-  }
-
-  @keyframes cap-pop {
-    from { opacity: 0; transform: scale(0.6) translateY(10px); }
-    to   { opacity: 1; transform: scale(1) translateY(0); }
-  }
-
-  /* Style variants set via data-style on .captions-demo */
-  /* MrBeast */
-  .cap-display[data-style="mrbeast"] .cap-word {
-    font-size: clamp(20px, 3.5vw, 30px);
-    color: white;
-    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000;
-  }
-  .cap-display[data-style="mrbeast"] .cap-word--hl {
-    color: #facc15;
-    -webkit-text-stroke: 1px #000;
-  }
-
-  /* Hormozi */
-  .cap-display[data-style="hormozi"] .cap-word {
-    font-size: clamp(18px, 3vw, 26px);
-    color: white;
-    background: transparent;
-  }
-  .cap-display[data-style="hormozi"] .cap-word--hl {
-    color: #f97316;
-    background: rgba(249,115,22,0.15);
-    padding: 1px 8px;
-    border-radius: 4px;
-  }
-
-  /* Ali Abdaal */
-  .cap-display[data-style="alibdaal"] .cap-word {
-    font-size: clamp(16px, 2.8vw, 24px);
-    color: rgba(255,255,255,0.85);
-    font-weight: 600;
-  }
-  .cap-display[data-style="alibdaal"] .cap-word--hl {
-    color: #ffffff;
-    font-weight: 800;
-    border-bottom: 2px solid #a78bfa;
-    padding-bottom: 1px;
-  }
-
-  /* Karaoke */
-  .cap-display[data-style="karaoke"] .cap-word {
-    font-size: clamp(16px, 2.8vw, 24px);
-    color: rgba(255,255,255,0.35);
-    font-weight: 700;
-    transition: color 0.2s, text-shadow 0.2s;
-  }
-  .cap-display[data-style="karaoke"] .cap-word--hl {
-    color: #a78bfa;
-    text-shadow: 0 0 12px rgba(167,139,250,0.6);
-  }
-
-  /* Style chips */
-  .cap-styles {
-    position: relative;
-    z-index: 2;
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .cap-style-chip {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 4px 12px;
-    border-radius: 20px;
-    border: 1px solid rgba(255,255,255,0.12);
-    color: rgba(255,255,255,0.45);
-    background: rgba(255,255,255,0.04);
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .cap-style-chip:hover {
-    border-color: rgba(255,255,255,0.25);
-    color: rgba(255,255,255,0.7);
-  }
-
-  .cap-style-chip.cap-chip--active {
-    border-color: rgba(124,58,237,0.55);
-    color: #a78bfa;
-    background: rgba(124,58,237,0.15);
-  }
-
-  /* ════════════════════════════
-     AI VISUALS demo
-  ════════════════════════════ */
-  .ai-demo-frame {
-    position: relative;
-    width: 100%;
-    max-width: 420px;
-    aspect-ratio: 16/9;
-    background: linear-gradient(135deg, #1a1a2e, #0f3460);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-
-  .ai-demo-chart {
-    position: absolute;
-    top: 10%;
-    left: 6%;
-    right: 28%;
-    bottom: 20%;
-    background: rgba(255,255,255,0.95);
-    border-radius: 8px;
-    padding: 8px 10px 6px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-    display: flex;
-    flex-direction: column;
-  }
-
-  .ai-demo-chart-title {
-    font-size: 7px;
-    font-weight: 700;
-    color: #1a1a1a;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-bottom: 4px;
-  }
-
-  .ai-demo-bars {
-    flex: 1;
-    display: flex;
-    align-items: flex-end;
-    gap: 4px;
-  }
-
-  .ai-demo-bar-wrap {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    height: 100%;
-    justify-content: flex-end;
-  }
-
-  .ai-demo-bar-wrap span {
-    font-size: 5px;
-    color: #888;
-    font-weight: 600;
-  }
-
-  .ai-demo-bar {
-    width: 100%;
-    height: var(--h);
-    background: rgba(124,58,237,0.3);
-    border-radius: 2px 2px 0 0;
-    animation: bar-up 0.7s ease-out calc(var(--delay) + 0.2s) both;
-    transform-origin: bottom;
-  }
-
-  .ai-demo-bar--hl { background: #7C3AED; }
-
-  @keyframes bar-up {
-    from { transform: scaleY(0); }
-    to { transform: scaleY(1); }
-  }
-
-  .ai-demo-badge {
-    position: absolute;
-    top: 6px;
-    right: 6px;
-    background: rgba(124,58,237,0.9);
-    color: white;
-    font-size: 6px;
-    font-weight: 700;
-    padding: 3px 7px;
-    border-radius: 20px;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-  }
-
-  .ai-demo-badge svg {
-    width: 6px;
-    height: 6px;
-    animation: sp 1.4s ease-in-out infinite;
-  }
-
-  @keyframes sp {
-    0%,100%{opacity:1;transform:scale(1)}
-    50%{opacity:.5;transform:scale(1.4)}
-  }
-
-  .ai-demo-pip {
-    position: absolute;
-    bottom: 16%;
-    right: 5%;
-    width: 17%;
-    aspect-ratio: 1;
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .ai-demo-pip svg {
-    width: 55%;
-    height: 55%;
-    color: rgba(255,255,255,0.4);
-  }
-
-  .ai-demo-caption {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    padding: 4px 8px;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    gap: 4px;
-    justify-content: center;
-  }
-
-  .aicap-word {
-    font-size: 7px;
-    font-weight: 700;
-    color: rgba(255,255,255,0.65);
-  }
-
-  .aicap-word--hl {
-    color: #a78bfa;
-    background: rgba(124,58,237,0.3);
-    padding: 1px 4px;
-    border-radius: 3px;
-  }
-
-  /* ════════════════════════════
-     MULTI-PLATFORM demo
-  ════════════════════════════ */
-  .mp-demo {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .mp-device {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    opacity: 0.5;
-    transition: opacity 0.3s, transform 0.3s;
-    transform: scale(0.9);
-  }
-
-  .mp-device--active {
-    opacity: 1;
-    transform: scale(1);
-  }
-
-  .mp-label {
-    font-size: 9px;
-    font-weight: 600;
-    color: var(--color-primary);
-    white-space: nowrap;
-  }
-
-  .mp-screen {
-    background: linear-gradient(135deg, #7C3AED 0%, #a78bfa 100%);
-    border-radius: 4px;
-    border: 2px solid rgba(124,58,237,0.4);
-  }
-
-  .mp-device--916 .mp-screen { width: 36px; height: 64px; }
-  .mp-device--169 .mp-screen { width: 96px; height: 54px; }
-  .mp-device--11 .mp-screen { width: 56px; height: 56px; }
-
-  /* ════════════════════════════
-     AUDIO demo
-  ════════════════════════════ */
-  .audio-demo {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    width: 100%;
-    max-width: 380px;
-  }
-
-  .audio-waveform {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    height: 60px;
-  }
-
-  .audio-bar {
-    width: 4px;
-    height: var(--h);
-    background: rgba(124,58,237,0.6);
-    border-radius: 2px;
-    animation: wave 1.2s ease-in-out calc(var(--i) * 0.04s) infinite alternate;
-  }
-
-  @keyframes wave {
-    from { transform: scaleY(0.4); opacity: 0.4; }
-    to { transform: scaleY(1); opacity: 1; }
-  }
-
-  .audio-transcript {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .at-word {
-    font-size: 13px;
-    font-weight: 600;
-    color: white;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: rgba(255,255,255,0.07);
-  }
-
-  .at-filler {
-    color: #f87171;
-    background: rgba(239,68,68,0.12);
-    text-decoration: line-through;
-  }
-
-  .audio-badge {
-    font-size: 11px;
-    font-weight: 600;
-    color: #4ade80;
-    background: rgba(74,222,128,0.12);
-    border: 1px solid rgba(74,222,128,0.25);
-    padding: 4px 12px;
-    border-radius: 20px;
-  }
-
-  /* ════════════════════════════
-     AI ASSISTANT demo
-  ════════════════════════════ */
-  .chat-demo {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    width: 100%;
-    max-width: 340px;
-  }
-
-  .chat-msg {
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 500;
-    line-height: 1.4;
-    animation: chat-in 0.35s ease-out both;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .chat-msg--user {
-    background: rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.7);
-    border: 1px solid rgba(255,255,255,0.1);
-    align-self: flex-end;
-    border-radius: 10px 10px 2px 10px;
-  }
-
-  .chat-msg--ai {
-    background: rgba(124,58,237,0.2);
-    color: #c4b5fd;
-    border: 1px solid rgba(124,58,237,0.3);
-    align-self: flex-start;
-    border-radius: 10px 10px 10px 2px;
-  }
-
-  .chat-spark {
-    width: 10px;
-    height: 10px;
-    color: #a78bfa;
-    flex-shrink: 0;
-  }
-
-  .chat-m1 { animation-delay: 0.1s; }
-  .chat-m2 { animation-delay: 0.5s; }
-  .chat-m3 { animation-delay: 1.0s; }
-  .chat-m4 { animation-delay: 1.5s; }
-
-  .chat-cursor {
-    width: 8px;
-    height: 16px;
-    background: #7C3AED;
-    border-radius: 2px;
-    margin-left: 12px;
-    animation: chat-in 0.2s ease-out 1.9s both, blink 1s ease-in-out 2.1s infinite;
-  }
-
-  @keyframes chat-in {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes blink {
-    0%,100% { opacity: 1; }
-    50% { opacity: 0; }
-  }
-
-  /* ════════════════════════════
-     TIMELINE demo
-  ════════════════════════════ */
-  .tl-demo {
-    position: relative;
-    width: 100%;
-    max-width: 420px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 16px;
-    background: rgba(0,0,0,0.3);
-    border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.06);
-  }
-
-  .tl-track {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .tl-track-label {
-    font-size: 9px;
-    font-weight: 600;
-    color: rgba(255,255,255,0.35);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    width: 44px;
-    flex-shrink: 0;
-  }
-
-  .tl-track-body {
-    flex: 1;
-    height: 20px;
-    background: rgba(255,255,255,0.04);
-    border-radius: 4px;
-    position: relative;
-    display: flex;
-    align-items: center;
-  }
-
-  .tl-clip {
-    height: 14px;
-    border-radius: 3px;
-    position: absolute;
-    animation: clip-in 0.5s ease-out both;
-  }
-
-  .tl-clip--video { background: rgba(124,58,237,0.6); }
-  .tl-clip--visual { background: rgba(251,191,36,0.6); }
-  .tl-clip--caption { background: rgba(74,222,128,0.5); }
-  .tl-clip--audio { background: rgba(96,165,250,0.5); }
-
-  @keyframes clip-in {
-    from { opacity: 0; transform: scaleX(0); transform-origin: left; }
-    to { opacity: 1; transform: scaleX(1); }
-  }
-
-  .tl-playhead {
-    position: absolute;
-    top: 12px;
-    bottom: 12px;
-    left: calc(44px + 8px + 28%);
-    width: 2px;
-    background: #f43f5e;
-    border-radius: 1px;
-  }
-
-  .tl-playhead::before {
-    content: '';
-    position: absolute;
-    top: -4px;
-    left: -4px;
-    width: 10px;
-    height: 10px;
-    background: #f43f5e;
-    clip-path: polygon(0 0, 100% 0, 50% 100%);
-  }
+    align-items: start;
+  }
+}
+
+/* ── Visual container ── */
+.caps-visual {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  aspect-ratio: 16/10;
+  background: rgba(12,11,24,0.8);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    0 24px 64px rgba(0,0,0,.5),
+    0 0 40px rgba(139,92,246,.06),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  backdrop-filter: blur(20px) saturate(150%);
+  order: 2;
+}
+@media(min-width:768px){ .caps-visual { order: 1; } }
+
+/* ── Panels ── */
+.caps-panel {
+  position: absolute; inset: 0;
+  opacity: 0; pointer-events: none;
+  transition: opacity .4s ease;
+}
+.caps-panel--active { opacity: 1; pointer-events: auto; }
+
+/* ── Backgrounds ── */
+.caps-bg {
+  position: absolute; inset: 0; z-index: 0;
+}
+.caps-bg--captions {
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(124,58,237,.18) 0%, transparent 60%),
+    radial-gradient(ellipse at 75% 60%, rgba(59,130,246,.1) 0%, transparent 50%),
+    linear-gradient(160deg, #080818 0%, #0e0e22 100%);
+}
+.caps-bg--ai {
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(59,21,135,.25) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 70%, rgba(29,78,216,.15) 0%, transparent 50%),
+    linear-gradient(145deg, #06060e, #0d112a);
+}
+.caps-bg--mp {
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(139,92,246,.12) 0%, transparent 60%),
+    linear-gradient(160deg, #080810, #0a0a1c);
+}
+.caps-bg--audio {
+  background:
+    radial-gradient(ellipse at 50% 60%, rgba(16,185,129,.1) 0%, transparent 55%),
+    linear-gradient(160deg, #06100d, #080e18);
+}
+.caps-bg--assistant {
+  background:
+    radial-gradient(ellipse at 35% 30%, rgba(139,92,246,.15) 0%, transparent 55%),
+    linear-gradient(145deg, #08080f, #0e0a1e);
+}
+.caps-bg--timeline {
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(99,102,241,.1) 0%, transparent 50%),
+    linear-gradient(160deg, #080810, #0c0c1c);
+}
+
+/* ════════════════════════════
+   CAPTIONS
+════════════════════════════ */
+.caps-person-silhouette {
+  position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+  width: 42%; height: 65%; z-index: 1;
+  background: linear-gradient(180deg, rgba(120,80,200,.22) 0%, rgba(80,40,160,.35) 100%);
+  border-radius: 60% 60% 0 0; filter: blur(2px); opacity: .55;
+}
+.cap-display {
+  position: absolute; bottom: 20%; left: 0; right: 0; z-index: 3;
+  display: flex; flex-wrap: wrap; gap: 8px 12px;
+  justify-content: center; align-items: center;
+  padding: 0 28px;
+  min-height: 52px;
+}
+.cap-styles {
+  position: absolute; bottom: 5%; left: 0; right: 0; z-index: 4;
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+}
+.cap-chip {
+  font-size: 10px; font-weight: 600; padding: 4px 12px;
+  border-radius: 20px; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.12);
+  color: rgba(255,255,255,.4); background: rgba(255,255,255,.04);
+  transition: all .15s ease;
+}
+.cap-chip:hover { border-color: rgba(255,255,255,.28); color: rgba(255,255,255,.75); }
+.cap-chip--on { border-color: rgba(124,58,237,.55) !important; color: #a78bfa !important; background: rgba(124,58,237,.16) !important; }
+
+/* ════════════════════════════
+   AI VISUALS
+════════════════════════════ */
+.aiv-thinking {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  transition: opacity .5s ease;
+}
+.aiv-think-icon {
+  width: 48px; height: 48px; border-radius: 14px;
+  background: rgba(139,92,246,.15); border: 1px solid rgba(139,92,246,.3);
+  display: flex; align-items: center; justify-content: center;
+  color: #a78bfa;
+  animation: ai-icon-pulse 2s ease-in-out infinite;
+}
+@keyframes ai-icon-pulse {
+  0%,100%{ box-shadow: 0 0 0 0 rgba(139,92,246,0); }
+  50%    { box-shadow: 0 0 0 12px rgba(139,92,246,.08); }
+}
+.aiv-think-text {
+  font-size: 13px; font-weight: 500; color: rgba(255,255,255,.5);
+  letter-spacing: .02em;
+}
+.aiv-dots span {
+  animation: aiv-dot .8s ease-in-out infinite;
+  display: inline-block;
+}
+.aiv-dots span:nth-child(2){ animation-delay: .15s; }
+.aiv-dots span:nth-child(3){ animation-delay: .3s; }
+@keyframes aiv-dot {
+  0%,80%,100%{ transform: scale(0.8); opacity: .4; }
+  40%        { transform: scale(1.2); opacity: 1; }
+}
+
+.aiv-chart-wrap {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 20px 24px; gap: 10px;
+  opacity: 0; transition: opacity .5s ease;
+}
+.aiv-chart-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.aiv-chart-title {
+  font-size: 11px; font-weight: 700; color: rgba(255,255,255,.55);
+  text-transform: uppercase; letter-spacing: .08em;
+}
+.aiv-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 9px; font-weight: 700; color: white;
+  background: rgba(139,92,246,.85); border-radius: 20px;
+  padding: 3px 8px; letter-spacing: .03em;
+}
+.aiv-badge svg { animation: sp 1.4s ease-in-out infinite; }
+@keyframes sp { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+
+.aiv-bars {
+  display: flex; align-items: flex-end; gap: 8px; height: 80px;
+}
+.aiv-bar-col {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end;
+}
+.aiv-bar-col span { font-size: 8px; color: rgba(255,255,255,.3); font-weight: 600; }
+.aiv-bar {
+  width: 100%; height: var(--h); background: var(--c);
+  border-radius: 4px 4px 0 0; transform-origin: bottom;
+  animation: bar-grow .7s ease-out calc(var(--d)) both;
+}
+.aiv-bar--hl { box-shadow: 0 0 12px rgba(139,92,246,.5); }
+@keyframes bar-grow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+.aiv-line-chart {
+  height: 48px;
+  border-top: 1px solid rgba(255,255,255,.05);
+  padding-top: 6px;
+}
+.aiv-line-chart svg { width: 100%; height: 100%; }
+.aiv-line {
+  stroke-dasharray: 400;
+  stroke-dashoffset: 400;
+  animation: draw-line 1.2s ease-out .4s forwards;
+}
+.aiv-area { opacity: 0; animation: fade-area .6s ease .8s forwards; }
+.aiv-dot  { opacity: 0; animation: fade-area .3s ease 1.2s forwards; }
+@keyframes draw-line { to { stroke-dashoffset: 0; } }
+@keyframes fade-area { to { opacity: 1; } }
+
+.aiv-caption {
+  position: absolute; bottom: 12%; left: 0; right: 0; z-index: 3;
+  text-align: center; font-size: 12px; font-weight: 700;
+  color: rgba(255,255,255,.65); text-transform: uppercase; letter-spacing: .06em;
+}
+.aiv-cap-hl { color: #a78bfa; text-shadow: 0 0 12px rgba(167,139,250,.7); }
+
+/* ════════════════════════════
+   MULTI-PLATFORM
+════════════════════════════ */
+.mp-wrap {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; justify-content: center; gap: 20px;
+  padding: 24px;
+}
+.mp-device {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  transition: transform .4s ease, opacity .4s ease;
+  opacity: .45; transform: scale(.88);
+}
+.mp-active { opacity: 1 !important; transform: scale(1) !important; }
+.mp-platform {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 9px; font-weight: 700; color: rgba(255,255,255,.35);
+  text-transform: uppercase; letter-spacing: .05em;
+}
+.mp-active .mp-platform { color: #a78bfa; }
+.mp-screen {
+  border-radius: 5px; overflow: hidden;
+  border: 1.5px solid rgba(255,255,255,.1);
+  transition: border-color .4s ease;
+}
+.mp-active .mp-screen { border-color: rgba(139,92,246,.5); box-shadow: 0 0 16px rgba(139,92,246,.2); }
+.mp-screen--916 { width: 40px; height: 71px; }
+.mp-screen--169 { width: 100px; height: 56px; }
+.mp-screen--11  { width: 60px; height: 60px; }
+.mp-content {
+  width: 100%; height: 100%;
+  background: linear-gradient(135deg, rgba(88,28,235,.5), rgba(59,21,135,.6));
+  position: relative; overflow: hidden;
+}
+.mp-content::after {
+  content: ''; position: absolute;
+  bottom: 20%; left: 10%; right: 10%; height: 20%;
+  background: rgba(139,92,246,.35); border-radius: 2px;
+}
+.mp-label-bar {
+  position: absolute; bottom: 8%; left: 50%; transform: translateX(-50%);
+  z-index: 3; font-size: 10px; font-weight: 700;
+  color: rgba(167,139,250,.9); letter-spacing: .05em;
+  background: rgba(139,92,246,.12); border: 1px solid rgba(139,92,246,.25);
+  padding: 4px 14px; border-radius: 20px;
+  transition: opacity .3s ease;
+}
+
+/* ════════════════════════════
+   AUDIO
+════════════════════════════ */
+.aud-wrap {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 18px; padding: 24px;
+}
+.aud-waveform {
+  position: relative; display: flex; align-items: center; gap: 2.5px; height: 56px;
+  width: 100%; max-width: 380px;
+}
+.aud-bar {
+  flex: 1; max-width: 6px; height: var(--h);
+  background: rgba(52,211,153,.5); border-radius: 2px;
+  animation: aud-wave 1.4s ease-in-out calc(var(--i) * 0.04s) infinite alternate;
+  transition: background .3s ease, opacity .3s ease;
+}
+@keyframes aud-wave {
+  from { transform: scaleY(.5); }
+  to   { transform: scaleY(1); }
+}
+.aud-bar.filler-detected { background: rgba(248,113,113,.7); }
+.aud-scanner {
+  position: absolute; top: -4px; bottom: -4px; width: 2px;
+  background: linear-gradient(180deg, transparent, rgba(52,211,153,.9), transparent);
+  border-radius: 1px; left: 0;
+  box-shadow: 0 0 8px rgba(52,211,153,.6);
+  transition: left .05s linear;
+}
+
+.aud-words {
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+}
+.aw {
+  font-size: 12px; font-weight: 600; color: rgba(255,255,255,.75);
+  padding: 3px 9px; border-radius: 5px;
+  background: rgba(255,255,255,.06);
+  transition: all .3s ease;
+}
+.aw-filler { color: #f87171; background: rgba(239,68,68,.12); border: 1px solid rgba(239,68,68,.2); }
+.aw-filler.struck {
+  text-decoration: line-through; opacity: .4;
+  transform: scale(.9);
+}
+
+.aud-result {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; font-weight: 600; color: #4ade80;
+  background: rgba(74,222,128,.1); border: 1px solid rgba(74,222,128,.22);
+  padding: 5px 14px; border-radius: 20px;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity .4s ease, transform .4s ease;
+}
+.aud-result.visible { opacity: 1; transform: translateY(0); }
+
+/* ════════════════════════════
+   AI ASSISTANT
+════════════════════════════ */
+.ass-wrap {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px 24px;
+}
+.ass-video-thumb {
+  width: 36%; flex-shrink: 0; aspect-ratio: 9/16;
+  border-radius: 10px; overflow: hidden; position: relative;
+  border: 1px solid rgba(255,255,255,.08);
+}
+.ass-thumb-before, .ass-thumb-after {
+  position: absolute; inset: 0;
+  transition: opacity .6s ease;
+}
+.ass-thumb-before {
+  background: linear-gradient(160deg, #1a0f2e, #0d0a18);
+}
+.ass-thumb-after {
+  background: linear-gradient(160deg, #050508, #030205);
+  opacity: 0;
+}
+.ass-thumb-label {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  color: rgba(255,255,255,.4); background: rgba(0,0,0,.4);
+  padding: 2px 8px; border-radius: 10px;
+}
+.ass-chat {
+  flex: 1; display: flex; flex-direction: column; gap: 9px;
+}
+.ass-msg {
+  padding: 7px 11px; border-radius: 10px;
+  font-size: 11px; font-weight: 500; line-height: 1.4;
+  display: flex; align-items: center; gap: 6px;
+  animation: ass-in .35s ease-out both;
+}
+.ass-msg--user {
+  background: rgba(255,255,255,.07); color: rgba(255,255,255,.65);
+  border: 1px solid rgba(255,255,255,.09); align-self: flex-end;
+  border-radius: 10px 10px 2px 10px;
+}
+.ass-msg--ai {
+  background: rgba(124,58,237,.18); color: #c4b5fd;
+  border: 1px solid rgba(124,58,237,.28); align-self: flex-start;
+  border-radius: 10px 10px 10px 2px;
+}
+.ass-msg--ai svg { color: #a78bfa; flex-shrink: 0; }
+.ass-m1 { animation-delay: .1s; }
+.ass-m2 { animation-delay: .6s; }
+.ass-m3 { animation-delay: 1.2s; }
+.ass-m4 { animation-delay: 1.8s; }
+.ass-cursor {
+  width: 8px; height: 15px; background: #7C3AED; border-radius: 2px;
+  margin-left: 12px;
+  animation: ass-in .2s ease-out 2.3s both, blink 1s ease-in-out 2.5s infinite;
+}
+.ass-stream { display: inline; }
+@keyframes ass-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ════════════════════════════
+   TIMELINE
+════════════════════════════ */
+.tl-wrap {
+  position: absolute; inset: 0; z-index: 2;
+  display: flex; flex-direction: column;
+  padding: 16px;
+}
+.tl-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.06);
+  margin-bottom: 10px;
+}
+.tl-time { font-size: 11px; color: #a78bfa; font-variant-numeric: tabular-nums; font-weight: 600; }
+.tl-zoom { display: flex; align-items: center; gap: 8px; font-size: 10px; color: rgba(255,255,255,.3); }
+.tl-zbtn {
+  width: 20px; height: 20px; border-radius: 5px; border: none;
+  background: rgba(255,255,255,.06); color: rgba(255,255,255,.4); cursor: pointer;
+  font-size: 12px; display: flex; align-items: center; justify-content: center;
+}
+.tl-body { flex: 1; display: flex; gap: 8px; min-height: 0; }
+.tl-labels { width: 52px; flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; padding-top: 2px; }
+.tl-lbl { height: 26px; display: flex; align-items: center; font-size: 8.5px; font-weight: 600; color: rgba(255,255,255,.25); text-transform: uppercase; letter-spacing: .04em; }
+.tl-tracks-wrap { flex: 1; position: relative; display: flex; flex-direction: column; gap: 4px; }
+.tl-row { height: 26px; position: relative; background: rgba(255,255,255,.025); border-radius: 4px; }
+.tl-clip {
+  position: absolute; top: 3px; bottom: 3px;
+  border-radius: 4px; overflow: hidden;
+  display: flex; align-items: center;
+  animation: clip-in .5s ease-out both;
+}
+.tl-clip--vid { background: rgba(99,102,241,.35); border: 1px solid rgba(99,102,241,.4); gap: 3px; padding: 0 4px; }
+.tl-clip--vis { background: rgba(251,191,36,.25); border: 1px solid rgba(251,191,36,.35); }
+.tl-clip--cap { background: rgba(167,139,250,.28); border: 1px solid rgba(167,139,250,.4); }
+.tl-clip--aud { background: rgba(52,211,153,.18); border: 1px solid rgba(52,211,153,.3); }
+.tl-thumb { width: 14px; height: 18px; flex-shrink: 0; border-radius: 2px; background: rgba(99,102,241,.25); border: 1px solid rgba(99,102,241,.3); }
+.tl-wave { display: flex; align-items: center; gap: 1.5px; height: 100%; padding: 3px 6px; }
+.tl-wave span { display: block; flex: 1; border-radius: 1px; background: rgba(52,211,153,.6); animation: aud-wave 1.2s ease-in-out calc(var(--i,.5) * .08s) infinite alternate; min-height: 2px; max-width: 3px; }
+@keyframes clip-in { from{opacity:0;transform:scaleX(0);transform-origin:left} to{opacity:1;transform:scaleX(1)} }
+
+.tl-ph {
+  position: absolute; top: -2px; bottom: -2px; width: 1.5px;
+  background: #f43f5e; z-index: 10;
+  box-shadow: 0 0 6px rgba(244,63,94,.6);
+}
+.tl-ph-head {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 7px solid #f43f5e;
+}
+
+/* ════════════════════════════
+   BUTTONS
+════════════════════════════ */
+.caps-buttons {
+  display: flex; flex-direction: column; gap: 4px;
+  order: 1;
+}
+@media(min-width:768px){ .caps-buttons { order: 2; } }
+
+.caps-btn {
+  text-align: left; padding: 0; border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02); cursor: pointer;
+  transition: all .2s ease; overflow: hidden;
+  backdrop-filter: blur(12px);
+}
+.caps-btn:hover {
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(139,92,246,.2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+}
+.caps-btn--on {
+  background: rgba(139,92,246,.08);
+  border-color: rgba(139,92,246,.3);
+  box-shadow: 0 0 16px rgba(139,92,246,.1), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.caps-btn-inner { padding: 12px 14px; }
+.caps-btn-label {
+  display: block; font-size: 13px; font-weight: 600;
+  color: rgba(255,255,255,.5); margin-bottom: 0;
+  transition: color .2s;
+}
+.caps-btn--on .caps-btn-label { color: #a78bfa; }
+.caps-btn-desc {
+  font-size: 11.5px; color: rgba(255,255,255,.35); line-height: 1.45; margin: 0;
+  max-height: 0; overflow: hidden; opacity: 0;
+  transition: max-height .25s ease, opacity .25s ease, margin .25s ease;
+}
+.caps-btn--on .caps-btn-desc { max-height: 56px; opacity: 1; margin-top: 4px; }
+
+/* Progress bar */
+.caps-btn-progress {
+  height: 2px; background: rgba(139,92,246,.12);
+}
+.caps-btn-bar {
+  height: 100%; background: rgba(139,92,246,.7);
+  width: 0%; transition: width linear;
+}
 </style>
 
 <script>
-  // ── Caption styles — all inline so Astro scoping doesn't block them ──
-  const CAP_STYLES: Record<string, {
-    base: Partial<CSSStyleDeclaration>,
-    hl: Partial<CSSStyleDeclaration>,
-    wrap?: Partial<CSSStyleDeclaration>,
-  }> = {
+  import { gsap } from "@/scripts/animations";
+
+  // ══ Caption data ══
+  const CAP_LINES = [
+    { words: ["your", "audience", "stays", "hooked"], hl: 3 },
+    { words: ["revenue", "grew", "88%"], hl: 1 },
+    { words: ["never", "lose", "a", "viewer"], hl: 2 },
+    { words: ["this", "changes", "everything"], hl: 1 },
+    { words: ["watch", "time", "up", "40%"], hl: 3 },
+  ];
+
+  const CAP_STYLES: Record<string, { base: any; hl: any; wrap?: any }> = {
     mrbeast: {
-      wrap: { gap: "10px", background: "transparent" },
-      base: {
-        fontSize: "clamp(22px, 4vw, 36px)", fontWeight: "900",
-        color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.04em",
-        textShadow: "2px 2px 0 #000, -1px -1px 0 #000, 0 0 20px rgba(0,0,0,0.5)",
-        lineHeight: "1",
-      },
-      hl: {
-        color: "#facc15", textShadow: "2px 2px 0 #000, -1px -1px 0 #000",
-        webkitTextStroke: "1px rgba(0,0,0,0.5)",
-      },
+      wrap: { gap:"10px" },
+      base: { fontSize:"clamp(22px,3.5vw,32px)", fontWeight:"900", color:"#fff", textTransform:"uppercase", letterSpacing:"0.04em", textShadow:"2px 2px 0 #000,-1px -1px 0 #000" },
+      hl:   { color:"#facc15", WebkitTextStroke:"1px rgba(0,0,0,.5)" },
     },
     hormozi: {
-      wrap: { gap: "0px", background: "rgba(0,0,0,0.55)", padding: "8px 16px", borderRadius: "4px" },
-      base: {
-        fontSize: "clamp(20px, 3.5vw, 30px)", fontWeight: "800",
-        color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.02em",
-        lineHeight: "1.1", padding: "0 5px",
-      },
-      hl: {
-        color: "#f97316",
-        textDecoration: "underline",
-        textDecorationColor: "#f97316",
-        textDecorationThickness: "3px",
-      },
+      wrap: { gap:"0", background:"rgba(0,0,0,.55)", padding:"8px 16px", borderRadius:"4px" },
+      base: { fontSize:"clamp(20px,3vw,28px)", fontWeight:"800", color:"#fff", textTransform:"uppercase", letterSpacing:"0.02em", lineHeight:"1.1", padding:"0 5px" },
+      hl:   { color:"#f97316", textDecoration:"underline", textDecorationColor:"#f97316", textDecorationThickness:"3px" },
     },
     alibdaal: {
-      wrap: { gap: "8px", background: "transparent" },
-      base: {
-        fontSize: "clamp(18px, 3vw, 26px)", fontWeight: "600",
-        color: "rgba(255,255,255,0.7)", textTransform: "none", letterSpacing: "0.01em",
-        lineHeight: "1.2",
-      },
-      hl: {
-        color: "#ffffff", fontWeight: "800",
-        borderBottom: "3px solid #a78bfa", paddingBottom: "2px",
-      },
+      wrap: { gap:"8px" },
+      base: { fontSize:"clamp(18px,2.8vw,26px)", fontWeight:"600", color:"rgba(255,255,255,.7)", textTransform:"none", letterSpacing:"0.01em" },
+      hl:   { color:"#fff", fontWeight:"800", borderBottom:"3px solid #a78bfa", paddingBottom:"2px" },
     },
     karaoke: {
-      wrap: { gap: "10px", background: "transparent" },
-      base: {
-        fontSize: "clamp(18px, 3vw, 28px)", fontWeight: "700",
-        color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.03em",
-        lineHeight: "1.1",
-      },
-      hl: {
-        color: "#a78bfa",
-        textShadow: "0 0 20px rgba(167,139,250,0.8), 0 0 40px rgba(167,139,250,0.4)",
-        filter: "brightness(1.3)",
-      },
+      wrap: { gap:"10px" },
+      base: { fontSize:"clamp(18px,2.8vw,26px)", fontWeight:"700", color:"rgba(255,255,255,.28)", textTransform:"uppercase", letterSpacing:"0.04em" },
+      hl:   { color:"#a78bfa", textShadow:"0 0 20px rgba(167,139,250,.9), 0 0 40px rgba(167,139,250,.4)" },
     },
   };
 
-  const CAP_LINES = [
-    { words: ["your", "audience", "stays", "hooked"], hl: 2 },
-    { words: ["revenue", "grew", "88%"], hl: 1 },
-    { words: ["never", "lose", "a", "viewer"], hl: 1 },
-    { words: ["this", "changes", "everything"], hl: 1 },
-    { words: ["watch", "time", "up", "40%"], hl: 3 },
-    { words: ["content", "that", "converts"], hl: 2 },
-  ];
-
-  let capLineIndex = 0;
-  let capLineTimer: ReturnType<typeof setTimeout> | null = null;
-  let currentStyle = "mrbeast";
-
-  function applyStyles(el: HTMLElement, styles: Partial<CSSStyleDeclaration>) {
-    Object.assign(el.style, styles);
+  let capIdx = 0, capTimer: any = null, capStyle = "mrbeast";
+  if (!document.getElementById("cap-kf")) {
+    const s = document.createElement("style");
+    s.id = "cap-kf";
+    s.textContent = `@keyframes cap-pop { from{opacity:0;transform:scale(.5) translateY(10px)} to{opacity:1;transform:scale(1) translateY(0)} }`;
+    document.head.appendChild(s);
   }
 
-  function renderCapLine(display: HTMLElement, line: typeof CAP_LINES[0]) {
-    display.innerHTML = "";
-    const s = CAP_STYLES[currentStyle] || CAP_STYLES.mrbeast;
-    if (s.wrap) applyStyles(display, s.wrap);
-
-    line.words.forEach((word, i) => {
+  function renderCap(el: HTMLElement) {
+    el.innerHTML = "";
+    const line = CAP_LINES[capIdx];
+    const s = CAP_STYLES[capStyle];
+    if (s.wrap) Object.assign(el.style, s.wrap);
+    line.words.forEach((w, i) => {
       const span = document.createElement("span");
-      span.textContent = word;
-      span.style.cssText = `
-        display: inline-block;
-        opacity: 0;
-        animation: cap-pop-js 0.3s cubic-bezier(0.34,1.56,0.64,1) ${i * 130}ms forwards;
-      `;
-      applyStyles(span, s.base);
-      if (i === line.hl) applyStyles(span, s.hl);
-      display.appendChild(span);
+      span.textContent = w;
+      span.style.cssText = `display:inline-block;opacity:0;animation:cap-pop .3s cubic-bezier(.34,1.56,.64,1) ${i*130}ms forwards;`;
+      Object.assign(span.style, s.base);
+      if (i === line.hl) Object.assign(span.style, s.hl);
+      el.appendChild(span);
     });
   }
 
-  // Inject keyframes once
-  if (!document.getElementById("cap-pop-kf")) {
-    const kf = document.createElement("style");
-    kf.id = "cap-pop-kf";
-    kf.textContent = `
-      @keyframes cap-pop-js {
-        from { opacity: 0; transform: scale(0.5) translateY(12px); }
-        to   { opacity: 1; transform: scale(1) translateY(0); }
+  function startCaps(el: HTMLElement) {
+    stopCaps();
+    renderCap(el);
+    capTimer = setInterval(() => {
+      capIdx = (capIdx + 1) % CAP_LINES.length;
+      renderCap(el);
+    }, 2000);
+  }
+  function stopCaps() { if (capTimer) { clearInterval(capTimer); capTimer = null; } }
+
+  // ══ AI Visuals sequence ══
+  let aivTimer: any = null;
+  function startAIVisuals() {
+    const thinking = document.getElementById("aiv-thinking")!;
+    const chart    = document.getElementById("aiv-chart")!;
+    if (!thinking || !chart) return;
+
+    const cycle = () => {
+      // Reset
+      chart.style.opacity = "0";
+      thinking.style.opacity = "1";
+      // Thinking for 2s
+      aivTimer = setTimeout(() => {
+        thinking.style.opacity = "0";
+        chart.style.opacity = "1";
+        // Restart bars by cloning
+        chart.querySelectorAll<HTMLElement>(".aiv-bar").forEach(b => {
+          b.style.animation = "none";
+          void b.offsetWidth;
+          b.style.animation = "";
+        });
+        const line = chart.querySelector<SVGPathElement>(".aiv-line");
+        const area = chart.querySelector<SVGPathElement>(".aiv-area");
+        const dot  = chart.querySelector<SVGCircleElement>(".aiv-dot");
+        [line, area, dot].forEach(el => {
+          if (!el) return;
+          el.style.animation = "none";
+          void el.offsetWidth;
+          el.style.animation = "";
+        });
+        aivTimer = setTimeout(cycle, 4500);
+      }, 2200);
+    };
+    cycle();
+  }
+  function stopAIVisuals() { if (aivTimer) { clearTimeout(aivTimer); aivTimer = null; } }
+
+  // ══ Multi-platform cycle ══
+  const MP_DEVICES = [
+    { id: "mp-tiktok", label: "TikTok 9:16" },
+    { id: "mp-yt",     label: "YouTube 16:9" },
+    { id: "mp-ig",     label: "Instagram 1:1" },
+  ];
+  let mpIdx = 1, mpTimer: any = null;
+  function startMP() {
+    stopMP();
+    const label = document.getElementById("mp-label");
+    const cycle = () => {
+      MP_DEVICES.forEach((d, i) => {
+        const el = document.getElementById(d.id);
+        if (el) el.classList.toggle("mp-active", i === mpIdx);
+      });
+      if (label) label.textContent = MP_DEVICES[mpIdx].label;
+      mpIdx = (mpIdx + 1) % MP_DEVICES.length;
+      mpTimer = setTimeout(cycle, 1800);
+    };
+    cycle();
+  }
+  function stopMP() { if (mpTimer) { clearTimeout(mpTimer); mpTimer = null; } }
+
+  // ══ Audio scanner ══
+  let audTimer: any = null;
+  function startAudio() {
+    stopAudio();
+    const scanner  = document.getElementById("aud-scanner")!;
+    const wordsEl  = document.getElementById("aud-words")!;
+    const result   = document.getElementById("aud-result")!;
+    const bars     = document.querySelectorAll<HTMLElement>(".aud-bar");
+    const fillers  = document.querySelectorAll<HTMLElement>(".aw-filler");
+    if (!scanner) return;
+
+    const reset = () => {
+      scanner.style.transition = "none";
+      scanner.style.left = "0%";
+      result.classList.remove("visible");
+      fillers.forEach(f => f.classList.remove("struck"));
+      bars.forEach(b => b.classList.remove("filler-detected"));
+    };
+
+    const run = () => {
+      reset();
+      void scanner.offsetWidth;
+      scanner.style.transition = "left 2.8s linear";
+      scanner.style.left = "100%";
+      // Strike fillers staggered
+      fillers.forEach((f, i) => {
+        audTimer = setTimeout(() => {
+          f.classList.add("struck");
+          // Highlight nearby bars in red
+          const pct = Math.round((i + 1) / (fillers.length + 1) * bars.length);
+          bars[pct]?.classList.add("filler-detected");
+          bars[pct+1]?.classList.add("filler-detected");
+        }, 400 + i * 600);
+      });
+      // Show result badge
+      audTimer = setTimeout(() => {
+        result.classList.add("visible");
+        audTimer = setTimeout(run, 3000);
+      }, 3500);
+    };
+
+    run();
+  }
+  function stopAudio() { if (audTimer) { clearTimeout(audTimer); audTimer = null; } }
+
+  // ══ Timeline playhead ══
+  let tlTimer: any = null, tlStart = 0;
+  function startTimeline() {
+    stopTimeline();
+    const ph    = document.getElementById("tl-ph")!;
+    const time  = document.getElementById("tl-time")!;
+    if (!ph) return;
+    tlStart = performance.now();
+    const fmt = (s: number) => {
+      const m = Math.floor(s/60), sc = Math.floor(s%60), cs = Math.floor((s%1)*100);
+      return `${m}:${sc.toString().padStart(2,"0")}.${cs.toString().padStart(2,"0")}`;
+    };
+    const tick = () => {
+      const elapsed = (performance.now() - tlStart) / 1000;
+      const pct = (elapsed % 8) / 8;
+      if (ph) ph.style.left = (4 + pct * 76) + "%";
+      if (time) time.textContent = fmt(pct * 32);
+      tlTimer = requestAnimationFrame(tick);
+    };
+    tlTimer = requestAnimationFrame(tick);
+  }
+  function stopTimeline() { if (tlTimer) { cancelAnimationFrame(tlTimer); tlTimer = null; } }
+
+  // ══ AI Assistant animation ══
+  let assTimer: any = null;
+  function startAssistant() {
+    stopAssistant();
+    const before = document.getElementById("ass-before")!;
+    const after  = document.getElementById("ass-after")!;
+    if (!before || !after) return;
+    after.style.opacity = "0";
+    assTimer = setTimeout(() => {
+      after.style.opacity = "1";
+      before.style.opacity = "0";
+      assTimer = setTimeout(() => {
+        after.style.opacity = "0";
+        before.style.opacity = "1";
+      }, 2500);
+    }, 1800);
+  }
+  function stopAssistant() { if (assTimer) { clearTimeout(assTimer); assTimer = null; } }
+
+  // ══ Auto-advance ══
+  const ADVANCE_MS = 5000;
+  const FEATURES = ["captions","ai-visuals","multiplatform","audio","ai-assistant","timeline"];
+  let activeIdx = 0;
+  let advTimer: any = null;
+  let barAnim: Animation | null = null;
+
+  function stopAllAnimations() {
+    stopCaps(); stopAIVisuals(); stopMP(); stopAudio(); stopTimeline(); stopAssistant();
+  }
+
+  function activateFeature(idx: number, buttons: NodeListOf<HTMLButtonElement>, panels: NodeListOf<HTMLElement>, capEl: HTMLElement | null) {
+    activeIdx = idx;
+    const id = FEATURES[idx];
+    buttons.forEach((b, i) => {
+      b.classList.toggle("caps-btn--on", i === idx);
+      const bar = b.querySelector<HTMLElement>(".caps-btn-bar");
+      if (bar) {
+        bar.style.transition = "none";
+        bar.style.width = "0%";
       }
-    `;
-    document.head.appendChild(kf);
-  }
+    });
+    panels.forEach(p => p.classList.toggle("caps-panel--active", p.dataset.panel === id));
 
-  function startCaptionLoop(display: HTMLElement) {
-    if (capLineTimer) clearTimeout(capLineTimer);
-    function next() {
-      capLineIndex = (capLineIndex + 1) % CAP_LINES.length;
-      renderCapLine(display, CAP_LINES[capLineIndex]);
-      capLineTimer = setTimeout(next, 2200);
+    // Start active panel animation
+    stopAllAnimations();
+    if (id === "captions" && capEl) startCaps(capEl);
+    if (id === "ai-visuals") startAIVisuals();
+    if (id === "multiplatform") startMP();
+    if (id === "audio") startAudio();
+    if (id === "ai-assistant") startAssistant();
+    if (id === "timeline") startTimeline();
+
+    // Progress bar on active button
+    const activeBtn = buttons[idx];
+    const bar = activeBtn?.querySelector<HTMLElement>(".caps-btn-bar");
+    if (bar) {
+      bar.style.transition = "none";
+      bar.style.width = "0%";
+      void bar.offsetWidth;
+      bar.style.transition = `width ${ADVANCE_MS}ms linear`;
+      bar.style.width = "100%";
     }
-    renderCapLine(display, CAP_LINES[capLineIndex]);
-    capLineTimer = setTimeout(next, 2200);
-  }
 
-  function stopCaptionLoop() {
-    if (capLineTimer) { clearTimeout(capLineTimer); capLineTimer = null; }
+    // Schedule advance
+    if (advTimer) clearTimeout(advTimer);
+    advTimer = setTimeout(() => {
+      const next = (idx + 1) % FEATURES.length;
+      activateFeature(next, buttons, panels, capEl);
+    }, ADVANCE_MS);
   }
 
   document.addEventListener("astro:page-load", () => {
-    const buttons = document.querySelectorAll<HTMLButtonElement>(".feat-btn");
-    const panels = document.querySelectorAll<HTMLElement>(".feat-panel");
-    const capDisplay = document.getElementById("cap-display");
-    const styleChips = document.querySelectorAll<HTMLButtonElement>(".cap-style-chip");
+    const section = document.querySelector(".caps-section");
+    if (!section) return;
 
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const id = btn.dataset.feature;
-        buttons.forEach((b) => b.classList.remove("feat-btn--active"));
-        panels.forEach((p) => p.classList.remove("feat-panel--active"));
-        btn.classList.add("feat-btn--active");
-        const panel = document.querySelector<HTMLElement>(`[data-panel="${id}"]`);
-        if (panel) panel.classList.add("feat-panel--active");
-        if (id === "captions" && capDisplay) startCaptionLoop(capDisplay);
-        else stopCaptionLoop();
-      });
+    const buttons = document.querySelectorAll<HTMLButtonElement>(".caps-btn");
+    const panels  = document.querySelectorAll<HTMLElement>(".caps-panel");
+    const capEl   = document.getElementById("cap-display");
+    const chips   = document.querySelectorAll<HTMLButtonElement>(".cap-chip");
+
+    // Button clicks
+    buttons.forEach((btn, i) => {
+      btn.addEventListener("click", () => activateFeature(i, buttons, panels, capEl));
     });
 
-    styleChips.forEach((chip) => {
+    // Caption style chips
+    chips.forEach(chip => {
       chip.addEventListener("click", () => {
-        styleChips.forEach((c) => c.classList.remove("cap-chip--active"));
-        chip.classList.add("cap-chip--active");
-        currentStyle = chip.dataset.style || "mrbeast";
-        if (capDisplay) renderCapLine(capDisplay, CAP_LINES[capLineIndex]);
+        chips.forEach(c => c.classList.remove("cap-chip--on"));
+        chip.classList.add("cap-chip--on");
+        capStyle = chip.dataset.style || "mrbeast";
+        if (capEl) renderCap(capEl);
       });
     });
 
-    if (capDisplay) startCaptionLoop(capDisplay);
+    // GSAP entrance → start sequence
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        obs.disconnect();
+        gsap.set("[data-caps-header]", { y: 30, opacity: 0 });
+        gsap.set("[data-caps-grid]",   { y: 40, opacity: 0 });
+        gsap.timeline({ defaults: { ease: "power3.out" } })
+          .to("[data-caps-header]", { y: 0, opacity: 1, duration: 0.7 })
+          .to("[data-caps-grid]",   { y: 0, opacity: 1, duration: 0.9 }, "-=0.4")
+          .call(() => activateFeature(0, buttons, panels, capEl));
+      });
+    }, { threshold: 0.1 });
+    obs.observe(section);
   });
 </script>
