@@ -58,10 +58,8 @@ export function Editor({ projectId }: EditorProps) {
   const [leftSidebarOpen, setLeftSidebarOpen] = useState(true);
   const [leftSidebarTab, setLeftSidebarTab] = useState<'captions' | 'style' | 'assets' | 'agent'>('agent');
 
-  // Right panel state (settings/properties)
+  // Right panel state (item inspector)
   const [panelOpen, setPanelOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<RightPanelTab>('properties');
-  const userRequestedTabRef = useRef<RightPanelTab | null>(null);
 
   // AI Assistant panel
   // AI panel is now a left sidebar tab ('agent')
@@ -124,19 +122,15 @@ export function Editor({ projectId }: EditorProps) {
   const { pause } = usePlaybackActions();
   const { setInspectModeEnabled } = useAIActions();
 
-  // Handle tab change from panel header
-  const handleTabChange = useCallback((tab: RightPanelTab) => {
-    setActiveTab(tab);
-    if (tab === 'transcript') {
-      userRequestedTabRef.current = 'transcript';
-    }
+  // Handle tab change (kept for embedded RightPanel compatibility)
+  const handleTabChange = useCallback((_tab: RightPanelTab) => {
+    // No-op: right panel no longer has tabs
   }, []);
 
   // Auto-open right panel when an item is selected
   useEffect(() => {
     if (selectedIds.length > 0) {
       setPanelOpen(true);
-      setActiveTab('item-properties');
     } else {
       setPanelOpen(false);
     }
@@ -145,11 +139,8 @@ export function Editor({ projectId }: EditorProps) {
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
     setPanelOpen(false);
-    userRequestedTabRef.current = null;
-    if (activeTab === 'properties') {
-      clearSelection();
-    }
-  }, [activeTab, clearSelection]);
+    clearSelection();
+  }, [clearSelection]);
 
   // Initialize keyboard shortcuts
   useKeyboardShortcuts({
@@ -549,7 +540,7 @@ export function Editor({ projectId }: EditorProps) {
     <div className="editor-theme relative flex h-screen w-screen flex-col overflow-hidden select-none antialiased">
       {/* Animated smoke background */}
       <div className="absolute inset-0 z-0">
-        <SmokeBackground smokeColor="#7C3AED" />
+        <SmokeBackground smokeColor="#3B1578" />
       </div>
       {/* Content layer above smoke */}
       <div className="relative z-10 flex h-full w-full flex-col overflow-hidden">
@@ -748,11 +739,11 @@ export function Editor({ projectId }: EditorProps) {
             </div>
           </div>
 
-          {/* Right Panel - Item Properties */}
+          {/* Right Panel - Item Inspector */}
           {panelOpen && (
             <RightPanel
               isOpen={panelOpen}
-              activeTab={activeTab}
+              activeTab="item-properties"
               onTabChange={handleTabChange}
               onClose={handleClosePanel}
             />

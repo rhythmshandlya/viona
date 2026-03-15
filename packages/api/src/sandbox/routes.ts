@@ -174,6 +174,25 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
             })),
           });
 
+          // Normalize media src to local filenames for the sandbox
+          // (DB stores API proxy URLs like /api/projects/:id/video but sandbox uses source.mp4)
+          for (const item of manifest.items) {
+            if (item.type === 'video' && item.data && 'src' in item.data) {
+              const src = (item.data as any).src;
+              if (typeof src === 'string' && (src.includes('/video') || src.startsWith('/api/'))) {
+                (item.data as any).src = 'source.mp4';
+              }
+            }
+            if (item.type === 'audio' && item.data && 'src' in item.data) {
+              const src = (item.data as any).src;
+              if (typeof src === 'string' && src.includes('/audio')) {
+                (item.data as any).src = 'audio.mp3';
+              } else if (typeof src === 'string' && (src.includes('/video') || src.startsWith('/api/'))) {
+                (item.data as any).src = 'source.mp4';
+              }
+            }
+          }
+
           // Send init to sandbox
           const initRes = await fetch(`${sandbox.agentUrl}/init`, {
             method: 'POST',

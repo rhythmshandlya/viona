@@ -1,6 +1,6 @@
 /**
  * RightPanel Component
- * Collapsible right panel with tabbed content (Transcript / Properties)
+ * Single scrollable inspector when an item is selected
  */
 
 'use client';
@@ -8,10 +8,8 @@
 import React from 'react';
 import { X } from 'lucide-react';
 import { TranscriptPanel } from '../panels';
-import { PropertiesContent } from './ContextPanel';
-import { PropertiesPanel } from './properties/PropertiesPanel';
+import { ItemInspector } from './inspector/ItemInspector';
 import { KeyframeEditor } from './keyframe-editor/KeyframeEditor';
-import { useSingleSelectedItem } from '../store/use-editor-store';
 
 export type RightPanelTab = 'properties' | 'transcript' | 'item-properties';
 
@@ -26,20 +24,12 @@ interface RightPanelProps {
 
 export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = 'stacked', embedded = false }: RightPanelProps) {
   const isSideBySide = layout === 'side-by-side';
-  const selectedItem = useSingleSelectedItem();
 
-  // Embedded mode - just render content without wrapper
+  // Embedded mode — used when RightPanel is hosted inside the left sidebar (Captions tab)
   if (embedded) {
     return (
       <div className="flex-1 overflow-y-auto -mx-4 -mt-3">
-        {activeTab === 'transcript' && <TranscriptPanel />}
-        {activeTab === 'properties' && <PropertiesContent />}
-        {activeTab === 'item-properties' && (
-            <>
-              <PropertiesPanel />
-              <KeyframeEditor />
-            </>
-          )}
+        <TranscriptPanel />
       </div>
     );
   }
@@ -57,73 +47,25 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
     >
       {/* Inner wrapper */}
       <div className={isSideBySide ? "w-full h-full flex flex-col" : "w-80 h-full flex flex-col"}>
-        {/* Tab header */}
-        <div className="h-10 flex items-center border-b border-[var(--editor-border-subtle)] flex-shrink-0">
-          <div className="flex-1 flex">
-            <TabButton
-              label="Transcript"
-              isActive={activeTab === 'transcript'}
-              onClick={() => onTabChange('transcript')}
-            />
-            <TabButton
-              label="Properties"
-              isActive={activeTab === 'properties'}
-              onClick={() => onTabChange('properties')}
-            />
-            {selectedItem && (
-              <TabButton
-                label="Item"
-                isActive={activeTab === 'item-properties'}
-                onClick={() => onTabChange('item-properties')}
-              />
-            )}
-          </div>
-          {!isSideBySide && (
+        {/* Close button header */}
+        {!isSideBySide && (
+          <div className="h-10 flex items-center justify-end border-b border-[var(--editor-border-subtle)] flex-shrink-0 px-2">
             <button
               onClick={onClose}
-              className="p-1.5 mr-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
+              className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
               aria-label="Close panel"
             >
               <X className="w-3.5 h-3.5 text-[var(--editor-text-secondary)]" />
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Content */}
+        {/* Content — single scrollable inspector */}
         <div className="flex-1 overflow-y-auto">
-          {activeTab === 'transcript' && <TranscriptPanel />}
-          {activeTab === 'properties' && <PropertiesContent />}
-          {activeTab === 'item-properties' && (
-            <>
-              <PropertiesPanel />
-              <KeyframeEditor />
-            </>
-          )}
+          <ItemInspector />
+          <KeyframeEditor />
         </div>
       </div>
     </div>
-  );
-}
-
-function TabButton({
-  label,
-  isActive,
-  onClick,
-}: {
-  label: string;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-4 h-full text-xs transition-colors ${
-        isActive
-          ? 'text-[var(--editor-text-primary)] font-semibold'
-          : 'text-[var(--editor-text-muted)] font-medium hover:text-[var(--editor-text-secondary)]'
-      }`}
-    >
-      {label}
-    </button>
   );
 }

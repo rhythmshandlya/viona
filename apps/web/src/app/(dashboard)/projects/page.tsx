@@ -6,6 +6,7 @@ import { useDropzone } from "react-dropzone";
 import { api, UserProject } from "@/lib/api";
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload, JobErrorPayload } from "@/lib/ws";
 import { Button } from "@/components/ui/button";
+import { LiquidButton } from "@/components/ui/liquid-glass-button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -117,13 +118,13 @@ function DeleteDialog({
           <span className="font-medium text-white/90">&ldquo;{projectName}&rdquo;</span> will be permanently deleted. This action cannot be undone.
         </p>
         <div className="flex gap-3 justify-end mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting} className="border-white/[0.1] text-white/70 hover:bg-white/[0.06] hover:text-white">
+          <LiquidButton variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting} className="border-white/[0.1] text-white/70">
             Cancel
-          </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={isDeleting} className="bg-red-500/80 hover:bg-red-500/90 shadow-[0_2px_12px_rgba(239,68,68,0.25)]">
+          </LiquidButton>
+          <LiquidButton variant="destructive" onClick={onConfirm} disabled={isDeleting}>
             {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             Delete
-          </Button>
+          </LiquidButton>
         </div>
       </DialogContent>
     </Dialog>
@@ -460,9 +461,9 @@ function UploadZone({
 
           {/* Error Actions */}
           {uploadState === "error" && (
-            <Button variant="outline" onClick={onReset} className="w-full border-white/[0.1] text-white/70 hover:bg-white/[0.06] hover:text-white">
+            <LiquidButton variant="outline" onClick={onReset} className="w-full border-white/[0.1] text-white/70">
               Try Again
-            </Button>
+            </LiquidButton>
           )}
 
           {/* Complete Message */}
@@ -922,7 +923,7 @@ export default function ProjectsPage() {
         </div>
         <h2 className="text-xl font-semibold mb-2 text-white/90">Something went wrong</h2>
         <p className="text-white/40 mb-6">{error}</p>
-        <Button onClick={fetchProjects} className="glass-page-btn border-0">Try Again</Button>
+        <LiquidButton onClick={fetchProjects}>Try Again</LiquidButton>
       </div>
     );
   }
@@ -948,14 +949,14 @@ export default function ProjectsPage() {
               {projects.length} project{projects.length !== 1 ? "s" : ""}
             </p>
           </div>
-          <Button
+          <LiquidButton
             onClick={() => setIsNewProjectOpen(true)}
             size="lg"
-            className="glass-page-btn gap-2 border-0"
+            className="gap-2"
           >
             <Plus className="h-5 w-5" />
             New Project
-          </Button>
+          </LiquidButton>
         </div>
 
         {/* Project Grid */}

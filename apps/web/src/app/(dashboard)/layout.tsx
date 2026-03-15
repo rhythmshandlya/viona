@@ -12,7 +12,7 @@ export default function DashboardLayout({
     <div className="liquid-glass-page min-h-screen flex flex-col relative">
       {/* Animated smoke background */}
       <div className="fixed inset-0 z-0">
-        <SmokeBackground smokeColor="#7C3AED" />
+        <SmokeBackground smokeColor="#3B1578" />
       </div>
       {/* Content layer above smoke */}
       <div className="relative z-10 min-h-screen flex flex-col">
