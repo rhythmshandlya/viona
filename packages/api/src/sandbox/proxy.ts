@@ -142,6 +142,7 @@ export interface InterceptCallbacks {
   onText?: (text: string) => void;
   onDone?: (data: { sessionId?: string; cost?: number }) => Promise<void>;
   onWidget?: (widget: Record<string, unknown>) => void;
+  onProgress?: (progress: { phase: string; percent: number; message: string }) => void;
   onError?: (error: string) => void;
 }
 
@@ -240,6 +241,9 @@ export async function proxyPromptWithIntercept(
                   break;
                 case 'widget':
                   callbacks.onWidget?.(data);
+                  break;
+                case 'progress':
+                  callbacks.onProgress?.(data);
                   break;
                 case 'error':
                   callbacks.onError?.(data.message ?? data.error ?? String(data));
