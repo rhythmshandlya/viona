@@ -16,6 +16,7 @@ import { allManifestTools } from './tools/manifest-ops.js';
 import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js';
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
+import { buildStdioMcpServers } from './mcp-config.js';
 
 // ---- Public interfaces ----
 
@@ -54,6 +55,28 @@ const RENDER_TOOL_NAMES = [
 
 const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress'];
 
+const ASSET_TOOL_NAMES = [
+  'mcp__assets__download_file',
+  'mcp__assets__search_unsplash',
+  'mcp__assets__search_pexels',
+  'mcp__assets__download_stock_photo',
+  'mcp__assets__get_speaker_grid',
+];
+
+const VIEWPORT_TOOL_NAMES = [
+  'mcp__viewport__get_scene_dimensions',
+  'mcp__viewport__validate_scene_code',
+  'mcp__viewport__submit_verdict',
+];
+
+const ICON_TOOL_NAMES = [
+  'mcp__better-icons__*',
+];
+
+const FREEPIK_TOOL_NAMES = [
+  'mcp__freepik__*',
+];
+
 // ---- Build SDK query options ----
 
 /**
@@ -65,12 +88,15 @@ export async function buildOrchestratorOptions(
   ctx: PromptContext,
   mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [orchestratorPrompt, animatorPrompt, researcherPrompt, trimmerPrompt] =
+  const [orchestratorPrompt, animatorPrompt, researcherPrompt, trimmerPrompt, plannerPrompt, verifierPrompt, healerPrompt] =
     await Promise.all([
       loadPrompt('orchestrator-system'),
       loadPromptWithShared('animator-system'),
       loadPrompt('researcher-system'),
       loadPrompt('trimmer-system'),
+      loadPromptWithShared('planner-system'),
+      loadPromptWithShared('verifier-system'),
+      loadPrompt('healer-system'),
     ]);
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
@@ -85,6 +111,10 @@ export async function buildOrchestratorOptions(
       ...SCENE_TOOL_NAMES,
       ...RENDER_TOOL_NAMES,
       ...WIDGET_TOOL_NAMES,
+      ...ASSET_TOOL_NAMES,
+      ...VIEWPORT_TOOL_NAMES,
+      ...ICON_TOOL_NAMES,
+      ...FREEPIK_TOOL_NAMES,
     ],
     permissionMode: 'bypassPermissions' as const,
     allowDangerouslySkipPermissions: true,
@@ -97,6 +127,8 @@ export async function buildOrchestratorOptions(
           ...MANIFEST_TOOL_NAMES,
           ...SCENE_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+          ...VIEWPORT_TOOL_NAMES,
         ],
         model: 'opus',
       },
@@ -106,6 +138,9 @@ export async function buildOrchestratorOptions(
         tools: [
           'Read', 'Write', 'Bash', 'WebSearch', 'WebFetch',
           ...MANIFEST_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+          ...ICON_TOOL_NAMES,
+          ...FREEPIK_TOOL_NAMES,
         ],
         model: 'sonnet',
       },
@@ -118,12 +153,45 @@ export async function buildOrchestratorOptions(
         ],
         model: 'sonnet',
       },
+      planner: {
+        description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, display modes, visual descriptions, and meaningful scene file names. Outputs SCENE_PLAN.md and scenes.json.',
+        prompt: injectContext(plannerPrompt, ctx),
+        tools: [
+          'Read', 'Write', 'Glob', 'Grep',
+          ...MANIFEST_TOOL_NAMES,
+          ...RENDER_TOOL_NAMES,
+        ],
+        model: 'opus',
+      },
+      verifier: {
+        description: 'Reviews rendered scene screenshots against the plan. Takes screenshots, checks display mode compliance, and submits pass/fail verdicts.',
+        prompt: verifierPrompt,
+        tools: [
+          'Read', 'Glob', 'Grep',
+          ...RENDER_TOOL_NAMES,
+          ...VIEWPORT_TOOL_NAMES,
+        ],
+        model: 'sonnet',
+      },
+      healer: {
+        description: 'Fixes TypeScript compilation errors in Remotion scene files. Makes minimal targeted patches to resolve tsc errors.',
+        prompt: healerPrompt,
+        tools: [
+          'Read', 'Edit', 'Glob', 'Grep', 'Bash',
+          ...RENDER_TOOL_NAMES,
+          ...SCENE_TOOL_NAMES,
+        ],
+        model: 'sonnet',
+      },
     },
     maxTurns: 100,
     includePartialMessages: true,
     thinking: { type: 'adaptive' as const },
     persistSession: true,
-    ...(mcpServers ? { mcpServers } : {}),
+    mcpServers: {
+      ...(mcpServers || {}),
+      ...buildStdioMcpServers(),
+    },
   };
 }
 
@@ -246,4 +314,4 @@ export async function runOrchestrator(
 
 // ---- Exported tool name lists (for agent-server MCP registration) ----
 
-export { MANIFEST_TOOL_NAMES, SCENE_TOOL_NAMES, RENDER_TOOL_NAMES, WIDGET_TOOL_NAMES };
+export { MANIFEST_TOOL_NAMES, SCENE_TOOL_NAMES, RENDER_TOOL_NAMES, WIDGET_TOOL_NAMES, ASSET_TOOL_NAMES, VIEWPORT_TOOL_NAMES };

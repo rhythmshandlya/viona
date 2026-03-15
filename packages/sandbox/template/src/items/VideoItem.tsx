@@ -30,7 +30,16 @@ export const VideoItem: React.FC<VideoItemProps> = ({
   fps,
   durationInFrames,
 }) => {
-  const src = assets[data.src] || staticFile(data.src);
+  // Resolve src: check assets map first (e.g. "source.mp4" → presigned URL),
+  // then handle http(s)/blob URLs directly, fallback to staticFile for local paths
+  let src: string;
+  if (assets[data.src]) {
+    src = assets[data.src];
+  } else if (/^https?:\/\/|^blob:/.test(data.src)) {
+    src = data.src;
+  } else {
+    src = staticFile(data.src);
+  }
   const startFrom = data.startFrom
     ? Math.round((data.startFrom / 1000) * fps)
     : undefined;

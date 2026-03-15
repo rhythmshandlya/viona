@@ -1,14 +1,34 @@
 # Sandbox Agent Pipeline — Design Spec
 
 **Date:** 2026-03-15
-**Status:** Draft
-**Scope:** Replace the worker's visual generation pipeline with a conversational agent running inside the sandbox container.
+**Status:** Revised (v2)
+**Scope:** Replace the worker's visual generation pipeline with a manifest-centric, sighted agent running inside the sandbox container.
 
 ---
 
 ## 1. Overview
 
 Build an autonomous video editing agent that runs inside the sandbox Docker container. The agent plans, generates Remotion motion graphics, edits the manifest v2 timeline, and refines — all through natural conversation in the editor sidebar.
+
+### Key Design Decisions (v2)
+
+1. **Manifest is the control plane.** The manifest controls timing, layout, transitions, and display modes. Scene files are visual components the manifest references. Editing the timeline never requires touching scene code.
+
+2. **Speaker visible by default.** Most scenes use `default` (stacked) display mode — speaker visible at bottom, visuals on top. Fullscreen (no speaker) is the exception, only when explicitly requested or for complex diagrams that genuinely need full canvas. The hook/intro MUST always show the speaker.
+
+3. **Motion graphics are the MOAT.** The AI should lean heavily into animation treatments. A typical 6-beat plan should produce 4-5 animation scenes. Stock footage and text overlays supplement — they don't replace.
+
+4. **Meaningful scene file names.** Not `Scene1.tsx`, `Scene2.tsx`. Use descriptive names: `HookTitle.tsx`, `AlgorithmDiagram.tsx`, `ResultsCounter.tsx`. The Planner assigns names; the Animator uses them.
+
+5. **Scenes are optional per beat.** Only `animation` beats need scene `.tsx` files. Stock footage → manifest `broll` item. Text overlays → manifest `text` item. Screenshots → manifest `image` item. Speaker-only → gap in timeline.
+
+6. **Sighted agent, not blind.** Unlike the worker pipeline, the sandbox agent can `render_still` at any frame to SEE the actual composition (video + visuals together). Prompts should replace blind assumptions with visual verification.
+
+7. **Maximum reuse of worker prompts.** The worker has ~188KB of proven animation knowledge (springs, Disney principles, motion design, scene patterns, overlay rules, etc.). Reuse the KNOWLEDGE, adapt the PROCESS for sighted context.
+
+8. **Live preview during generation.** As the AI writes scenes, esbuild rebuilds → WebSocket event → frontend fetches new bundle → Remotion Player updates. User watches scenes appear in real-time.
+
+---
 
 **What changes:**
 - Sandbox becomes the primary editing engine (not just a manifest editor)
@@ -60,23 +80,26 @@ Orchestrator (Opus, persistent session, all MCP tools)
 │
 │ NEW SUBAGENTS (to add):
 │
-├── Planner (Opus) — NEW planner-system.md
+├── Planner (Opus) — planner-system.md (480 lines, adapted from Director)
 │   Purpose: Analyze transcript, create scene plan, output SCENE_PLAN.md + scenes.json
-│   Tools: Read, Write, Glob, Grep, manifest MCP
+│   Tools: Read, Write, Glob, Grep, manifest MCP, render MCP (render_still for sighted planning)
 │   Trigger: When orchestrator has enough context to plan
-│   Note: Display mode selection per scene (default/fullscreen/overlay)
-│         guided by display-mode-table.md rules.
-│         NO widgets MCP — Planner returns plan to orchestrator,
-│         orchestrator presents it via show_widget.
+│   Key: 4-pass transcript analysis, visual metaphor mappings (18 concepts),
+│         8 AutoAE composition patterns, meaningful sceneFile naming,
+│         beat type system (animation/stock_video/screenshot/text_overlay/speaker_only),
+│         speaker-visible-by-default enforcement, sighted speaker position detection
+│   Note: NO widgets MCP — returns plan to orchestrator for show_widget.
 │
-├── Verifier (Sonnet) — NEW verifier-system.md
-│   Purpose: Screenshot scenes, compare against plan, report quality issues
+├── Verifier (Sonnet) — verifier-system.md (sighted, combined visual + code review)
+│   Purpose: Screenshot scenes at 3 key frames, compare against plan, code quality check
 │   Tools: Read, Glob, Grep, render MCP, viewport MCP
 │   Trigger: After each scene is generated
+│   Key: 16-point visual screenshot review + 11-point code quality review,
+│         sighted verification (sees video + speaker + visuals together)
 │
-└── Healer (Sonnet) — NEW healer-system.md
+└── Healer (Sonnet) — healer-system.md
     Purpose: Fix TypeScript errors, interpolate clamping issues
-    Tools: Read, Edit, Glob, Grep, Bash
+    Tools: Read, Edit, Glob, Grep, Bash, render MCP, scenes MCP
     Trigger: When TS verification fails
 ```
 
@@ -145,24 +168,29 @@ The orchestrator doesn't have hardcoded phase transitions. It has tools and suba
 - Full video coverage
 - Auto-repair minor violations
 
-### Phase 3: Execution
+### Phase 3: Execution (Manifest-First)
 
 **Trigger:** User approves the scene plan.
 
-**Flow per scene:**
-1. Orchestrator dispatches **Researcher subagent** to fetch assets referenced in the plan
+**Flow:**
+1. **Manifest structure first**: Orchestrator reads `scenes.json` and creates manifest tracks/items for all beats
+2. Orchestrator dispatches **Researcher subagent** to fetch assets referenced in the plan
    - Stock photos via Pexels/Unsplash MCP
    - Icons via Freepik/Better-Icons MCP
    - Web images via Assets MCP `download_file`
-2. Orchestrator dispatches **Animator subagent** with:
-   - Single scene description from SCENE_PLAN.md
+2. **Orchestrator creates manifest structure first** — reads `scenes.json` and translates beats into manifest items:
+   - `animation` beats → `type: "visual"` item with `data.sceneFile` = meaningful name
+   - `stock_video` beats → `type: "broll"` item (Researcher fetches footage)
+   - `screenshot` beats → `type: "image"` item (Researcher captures)
+   - `text_overlay` beats → `type: "text"` item (direct manifest, no subagent)
+   - `speaker_only` beats → gap in timeline (no item needed)
+3. Orchestrator dispatches **Animator subagent** for each `animation` beat with:
+   - Beat description from SCENE_PLAN.md
+   - Meaningful `sceneFile` name from plan (e.g., `HookTitle`, `AlgorithmDiagram`)
    - Available asset paths in workspace
    - Canvas dimensions, fps
    - Shared technical rules (Remotion patterns, interpolate clamping)
-3. Animator writes `scenes/Scene{N}.tsx`
-4. Animator updates manifest v2 via manifest MCP tools:
-   - Adds scene item to overlay track with correct timing
-   - Sets transform (position, size, opacity)
+4. Animator writes scene file using plan's `sceneFile` name (e.g., `scenes/HookTitle.tsx`)
 5. esbuild watcher detects change → rebuilds → Player hot-reloads
 6. Orchestrator dispatches **Verifier subagent**:
    - Screenshots scene via `render_still` MCP tool
@@ -176,9 +204,9 @@ The orchestrator doesn't have hardcoded phase transitions. It has tools and suba
 10. Updates `generation-progress.json` after each scene completes
 
 **Scene registry management:**
-- After each Scene*.tsx is written, `scene-registry.ts` is regenerated
-- Maps scene numbers to React components
-- `PlayerComposition.tsx` imports from registry
+- After each scene file is written, `scene-registry.ts` auto-regenerates
+- Maps filenames to React components (supports any valid PascalCase name)
+- `SceneItem` looks up by `data.sceneFile` key from manifest
 
 ### Phase 4: Refinement
 
@@ -268,126 +296,75 @@ Configuration mirrors the worker's `mcp-servers.json` registry but resolved for 
 
 ## 5. Prompt Architecture
 
-### 5.1 Existing Prompts (KEEP — already battle-tested)
+### 5.1 Prompt Reuse Strategy
 
-The sandbox already has carefully written prompts in `packages/sandbox/src/prompts/`:
+The worker has ~188KB of proven animation knowledge across 31 files. The sandbox reuses this knowledge but adapts the PROCESS for the sighted, manifest-centric context.
 
-**`orchestrator-system.md`** (1406 lines) — Creative Director
-- Sharp, opinionated personality ("talks like creative partner")
-- Four phases: Understanding → Planning → Execution → Refinement
-- Content type detection (tutorial, podcast, interview, vlog, presentation, keynote)
-- Treatment selection (animation, screenshot, stock_video, text_overlay, speaker_only, trim)
-- Edit plan format with vivid visual descriptions
-- Subagent dispatch rules, manifest tool usage, widget usage
-- Quality standards and verification protocols
+**Knowledge layers:**
 
-**`animator-system.md`** (~60KB) — Motion Graphics Engineer
-- ONE SCENE AT A TIME with reasoning BEFORE coding
-- Display mode rules: default, fullscreen, overlay (with full layout specs)
-- Frame-perfect sync points from word-level timestamps
-- Shared module knowledge: technical-rules, motion-design-principles, vocabulary, quality-checklist
-- Overlay safe zones: top strip (0-15%), speaker face (15-58% OFF-LIMITS), lower-third (58-85%), subtitle area (85-100%)
-- interpolate() clamping rules (both extrapolateLeft + extrapolateRight)
-- useCurrentFrame() is 0-relative inside `<Sequence>` (critical bug)
+| Layer | Source | How It's Used |
+|-------|--------|---------------|
+| **Universal knowledge** (springs, Disney principles, motion design, vocabulary, quality checklist) | `worker/prompts/shared/` (17.8KB) | Prepended to Planner + Animator + Verifier via `loadPromptWithShared()` |
+| **Scene planning methodology** (4-pass transcript analysis, visual metaphors, scene validation) | `worker/prompts/director/system.md` (29KB) | Key sections adapted into `planner-system.md` |
+| **Animation choreography** (overlay rules, fullscreen rules, composition patterns, continuous motion) | `worker/prompts/animator/` (94KB) | Key sections injected into `animator-system.md` |
+| **Scene patterns** (versus, ranking, radial, spotlight, graph, speech bubble, etc.) | `worker/prompts/generate-visuals/scene-patterns.md` (3.4KB) | Included in Planner prompt as technique catalog |
+| **Design system** (DotGrid, useScale, font pairs, card styling, animation standards) | `worker/prompts/themes/` (14KB) | Injected into Animator based on selected theme |
+| **Code references** (responsive sizing, physics, spring configs by style) | `worker/prompts/references/` (15KB) | Available to Animator as skill files |
 
-**`researcher-system.md`** (181 lines) — Asset Researcher
-- Screenshot capture via headless Chromium
-- Stock image search (Pexels/Unsplash, download via curl, resize with ffmpeg)
-- Asset naming convention: descriptive kebab-case
+**What changes from worker → sandbox:**
 
-**`trimmer-system.md`** (232 lines) — Audio Trimmer
-- Silence detection via ffmpeg
-- Filler word detection from transcript
-- Precise cuts via manifest split/delete tools
-- Safety: never trim speech, 100ms padding, preserve natural pauses
+| Worker (blind) | Sandbox (sighted) |
+|---|---|
+| "Assume overlay zones from speaker grid data" | "Render a still with `render_still` and verify visuals don't block speaker" |
+| "Write all segments, then create Composition.tsx" | Scene files are standalone — manifest + PlayerComposition handles assembly |
+| "Write IMPLEMENTATION_LOG.md for reasoning" | Use thinking blocks — reasoning is internal |
+| "Hope keySync timing matches the spoken word" | "Render a still at keySync frame and verify animation is visible" |
+| "Run `npx tsc --noEmit` then bundle" | Same TS check, but also `render_still` to visually verify |
+| "Create Composition.tsx with persistent audio carrier" | Not needed — PlayerComposition reads manifest items |
+| Scene1.tsx, Scene2.tsx (numbered) | HookTitle.tsx, AlgorithmDiagram.tsx (meaningful names) |
 
-### 5.2 Prompt Extensions Required
+### 5.2 Prompt Files
 
-**Orchestrator (`orchestrator-system.md`) — extend with:**
-- Planner subagent definition and dispatch rules
-- Verifier subagent definition and dispatch rules
-- Healer subagent definition and dispatch rules
-- Progress tracking protocol (`generation-progress.json`)
-- Scene plan widget approval flow
-- Context recovery protocol (read progress file after compaction)
+**Extended (DONE):**
+- `orchestrator-system.md` — Added: speaker-visible-by-default rule, motion-graphics-emphasis rule, meaningful scene names, manifest-first Phase 3 execution flow
+- `animator-system.md` — Added: beat type awareness, meaningful sceneFile naming, sighted verification emphasis, workspace structure with themes
+- `researcher-system.md` — Keep as-is
+- `trimmer-system.md` — Keep as-is
 
-**`PromptContext` type — extend with:**
-```typescript
-interface PromptContext {
-  // Existing:
-  canvasWidth: number;
-  canvasHeight: number;
-  fps: number;
-  durationMs: number;
-  hasTranscript: boolean;
-  theme: string;
-  projectType: string;
-  // New:
-  briefSummary: string;         // First 500 chars of user brief
-  hasHeadTracking: boolean;
-  totalScenes?: number;         // Set after planning
-  currentPhase?: string;        // From generation-progress.json
-}
-```
+**Rewritten (DONE, incorporating worker knowledge):**
+- `planner-system.md` (480 lines) — Director's 4-pass transcript analysis, 18 visual metaphor mappings, 8 AutoAE scene patterns, scene split/merge signals, technique variety enforcement, cross-scene anchoring, meaningful `sceneFile` naming, beat `type` field, speaker-visible-by-default, motion-graphics emphasis, sighted `render_still` for speaker detection, 14-point validation rules, 17-point self-verification table
+- `verifier-system.md` (100 lines) — Combined worker's `verify.md` (16-point screenshot review at 3 frames) + `scene-verify.md` (11-point code review). Sighted verification via `render_still`.
+- `healer-system.md` — Added render_still verification after fix, scene naming note
 
-### 5.3 New Prompts to Write
+### 5.3 Shared Modules (loaded via loadPromptWithShared)
 
-**`planner-system.md`** — Scene Planning Specialist (NEW)
-- Adapted from worker's `packages/worker/src/prompts/director/system.md` (29KB) for conversational context
-- Worker also has `director/director.py` with `build_director_user_message()` — adapt the context assembly logic
-- Display mode selection per scene using `display-mode-table.md` rules:
-  - `"default"` — 60-70% of scenes, standard PiP/stacked layout
-  - `"fullscreen"` — 1-3 key moments, speaker hidden, full canvas
-  - `"overlay"` — speaker credibility, transparent bg, spatially aware
-- scenes.json v2 format with segment grouping
-- SCENE_PLAN.md format with timing + visual descriptions
-- `[IMAGE: keyword]` tagging for asset fetching
-- Scene duration bounds: 210-450 frames (7-15 sec at 30fps)
-- Transition types: cut (default), fade, zoom-in, zoom-out
-- Self-verification table requirement
+Copied from `packages/worker/src/prompts/shared/` into sandbox at build time:
 
-**`verifier-system.md`** — Quality Reviewer (NEW)
-- Screenshot interpretation against plan description
-- Display mode compliance checking (overlay must have no bg, fullscreen must fill canvas)
-- Pass/fail with structured verdict (uses viewport MCP `submit_verdict`)
-- Max 2 fix rounds per scene
+| Module | Size | Content | Loaded By |
+|--------|------|---------|-----------|
+| `technical-rules.md` | 4.9KB | Spring presets (SMOOTH/SNAPPY/BOUNCY/HEAVY/STIFF/GENTLE/OVERLAY), easing guide, interpolate clamping, frame timing, key sync pattern, responsive sizing | Planner, Animator, Verifier |
+| `motion-design-principles.md` | 4.7KB | Disney's 5 principles for short-form, 3-layer structure (60/30/10), choreography phases, 7 hard rules | Planner, Animator |
+| `vocabulary.md` | 4.5KB | 14 element animation techniques, 11 scene archetypes, text animation names, transition types | Planner, Animator |
+| `quality-checklist.md` | 2.8KB | 27-point per-scene checklist, plan verification checklist, transcript coverage rules | Animator, Verifier |
 
-**`healer-system.md`** — TypeScript Fixer (NEW)
-- Common Remotion TS errors and patterns
-- interpolate() input range monotonicity rules
-- Minimal fix philosophy — targeted patches only
-- tsc output parsing
+### 5.4 Display Mode Rules
 
-### 5.4 Layout Mode System (Critical for Quality)
+**CRITICAL: Speaker visible by default.**
 
-The layout mode system is how scenes are composed relative to the speaker video. This MUST be properly conveyed through the prompt chain:
+| Mode | Usage | Animator Rules |
+|------|-------|---------------|
+| `default` | **70-80% of beats** — the norm | Visuals on top, speaker below. Scene fills visual panel area. Background.tsx (DotGrid) included. |
+| `fullscreen` | **1-2 beats max** — only when user requests or diagram needs full canvas | Full canvas, no speaker. Top 20% title, middle 40% content, bottom 25% secondary. Background included. |
+| `overlay` | **1-2 beats max** — speaker credibility moments | Speaker fullscreen, visuals ON TOP. Transparent bg MANDATORY. Two zones only: top 0-15%, lower-third 58-85%. Max 2 elements, 1-3 words each. |
 
-**Orchestrator** → decides content type → influences display mode distribution
-**Planner** → assigns display mode per scene → writes to scenes.json
-**Animator** → implements scene code following mode-specific rules:
+**Hook is NEVER fullscreen.** The speaker must be visible in the first scene to establish connection.
 
-| Mode | Animator Rules | Manifest Transform |
-|------|---------------|-------------------|
-| `default` | Standard layout, speaker visible in PiP bubble | Scene item: `width: 100%, height: 100%` on overlay track |
-| `fullscreen` | Full canvas, no speaker, big bold elements. Top 20% title, middle 40% content, bottom 25% secondary, bottom 15% reserved for subtitles | Scene item: `width: 100%, height: 100%`, video item hidden or scaled down |
-| `overlay` | Transparent background MANDATORY. Two zones only: top strip (0-15%), lower-third (58-85%). Max 2 elements, 1-3 words each. Speaker grid awareness. | Scene item: `width: 100%, height: 100%` with transparent bg |
+### 5.5 Scene File Rules
 
-**Overlay rules enforced by Verifier:**
-- NO `backgroundColor` on ANY element
-- NO content in 15-58% Y range (speaker zone)
-- Max container width: 55% of canvas
-- Full opacity (1.0) at rest
-- Gentle spring entrances only (damping ≥ 28, stiffness ≤ 60)
-
-### 5.5 Shared Modules
-
-Already exist in `packages/worker/src/prompts/shared/`, copied to sandbox workspace at `/workspace/docs/shared/`:
-- `technical-rules.md` — Remotion API, animation constraints
-- `motion-design-principles.md` — Disney 12 principles, engagement
-- `vocabulary.md` — Scene description conventions
-- `quality-checklist.md` — Auto-verification criteria
-
-Prepended to Animator and Healer prompts via existing `loadPromptWithShared()`.
+- **Meaningful names**: `HookTitle.tsx`, `ProcessFlow.tsx`, `KeyInsight.tsx` — not `Scene1.tsx`
+- **Only for animation beats**: Stock footage, text overlays, screenshots → manifest items only, no scene file
+- **Standalone components**: No timing logic, no Sequence management. The manifest controls when/where/how the scene appears
+- **Scene registry auto-generates**: esbuild watcher scans `/workspace/src/scenes/`, generates `scene-registry.ts` mapping filenames to components
 
 ---
 
@@ -413,6 +390,7 @@ API: POST /sandbox/init
     ├── Writes head-tracking data → /workspace/docs/speaker-grid.json
     ├── Writes initial manifest.json (video track + source item)
     ├── Copies shared prompt modules → /workspace/docs/shared/
+    ├── Copies theme design system files → /workspace/docs/themes/
     ├── Starts esbuild watcher
     └── Starts periodic checkpointing
 ```
@@ -441,7 +419,7 @@ Sandbox agent-server:
     ├── Agent may dispatch subagents:
     │   ├── Planner → writes SCENE_PLAN.md + scenes.json
     │   ├── Researcher → downloads assets
-    │   ├── Animator → writes Scene*.tsx + updates manifest
+    │   ├── Animator → writes scene .tsx files (meaningful names) via manifest
     │   ├── Verifier → screenshots + quality check
     │   └── Healer → fixes TS errors
     │
@@ -537,6 +515,9 @@ RUN apt-get update && apt-get install -y \
 # Add shared prompt modules (from worker's battle-tested prompt suite)
 COPY packages/worker/src/prompts/shared/ /app/prompts/shared/
 
+# Add theme design system files
+COPY packages/worker/src/prompts/themes/ /app/prompts/themes/
+
 # Existing: workspace template, sandbox code, node_modules
 ```
 
@@ -559,21 +540,29 @@ UNSPLASH_ACCESS_KEY  — Unsplash stock photo search
 │   ├── user-brief.md                # User's description (NEW)
 │   ├── speaker-grid.json            # Head-tracking data (NEW)
 │   ├── SCENE_PLAN.md                # Generated by Planner (NEW)
-│   └── shared/                      # Shared prompt modules
-│       ├── technical-rules.md
-│       ├── motion-design-principles.md
-│       ├── vocabulary.md
-│       └── quality-checklist.md
+│   ├── shared/                      # Shared prompt modules
+│   │   ├── technical-rules.md
+│   │   ├── motion-design-principles.md
+│   │   ├── vocabulary.md
+│   │   └── quality-checklist.md
+│   └── themes/                      # Theme design system files (NEW)
+│       ├── themes.json              # Theme catalog with color palettes
+│       └── studio/
+│           ├── design-system.md     # Animation patterns, component library
+│           ├── director-style.md    # Planning guidance for theme
+│           ├── dark/style-guide.md  # Dark variant specifics
+│           └── light/style-guide.md # Light variant specifics
 ├── generation-progress.json         # Phase tracking (NEW)
 ├── scenes.json                      # Machine-readable scene data (NEW)
 ├── src/
 │   ├── PlayerComposition.tsx        # Entry point
 │   ├── scene-registry.ts            # Auto-generated scene imports
-│   ├── scenes/                      # AI-generated scene files (NEW)
-│   │   ├── Scene1.tsx
-│   │   ├── Scene2.tsx
-│   │   └── ...
-│   ├── components/                  # Shared components
+│   ├── scenes/                      # AI-generated scene files
+│   │   ├── HookTitle.tsx            # Meaningful names from Planner
+│   │   ├── AlgorithmDiagram.tsx
+│   │   ├── ResultsCounter.tsx
+│   │   └── ...                      # Only animation beats get files
+│   ├── components/                  # Shared components (Background.tsx, etc.)
 │   └── composition/                 # Remotion infrastructure
 ├── public/
 │   ├── source.mp4                   # Source video

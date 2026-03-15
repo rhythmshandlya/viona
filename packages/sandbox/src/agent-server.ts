@@ -96,10 +96,12 @@ export function startAgentServer(port = 8081): void {
     // Heartbeat to keep connection alive
     const heartbeat = setInterval(() => sendSSE('heartbeat', {}), 15000);
 
-    // Wire cancellation to connection close
+    // Wire cancellation to connection close — use res.on('close') not req.on('close')
+    // because Express 4.x fires req 'close' when the request body finishes reading
+    // (immediately for POST), not when the client disconnects.
     const abortController = new AbortController();
     currentAbortController = abortController;
-    req.on('close', () => abortController.abort());
+    res.on('close', () => abortController.abort());
 
     const mcpServers = createMcpServers({
       onWidget: (widget) => sendSSE('widget', widget),

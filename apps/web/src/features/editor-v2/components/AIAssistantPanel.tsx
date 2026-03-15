@@ -1127,18 +1127,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
   const bootAndRetry = useCallback(async (message: string, widgetResponse?: { widgetId: string; value: unknown }) => {
     try {
-      // Show status to user
-      setMessages(prev => {
-        const last = prev[prev.length - 1];
-        if (last?.role === 'assistant') {
-          return prev.map((m, i) => i === prev.length - 1
-            ? { ...m, content: [{ type: 'text' as const, text: 'Starting sandbox environment...' }] }
-            : m
-          );
-        }
-        return prev;
-      });
-
+      // Silently restart sandbox — no status message needed since it resumes quickly
       await api.createSandbox(projectId);
 
       // Poll until ready (max 2 minutes)

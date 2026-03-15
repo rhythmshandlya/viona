@@ -20,7 +20,7 @@ export function AddItemToolbar() {
     const state = useEditorStore.getState();
     const trackId = findOrCreateTrack(state.tracks, 'overlay', actions.addTrack);
     const startMs = state.currentTimeMs;
-    const id = `item-text-${Date.now()}`;
+    const id = crypto.randomUUID();
     const data: TextItemData = {
       text: 'Your text here',
       style: {
@@ -57,7 +57,7 @@ export function AddItemToolbar() {
       const state = useEditorStore.getState();
       const trackId = findOrCreateTrack(state.tracks, trackType, actions.addTrack);
       const startMs = state.currentTimeMs;
-      const id = `item-${itemType}-${Date.now()}`;
+      const id = crypto.randomUUID();
       const durationMs = itemType === 'image' ? 5000 : 10000;
 
       const baseItem: Partial<TimelineItem> = {
@@ -89,7 +89,7 @@ export function AddItemToolbar() {
     const state = useEditorStore.getState();
     const trackId = findOrCreateTrack(state.tracks, 'overlay', actions.addTrack);
     const startMs = state.currentTimeMs;
-    const id = `item-shape-${Date.now()}`;
+    const id = crypto.randomUUID();
     const data: ShapeItemData = {
       shape: 'rectangle',
       fill: '#3B82F6',

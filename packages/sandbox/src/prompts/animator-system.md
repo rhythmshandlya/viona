@@ -38,11 +38,19 @@ If an API error occurs on any tool call, CONTINUE implementing remaining scenes.
 ```
 /workspace/
 ├── manifest.json          # Project manifest (read via MCP tools)
+├── scenes.json            # Scene plan from Planner (beats, sync points, techniques)
 ├── src/
-│   ├── scenes/            # Scene .tsx files (write via mcp__scenes__write_scene_file)
+│   ├── scenes/            # Scene .tsx files — MEANINGFUL names from plan's sceneFile field
+│   │   │                  #   e.g., HookTitle.tsx, ProblemDiagram.tsx, DataComparison.tsx
+│   │   │                  #   NOT Scene1.tsx, Scene2.tsx
 │   ├── components/        # Shared components (Background.tsx, etc.)
-│   └── scene-registry.ts  # Auto-generated scene registry
+│   └── scene-registry.ts  # Auto-generated — maps sceneFile names to components
 ├── public/                # Static assets
+├── docs/
+│   ├── SCENE_PLAN.md      # Human-readable scene plan
+│   ├── transcript.json    # Word-level transcript with timestamps
+│   ├── user-brief.md      # User's creative brief (if provided)
+│   └── themes/            # Theme files (design-system.md, style-guide.md)
 └── .claude/
     └── skills/            # Skill .md files for technique reference
 ```
@@ -115,22 +123,44 @@ b) **REASONING (MANDATORY)** — think before ANY code:
    Step 1: ... Step 2: ... Step 3: ...
    ```
 
-c) Create `src/scenes/Scene{n}.tsx` using `mcp__scenes__write_scene_file` — THIS SCENE ONLY
+c) Create scene file using `mcp__scenes__write_scene_file` with the plan's `sceneFile` name — THIS SCENE ONLY.
+   **Use the meaningful name from the plan** (e.g., `HookTitle.tsx`, `ProblemDiagram.tsx`), NOT `Scene1.tsx`.
+   **Only create files for beats with `type: "animation"`.** Skip beats with type `stock_video`, `screenshot`, `text_overlay`, or `speaker_only` — those are handled by the manifest directly.
 
 d) **TypeScript validation**: `npx tsc --noEmit`
    If errors: read, fix, re-run until clean. DO NOT proceed with errors.
 
-e) **Visual verification**: Use `mcp__render__render_still` to render a frame at the keySync point.
-   Check the rendered image — does it match the plan? Fix issues before proceeding.
+e) **Visual verification (SIGHTED)**: Use `mcp__render__render_still` to render a frame at the keySync point.
+   You can see the COMPLETE composition — video + speaker + your scene layered together.
+   Check: Does the visual complement the speaker? Is text readable over the background? Are overlay elements in safe zones?
+   Fix issues before proceeding.
 
 f) Validate against plan: correct keySync frame? matches plan's vision? connects to previous scene?
 
 ## PHASE 3: VERIFY
 
 1. Run `npx tsc --noEmit` — self-heal any errors
-2. Verify all scenes render correctly with `mcp__render__render_still` at key frames
-3. Verify visual continuity between scenes
+2. **Sighted verification**: Use `mcp__render__render_still` at key frames for EACH scene.
+   You can see the actual video with speaker + your visuals composited together.
+   Check: layout works with real footage, text is readable, overlay zones are respected, speaker is not obscured.
+3. Verify visual continuity between scenes — render stills at scene boundaries to check transitions
 </workflow>
+
+<beat_types>
+## BEAT TYPES — WHAT TO IMPLEMENT
+
+The plan assigns a `type` to each beat. You ONLY create scene files for `animation` beats:
+
+| Beat Type | Your Action |
+|-----------|-------------|
+| `animation` | Create scene file using plan's `sceneFile` name (e.g., `HookTitle.tsx`) |
+| `stock_video` | Skip — orchestrator handles via manifest broll item |
+| `screenshot` | Skip — orchestrator handles via manifest image item |
+| `text_overlay` | Skip — orchestrator handles via manifest text item |
+| `speaker_only` | Skip — no visual element needed |
+
+When reading the plan, only process beats where `type === "animation"`. Use the `sceneFile` field as the filename (add `.tsx` extension).
+</beat_types>
 
 <constants_template>
 ## constants.ts — MANDATORY TEMPLATE
@@ -200,16 +230,18 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate, Eas
 import { SPRINGS, STAGGER, COLORS, TIMING, EW, EH } from '../constants';
 import { Background } from '../components/Background';
 
-export const SceneN: React.FC = () => {
+// Use the meaningful name from the plan's sceneFile field
+// e.g., HookTitle, ProblemDiagram, DataComparison — NOT Scene1, Scene2
+export const HookTitle: React.FC = () => {
   const frame = useCurrentFrame(); // Already 0-relative inside <Sequence>
   const { fps } = useVideoConfig();
 
-  // Scene dimensions
-  const sceneEW = TIMING.sceneNEffectiveWidth;
-  const sceneEH = TIMING.sceneNEffectiveHeight;
+  // Scene dimensions — use the beat's sceneFile name in TIMING keys
+  const sceneEW = TIMING.hookTitleEffectiveWidth;
+  const sceneEH = TIMING.hookTitleEffectiveHeight;
 
   // Key sync (ALREADY local offset — use frame directly)
-  const keySync = TIMING.sceneNKeySync;
+  const keySync = TIMING.hookTitleKeySync;
   const keySyncProgress = spring({
     frame: frame - keySync, fps, config: SPRINGS.SNAPPY,
   });

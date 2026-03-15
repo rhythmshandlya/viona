@@ -8,7 +8,7 @@ import { immer } from 'zustand/middleware/immer';
 import { api, Project as ApiProject } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
-import { manifestToStore, StoreManifestOp } from './manifest-bridge';
+import { manifestToStore, storeToManifest, StoreManifestOp } from './manifest-bridge';
 import { dispatchToSandbox, type SandboxOp } from './manifest-dispatch';
 import {
   EditorStore,
@@ -82,6 +82,38 @@ const dispatchOps = (ops: SandboxOp[]) => {
   const state = useEditorStore.getState();
   if (state.workspaceStatus !== 'active' || !state.project) return;
   dispatchToSandbox(state.project.id, ops);
+};
+
+/**
+ * Rebuild workspaceManifest from current store state so the Remotion player
+ * reflects local edits (shape props, transforms, filters, added/removed items).
+ */
+const syncWorkspaceManifest = () => {
+  const state = useEditorStore.getState();
+  if (!state.project) return;
+
+  // Extract caption style from first caption item, or use default
+  const firstCaption = state.itemIds
+    .map((id) => state.items[id])
+    .find((item) => item?.type === 'caption');
+  const captionStyle = firstCaption
+    ? (firstCaption.data as CaptionItemData).style ?? DEFAULT_CAPTION_STYLE
+    : DEFAULT_CAPTION_STYLE;
+
+  const manifest = storeToManifest(
+    {
+      tracks: state.tracks,
+      items: state.items,
+      itemIds: state.itemIds,
+      duration: state.duration,
+      fps: state.fps,
+      videoSettings: state.project.videoSettings,
+      assets: state.assets,
+    },
+    captionStyle,
+  );
+
+  useEditorStore.setState({ workspaceManifest: manifest });
 };
 
 // Initial state
@@ -1052,8 +1084,24 @@ export const useEditorStore = create<EditorStore>()(
             };
           });
 
+        // Save shape, text, and image items
+        const overlayItems = itemIds
+          .map((id) => items[id])
+          .filter((item): item is TimelineItem => !!item && ['shape', 'text', 'image'].includes(item.type))
+          .map((item) => ({
+            id: item.id,
+            trackId: item.trackId,
+            type: item.type,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: item.data as unknown as Record<string, unknown>,
+            ...(item.transform ? { transform: item.transform } : {}),
+            ...(item.filters ? { filters: item.filters } : {}),
+            ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
+          }));
+
         // Round all timestamps to integers (DB uses integer columns)
-        const allItems = [...apiItems, ...visualItems, ...videoItems, ...audioItems].map((item) => ({
+        const allItems = [...apiItems, ...visualItems, ...videoItems, ...audioItems, ...overlayItems].map((item) => ({
           ...item,
           startMs: Math.round(item.startMs),
           endMs: Math.round(item.endMs),
@@ -1064,7 +1112,6 @@ export const useEditorStore = create<EditorStore>()(
         const visualItemIds = visualItems.map((item) => item.id);
         const videoItemIds = videoItems.map((item) => item.id);
         const audioItemIds = audioItems.map((item) => item.id);
-
         const videoSettingsPayload = {
           ...project.videoSettings,
         };
@@ -1240,6 +1287,9 @@ export const useEditorStore = create<EditorStore>()(
           startMs: itemData.startMs || 0,
           endMs: itemData.endMs || 1000,
           data: itemData.data || {},
+          ...(itemData.transform ? { transform: itemData.transform } : {}),
+          ...(itemData.keyframes ? { keyframes: itemData.keyframes } : {}),
+          ...(itemData.filters ? { filters: itemData.filters } : {}),
         } as TimelineItem;
 
         state.items[id] = newItem;
@@ -1250,9 +1300,14 @@ export const useEditorStore = create<EditorStore>()(
 
       const addedItem = get().items[id];
       if (addedItem) {
-        dispatchOps([{ tool: 'addItem', input: { id, trackId, type: addedItem.type, startMs: addedItem.startMs, endMs: addedItem.endMs, data: addedItem.data } }]);
+        const input: Record<string, unknown> = { id, trackId, type: addedItem.type, startMs: addedItem.startMs, endMs: addedItem.endMs, data: addedItem.data };
+        if (addedItem.transform) input.transform = addedItem.transform;
+        if (addedItem.keyframes) input.keyframes = addedItem.keyframes;
+        if (addedItem.filters) input.filters = addedItem.filters;
+        dispatchOps([{ tool: 'addItem', input }]);
       }
 
+      syncWorkspaceManifest();
       return id;
     },
 
@@ -1278,6 +1333,7 @@ export const useEditorStore = create<EditorStore>()(
       if (Object.keys(sandboxUpdates).length > 1) {
         dispatchOps([{ tool: 'updateItem', input: sandboxUpdates }]);
       }
+      syncWorkspaceManifest();
     },
 
     updateItemData: (id, dataUpdates) => {
@@ -1290,6 +1346,7 @@ export const useEditorStore = create<EditorStore>()(
 
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId: id, data: dataUpdates } }]);
+      syncWorkspaceManifest();
     },
 
     deleteItems: async (ids) => {
@@ -1382,6 +1439,7 @@ export const useEditorStore = create<EditorStore>()(
       cancelDebouncedSave();
 
       dispatchOps(ids.map(id => ({ tool: 'removeItem' as const, input: { itemId: id } })));
+      syncWorkspaceManifest();
 
       // If visual items were deleted, delete visuals from backend
       if (hasVisualItems && project) {
@@ -1414,6 +1472,7 @@ export const useEditorStore = create<EditorStore>()(
       if (movedItem) {
         dispatchOps([{ tool: 'updateItem', input: { itemId: id, trackId, startMs: movedItem.startMs, endMs: movedItem.endMs } }]);
       }
+      syncWorkspaceManifest();
     },
 
     resizeItem: (id, startMs, endMs) => {
@@ -1430,6 +1489,7 @@ export const useEditorStore = create<EditorStore>()(
       if (resizedItem) {
         dispatchOps([{ tool: 'updateItem', input: { itemId: id, startMs: resizedItem.startMs, endMs: resizedItem.endMs } }]);
       }
+      syncWorkspaceManifest();
     },
 
     // ========================================
@@ -2678,6 +2738,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId, transform } }]);
+      syncWorkspaceManifest();
     },
 
     updateFilters: (itemId: string, filters: Partial<Filters>) => {
@@ -2688,6 +2749,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId, filters } }]);
+      syncWorkspaceManifest();
     },
 
     updateKeyframes: (itemId: string, keyframes: Keyframe[]) => {
@@ -2698,6 +2760,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes } }]);
+      syncWorkspaceManifest();
     },
 
     addKeyframeAtTime: (itemId: string, timeMs: number, props: Partial<Transform>, easing?: string) => {
@@ -2710,6 +2773,7 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
       const item = get().items[itemId];
       if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes } }]);
+      syncWorkspaceManifest();
     },
 
     deleteKeyframe: (itemId: string, index: number) => {
@@ -2721,6 +2785,7 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
       const item = get().items[itemId];
       if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes ?? [] } }]);
+      syncWorkspaceManifest();
     },
 
     updateKeyframeEasing: (itemId: string, index: number, easing: string) => {

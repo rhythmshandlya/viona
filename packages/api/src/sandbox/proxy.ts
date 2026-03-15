@@ -35,7 +35,11 @@ export async function proxyFileRequest(
     // Forward response headers
     const contentType = res.headers.get('content-type');
     if (contentType) reply.header('Content-Type', contentType);
-    reply.header('Cache-Control', 'no-cache');
+
+    // Cache media files (video/audio/image) for the session to avoid re-fetching;
+    // other files (JS bundles etc.) stay uncached so hot-reload works.
+    const isMedia = contentType && /^(video|audio|image)\//.test(contentType);
+    reply.header('Cache-Control', isMedia ? 'private, max-age=3600, immutable' : 'no-cache');
     reply.header('Accept-Ranges', 'bytes');
 
     const contentRange = res.headers.get('content-range');

@@ -14,7 +14,16 @@ interface AudioItemProps {
 }
 
 export const AudioItem: React.FC<AudioItemProps> = ({ data, assets }) => {
-  const src = assets[data.src] || staticFile(data.src);
+  // Resolve src: check assets map first, handle http(s)/blob URLs directly,
+  // fallback to staticFile for local paths
+  let src: string;
+  if (assets[data.src]) {
+    src = assets[data.src];
+  } else if (/^https?:\/\/|^blob:/.test(data.src)) {
+    src = data.src;
+  } else {
+    src = staticFile(data.src);
+  }
 
   return (
     <Audio

@@ -58,6 +58,10 @@ export interface PromptContext {
   hasTranscript: boolean;
   theme?: string;
   projectType?: string;
+  briefSummary?: string;
+  hasHeadTracking?: boolean;
+  totalScenes?: number;
+  currentPhase?: string;
 }
 
 export function injectContext(prompt: string, ctx: PromptContext): string {
@@ -67,5 +71,9 @@ export function injectContext(prompt: string, ctx: PromptContext): string {
     .replace('{{FPS}}', String(ctx.fps))
     .replace('{{DURATION_MS}}', String(ctx.durationMs ?? 'unknown'))
     .replace('{{THEME}}', ctx.theme ?? 'studio-dark')
-    .replace('{{PROJECT_TYPE}}', ctx.projectType ?? 'video');
+    .replace('{{PROJECT_TYPE}}', ctx.projectType ?? 'video')
+    .replace('{{BRIEF_SUMMARY}}', ctx.briefSummary ?? 'No brief provided')
+    .replace('{{HAS_HEAD_TRACKING}}', String(ctx.hasHeadTracking ?? false))
+    .replace('{{TOTAL_SCENES}}', String(ctx.totalScenes ?? 0))
+    .replace('{{CURRENT_PHASE}}', ctx.currentPhase ?? 'unknown');
 }

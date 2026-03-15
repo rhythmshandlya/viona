@@ -11,7 +11,14 @@ interface ImageItemProps {
 }
 
 export const ImageItem: React.FC<ImageItemProps> = ({ data, assets }) => {
-  const src = assets[data.src] || staticFile(data.src);
+  let src: string;
+  if (assets[data.src]) {
+    src = assets[data.src];
+  } else if (/^https?:\/\/|^blob:/.test(data.src)) {
+    src = data.src;
+  } else {
+    src = staticFile(data.src);
+  }
 
   return (
     <Img

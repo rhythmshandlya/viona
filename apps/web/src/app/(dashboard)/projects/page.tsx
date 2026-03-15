@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useDropzone } from "react-dropzone";
-import { api, UserProject } from "@/lib/api";
+import { api, UserProject, type Job } from "@/lib/api";
 import { wsClient, WSMessage, JobProgressPayload, JobCompletePayload, JobErrorPayload } from "@/lib/ws";
 import { Button } from "@/components/ui/button";
 import { LiquidButton } from "@/components/ui/liquid-glass-button";
@@ -55,6 +55,38 @@ function formatDuration(ms: number | null): string {
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = seconds % 60;
   return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Poll processing jobs (transcribe + head-tracking) until all complete or fail.
+ * Returns once all jobs are done. Calls onProgress with combined progress.
+ */
+async function pollProcessingJobs(
+  jobIds: string[],
+  onProgress: (percent: number, message: string) => void,
+): Promise<void> {
+  const maxPolls = 300; // 5 minutes at 1s intervals
+  for (let i = 0; i < maxPolls; i++) {
+    const jobs: Job[] = await Promise.all(jobIds.map(id => api.getJob(id)));
+
+    const allDone = jobs.every(j => j.status === 'complete' || j.status === 'failed');
+    const anyFailed = jobs.find(j => j.status === 'failed');
+
+    if (anyFailed) {
+      throw new Error(`Processing failed: ${anyFailed.progressMessage || anyFailed.type}`);
+    }
+
+    if (allDone) return;
+
+    // Combine progress across jobs
+    const avgProgress = Math.round(jobs.reduce((sum, j) => sum + (j.progress || 0), 0) / jobs.length);
+    const activeJob = jobs.find(j => j.status === 'processing');
+    const message = activeJob?.progressMessage || 'Processing...';
+    onProgress(avgProgress, message);
+
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  throw new Error('Processing timed out');
 }
 
 function formatDate(dateString: string): string {
@@ -654,20 +686,32 @@ function NewProjectModal({
           setProgress(uploadProgress);
         });
 
-        setStatusMessage("Setting up workspace...");
+        // Run transcription + head-tracking before sandbox creation
+        setStatusMessage("Analyzing video...");
         setUploadState("processing");
         setProgress(0);
 
-        // Create sandbox and wait for it to be ready
+        const processResult = await api.processProject(projectId);
+        const jobIds = [processResult.transcribeJobId];
+        if (processResult.headTrackJobId) jobIds.push(processResult.headTrackJobId);
+
+        await pollProcessingJobs(jobIds, (percent, message) => {
+          setProgress(Math.round(percent * 0.7)); // 0-70% for processing
+          setStatusMessage(message);
+        });
+
+        // Now create sandbox — transcript + head-tracking data will be included in init
+        setStatusMessage("Setting up workspace...");
+        setProgress(70);
+
         const result = await api.createSandbox(projectId);
 
         if (result.status !== 'ready') {
-          // Poll for readiness
           for (let i = 0; i < 90; i++) {
             await new Promise(r => setTimeout(r, 2000));
             const status = await api.getSandboxStatus(projectId);
             if (status.status === 'ready') break;
-            setProgress(Math.min(90, Math.round((i / 90) * 100)));
+            setProgress(Math.min(95, 70 + Math.round((i / 90) * 25)));
           }
         }
 
@@ -758,20 +802,32 @@ function EmptyState() {
           setProgress(uploadProgress);
         });
 
-        setStatusMessage("Setting up workspace...");
+        // Run transcription + head-tracking before sandbox creation
+        setStatusMessage("Analyzing video...");
         setUploadState("processing");
         setProgress(0);
 
-        // Create sandbox and wait for it to be ready
+        const processResult = await api.processProject(projectId);
+        const jobIds = [processResult.transcribeJobId];
+        if (processResult.headTrackJobId) jobIds.push(processResult.headTrackJobId);
+
+        await pollProcessingJobs(jobIds, (percent, message) => {
+          setProgress(Math.round(percent * 0.7));
+          setStatusMessage(message);
+        });
+
+        // Now create sandbox — transcript + head-tracking data will be included in init
+        setStatusMessage("Setting up workspace...");
+        setProgress(70);
+
         const result = await api.createSandbox(projectId);
 
         if (result.status !== 'ready') {
-          // Poll for readiness
           for (let i = 0; i < 90; i++) {
             await new Promise(r => setTimeout(r, 2000));
             const status = await api.getSandboxStatus(projectId);
             if (status.status === 'ready') break;
-            setProgress(Math.min(90, Math.round((i / 90) * 100)));
+            setProgress(Math.min(95, 70 + Math.round((i / 90) * 25)));
           }
         }
 

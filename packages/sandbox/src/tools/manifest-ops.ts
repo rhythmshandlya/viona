@@ -79,6 +79,7 @@ export const readManifestTool = {
           tracks: trackSummaries,
           totalItems: (manifest.items ?? []).length,
           assetKeys: Object.keys(manifest.assets ?? {}),
+          captionStyle: manifest.captionStyle ?? null,
         });
       }
 
@@ -434,6 +435,49 @@ export const splitVideoTool = {
   },
 };
 
+export const updateCaptionStyleTool = {
+  name: 'updateCaptionStyle',
+  description:
+    'Update the global caption style. Deep-merges with existing style. ' +
+    'Fields: displayMode (word-by-word|phrase|karaoke|dynamic-hierarchy), wordsPerPhrase, ' +
+    'fontFamily, fontSize, fontWeight, color, activeColor, backgroundColor, activeBackgroundColor, ' +
+    'backgroundPadding ({x,y}), backgroundRadius, letterSpacing, textTransform (none|uppercase|lowercase), ' +
+    'opacity, lineHeight, stroke ({width,color}), presetId, ' +
+    'animation ({in,active,out,easing}), position ({anchor,offsetX,offsetY,textAlign,rotation}), ' +
+    'effects ({shadow,shadowSecondary,glow}).',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      updates: {
+        type: 'object',
+        description: 'Partial caption style fields to merge',
+      },
+    },
+    required: ['updates'],
+  },
+  async execute(input: { updates: Record<string, unknown> }): Promise<string> {
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const existing = manifest.captionStyle ?? {};
+        // Deep-merge nested objects (animation, position, effects)
+        for (const [key, value] of Object.entries(input.updates)) {
+          if (value && typeof value === 'object' && !Array.isArray(value) && existing[key] && typeof existing[key] === 'object') {
+            existing[key] = { ...existing[key], ...value };
+          } else {
+            existing[key] = value;
+          }
+        }
+        manifest.captionStyle = existing;
+        await writeManifest(manifest);
+        return JSON.stringify(manifest.captionStyle);
+      } catch (err: any) {
+        return `Failed to update caption style: ${err.message}`;
+      }
+    });
+  },
+};
+
 export const updateManifestTool = {
   name: 'updateManifest',
   description: 'Replace the entire manifest and trigger a preview rebuild. Use sparingly — prefer granular tools.',
@@ -471,5 +515,6 @@ export const allManifestTools = [
   updateItemTool,
   removeItemTool,
   splitVideoTool,
+  updateCaptionStyleTool,
   updateManifestTool,
 ];
