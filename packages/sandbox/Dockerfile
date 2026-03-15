@@ -67,6 +67,9 @@ COPY --from=builder /app/dist/ /app/dist/
 # Copy shared prompt modules
 COPY --from=builder /app/prompts/shared/ /app/prompts/shared/
 
+# Copy theme design system files
+COPY --from=builder /app/prompts/themes/ /app/prompts/themes/
+
 # Copy MCP server compiled files
 COPY --from=mcp-builder /mcp/dist/ /app/mcp-servers/
 
