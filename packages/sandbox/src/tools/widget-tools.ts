@@ -1,6 +1,13 @@
 export interface WidgetCallbacks {
   onWidget: (widget: Record<string, unknown>) => void;
-  onProgress: (progress: { phase: string; percent: number; message: string }) => void;
+  onProgress: (progress: {
+    phase: string;
+    percent: number;
+    message: string;
+    agentName?: string;
+    trackName?: string;
+    estimatedTimeRemaining?: number;
+  }) => void;
 }
 
 export const showWidgetTool = {
@@ -31,13 +38,13 @@ export const showWidgetTool = {
 export const reportProgressTool = {
   name: 'report_progress',
   description:
-    'Report progress to the user during long-running operations like rendering or generation.',
+    'Report progress with agent name, active track, and estimated time remaining.',
   input_schema: {
     type: 'object' as const,
     properties: {
       phase: {
         type: 'string',
-        description: 'Current phase of the operation (e.g. "rendering", "generating").',
+        description: 'Current pipeline phase: trimming, planning, editing, generating, reviewing, assembling, complete.',
       },
       percent: {
         type: 'number',
@@ -45,7 +52,19 @@ export const reportProgressTool = {
       },
       message: {
         type: 'string',
-        description: 'Human-readable progress message.',
+        description: 'Human-readable status message (Viona-centric, no internal agent names).',
+      },
+      agentName: {
+        type: 'string',
+        description: 'Which agent is working: Editor, Planner, Animator, Reviewer.',
+      },
+      trackName: {
+        type: 'string',
+        description: 'Which track/region is being edited: Video, Overlay, Captions, Audio.',
+      },
+      estimatedTimeRemaining: {
+        type: 'number',
+        description: 'Estimated seconds remaining for current phase.',
       },
     },
     required: ['phase', 'percent', 'message'],

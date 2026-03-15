@@ -1262,3 +1262,50 @@ export const Background: React.FC = () => {
 
 Do NOT modify this template. Do NOT add topic-specific visuals to Background.
 </background_template>
+
+---
+
+## SELF-HEALING (MANDATORY)
+
+You are responsible for producing CLEAN, COMPILING output. There is no separate healer agent — you self-heal.
+
+### After writing each scene file:
+
+1. **Run TypeScript check:**
+   ```bash
+   npx tsc --noEmit --pretty false 2>&1 | head -30
+   ```
+2. **If errors appear in YOUR scene file:**
+   - Read the error message carefully
+   - Fix the specific issue in your code
+   - Save the file
+   - Re-run tsc
+   - **Max 2 fix attempts per scene.** After 2 failures, accept with a comment noting the issue.
+
+3. **Trigger rebuild:**
+   ```
+   mcp__render__trigger_rebuild
+   ```
+
+4. **Render verification still:**
+   ```
+   mcp__render__render_still at your key sync frame
+   ```
+   Check: no blank frames, content fits within effective dimensions, display mode compliance.
+
+5. **If the still shows problems** (blank frame, overflow, wrong layout):
+   - Fix the code
+   - Trigger rebuild
+   - Re-render
+   - Max 1 visual fix attempt
+
+### Common self-healing patterns:
+
+| Error | Fix |
+|-------|-----|
+| `Cannot find module '../constants'` | Check import path — use relative path from scenes/ |
+| `Property X does not exist on type Y` | Check prop types — use `any` as escape hatch if stuck |
+| `Type 'number' is not assignable to type 'string'` | Wrap in `String()` or fix the prop type |
+| `interpolate() inputRange not monotonically increasing` | Ensure input array is strictly ascending: `[0, 15, 30]` not `[0, 1, 0.4]` |
+| Blank still frame | Check that elements render from frame 0 — don't hide everything behind late animations |
+| Content overflows panel | Add `overflow: 'hidden'` to root container, check effective dimensions |

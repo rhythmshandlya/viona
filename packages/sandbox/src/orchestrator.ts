@@ -1,8 +1,18 @@
 // packages/sandbox/src/orchestrator.ts
 //
 // Core orchestrator module for the sandbox. Builds SDK query options with
-// subagent definitions, manages session resume, and streams events back
-// to the caller via callbacks.
+// subagent definitions (4 agents: Planner, Editor, Animator, Reviewer),
+// manages session resume, and streams events back to the caller via callbacks.
+//
+// Pipeline phases:
+// 1. Brainstorming — Viona + user
+// 2. Transcript Cleanup — Editor (trim fillers, silences, add captions)
+// 3. Planning — Planner (scene-by-scene plan with research)
+// 4. Editor Pass 1 — rough cut + colored rect mockups
+// 5. Animation Generation — setup + parallel Animators (self-healing)
+// 6. Review — Reviewer checks each scene as it completes
+// 7. Editor Pass 2 — final assembly (replace mockups, transitions, music)
+// 8. Refinement — conversational editing via Viona
 
 import { query, type SDKPartialAssistantMessage, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
@@ -32,7 +42,14 @@ export interface OrchestratorRequest {
 export interface OrchestratorCallbacks {
   onText: (text: string) => void;
   onWidget: (widget: Record<string, unknown>) => void;
-  onProgress: (progress: { phase: string; percent: number; message: string }) => void;
+  onProgress: (progress: {
+    phase: string;
+    percent: number;
+    message: string;
+    agentName?: string;
+    trackName?: string;
+    estimatedTimeRemaining?: number;
+  }) => void;
   onDone: (result: { sessionId?: string; cost?: number }) => void;
   onError: (error: string) => void;
   signal?: AbortSignal;
@@ -81,22 +98,20 @@ const FREEPIK_TOOL_NAMES = [
 
 /**
  * Load all prompt files and construct the SDK query options object,
- * including subagent (Agent tool) definitions for animator, researcher,
- * and trimmer.
+ * including subagent (Agent tool) definitions for the 4 pipeline agents:
+ * Planner, Editor, Animator, Reviewer.
  */
 export async function buildOrchestratorOptions(
   ctx: PromptContext,
   mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [orchestratorPrompt, animatorPrompt, researcherPrompt, trimmerPrompt, plannerPrompt, verifierPrompt, healerPrompt] =
+  const [orchestratorPrompt, animatorPrompt, editorPrompt, plannerPrompt, reviewerPrompt] =
     await Promise.all([
       loadPrompt('orchestrator-system'),
       loadPromptWithShared('animator-system'),
-      loadPrompt('researcher-system'),
-      loadPrompt('trimmer-system'),
+      loadPrompt('editor-system'),
       loadPromptWithShared('planner-system'),
-      loadPromptWithShared('verifier-system'),
-      loadPrompt('healer-system'),
+      loadPromptWithShared('reviewer-system'),
     ]);
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
@@ -119,8 +134,49 @@ export async function buildOrchestratorOptions(
     permissionMode: 'bypassPermissions' as const,
     allowDangerouslySkipPermissions: true,
     agents: {
+      // ---- Planner ----
+      // Analyzes transcript, does research (WebSearch/WebFetch), produces
+      // SCENE_PLAN.md + scenes.json. Research is part of planning — no
+      // separate Researcher agent.
+      planner: {
+        description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, display modes, visual descriptions, and meaningful scene file names. Also researches web content, screenshots, and supporting materials. Outputs SCENE_PLAN.md and scenes.json.',
+        prompt: injectContext(plannerPrompt, ctx),
+        tools: [
+          'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
+          ...MANIFEST_TOOL_NAMES,
+          ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+        ],
+        model: 'opus',
+      },
+
+      // ---- Editor ----
+      // Handles three phases:
+      // Phase 2: Transcript cleanup (trim fillers/silences via manifest ops)
+      //          + add captions from post-trim transcript
+      // Phase 4: Rough cut (splits, zoom crops, B-roll, mockup rects)
+      // Phase 7: Final assembly (replace mockups, transitions, music, captions)
+      editor: {
+        description: 'Professional video editor. Handles transcript trimming (fillers, silences via manifest ops), rough cut with zoom crops and mockup placeholders, and final assembly with transitions, captions, and music. Resumable across phases.',
+        prompt: injectContext(editorPrompt, ctx),
+        tools: [
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
+          ...MANIFEST_TOOL_NAMES,
+          ...SCENE_TOOL_NAMES,
+          ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+          ...ICON_TOOL_NAMES,
+          ...FREEPIK_TOOL_NAMES,
+        ],
+        model: 'opus',
+      },
+
+      // ---- Animator ----
+      // Writes Remotion .tsx scene files. Self-heals compilation errors
+      // (no separate Healer agent). One Animator per scene, dispatched
+      // with a layered prompt assembled by the orchestrator code.
       animator: {
-        description: 'Writes Remotion .tsx scene files for animation sections.',
+        description: 'Writes Remotion .tsx scene files for animation sections. Self-heals compilation errors — runs tsc, fixes issues, and verifies output.',
         prompt: injectContext(animatorPrompt, ctx),
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
@@ -129,57 +185,24 @@ export async function buildOrchestratorOptions(
           ...RENDER_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
           ...VIEWPORT_TOOL_NAMES,
-        ],
-        model: 'opus',
-      },
-      researcher: {
-        description: 'Finds web content, captures screenshots, downloads stock images.',
-        prompt: injectContext(researcherPrompt, ctx),
-        tools: [
-          'Read', 'Write', 'Bash', 'WebSearch', 'WebFetch',
-          ...MANIFEST_TOOL_NAMES,
-          ...ASSET_TOOL_NAMES,
           ...ICON_TOOL_NAMES,
           ...FREEPIK_TOOL_NAMES,
         ],
-        model: 'sonnet',
-      },
-      trimmer: {
-        description: 'Detects silence, filler words, and dead air in audio tracks.',
-        prompt: injectContext(trimmerPrompt, ctx),
-        tools: [
-          'Read', 'Write', 'Bash', 'Grep',
-          ...MANIFEST_TOOL_NAMES,
-        ],
-        model: 'sonnet',
-      },
-      planner: {
-        description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, display modes, visual descriptions, and meaningful scene file names. Outputs SCENE_PLAN.md and scenes.json.',
-        prompt: injectContext(plannerPrompt, ctx),
-        tools: [
-          'Read', 'Write', 'Glob', 'Grep',
-          ...MANIFEST_TOOL_NAMES,
-          ...RENDER_TOOL_NAMES,
-        ],
         model: 'opus',
       },
-      verifier: {
-        description: 'Reviews rendered scene screenshots against the plan. Takes screenshots, checks display mode compliance, and submits pass/fail verdicts.',
-        prompt: verifierPrompt,
+
+      // ---- Reviewer ----
+      // Checks each scene after the Animator completes. Renders stills,
+      // validates against plan, checks display mode compliance. Returns
+      // pass/fail with actionable feedback. Reviews happen as each scene
+      // completes — not after all Animators finish.
+      reviewer: {
+        description: 'Reviews rendered scene screenshots against the plan. Checks composition, readability, display mode compliance. Returns pass/fail verdict with actionable feedback. Reviews each scene as its Animator completes.',
+        prompt: injectContext(reviewerPrompt, ctx),
         tools: [
           'Read', 'Glob', 'Grep',
           ...RENDER_TOOL_NAMES,
           ...VIEWPORT_TOOL_NAMES,
-        ],
-        model: 'sonnet',
-      },
-      healer: {
-        description: 'Fixes TypeScript compilation errors in Remotion scene files. Makes minimal targeted patches to resolve tsc errors.',
-        prompt: healerPrompt,
-        tools: [
-          'Read', 'Edit', 'Glob', 'Grep', 'Bash',
-          ...RENDER_TOOL_NAMES,
-          ...SCENE_TOOL_NAMES,
         ],
         model: 'sonnet',
       },

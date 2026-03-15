@@ -123,14 +123,24 @@ export function createMcpServers(widgetCallbacks: WidgetCallbacks) {
       ),
       tool(
         'report_progress',
-        'Report progress to the user during long-running operations like generating animations or processing sections. Shows a progress indicator in the chat.',
+        'Report progress to the user during long-running operations. Shows a progress indicator with agent name, active track, and estimated time remaining.',
         {
-          phase: z.string(),
-          percent: z.number(),
-          message: z.string(),
+          phase: z.string().describe('Pipeline phase: trimming, planning, editing, generating, reviewing, assembling, complete'),
+          percent: z.number().describe('Progress percentage 0-100'),
+          message: z.string().describe('Human-readable status message (Viona-centric, no internal agent names)'),
+          agentName: z.string().optional().describe('Which agent is working: Editor, Planner, Animator, Reviewer'),
+          trackName: z.string().optional().describe('Which track/region is being edited: Video, Overlay, Captions, Audio'),
+          estimatedTimeRemaining: z.number().optional().describe('Estimated seconds remaining for current phase'),
         },
         async (input) => {
-          widgetCallbacks.onProgress(input);
+          widgetCallbacks.onProgress({
+            phase: input.phase,
+            percent: input.percent,
+            message: input.message,
+            agentName: input.agentName,
+            trackName: input.trackName,
+            estimatedTimeRemaining: input.estimatedTimeRemaining,
+          });
           return { content: [{ type: 'text' as const, text: 'Progress reported.' }] };
         },
       ),
