@@ -792,34 +792,36 @@ function EmptyState() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 md:px-8 lg:px-12 py-12">
-      {/* Badge */}
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-badge text-[#8B5CF6] text-sm font-medium mb-6 animate-fade-in-up">
-        <Sparkles className="w-4 h-4" />
-        Get started
-      </div>
+      <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-10 md:p-14 shadow-2xl flex flex-col items-center">
+        {/* Badge */}
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-badge text-[#8B5CF6] text-sm font-medium mb-6 animate-fade-in-up">
+          <Sparkles className="w-4 h-4" />
+          Get started
+        </div>
 
-      <h1 className="text-4xl font-bold mb-4 animate-fade-in-up stagger-1 text-white/95">
-        Create your first project
-      </h1>
-      <p className="text-white/45 text-lg max-w-md mb-8 animate-fade-in-up stagger-2">
-        Upload a video or audio file and let AI generate stunning visuals
-      </p>
+        <h1 className="text-4xl font-bold mb-4 animate-fade-in-up stagger-1 text-white/95">
+          Create your first project
+        </h1>
+        <p className="text-white/45 text-lg max-w-md mb-8 animate-fade-in-up stagger-2">
+          Upload a video or audio file and let AI generate stunning visuals
+        </p>
 
-      {/* Upload Zone */}
-      <div className="w-full max-w-lg animate-fade-in-up stagger-3">
-        <UploadZone
-          projectName={projectName}
-          onProjectNameChange={setProjectName}
-          description={description}
-          onDescriptionChange={setDescription}
-          onFileDrop={handleFileDrop}
-          uploadState={uploadState}
-          progress={progress}
-          statusMessage={statusMessage}
-          error={error}
-          onReset={resetState}
-          inline
-        />
+        {/* Upload Zone */}
+        <div className="w-full max-w-lg animate-fade-in-up stagger-3">
+          <UploadZone
+            projectName={projectName}
+            onProjectNameChange={setProjectName}
+            description={description}
+            onDescriptionChange={setDescription}
+            onFileDrop={handleFileDrop}
+            uploadState={uploadState}
+            progress={progress}
+            statusMessage={statusMessage}
+            error={error}
+            onReset={resetState}
+            inline
+          />
+        </div>
       </div>
     </div>
   );
@@ -936,37 +938,39 @@ export default function ProjectsPage() {
   };
 
   return (
-    <div className="container py-12 px-6 md:px-8 lg:px-12 max-w-7xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-10">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white/95">My Projects</h1>
-          <p className="text-white/40 mt-1">
-            {projects.length} project{projects.length !== 1 ? "s" : ""}
-          </p>
+    <div className="min-h-screen py-8 px-4 md:px-6 lg:px-8">
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-10 md:p-14 min-h-[calc(100vh-8rem)] max-w-[1600px] mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-10">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-white/95">My Projects</h1>
+            <p className="text-white/40 mt-1">
+              {projects.length} project{projects.length !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <Button
+            onClick={() => setIsNewProjectOpen(true)}
+            size="lg"
+            className="glass-page-btn gap-2 border-0"
+          >
+            <Plus className="h-5 w-5" />
+            New Project
+          </Button>
         </div>
-        <Button
-          onClick={() => setIsNewProjectOpen(true)}
-          size="lg"
-          className="glass-page-btn gap-2 border-0"
-        >
-          <Plus className="h-5 w-5" />
-          New Project
-        </Button>
-      </div>
 
-      {/* Project Grid */}
-      <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
-        {projects.map((project, index) => (
-          <ProjectCard
-            key={project.id}
-            project={project}
-            onDelete={setDeleteTarget}
-            onOpen={handleOpenProject}
-            isBooting={bootingProjectId === project.id}
-            className={`animate-fade-in-up ${getStaggerClass(index)}`}
-          />
-        ))}
+        {/* Project Grid */}
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          {projects.map((project, index) => (
+            <ProjectCard
+              key={project.id}
+              project={project}
+              onDelete={setDeleteTarget}
+              onOpen={handleOpenProject}
+              isBooting={bootingProjectId === project.id}
+              className={`animate-fade-in-up ${getStaggerClass(index)}`}
+            />
+          ))}
+        </div>
       </div>
 
       {/* New Project Modal */}
