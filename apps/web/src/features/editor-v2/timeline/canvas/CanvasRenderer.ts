@@ -71,30 +71,30 @@ export interface CanvasRendererOptions {
 const DEFAULT_OPTIONS: CanvasRendererOptions = {
   trackHeaderWidth: 0, // No track headers in this version
   rulerHeight: 0, // Ruler is separate component
-  // Light theme colors
-  backgroundColor: '#FAFAFA', // warm light gray
-  trackBackgroundColor: '#FFFFFF', // white
-  trackBorderColor: '#E5E5E5', // light gray border
+  // Liquid Glass theme colors
+  backgroundColor: 'rgba(14, 14, 20, 0.6)',
+  trackBackgroundColor: 'rgba(14, 14, 20, 0.4)',
+  trackBorderColor: 'rgba(255, 255, 255, 0.04)',
   itemColors: {
-    video: '#3b82f6', // blue-500
-    audio: '#22c55e', // green-500
-    caption: '#7C3AED', // violet (brand color)
+    video: '#60a5fa', // blue-400 (brighter for glass)
+    audio: '#4ade80', // green-400
+    caption: '#8B5CF6', // violet-500 (brand)
     text: '#A78BFA', // violet-400
-    image: '#ec4899', // pink-500
-    visual: '#8b5cf6', // purple-500
-    broll: '#06b6d4', // cyan-500
-    scene: '#f59e0b', // amber-500
-    shape: '#64748b', // slate-500
+    image: '#f472b6', // pink-400
+    visual: '#fbbf24', // amber-400
+    broll: '#22d3ee', // cyan-400
+    scene: '#fbbf24', // amber-400
+    shape: '#94a3b8', // slate-400
   },
-  selectedBorderColor: '#7C3AED', // violet for selection
-  playheadColor: '#7C3AED', // violet playhead
-  selectionBoxColor: 'rgba(124, 58, 237, 0.15)', // violet with opacity
-  textColor: '#1A1A1A', // dark text
+  selectedBorderColor: '#8B5CF6', // violet for selection
+  playheadColor: '#FFFFFF', // bright playhead
+  selectionBoxColor: 'rgba(139, 92, 246, 0.12)', // violet with opacity
+  textColor: 'rgba(255, 255, 255, 0.9)', // text
   // Phase 2: Snap and preview colors
-  snapLineColor: '#22c55e', // green-500
-  snapLinePlayheadColor: '#7C3AED', // violet
-  previewOpacity: 0.5,
-  invalidPreviewColor: '#ef4444', // red-500
+  snapLineColor: '#4ade80', // green-400
+  snapLinePlayheadColor: '#8B5CF6', // violet
+  previewOpacity: 0.45,
+  invalidPreviewColor: '#f87171', // red-400
   resizeHandleColor: '#FFFFFF',
   resizeHandleSize: 6,
 };

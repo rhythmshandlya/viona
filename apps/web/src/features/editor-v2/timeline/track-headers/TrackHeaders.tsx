@@ -34,13 +34,13 @@ export function TrackHeaders({ rulerHeight = 24, className }: TrackHeadersProps)
 
   return (
     <div
-      className={`flex flex-col border-r border-[var(--editor-border-subtle)] bg-[var(--editor-bg-surface)] ${className || ''}`}
-      style={{ width: 140 }}
+      className={`flex flex-col border-r border-white/[0.04] ${className || ''}`}
+      style={{ width: 280 }}
     >
       {/* Header row aligned with ruler */}
       <div
-        className="flex items-center px-2 border-b border-[var(--editor-border-subtle)]
-                   text-[10px] text-[var(--editor-text-muted)] uppercase tracking-wider"
+        className="flex items-center px-3 border-b border-white/[0.06]
+                   text-[10px] text-[var(--editor-text-muted)] uppercase tracking-wider font-medium"
         style={{ height: rulerHeight }}
       >
         Tracks
@@ -60,27 +60,27 @@ export function TrackHeaders({ rulerHeight = 24, className }: TrackHeadersProps)
       </div>
 
       {/* Add Track button */}
-      <div className="relative border-t border-[var(--editor-border-subtle)] p-1">
+      <div className="relative border-t border-white/[0.04] p-1">
         <button
           onClick={() => setShowAddMenu(!showAddMenu)}
-          className="flex items-center gap-1 w-full px-2 py-1 text-[11px]
+          className="flex items-center gap-1 w-full px-2 py-1.5 text-[11px]
                      text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]
-                     hover:bg-[var(--editor-bg-hover)] rounded transition-colors"
+                     hover:bg-white/[0.06] rounded-lg transition-colors"
           title="Add track"
         >
           <Plus className="w-3 h-3" /> Add Track
         </button>
         {showAddMenu && (
-          <div className="absolute bottom-full left-0 mb-1 w-full
-                          bg-[var(--editor-bg-secondary,#1a1a1a)] border border-[var(--editor-border-subtle)]
-                          rounded-md shadow-lg z-50 overflow-hidden">
+          <div className="absolute bottom-full left-1 right-1 mb-1
+                          bg-[rgba(28,28,35,0.9)] backdrop-blur-xl border border-white/[0.08]
+                          rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] z-50 overflow-hidden p-1">
             {['overlay', 'audio', 'video'].map((type) => (
               <button
                 key={type}
                 onClick={() => handleAddTrack(type)}
                 className="block w-full px-3 py-1.5 text-left text-[11px]
-                           text-[var(--editor-text-primary)] hover:bg-[var(--editor-bg-hover)]
-                           transition-colors"
+                           text-[var(--editor-text-primary)] hover:bg-white/[0.06]
+                           rounded-lg transition-colors"
               >
                 {type.charAt(0).toUpperCase() + type.slice(1)} Track
               </button>

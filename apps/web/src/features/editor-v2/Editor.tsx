@@ -10,22 +10,14 @@ import { Loader2, MessageSquareText, Captions, Paintbrush, FolderOpen, X } from 
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { SmokeBackground } from '@/components/ui/spooky-smoke-animation';
 import { Header } from './components/Header';
-import { PlaybackBar } from './components/PlaybackBar';
+import { PreviewControls } from './components/PreviewControls';
 import { RightPanel, type RightPanelTab } from './components/RightPanel';
 import { CommandPalette, useCommandPalette } from './components/CommandPalette';
 import { JobLogsPanel } from './components/JobLogsPanel';
 import { Scene } from './scene/Scene';
-import { SceneToolbar } from './scene/SceneToolbar';
 import { type SocialPlatform, type OverlayMode } from './scene/social-platforms';
 import { AddItemToolbar } from './components/AddItemToolbar';
 import { Timeline } from './timeline/Timeline';
@@ -87,7 +79,6 @@ export function Editor({ projectId }: EditorProps) {
   // Social preview state
   const [activePlatform, setActivePlatform] = useState<SocialPlatform | null>(null);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>('mockup');
-  const [zoomLevel, setZoomLevel] = useState<'fit' | '50' | '75' | '100'>('fit');
   const lastPlatformRef = useRef<SocialPlatform>('instagram');
 
   // Job logs panel state
@@ -516,7 +507,7 @@ export function Editor({ projectId }: EditorProps) {
   // Loading state
   if (isLoading) {
     return (
-      <div className="editor-theme min-h-screen flex items-center justify-center bg-[var(--editor-bg-base)]">
+      <div className="editor-theme editor-bg-mesh min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-3 text-[var(--editor-text-primary)]">
           <Loader2 className="w-5 h-5 animate-spin text-[var(--editor-accent)]" />
           <span className="text-sm">Loading project...</span>
@@ -528,7 +519,7 @@ export function Editor({ projectId }: EditorProps) {
   // Error state
   if (error) {
     return (
-      <div className="editor-theme min-h-screen flex items-center justify-center bg-[var(--editor-bg-base)]">
+      <div className="editor-theme editor-bg-mesh min-h-screen flex items-center justify-center">
         <div className="text-center space-y-4">
           <p className="text-red-400 text-sm">{error}</p>
           <Link
@@ -545,7 +536,7 @@ export function Editor({ projectId }: EditorProps) {
   // No project state
   if (!project) {
     return (
-      <div className="editor-theme min-h-screen flex items-center justify-center bg-[var(--editor-bg-base)]">
+      <div className="editor-theme editor-bg-mesh min-h-screen flex items-center justify-center">
         <div className="flex items-center gap-3 text-[var(--editor-text-primary)]">
           <Loader2 className="w-5 h-5 animate-spin text-[var(--editor-accent)]" />
           <span className="text-sm">Preparing editor...</span>
@@ -555,7 +546,13 @@ export function Editor({ projectId }: EditorProps) {
   }
 
   return (
-    <div className="editor-theme flex h-screen w-screen flex-col bg-[var(--editor-bg-base)] overflow-hidden select-none antialiased">
+    <div className="editor-theme relative flex h-screen w-screen flex-col overflow-hidden select-none antialiased">
+      {/* Animated smoke background */}
+      <div className="absolute inset-0 z-0">
+        <SmokeBackground smokeColor="#7C3AED" />
+      </div>
+      {/* Content layer above smoke */}
+      <div className="relative z-10 flex h-full w-full flex-col overflow-hidden">
       {/* Header */}
       <Header
         onOpenCommandPalette={commandPalette.open}
@@ -565,70 +562,39 @@ export function Editor({ projectId }: EditorProps) {
         hasActiveJob={!!visualsJobId}
       />
 
-      {/* Main content area - unified layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Main content area - boxed panel layout with gaps */}
+      <div className="flex-1 flex overflow-hidden" style={{ gap: 'var(--editor-panel-gap)', padding: 'var(--editor-panel-gap)' }}>
+
         {/* Icon Rail - always visible */}
-        <div className="w-14 flex flex-col items-center py-2 bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] flex-shrink-0">
-          <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'agent') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('agent');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'agent' ? 'active' : ''}`}
-            title="Chat"
-          >
-            <MessageSquareText className="w-5 h-5" />
-            <span className="text-[11px]">Chat</span>
-          </button>
-          <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'captions') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('captions');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'captions' ? 'active' : ''}`}
-            title="Captions"
-          >
-            <Captions className="w-5 h-5" />
-            <span className="text-[11px]">Captions</span>
-          </button>
-          <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'style') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('style');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'style' ? 'active' : ''}`}
-            title="Style"
-          >
-            <Paintbrush className="w-5 h-5" />
-            <span className="text-[11px]">Style</span>
-          </button>
-          <button
-            onClick={() => {
-              if (leftSidebarOpen && leftSidebarTab === 'assets') {
-                setLeftSidebarOpen(false);
-              } else {
-                setLeftSidebarTab('assets');
-                setLeftSidebarOpen(true);
-              }
-            }}
-            className={`icon-rail-item w-12 ${leftSidebarOpen && leftSidebarTab === 'assets' ? 'active' : ''}`}
-            title="Assets"
-          >
-            <FolderOpen className="w-5 h-5" />
-            <span className="text-[11px]">Assets</span>
-          </button>
+        <div className="w-14 flex flex-col items-center py-2 flex-shrink-0 editor-panel">
+          {(['agent', 'captions', 'style', 'assets'] as const).map((tab) => {
+            const icons = { agent: MessageSquareText, captions: Captions, style: Paintbrush, assets: FolderOpen };
+            const labels = { agent: 'Chat', captions: 'Captions', style: 'Style', assets: 'Assets' };
+            const Icon = icons[tab];
+            const active = leftSidebarOpen && leftSidebarTab === tab;
+            return (
+              <button
+                key={tab}
+                onClick={() => {
+                  if (leftSidebarOpen && leftSidebarTab === tab) {
+                    setLeftSidebarOpen(false);
+                  } else {
+                    setLeftSidebarTab(tab);
+                    setLeftSidebarOpen(true);
+                  }
+                }}
+                className={`w-12 flex flex-col items-center gap-0.5 py-2 rounded-xl transition-all active:scale-[0.95] ${
+                  active
+                    ? 'bg-[var(--editor-accent-muted)] text-[var(--editor-accent)] shadow-[inset_0_1px_0_rgba(139,92,246,0.15)]'
+                    : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)] hover:bg-white/[0.06]'
+                }`}
+                title={labels[tab]}
+              >
+                <Icon className="w-5 h-5" />
+                <span className="text-[10px]">{labels[tab]}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Left Sidebar Panel */}
@@ -640,7 +606,7 @@ export function Editor({ projectId }: EditorProps) {
               animate={{ width: 488, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="flex-shrink-0 overflow-hidden"
+              className="flex-shrink-0 overflow-hidden editor-panel"
             >
               <ErrorBoundary name="AI Assistant">
                 <Suspense fallback={<div className="flex items-center justify-center h-full"><span className="text-zinc-500 text-sm">Loading...</span></div>}>
@@ -660,9 +626,9 @@ export function Editor({ projectId }: EditorProps) {
               animate={{ width: 488, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
-              className="flex-shrink-0 overflow-hidden"
+              className="flex-shrink-0 overflow-hidden editor-panel"
             >
-              <div className="w-[488px] flex flex-col h-full bg-[var(--editor-bg-surface)] border-r border-[var(--editor-border-subtle)] overflow-hidden">
+              <div className="w-[488px] flex flex-col h-full overflow-hidden">
                 <div className="flex items-center justify-between px-4 pt-4 pb-3 flex-shrink-0">
                   <h3 className="text-xs font-medium text-[var(--editor-text-muted)] uppercase tracking-wide">
                     {leftSidebarTab === 'captions' && 'Caption Settings'}
@@ -671,7 +637,7 @@ export function Editor({ projectId }: EditorProps) {
                   </h3>
                   <button
                     onClick={() => setLeftSidebarOpen(false)}
-                    className="p-1 rounded-md hover:bg-[var(--editor-bg-hover)] text-[var(--editor-text-muted)] active:scale-[0.97] transition-all"
+                    className="p-1.5 rounded-lg hover:bg-white/[0.06] text-[var(--editor-text-muted)] active:scale-[0.97] transition-all"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -715,97 +681,82 @@ export function Editor({ projectId }: EditorProps) {
         </AnimatePresence>
 
         {/* Main content + right panel */}
-        <div className="flex-1 flex min-w-0 overflow-hidden">
-        {/* Center: preview + timeline */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Video Preview Area */}
-          <div className="flex-1 relative bg-[var(--editor-bg-canvas)] overflow-hidden">
-            {/* Workspace status indicators */}
-            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
-              {workspaceLockHolder === 'ai' && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-lg text-purple-300 text-sm">
-                  <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
-                  AI is editing...
-                </div>
-              )}
-              {workspaceBundleError && (
-                <div className="px-3 py-1.5 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
-                  Bundle error: {workspaceBundleError}
-                </div>
-              )}
+        <div className="flex-1 flex min-w-0 overflow-hidden" style={{ gap: 'var(--editor-panel-gap)' }}>
+          {/* Center: preview + timeline */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden" style={{ gap: 'var(--editor-panel-gap)' }}>
+            {/* Video Preview Area — contains scene + controls in one box */}
+            <div className="flex-1 relative overflow-hidden flex flex-col editor-panel">
+              {/* Workspace status indicators */}
+              <div className="absolute top-4 right-4 z-10 flex flex-col gap-2 items-end">
+                {workspaceLockHolder === 'ai' && (
+                  <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 backdrop-blur-xl border border-purple-500/20 rounded-xl text-purple-300 text-sm shadow-[0_4px_16px_rgba(168,85,247,0.1)]">
+                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+                    AI is editing...
+                  </div>
+                )}
+                {workspaceBundleError && (
+                  <div className="px-3 py-1.5 bg-red-500/10 backdrop-blur-xl border border-red-500/20 rounded-xl text-red-300 text-sm shadow-[0_4px_16px_rgba(239,68,68,0.1)]">
+                    Bundle error: {workspaceBundleError}
+                  </div>
+                )}
+              </div>
+
+              {/* Scene */}
+              <div className="flex-1 relative overflow-hidden">
+                <ErrorBoundary name="Scene">
+                  <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
+                </ErrorBoundary>
+              </div>
+
+              {/* Controls bar — inside the preview box */}
+              <PreviewControls />
             </div>
 
-            {/* Zoom control */}
-            <div className="absolute top-4 left-4 z-10">
-              <Select value={zoomLevel} onValueChange={(v) => setZoomLevel(v as 'fit' | '50' | '75' | '100')}>
-                <SelectTrigger className="h-7 w-[72px] text-xs bg-[var(--editor-bg-surface)]/90 backdrop-blur-sm border-[var(--editor-border-subtle)] text-[var(--editor-text-secondary)]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-[var(--editor-bg-surface)] border-[var(--editor-border-default)]">
-                  <SelectItem value="fit" className="text-xs">Fit</SelectItem>
-                  <SelectItem value="50" className="text-xs">50%</SelectItem>
-                  <SelectItem value="75" className="text-xs">75%</SelectItem>
-                  <SelectItem value="100" className="text-xs">100%</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Agent Logs Panel */}
+            <JobLogsPanel
+              projectId={project.id}
+              jobId={visualsJobId}
+              isOpen={showLogsPanel}
+              onClose={() => setShowLogsPanel(false)}
+              isGenerating={isGeneratingVisuals}
+              progress={visualsProgress}
+              status={visualsStatus}
+              error={visualsError}
+              isComplete={visualsComplete}
+              onCancel={handleCancelVisuals}
+            />
+
+            {/* Add Item Toolbar */}
+            <AddItemToolbar />
+
+            {/* Timeline */}
+            <div style={{ height: timelineHeight }} className="flex-shrink-0 overflow-hidden relative editor-panel">
+              {/* Resize handle */}
+              <div
+                ref={resizeRef}
+                onMouseDown={(e) => {
+                  document.body.style.cursor = 'ns-resize';
+                  handleResizeStart(e);
+                }}
+                className="absolute top-0 left-0 right-0 h-1.5 cursor-ns-resize z-10 flex items-center justify-center group hover:bg-white/[0.04] transition-colors"
+              >
+                <div className="w-10 h-0.5 rounded-full bg-white/[0.12] group-hover:bg-[var(--editor-accent)] transition-colors" />
+              </div>
+              <ErrorBoundary name="Timeline">
+                <Timeline className="h-full" />
+              </ErrorBoundary>
             </div>
-
-            {/* Scene */}
-            <ErrorBoundary name="Scene">
-              <Scene className="w-full h-full" activePlatform={activePlatform} overlayMode={overlayMode} padding={24} />
-            </ErrorBoundary>
           </div>
 
-          {/* Transport Controls */}
-          <PlaybackBar />
-
-          {/* Timeline resize handle */}
-          <div
-            ref={resizeRef}
-            onMouseDown={(e) => {
-              document.body.style.cursor = 'ns-resize';
-              handleResizeStart(e);
-            }}
-            className="h-1.5 bg-[var(--editor-border-subtle)] hover:bg-[var(--editor-accent)]
-                       cursor-ns-resize transition-colors flex items-center justify-center group"
-          >
-            <div className="w-8 h-0.5 rounded-full bg-[var(--editor-text-muted)]/30 group-hover:bg-white/60 transition-colors" />
-          </div>
-
-          {/* Agent Logs Panel */}
-          <JobLogsPanel
-            projectId={project.id}
-            jobId={visualsJobId}
-            isOpen={showLogsPanel}
-            onClose={() => setShowLogsPanel(false)}
-            isGenerating={isGeneratingVisuals}
-            progress={visualsProgress}
-            status={visualsStatus}
-            error={visualsError}
-            isComplete={visualsComplete}
-            onCancel={handleCancelVisuals}
-          />
-
-          {/* Add Item Toolbar */}
-          <AddItemToolbar />
-
-          {/* Timeline */}
-          <div style={{ height: timelineHeight }} className="flex-shrink-0 bg-[var(--editor-bg-surface)] border-t border-[var(--editor-border-subtle)]">
-            <ErrorBoundary name="Timeline">
-              <Timeline className="h-full" />
-            </ErrorBoundary>
-          </div>
-        </div>
-
-        {/* Right Panel - Item Properties */}
-        {panelOpen && (
-          <RightPanel
-            isOpen={panelOpen}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            onClose={handleClosePanel}
-          />
-        )}
+          {/* Right Panel - Item Properties */}
+          {panelOpen && (
+            <RightPanel
+              isOpen={panelOpen}
+              activeTab={activeTab}
+              onTabChange={handleTabChange}
+              onClose={handleClosePanel}
+            />
+          )}
         </div>
 
       </div>
@@ -831,6 +782,7 @@ export function Editor({ projectId }: EditorProps) {
       <Suspense fallback={null}>
         <TransitionPickerModal />
       </Suspense>
+      </div>
     </div>
   );
 }

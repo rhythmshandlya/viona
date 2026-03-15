@@ -76,17 +76,17 @@ function getStatusConfig(status: string) {
   switch (status) {
     case "ready":
     case "completed":
-      return { label: "Ready", className: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" };
+      return { label: "Ready", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" };
     case "processing":
     case "rendering":
     case "generating":
-      return { label: "Processing", className: "bg-amber-500/10 text-amber-600 border-amber-500/20 animate-pulse" };
+      return { label: "Processing", className: "bg-amber-500/15 text-amber-400 border-amber-500/25 animate-pulse" };
     case "uploading":
-      return { label: "Uploading", className: "bg-blue-500/10 text-blue-600 border-blue-500/20 animate-pulse" };
+      return { label: "Uploading", className: "bg-blue-500/15 text-blue-400 border-blue-500/25 animate-pulse" };
     case "failed":
-      return { label: "Failed", className: "bg-red-500/10 text-red-600 border-red-500/20" };
+      return { label: "Failed", className: "bg-red-500/15 text-red-400 border-red-500/25" };
     default:
-      return { label: status, className: "bg-muted text-muted-foreground" };
+      return { label: status, className: "bg-white/[0.06] text-white/50" };
   }
 }
 
@@ -109,18 +109,18 @@ function DeleteDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md shadow-card-hover">
+      <DialogContent className="sm:max-w-md bg-[rgba(28,28,35,0.9)] backdrop-blur-2xl border-white/[0.08] shadow-[0_16px_48px_rgba(0,0,0,0.5)] rounded-2xl text-white">
         <DialogHeader>
-          <DialogTitle className="text-xl">Delete project?</DialogTitle>
+          <DialogTitle className="text-xl text-white/95">Delete project?</DialogTitle>
         </DialogHeader>
-        <p className="text-muted-foreground">
-          <span className="font-medium text-foreground">"{projectName}"</span> will be permanently deleted. This action cannot be undone.
+        <p className="text-white/50">
+          <span className="font-medium text-white/90">&ldquo;{projectName}&rdquo;</span> will be permanently deleted. This action cannot be undone.
         </p>
         <div className="flex gap-3 justify-end mt-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isDeleting} className="border-white/[0.1] text-white/70 hover:bg-white/[0.06] hover:text-white">
             Cancel
           </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={isDeleting}>
+          <Button variant="destructive" onClick={onConfirm} disabled={isDeleting} className="bg-red-500/80 hover:bg-red-500/90 shadow-[0_2px_12px_rgba(239,68,68,0.25)]">
             {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
             Delete
           </Button>
@@ -146,8 +146,8 @@ function ThumbnailImage({ projectId, alt, hasVideoKey }: { projectId: string; al
   if (error) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <Video className="w-8 h-8 text-primary/60" />
+        <div className="w-16 h-16 rounded-2xl bg-[#8B5CF6]/15 flex items-center justify-center">
+          <Video className="w-8 h-8 text-[#8B5CF6]/60" />
         </div>
       </div>
     );
@@ -170,8 +170,8 @@ function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) 
   if (error) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
-        <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <Video className="w-8 h-8 text-primary/60" />
+        <div className="w-16 h-16 rounded-2xl bg-[#8B5CF6]/15 flex items-center justify-center">
+          <Video className="w-8 h-8 text-[#8B5CF6]/60" />
         </div>
       </div>
     );
@@ -181,7 +181,7 @@ function VideoThumbnail({ projectId, alt }: { projectId: string; alt: string }) 
     <>
       {!loaded && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          <Loader2 className="w-6 h-6 animate-spin text-[#8B5CF6]" />
         </div>
       )}
       <video
@@ -223,44 +223,44 @@ function ProjectCard({
   return (
     <div
       onClick={() => !isBooting && onOpen(project.id)}
-      className={`group block bg-white rounded-2xl shadow-card cursor-pointer overflow-hidden ${isBooting ? "opacity-70" : ""} ${className || ""}`}
+      className={`group block glass-card cursor-pointer ${isBooting ? "opacity-70" : ""} ${className || ""}`}
     >
       {/* Thumbnail Area */}
-      <div className="aspect-video bg-gradient-to-br from-violet-50 to-purple-50 relative overflow-hidden">
+      <div className="aspect-video bg-gradient-to-br from-violet-950/40 to-purple-950/30 relative overflow-hidden">
         {project.thumbnailKey ? (
           <ThumbnailImage projectId={project.id} alt={projectName} hasVideoKey={!!project.videoKey} />
         ) : project.projectType === 'audio' ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-violet-50 to-purple-50">
-            <div className="w-16 h-16 rounded-2xl bg-violet-500/10 flex items-center justify-center">
-              <Music className="w-8 h-8 text-violet-500/60" />
+          <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-violet-950/30 to-purple-950/20">
+            <div className="w-16 h-16 rounded-2xl bg-violet-500/15 flex items-center justify-center">
+              <Music className="w-8 h-8 text-violet-400/60" />
             </div>
           </div>
         ) : project.videoKey ? (
           <VideoThumbnail projectId={project.id} alt={projectName} />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Video className="w-8 h-8 text-primary/60" />
+            <div className="w-16 h-16 rounded-2xl bg-[#8B5CF6]/15 flex items-center justify-center">
+              <Video className="w-8 h-8 text-[#8B5CF6]/60" />
             </div>
           </div>
         )}
 
         {/* Status Badge */}
-        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-medium border ${status.className}`}>
+        <div className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-medium border backdrop-blur-xl ${status.className}`}>
           {status.label}
         </div>
 
         {/* Booting Overlay */}
         {isBooting && (
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center z-10">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-10">
             <Loader2 className="w-8 h-8 text-white animate-spin" />
           </div>
         )}
 
         {/* Play Button Overlay (on hover) */}
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <div className="w-14 h-14 rounded-full bg-white shadow-lg flex items-center justify-center">
-            <Play className="w-6 h-6 text-primary ml-1" fill="currentColor" />
+          <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm shadow-[0_4px_20px_rgba(0,0,0,0.3)] flex items-center justify-center">
+            <Play className="w-6 h-6 text-[#8B5CF6] ml-1" fill="currentColor" />
           </div>
         </div>
 
@@ -268,13 +268,13 @@ function ProjectCard({
         <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <DropdownMenu>
             <DropdownMenuTrigger asChild onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
-              <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/90 hover:bg-white shadow-sm">
+              <Button variant="secondary" size="icon" className="h-8 w-8 bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/[0.08] text-white shadow-[0_2px_8px_rgba(0,0,0,0.3)]">
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="shadow-card-hover" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
+            <DropdownMenuContent align="end" className="bg-[rgba(28,28,35,0.9)] backdrop-blur-2xl border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)] rounded-xl" onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}>
               <DropdownMenuItem
-                className="text-destructive focus:text-destructive cursor-pointer"
+                className="text-red-400 focus:text-red-400 hover:bg-white/[0.06] focus:bg-white/[0.06] cursor-pointer rounded-lg"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -291,8 +291,8 @@ function ProjectCard({
 
       {/* Content */}
       <div className="p-4">
-        <h3 className="font-semibold text-foreground truncate mb-1">{projectName}</h3>
-        <p className="text-sm text-muted-foreground">
+        <h3 className="font-semibold text-white/90 truncate mb-1">{projectName}</h3>
+        <p className="text-sm text-white/40">
           {formatDate(project.createdAt)}
         </p>
       </div>
@@ -368,25 +368,25 @@ function UploadZone({
     <div className={`space-y-6 ${inline ? "" : ""}`}>
       {/* Project Name Input */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-muted-foreground">Project name</label>
+        <label className="text-sm font-medium text-white/50">Project name</label>
         <Input
           ref={inputRef}
           value={projectName}
           onChange={(e) => onProjectNameChange(e.target.value)}
           placeholder="Untitled Project"
-          className="text-lg h-12 bg-background border-border/50 focus:border-primary"
+          className="text-lg h-12 bg-white/[0.04] border-white/[0.08] text-white placeholder:text-white/25 focus:border-[#8B5CF6]/50 focus:ring-[#8B5CF6]/10"
           disabled={uploadState === "complete"}
         />
       </div>
 
       {/* Creative Brief */}
       <div className="space-y-2">
-        <label className="text-sm font-medium text-muted-foreground">Creative brief <span className="text-muted-foreground/50">(optional)</span></label>
+        <label className="text-sm font-medium text-white/50">Creative brief <span className="text-white/25">(optional)</span></label>
         <textarea
           value={description}
           onChange={(e) => onDescriptionChange(e.target.value)}
           placeholder="Describe your vision — what style, mood, and scenes you want. Or leave blank and chat with AI after upload."
-          className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-border/50 bg-background focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary resize-none"
+          className="w-full min-h-[80px] px-3 py-2 text-sm rounded-xl border border-white/[0.08] bg-white/[0.04] text-white placeholder:text-white/25 focus:border-[#8B5CF6]/50 focus:outline-none focus:ring-1 focus:ring-[#8B5CF6]/10 resize-none"
           disabled={uploadState === "complete"}
         />
       </div>
@@ -396,12 +396,8 @@ function UploadZone({
         <div
           {...getRootProps()}
           className={`
-            relative border-2 border-dashed rounded-2xl p-12 text-center
-            transition-all duration-300 cursor-pointer group bg-white shadow-card
-            ${isDragActive
-              ? "border-primary bg-primary/5 scale-[1.02] shadow-card-hover"
-              : "border-border hover:border-primary/50 hover:shadow-card-hover"
-            }
+            glass-dropzone relative p-12 text-center cursor-pointer group
+            ${isDragActive ? "active" : ""}
           `}
         >
           <input {...getInputProps()} />
@@ -409,46 +405,46 @@ function UploadZone({
           <div className="flex flex-col items-center gap-4">
             <div className={`
               w-20 h-20 rounded-2xl flex items-center justify-center transition-all duration-300
-              ${isDragActive ? "bg-primary/20 scale-110" : "bg-primary/10 group-hover:bg-primary/15"}
+              ${isDragActive ? "bg-[#8B5CF6]/20 scale-110" : "bg-[#8B5CF6]/10 group-hover:bg-[#8B5CF6]/15"}
             `}>
-              <Upload className={`w-10 h-10 transition-colors ${isDragActive ? "text-primary" : "text-primary/60 group-hover:text-primary"}`} />
+              <Upload className={`w-10 h-10 transition-colors ${isDragActive ? "text-[#8B5CF6]" : "text-[#8B5CF6]/60 group-hover:text-[#8B5CF6]"}`} />
             </div>
             <div className="space-y-2">
-              <p className="text-lg font-medium">
+              <p className="text-lg font-medium text-white/90">
                 {isDragActive ? "Drop your file here" : "Drag & drop your video or audio"}
               </p>
-              <p className="text-sm text-muted-foreground">
-                or click to browse • MP4, MOV, WebM, MP3, M4A, WAV
+              <p className="text-sm text-white/40">
+                or click to browse &middot; MP4, MOV, WebM, MP3, M4A, WAV
               </p>
             </div>
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl bg-white shadow-card p-8 space-y-6">
+        <div className="glass-surface p-8 space-y-6">
           {/* File Preview */}
           <div className="flex items-center gap-4">
             <div className={`
               w-14 h-14 rounded-xl flex items-center justify-center
-              ${uploadState === "error" ? "bg-red-500/10" : uploadState === "complete" ? "bg-emerald-500/10" : "bg-primary/10"}
+              ${uploadState === "error" ? "bg-red-500/15" : uploadState === "complete" ? "bg-emerald-500/15" : "bg-[#8B5CF6]/15"}
             `}>
               {uploadState === "uploading" || uploadState === "processing" ? (
-                <Loader2 className="w-7 h-7 text-primary animate-spin" />
+                <Loader2 className="w-7 h-7 text-[#8B5CF6] animate-spin" />
               ) : uploadState === "complete" ? (
-                <CheckCircle className="w-7 h-7 text-emerald-500" />
+                <CheckCircle className="w-7 h-7 text-emerald-400" />
               ) : uploadState === "error" ? (
-                <AlertCircle className="w-7 h-7 text-red-500" />
+                <AlertCircle className="w-7 h-7 text-red-400" />
               ) : (
-                <FileVideo className="w-7 h-7 text-primary/60" />
+                <FileVideo className="w-7 h-7 text-[#8B5CF6]/60" />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-medium truncate">
+              <p className="font-medium text-white/90 truncate">
                 {uploadState === "uploading" && "Uploading video..."}
                 {uploadState === "processing" && "Processing..."}
                 {uploadState === "complete" && "Ready!"}
                 {uploadState === "error" && "Upload failed"}
               </p>
-              <p className="text-sm text-muted-foreground truncate">
+              <p className="text-sm text-white/40 truncate">
                 {error || statusMessage}
               </p>
             </div>
@@ -458,20 +454,20 @@ function UploadZone({
           {(uploadState === "uploading" || uploadState === "processing") && (
             <div className="space-y-2">
               <Progress value={progress} className="h-2" />
-              <p className="text-xs text-muted-foreground text-right">{progress}%</p>
+              <p className="text-xs text-white/40 text-right">{progress}%</p>
             </div>
           )}
 
           {/* Error Actions */}
           {uploadState === "error" && (
-            <Button variant="outline" onClick={onReset} className="w-full">
+            <Button variant="outline" onClick={onReset} className="w-full border-white/[0.1] text-white/70 hover:bg-white/[0.06] hover:text-white">
               Try Again
             </Button>
           )}
 
           {/* Complete Message */}
           {uploadState === "complete" && (
-            <p className="text-sm text-muted-foreground text-center">
+            <p className="text-sm text-white/40 text-center">
               Opening editor...
             </p>
           )}
@@ -700,9 +696,9 @@ function NewProjectModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-xl shadow-card-hover" showCloseButton={uploadState === "idle" || uploadState === "error"}>
+      <DialogContent className="sm:max-w-xl bg-[rgba(28,28,35,0.9)] backdrop-blur-2xl border-white/[0.08] shadow-[0_16px_48px_rgba(0,0,0,0.5)] rounded-2xl text-white" showCloseButton={uploadState === "idle" || uploadState === "error"}>
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold">New Project</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-white/95">New Project</DialogTitle>
         </DialogHeader>
         <UploadZone
           projectName={projectName}
@@ -797,15 +793,15 @@ function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 md:px-8 lg:px-12 py-12">
       {/* Badge */}
-      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6 animate-fade-in-up">
+      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-badge text-[#8B5CF6] text-sm font-medium mb-6 animate-fade-in-up">
         <Sparkles className="w-4 h-4" />
         Get started
       </div>
 
-      <h1 className="text-4xl font-bold mb-4 animate-fade-in-up stagger-1">
+      <h1 className="text-4xl font-bold mb-4 animate-fade-in-up stagger-1 text-white/95">
         Create your first project
       </h1>
-      <p className="text-muted-foreground text-lg max-w-md mb-8 animate-fade-in-up stagger-2">
+      <p className="text-white/45 text-lg max-w-md mb-8 animate-fade-in-up stagger-2">
         Upload a video or audio file and let AI generate stunning visuals
       </p>
 
@@ -909,8 +905,8 @@ export default function ProjectsPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh] px-6 md:px-8 lg:px-12">
         <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading your projects...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-[#8B5CF6]" />
+          <p className="text-white/40">Loading your projects...</p>
         </div>
       </div>
     );
@@ -919,12 +915,12 @@ export default function ProjectsPage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 md:px-8 lg:px-12 py-12">
-        <div className="w-16 h-16 rounded-2xl bg-red-500/10 flex items-center justify-center mb-4">
-          <AlertCircle className="w-8 h-8 text-red-500" />
+        <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mb-4">
+          <AlertCircle className="w-8 h-8 text-red-400" />
         </div>
-        <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
-        <p className="text-muted-foreground mb-6">{error}</p>
-        <Button onClick={fetchProjects}>Try Again</Button>
+        <h2 className="text-xl font-semibold mb-2 text-white/90">Something went wrong</h2>
+        <p className="text-white/40 mb-6">{error}</p>
+        <Button onClick={fetchProjects} className="glass-page-btn border-0">Try Again</Button>
       </div>
     );
   }
@@ -944,15 +940,15 @@ export default function ProjectsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-10">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">My Projects</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-3xl font-bold tracking-tight text-white/95">My Projects</h1>
+          <p className="text-white/40 mt-1">
             {projects.length} project{projects.length !== 1 ? "s" : ""}
           </p>
         </div>
         <Button
           onClick={() => setIsNewProjectOpen(true)}
           size="lg"
-          className="bg-primary hover:bg-primary/90 gap-2"
+          className="glass-page-btn gap-2 border-0"
         >
           <Plus className="h-5 w-5" />
           New Project

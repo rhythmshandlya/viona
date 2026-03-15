@@ -80,17 +80,25 @@ export class DockerSandboxProvider implements SandboxProvider {
 
       return sandbox;
     } catch (err: any) {
+      // Log full error including stderr for debugging
+      logger.error({
+        message: err.message,
+        stderr: err.stderr,
+        stdout: err.stdout,
+        code: err.code,
+        containerName,
+      }, 'Docker sandbox create failed');
       // Cleanup on failure
       try { await execFileAsync('docker', ['rm', '-f', containerName]); } catch {}
       if (!backupId) {
         try { await execFileAsync('docker', ['volume', 'rm', volumeName]); } catch {}
       }
-      throw new Error(`Docker sandbox create failed: ${err.message}`);
+      throw new Error(`Docker sandbox create failed: ${err.stderr || err.message}`);
     }
   }
 
   async destroy(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'projectId'>): Promise<void> {
-    const containerName = `sandbox-${sandbox.projectId.slice(0, 8)}`;
+    const containerName = `sandbox-${sandbox.projectId}`;
     try {
       await execFileAsync('docker', ['stop', containerName], { timeout: 15_000 });
       await execFileAsync('docker', ['rm', containerName]);

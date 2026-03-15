@@ -91,8 +91,8 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
 
     const width = rect.width;
 
-    // Clear with editor ruler background - light theme
-    ctx.fillStyle = '#FAFAFA'; // --editor-ruler-bg
+    // Clear with editor ruler background - liquid glass theme
+    ctx.fillStyle = 'rgba(14, 14, 20, 0.7)';
     ctx.fillRect(0, 0, width, height);
 
     // Draw selected time range highlight (committed or in-progress)
@@ -124,7 +124,7 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     const { major, minor } = getTickInterval(viewport.zoom);
 
     // Draw minor ticks
-    ctx.strokeStyle = '#E5E5E5'; // --editor-border-subtle (light)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
     ctx.lineWidth = 1;
 
     const firstMinor = Math.floor(visibleStartMs / minor) * minor;
@@ -137,8 +137,8 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     }
 
     // Draw major ticks and labels
-    ctx.strokeStyle = '#D4D4D4'; // --editor-border-default (light)
-    ctx.fillStyle = '#6B7280'; // --editor-text-muted (light)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
     ctx.font = '10px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
@@ -159,7 +159,7 @@ export function TimelineRuler({ height = 24, className }: TimelineRulerProps) {
     }
 
     // Bottom border
-    ctx.strokeStyle = '#E5E5E5'; // --editor-border-subtle (light)
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, height - 0.5);

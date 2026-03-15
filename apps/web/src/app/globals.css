@@ -552,50 +552,60 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 /* ============================================
-   Editor Theme - Unified Light Theme
-   Matches landing page and dashboard aesthetic
+   Editor Theme - Apple Liquid Glass
+   Translucent glass panels with specular highlights,
+   deep blur, and adaptive tinting
    ============================================ */
 
 .editor-theme {
-  /* Background layers - cool light theme */
-  --editor-bg-base: #F8F8FC;
-  --editor-bg-surface: #FFFFFF;
-  --editor-bg-elevated: #F5F5F8;
-  --editor-bg-hover: #EDEDF2;
-  --editor-bg-canvas: #F0F0F5;
+  font-family: "Inter", var(--font-sans);
 
-  /* Borders - differentiated */
-  --editor-border-subtle: #EBEBF0;
-  --editor-border-default: #DCDCE5;
+  /* Background layers - deep dark with gradient mesh */
+  --editor-bg-base: #08080C;
+  --editor-bg-surface: rgba(28, 28, 35, 0.55);
+  --editor-bg-elevated: rgba(38, 38, 48, 0.65);
+  --editor-bg-hover: rgba(255, 255, 255, 0.06);
+  --editor-bg-canvas: rgba(12, 12, 18, 0.6);
+  --editor-panel-gap: 8px;
+  --editor-panel-radius: 16px;
+  --editor-panel-border: 1px solid rgba(255, 255, 255, 0.09);
+  --editor-panel-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  /* Borders - glass edges */
+  --editor-border-subtle: rgba(255, 255, 255, 0.06);
+  --editor-border-default: rgba(255, 255, 255, 0.1);
   --editor-border-focus: #7C3AED;
 
-  /* Text - dark for readability */
-  --editor-text-primary: #1A1A1A;
-  --editor-text-secondary: #6B7280;
-  --editor-text-muted: #9CA3AF;
+  /* Text - high clarity */
+  --editor-text-primary: rgba(255, 255, 255, 0.95);
+  --editor-text-secondary: rgba(255, 255, 255, 0.55);
+  --editor-text-muted: rgba(255, 255, 255, 0.32);
 
   /* Accent (Violet - matching brand) */
-  --editor-accent: #7C3AED;
-  --editor-accent-hover: #6D28D9;
-  --editor-accent-muted: #EDE9FE;
-  --editor-accent-soft: rgba(124, 58, 237, 0.1);
+  --editor-accent: #8B5CF6;
+  --editor-accent-hover: #7C3AED;
+  --editor-accent-muted: rgba(139, 92, 246, 0.15);
+  --editor-accent-soft: rgba(139, 92, 246, 0.08);
 
   /* Semantic colors */
-  --editor-info: #3b82f6;
-  --editor-info-soft: rgba(59, 130, 246, 0.1);
+  --editor-info: #60a5fa;
+  --editor-info-soft: rgba(96, 165, 250, 0.1);
 
-  /* Timeline specific - light theme */
-  --editor-track-bg: #FAFAFA;
-  --editor-track-item: #F5F5F5;
-  --editor-track-item-hover: #EBEBEB;
-  --editor-track-item-selected: #EDE9FE;
-  --editor-playhead: #7C3AED;
-  --editor-ruler-bg: #FAFAFA;
+  /* Timeline specific */
+  --editor-track-bg: rgba(18, 18, 24, 0.6);
+  --editor-track-item: rgba(255, 255, 255, 0.06);
+  --editor-track-item-hover: rgba(255, 255, 255, 0.1);
+  --editor-track-item-selected: rgba(139, 92, 246, 0.2);
+  --editor-playhead: #FFFFFF;
+  --editor-ruler-bg: rgba(18, 18, 24, 0.5);
 
-  /* Shadows */
-  --editor-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --editor-shadow-md: 0 4px 24px rgba(0, 0, 0, 0.06);
-  --editor-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.1);
+  /* Shadows - tinted depth */
+  --editor-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
+  --editor-shadow-md: 0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2);
+  --editor-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45), 0 4px 16px rgba(0, 0, 0, 0.25);
 
   /* Spacing scale */
   --editor-space-xs: 4px;
@@ -613,11 +623,11 @@ input[type="number"]::-webkit-outer-spin-button {
   --editor-icon-md: 16px;
   --editor-icon-lg: 20px;
 
-  /* Border radius */
-  --editor-radius-sm: 4px;
-  --editor-radius-md: 6px;
-  --editor-radius-lg: 8px;
-  --editor-radius-xl: 12px;
+  /* Border radius - fluid rounded */
+  --editor-radius-sm: 6px;
+  --editor-radius-md: 10px;
+  --editor-radius-lg: 14px;
+  --editor-radius-xl: 18px;
 
   /* Z-index scale */
   --editor-z-sticky: 10;
@@ -626,7 +636,7 @@ input[type="number"]::-webkit-outer-spin-button {
 
   /* Transitions */
   --editor-transition-fast: 150ms ease-out;
-  --editor-transition-normal: 200ms ease-out;
+  --editor-transition-normal: 250ms cubic-bezier(0.2, 0, 0, 1);
 
   /* Font smoothing */
   -webkit-font-smoothing: antialiased;
@@ -658,53 +668,97 @@ input[type="number"]::-webkit-outer-spin-button {
 .editor-theme .shadow-editor-md { box-shadow: var(--editor-shadow-md); }
 .editor-theme .shadow-editor-lg { box-shadow: var(--editor-shadow-lg); }
 
-/* Editor-specific component styles */
+/* Editor-specific component styles — glass buttons */
 .editor-theme button.editor-btn-primary {
-  background-color: var(--editor-accent);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(124, 58, 237, 0.95));
   color: #FFFFFF;
   font-weight: 500;
   padding: 0.5rem 1rem;
-  border-radius: 6px;
-  transition: background-color var(--editor-transition-fast);
-  box-shadow: var(--editor-shadow-sm);
+  border-radius: 12px;
+  transition: all var(--editor-transition-fast);
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .editor-theme button.editor-btn-primary:hover {
-  background-color: var(--editor-accent-hover);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(109, 40, 217, 1));
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 .editor-theme button.editor-btn-ghost {
   background-color: transparent;
   color: var(--editor-text-secondary);
   padding: 0.5rem;
-  border-radius: 6px;
+  border-radius: 10px;
   transition: all var(--editor-transition-fast);
 }
 
 .editor-theme button.editor-btn-ghost:hover {
-  background-color: var(--editor-bg-hover);
+  background-color: rgba(255, 255, 255, 0.06);
   color: var(--editor-text-primary);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-/* Editor panels */
+/* Editor panels — Apple Liquid Glass */
 .editor-theme .editor-panel {
-  background-color: var(--editor-bg-surface);
-  border: 1px solid var(--editor-border-subtle);
+  background: var(--editor-bg-surface);
+  border: var(--editor-panel-border);
+  box-shadow: var(--editor-panel-shadow);
+  border-radius: var(--editor-panel-radius);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  /* Specular highlight — top edge glow */
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
 
-/* Editor input styling */
+/* Gradient mesh background — visible through glass */
+.editor-theme .editor-bg-mesh {
+  background:
+    radial-gradient(ellipse at 15% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 85% 25%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(14, 165, 233, 0.04) 0%, transparent 40%),
+    #08080C;
+}
+
+/* Glass button hover states */
+.editor-theme .glass-btn {
+  transition: all var(--editor-transition-fast);
+  border-radius: var(--editor-radius-md);
+}
+.editor-theme .glass-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.editor-theme .glass-btn:active {
+  background: rgba(255, 255, 255, 0.04);
+  transform: scale(0.97);
+}
+.editor-theme .glass-btn.active {
+  background: var(--editor-accent-muted);
+  color: var(--editor-accent);
+  box-shadow: inset 0 1px 0 rgba(139, 92, 246, 0.15);
+}
+
+/* Glass divider */
+.editor-theme .glass-divider {
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Editor input styling — glass fields */
 .editor-theme input,
 .editor-theme select {
-  background-color: var(--editor-bg-hover);
-  border: 1px solid var(--editor-border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   color: var(--editor-text-primary);
+  border-radius: var(--editor-radius-md);
 }
 
 .editor-theme input:focus,
 .editor-theme select:focus {
-  border-color: var(--editor-accent);
+  border-color: rgba(139, 92, 246, 0.5);
   outline: none;
-  box-shadow: 0 0 0 3px var(--editor-accent-soft);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .editor-theme textarea:focus {
@@ -743,10 +797,10 @@ input[type="number"]::-webkit-outer-spin-button {
   animation: slide-out-right var(--editor-transition-fast) forwards;
 }
 
-/* Command palette backdrop */
+/* Command palette backdrop — deep glass */
 .editor-command-backdrop {
-  background-color: rgba(0, 0, 0, 0.3);
-  backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px) saturate(120%);
 }
 
 /* Focus ring for editor elements */
@@ -759,25 +813,28 @@ input[type="number"]::-webkit-outer-spin-button {
   outline: none;
 }
 
-/* AI Assistant chat styles */
+/* AI Assistant chat styles — glass bubbles */
 .editor-theme .ai-message-user {
-  background-color: var(--editor-accent);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(124, 58, 237, 0.9));
   color: #FFFFFF;
-  border-radius: 1rem 1rem 0.25rem 1rem;
+  border-radius: 1.25rem 1.25rem 0.25rem 1.25rem;
+  box-shadow: 0 2px 12px rgba(139, 92, 246, 0.2);
 }
 
 .editor-theme .ai-message-assistant {
-  background-color: var(--editor-bg-hover);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   color: var(--editor-text-primary);
-  border-radius: 1rem 1rem 1rem 0.25rem;
+  border-radius: 1.25rem 1.25rem 1.25rem 0.25rem;
 }
 
 .editor-theme .ai-input {
-  background-color: var(--editor-bg-hover);
-  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
 }
 
-/* Icon rail styles */
+/* Icon rail styles — glass */
 .editor-theme .icon-rail-item {
   display: flex;
   flex-direction: column;
@@ -787,16 +844,17 @@ input[type="number"]::-webkit-outer-spin-button {
   margin: 0.125rem 0.25rem;
   color: var(--editor-text-secondary);
   transition: all var(--editor-transition-fast);
-  border-radius: var(--editor-radius-md);
+  border-radius: var(--editor-radius-lg);
 }
 
 .editor-theme .icon-rail-item:hover {
-  background-color: var(--editor-bg-hover);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .editor-theme .icon-rail-item.active {
-  background-color: var(--editor-accent-muted);
+  background: var(--editor-accent-muted);
   color: var(--editor-accent);
+  box-shadow: inset 0 1px 0 rgba(139, 92, 246, 0.12);
 }
 
 /* Tabular numbers for time displays */
@@ -891,29 +949,124 @@ input[type="number"]::-webkit-outer-spin-button {
   font-weight: 600;
 }
 
-/* Timeline track styles for light theme */
+/* Timeline track styles — glass */
 .editor-theme .timeline-track {
   background-color: var(--editor-track-bg);
-  border-bottom: 1px solid var(--editor-border-subtle);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .editor-theme .timeline-clip {
-  background-color: var(--editor-track-item);
-  border: 1px solid var(--editor-border-subtle);
-  border-radius: 6px;
+  background: var(--editor-track-item);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
   transition: all var(--editor-transition-fast);
 }
 
 .editor-theme .timeline-clip:hover {
-  background-color: var(--editor-track-item-hover);
-  box-shadow: var(--editor-shadow-sm);
+  background: var(--editor-track-item-hover);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   transform: translateY(-0.5px);
 }
 
 .editor-theme .timeline-clip.selected {
-  background-color: var(--editor-track-item-selected);
-  border-color: var(--editor-accent);
-  box-shadow: 0 0 0 2px var(--editor-accent-soft);
+  background: var(--editor-track-item-selected);
+  border-color: rgba(139, 92, 246, 0.4);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.1), 0 2px 8px rgba(139, 92, 246, 0.15);
+}
+
+/* ============================================
+   Liquid Glass Page Theme
+   For dashboard/projects pages
+   ============================================ */
+
+.liquid-glass-page {
+  background:
+    radial-gradient(ellipse at 20% 15%, rgba(139, 92, 246, 0.07) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 75%, rgba(168, 85, 247, 0.04) 0%, transparent 45%),
+    radial-gradient(ellipse at 10% 80%, rgba(14, 165, 233, 0.03) 0%, transparent 40%),
+    #08080C;
+  color: rgba(255, 255, 255, 0.92);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glass card for projects */
+.glass-card {
+  background: rgba(28, 28, 35, 0.55);
+  -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  backdrop-filter: blur(40px) saturate(180%) brightness(1.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  transition: all 250ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.glass-card:hover {
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.35),
+    0 4px 12px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+/* Glass surface (for upload zones, modals, etc.) */
+.glass-surface {
+  background: rgba(28, 28, 35, 0.6);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  backdrop-filter: blur(40px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Glass drop zone */
+.glass-dropzone {
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px dashed rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  transition: all 300ms cubic-bezier(0.2, 0, 0, 1);
+}
+.glass-dropzone:hover {
+  border-color: rgba(139, 92, 246, 0.4);
+  background: rgba(139, 92, 246, 0.04);
+  box-shadow: 0 4px 24px rgba(139, 92, 246, 0.08);
+}
+.glass-dropzone.active {
+  border-color: rgba(139, 92, 246, 0.6);
+  background: rgba(139, 92, 246, 0.08);
+  transform: scale(1.01);
+  box-shadow: 0 8px 32px rgba(139, 92, 246, 0.12);
+}
+
+/* Glass badge */
+.glass-badge {
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+}
+
+/* Glass button (page-level) */
+.glass-page-btn {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.85), rgba(124, 58, 237, 0.9));
+  color: white;
+  border-radius: 14px;
+  box-shadow: 0 2px 16px rgba(139, 92, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: all 200ms ease-out;
+}
+.glass-page-btn:hover {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.9), rgba(109, 40, 217, 0.95));
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
 /* ============================================
