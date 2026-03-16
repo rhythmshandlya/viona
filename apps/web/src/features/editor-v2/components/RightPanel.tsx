@@ -38,7 +38,7 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
     <div
       className={isSideBySide
         ? "w-full h-full overflow-hidden bg-[var(--editor-bg-surface)]"
-        : "flex-shrink-0 border-l border-[var(--editor-border-subtle)] overflow-hidden bg-[var(--editor-bg-surface)]"
+        : "flex-shrink-0 overflow-hidden editor-panel"
       }
       style={isSideBySide ? undefined : {
         width: isOpen ? 320 : 0,
@@ -49,10 +49,10 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
       <div className={isSideBySide ? "w-full h-full flex flex-col" : "w-80 h-full flex flex-col"}>
         {/* Close button header */}
         {!isSideBySide && (
-          <div className="h-10 flex items-center justify-end border-b border-[var(--editor-border-subtle)] flex-shrink-0 px-2">
+          <div className="h-10 flex items-center justify-end border-b border-white/[0.06] flex-shrink-0 px-2">
             <button
               onClick={onClose}
-              className="p-1.5 rounded hover:bg-[var(--editor-bg-hover)] transition-colors"
+              className="p-1.5 rounded-lg hover:bg-white/[0.06] transition-colors"
               aria-label="Close panel"
             >
               <X className="w-3.5 h-3.5 text-[var(--editor-text-secondary)]" />
@@ -61,7 +61,7 @@ export function RightPanel({ isOpen, activeTab, onTabChange, onClose, layout = '
         )}
 
         {/* Content — single scrollable inspector */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
           <ItemInspector />
           <KeyframeEditor />
         </div>

@@ -848,8 +848,8 @@ function EmptyState() {
   );
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 md:px-8 lg:px-12 py-12">
-      <div className="rounded-2xl border border-white/10 bg-black/40 backdrop-blur-xl p-10 md:p-14 shadow-2xl flex flex-col items-center">
+    <div className="min-h-screen py-8 px-4 md:px-6 lg:px-8">
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-10 md:p-14 min-h-[calc(100vh-8rem)] max-w-[1600px] mx-auto flex flex-col items-center justify-center text-center">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-badge text-[#8B5CF6] text-sm font-medium mb-6 animate-fade-in-up">
           <Sparkles className="w-4 h-4" />
@@ -975,13 +975,15 @@ export default function ProjectsPage() {
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-6 md:px-8 lg:px-12 py-12">
-        <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mb-4">
-          <AlertCircle className="w-8 h-8 text-red-400" />
+      <div className="min-h-screen py-8 px-4 md:px-6 lg:px-8">
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-md p-10 md:p-14 min-h-[calc(100vh-8rem)] max-w-[1600px] mx-auto flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 rounded-2xl bg-red-500/15 flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8 text-red-400" />
+          </div>
+          <h2 className="text-xl font-semibold mb-2 text-white/90">Something went wrong</h2>
+          <p className="text-white/40 mb-6">{error}</p>
+          <LiquidButton onClick={fetchProjects}>Try Again</LiquidButton>
         </div>
-        <h2 className="text-xl font-semibold mb-2 text-white/90">Something went wrong</h2>
-        <p className="text-white/40 mb-6">{error}</p>
-        <LiquidButton onClick={fetchProjects}>Try Again</LiquidButton>
       </div>
     );
   }

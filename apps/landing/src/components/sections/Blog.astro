@@ -244,13 +244,22 @@ const features = [
     }
   }
 
-  /* ── Visual wrap ── */
+  /* ── Visual wrap — Liquid Glass ── */
   .feat-visual-wrap {
     position: relative;
     aspect-ratio: 16 / 10;
-    border-radius: 16px;
+    border-radius: 1.5rem;
     overflow: hidden;
-    background: #111;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    backdrop-filter: blur(40px) saturate(200%);
+    box-shadow:
+      0 12px 48px rgba(0, 0, 0, 0.3),
+      0 2px 8px rgba(0, 0, 0, 0.15),
+      0 0 40px rgba(139, 92, 246, 0.06),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
     order: 2;
   }
 
@@ -263,12 +272,14 @@ const features = [
     position: absolute;
     inset: 0;
     opacity: 0;
+    transform: scale(0.95) translateY(8px);
     pointer-events: none;
-    transition: opacity 0.35s ease;
+    transition: opacity 0.5s ease, transform 0.5s ease;
   }
 
   .feat-panel--active {
     opacity: 1;
+    transform: scale(1) translateY(0);
     pointer-events: auto;
   }
 
@@ -286,7 +297,7 @@ const features = [
   }
 
   .feat-scene--light {
-    background: linear-gradient(135deg, #f8f7ff 0%, #ede9fe 100%);
+    background: linear-gradient(135deg, #141124 0%, #1a1530 100%);
   }
 
   /* ── Buttons ── */
@@ -302,23 +313,49 @@ const features = [
   }
 
   .feat-btn {
+    position: relative;
+    overflow: hidden;
     text-align: left;
     padding: 12px 16px;
-    border-radius: 10px;
+    border-radius: 14px;
     border: 1px solid transparent;
     background: transparent;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.25s ease;
+    color: var(--color-foreground);
   }
 
   .feat-btn:hover {
-    background: rgba(124, 58, 237, 0.06);
-    border-color: rgba(124, 58, 237, 0.15);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.10);
   }
 
   .feat-btn--active {
-    background: rgba(124, 58, 237, 0.08);
-    border-color: rgba(124, 58, 237, 0.3);
+    background: rgba(139, 92, 246, 0.10);
+    border: 1px solid rgba(139, 92, 246, 0.25);
+    border-top: 1px solid rgba(139, 92, 246, 0.35);
+    box-shadow:
+      0 2px 12px rgba(139, 92, 246, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  /* 30s progress bar on active tab */
+  .feat-btn--active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--color-primary), #a78bfa);
+    transform-origin: left;
+    animation: feat-progress 30s linear forwards;
+    border-radius: 0 0 14px 14px;
+  }
+
+  @keyframes feat-progress {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
   }
 
   .feat-btn-label {
@@ -1028,19 +1065,70 @@ const features = [
     const capDisplay = document.getElementById("cap-display");
     const styleChips = document.querySelectorAll<HTMLButtonElement>(".cap-style-chip");
 
+    const AUTO_ADVANCE_MS = 30_000;
+    let autoTimer: ReturnType<typeof setInterval> | null = null;
+    const featureIds = Array.from(buttons).map((b) => b.dataset.feature!);
+
+    /** Restart all CSS animations inside a panel */
+    function restartPanelAnimations(panel: HTMLElement) {
+      try {
+        panel.getAnimations({ subtree: true }).forEach((a) => {
+          a.cancel();
+          a.play();
+        });
+      } catch { /* older browsers fallback: ignore */ }
+    }
+
+    /** Switch to a feature by id */
+    function switchToFeature(id: string) {
+      // Remove active from all
+      buttons.forEach((b) => b.classList.remove("feat-btn--active"));
+      panels.forEach((p) => p.classList.remove("feat-panel--active"));
+
+      // Force reflow so progress bar animation restarts cleanly
+      void document.body.offsetHeight;
+
+      // Activate the target button & panel
+      const btn = document.querySelector<HTMLButtonElement>(`[data-feature="${id}"]`);
+      const panel = document.querySelector<HTMLElement>(`[data-panel="${id}"]`);
+
+      if (btn) btn.classList.add("feat-btn--active");
+      if (panel) {
+        panel.classList.add("feat-panel--active");
+        restartPanelAnimations(panel);
+      }
+
+      // Captions loop management
+      if (id === "captions" && capDisplay) startCaptionLoop(capDisplay);
+      else stopCaptionLoop();
+    }
+
+    /** Auto-advance to next feature every 30s */
+    function startAutoAdvance() {
+      stopAutoAdvance();
+      autoTimer = setInterval(() => {
+        const currentBtn = document.querySelector<HTMLButtonElement>(".feat-btn--active");
+        if (!currentBtn) return;
+        const currentIndex = featureIds.indexOf(currentBtn.dataset.feature!);
+        const nextIndex = (currentIndex + 1) % featureIds.length;
+        switchToFeature(featureIds[nextIndex]);
+      }, AUTO_ADVANCE_MS);
+    }
+
+    function stopAutoAdvance() {
+      if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+    }
+
+    // Manual click: switch + restart the 30s timer
     buttons.forEach((btn) => {
       btn.addEventListener("click", () => {
         const id = btn.dataset.feature;
-        buttons.forEach((b) => b.classList.remove("feat-btn--active"));
-        panels.forEach((p) => p.classList.remove("feat-panel--active"));
-        btn.classList.add("feat-btn--active");
-        const panel = document.querySelector<HTMLElement>(`[data-panel="${id}"]`);
-        if (panel) panel.classList.add("feat-panel--active");
-        if (id === "captions" && capDisplay) startCaptionLoop(capDisplay);
-        else stopCaptionLoop();
+        if (id) switchToFeature(id);
+        startAutoAdvance();
       });
     });
 
+    // Caption style chip clicks
     styleChips.forEach((chip) => {
       chip.addEventListener("click", () => {
         styleChips.forEach((c) => c.classList.remove("cap-chip--active"));
@@ -1050,6 +1138,8 @@ const features = [
       });
     });
 
+    // Boot
     if (capDisplay) startCaptionLoop(capDisplay);
+    startAutoAdvance();
   });
 </script>

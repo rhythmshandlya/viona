@@ -4,18 +4,18 @@
   --font-sans: "DM Sans", system-ui, sans-serif;
   --font-serif: "DM Serif Display", Georgia, serif;
 
-  --color-background: #ffffff;
-  --color-foreground: #1a1a1a;
-  --color-muted: #f3f2f8;
-  --color-muted-foreground: #6b7280;
-  --color-border: #e5e5e5;
-  --color-primary: #7C3AED;
+  --color-background: #08080C;
+  --color-foreground: #e8e8ed;
+  --color-muted: #141124;
+  --color-muted-foreground: rgba(255, 255, 255, 0.45);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-primary: #8B5CF6;
   --color-secondary: #A78BFA;
   --color-accent: #C084FC;
   --color-primary-foreground: #ffffff;
-  --color-soft: #EDE9FE;
-  --color-card: #ffffff;
-  --color-dark: #1a1a1a;
+  --color-soft: rgba(139, 92, 246, 0.12);
+  --color-card: rgba(20, 17, 36, 0.60);
+  --color-dark: #0c0c14;
 
   --radius: 0.5rem;
 }
@@ -36,13 +36,97 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Header scroll effect */
+/* ── Background mesh gradient ── */
+.landing-bg-mesh {
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 10%, rgba(139, 92, 246, 0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 80%, rgba(139, 92, 246, 0.05) 0%, transparent 60%),
+    var(--color-background);
+}
+
+/* Header scroll effect — Liquid Glass */
 header {
-  transition: box-shadow 0.3s ease, background-color 0.3s ease;
+  transition: box-shadow 0.3s ease, background-color 0.3s ease, border-color 0.3s ease;
 }
 
 .header-scrolled {
-  box-shadow: 0 1px 12px rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.3),
+    0 1px 4px rgba(0, 0, 0, 0.2),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* ── Liquid Glass utilities ── */
+.glass-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1.5rem;
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  backdrop-filter: blur(40px) saturate(200%);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+  overflow: hidden;
+}
+
+.glass-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%, transparent 60%, rgba(255,255,255,0.02) 100%);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-surface {
+  position: relative;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 1.5rem;
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  backdrop-filter: blur(40px) saturate(200%);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.glass-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 50%);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glass-btn {
+  position: relative;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: 1px solid rgba(255, 255, 255, 0.20);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transition: all 0.2s ease;
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
 /* Wavy underline decoration */
@@ -100,48 +184,75 @@ header {
   z-index: 0;
 }
 
-/* Button styles */
+/* Button styles — Liquid Glass */
 .btn-primary {
-  background: var(--color-foreground);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(124, 58, 237, 0.95));
   color: white;
   padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
-  font-weight: 500;
+  border-radius: 1rem;
+  font-weight: 600;
   font-size: 0.875rem;
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow:
+    0 4px 20px rgba(139, 92, 246, 0.4),
+    0 1px 3px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: all 0.25s ease;
 }
 
 .btn-primary:hover {
-  background: #333;
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.95), rgba(109, 40, 217, 1));
+  box-shadow:
+    0 8px 32px rgba(139, 92, 246, 0.55),
+    0 2px 6px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
 }
 
 .btn-outline {
-  background: transparent;
+  background: rgba(255, 255, 255, 0.06);
   color: var(--color-foreground);
   padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
+  border-radius: 1rem;
   font-weight: 500;
   font-size: 0.875rem;
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-top: 1px solid rgba(255, 255, 255, 0.20);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  transition: all 0.25s ease;
 }
 
 .btn-outline:hover {
-  border-color: var(--color-foreground);
-  background: var(--color-foreground);
-  color: white;
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
 }
 
-/* Email input */
+/* Email input — Liquid Glass */
 .email-input-group {
   display: flex;
-  background: white;
-  border: 1px solid var(--color-border);
-  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1rem;
   padding: 0.25rem;
   max-width: 400px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  backdrop-filter: blur(40px) saturate(200%);
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.2),
+    0 1px 4px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .email-input-group input {
@@ -151,23 +262,26 @@ header {
   font-size: 0.875rem;
   background: transparent;
   outline: none;
+  color: var(--color-foreground);
 }
 
 .email-input-group input::placeholder {
-  color: var(--color-muted-foreground);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 .email-input-group button {
-  background: var(--color-foreground);
+  background: var(--color-primary);
   color: white;
   padding: 0.75rem 1.25rem;
-  border-radius: 0.375rem;
+  border-radius: 0.5rem;
   font-weight: 500;
   font-size: 0.875rem;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.3);
+  transition: all 0.2s ease;
 }
 
 .email-input-group button:hover {
-  background: #333;
+  background: #7c4fe0;
 }
 
 /* Feature checkmark */
@@ -188,38 +302,55 @@ header {
   color: white;
 }
 
-/* Card styles */
+/* Card styles — Liquid Glass */
 .card-elevated {
-  background: white;
-  border-radius: 1rem;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  position: relative;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1.5rem;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
   overflow: hidden;
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  backdrop-filter: blur(40px) saturate(200%);
 }
 
 /* Image grid item */
 .image-grid-item {
   border-radius: 1rem;
   overflow: hidden;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
-/* Blog card */
+/* Blog card — Liquid Glass */
 .blog-card {
-  background: white;
-  border-radius: 1rem;
+  position: relative;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 1.5rem;
   overflow: hidden;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  backdrop-filter: blur(40px) saturate(200%);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
 .blog-card:hover {
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-  transform: translateY(-4px);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transform: translateY(-3px);
 }
 
 /* Accordion */
 details {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 details summary {
@@ -230,6 +361,7 @@ details summary {
   justify-content: space-between;
   align-items: center;
   list-style: none;
+  color: var(--color-foreground);
 }
 
 details summary::-webkit-details-marker {
@@ -239,11 +371,11 @@ details summary::-webkit-details-marker {
 details summary::after {
   content: "+";
   font-size: 1.25rem;
-  color: var(--color-muted-foreground);
+  color: rgba(255, 255, 255, 0.35);
 }
 
 details[open] summary::after {
-  content: "−";
+  content: "\2212";
 }
 
 details > div {
@@ -255,7 +387,7 @@ details > div {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
 }
 
 .nav-dot.active {

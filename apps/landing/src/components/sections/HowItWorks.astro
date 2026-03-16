@@ -42,41 +42,50 @@ const steps = [
       ))}
     </div>
 
-    <!-- Real product screenshot -->
-    <div class="hiw-screenshot-wrap">
-      <div class="hiw-screenshot-chrome">
-        <div class="hiw-chrome-dots">
-          <span></span><span></span><span></span>
-        </div>
-        <div class="hiw-chrome-url">studio.viona.app</div>
-        <div class="hiw-chrome-dots" style="visibility:hidden">
-          <span></span><span></span><span></span>
-        </div>
-      </div>
-      <img
-        src="/assets/screenshots/editor-chat.png"
-        alt="Viona editor showing AI chat, video preview, and timeline"
-        class="w-full block"
-        loading="lazy"
-        decoding="async"
-      />
-    </div>
   </div>
 </section>
 
 <style>
   .hiw-step {
-    background: white;
-    border-radius: 1rem;
+    position: relative;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 1.5rem;
     padding: 1.5rem;
-    border: 1px solid var(--color-border);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    backdrop-filter: blur(40px) saturate(200%);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.25),
+      0 2px 8px rgba(0, 0, 0, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+  }
+
+  .hiw-step::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 40%);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .hiw-step:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.3),
+      0 4px 12px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 
   .hiw-number {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: var(--color-primary);
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.9), rgba(124, 58, 237, 0.95));
     color: white;
     font-weight: 600;
     font-size: 14px;
@@ -84,13 +93,19 @@ const steps = [
     align-items: center;
     justify-content: center;
     margin-bottom: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow:
+      0 4px 16px rgba(139, 92, 246, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.25);
   }
 
   .hiw-screenshot-wrap {
-    border-radius: 14px;
+    border-radius: 20px;
     overflow: hidden;
-    border: 1px solid rgba(0,0,0,0.08);
-    box-shadow: 0 8px 40px rgba(0,0,0,0.1);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow:
+      0 12px 48px rgba(0, 0, 0, 0.4),
+      0 0 60px rgba(139, 92, 246, 0.06);
   }
 
   .hiw-screenshot-chrome {

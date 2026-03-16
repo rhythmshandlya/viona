@@ -20,7 +20,14 @@ export async function dispatchToSandbox(
       if (!result.ok) {
         console.error(`Sandbox op failed: ${op.tool}`, result.error);
       }
-    } catch (err) {
+    } catch (err: any) {
+      // Removals are idempotent — "not found" means the item/track is already gone
+      const isRemove = op.tool === 'removeItem' || op.tool === 'removeTrack';
+      const isNotFound = err?.message?.includes('not found') || err?.message?.includes('Not found');
+      if (isRemove && isNotFound) {
+        // Desired state achieved — silently ignore
+        return;
+      }
       console.error(`Sandbox dispatch error: ${op.tool}`, err);
     }
   }

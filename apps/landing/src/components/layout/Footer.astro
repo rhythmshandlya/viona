@@ -2,7 +2,7 @@
 import { siteConfig } from "@/data/site";
 ---
 
-<footer class="py-12 sm:py-16 border-t border-border">
+<footer class="py-12 sm:py-16 border-t border-white/[0.06]">
   <div class="max-w-6xl mx-auto px-4 sm:px-6">
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-8 mb-8 sm:mb-12">
       <!-- Brand -->
@@ -70,9 +70,9 @@ import { siteConfig } from "@/data/site";
           <input
             type="email"
             placeholder="Email"
-            class="flex-1 min-w-0 px-3 py-2 text-xs sm:text-sm border border-border rounded-lg bg-transparent focus:outline-none focus:border-primary"
+            class="flex-1 min-w-0 px-3 py-2 text-xs sm:text-sm border border-white/[0.08] rounded-xl bg-white/[0.04] focus:outline-none focus:border-primary/50 transition-colors text-foreground placeholder:text-white/30"
           />
-          <button class="w-10 h-10 sm:w-10 sm:h-10 bg-primary text-white rounded-lg flex items-center justify-center hover:bg-primary/90 transition-colors flex-shrink-0" aria-label="Subscribe to newsletter">
+          <button class="w-10 h-10 sm:w-10 sm:h-10 bg-primary text-white rounded-xl flex items-center justify-center hover:bg-primary/90 transition-all flex-shrink-0" style="box-shadow: 0 2px 8px rgba(139,92,246,0.3), inset 0 1px 0 rgba(255,255,255,0.15);" aria-label="Subscribe to newsletter">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3"/>
             </svg>
@@ -82,7 +82,7 @@ import { siteConfig } from "@/data/site";
     </div>
 
     <!-- Bottom bar -->
-    <div class="pt-6 sm:pt-8 border-t border-border flex flex-col sm:flex-row justify-between items-center gap-4">
+    <div class="pt-6 sm:pt-8 border-t border-white/[0.06] flex flex-col sm:flex-row justify-between items-center gap-4">
       <p class="text-xs sm:text-sm text-muted-foreground text-center sm:text-left">
         © {new Date().getFullYear()} {siteConfig.name}. All rights reserved.
       </p>

@@ -204,12 +204,15 @@ export const removeTrackTool = {
       try {
         const manifest = await readManifest();
         const trackIdx = (manifest.tracks ?? []).findIndex((t: any) => t.id === input.trackId);
-        if (trackIdx === -1) return `Track not found: ${input.trackId}`;
+        if (trackIdx === -1) {
+          // Idempotent: track already gone — treat as success
+          return JSON.stringify({ removed: input.trackId, removedItems: 0, alreadyGone: true });
+        }
         manifest.tracks.splice(trackIdx, 1);
         const removedCount = (manifest.items ?? []).filter((i: any) => i.trackId === input.trackId).length;
         manifest.items = (manifest.items ?? []).filter((i: any) => i.trackId !== input.trackId);
         await writeManifest(manifest);
-        return `Removed track ${input.trackId} and ${removedCount} item(s).`;
+        return JSON.stringify({ removed: input.trackId, removedItems: removedCount });
       } catch (err: any) {
         return `Failed to remove track: ${err.message}`;
       }
@@ -372,10 +375,13 @@ export const removeItemTool = {
         const manifest = await readManifest();
         const items: any[] = manifest.items ?? [];
         const idx = items.findIndex((i: any) => i.id === input.itemId);
-        if (idx === -1) return `Item not found: ${input.itemId}`;
+        if (idx === -1) {
+          // Idempotent: item already gone — treat as success
+          return JSON.stringify({ removed: input.itemId, alreadyGone: true });
+        }
         items.splice(idx, 1);
         await writeManifest(manifest);
-        return `Removed item ${input.itemId}.`;
+        return JSON.stringify({ removed: input.itemId });
       } catch (err: any) {
         return `Failed to remove item: ${err.message}`;
       }

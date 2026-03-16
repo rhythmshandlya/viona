@@ -2,7 +2,7 @@
 ---
 
 <section class="bg-dark pt-16 sm:pt-20 lg:pt-28 pb-16 sm:pb-20 lg:pb-24 overflow-hidden">
-  <div class="max-w-7xl mx-auto px-4 sm:px-6">
+  <div class="max-w-[1500px] mx-auto px-4 sm:px-6">
     <!-- Header -->
     <div class="text-center mb-12 sm:mb-16 lg:mb-20">
       <h2
@@ -19,53 +19,275 @@
       </p>
     </div>
 
-    <!-- Screenshot stage -->
-    <div class="relative max-w-[1100px] mx-auto" data-showcase-screens>
+    <!-- Mock Editor -->
+    <div class="relative max-w-[1400px] mx-auto" data-showcase-editor>
       <!-- Ambient glow -->
       <div class="showcase-glow" aria-hidden="true"></div>
 
-      <!-- Primary screenshot — Chat view -->
-      <div class="relative z-[2]" data-showcase-front>
-        <div class="showcase-window">
-          <div class="showcase-chrome">
-            <div class="showcase-dots">
-              <span></span><span></span><span></span>
-            </div>
-            <div class="showcase-url">studio.viona.app</div>
-            <div class="showcase-dots" style="visibility:hidden">
-              <span></span><span></span><span></span>
-            </div>
+      <!-- Browser chrome frame -->
+      <div class="showcase-window" data-showcase-front>
+        <div class="showcase-chrome">
+          <div class="showcase-dots">
+            <span></span><span></span><span></span>
           </div>
-          <img
-            src="/assets/screenshots/editor-chat.png"
-            alt="Viona editor with AI chat assistant, video preview, and multi-track timeline"
-            class="w-full block"
-            loading="eager"
-            decoding="async"
-            fetchpriority="high"
-          />
+          <div class="showcase-url">studio.viona.app</div>
+          <div class="showcase-dots" style="visibility:hidden">
+            <span></span><span></span><span></span>
+          </div>
         </div>
-      </div>
 
-      <!-- Secondary screenshot — Captions view, floating bottom-right -->
-      <div class="showcase-float" data-showcase-back>
-        <div class="showcase-window showcase-window--float">
-          <div class="showcase-chrome showcase-chrome--sm">
-            <div class="showcase-dots showcase-dots--sm">
-              <span></span><span></span><span></span>
+        <!-- Editor body -->
+        <div class="mock-editor">
+          <!-- Editor Header -->
+          <div class="me-header">
+            <button class="me-header-btn" aria-label="Back">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <span class="me-header-title">Untitled Project</span>
+            <button class="me-export-btn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export
+            </button>
+          </div>
+
+          <!-- Main area -->
+          <div class="me-main">
+            <!-- Icon Rail -->
+            <div class="me-icon-rail" data-rail>
+              <button class="me-rail-btn me-rail-btn--active" data-rail-btn="chat" aria-label="AI Chat">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+                <span class="me-rail-label">Chat</span>
+              </button>
+              <button class="me-rail-btn" data-rail-btn="captions" aria-label="Captions">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="14" x="3" y="5" rx="2" ry="2"/><path d="M7 15h4M15 15h2M7 11h2M13 11h4"/></svg>
+                <span class="me-rail-label">Captions</span>
+              </button>
+              <button class="me-rail-btn" data-rail-btn="style" aria-label="Style">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg>
+                <span class="me-rail-label">Style</span>
+              </button>
+              <button class="me-rail-btn" data-rail-btn="assets" aria-label="Assets">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 8-6 4 6 4V8Z"/><rect width="14" height="12" x="2" y="6" rx="2" ry="2"/></svg>
+                <span class="me-rail-label">Assets</span>
+              </button>
             </div>
-            <div class="showcase-url showcase-url--sm">studio.viona.app</div>
-            <div class="showcase-dots showcase-dots--sm" style="visibility:hidden">
-              <span></span><span></span><span></span>
+
+            <!-- Sidebar -->
+            <div class="me-sidebar" data-sidebar>
+              <div class="me-sidebar-inner">
+                <!-- Sidebar header -->
+                <div class="me-sidebar-header">
+                  <span class="me-sidebar-title" data-sidebar-title>AI Chat</span>
+                  <button class="me-sidebar-close" data-sidebar-close aria-label="Close sidebar">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                  </button>
+                </div>
+
+                <!-- Tab content: Chat -->
+                <div class="me-sidebar-content me-sidebar-content--active" data-sidebar-content="chat">
+                  <div class="me-chat-messages" data-chat-messages>
+                    <div class="me-chat-msg me-chat-msg--ai">
+                      <div class="me-chat-avatar">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                      </div>
+                      <div class="me-chat-bubble">How can I help with your video?</div>
+                    </div>
+                    <div class="me-chat-msg me-chat-msg--user">
+                      <div class="me-chat-bubble">Add captions and visuals with MrBeast style</div>
+                    </div>
+                    <!-- Generate button as AI response -->
+                    <div class="me-chat-msg me-chat-msg--ai">
+                      <div class="me-chat-avatar">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                      </div>
+                      <div class="me-chat-bubble">
+                        <span data-chat-status-text>Ready to enhance your video.</span>
+                        <button class="me-chat-generate-btn" data-generate-btn>
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/></svg>
+                          <span data-generate-label>Generate Now</span>
+                        </button>
+                      </div>
+                    </div>
+                    <!-- Completion message (hidden initially) -->
+                    <div class="me-chat-msg me-chat-msg--ai me-chat-done-msg" data-chat-done style="display:none;">
+                      <div class="me-chat-avatar">
+                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0l1.5 5.5L16 8l-6.5 2.5L8 16l-1.5-5.5L0 8l6.5-2.5z"/></svg>
+                      </div>
+                      <div class="me-chat-bubble">Done! Applied MrBeast captions and added motion graphics.</div>
+                    </div>
+                  </div>
+                  <div class="me-chat-input">
+                    <span class="me-chat-placeholder">Ask anything...</span>
+                  </div>
+                </div>
+
+                <!-- Tab content: Captions -->
+                <div class="me-sidebar-content" data-sidebar-content="captions">
+                  <div class="me-presets-grid">
+                    <div class="me-preset me-preset--active">
+                      <div class="me-preset-preview" style="color:#facc15;text-shadow:1px 1px 0 #000">Aa</div>
+                      <span class="me-preset-name">MrBeast</span>
+                    </div>
+                    <div class="me-preset">
+                      <div class="me-preset-preview" style="color:#f97316">Aa</div>
+                      <span class="me-preset-name">Hormozi</span>
+                    </div>
+                    <div class="me-preset">
+                      <div class="me-preset-preview" style="color:#a78bfa;text-shadow:0 0 8px rgba(167,139,250,0.6)">Aa</div>
+                      <span class="me-preset-name">Karaoke</span>
+                    </div>
+                    <div class="me-preset">
+                      <div class="me-preset-preview" style="color:#fff;border-bottom:2px solid #a78bfa">Aa</div>
+                      <span class="me-preset-name">Ali Abdaal</span>
+                    </div>
+                    <div class="me-preset">
+                      <div class="me-preset-preview" style="color:#4ade80">Aa</div>
+                      <span class="me-preset-name">Neon</span>
+                    </div>
+                    <div class="me-preset">
+                      <div class="me-preset-preview" style="color:#fff;background:rgba(0,0,0,0.7);padding:2px 6px;border-radius:4px">Aa</div>
+                      <span class="me-preset-name">Classic</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Tab content: Style -->
+                <div class="me-sidebar-content" data-sidebar-content="style">
+                  <div class="me-style-section">
+                    <div class="me-style-label">Background</div>
+                    <div class="me-color-row">
+                      <div class="me-color-swatch" style="background:#08080C;border:1px solid rgba(255,255,255,0.2)"></div>
+                      <div class="me-color-swatch" style="background:#1a1a2e"></div>
+                      <div class="me-color-swatch" style="background:#0f3460"></div>
+                      <div class="me-color-swatch" style="background:#16213e"></div>
+                    </div>
+                  </div>
+                  <div class="me-style-section">
+                    <div class="me-style-label">Aspect Ratio</div>
+                    <div class="me-ratio-row">
+                      <div class="me-ratio-chip me-ratio-chip--active">16:9</div>
+                      <div class="me-ratio-chip">9:16</div>
+                      <div class="me-ratio-chip">1:1</div>
+                      <div class="me-ratio-chip">4:5</div>
+                    </div>
+                  </div>
+                  <div class="me-style-section">
+                    <div class="me-style-label">Font</div>
+                    <div class="me-font-select">Inter</div>
+                  </div>
+                </div>
+
+                <!-- Tab content: Assets -->
+                <div class="me-sidebar-content" data-sidebar-content="assets">
+                  <div class="me-asset-grid">
+                    <div class="me-asset-thumb"></div>
+                    <div class="me-asset-thumb"></div>
+                    <div class="me-asset-thumb"></div>
+                    <div class="me-asset-thumb"></div>
+                    <div class="me-asset-thumb"></div>
+                    <div class="me-asset-thumb"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Fake cursor (animated) -->
+            <div class="me-cursor" data-fake-cursor>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                <path d="M5 3l14 8.5L12 14l-2.5 7L5 3z" fill="#fff" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>
+              </svg>
+            </div>
+
+            <!-- Center column -->
+            <div class="me-center">
+              <!-- Preview panel -->
+              <div class="me-preview-panel">
+                <div class="me-preview-viewport" data-preview-viewport>
+                  <!-- Before video (raw) — shown initially -->
+                  <video
+                    class="me-video-full"
+                    src="/videos/before.mp4"
+                    poster="/videos/before-poster.jpg"
+                    muted
+                    loop
+                    playsinline
+                    autoplay
+                    data-mock-video
+                    data-video-before
+                  ></video>
+                  <!-- After video (AI enhanced) — hidden initially, replaces before -->
+                  <video
+                    class="me-video-full me-video-full--hidden"
+                    src="/videos/after.mp4"
+                    poster="/videos/after-poster.jpg"
+                    muted
+                    loop
+                    playsinline
+                    data-video-after
+                  ></video>
+                </div>
+                <!-- Controls -->
+                <div class="me-controls">
+                  <button class="me-ctrl-btn" data-ctrl="skipback" aria-label="Rewind">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
+                  </button>
+                  <button class="me-play-btn" data-ctrl="playpause" aria-label="Play">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" data-play-icon><polygon points="6 3 20 12 6 21 6 3"/></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" data-pause-icon style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  </button>
+                  <button class="me-ctrl-btn" data-ctrl="skipfwd" aria-label="Forward">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                  </button>
+                  <span class="me-time" data-time-display>00:00 / 00:00</span>
+                </div>
+              </div>
+
+              <!-- Timeline panel -->
+              <div class="me-timeline-panel">
+                <!-- Ruler -->
+                <div class="me-ruler">
+                  <div class="me-ruler-headers"></div>
+                  <div class="me-ruler-ticks">
+                    <span>0:00</span><span>0:05</span><span>0:10</span><span>0:15</span><span>0:20</span><span>0:25</span><span>0:30</span>
+                  </div>
+                </div>
+                <!-- Tracks -->
+                <div class="me-tracks" data-tracks>
+                  <div class="me-track">
+                    <div class="me-track-header">Video</div>
+                    <div class="me-track-body">
+                      <div class="me-clip me-clip--video" style="left:0%;width:48%"></div>
+                      <div class="me-clip me-clip--video" style="left:52%;width:38%"></div>
+                    </div>
+                  </div>
+                  <div class="me-track">
+                    <div class="me-track-header">Visuals</div>
+                    <div class="me-track-body">
+                      <div class="me-clip me-clip--visuals" style="left:10%;width:22%"></div>
+                      <div class="me-clip me-clip--visuals" style="left:55%;width:18%"></div>
+                    </div>
+                  </div>
+                  <div class="me-track">
+                    <div class="me-track-header">Captions</div>
+                    <div class="me-track-body">
+                      <div class="me-clip me-clip--captions" style="left:0%;width:85%"></div>
+                    </div>
+                  </div>
+                  <div class="me-track">
+                    <div class="me-track-header">Audio</div>
+                    <div class="me-track-body">
+                      <div class="me-clip me-clip--audio" style="left:0%;width:90%"></div>
+                    </div>
+                  </div>
+                  <!-- Playhead -->
+                  <div class="me-playhead" data-playhead>
+                    <div class="me-playhead-head"></div>
+                    <div class="me-playhead-line"></div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-          <img
-            src="/assets/screenshots/editor-captions.png"
-            alt="Viona editor showing caption settings with transcript scenes and timeline"
-            class="w-full block"
-            loading="lazy"
-            decoding="async"
-          />
         </div>
       </div>
     </div>
@@ -92,31 +314,21 @@
     z-index: 0;
   }
 
-  /* ── Window ── */
+  /* ── Window — Liquid Glass ── */
   .showcase-window {
-    border-radius: 12px;
+    position: relative;
+    z-index: 2;
+    border-radius: 24px;
     overflow: hidden;
-    background: #18181b;
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(14, 14, 20, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.03),
-      0 4px 8px rgba(0, 0, 0, 0.15),
-      0 12px 24px rgba(0, 0, 0, 0.2),
-      0 32px 64px rgba(0, 0, 0, 0.3);
-  }
-
-  .showcase-window--float {
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.04),
       0 8px 16px rgba(0, 0, 0, 0.25),
       0 24px 48px rgba(0, 0, 0, 0.35),
-      0 0 80px rgba(124, 58, 237, 0.06);
-  }
-
-  @media (min-width: 640px) {
-    .showcase-window { border-radius: 16px; }
-    .showcase-window--float { border-radius: 12px; }
+      0 48px 80px rgba(0, 0, 0, 0.25),
+      0 0 100px rgba(139, 92, 246, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15);
   }
 
   /* ── Chrome ── */
@@ -129,16 +341,10 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   }
 
-  .showcase-chrome--sm {
-    padding: 6px 10px;
-  }
-
   @media (max-width: 639px) {
     .showcase-chrome { padding: 6px 10px; }
-    .showcase-chrome--sm { padding: 5px 8px; }
   }
 
-  /* ── Dots ── */
   .showcase-dots {
     display: flex;
     gap: 6px;
@@ -153,16 +359,11 @@
   .showcase-dots span:nth-child(2) { background: #ffbd2e; }
   .showcase-dots span:nth-child(3) { background: #28c840; }
 
-  .showcase-dots--sm { gap: 4px; }
-  .showcase-dots--sm span { width: 7px; height: 7px; }
-
   @media (max-width: 639px) {
     .showcase-dots { gap: 4px; }
     .showcase-dots span { width: 7px; height: 7px; }
-    .showcase-dots--sm span { width: 5px; height: 5px; }
   }
 
-  /* ── URL ── */
   .showcase-url {
     background: rgba(255, 255, 255, 0.05);
     border-radius: 6px;
@@ -176,31 +377,734 @@
     text-overflow: ellipsis;
   }
 
-  .showcase-url--sm {
-    font-size: 9px;
-    padding: 3px 10px;
-    max-width: 160px;
-  }
-
   @media (max-width: 639px) {
     .showcase-url { font-size: 9px; padding: 3px 10px; }
-    .showcase-url--sm { font-size: 7px; padding: 2px 6px; }
   }
 
-  /* ── Float card ── */
-  .showcase-float {
+  /* ══════════════════════════════
+     MOCK EDITOR
+  ══════════════════════════════ */
+  .mock-editor {
+    display: flex;
+    flex-direction: column;
+    background:
+      radial-gradient(ellipse at 15% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+      radial-gradient(ellipse at 85% 25%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 80%, rgba(168, 85, 247, 0.05) 0%, transparent 50%),
+      #08080C;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+  }
+
+  /* ── Header ── */
+  .me-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 44px;
+    padding: 0 12px;
+    flex-shrink: 0;
+  }
+
+  .me-header-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .me-header-btn:hover { background: rgba(255,255,255,0.06); }
+
+  .me-header-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.8);
     position: absolute;
-    bottom: -6%;
-    right: -2%;
-    width: 42%;
-    z-index: 3;
+    left: 50%;
+    transform: translateX(-50%);
   }
 
-  @media (max-width: 639px) {
-    .showcase-float {
-      width: 52%;
-      right: -1%;
-      bottom: -4%;
+  .me-export-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(139,92,246,0.9), rgba(124,58,237,0.95));
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(139,92,246,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
+    transition: all 0.15s;
+  }
+  .me-export-btn:hover {
+    background: linear-gradient(135deg, rgba(124,58,237,0.95), rgba(109,40,217,1));
+  }
+
+  /* ── Main area ── */
+  .me-main {
+    display: flex;
+    flex: 1;
+    gap: 6px;
+    padding: 0 6px 6px;
+    min-height: 0;
+    position: relative;
+  }
+
+  /* ── Glass panel mixin — Liquid Glass ── */
+  .me-glass {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-top: 1px solid rgba(255,255,255,0.16);
+    border-radius: 16px;
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+  }
+
+  /* ── Icon Rail ── */
+  .me-icon-rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 4px;
+    width: 52px;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-top: 1px solid rgba(255,255,255,0.16);
+    border-radius: 16px;
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+  }
+
+  .me-rail-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 4px;
+    border-radius: 12px;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.45);
+    cursor: pointer;
+    transition: all 0.15s;
+    width: 100%;
+  }
+  .me-rail-btn:hover {
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.7);
+  }
+  .me-rail-btn--active {
+    background: rgba(139,92,246,0.15);
+    color: #8B5CF6;
+    box-shadow: inset 0 1px 0 rgba(139,92,246,0.12);
+  }
+
+  .me-rail-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+
+  /* ── Sidebar ── */
+  .me-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-top: 1px solid rgba(255,255,255,0.16);
+    border-radius: 16px;
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+    transition: width 0.2s cubic-bezier(0.2, 0, 0, 1), opacity 0.2s;
+  }
+
+  .me-sidebar.me-sidebar--closed {
+    width: 0;
+    border: none;
+    opacity: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .me-sidebar-inner {
+    width: 240px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .me-sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex-shrink: 0;
+  }
+
+  .me-sidebar-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.8);
+  }
+
+  .me-sidebar-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .me-sidebar-close:hover {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.7);
+  }
+
+  .me-sidebar-content {
+    display: none;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding: 10px;
+  }
+  .me-sidebar-content--active {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Chat content ── */
+  .me-chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .me-chat-msg {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+  }
+  .me-chat-msg--user {
+    justify-content: flex-end;
+  }
+  .me-chat-msg--ai {
+    justify-content: flex-start;
+  }
+
+  .me-chat-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+    background: rgba(139,92,246,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #a78bfa;
+    flex-shrink: 0;
+  }
+
+  .me-chat-bubble {
+    font-size: 11px;
+    line-height: 1.4;
+    padding: 6px 10px;
+    border-radius: 10px;
+    max-width: 85%;
+  }
+  .me-chat-msg--user .me-chat-bubble {
+    background: linear-gradient(135deg, rgba(139,92,246,0.85), rgba(124,58,237,0.85));
+    color: #fff;
+    border-radius: 10px 10px 2px 10px;
+  }
+  .me-chat-msg--ai .me-chat-bubble {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.8);
+    border-radius: 10px 10px 10px 2px;
+  }
+
+  .me-chat-input {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .me-chat-placeholder {
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+  }
+
+  /* ── Presets grid ── */
+  .me-presets-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .me-preset {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 6px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .me-preset:hover {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.1);
+  }
+  .me-preset--active {
+    background: rgba(139,92,246,0.12);
+    border-color: rgba(139,92,246,0.3);
+  }
+
+  .me-preset-preview {
+    font-size: 16px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .me-preset-name {
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* ── Style options ── */
+  .me-style-section {
+    margin-bottom: 12px;
+  }
+  .me-style-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+  .me-color-row {
+    display: flex;
+    gap: 6px;
+  }
+  .me-color-swatch {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.15s;
+  }
+  .me-color-swatch:hover { transform: scale(1.1); }
+
+  .me-ratio-row {
+    display: flex;
+    gap: 4px;
+  }
+  .me-ratio-chip {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .me-ratio-chip:hover {
+    background: rgba(255,255,255,0.08);
+  }
+  .me-ratio-chip--active {
+    background: rgba(139,92,246,0.15);
+    border-color: rgba(139,92,246,0.3);
+    color: #a78bfa;
+  }
+
+  .me-font-select {
+    font-size: 11px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.7);
+  }
+
+  /* ── Assets grid ── */
+  .me-asset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .me-asset-thumb {
+    aspect-ratio: 16/9;
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* ── Center column ── */
+  .me-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  /* ── Preview panel ── */
+  .me-preview-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-top: 1px solid rgba(255,255,255,0.16);
+    border-radius: 16px;
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+    overflow: hidden;
+    min-height: 0;
+  }
+
+  .me-preview-viewport {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 8px;
+    background: rgba(0,0,0,0.3);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Single video that fills the preview area */
+  .me-video-full {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 6px;
+    position: absolute;
+    inset: 8px;
+    transition: opacity 0.6s ease;
+  }
+
+  .me-video-full--hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ── Generate button in chat ── */
+  .me-chat-generate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 6px;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(139, 92, 246, 0.35), inset 0 1px 0 rgba(255,255,255,0.15);
+    transition: transform 0.15s, box-shadow 0.15s, opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  .me-chat-generate-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 3px 16px rgba(139, 92, 246, 0.5), inset 0 1px 0 rgba(255,255,255,0.15);
+  }
+
+  .me-chat-generate-btn:active {
+    transform: scale(0.97);
+  }
+
+  .me-chat-generate-btn.is-loading {
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  .me-chat-generate-btn.is-done {
+    background: linear-gradient(135deg, #10B981, #059669);
+    box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
+    pointer-events: none;
+  }
+
+  .me-gen-spinner {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border: 1.5px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: me-spin 0.6s linear infinite;
+  }
+
+  @keyframes me-spin {
+    to { transform: rotate(360deg); }
+  }
+
+  /* ── Fake cursor ── */
+  .me-cursor {
+    position: absolute;
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+    will-change: transform, opacity;
+  }
+
+  /* ── Controls ── */
+  .me-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 12px;
+    flex-shrink: 0;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .me-ctrl-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .me-ctrl-btn:hover {
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.8);
+  }
+
+  .me-play-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.9);
+    border: none;
+    color: #000;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 2px 12px rgba(255,255,255,0.15), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  .me-play-btn:hover {
+    background: #fff;
+    transform: scale(1.05);
+  }
+  .me-play-btn:active {
+    transform: scale(0.95);
+  }
+
+  .me-time {
+    font-size: 11px;
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    color: rgba(255,255,255,0.4);
+    font-variant-numeric: tabular-nums;
+    margin-left: 4px;
+  }
+
+  /* ── Timeline panel ── */
+  .me-timeline-panel {
+    height: 30%;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-top: 1px solid rgba(255,255,255,0.16);
+    border-radius: 16px;
+    backdrop-filter: blur(40px) saturate(200%);
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.10);
+    overflow: hidden;
+  }
+
+  /* ── Ruler ── */
+  .me-ruler {
+    display: flex;
+    height: 22px;
+    flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .me-ruler-headers {
+    width: 25%;
+    flex-shrink: 0;
+  }
+
+  .me-ruler-ticks {
+    flex: 1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 4px;
+  }
+
+  .me-ruler-ticks span {
+    font-size: 8px;
+    color: rgba(255,255,255,0.25);
+    font-family: 'SF Mono', 'Cascadia Code', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Tracks ── */
+  .me-tracks {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    min-height: 0;
+  }
+
+  .me-track {
+    display: flex;
+    flex: 1;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+
+  .me-track-header {
+    width: 25%;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    border-right: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .me-track-body {
+    flex: 1;
+    position: relative;
+    padding: 3px 0;
+  }
+
+  .me-clip {
+    position: absolute;
+    top: 3px;
+    bottom: 3px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.08);
+    transition: opacity 0.15s;
+  }
+  .me-clip--video { background: rgba(59,130,246,0.45); }
+  .me-clip--visuals { background: rgba(251,191,36,0.45); }
+  .me-clip--captions { background: rgba(139,92,246,0.45); }
+  .me-clip--audio { background: rgba(16,185,129,0.4); }
+
+  /* ── Playhead ── */
+  .me-playhead {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 25%;
+    width: 2px;
+    z-index: 5;
+    pointer-events: none;
+    transition: left 0.05s linear;
+  }
+
+  .me-playhead-head {
+    width: 10px;
+    height: 10px;
+    background: #10B981;
+    clip-path: polygon(0 0, 100% 0, 50% 100%);
+    position: absolute;
+    top: -2px;
+    left: -4px;
+  }
+
+  .me-playhead-line {
+    position: absolute;
+    top: 8px;
+    bottom: 0;
+    left: 0;
+    width: 2px;
+    background: #10B981;
+    box-shadow: 0 0 6px rgba(16,185,129,0.4);
+  }
+
+  /* ══════════════════════════════
+     RESPONSIVE
+  ══════════════════════════════ */
+
+  /* Tablet: hide sidebar + icon rail */
+  @media (max-width: 1023px) {
+    .me-icon-rail,
+    .me-sidebar {
+      display: none !important;
+    }
+  }
+
+  /* Mobile: also hide track headers */
+  @media (max-width: 767px) {
+    .me-track-header {
+      display: none;
+    }
+    .me-ruler-headers {
+      display: none;
+    }
+    .me-playhead {
+      left: 0;
+    }
+    .me-header-title {
+      font-size: 11px;
+    }
+    .me-export-btn {
+      font-size: 10px;
+      padding: 4px 10px;
+    }
+    .mock-editor {
+      aspect-ratio: 4 / 3;
     }
   }
 </style>
@@ -214,10 +1118,10 @@
       ?.closest("section");
     if (!section) return;
 
+    /* ── Entrance animation ── */
     gsap.set("[data-showcase-heading]", { opacity: 0, y: 30 });
     gsap.set("[data-showcase-sub]", { opacity: 0, y: 20 });
     gsap.set("[data-showcase-front]", { opacity: 0, y: 50 });
-    gsap.set("[data-showcase-back]", { opacity: 0, y: 30, x: 20, scale: 0.96 });
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -226,24 +1130,251 @@
           observer.disconnect();
 
           const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-
-          tl.to("[data-showcase-heading]", {
-            y: 0, opacity: 1, duration: 0.7,
-          })
-          .to("[data-showcase-sub]", {
-            y: 0, opacity: 1, duration: 0.5,
-          }, "-=0.4")
-          .to("[data-showcase-front]", {
-            y: 0, opacity: 1, duration: 1,
-          }, "-=0.2")
-          .to("[data-showcase-back]", {
-            y: 0, x: 0, scale: 1, opacity: 1, duration: 0.9,
-          }, "-=0.6");
+          tl.to("[data-showcase-heading]", { y: 0, opacity: 1, duration: 0.7 })
+            .to("[data-showcase-sub]", { y: 0, opacity: 1, duration: 0.5 }, "-=0.4")
+            .to("[data-showcase-front]", { y: 0, opacity: 1, duration: 1 }, "-=0.2");
         });
       },
       { threshold: 0.1 }
     );
-
     observer.observe(section);
+
+    /* ── Elements ── */
+    const videoBefore = document.querySelector<HTMLVideoElement>("[data-video-before]");
+    const videoAfter = document.querySelector<HTMLVideoElement>("[data-video-after]");
+    const generateBtn = document.querySelector<HTMLButtonElement>("[data-generate-btn]");
+    const generateLabel = document.querySelector<HTMLSpanElement>("[data-generate-label]");
+    const chatStatusText = document.querySelector<HTMLSpanElement>("[data-chat-status-text]");
+    const chatDoneMsg = document.querySelector<HTMLDivElement>("[data-chat-done]");
+    const fakeCursor = document.querySelector<HTMLDivElement>("[data-fake-cursor]");
+    const mockEditor = document.querySelector<HTMLDivElement>(".me-main");
+    const playBtn = document.querySelector<HTMLButtonElement>('[data-ctrl="playpause"]');
+    const skipBackBtn = document.querySelector<HTMLButtonElement>('[data-ctrl="skipback"]');
+    const skipFwdBtn = document.querySelector<HTMLButtonElement>('[data-ctrl="skipfwd"]');
+    const playIcon = document.querySelector<SVGElement>("[data-play-icon]");
+    const pauseIcon = document.querySelector<SVGElement>("[data-pause-icon]");
+    const timeDisplay = document.querySelector<HTMLSpanElement>("[data-time-display]");
+    const playhead = document.querySelector<HTMLDivElement>("[data-playhead]");
+    const sidebar = document.querySelector<HTMLDivElement>("[data-sidebar]");
+    const sidebarTitle = document.querySelector<HTMLSpanElement>("[data-sidebar-title]");
+    const sidebarCloseBtn = document.querySelector<HTMLButtonElement>("[data-sidebar-close]");
+    const railBtns = document.querySelectorAll<HTMLButtonElement>("[data-rail-btn]");
+    const sidebarContents = document.querySelectorAll<HTMLDivElement>("[data-sidebar-content]");
+
+    // The "active" video for play/pause controls — starts as before, swaps to after
+    let video = videoBefore;
+    if (!video || !playBtn || !playhead) return;
+
+    /* ── Generate transformation flow (triggered by click) ── */
+    let generateTriggered = false;
+
+    function triggerGenerate() {
+      if (generateTriggered || !generateBtn || !videoBefore || !videoAfter || !generateLabel) return;
+      generateTriggered = true;
+
+      // Loading state
+      generateBtn.classList.add("is-loading");
+      const btnIcon = generateBtn.querySelector("svg");
+      if (btnIcon) btnIcon.style.display = "none";
+      generateLabel.innerHTML = '<span class="me-gen-spinner"></span> Generating…';
+      if (chatStatusText) chatStatusText.textContent = "Enhancing your video…";
+
+      // After 3s: crossfade to after video
+      setTimeout(() => {
+        videoBefore.classList.add("me-video-full--hidden");
+        videoAfter.classList.remove("me-video-full--hidden");
+        videoAfter.play();
+
+        video = videoAfter;
+
+        generateBtn.classList.remove("is-loading");
+        generateBtn.classList.add("is-done");
+        generateLabel.textContent = "Done";
+        if (chatStatusText) chatStatusText.textContent = "Your enhanced video is ready!";
+
+        if (chatDoneMsg) {
+          chatDoneMsg.style.display = "";
+          gsap.from(chatDoneMsg, { opacity: 0, y: 8, duration: 0.4, ease: "power2.out" });
+        }
+
+        // Fade out cursor after done
+        if (fakeCursor) {
+          gsap.to(fakeCursor, { opacity: 0, duration: 0.4, delay: 0.5 });
+        }
+      }, 3000);
+    }
+
+    // Manual click also works
+    if (generateBtn) {
+      generateBtn.addEventListener("click", triggerGenerate);
+    }
+
+    /* ── Auto-play: cursor arrow flies to Generate button after 3s ── */
+    if (fakeCursor && generateBtn && mockEditor) {
+      setTimeout(() => {
+        if (generateTriggered) return;
+
+        const editorRect = mockEditor.getBoundingClientRect();
+        const btnRect = generateBtn.getBoundingClientRect();
+
+        // Position cursor relative to .me-main
+        const startX = editorRect.width * 0.6;
+        const startY = editorRect.height * 0.3;
+        const endX = btnRect.left - editorRect.left + btnRect.width / 2;
+        const endY = btnRect.top - editorRect.top + btnRect.height / 2;
+
+        // Set start position
+        gsap.set(fakeCursor, { x: startX, y: startY });
+
+        // Animate: fade in → glide to button → click
+        const cursorTl = gsap.timeline();
+        cursorTl
+          .to(fakeCursor, { opacity: 1, duration: 0.3, ease: "power2.out" })
+          .to(fakeCursor, {
+            x: endX,
+            y: endY,
+            duration: 0.8,
+            ease: "power2.inOut",
+          })
+          .to(fakeCursor, {
+            scale: 0.85,
+            duration: 0.1,
+            ease: "power2.in",
+            onComplete: () => {
+              // Trigger the generate
+              triggerGenerate();
+            },
+          })
+          .to(fakeCursor, {
+            scale: 1,
+            duration: 0.15,
+            ease: "power2.out",
+          });
+      }, 3000);
+    }
+
+    /* ── Video play/pause ── */
+    let isPlaying = false;
+
+    function updatePlayIcons() {
+      if (playIcon) playIcon.style.display = isPlaying ? "none" : "block";
+      if (pauseIcon) pauseIcon.style.display = isPlaying ? "block" : "none";
+    }
+
+    playBtn.addEventListener("click", () => {
+      if (!video) return;
+      if (isPlaying) {
+        video.pause();
+      } else {
+        video.play();
+      }
+      isPlaying = !isPlaying;
+      updatePlayIcons();
+    });
+
+    skipBackBtn?.addEventListener("click", () => {
+      if (!video) return;
+      video.currentTime = Math.max(0, video.currentTime - 5);
+    });
+
+    skipFwdBtn?.addEventListener("click", () => {
+      if (!video) return;
+      video.currentTime = Math.min(video.duration || 0, video.currentTime + 5);
+    });
+
+    /* ── Format time ── */
+    function formatTime(seconds: number): string {
+      const m = Math.floor(seconds / 60);
+      const s = Math.floor(seconds % 60);
+      return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    }
+
+    /* ── Playhead sync + time display ── */
+    // Check if track headers are visible (desktop) to determine playhead base offset
+    function getPlayheadBasePercent(): number {
+      const trackHeader = document.querySelector<HTMLDivElement>(".me-track-header");
+      if (trackHeader && trackHeader.offsetParent !== null && trackHeader.offsetWidth > 0) {
+        return 25; // 25% width for headers
+      }
+      return 0;
+    }
+
+    function tick() {
+      if (!video || !playhead) { requestAnimationFrame(tick); return; }
+      if (!video.duration) { requestAnimationFrame(tick); return; }
+
+      const progress = video.currentTime / video.duration;
+      const basePercent = getPlayheadBasePercent();
+      const trackPercent = (1 - basePercent / 100) * 100;
+      const leftPercent = basePercent + progress * trackPercent;
+      playhead.style.left = `${leftPercent}%`;
+
+      if (timeDisplay) {
+        timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+      }
+
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    /* ── Sidebar tab switching ── */
+    const tabLabels: Record<string, string> = {
+      chat: "AI Chat",
+      captions: "Captions",
+      style: "Style",
+      assets: "Assets",
+    };
+
+    let activeTab = "chat";
+    let sidebarOpen = true;
+
+    function showSidebar(tab: string) {
+      activeTab = tab;
+      sidebarOpen = true;
+
+      // Update rail buttons
+      railBtns.forEach((btn) => {
+        btn.classList.toggle("me-rail-btn--active", btn.dataset.railBtn === tab);
+      });
+
+      // Update sidebar content
+      sidebarContents.forEach((content) => {
+        content.classList.toggle(
+          "me-sidebar-content--active",
+          content.dataset.sidebarContent === tab
+        );
+      });
+
+      // Update title
+      if (sidebarTitle) sidebarTitle.textContent = tabLabels[tab] || tab;
+
+      // Animate open
+      if (sidebar) {
+        sidebar.classList.remove("me-sidebar--closed");
+      }
+    }
+
+    function closeSidebar() {
+      sidebarOpen = false;
+      railBtns.forEach((btn) => btn.classList.remove("me-rail-btn--active"));
+      if (sidebar) {
+        sidebar.classList.add("me-sidebar--closed");
+      }
+    }
+
+    railBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.railBtn;
+        if (!tab) return;
+
+        if (sidebarOpen && activeTab === tab) {
+          closeSidebar();
+        } else {
+          showSidebar(tab);
+        }
+      });
+    });
+
+    sidebarCloseBtn?.addEventListener("click", closeSidebar);
   });
 </script>
