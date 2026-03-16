@@ -193,7 +193,7 @@ Each variant already has display-mode-specific rules and theme configuration in 
 
 Use the meaningful `sceneFile` name from the plan.
 
-Each Animator self-heals compilation errors — there is no separate Healer agent. If esbuild or tsc fails after writing a scene file, the Animator reads the error output and fixes it. Max 3 self-heal attempts per scene.
+Each Animator self-heals compilation errors — there is no separate Healer agent. If esbuild or tsc fails after writing a scene file, the Animator reads the error output and fixes it. Max 2 self-heal attempts per scene.
 
 **Progress:** After each Animator completes, emit progress via `mcp__widgets__report_progress` with `{ phase: "generating", percent: <scaled>, message: "Scene N of M complete: <name>", agentName: "Animator", trackName: "Visuals", estimatedTimeRemaining: "<seconds>" }`.
 

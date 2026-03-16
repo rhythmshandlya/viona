@@ -1,7 +1,7 @@
 // packages/sandbox/src/orchestrator.ts
 //
 // Core orchestrator module for the sandbox. Builds SDK query options with
-// subagent definitions (4 agents: Planner, Editor, Animator, Reviewer),
+// subagent definitions (6 agents: Planner, Editor, 3 Animator variants, Reviewer),
 // manages session resume, and streams events back to the caller via callbacks.
 //
 // Pipeline phases:
@@ -95,6 +95,17 @@ const FREEPIK_TOOL_NAMES = [
   'mcp__freepik__*',
 ];
 
+const ANIMATOR_TOOL_NAMES = [
+  'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
+  ...MANIFEST_TOOL_NAMES,
+  ...SCENE_TOOL_NAMES,
+  ...RENDER_TOOL_NAMES,
+  ...ASSET_TOOL_NAMES,
+  ...VIEWPORT_TOOL_NAMES,
+  ...ICON_TOOL_NAMES,
+  ...FREEPIK_TOOL_NAMES,
+];
+
 // ---- Build SDK query options ----
 
 /**
@@ -173,7 +184,7 @@ export async function buildOrchestratorOptions(
       // Phase 4: Rough cut (splits, zoom crops, B-roll, mockup rects)
       // Phase 7: Final assembly (replace mockups, transitions, music, captions)
       editor: {
-        description: 'Professional video editor. Handles transcript trimming (fillers, silences via manifest ops), rough cut with zoom crops and mockup placeholders, and final assembly with transitions, captions, and music. Resumable across phases.',
+        description: 'Professional video editor. Handles transcript trimming (fillers, silences via manifest ops), rough cut with zoom crops and mockup placeholders, and final assembly with transitions, captions, and music. Re-dispatched per phase — reads workspace state.',
         prompt: injectContext(editorPrompt, ctx),
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
@@ -193,48 +204,21 @@ export async function buildOrchestratorOptions(
       'animator-stacked': {
         description: 'Writes Remotion .tsx scene files for STACKED (default) display mode. Scene renders in the visual panel above the speaker. Self-heals compilation errors.',
         prompt: animatorStackedPrompt,
-        tools: [
-          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
-          ...MANIFEST_TOOL_NAMES,
-          ...SCENE_TOOL_NAMES,
-          ...RENDER_TOOL_NAMES,
-          ...ASSET_TOOL_NAMES,
-          ...VIEWPORT_TOOL_NAMES,
-          ...ICON_TOOL_NAMES,
-          ...FREEPIK_TOOL_NAMES,
-        ],
+        tools: ANIMATOR_TOOL_NAMES,
         model: 'opus',
       },
 
       'animator-fullscreen': {
         description: 'Writes Remotion .tsx scene files for FULLSCREEN display mode. Scene fills the entire canvas, speaker hidden. Animated background required. Self-heals compilation errors.',
         prompt: animatorFullscreenPrompt,
-        tools: [
-          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
-          ...MANIFEST_TOOL_NAMES,
-          ...SCENE_TOOL_NAMES,
-          ...RENDER_TOOL_NAMES,
-          ...ASSET_TOOL_NAMES,
-          ...VIEWPORT_TOOL_NAMES,
-          ...ICON_TOOL_NAMES,
-          ...FREEPIK_TOOL_NAMES,
-        ],
+        tools: ANIMATOR_TOOL_NAMES,
         model: 'opus',
       },
 
       'animator-overlay': {
         description: 'Writes Remotion .tsx scene files for OVERLAY display mode. Transparent background, content in safe zones only (top strip 0-15%, lower third 58-85%). Max 2 elements. Self-heals compilation errors.',
         prompt: animatorOverlayPrompt,
-        tools: [
-          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
-          ...MANIFEST_TOOL_NAMES,
-          ...SCENE_TOOL_NAMES,
-          ...RENDER_TOOL_NAMES,
-          ...ASSET_TOOL_NAMES,
-          ...VIEWPORT_TOOL_NAMES,
-          ...ICON_TOOL_NAMES,
-          ...FREEPIK_TOOL_NAMES,
-        ],
+        tools: ANIMATOR_TOOL_NAMES,
         model: 'opus',
       },
 

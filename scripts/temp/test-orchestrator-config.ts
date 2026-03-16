@@ -138,6 +138,7 @@ async function main() {
   assert(mcpServersSrc.includes("'build_animator_dispatch'"), 'Has build_animator_dispatch MCP tool');
   assert(mcpServersSrc.includes("sceneName"), 'Dispatch tool has sceneName param');
   assert(mcpServersSrc.includes("sceneFile"), 'Dispatch tool has sceneFile param');
+  assert(mcpServersSrc.includes("displayMode"), 'Dispatch tool has displayMode param');
 
   // ---- Test 7: Prompt assembly module exists ----
   console.log('\n=== Prompt Assembly Module ===\n');

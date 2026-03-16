@@ -5,7 +5,7 @@ import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js'
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
-import { computeEffectiveDimensions, buildAnimatorDispatchMessage, type SceneConfig } from './prompt-assembly.js';
+import { buildAnimatorDispatchMessage, type SceneConfig } from './prompt-assembly.js';
 
 /**
  * Convert a raw JSON schema property to a Zod type.
