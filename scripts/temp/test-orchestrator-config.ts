@@ -175,6 +175,26 @@ async function main() {
   assert(orchPrompt.includes('Final Assembly') || orchPrompt.includes('Pass 2'), 'Has Phase 7 (Final Assembly)');
   assert(orchPrompt.includes('Refinement'), 'Has Phase 8 (Refinement)');
 
+  // ---- Test: Identity ----
+  console.log('\n=== Identity ===\n');
+
+  assert(orchPrompt.includes('You are Viona'), 'Identity is "You are Viona" (not "Creative Director for Viona")');
+  assert(!orchPrompt.includes('Creative Director for Viona'), 'No "Creative Director for Viona" phrasing');
+
+  // ---- Test: SDK-accurate dispatch patterns ----
+  console.log('\n=== SDK Dispatch Patterns ===\n');
+
+  assert(orchPrompt.includes('animator-stacked'), 'References animator-stacked variant');
+  assert(orchPrompt.includes('animator-fullscreen'), 'References animator-fullscreen variant');
+  assert(orchPrompt.includes('animator-overlay'), 'References animator-overlay variant');
+  assert(orchPrompt.includes('build_animator_dispatch'), 'References build_animator_dispatch tool');
+  assert(!orchPrompt.includes('Resume from Phase 4 session'), 'No "resume from Phase 4 session"');
+  assert(!orchPrompt.includes('resume the originating Animator'), 'No "resume Animator"');
+  assert(!orchPrompt.includes('resume the Planner'), 'No "resume the Planner"');
+  assert(!orchPrompt.includes('Resume the **Animator**'), 'No "Resume the Animator" in Phase 8 table');
+  assert(!orchPrompt.includes('Resume **Editor**'), 'No "Resume Editor" in Phase 8 table');
+  assert(!orchPrompt.includes('Resume the **Editor**'), 'No "Resume the Editor" in Phase 7');
+
   // ---- Summary ----
   console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);
   process.exit(failed > 0 ? 1 : 0);
