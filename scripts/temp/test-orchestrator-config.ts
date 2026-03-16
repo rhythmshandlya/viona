@@ -39,11 +39,23 @@ async function main() {
 
   const orchestratorSrc = await readFile(join(SANDBOX_SRC, 'orchestrator.ts'), 'utf-8');
 
-  // Should have 4 agents
+  // Should have agents (planner, editor, 3 animator variants, reviewer)
   assert(orchestratorSrc.includes("planner:"), 'Has planner agent');
   assert(orchestratorSrc.includes("editor:"), 'Has editor agent');
-  assert(orchestratorSrc.includes("animator:"), 'Has animator agent');
+  // Generic animator replaced by 3 display-mode variants (tested below)
   assert(orchestratorSrc.includes("reviewer:"), 'Has reviewer agent');
+
+  // Should have 3 Animator variants (replaces single generic animator)
+  assert(orchestratorSrc.includes("'animator-stacked':"), 'Has animator-stacked agent');
+  assert(orchestratorSrc.includes("'animator-fullscreen':"), 'Has animator-fullscreen agent');
+  assert(orchestratorSrc.includes("'animator-overlay':"), 'Has animator-overlay agent');
+
+  // prompt-assembly.ts should be imported
+  assert(orchestratorSrc.includes("from './prompt-assembly"), 'Imports prompt-assembly module');
+  assert(orchestratorSrc.includes('buildAnimatorVariantPrompt'), 'Uses buildAnimatorVariantPrompt');
+
+  // build_animator_dispatch tool should be in allowed tools
+  assert(orchestratorSrc.includes("'mcp__widgets__build_animator_dispatch'"), 'Dispatch tool in allowed tools');
 
   // Should NOT have old agents
   assert(!orchestratorSrc.includes("researcher:"), 'No researcher agent (research is part of planner)');

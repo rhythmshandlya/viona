@@ -27,6 +27,7 @@ import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js'
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { buildStdioMcpServers } from './mcp-config.js';
+import { buildAnimatorVariantPrompt } from './prompt-assembly.js';
 
 // ---- Public interfaces ----
 
@@ -70,7 +71,7 @@ const RENDER_TOOL_NAMES = [
   `mcp__render__${triggerRebuildTool.name}`,
 ];
 
-const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress'];
+const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress', 'mcp__widgets__build_animator_dispatch'];
 
 const ASSET_TOOL_NAMES = [
   'mcp__assets__download_file',
@@ -115,6 +116,21 @@ export async function buildOrchestratorOptions(
     ]);
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
+
+  const animatorBaseInjected = injectContext(animatorPrompt, ctx);
+
+  // Build per-display-mode Animator variants — code assembles layered prompts
+  const variantCtx = {
+    canvasWidth: ctx.canvasWidth,
+    canvasHeight: ctx.canvasHeight,
+    theme: ctx.theme ?? 'studio-dark',
+  };
+  const [animatorStackedPrompt, animatorFullscreenPrompt, animatorOverlayPrompt] =
+    await Promise.all([
+      buildAnimatorVariantPrompt('default', animatorBaseInjected, variantCtx),
+      buildAnimatorVariantPrompt('fullscreen', animatorBaseInjected, variantCtx),
+      buildAnimatorVariantPrompt('overlay', animatorBaseInjected, variantCtx),
+    ]);
 
   return {
     model: 'opus',
@@ -171,13 +187,44 @@ export async function buildOrchestratorOptions(
         model: 'opus',
       },
 
-      // ---- Animator ----
-      // Writes Remotion .tsx scene files. Self-heals compilation errors
-      // (no separate Healer agent). One Animator per scene, dispatched
-      // with a layered prompt assembled by the orchestrator code.
-      animator: {
-        description: 'Writes Remotion .tsx scene files for animation sections. Self-heals compilation errors — runs tsc, fixes issues, and verifies output.',
-        prompt: injectContext(animatorPrompt, ctx),
+      // ---- Animator variants ----
+      // 3 display-mode-specific agents with layered prompts assembled by code.
+      // Each has the same tools but different system prompts with mode-specific rules.
+      'animator-stacked': {
+        description: 'Writes Remotion .tsx scene files for STACKED (default) display mode. Scene renders in the visual panel above the speaker. Self-heals compilation errors.',
+        prompt: animatorStackedPrompt,
+        tools: [
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
+          ...MANIFEST_TOOL_NAMES,
+          ...SCENE_TOOL_NAMES,
+          ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+          ...VIEWPORT_TOOL_NAMES,
+          ...ICON_TOOL_NAMES,
+          ...FREEPIK_TOOL_NAMES,
+        ],
+        model: 'opus',
+      },
+
+      'animator-fullscreen': {
+        description: 'Writes Remotion .tsx scene files for FULLSCREEN display mode. Scene fills the entire canvas, speaker hidden. Animated background required. Self-heals compilation errors.',
+        prompt: animatorFullscreenPrompt,
+        tools: [
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
+          ...MANIFEST_TOOL_NAMES,
+          ...SCENE_TOOL_NAMES,
+          ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+          ...VIEWPORT_TOOL_NAMES,
+          ...ICON_TOOL_NAMES,
+          ...FREEPIK_TOOL_NAMES,
+        ],
+        model: 'opus',
+      },
+
+      'animator-overlay': {
+        description: 'Writes Remotion .tsx scene files for OVERLAY display mode. Transparent background, content in safe zones only (top strip 0-15%, lower third 58-85%). Max 2 elements. Self-heals compilation errors.',
+        prompt: animatorOverlayPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
           ...MANIFEST_TOOL_NAMES,
