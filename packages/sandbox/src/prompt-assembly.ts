@@ -293,3 +293,42 @@ export function buildAnimatorDispatchMessage(config: SceneConfig): string {
     `After writing the file, verify it compiles (tsc --noEmit), trigger a rebuild, and render a still at the key sync frame to verify visually.`,
   ].join('\n');
 }
+
+/**
+ * Build an Animator variant system prompt for a specific display mode.
+ * Called once per display mode during orchestrator initialization (3 total).
+ *
+ * The base prompt already contains shared modules, animation techniques,
+ * and self-healing rules (from animator-system.md). This function adds:
+ * - Theme design system (loaded from workspace)
+ * - Display-mode-specific rules with pre-computed effective dimensions
+ *
+ * @param displayMode - Which display mode this variant targets
+ * @param basePrompt - The base animator prompt (already context-injected)
+ * @param ctx - Canvas dimensions and theme name
+ */
+export async function buildAnimatorVariantPrompt(
+  displayMode: DisplayMode,
+  basePrompt: string,
+  ctx: { canvasWidth: number; canvasHeight: number; splitRatio?: number; theme?: string },
+): Promise<string> {
+  const splitRatio = ctx.splitRatio ?? 55;
+  const dims = computeEffectiveDimensions(ctx.canvasWidth, ctx.canvasHeight, displayMode, splitRatio);
+
+  let modeRules: string;
+  switch (displayMode) {
+    case 'default':
+      modeRules = STACKED_RULES(dims);
+      break;
+    case 'fullscreen':
+      modeRules = FULLSCREEN_RULES(dims);
+      break;
+    case 'overlay':
+      modeRules = OVERLAY_RULES(dims);
+      break;
+  }
+
+  const themeContent = await loadThemeContent(ctx.theme ?? 'studio-dark');
+
+  return [basePrompt, '\n\n---\n\n', themeContent, '\n\n---\n\n', modeRules].join('');
+}
