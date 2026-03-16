@@ -103,10 +103,18 @@ export function startAgentServer(port = 8081): void {
     currentAbortController = abortController;
     res.on('close', () => abortController.abort());
 
-    const mcpServers = createMcpServers({
-      onWidget: (widget) => sendSSE('widget', widget),
-      onProgress: (progress) => sendSSE('progress', progress),
-    });
+    const mcpServers = createMcpServers(
+      {
+        onWidget: (widget) => sendSSE('widget', widget),
+        onProgress: (progress) => sendSSE('progress', progress),
+      },
+      body.projectContext ? {
+        canvasWidth: body.projectContext.canvasWidth,
+        canvasHeight: body.projectContext.canvasHeight,
+        fps: body.projectContext.fps,
+        theme: body.projectContext.theme ?? 'studio-dark',
+      } : undefined,
+    );
 
     try {
       await runOrchestrator(body, {
