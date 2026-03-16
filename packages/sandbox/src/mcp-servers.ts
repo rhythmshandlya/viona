@@ -5,6 +5,7 @@ import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js'
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
+import { computeEffectiveDimensions, buildAnimatorDispatchMessage, type SceneConfig } from './prompt-assembly.js';
 
 /**
  * Convert a raw JSON schema property to a Zod type.
@@ -82,7 +83,10 @@ function wrapTool(t: { name: string; description: string; input_schema?: any; ex
  * Create all MCP servers for the orchestrator SDK query.
  * Widget/progress servers need SSE callbacks to emit events to the client.
  */
-export function createMcpServers(widgetCallbacks: WidgetCallbacks) {
+export function createMcpServers(
+  widgetCallbacks: WidgetCallbacks,
+  pipelineCtx?: { canvasWidth: number; canvasHeight: number; fps: number; theme: string },
+) {
   const manifestServer = createSdkMcpServer({
     name: 'manifest',
     tools: allManifestTools.map(wrapTool),
@@ -142,6 +146,42 @@ export function createMcpServers(widgetCallbacks: WidgetCallbacks) {
             estimatedTimeRemaining: input.estimatedTimeRemaining,
           });
           return { content: [{ type: 'text' as const, text: 'Progress reported.' }] };
+        },
+      ),
+      tool(
+        'build_animator_dispatch',
+        'Build a formatted dispatch message for an Animator subagent. Call this BEFORE dispatching an Animator — it computes effective dimensions and formats the scene assignment. Pass the result as the Agent tool prompt.',
+        {
+          sceneName: z.string().describe('Human-readable scene name (e.g., "Hook Title")'),
+          sceneFile: z.string().describe('PascalCase filename without extension (e.g., "HookTitle")'),
+          displayMode: z.enum(['default', 'fullscreen', 'overlay']).describe('Layout mode for this scene'),
+          splitRatio: z.number().optional().describe('Split ratio percentage for stacked mode (default: 55)'),
+          sceneBrief: z.string().describe('Visual description from the plan'),
+          syncPoints: z.array(z.object({
+            frame: z.number(),
+            action: z.string(),
+          })).describe('Key transcript moments tied to frame numbers'),
+          durationFrames: z.number().describe('Scene duration in frames'),
+        },
+        async (input) => {
+          if (!pipelineCtx) {
+            return { content: [{ type: 'text' as const, text: 'Error: pipeline context not available' }] };
+          }
+          const config: SceneConfig = {
+            sceneName: input.sceneName,
+            sceneFile: input.sceneFile,
+            displayMode: input.displayMode,
+            splitRatio: input.splitRatio ?? 55,
+            sceneBrief: input.sceneBrief,
+            syncPoints: input.syncPoints,
+            durationFrames: input.durationFrames,
+            canvasWidth: pipelineCtx.canvasWidth,
+            canvasHeight: pipelineCtx.canvasHeight,
+            fps: pipelineCtx.fps,
+            theme: pipelineCtx.theme,
+          };
+          const msg = buildAnimatorDispatchMessage(config);
+          return { content: [{ type: 'text' as const, text: msg }] };
         },
       ),
     ],
