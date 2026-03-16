@@ -1,12 +1,7 @@
-export { FullComposition } from './FullComposition';
-export { SceneTransitionLayer } from './SceneTransitionLayer';
-export { computeTransitionStyle } from './transitions';
+export { TransformWrapper } from './TransformWrapper';
 export type {
-  FullCompositionProps, LayoutSegment, Rect, DisplayMode,
-  SplitSettings, VideoCropSettings,
-  LayoutMode, PiPSettings,
+  Rect,
   SubtitleItemData, SubtitleWordData, SubtitleStyle,
   SubtitlePosition, CaptionEffects, StrokeStyle,
-  // Scene transitions
-  SceneItem, SceneTransition, TransitionType,
+  SceneTransition, TransitionType,
 } from './types';

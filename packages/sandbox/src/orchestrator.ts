@@ -1,7 +1,7 @@
 // packages/sandbox/src/orchestrator.ts
 //
 // Core orchestrator module for the sandbox. Builds SDK query options with
-// subagent definitions (6 agents: Planner, Editor, 3 Animator variants, Reviewer),
+// subagent definitions (4 agents: Planner, Editor, Animator, Reviewer),
 // manages session resume, and streams events back to the caller via callbacks.
 //
 // Pipeline phases:
@@ -27,7 +27,6 @@ import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js'
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { buildStdioMcpServers } from './mcp-config.js';
-import { buildAnimatorVariantPrompt } from './prompt-assembly.js';
 
 // ---- Public interfaces ----
 
@@ -71,7 +70,7 @@ const RENDER_TOOL_NAMES = [
   `mcp__render__${triggerRebuildTool.name}`,
 ];
 
-const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress', 'mcp__widgets__build_animator_dispatch'];
+const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress'];
 
 const ASSET_TOOL_NAMES = [
   'mcp__assets__download_file',
@@ -110,8 +109,8 @@ const ANIMATOR_TOOL_NAMES = [
 
 /**
  * Load all prompt files and construct the SDK query options object,
- * including subagent (Agent tool) definitions for the 4 pipeline agents:
- * Planner, Editor, Animator, Reviewer.
+ * including subagent (Agent tool) definitions for the pipeline agents:
+ * Planner, Editor, Animator (single), Reviewer.
  */
 export async function buildOrchestratorOptions(
   ctx: PromptContext,
@@ -128,20 +127,7 @@ export async function buildOrchestratorOptions(
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
 
-  const animatorBaseInjected = injectContext(animatorPrompt, ctx);
-
-  // Build per-display-mode Animator variants — code assembles layered prompts
-  const variantCtx = {
-    canvasWidth: ctx.canvasWidth,
-    canvasHeight: ctx.canvasHeight,
-    theme: ctx.theme ?? 'studio-dark',
-  };
-  const [animatorStackedPrompt, animatorFullscreenPrompt, animatorOverlayPrompt] =
-    await Promise.all([
-      buildAnimatorVariantPrompt('default', animatorBaseInjected, variantCtx),
-      buildAnimatorVariantPrompt('fullscreen', animatorBaseInjected, variantCtx),
-      buildAnimatorVariantPrompt('overlay', animatorBaseInjected, variantCtx),
-    ]);
+  const animatorSystemPrompt = injectContext(animatorPrompt, ctx);
 
   return {
     model: 'opus',
@@ -163,10 +149,9 @@ export async function buildOrchestratorOptions(
     agents: {
       // ---- Planner ----
       // Analyzes transcript, does research (WebSearch/WebFetch), produces
-      // SCENE_PLAN.md + scenes.json. Research is part of planning — no
-      // separate Researcher agent.
+      // SCENE_PLAN.md. Research is part of planning — no separate Researcher agent.
       planner: {
-        description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, display modes, visual descriptions, and meaningful scene file names. Also researches web content, screenshots, and supporting materials. Outputs SCENE_PLAN.md and scenes.json.',
+        description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, visual descriptions, canvas dimensions, and meaningful scene file names. Also researches web content, screenshots, and supporting materials. Outputs SCENE_PLAN.md.',
         prompt: injectContext(plannerPrompt, ctx),
         tools: [
           'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
@@ -198,37 +183,22 @@ export async function buildOrchestratorOptions(
         model: 'opus',
       },
 
-      // ---- Animator variants ----
-      // 3 display-mode-specific agents with layered prompts assembled by code.
-      // Each has the same tools but different system prompts with mode-specific rules.
-      'animator-stacked': {
-        description: 'Writes Remotion .tsx scene files for STACKED (default) display mode. Scene renders in the visual panel above the speaker. Self-heals compilation errors.',
-        prompt: animatorStackedPrompt,
-        tools: ANIMATOR_TOOL_NAMES,
-        model: 'opus',
-      },
-
-      'animator-fullscreen': {
-        description: 'Writes Remotion .tsx scene files for FULLSCREEN display mode. Scene fills the entire canvas, speaker hidden. Animated background required. Self-heals compilation errors.',
-        prompt: animatorFullscreenPrompt,
-        tools: ANIMATOR_TOOL_NAMES,
-        model: 'opus',
-      },
-
-      'animator-overlay': {
-        description: 'Writes Remotion .tsx scene files for OVERLAY display mode. Transparent background, content in safe zones only (top strip 0-15%, lower third 58-85%). Max 2 elements. Self-heals compilation errors.',
-        prompt: animatorOverlayPrompt,
+      // ---- Animator ----
+      // Single animator agent. Canvas dimensions come from the scene plan.
+      animator: {
+        description: 'Writes Remotion .tsx scene files based on the scene plan, receiving canvas dimensions from the plan. Self-heals compilation errors.',
+        prompt: animatorSystemPrompt,
         tools: ANIMATOR_TOOL_NAMES,
         model: 'opus',
       },
 
       // ---- Reviewer ----
       // Checks each scene after the Animator completes. Renders stills,
-      // validates against plan, checks display mode compliance. Returns
+      // validates against plan, checks composition quality. Returns
       // pass/fail with actionable feedback. Reviews happen as each scene
       // completes — not after all Animators finish.
       reviewer: {
-        description: 'Reviews rendered scene screenshots against the plan. Checks composition, readability, display mode compliance. Returns pass/fail verdict with actionable feedback. Reviews each scene as its Animator completes.',
+        description: 'Reviews rendered scene screenshots against the plan. Checks composition quality and readability. Returns pass/fail verdict with actionable feedback. Reviews each scene as its Animator completes.',
         prompt: injectContext(reviewerPrompt, ctx),
         tools: [
           'Read', 'Glob', 'Grep',

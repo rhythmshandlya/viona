@@ -14,7 +14,7 @@ Canvas: {{CANVAS_WIDTH}}x{{CANVAS_HEIGHT}} @ {{FPS}}fps | Stacked visual panel: 
 
 ## Workflow
 
-1. Read the scene description from `/workspace/docs/SCENE_PLAN.md` and the beat data from `/workspace/scenes.json`
+1. Read the scene plan from `/workspace/docs/SCENE_PLAN.md` (scene descriptions, beat data, sync points)
 2. Read the scene source code for the code quality review
 3. Use `mcp__render__render_still` to render the scene at the **key sync frame** (the beat's `keySync` offset from `frames[0]`)
 4. Evaluate the rendered still against PART 1 (visual checks)

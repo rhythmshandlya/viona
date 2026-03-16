@@ -358,7 +358,8 @@ export async function agentRoutes(fastify: FastifyInstance) {
           onError: (error) => {
             fastify.log.error({ error }, 'Sandbox orchestrator error');
           },
-        }
+        },
+        projectId,
       );
     } catch (err) {
       fastify.log.error({ err }, 'Agent chat relay error');
@@ -430,11 +431,22 @@ export async function agentRoutes(fastify: FastifyInstance) {
         }
       : null;
 
-    if (!data) {
-      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload });
+    // Fallback: check Redis for sandbox pipeline progress (not BullMQ job-based)
+    let sandboxProgress: Record<string, unknown> | null = null;
+    if (!activeJob) {
+      try {
+        const cached = await redis.get(`sandbox:progress:${projectId}`);
+        if (cached) {
+          sandboxProgress = JSON.parse(cached);
+        }
+      } catch { /* ignore */ }
     }
 
-    return reply.send({ ...data, activeJob: jobPayload });
+    if (!data) {
+      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined });
+    }
+
+    return reply.send({ ...data, activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined });
   });
 
   // ─── DELETE /projects/:id/agent/conversation — clear conversation ────────

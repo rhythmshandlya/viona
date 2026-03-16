@@ -2,13 +2,16 @@ import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { join, resolve } from 'path';
+import { existsSync, mkdirSync, rmSync } from 'fs';
 import { logger } from '../logger.js';
 import { config } from '../config.js';
 import type { SandboxProvider, Sandbox, CreateSandboxOpts } from './provider.js';
 
 const execFileAsync = promisify(execFile);
+
+// Local directory for bind-mounted workspaces (visible on host for dev inspection)
+const WORKSPACES_ROOT = resolve(process.cwd(), '.sandbox-workspaces');
 
 // Find an available port
 let nextPort = 18080;
@@ -20,21 +23,21 @@ export class DockerSandboxProvider implements SandboxProvider {
   async create(opts: CreateSandboxOpts): Promise<Sandbox> {
     const { projectId, userId, backupId, env = {} } = opts;
     const containerName = `sandbox-${projectId}`;
-    const volumeName = `viona-${projectId}`;
+    const workspacePath = join(WORKSPACES_ROOT, projectId);
     const secret = randomUUID();
     const filePort = allocatePort();
     const agentPort = allocatePort();
 
     try {
-      // 1. Create Docker volume
-      await execFileAsync('docker', ['volume', 'create', volumeName]);
+      // 1. Create local workspace directory (bind mount — visible on host)
+      mkdirSync(workspacePath, { recursive: true });
 
-      // 2. If restoring from backup, copy backup volume to project volume
+      // 2. If restoring from backup, copy backup volume into local directory
       if (backupId) {
         await execFileAsync('docker', [
           'run', '--rm',
           '-v', `${backupId}:/backup`,
-          '-v', `${volumeName}:/workspace`,
+          '-v', `${workspacePath}:/workspace`,
           'busybox', 'cp', '-a', '/backup/.', '/workspace/',
         ], { timeout: 60_000 });
       }
@@ -56,7 +59,7 @@ export class DockerSandboxProvider implements SandboxProvider {
 
       const dockerArgs = [
         'run', '-d', '--name', containerName,
-        '-v', `${volumeName}:/workspace`,
+        '-v', `${workspacePath}:/workspace`,
         '-p', `${filePort}:8080`, '-p', `${agentPort}:8081`,
         ...Object.entries(envEntries).flatMap(([k, v]) => ['-e', `${k}=${v}`]),
       ];
@@ -76,8 +79,8 @@ export class DockerSandboxProvider implements SandboxProvider {
       const sandbox: Sandbox = {
         id: containerId,
         projectId,
-        volumeId: volumeName,
-        volumeInstanceId: volumeName,  // Same as volumeId for Docker
+        volumeId: workspacePath,
+        volumeInstanceId: workspacePath,  // Local directory path for bind mount
         internalUrl: `http://localhost:${filePort}`,
         agentUrl: `http://localhost:${agentPort}`,
         secret,
@@ -101,7 +104,7 @@ export class DockerSandboxProvider implements SandboxProvider {
       // Cleanup on failure
       try { await execFileAsync('docker', ['rm', '-f', containerName]); } catch {}
       if (!backupId) {
-        try { await execFileAsync('docker', ['volume', 'rm', volumeName]); } catch {}
+        try { rmSync(workspacePath, { recursive: true, force: true }); } catch {}
       }
       throw new Error(`Docker sandbox create failed: ${err.stderr || err.message}`);
     }
@@ -116,26 +119,28 @@ export class DockerSandboxProvider implements SandboxProvider {
       logger.warn({ err: err.message }, 'Docker stop/rm failed (may already be stopped)');
     }
 
-    // Delete the workspace volume after backup to prevent accumulation
+    // Delete the local workspace directory after backup to prevent accumulation
+    const workspacePath = join(WORKSPACES_ROOT, sandbox.projectId);
     try {
-      await execFileAsync('docker', ['volume', 'rm', sandbox.volumeId]);
-      logger.info({ volumeId: sandbox.volumeId }, 'Workspace volume deleted');
+      rmSync(workspacePath, { recursive: true, force: true });
+      logger.info({ workspacePath }, 'Workspace directory deleted');
     } catch (err: any) {
-      logger.warn({ err: err.message, volumeId: sandbox.volumeId }, 'Volume delete failed (may not exist)');
+      logger.warn({ err: err.message, workspacePath }, 'Workspace directory delete failed');
     }
   }
 
-  async backup(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'volumeInstanceId'>): Promise<string> {
-    const backupVolume = `viona-backup-${sandbox.volumeId.replace('viona-', '')}`;
+  async backup(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'volumeInstanceId' | 'projectId'>): Promise<string> {
+    const backupVolume = `viona-backup-${sandbox.projectId}`;
+    const workspacePath = join(WORKSPACES_ROOT, sandbox.projectId);
 
-    // Remove old backup if exists
+    // Remove old backup volume if exists
     try { await execFileAsync('docker', ['volume', 'rm', backupVolume]); } catch {}
 
-    // Create backup volume and copy workspace contents
+    // Create backup volume and copy local workspace contents into it
     await execFileAsync('docker', ['volume', 'create', backupVolume]);
     await execFileAsync('docker', [
       'run', '--rm',
-      '-v', `${sandbox.volumeId}:/workspace`,
+      '-v', `${workspacePath}:/workspace`,
       '-v', `${backupVolume}:/backup`,
       'busybox', 'cp', '-a', '/workspace/.', '/backup/',
     ], { timeout: 120_000 });
@@ -146,7 +151,11 @@ export class DockerSandboxProvider implements SandboxProvider {
   async isReady(url: string): Promise<boolean> {
     try {
       const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
-      return res.ok;
+      if (!res.ok) return false;
+      // Verify workspace is actually initialized (manifest.json exists)
+      // A sandbox can be "alive" (HTTP server running) but have a broken workspace
+      const body = await res.json() as { initialized?: boolean };
+      return body.initialized === true;
     } catch {
       return false;
     }

@@ -58,6 +58,11 @@ import { Scene1 } from './scenes/Scene1';
 import { Background } from './components/Background';
 ```
 
+## Scene Export Convention
+- Scene files MUST use `export default` for the component
+- Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
+- The scene registry auto-detects default exports. Named exports may not be found.
+
 ## Common Gotchas
 - NEVER use `Math.sin/cos` on text positions (causes jittery text)
 - NEVER use damping < 18 (too bouncy). SNAPPY (22) is the floor for hero reveals.

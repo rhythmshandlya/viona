@@ -48,6 +48,9 @@ export function useProgress(): UseProgressResult {
       detail: (data.detail as string) || undefined,
       updatedAt: Date.now(),
       meta: (data.meta as Record<string, unknown>) || undefined,
+      agentName: (data.agentName as string) || undefined,
+      trackName: (data.trackName as string) || undefined,
+      estimatedTimeRemaining: (data.estimatedTimeRemaining as number) || undefined,
     });
   }, []);
 

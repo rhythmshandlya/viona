@@ -31,6 +31,7 @@ interface TransformWrapperProps {
   keyframes?: Keyframe[];
   filters?: Filters;
   fps: number;
+  style?: React.CSSProperties; // Additional CSS (border, borderRadius, boxShadow, etc.)
   children: React.ReactNode;
 }
 
@@ -175,6 +176,7 @@ export const TransformWrapper: React.FC<TransformWrapperProps> = ({
   keyframes,
   filters,
   fps,
+  style: extraStyle,
   children,
 }) => {
   const frame = useCurrentFrame();
@@ -202,6 +204,7 @@ export const TransformWrapper: React.FC<TransformWrapperProps> = ({
     opacity,
     overflow: 'hidden',
     filter: filterStr !== 'none' ? filterStr : undefined,
+    ...extraStyle, // borders, borderRadius, boxShadow, etc.
   };
 
   return <div style={style}>{children}</div>;

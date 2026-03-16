@@ -26,12 +26,10 @@ import {
   VideoItemData,
   AudioItemData,
   VisualItemData,
-  VisualDisplayMode,
   VideoSettings,
   CaptionStyle,
   AnimationConfig,
   WordStyleOverrides,
-  OverlayZone,
   Transform,
   Keyframe,
   Filters,
@@ -566,7 +564,6 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             height: (raw.height as number) || 1080,
             fps: (raw.fps as number) || 30,
             sourceSceneId: (raw.sourceSceneId as number) || undefined,
-            displayMode: (raw.displayMode as VisualDisplayMode) || undefined,
             transition: (raw.transition as VisualItemData['transition']) || undefined,
             speakerBbox: (raw.speakerBbox as VisualItemData['speakerBbox']) ?? undefined,
           } as VisualItemData,
@@ -678,6 +675,11 @@ function splitItemInDraft(
       endMs: original.endMs,
       data: JSON.parse(JSON.stringify(original.data)),
     };
+    // Adjust startFrom for media items so right half plays from correct source position
+    if (original.type === 'video' || original.type === 'audio' || original.type === 'broll') {
+      const currentStartFrom = (original.data as any).startFrom ?? 0;
+      (rightItem.data as any).startFrom = currentStartFrom + splitRelativeMs;
+    }
     if (original.trim) {
       rightItem.trim = {
         startMs: original.trim.startMs + splitRelativeMs,
@@ -1960,9 +1962,9 @@ export const useEditorStore = create<EditorStore>()(
       debouncedSave(() => get().saveProject());
 
       if (splitResult) {
-        if (item.type === 'video') {
-          // Video items: use splitVideo tool
-          dispatchOps([{ tool: 'splitVideo', input: { itemId, atMs } }]);
+        if (item.type === 'video' || item.type === 'audio') {
+          // Video/audio items: use splitItem tool
+          dispatchOps([{ tool: 'splitItem', input: { itemId, atMs } }]);
         } else {
           // Non-video: remove original + add left/right
           const [leftId, rightId] = splitResult;
@@ -2575,62 +2577,6 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
-    changeDisplayModeWithAI: (itemId: string, newDisplayMode: VisualDisplayMode) => {
-      const state = get();
-      const item = state.items[itemId];
-      if (!item || item.type !== 'visual') return;
-
-      const data = item.data as VisualItemData;
-      const oldDisplayMode = data.displayMode || 'default';
-      if (oldDisplayMode === newDisplayMode) return;
-
-      const canvasW = state.project?.videoSettings?.canvasWidth || 1080;
-      const canvasH = state.project?.videoSettings?.canvasHeight || 1920;
-      const newDims = { w: canvasW, h: canvasH };
-      const oldDims = { w: canvasW, h: canvasH };
-
-      // Capture timing before mutating state
-      const { startMs, endMs } = item;
-
-      // Apply the display mode change immediately (inline — updateVisualDisplayMode removed in v2)
-      set((state) => {
-        const stateItem = state.items[itemId];
-        if (stateItem?.type === 'visual') {
-          (stateItem.data as VisualItemData).displayMode = newDisplayMode;
-        }
-      });
-      get().pushHistory();
-
-      // Build human-readable mode labels
-      const modeLabel = (dm: VisualDisplayMode): string => {
-        if (dm === 'default') return 'Standard';
-        return dm === 'fullscreen' ? 'Fullscreen' : 'Overlay';
-      };
-
-      // Build mode-specific guidance suffix
-      let suffix = '';
-      if (newDisplayMode === 'fullscreen') {
-        suffix = 'Since this is now fullscreen mode, the visual takes up the entire canvas with no speaker video visible.';
-      } else if (newDisplayMode === 'overlay') {
-        suffix = "Since this is now overlay mode, the visual will be composited over the speaker video with reduced opacity \u2014 position elements to avoid the center where the speaker's face is.";
-      } else {
-        suffix = `Since this is now standard mode, the visual occupies ${newDims.w}\u00d7${newDims.h} alongside the speaker video.`;
-      }
-
-      const prompt = `The display mode for this scene was changed from "${modeLabel(oldDisplayMode)}" to "${modeLabel(newDisplayMode)}". The effective viewport changed from ${oldDims.w}\u00d7${oldDims.h} to ${newDims.w}\u00d7${newDims.h}. Please adapt the scene's layout, sizing, and positioning to properly fill the new ${newDims.w}\u00d7${newDims.h} viewport. ${suffix}`;
-
-      // Scope the AI edit to this item's time range
-      // Note: pendingAIMessage uses last-write-wins — if the user triggers another
-      // adapt while streaming, the latest one supersedes the previous (intentional UX).
-      set((state) => {
-        state.selectedTimeRange = { startMs, endMs };
-        state.selectedSceneId = null;
-        state.pendingAIMessage = prompt;
-      });
-    },
-
-    // V2: updateVisualDisplayMode, updateVisualTransition removed — display mode and transitions are in AI-generated Composition.tsx
-
     openTransitionPicker: (itemId: string) => {
       set((state) => { state.transitionPickerItemId = itemId; });
     },
@@ -2653,30 +2599,6 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.showSafeZone = show;
       });
-    },
-
-    // ========================================
-    // Overlay Zone Actions
-    // ========================================
-
-    updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => {
-      set((state) => {
-        const item = state.items[itemId];
-        if (!item || item.type !== 'visual') return state;
-
-        const data = item.data as VisualItemData;
-        state.items[itemId] = {
-          ...item,
-          data: {
-            ...data,
-            overlayZone: zone,
-            // Clear deprecated displayMode when zone is set
-            displayMode: zone === 'none' ? data.displayMode : undefined,
-          },
-        };
-        state.isDirty = true;
-      });
-      get().pushHistory();
     },
 
     getVideoSegmentation: (videoItemId: string) => {

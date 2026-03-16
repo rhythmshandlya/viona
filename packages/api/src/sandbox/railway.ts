@@ -185,7 +185,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
     }
   }
 
-  async backup(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'volumeInstanceId'>): Promise<string> {
+  async backup(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'volumeInstanceId' | 'projectId'>): Promise<string> {
     const result = await railwayGql(`
       mutation($input: VolumeInstanceBackupCreateInput!) {
         volumeInstanceBackupCreate(input: $input) { id }
@@ -200,7 +200,9 @@ export class RailwaySandboxProvider implements SandboxProvider {
   async isReady(url: string): Promise<boolean> {
     try {
       const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
-      return res.ok;
+      if (!res.ok) return false;
+      const body = await res.json() as { initialized?: boolean };
+      return body.initialized === true;
     } catch {
       return false;
     }

@@ -202,8 +202,25 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      // If first boot (no backup), send init data
-      if (!suspended?.backupId) {
+      // Check if workspace is actually initialized (backup restore may have failed)
+      let workspaceReady = false;
+      if (suspended?.backupId) {
+        try {
+          const checkRes = await fetch(`${sandbox.agentUrl}/health`, { signal: AbortSignal.timeout(5000) });
+          if (checkRes.ok) {
+            const body = await checkRes.json() as { initialized?: boolean };
+            workspaceReady = body.initialized === true;
+          }
+        } catch {
+          // Sandbox not reachable yet or workspace broken
+        }
+        if (!workspaceReady) {
+          logger.warn({ projectId }, 'Backup restore did not produce initialized workspace — sending fresh init');
+        }
+      }
+
+      // If first boot (no backup) or backup restore failed, send init data
+      if (!suspended?.backupId || !workspaceReady) {
         try {
           const projectTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
           const trackIds = projectTracks.map(t => t.id);
@@ -226,22 +243,42 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
             })),
           });
 
-          // Normalize media src to local filenames for the sandbox
-          // (DB stores API proxy URLs like /api/projects/:id/video but sandbox uses source.mp4)
-          for (const item of manifest.items) {
-            if (item.type === 'video' && item.data && 'src' in item.data) {
-              const src = (item.data as any).src;
-              if (typeof src === 'string' && (src.includes('/video') || src.startsWith('/api/'))) {
-                (item.data as any).src = 'source.mp4';
+          // Override video/audio src to sandbox-local paths (workspace-init downloads them)
+          // DB stores API endpoint URLs (e.g. /api/projects/:id/video) which don't exist inside sandbox
+          if (Array.isArray(manifest.items)) {
+            let hasAudioItem = false;
+            let videoDurationMs = 0;
+
+            for (const item of manifest.items) {
+              if (item.type === 'video' && item.data) {
+                item.data.src = 'source.mp4';
+                item.data.volume = 0; // Mute — audio comes from separate audio item
+                videoDurationMs = item.endMs || manifest.durationMs || 0;
+              } else if (item.type === 'audio' && item.data) {
+                item.data.src = 'audio.aac';
+                hasAudioItem = true;
               }
             }
-            if (item.type === 'audio' && item.data && 'src' in item.data) {
-              const src = (item.data as any).src;
-              if (typeof src === 'string' && src.includes('/audio')) {
-                (item.data as any).src = 'audio.mp3';
-              } else if (typeof src === 'string' && (src.includes('/video') || src.startsWith('/api/'))) {
-                (item.data as any).src = 'source.mp4';
+
+            // Create independent audio item if none exists
+            if (!hasAudioItem && videoDurationMs > 0) {
+              const audioTrackId = crypto.randomUUID();
+              if (Array.isArray(manifest.tracks)) {
+                manifest.tracks.push({
+                  id: audioTrackId,
+                  type: 'audio',
+                  name: 'Speaker Audio',
+                  position: manifest.tracks.length,
+                });
               }
+              manifest.items.push({
+                id: crypto.randomUUID(),
+                type: 'audio',
+                trackId: audioTrackId,
+                startMs: 0,
+                endMs: videoDurationMs,
+                data: { src: 'audio.aac', volume: 1 },
+              });
             }
           }
 

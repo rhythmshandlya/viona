@@ -23,7 +23,6 @@ import {
   useSelectedTimeRange,
   useEditorStore,
 } from '../../store/use-editor-store';
-import { VisualItemData } from '../../store/types';
 
 // ============================================
 // Types
@@ -86,7 +85,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     select,
   } = useTimelineActions();
   const { updateTrack } = useTrackActions();
-  const { requestAIEdit, changeDisplayModeWithAI } = useAIActions();
+  const { requestAIEdit } = useAIActions();
   const { openTransitionPicker } = useSafeZoneActions();
   const { updateTransform, updateFilters, updateKeyframes, addKeyframeAtTime } = useTransformActions();
 
@@ -250,32 +249,10 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
               updateFilters(itemId, { brightness: 1, contrast: 1, saturation: 1, blur: 0, hue: 0, grayscale: 0, sepia: 0 })
             ),
           },
-          // Display Mode submenu and "Edit with AI" for visual items
+          // "Change Transition" and "Edit with AI" for visual items
           ...(item?.type === 'visual'
             ? [
                 { type: 'separator' as const },
-                // V2: Display Mode submenu removed — layout is in AI-generated Composition.tsx
-                {
-                  type: 'submenu' as const,
-                  label: 'Change & AI Adapt',
-                  items: [
-                    {
-                      label: 'Standard + Adapt',
-                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'default')),
-                      disabled: ((item.data as VisualItemData).displayMode || 'default') === 'default' || ((item.data as VisualItemData).displayMode as string) === 'pip',
-                    },
-                    {
-                      label: 'Fullscreen + Adapt',
-                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'fullscreen')),
-                      disabled: (item.data as VisualItemData).displayMode === 'fullscreen',
-                    },
-                    {
-                      label: 'Overlay + Adapt',
-                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'overlay')),
-                      disabled: (item.data as VisualItemData).displayMode === 'overlay',
-                    },
-                  ],
-                },
                 {
                   label: 'Change Transition\u2026',
                   action: withSelection(() => openTransitionPicker(itemId)),
@@ -350,7 +327,6 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       pasteItems,
       updateTrack,
       requestAIEdit,
-      changeDisplayModeWithAI,
       openTransitionPicker,
       updateTransform,
       updateFilters,

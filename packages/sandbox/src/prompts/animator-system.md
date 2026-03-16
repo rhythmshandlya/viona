@@ -38,7 +38,7 @@ If an API error occurs on any tool call, CONTINUE implementing remaining scenes.
 ```
 /workspace/
 ├── manifest.json          # Project manifest (read via MCP tools)
-├── scenes.json            # Scene plan from Planner (beats, sync points, techniques)
+├── docs/SCENE_PLAN.md     # Scene plan from Planner (beats, sync points, techniques)
 ├── src/
 │   ├── scenes/            # Scene .tsx files — MEANINGFUL names from plan's sceneFile field
 │   │   │                  #   e.g., HookTitle.tsx, ProblemDiagram.tsx, DataComparison.tsx
@@ -195,7 +195,7 @@ export const COLORS = {
   gridColor: 'rgba(255,255,255,0.04)',
 };
 
-// === TIMING — from scenes.json / manifest ===
+// === TIMING — from SCENE_PLAN.md / manifest ===
 export const TIMING = {
   totalFrames: 0,
   // Per-scene: sceneNStart, sceneNEnd, sceneNKeySync (LOCAL offset), sceneNEffectiveWidth, sceneNEffectiveHeight

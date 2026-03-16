@@ -7,6 +7,12 @@ export interface ProgressState {
   detail?: string;
   updatedAt: number;
   meta?: Record<string, unknown>;
+  /** Which agent is currently working (Editor, Planner, Animator, Reviewer) */
+  agentName?: string;
+  /** Which track/region is being edited (Video, Overlay, Captions, Audio) */
+  trackName?: string;
+  /** Estimated seconds remaining for current phase */
+  estimatedTimeRemaining?: number;
 }
 
 /** Subprocess health — published alongside progress */

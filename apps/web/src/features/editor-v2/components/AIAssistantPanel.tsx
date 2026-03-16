@@ -17,9 +17,10 @@ import { useVideoSettings, useProjectActions, useAIActions, useTimelineActions, 
 import { useJobWebSocket } from '../hooks/use-job-websocket';
 import { useProgress } from '../hooks/use-progress';
 import { ProgressBar } from './ProgressBar';
+import { ActivityIndicator } from './ActivityIndicator';
 import { ActivityLog } from './ActivityLog';
 import { HealthIndicator } from './HealthIndicator';
-import { ThemePicker, LayoutPicker, ScenePlanCard, ConfirmationWidget, ChoiceWidget } from './agent-widgets';
+import { ThemePicker, ScenePlanCard, ConfirmationWidget, ChoiceWidget } from './agent-widgets';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,7 +46,6 @@ interface WidgetBlock {
       layout?: Record<string, unknown> | null;
       frames?: [number, number] | null;
       icons?: string[];
-      displayMode?: 'default' | 'fullscreen' | 'overlay';
       transition?: {
         enter: { type: string; durationMs: number };
         exit: { type: string; durationMs: number };
@@ -84,6 +84,9 @@ interface ProgressBlock {
   phaseName?: string;
   jobType?: string;
   meta?: ProgressMeta;
+  agentName?: string;
+  trackName?: string;
+  estimatedTimeRemaining?: number;
 }
 
 type MessageBlock = TextBlock | WidgetBlock | ProgressBlock;
@@ -668,6 +671,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             }
           }
 
+          // Restore sandbox pipeline progress (Redis-backed, not BullMQ)
+          const sandboxProgress = (data as any).sandboxProgress;
+          if (sandboxProgress && !data.activeJob) {
+            progressState.onHTTPProgress(sandboxProgress as Record<string, unknown>);
+          }
+
           // Drop empty assistant placeholder rows (created at stream start but
           // not yet filled — only relevant when there's no active job to show)
           loaded = loaded.filter((m) => m.content.length > 0 || m.role !== 'assistant');
@@ -767,6 +776,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 jobId?: string; phase?: string; phaseName?: string; jobType?: string;
                 meta?: ProgressMeta;
                 avgDurationMs?: number; jobStartedAt?: string;
+                agentName?: string; trackName?: string; estimatedTimeRemaining?: number;
               };
               // Feed into unified progress state
               {
@@ -777,6 +787,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                   phaseName: progressData.phaseName,
                   detail: progressData.meta?.detail,
                   meta: progressData.meta,
+                  agentName: progressData.agentName,
+                  trackName: progressData.trackName,
+                  estimatedTimeRemaining: progressData.estimatedTimeRemaining,
                 });
               }
               // On failure, stop tracking the job so the spinner stops
@@ -811,6 +824,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                 phaseName: progressData.phaseName,
                 jobType: progressData.jobType,
                 meta: progressData.meta,
+                agentName: progressData.agentName,
+                trackName: progressData.trackName,
+                estimatedTimeRemaining: progressData.estimatedTimeRemaining,
               };
               if (progressIdx >= 0) {
                 blocks[progressIdx] = progressBlock;
@@ -1552,15 +1568,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           />
         );
 
-      case 'layout_picker':
-        return (
-          <LayoutPicker
-            onSelect={(layoutId) => handleWidgetResponse(widget.id, layoutId)}
-            disabled={hasResponded || isStreaming}
-            selectedValue={typeof response === 'string' ? response : undefined}
-          />
-        );
-
       case 'scene_plan': {
         const planJobId = widget.planJobId || '';
         return (
@@ -1594,22 +1601,16 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                     id: i + 1,
                     title: s.title,
                     description: s.description,
-                    displayMode: s.displayMode || 'default',
                   })),
                 );
                 if (result.success && result.scenes) {
-                  // Cast displayMode from string to the union type expected by the widget
-                  const typedScenes = result.scenes.map((s) => ({
-                    ...s,
-                    displayMode: (s.displayMode || 'default') as 'default' | 'fullscreen' | 'overlay',
-                  }));
                   // Update the widget's scenes in local message state
                   setMessages((prev) =>
                     prev.map((m) => ({
                       ...m,
                       content: m.content.map((block) => {
                         if (block.type === 'widget' && block.widget.id === widget.id) {
-                          return { ...block, widget: { ...block.widget, scenes: typedScenes } };
+                          return { ...block, widget: { ...block.widget, scenes: result.scenes } };
                         }
                         return block;
                       }),
@@ -1681,6 +1682,22 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     return merged;
   }
 
+  /** Deduplicate widgets — keep only the LAST instance of each widget kind. */
+  function deduplicateWidgets(blocks: MessageBlock[]): MessageBlock[] {
+    const lastWidgetIndex = new Map<string, number>();
+    blocks.forEach((block, i) => {
+      if (block.type === 'widget' && block.widget.kind) {
+        lastWidgetIndex.set(block.widget.kind, i);
+      }
+    });
+    return blocks.filter((block, i) => {
+      if (block.type === 'widget' && block.widget.kind && lastWidgetIndex.has(block.widget.kind)) {
+        return i === lastWidgetIndex.get(block.widget.kind);
+      }
+      return true;
+    });
+  }
+
   const renderBlock = (block: MessageBlock, index: number) => {
     switch (block.type) {
       case 'text':
@@ -1744,30 +1761,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           );
         }
 
-        return (
-          <div key={index} className="my-2" role="status" aria-live="polite">
-            <HealthIndicator
-              health={progressState.health}
-              connectionStatus={wsConnected || progressState.source === 'sse' ? 'connected' : 'reconnecting'}
-              isActive={block.percent < 100}
-            />
-            <ProgressBar
-              percent={block.percent}
-              phase={block.phase || block.meta?.phase || 'unknown'}
-              phaseName={block.phaseName || block.meta?.phaseName || block.message}
-              detail={block.meta?.detail}
-              isActive={block.percent < 100}
-              error={block.error}
-              jobType={block.jobType}
-            />
-            <ActivityLog events={progressState.activity} />
-            {etaSeconds !== null && block.percent < 95 && !block.error && (
-              <div className="text-[10px] text-[var(--editor-text-muted)] mt-1">
-                {formatEta(etaSeconds)}
-              </div>
-            )}
-          </div>
-        );
+        // Progress is now shown via ActivityIndicator above the message list
+        return null;
     }
   };
 
@@ -1822,6 +1817,14 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           </button>
         </div>
       </div>
+
+      {/* Minimal progress indicator — pinned above messages */}
+      <ActivityIndicator
+        percent={progressState.progress?.percent ?? 0}
+        message={progressState.progress?.message}
+        isActive={!!progressState.progress && progressState.progress.percent < 100}
+        error={false}
+      />
 
       {/* Messages Area */}
       <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -1911,7 +1914,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
                     />
                   </div>
                 )}
-                {mergeAdjacentTextBlocks(message.content).map((block, i) => renderBlock(block, i))}
+                {deduplicateWidgets(mergeAdjacentTextBlocks(message.content)).map((block, i) => renderBlock(block, i))}
                 {failedMessageId === message.id && !message.content.some((b) => b.type === 'progress' && b.error) && (
                   <button
                     onClick={handleRetry}

@@ -9,7 +9,7 @@ import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from './editor-store';
 import { TimelineItem, Track, VideoItemData, VideoSettings, CaptionStyle, CaptionItemData, SelectedElement, AIEditingContext, VisualItemData, SegmentationData } from './types';
-import { migrateDisplayModeToZone } from '../utils/overlay-zones';
+
 
 // ============================================
 // Direct Store Access
@@ -379,18 +379,6 @@ export function useShowSafeZone() {
   return useEditorStore((state) => state.showSafeZone);
 }
 
-// ============================================
-// Overlay Zone Selectors
-// ============================================
-
-export const useVisualOverlayZone = (itemId: string) =>
-  useEditorStore((state) => {
-    const item = state.items[itemId];
-    if (!item || item.type !== 'visual') return 'none';
-    const data = item.data as VisualItemData;
-    return data.overlayZone ?? migrateDisplayModeToZone(data.displayMode);
-  });
-
 export const useVideoSegmentation = (videoItemId: string): SegmentationData | undefined =>
   useEditorStore((state) => {
     const item = state.items[videoItemId];
@@ -515,9 +503,7 @@ export function useEditorActions() {
 
       // Pending AI message
       setPendingAIMessage: state.setPendingAIMessage,
-      changeDisplayModeWithAI: state.changeDisplayModeWithAI,
 
-      // V2: updateVisualDisplayMode, updateVisualTransition removed — in AI-generated Composition.tsx
       openTransitionPicker: state.openTransitionPicker,
       closeTransitionPicker: state.closeTransitionPicker,
 
@@ -528,8 +514,6 @@ export function useEditorActions() {
       setSafeZonePlatform: state.setSafeZonePlatform,
       setShowSafeZone: state.setShowSafeZone,
 
-      // Overlay zones
-      updateVisualOverlayZone: state.updateVisualOverlayZone,
       getVideoSegmentation: state.getVideoSegmentation,
 
       // Transform & keyframes (v2)
@@ -649,7 +633,6 @@ export function useAIActions() {
       setInspectModeEnabled: state.setInspectModeEnabled,
       requestAIEdit: state.requestAIEdit,
       setPendingAIMessage: state.setPendingAIMessage,
-      changeDisplayModeWithAI: state.changeDisplayModeWithAI,
     }))
   );
 }
@@ -684,7 +667,6 @@ export function useTransformActions() {
       addKeyframeAtTime: state.addKeyframeAtTime,
       deleteKeyframe: state.deleteKeyframe,
       updateKeyframeEasing: state.updateKeyframeEasing,
-      updateVisualOverlayZone: state.updateVisualOverlayZone,
     }))
   );
 }

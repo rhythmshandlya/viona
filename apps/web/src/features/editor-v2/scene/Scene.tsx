@@ -8,7 +8,7 @@
 
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { Player } from '../player/Player';
-import { useProject, useSelectedElement, useElementPickerEnabled, useInspectModeEnabled, useIsPlaying } from '../store/use-editor-store';
+import { useProject, useSelectedElement, useElementPickerEnabled, useInspectModeEnabled, useIsPlaying, useEditorStore, useCurrentTimeMs } from '../store/use-editor-store';
 import { SocialPreviewOverlay } from './SocialPreviewOverlay';
 import { ElementInspectOverlay } from './ElementInspectOverlay';
 import { CaptionDragOverlay } from '../components/CaptionDragOverlay';
@@ -62,6 +62,17 @@ function findElementByDataAttr(
   return null;
 }
 
+/** Resolve a transform value (number or "100%") to canvas pixels */
+function resolveValue(v: number | string, canvasSize: number): number {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string' && v.endsWith('%')) {
+    return (parseFloat(v) / 100) * canvasSize;
+  }
+  return parseFloat(String(v)) || 0;
+}
+
+const NON_SPATIAL_TYPES = new Set(['audio', 'caption']);
+
 interface SceneProps {
   className?: string;
   activePlatform: SocialPlatform | null;
@@ -77,8 +88,59 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
   const elementPickerEnabled = useElementPickerEnabled();
   const inspectModeEnabled = useInspectModeEnabled();
   const isPlaying = useIsPlaying();
+  const currentTimeMs = useCurrentTimeMs();
+  const select = useEditorStore((s) => s.select);
   const [scale, setScale] = useState(1);
   const [highlightRect, setHighlightRect] = useState<HighlightRect | null>(null);
+
+  /** Click-to-select: hit-test canvas items at click position */
+  const handleCanvasClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!project || !playerContainerRef.current) return;
+    // Don't intercept if element picker is active
+    if (elementPickerEnabled) return;
+
+    const rect = playerContainerRef.current.getBoundingClientRect();
+    const cssZoom = parseFloat(getComputedStyle(playerContainerRef.current).zoom || '1');
+    const canvasX = (e.clientX - rect.left) / cssZoom;
+    const canvasY = (e.clientY - rect.top) / cssZoom;
+
+    const videoWidth = project.videoSettings.canvasWidth;
+    const videoHeight = project.videoSettings.canvasHeight;
+    const state = useEditorStore.getState();
+
+    // Get items visible at current time, sorted by track position (highest = frontmost)
+    const trackPositions = new Map<string, number>();
+    for (const t of Object.values(state.tracks)) {
+      trackPositions.set(t.id, t.position ?? 0);
+    }
+
+    const visibleItems = state.itemIds
+      .map((id) => state.items[id])
+      .filter((item) =>
+        item &&
+        !NON_SPATIAL_TYPES.has(item.type) &&
+        item.startMs <= currentTimeMs &&
+        item.endMs > currentTimeMs
+      )
+      // Sort: highest track position (frontmost) first
+      .sort((a, b) => (trackPositions.get(b.trackId) ?? 0) - (trackPositions.get(a.trackId) ?? 0));
+
+    for (const item of visibleItems) {
+      const t = item.transform ?? { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 };
+      const ix = resolveValue(t.x, videoWidth);
+      const iy = resolveValue(t.y, videoHeight);
+      const iw = resolveValue(t.width, videoWidth);
+      const ih = resolveValue(t.height, videoHeight);
+
+      if (canvasX >= ix && canvasX <= ix + iw && canvasY >= iy && canvasY <= iy + ih) {
+        select([item.id], 'replace');
+        return;
+      }
+    }
+
+    // Clicked on empty space — deselect
+    select([], 'replace');
+  }, [project, currentTimeMs, elementPickerEnabled, select]);
 
   // Calculate scale to fit player in container
   const calculateScale = useCallback(() => {
@@ -173,6 +235,7 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
             height: videoHeight,
             zoom: scale,
           }}
+          onClick={handleCanvasClick}
         >
           <Player />
 

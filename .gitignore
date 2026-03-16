@@ -72,3 +72,12 @@ conda-env/
 
 bundles/
 .superpowers/
+
+# Sandbox workspaces (bind-mounted Docker volumes)
+.sandbox-workspaces/
+
+# E2E test artifacts
+tests/e2e/fixtures/*.mp4
+tests/e2e/fixtures/*.mov
+tests/e2e/fixtures/*.mkv
+tests/e2e/output/

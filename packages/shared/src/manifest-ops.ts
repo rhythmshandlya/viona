@@ -28,11 +28,6 @@ export const manifestOpSchema = z.discriminatedUnion('op', [
     layout: z.record(z.string(), z.unknown()),
   }),
   z.object({
-    op: z.literal('set_display_mode'),
-    itemId: z.string(),
-    displayMode: z.enum(['default', 'fullscreen', 'overlay']),
-  }),
-  z.object({
     op: z.literal('set_transition'),
     itemId: z.string(),
     enter: z.object({ type: z.string(), durationMs: z.number() }).optional(),
@@ -102,14 +97,6 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
 
     case 'set_layout': {
       m.layout = { ...m.layout, ...op.layout } as any;
-      break;
-    }
-
-    case 'set_display_mode': {
-      const item = m.items.find(i => i.id === op.itemId);
-      if (!item) throw new Error(`Item not found: ${op.itemId}`);
-      if (item.type !== 'visual') throw new Error(`Item ${op.itemId} is not a visual`);
-      (item.data as any).displayMode = op.displayMode;
       break;
     }
 

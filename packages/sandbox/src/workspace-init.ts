@@ -116,11 +116,26 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
   const durationMs = await probeVideoDurationMs(videoPath);
   logger.info({ durationMs }, 'Video duration detected');
 
-  // Download audio if separate
+  // Extract audio track from video for independent playback
+  const audioPath = join(WORKSPACE, 'public', 'audio.aac');
+  try {
+    await execFileAsync('ffmpeg', [
+      '-i', videoPath,
+      '-vn',           // no video
+      '-acodec', 'copy', // copy audio codec (no re-encode)
+      '-y',            // overwrite
+      audioPath,
+    ]);
+    logger.info('Audio extracted from video');
+  } catch (err) {
+    logger.warn({ err }, 'ffmpeg audio extraction failed — falling back to video audio');
+  }
+
+  // Download separate audio if provided (overrides extracted)
   if (payload.audioUrl) {
-    logger.info({ key: payload.audioUrl }, 'Downloading audio');
+    logger.info({ key: payload.audioUrl }, 'Downloading separate audio (overrides extracted)');
     const audioStream = await minio.getObject(bucket, payload.audioUrl);
-    await pipeline(audioStream, createWriteStream(join(WORKSPACE, 'public', 'audio.mp3')));
+    await pipeline(audioStream, createWriteStream(audioPath));
   }
 
   // Patch manifest with detected duration and fix video item endMs
@@ -146,6 +161,17 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
     join(WORKSPACE, 'manifest.json'),
     JSON.stringify(manifest, null, 2),
   );
+
+  // Symlink manifest into public/ so Remotion's staticFile() can read it
+  // (calculateMetadata runs in browser context where fs is unavailable)
+  try {
+    await symlink(
+      join(WORKSPACE, 'manifest.json'),
+      join(WORKSPACE, 'public', 'manifest.json'),
+    );
+  } catch (err: any) {
+    if (err.code !== 'EEXIST') throw err;
+  }
 
   // Copy template files (composition infra, .claude/, configs)
   await cp(TEMPLATE, WORKSPACE, {

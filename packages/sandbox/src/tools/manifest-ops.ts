@@ -246,6 +246,10 @@ export const addItemTool = {
         type: 'object',
         description: 'Optional filters (brightness, contrast, saturation, blur, hue, grayscale, sepia)',
       },
+      style: {
+        type: 'object',
+        description: 'Optional CSS-like styling (border, borderRadius, boxShadow, background, overflow, etc.)',
+      },
     },
     required: ['type', 'trackId', 'startMs', 'endMs', 'data'],
   },
@@ -259,6 +263,7 @@ export const addItemTool = {
     transform?: object;
     keyframes?: any[];
     filters?: object;
+    style?: object;
   }): Promise<string> {
     return withManifestLock(async () => {
       try {
@@ -274,6 +279,7 @@ export const addItemTool = {
         };
         if (input.transform) item.transform = input.transform;
         if (input.filters) item.filters = input.filters;
+        if (input.style) item.style = input.style;
         manifest.items = manifest.items ?? [];
         manifest.items.push(item);
         await writeManifest(manifest);
@@ -300,6 +306,7 @@ export const updateItemTool = {
       data: { type: 'object', description: 'Partial data to deep-merge' },
       transform: { type: 'object', description: 'Partial transform to deep-merge' },
       filters: { type: 'object', description: 'Partial filters to deep-merge' },
+      style: { type: 'object', description: 'Partial style to deep-merge (border, borderRadius, boxShadow, etc.)' },
       keyframes: {
         type: 'array',
         items: { type: 'object' },
@@ -316,6 +323,7 @@ export const updateItemTool = {
     data?: object;
     transform?: object;
     filters?: object;
+    style?: object;
     keyframes?: any[];
   }): Promise<string> {
     return withManifestLock(async () => {
@@ -334,6 +342,7 @@ export const updateItemTool = {
         if (input.data) item.data = { ...item.data, ...input.data };
         if (input.transform) item.transform = { ...(item.transform ?? {}), ...input.transform };
         if (input.filters) item.filters = { ...(item.filters ?? {}), ...input.filters };
+        if (input.style) item.style = { ...(item.style ?? {}), ...input.style };
 
         // Replace keyframes array
         if (input.keyframes !== undefined) item.keyframes = input.keyframes;
@@ -374,15 +383,15 @@ export const removeItemTool = {
   },
 };
 
-export const splitVideoTool = {
-  name: 'split_video',
+export const splitItemTool = {
+  name: 'split_item',
   description:
-    'Split a video item at a given time. The original item ends at atMs; a new item starts at atMs. ' +
-    'Keyframes are adjusted accordingly. Returns both item IDs.',
+    'Split a video or audio item at a given time. The original item ends at atMs; a new item starts at atMs. ' +
+    'Adjusts startFrom for media items and redistributes keyframes. Returns both item IDs.',
   input_schema: {
     type: 'object' as const,
     properties: {
-      itemId: { type: 'string', description: 'Video item ID to split' },
+      itemId: { type: 'string', description: 'Item ID to split (must be video or audio)' },
       atMs: { type: 'number', description: 'Time (in timeline ms) to split at' },
     },
     required: ['itemId', 'atMs'],
@@ -394,7 +403,10 @@ export const splitVideoTool = {
         const items: any[] = manifest.items ?? [];
         const item = items.find((i: any) => i.id === input.itemId);
         if (!item) return `Item not found: ${input.itemId}`;
-        if (item.type !== 'video') return `Item ${input.itemId} is not a video (type: ${item.type})`;
+        const SPLITTABLE = new Set(['video', 'audio']);
+        if (!SPLITTABLE.has(item.type)) {
+          return `Item ${input.itemId} is not splittable (type: ${item.type}). Only video and audio items can be split.`;
+        }
         if (input.atMs <= item.startMs || input.atMs >= item.endMs) {
           return `atMs (${input.atMs}) must be between startMs (${item.startMs}) and endMs (${item.endMs})`;
         }
@@ -405,7 +417,7 @@ export const splitVideoTool = {
         // Build the new (right) item
         const newItem: any = {
           id: newId,
-          type: 'video',
+          type: item.type,
           trackId: item.trackId,
           startMs: input.atMs,
           endMs: item.endMs,
@@ -419,6 +431,7 @@ export const splitVideoTool = {
         };
         if (item.transform) newItem.transform = { ...item.transform };
         if (item.filters) newItem.filters = { ...item.filters };
+        if (item.style) newItem.style = { ...item.style };
         if (item.data.crop) newItem.data.crop = { ...item.data.crop };
 
         // Trim the original (left) item
@@ -429,7 +442,7 @@ export const splitVideoTool = {
         await writeManifest(manifest);
         return JSON.stringify({ originalId: item.id, newId });
       } catch (err: any) {
-        return `Failed to split video: ${err.message}`;
+        return `Failed to split item: ${err.message}`;
       }
     });
   },
@@ -514,7 +527,7 @@ export const allManifestTools = [
   addItemTool,
   updateItemTool,
   removeItemTool,
-  splitVideoTool,
+  splitItemTool,
   updateCaptionStyleTool,
   updateManifestTool,
 ];

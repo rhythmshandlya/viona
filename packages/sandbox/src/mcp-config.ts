@@ -4,8 +4,8 @@
  */
 
 const MCP_SERVERS_DIR = '/app/mcp-servers';
-const MCP_REMOTE_PATH = '/app/node_modules/mcp-remote/dist/proxy.js';
-const BETTER_ICONS_PATH = '/app/node_modules/better-icons/dist/index.js';
+const MCP_REMOTE_PATH = '/usr/local/lib/node_modules/mcp-remote/dist/proxy.js';
+const BETTER_ICONS_PATH = '/usr/local/bin/better-icons';
 const WORKSPACE = '/workspace';
 
 export function buildStdioMcpServers(): Record<string, unknown> {

@@ -11,13 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 
 interface IconOption {
   id: string;
@@ -39,7 +32,6 @@ export interface Scene {
   frames?: [number, number] | null;
   icons?: string[];
   svgOptions?: Record<string, IconOption[]>;
-  displayMode?: 'default' | 'fullscreen' | 'overlay';
   transition?: {
     enter: { type: string; durationMs: number };
     exit: { type: string; durationMs: number };
@@ -94,31 +86,6 @@ function formatLayout(layout: Record<string, unknown>): string {
   if (primary.y) parts.push(`y: ${primary.y}`);
   if (primary.width) parts.push(`w: ${primary.width}`);
   return parts.join(', ');
-}
-
-const DISPLAY_MODE_BADGE: Record<string, { label: string; color: string }> = {
-  default: { label: 'Standard', color: '#3b82f6' },
-  pip: { label: 'Standard', color: '#3b82f6' }, // legacy fallback
-  fullscreen: { label: 'Fullscreen', color: '#8b5cf6' },
-  overlay: { label: 'Overlay', color: '#f97316' },
-};
-
-const DISPLAY_MODE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'default', label: 'Standard' },
-  { value: 'fullscreen', label: 'Fullscreen' },
-  { value: 'overlay', label: 'Overlay' },
-];
-
-function DisplayModeBadge({ mode }: { mode: string }) {
-  const cfg = DISPLAY_MODE_BADGE[mode] || DISPLAY_MODE_BADGE.default;
-  return (
-    <span
-      className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium leading-none"
-      style={{ backgroundColor: cfg.color, color: '#fff' }}
-    >
-      {cfg.label}
-    </span>
-  );
 }
 
 function SpeakerGapIndicator({ startMs, endMs }: { startMs: number; endMs: number }) {
@@ -289,7 +256,7 @@ export function ScenePlanCard({
     return localScenes.some((ls, i) => {
       const ps = scenes[i];
       if (!ps) return true;
-      return ls.title !== ps.title || ls.description !== ps.description || ls.displayMode !== ps.displayMode;
+      return ls.title !== ps.title || ls.description !== ps.description;
     });
   }, [localScenes, scenes]);
 
@@ -339,9 +306,6 @@ export function ScenePlanCard({
   };
   const updateSceneDescription = (index: number, description: string) => {
     setLocalScenes(prev => prev.map((s, i) => i === index ? { ...s, description } : s));
-  };
-  const updateSceneDisplayMode = (index: number, displayMode: 'default' | 'fullscreen' | 'overlay') => {
-    setLocalScenes(prev => prev.map((s, i) => i === index ? { ...s, displayMode } : s));
   };
 
   const isEditable = !disabled && !!onScenesUpdate && !!planJobId;
@@ -512,25 +476,6 @@ export function ScenePlanCard({
                           />
                         ) : (
                           <h3 className="font-semibold text-sm">{scene.title}</h3>
-                        )}
-                        {isEditable ? (
-                          <Select
-                            value={scene.displayMode || 'default'}
-                            onValueChange={(v) => updateSceneDisplayMode(i, v as 'default' | 'fullscreen' | 'overlay')}
-                          >
-                            <SelectTrigger size="sm" className="h-6 px-1.5 text-[10px] gap-1 min-w-0 w-auto border-none shadow-none">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {DISPLAY_MODE_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                                  {opt.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <DisplayModeBadge mode={scene.displayMode || 'default'} />
                         )}
                       </div>
                       <div className="flex items-center gap-2">

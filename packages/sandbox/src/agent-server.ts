@@ -8,6 +8,7 @@ import { readManifestRaw, updateManifestTool } from './tools/manifest-ops.js';
 import { mountOpsEndpoint } from './ops-endpoint.js';
 import { runOrchestrator, type OrchestratorRequest } from './orchestrator.js';
 import { createMcpServers } from './mcp-servers.js';
+import { renderVideo } from './tools/render-video.js';
 
 const logger = pino({ name: 'agent-server' });
 
@@ -26,8 +27,10 @@ export function startAgentServer(port = 8081): void {
   app.use(express.json({ limit: '10mb' }));
 
   // Health check — no auth
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
+  // Returns initialized flag so provider can distinguish "server alive" from "workspace ready"
+  app.get('/health', async (_req, res) => {
+    const initialized = await isInitialized();
+    res.json({ status: 'ok', initialized });
   });
 
   // All other routes require auth
@@ -103,18 +106,10 @@ export function startAgentServer(port = 8081): void {
     currentAbortController = abortController;
     res.on('close', () => abortController.abort());
 
-    const mcpServers = createMcpServers(
-      {
-        onWidget: (widget) => sendSSE('widget', widget),
-        onProgress: (progress) => sendSSE('progress', progress),
-      },
-      body.projectContext ? {
-        canvasWidth: body.projectContext.canvasWidth,
-        canvasHeight: body.projectContext.canvasHeight,
-        fps: body.projectContext.fps,
-        theme: body.projectContext.theme ?? 'studio-dark',
-      } : undefined,
-    );
+    const mcpServers = createMcpServers({
+      onWidget: (widget) => sendSSE('widget', widget),
+      onProgress: (progress) => sendSSE('progress', progress),
+    });
 
     try {
       await runOrchestrator(body, {
@@ -165,6 +160,58 @@ export function startAgentServer(port = 8081): void {
   app.patch('/manifest', async (req, res) => {
     const result = await updateManifestTool.execute({ manifest: req.body });
     res.json({ ok: true, message: result });
+  });
+
+  // Render endpoint — produces final MP4 from current workspace state
+  app.post('/render', async (req, res) => {
+    const { compositionId, crf, concurrency } = req.body || {};
+
+    // SSE for progress
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    });
+
+    let eventId = 0;
+    const sendSSE = (event: string, data: unknown) => {
+      eventId++;
+      res.write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    };
+
+    const heartbeat = setInterval(() => sendSSE('heartbeat', {}), 15000);
+
+    try {
+      sendSSE('progress', { phase: 'rendering', percent: 0, message: 'Starting Remotion render...' });
+
+      const result = await renderVideo({
+        compositionId,
+        crf,
+        concurrency,
+        onProgress: (line) => {
+          // Parse Remotion progress output
+          const renderMatch = line.match(/Rendering frames.*?(\d+)%/);
+          const stitchMatch = line.match(/Stitching.*?(\d+)%/);
+          if (renderMatch) {
+            const pct = parseInt(renderMatch[1], 10);
+            sendSSE('progress', { phase: 'rendering', percent: Math.round(pct * 0.8), message: `Rendering frames... ${pct}%` });
+          } else if (stitchMatch) {
+            const pct = parseInt(stitchMatch[1], 10);
+            sendSSE('progress', { phase: 'stitching', percent: 80 + Math.round(pct * 0.2), message: `Encoding video... ${pct}%` });
+          }
+        },
+      });
+
+      sendSSE('done', {
+        outputPath: result.outputPath,
+        durationMs: result.durationMs,
+      });
+    } catch (err) {
+      sendSSE('error', { message: err instanceof Error ? err.message : 'Render failed' });
+    } finally {
+      clearInterval(heartbeat);
+      res.end();
+    }
   });
 
   app.listen(port, '0.0.0.0', () => {

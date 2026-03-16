@@ -1,5 +1,6 @@
 import express from 'express';
 import { join } from 'path';
+import { access } from 'fs/promises';
 import pino from 'pino';
 import { authMiddleware } from './auth.js';
 
@@ -14,14 +15,20 @@ const PUBLIC_DIR = join(WORKSPACE, 'public');
  * Serves:
  *   /bundle/*  → /workspace/.build/* (CJS bundle)
  *   /public/*  → /workspace/public/* (video, audio, user assets)
- *   /health    → 200 OK (no auth — used by provider health check)
+ *   /health    → 200 OK with initialized flag (no auth — used by provider health check)
  */
 export function startFileServer(port = 8080): void {
   const app = express();
 
   // Health check — no auth (used by provider to detect readiness)
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
+  // Returns initialized flag so provider can distinguish "server alive" from "workspace ready"
+  app.get('/health', async (_req, res) => {
+    let initialized = false;
+    try {
+      await access(join(WORKSPACE, 'manifest.json'));
+      initialized = true;
+    } catch {}
+    res.json({ status: 'ok', initialized });
   });
 
   // All other routes require auth

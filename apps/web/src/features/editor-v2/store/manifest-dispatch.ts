@@ -1,7 +1,7 @@
 import { api } from '@/lib/api';
 
 export interface SandboxOp {
-  tool: 'addTrack' | 'updateTrack' | 'removeTrack' | 'addItem' | 'updateItem' | 'removeItem' | 'splitVideo';
+  tool: 'addTrack' | 'updateTrack' | 'removeTrack' | 'addItem' | 'updateItem' | 'removeItem' | 'splitItem';
   input: Record<string, unknown>;
 }
 

@@ -17,12 +17,7 @@ import {
   useProjectActions,
   useAudioActions,
   useTimelineActions,
-  useTransformActions,
-  useItems,
-  useItemIds,
 } from '../store/use-editor-store';
-import { ZoneSelector } from './ZoneSelector';
-import { SegmentationStatus } from './SegmentationStatus';
 import {
   CaptionDisplayMode,
   CaptionAnimationLegacy,
@@ -30,8 +25,6 @@ import {
   CaptionPosition,
   AudioItemData,
   VisualItemData,
-  VideoItemData,
-  OverlayZone,
 } from '../store/types';
 import { SUBTITLE_PRESETS, PRESET_ORDER } from '@/lib/subtitle-presets';
 
@@ -497,27 +490,10 @@ function VisualPropertiesPanel() {
   const selectedIds = useSelectedIds();
   const visualItem = useItem(selectedIds[0] || '');
   const { updateItemData } = useTimelineActions();
-  const { updateVisualOverlayZone } = useTransformActions();
-
-  // Get all items to find video for segmentation status
-  const allItems = useItems();
-  const allItemIds = useItemIds();
 
   if (!visualItem || visualItem.type !== 'visual') return null;
 
   const data = visualItem.data as VisualItemData;
-  const rawDm = data.displayMode;
-  const displayMode = (!rawDm || (rawDm as string) === 'pip') ? 'default' : rawDm;
-  // Find first video item for segmentation data
-  const videoItem = allItemIds
-    .map(id => allItems[id])
-    .find(item => item?.type === 'video');
-  const videoData = videoItem?.data as VideoItemData | undefined;
-  const segmentation = videoData?.segmentation;
-  const segmentationReady = segmentation?.status === 'ready';
-
-  // Get overlay zone for this visual
-  const overlayZone = (data.overlayZone || 'none') as OverlayZone;
 
   // Check if this is a template-based visual
   const isYouTubeClip = data.templateId === 'youtube-clip';
@@ -531,36 +507,6 @@ function VisualPropertiesPanel() {
 
   return (
     <div className="p-4 space-y-6">
-      {/* V2: Display Mode is in AI-generated Composition.tsx — shown read-only */}
-      <Section label="Display Mode">
-        <SegmentedControl
-          options={[
-            { value: 'default', label: 'Standard' },
-            { value: 'fullscreen', label: 'Full' },
-            { value: 'overlay', label: 'Overlay' },
-          ]}
-          value={displayMode}
-          onChange={() => {/* V2: layout is in AI-generated Composition.tsx */}}
-        />
-      </Section>
-
-      <Divider />
-
-      {/* Overlay Zone */}
-      <Section label="Overlay Zone">
-        <ZoneSelector
-          value={overlayZone}
-          onChange={(zone) => updateVisualOverlayZone(visualItem.id, zone)}
-          segmentationReady={segmentationReady}
-        />
-      </Section>
-
-      {/* Segmentation Status */}
-      {videoItem && (
-        <SegmentationStatus segmentation={segmentation} className="mt-2" />
-      )}
-
-
       {/* YouTube Clip Template Properties */}
       {isYouTubeClip && (
         <>

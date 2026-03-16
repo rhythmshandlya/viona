@@ -13,13 +13,13 @@ export interface WidgetCallbacks {
 export const showWidgetTool = {
   name: 'show_widget',
   description:
-    'Show an interactive widget in the chat UI. Use this to present choices, confirmations, theme pickers, layout pickers, or scene plans to the user.',
+    'Show an interactive widget in the chat UI. Use this to present choices, confirmations, theme pickers, or scene plans to the user.',
   input_schema: {
     type: 'object' as const,
     properties: {
       kind: {
         type: 'string',
-        enum: ['theme_picker', 'layout_picker', 'scene_plan', 'choice', 'confirmation'],
+        enum: ['theme_picker', 'scene_plan', 'choice', 'confirmation'],
         description: 'The type of widget to display.',
       },
       id: {
