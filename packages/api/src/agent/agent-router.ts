@@ -289,7 +289,6 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // Track all content blocks (text + widgets) for persistence
     const contentBlocks: Array<{ type: string; [k: string]: unknown }> = [];
     let pendingText = '';
-    let progressBlockIdx = -1; // Index of the current progress block in contentBlocks
 
     // Flush accumulated text into a content block
     function flushText() {
@@ -344,16 +343,18 @@ export async function agentRoutes(fastify: FastifyInstance) {
             flushText();
             contentBlocks.push({ type: 'widget', widget });
           },
-          onProgress: (progress) => {
+          onPlan: (plan) => {
             flushText();
-            if (progressBlockIdx >= 0) {
-              // Replace existing progress block with updated state
-              contentBlocks[progressBlockIdx] = { type: 'progress', ...progress };
+            // Upsert: replace existing plan block or append new one
+            const existingIdx = contentBlocks.findIndex((b: any) => b.type === 'plan');
+            if (existingIdx >= 0) {
+              contentBlocks[existingIdx] = { type: 'plan', plan };
             } else {
-              // First progress event — append new block
-              progressBlockIdx = contentBlocks.length;
-              contentBlocks.push({ type: 'progress', ...progress });
+              contentBlocks.push({ type: 'plan', plan });
             }
+          },
+          onProgress: () => {
+            // Progress is now handled via ProgressIndicator + Redis, not stored in message content
           },
           onError: (error) => {
             fastify.log.error({ error }, 'Sandbox orchestrator error');
@@ -442,11 +443,27 @@ export async function agentRoutes(fastify: FastifyInstance) {
       } catch { /* ignore */ }
     }
 
-    if (!data) {
-      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined });
+    let sandboxActivity: Record<string, unknown> | null = null;
+    if (!activeJob) {
+      try {
+        const cachedActivity = await redis.get(`sandbox:activity:${projectId}`);
+        if (cachedActivity) sandboxActivity = JSON.parse(cachedActivity);
+      } catch { /* ignore */ }
     }
 
-    return reply.send({ ...data, activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined });
+    let sandboxPlan: Record<string, unknown> | null = null;
+    if (!activeJob) {
+      try {
+        const cachedPlan = await redis.get(`sandbox:plan:${projectId}`);
+        if (cachedPlan) sandboxPlan = JSON.parse(cachedPlan);
+      } catch { /* ignore */ }
+    }
+
+    if (!data) {
+      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined, sandboxActivity: sandboxActivity ?? undefined, sandboxPlan: sandboxPlan ?? undefined });
+    }
+
+    return reply.send({ ...data, activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined, sandboxActivity: sandboxActivity ?? undefined, sandboxPlan: sandboxPlan ?? undefined });
   });
 
   // ─── DELETE /projects/:id/agent/conversation — clear conversation ────────
