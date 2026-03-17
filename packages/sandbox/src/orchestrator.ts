@@ -52,6 +52,12 @@ export interface OrchestratorCallbacks {
   }) => void;
   onDone: (result: { sessionId?: string; cost?: number }) => void;
   onError: (error: string) => void;
+  onActivity?: (activity: {
+    agent: string | null;
+    action: string | null;
+    phase?: string;
+    startedAt?: number;
+  }) => void;
   signal?: AbortSignal;
 }
 
@@ -70,7 +76,7 @@ const RENDER_TOOL_NAMES = [
   `mcp__render__${triggerRebuildTool.name}`,
 ];
 
-const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress'];
+const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress', 'mcp__widgets__report_plan'];
 
 const ASSET_TOOL_NAMES = [
   'mcp__assets__download_file',
@@ -132,6 +138,8 @@ export async function buildOrchestratorOptions(
   return {
     model: 'opus',
     systemPrompt,
+    cwd: '/workspace',
+    settingSources: ['project'],
     allowedTools: [
       'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
       'WebSearch', 'WebFetch', 'Agent', 'Skill',
@@ -154,7 +162,7 @@ export async function buildOrchestratorOptions(
         description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, visual descriptions, canvas dimensions, and meaningful scene file names. Also researches web content, screenshots, and supporting materials. Outputs SCENE_PLAN.md.',
         prompt: injectContext(plannerPrompt, ctx),
         tools: [
-          'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
+          'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'Skill',
           ...MANIFEST_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
@@ -172,7 +180,7 @@ export async function buildOrchestratorOptions(
         description: 'Professional video editor. Handles transcript trimming (fillers, silences via manifest ops), rough cut with zoom crops and mockup placeholders, and final assembly with transitions, captions, and music. Re-dispatched per phase — reads workspace state.',
         prompt: injectContext(editorPrompt, ctx),
         tools: [
-          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
           ...MANIFEST_TOOL_NAMES,
           ...SCENE_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
@@ -201,7 +209,7 @@ export async function buildOrchestratorOptions(
         description: 'Reviews rendered scene screenshots against the plan. Checks composition quality and readability. Returns pass/fail verdict with actionable feedback. Reviews each scene as its Animator completes.',
         prompt: injectContext(reviewerPrompt, ctx),
         tools: [
-          'Read', 'Glob', 'Grep',
+          'Read', 'Glob', 'Grep', 'Skill',
           ...RENDER_TOOL_NAMES,
           ...VIEWPORT_TOOL_NAMES,
         ],
