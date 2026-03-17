@@ -20,3 +20,6 @@ export type { TranscribeJobData, PerWordStyleOverrides, WordTier } from './trans
 
 export { processYouTubeClipJob } from './youtube-clip.js';
 export type { YouTubeClipJobData, ClipResult } from './youtube-clip.js';
+
+export { processRenderTemplateJob } from './render-template.js';
+export type { RenderTemplateJobData } from './render-template.js';

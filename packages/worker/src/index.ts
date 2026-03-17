@@ -7,6 +7,7 @@ import { processHeadTrackingJob, HeadTrackingJobData } from './processors/head-t
 import { processGenerateReframeJob } from './processors/generate-reframe.js';
 import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from './processors/generate-caption-styles.js';
 import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-clip.js';
+import { processRenderTemplateJob, RenderTemplateJobData } from './processors/render-template.js';
 import { getWorkerId } from './workspace.js';
 import { redisConnection } from './utils/redis.js';
 import { eq, or, and, lt } from 'drizzle-orm';
@@ -196,6 +197,29 @@ async function main() {
     logger.error({ jobId: job?.id, err }, 'YouTube-clip job failed');
   });
 
+  // Render template worker — renders templates with custom props to MP4
+  const renderTemplateWorker = new Worker<RenderTemplateJobData>(
+    'render-template',
+    async (job) => {
+      logger.info({ jobId: job.id, exportId: job.data.exportId }, 'Processing render-template job');
+      await processRenderTemplateJob(job);
+    },
+    {
+      connection,
+      concurrency: 2,
+      lockDuration: 5 * 60 * 1000, // 5 minutes
+      stalledInterval: 2 * 60 * 1000,
+      maxStalledCount: 2,
+    }
+  );
+
+  renderTemplateWorker.on('completed', (job) => {
+    logger.info({ jobId: job.id }, 'Render-template job completed');
+  });
+
+  renderTemplateWorker.on('failed', (job, err) => {
+    logger.error({ jobId: job?.id, err }, 'Render-template job failed');
+  });
 
   logger.info('Worker started, waiting for jobs...');
 
@@ -205,7 +229,7 @@ async function main() {
     transcribeWorker,
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
-    youtubeClipWorker,
+    youtubeClipWorker, renderTemplateWorker,
   ];
 
   let shuttingDown = false;
