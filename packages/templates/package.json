@@ -17,6 +17,8 @@
     "build": "tsup && tsx scripts/build-registry.ts",
     "build:registry": "tsx scripts/build-registry.ts",
     "templates:build": "tsx scripts/build-templates.ts",
+    "templates:upload": "tsx scripts/upload-templates.ts",
+    "templates:publish": "pnpm templates:build && pnpm templates:upload",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
@@ -32,9 +34,12 @@
   },
   "devDependencies": {
     "@types/node": "^20.10.6",
+    "@types/pg": "^8.18.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "esbuild": "^0.24.2",
+    "minio": "^7.1.4",
+    "pg": "^8.20.0",
     "tsup": "^8.0.1",
     "tsx": "^4.21.0",
     "typescript": "^5.3.3",
