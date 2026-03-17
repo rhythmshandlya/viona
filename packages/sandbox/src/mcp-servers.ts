@@ -128,7 +128,7 @@ export function createMcpServers(
         'Report progress to the user during long-running operations. Shows a progress indicator with agent name, active track, and estimated time remaining.',
         {
           phase: z.string().describe('Pipeline phase: trimming, planning, editing, generating, reviewing, assembling, complete'),
-          percent: z.number().describe('Progress percentage 0-100'),
+          percent: z.number().optional().describe('Optional progress percentage (ignored by frontend)'),
           message: z.string().describe('Human-readable status message (Viona-centric, no internal agent names)'),
           agentName: z.string().optional().describe('Which agent is working: Editor, Planner, Animator, Reviewer'),
           trackName: z.string().optional().describe('Which track/region is being edited: Video, Overlay, Captions, Audio'),
@@ -137,13 +137,36 @@ export function createMcpServers(
         async (input) => {
           widgetCallbacks.onProgress({
             phase: input.phase,
-            percent: input.percent,
+            percent: input.percent ?? 0,
             message: input.message,
             agentName: input.agentName,
             trackName: input.trackName,
             estimatedTimeRemaining: input.estimatedTimeRemaining,
           });
           return { content: [{ type: 'text' as const, text: 'Progress reported.' }] };
+        },
+      ),
+      tool(
+        'report_plan',
+        'Report the current execution plan to the user. Shows a live task tree with status indicators. Call this at the start of workflow dispatch (all tasks pending), then again as each task transitions to running/complete/failed.',
+        {
+          title: z.string().describe('Plan title shown in the widget header'),
+          tasks: z.array(z.object({
+            id: z.string(),
+            title: z.string(),
+            status: z.enum(['pending', 'running', 'complete', 'failed']),
+            agent: z.string().optional().describe('Agent handling this task: Editor, Planner, Animator, Reviewer'),
+            subtasks: z.array(z.object({
+              id: z.string(),
+              title: z.string(),
+              status: z.enum(['pending', 'running', 'complete', 'failed']),
+              tools: z.array(z.string()).optional().describe('Tool names used for this subtask'),
+            })).optional(),
+          })),
+        },
+        async (input) => {
+          widgetCallbacks.onPlan({ title: input.title, tasks: input.tasks });
+          return { content: [{ type: 'text' as const, text: 'Plan reported.' }] };
         },
       ),
     ],
