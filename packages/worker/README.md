@@ -1,4 +1,4 @@
-# @viona/worker
+C:\Users\armaa\Documents\cllipify\packages\worker\README.md# @viona/worker
 
 Background job processor for Viona, handling transcription, AI visual generation, video rendering, and more.
 

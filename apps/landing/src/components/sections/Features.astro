@@ -139,10 +139,10 @@ import { siteConfig } from "@/data/site";
     overflow: hidden;
     background: #0e0e14;
     box-shadow:
-      0 0 0 2px rgba(255,255,255,0.08),
-      0 16px 48px rgba(0,0,0,0.4),
-      0 4px 16px rgba(0,0,0,0.3),
-      0 0 40px rgba(139,92,246,0.08);
+      0 8px 24px rgba(0, 0, 0, 0.4),
+      0 24px 60px rgba(0, 0, 0, 0.3),
+      0 0 0 1px rgba(255, 255, 255, 0.08),
+      0 0 40px rgba(139, 92, 246, 0.06);
   }
 
   /* ── States ── */
@@ -180,16 +180,17 @@ import { siteConfig } from "@/data/site";
     border-radius: 20px;
     font-size: 12px;
     font-weight: 600;
-    color: rgba(255,255,255,0.5);
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
-    backdrop-filter: blur(12px);
+    color: rgba(255, 255, 255, 0.5);
+    background: rgba(20, 17, 36, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
   }
 
   .reveal-label--after {
     color: var(--color-primary);
-    background: rgba(139,92,246,0.12);
-    border-color: rgba(139,92,246,0.2);
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.3);
   }
 
   .reveal-label-dot {
@@ -199,7 +200,7 @@ import { siteConfig } from "@/data/site";
   }
 
   .reveal-label-dot--muted {
-    background: rgba(255,255,255,0.3);
+    background: rgba(255, 255, 255, 0.3);
   }
 
   .reveal-sparkle {
@@ -219,7 +220,7 @@ import { siteConfig } from "@/data/site";
   .reveal-placeholder {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(14,14,20,0.95) 0%, rgba(10,10,16,1) 100%);
+    background: linear-gradient(180deg, #12121a 0%, #0e0e14 100%);
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -243,15 +244,15 @@ import { siteConfig } from "@/data/site";
   .rt-word {
     font-size: 11px;
     font-weight: 500;
-    color: rgba(255,255,255,0.5);
+    color: rgba(255, 255, 255, 0.55);
     padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(255,255,255,0.06);
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.06);
   }
 
   .rt-filler {
-    background: rgba(239, 68, 68, 0.15);
-    color: #f87171;
+    background: rgba(239, 68, 68, 0.12);
+    color: #dc2626;
     text-decoration: line-through;
   }
 
@@ -284,24 +285,21 @@ import { siteConfig } from "@/data/site";
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.9);
-    border: none;
+    background: rgba(20, 17, 36, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.15);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow:
-      0 4px 20px rgba(0, 0, 0, 0.3),
-      0 0 30px rgba(255,255,255,0.1);
-    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
   .reveal-play:hover {
     transform: translate(-50%, -50%) scale(1.08);
-    box-shadow:
-      0 6px 28px rgba(0, 0, 0, 0.35),
-      0 0 40px rgba(255,255,255,0.15);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(139, 92, 246, 0.2);
   }
 
   .reveal-play svg {

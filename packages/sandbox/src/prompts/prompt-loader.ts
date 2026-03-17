@@ -58,14 +58,28 @@ export interface PromptContext {
   hasTranscript: boolean;
   theme?: string;
   projectType?: string;
+  briefSummary?: string;
+  hasHeadTracking?: boolean;
+  totalScenes?: number;
+  currentPhase?: string;
 }
 
+/** Split ratio for stacked layout: visuals get this percentage of canvas height. */
+const STACKED_VISUAL_RATIO = 0.55;
+
 export function injectContext(prompt: string, ctx: PromptContext): string {
+  const stackedVisualHeight = Math.round(ctx.canvasHeight * STACKED_VISUAL_RATIO);
+
   return prompt
-    .replace('{{CANVAS_WIDTH}}', String(ctx.canvasWidth))
-    .replace('{{CANVAS_HEIGHT}}', String(ctx.canvasHeight))
-    .replace('{{FPS}}', String(ctx.fps))
-    .replace('{{DURATION_MS}}', String(ctx.durationMs ?? 'unknown'))
-    .replace('{{THEME}}', ctx.theme ?? 'studio-dark')
-    .replace('{{PROJECT_TYPE}}', ctx.projectType ?? 'video');
+    .replaceAll('{{CANVAS_WIDTH}}', String(ctx.canvasWidth))
+    .replaceAll('{{CANVAS_HEIGHT}}', String(ctx.canvasHeight))
+    .replaceAll('{{STACKED_VISUAL_HEIGHT}}', String(stackedVisualHeight))
+    .replaceAll('{{FPS}}', String(ctx.fps))
+    .replaceAll('{{DURATION_MS}}', String(ctx.durationMs ?? 'unknown'))
+    .replaceAll('{{THEME}}', ctx.theme ?? 'studio-dark')
+    .replaceAll('{{PROJECT_TYPE}}', ctx.projectType ?? 'video')
+    .replaceAll('{{BRIEF_SUMMARY}}', ctx.briefSummary ?? 'No brief provided')
+    .replaceAll('{{HAS_HEAD_TRACKING}}', String(ctx.hasHeadTracking ?? false))
+    .replaceAll('{{TOTAL_SCENES}}', String(ctx.totalScenes ?? 0))
+    .replaceAll('{{CURRENT_PHASE}}', ctx.currentPhase ?? 'unknown');
 }

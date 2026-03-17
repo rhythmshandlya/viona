@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Products, OAuthProviders } from "@stytch/vanilla-js";
 import { StytchLogin } from "@stytch/nextjs";
 import { useStytchUser } from "@stytch/nextjs";
+import Link from "next/link";
+import { SmokeBackground } from "@/components/ui/spooky-smoke-animation";
 
 const REDIRECT_URL = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 
@@ -26,10 +28,11 @@ const stytchStyles = {
     backgroundColor: "transparent",
     borderColor: "transparent",
     width: "100%",
+    color: "rgba(255,255,255,0.9)",
   },
   colors: {
-    primary: "#7C3AED",
-    secondary: "#6D28D9",
+    primary: "#8B5CF6",
+    secondary: "#7C3AED",
     success: "#22c55e",
     error: "#ef4444",
   },
@@ -43,48 +46,65 @@ export default function LoginPage() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isInitialized && user) {
-      router.push("/upload");
+      router.push("/projects");
     }
   }, [isInitialized, user, router]);
 
   if (!isInitialized) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      <div className="liquid-glass-page min-h-screen relative">
+        <div className="fixed inset-0 z-0">
+          <SmokeBackground smokeColor="#3B1578" />
+        </div>
+        <div className="relative z-10 min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-white/40">Loading...</div>
+        </div>
       </div>
     );
   }
 
   if (user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-muted-foreground">Redirecting...</div>
+      <div className="liquid-glass-page min-h-screen relative">
+        <div className="fixed inset-0 z-0">
+          <SmokeBackground smokeColor="#3B1578" />
+        </div>
+        <div className="relative z-10 min-h-screen flex items-center justify-center">
+          <div className="text-white/40">Redirecting...</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8 bg-background">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight">
-            <span className="text-primary">Viona</span> <span className="text-muted-foreground font-medium text-2xl">Studio</span>
-          </h1>
-          <p className="text-muted-foreground">
-            Sign in to start creating amazing video content
+    <div className="liquid-glass-page min-h-screen relative">
+      <div className="fixed inset-0 z-0">
+        <SmokeBackground smokeColor="#3B1578" />
+      </div>
+      <div className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8">
+        <div className="max-w-md w-full space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <Link href="/" className="inline-block">
+              <h1 className="text-4xl font-bold tracking-tight text-white/95">
+                Viona <span className="text-[#8B5CF6]">Studio</span>
+              </h1>
+            </Link>
+            <p className="text-white/45">
+              Sign in to start creating amazing video content
+            </p>
+          </div>
+
+          {/* Stytch Login UI */}
+          <div className="glass-surface p-6">
+            <StytchLogin config={stytchConfig} styles={stytchStyles} />
+          </div>
+
+          {/* Footer */}
+          <p className="text-center text-sm text-white/30">
+            By continuing, you agree to our Terms of Service and Privacy Policy
           </p>
         </div>
-
-        {/* Stytch Login UI */}
-        <div className="bg-card border rounded-xl p-6">
-          <StytchLogin config={stytchConfig} styles={stytchStyles} />
-        </div>
-
-        {/* Footer */}
-        <p className="text-center text-sm text-muted-foreground">
-          By continuing, you agree to our Terms of Service and Privacy Policy
-        </p>
       </div>
     </div>
   );

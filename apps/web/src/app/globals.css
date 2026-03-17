@@ -89,38 +89,38 @@
 
 :root {
   --radius: 0.5rem;
-  /* Matching landing page: cool lavender background, violet primary */
-  --background: #FAFAFF;
-  --foreground: #1a1a1a;
-  --card: #ffffff;
-  --card-foreground: #1a1a1a;
-  --popover: #ffffff;
-  --popover-foreground: #1a1a1a;
-  --primary: #7C3AED;
+  /* Dark purple glass theme — consistent across entire app */
+  --background: #08080C;
+  --foreground: #FAFAFA;
+  --card: rgba(28, 28, 35, 0.55);
+  --card-foreground: #FAFAFA;
+  --popover: rgba(28, 28, 35, 0.9);
+  --popover-foreground: #A1A1A1;
+  --primary: #8B5CF6;
   --primary-foreground: #ffffff;
-  --secondary: #f3f2f8;
-  --secondary-foreground: #1a1a1a;
-  --muted: #f3f2f8;
-  --muted-foreground: #6b7280;
-  --accent: #EDE9FE;
-  --accent-foreground: #1a1a1a;
+  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary-foreground: #FAFAFA;
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: rgba(255, 255, 255, 0.4);
+  --accent: rgba(139, 92, 246, 0.15);
+  --accent-foreground: #FAFAFA;
   --destructive: #ef4444;
-  --border: #e5e5e5;
-  --input: #f3f2f8;
-  --ring: #7C3AED;
-  --chart-1: #7C3AED;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.06);
+  --ring: #8B5CF6;
+  --chart-1: #8B5CF6;
   --chart-2: #3b82f6;
-  --chart-3: #8b5cf6;
+  --chart-3: #A78BFA;
   --chart-4: #10b981;
-  --chart-5: #A78BFA;
-  --sidebar: #FAFAFF;
-  --sidebar-foreground: #6b7280;
-  --sidebar-primary: #7C3AED;
+  --chart-5: #7C3AED;
+  --sidebar: #08080C;
+  --sidebar-foreground: rgba(255, 255, 255, 0.4);
+  --sidebar-primary: #8B5CF6;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #EDE9FE;
-  --sidebar-accent-foreground: #1a1a1a;
-  --sidebar-border: #e5e5e5;
-  --sidebar-ring: #7C3AED;
+  --sidebar-accent: rgba(139, 92, 246, 0.15);
+  --sidebar-accent-foreground: #FAFAFA;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #8B5CF6;
   --destructive-foreground: #ffffff;
   --font-sans: var(--font-inter), system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
@@ -234,6 +234,13 @@
 }
 
 @layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
   .masonry {
     column-gap: 1.5em;
     column-count: 1;
@@ -728,6 +735,54 @@ input[type="number"]::-webkit-outer-spin-button {
 .editor-theme .glass-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+/* ═══ Liquid Glass Context Menu ═══ */
+.context-menu-glass {
+  min-width: 200px;
+  max-width: 280px;
+  background: rgba(28, 28, 35, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.55),
+    0 8px 24px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  -webkit-backdrop-filter: blur(60px) saturate(200%) brightness(1.1);
+  backdrop-filter: blur(60px) saturate(200%) brightness(1.1);
+  padding: 4px;
+  user-select: none;
+  animation: ctx-menu-in 0.12s ease-out;
+}
+
+@keyframes ctx-menu-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+  outline: none;
+  transition: background 0.1s ease;
+}
+
+.context-menu-item:not(:disabled):hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.context-menu-item:not(:disabled):active {
+  background: rgba(255, 255, 255, 0.12);
 }
 .editor-theme .glass-btn:active {
   background: rgba(255, 255, 255, 0.04);

@@ -1,52 +1,8 @@
-import React from 'react';
-
 export interface Rect {
   x: number;
   y: number;
   w: number;
   h: number;
-}
-
-export type DisplayMode = 'default' | 'fullscreen' | 'overlay';
-
-// Keep in sync with packages/worker/src/processors/render/types.ts LayoutSegment
-export interface LayoutSegment {
-  startFrame: number;
-  endFrame: number;
-  displayMode: DisplayMode;
-}
-
-export interface SplitSettings {
-  position: 'visuals-first' | 'video-first';
-  ratio: number;
-  gap: number;
-}
-
-export type LayoutMode = 'stacked' | 'pip';
-
-export interface PiPSettings {
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-  offsetX: number;
-  offsetY: number;
-  /** Percentage of canvas width (e.g. 25 = 25%) */
-  size: number;
-  shape: 'square' | 'circle' | 'rounded';
-  borderRadius: number;
-  borderWidth: number;
-  borderColor: string;
-  shadowEnabled: boolean;
-  shadowColor: string;
-  shadowBlur: number;
-  opacity: number;
-  rotation: number;
-}
-
-export interface VideoCropSettings {
-  sourceWidth: number;
-  sourceHeight: number;
-  cropX: number;
-  cropY: number;
-  scale: number;
 }
 
 export interface SubtitleWordData {
@@ -133,24 +89,6 @@ export interface SubtitleItemData {
   style?: SubtitleStyle;
 }
 
-export interface FullCompositionProps {
-  layoutMode: LayoutMode;
-  splitSettings: SplitSettings;
-  pipSettings?: PiPSettings;
-  layoutSegments: LayoutSegment[];
-  videoCropSettings: VideoCropSettings;
-  sourceVideoFile?: string;
-  audioFile?: string;
-  backgroundColor?: string;
-  subtitles?: SubtitleItemData[];
-  defaultSubtitleStyle?: SubtitleStyle;
-  /** Visual items with transition config. When provided, FullComposition renders scenes
-   *  via SceneTransitionLayer instead of using children through VisualsLayer. */
-  sceneItems?: SceneItem[];
-  /** Callback to render a scene by sceneFile path. Required when sceneItems is provided. */
-  renderScene?: (sceneFile: string, frameOffset: number) => React.ReactNode;
-}
-
 // ---- Scene transition types ----
 
 export type TransitionType = 'cut' | 'crossfade' | 'slide-left' | 'slide-up' | 'zoom' | 'morph' | 'fade';
@@ -158,19 +96,4 @@ export type TransitionType = 'cut' | 'crossfade' | 'slide-left' | 'slide-up' | '
 export interface SceneTransition {
   type: TransitionType;
   durationMs: number;
-}
-
-/**
- * Visual item metadata for scene transition rendering.
- * Each SceneItem maps to one visual item in the manifest.
- */
-export interface SceneItem {
-  id: string;
-  startFrame: number;
-  endFrame: number;
-  sceneFile: string;
-  displayMode: DisplayMode;
-  frameOffset?: number;
-  enter?: SceneTransition;
-  exit?: SceneTransition;
 }

@@ -85,7 +85,7 @@ function makeJsx() {
 // Custom require() — provides module shims for CJS evaluation
 // ---------------------------------------------------------------------------
 
-function createRequire(bundleBaseUrl: string, apiUrl: string) {
+function createRequire(bundleBaseUrl: string) {
   const customStaticFile = (relativePath: string) => {
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
 
@@ -94,13 +94,13 @@ function createRequire(bundleBaseUrl: string, apiUrl: string) {
       return _currentAssetsMap[cleanPath];
     }
 
-    // Fallback to proxy URL
+    // Fallback to same-origin proxy URL (no cross-origin apiUrl prefix).
+    // Next.js rewrites /api/* to the backend, so media elements send cookies.
     const projectIdMatch = bundleBaseUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
     const publicBase = projectIdMatch
       ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
       : `${bundleBaseUrl}/public`;
-    const resolved = `${apiUrl}${publicBase}/${cleanPath}`;
-    return resolved;
+    return `${publicBase}/${cleanPath}`;
   };
 
   const jsx = makeJsx();
@@ -185,7 +185,7 @@ export function useWorkspaceComposition(
   const loadedRef = useRef<string | null>(null);
   const [reloadCounter, setReloadCounter] = useState(0);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+
 
   const reload = useCallback(() => {
     if (bundleUrl) {
@@ -234,7 +234,8 @@ export function useWorkspaceComposition(
         // Pre-load @remotion/three before CJS eval
         await getRemotionThree();
 
-        const fullUrl = `${apiUrl}${bundleUrl}/player-composition.cjs.js?v=${bundleVersion}`;
+        // Use same-origin path — Next.js rewrites /api/* to the backend
+        const fullUrl = `${bundleUrl}/player-composition.cjs.js?v=${bundleVersion}`;
         const response = await fetch(fullUrl, { credentials: 'include' });
         if (!response.ok) {
           throw new Error(`Failed to fetch composition: ${response.status}`);
@@ -261,7 +262,7 @@ export function useWorkspaceComposition(
 
         // Create module and exports objects
         const moduleObj: { exports: Record<string, unknown> } = { exports: {} };
-        const customRequire = createRequire(bundleUrl, apiUrl);
+        const customRequire = createRequire(bundleUrl);
 
         // Execute the CJS module
         // eslint-disable-next-line no-new-func
@@ -310,7 +311,7 @@ export function useWorkspaceComposition(
     return () => {
       cancelled = true;
     };
-  }, [bundleUrl, bundleVersion, reloadCounter, apiUrl]);
+  }, [bundleUrl, bundleVersion, reloadCounter]);
 
   return { Component, loading, error, reload };
 }

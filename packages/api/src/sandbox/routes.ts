@@ -3,7 +3,7 @@ import { eq, and, inArray, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { config } from '../config.js';
 import { db } from '../db/index.js';
-import { sandboxSessions, projects, tracks, timelineItems } from '../db/index.js';
+import { sandboxSessions, projects, tracks, timelineItems, transcripts } from '../db/index.js';
 import { logger } from '../logger.js';
 import { withProjectMutex } from './mutex.js';
 import { proxyFileRequest, proxyPrompt, proxyManifestOp, proxyOps } from './proxy.js';
@@ -75,7 +75,56 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
         .limit(1);
 
       if (existing) {
-        return { status: 'ready', internalUrl: existing.internalUrl };
+        // Verify container is actually alive before trusting DB status
+        const p = await getProvider();
+        const healthy = existing.internalUrl ? await p.isReady(existing.internalUrl) : false;
+
+        if (healthy) {
+          return { status: 'ready', internalUrl: existing.internalUrl };
+        }
+
+        // Container is dead but DB says "ready" — recover
+        logger.warn({ projectId }, 'Sandbox container unreachable, recovering stale session');
+
+        const sandboxMeta = {
+          id: existing.railwayServiceId!,
+          projectId: existing.projectId,
+          volumeId: existing.railwayVolumeId!,
+          volumeInstanceId: existing.railwayVolumeInstanceId!,
+        };
+
+        // Try to backup volume (may still exist even though container died)
+        let recoveredBackupId: string | undefined;
+        try {
+          recoveredBackupId = await p.backup(sandboxMeta);
+          logger.info({ projectId, backupId: recoveredBackupId }, 'Recovered backup from stale session');
+        } catch (err) {
+          logger.warn({ err, projectId }, 'Failed to backup stale session volume');
+        }
+
+        // Clean up dead container/volume
+        try {
+          await p.destroy(sandboxMeta);
+        } catch (err) {
+          logger.warn({ err, projectId }, 'Failed to destroy stale sandbox');
+        }
+
+        // Mark session as suspended so creation flow picks up the backup
+        await db.update(sandboxSessions)
+          .set({
+            status: 'suspended',
+            backupId: recoveredBackupId || existing.backupId,
+            railwayServiceId: null,
+            railwayVolumeId: null,
+            railwayVolumeInstanceId: null,
+            internalUrl: null,
+            metadata: {},
+            suspendedAt: new Date(),
+          })
+          .where(eq(sandboxSessions.id, existing.id));
+
+        removeActivity(projectId);
+        // Fall through to creation flow below
       }
 
       // Check global concurrent limit
@@ -112,6 +161,9 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
       const env: Record<string, string> = {};
       if (process.env.ANTHROPIC_API_KEY) {
         env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+      }
+      if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+        env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
       }
 
       const p = await getProvider();
@@ -150,8 +202,25 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
         });
       }
 
-      // If first boot (no backup), send init data
-      if (!suspended?.backupId) {
+      // Check if workspace is actually initialized (backup restore may have failed)
+      let workspaceReady = false;
+      if (suspended?.backupId) {
+        try {
+          const checkRes = await fetch(`${sandbox.agentUrl}/health`, { signal: AbortSignal.timeout(5000) });
+          if (checkRes.ok) {
+            const body = await checkRes.json() as { initialized?: boolean };
+            workspaceReady = body.initialized === true;
+          }
+        } catch {
+          // Sandbox not reachable yet or workspace broken
+        }
+        if (!workspaceReady) {
+          logger.warn({ projectId }, 'Backup restore did not produce initialized workspace — sending fresh init');
+        }
+      }
+
+      // If first boot (no backup) or backup restore failed, send init data
+      if (!suspended?.backupId || !workspaceReady) {
         try {
           const projectTracks = await db.select().from(tracks).where(eq(tracks.projectId, projectId));
           const trackIds = projectTracks.map(t => t.id);
@@ -174,25 +243,78 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
             })),
           });
 
-          // Normalize media src to local filenames for the sandbox
-          // (DB stores API proxy URLs like /api/projects/:id/video but sandbox uses source.mp4)
-          for (const item of manifest.items) {
-            if (item.type === 'video' && item.data && 'src' in item.data) {
-              const src = (item.data as any).src;
-              if (typeof src === 'string' && (src.includes('/video') || src.startsWith('/api/'))) {
-                (item.data as any).src = 'source.mp4';
+          // Override video/audio src to sandbox-local paths (workspace-init downloads them)
+          // DB stores API endpoint URLs (e.g. /api/projects/:id/video) which don't exist inside sandbox
+          if (Array.isArray(manifest.items)) {
+            let hasAudioItem = false;
+            let videoDurationMs = 0;
+
+            for (const item of manifest.items) {
+              if (item.type === 'video' && item.data) {
+                item.data.src = 'source.mp4';
+                item.data.volume = 0; // Mute — audio comes from separate audio item
+                videoDurationMs = item.endMs || manifest.durationMs || 0;
+              } else if (item.type === 'audio' && item.data) {
+                item.data.src = 'audio.aac';
+                hasAudioItem = true;
               }
             }
-            if (item.type === 'audio' && item.data && 'src' in item.data) {
-              const src = (item.data as any).src;
-              if (typeof src === 'string' && src.includes('/audio')) {
-                (item.data as any).src = 'audio.mp3';
-              } else if (typeof src === 'string' && (src.includes('/video') || src.startsWith('/api/'))) {
-                (item.data as any).src = 'source.mp4';
+
+            // Create independent audio item if none exists
+            if (!hasAudioItem && videoDurationMs > 0) {
+              const audioTrackId = crypto.randomUUID();
+              if (Array.isArray(manifest.tracks)) {
+                manifest.tracks.push({
+                  id: audioTrackId,
+                  type: 'audio',
+                  name: 'Speaker Audio',
+                  position: manifest.tracks.length,
+                });
               }
+              manifest.items.push({
+                id: crypto.randomUUID(),
+                type: 'audio',
+                trackId: audioTrackId,
+                startMs: 0,
+                endMs: videoDurationMs,
+                data: { src: 'audio.aac', volume: 1 },
+              });
             }
           }
 
+          // Build init payload with optional transcript, brief, head-tracking, and project meta
+          const initBody: Record<string, unknown> = {
+            videoUrl: project.videoKey ? `uploads/${project.videoKey}` : '',
+            audioUrl: project.audioKey ? `uploads/${project.audioKey}` : undefined,
+            manifest,
+          };
+
+          // Add transcript if available (lives in separate table)
+          // Send full rawOutput (words + segments + language) so planner has complete context
+          const [transcript] = await db.select().from(transcripts)
+            .where(eq(transcripts.projectId, projectId))
+            .limit(1);
+          if (transcript?.rawOutput) {
+            initBody.transcript = transcript.rawOutput;
+          }
+
+          // Add user brief if available
+          if (project.description) {
+            initBody.userBrief = project.description;
+          }
+
+          // Add head-tracking data if available
+          if (project.headTrackingData) {
+            initBody.headTracking = project.headTrackingData;
+          }
+
+          // Add project metadata
+          initBody.projectMeta = {
+            width: project.sourceWidth || 1080,
+            height: project.sourceHeight || 1920,
+            fps: project.fps || 30,
+            durationMs: project.durationMs || 0,
+          };
           // Send init to sandbox
           const initRes = await fetch(`${sandbox.agentUrl}/init`, {
             method: 'POST',
@@ -200,11 +322,7 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
               'Content-Type': 'application/json',
               'Authorization': `Bearer ${sandbox.secret}`,
             },
-            body: JSON.stringify({
-              videoUrl: project.videoKey ? `uploads/${project.videoKey}` : '',
-              audioUrl: project.audioKey ? `uploads/${project.audioKey}` : undefined,
-              manifest,
-            }),
+            body: JSON.stringify(initBody),
           });
 
           if (!initRes.ok) {
@@ -237,6 +355,15 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
 
     if (!session) {
       return { status: 'inactive' };
+    }
+
+    // If DB says "ready", verify the container is actually alive
+    if (session.status === 'ready' && session.internalUrl) {
+      const p = await getProvider();
+      const healthy = await p.isReady(session.internalUrl);
+      if (!healthy) {
+        return { status: 'suspended' };
+      }
     }
 
     return {
@@ -295,8 +422,13 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
 
     const agentUrl = (session.metadata as any)?.agentUrl;
     if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
-    const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'GET');
-    return reply.status(result.status).send(result.data);
+    try {
+      const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'GET');
+      return reply.status(result.status).send(result.data);
+    } catch (err) {
+      logger.warn({ err, projectId }, 'Sandbox manifest proxy failed — container may be dead');
+      return reply.status(502).send({ error: 'Sandbox unavailable' });
+    }
   });
 
   // PATCH /projects/:id/sandbox/manifest — Write manifest op to sandbox
@@ -309,8 +441,13 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
 
     const agentUrl = (session.metadata as any)?.agentUrl;
     if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
-    const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'PATCH', request.body as object);
-    return reply.status(result.status).send(result.data);
+    try {
+      const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'PATCH', request.body as object);
+      return reply.status(result.status).send(result.data);
+    } catch (err) {
+      logger.warn({ err, projectId }, 'Sandbox manifest proxy failed — container may be dead');
+      return reply.status(502).send({ error: 'Sandbox unavailable' });
+    }
   });
 
   // POST /projects/:id/sandbox/ops — Granular manifest operations
@@ -324,8 +461,13 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
     const agentUrl = (session.metadata as any)?.agentUrl;
     if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
 
-    const result = await proxyOps(agentUrl, session.sandboxSecret, request.body as any);
-    return reply.status(result.status).send(result.data);
+    try {
+      const result = await proxyOps(agentUrl, session.sandboxSecret, request.body as any);
+      return reply.status(result.status).send(result.data);
+    } catch (err) {
+      logger.warn({ err, projectId }, 'Sandbox ops proxy failed — container may be dead');
+      return reply.status(502).send({ error: 'Sandbox unavailable' });
+    }
   });
 
   // === Internal Callbacks (Sandbox → API) ===

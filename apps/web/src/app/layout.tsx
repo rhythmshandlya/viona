@@ -49,7 +49,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistMono.variable} ${geist.variable} ${inter.variable} antialiased font-sans bg-background`}
+        className={`${geistMono.variable} ${geist.variable} ${inter.variable} antialiased font-sans bg-background text-foreground`}
         suppressHydrationWarning
       >
         <StytchProvider>

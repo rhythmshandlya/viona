@@ -1,6 +1,13 @@
 import React from 'react';
 import { Video, staticFile } from 'remotion';
 
+/** Resolve media source: assets map → URL → staticFile fallback */
+export function resolveMediaSrc(src: string, assets: Record<string, string>): string {
+  if (assets[src]) return assets[src];
+  if (/^https?:\/\/|^blob:/.test(src)) return src;
+  return staticFile(src);
+}
+
 interface VideoCrop {
   x: number;
   y: number;
@@ -30,7 +37,7 @@ export const VideoItem: React.FC<VideoItemProps> = ({
   fps,
   durationInFrames,
 }) => {
-  const src = assets[data.src] || staticFile(data.src);
+  const src = resolveMediaSrc(data.src, assets);
   const startFrom = data.startFrom
     ? Math.round((data.startFrom / 1000) * fps)
     : undefined;

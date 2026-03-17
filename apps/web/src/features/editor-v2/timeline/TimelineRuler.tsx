@@ -39,7 +39,7 @@ function formatTime(ms: number): string {
  * Calculate appropriate tick interval based on zoom level
  */
 function getTickInterval(zoom: number): { major: number; minor: number } {
-  const targetPixelInterval = 100;
+  const targetPixelInterval = 150;
   const targetMsInterval = targetPixelInterval / zoom;
 
   const intervals = [100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000];

@@ -1,8 +1,18 @@
 // packages/sandbox/src/orchestrator.ts
 //
 // Core orchestrator module for the sandbox. Builds SDK query options with
-// subagent definitions, manages session resume, and streams events back
-// to the caller via callbacks.
+// subagent definitions (4 agents: Planner, Editor, Animator, Reviewer),
+// manages session resume, and streams events back to the caller via callbacks.
+//
+// Pipeline phases:
+// 1. Brainstorming — Viona + user
+// 2. Transcript Cleanup — Editor (trim fillers, silences, add captions)
+// 3. Planning — Planner (scene-by-scene plan with research)
+// 4. Editor Pass 1 — rough cut + colored rect mockups
+// 5. Animation Generation — setup + parallel Animators (self-healing)
+// 6. Review — Reviewer checks each scene as it completes
+// 7. Editor Pass 2 — final assembly (replace mockups, transitions, music)
+// 8. Refinement — conversational editing via Viona
 
 import { query, type SDKPartialAssistantMessage, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
@@ -16,6 +26,7 @@ import { allManifestTools } from './tools/manifest-ops.js';
 import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js';
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
+import { buildStdioMcpServers } from './mcp-config.js';
 
 // ---- Public interfaces ----
 
@@ -31,7 +42,14 @@ export interface OrchestratorRequest {
 export interface OrchestratorCallbacks {
   onText: (text: string) => void;
   onWidget: (widget: Record<string, unknown>) => void;
-  onProgress: (progress: { phase: string; percent: number; message: string }) => void;
+  onProgress: (progress: {
+    phase: string;
+    percent: number;
+    message: string;
+    agentName?: string;
+    trackName?: string;
+    estimatedTimeRemaining?: number;
+  }) => void;
   onDone: (result: { sessionId?: string; cost?: number }) => void;
   onError: (error: string) => void;
   signal?: AbortSignal;
@@ -54,26 +72,62 @@ const RENDER_TOOL_NAMES = [
 
 const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress'];
 
+const ASSET_TOOL_NAMES = [
+  'mcp__assets__download_file',
+  'mcp__assets__search_unsplash',
+  'mcp__assets__search_pexels',
+  'mcp__assets__download_stock_photo',
+  'mcp__assets__get_speaker_grid',
+];
+
+const VIEWPORT_TOOL_NAMES = [
+  'mcp__viewport__get_scene_dimensions',
+  'mcp__viewport__validate_scene_code',
+  'mcp__viewport__submit_verdict',
+];
+
+const ICON_TOOL_NAMES = [
+  'mcp__better-icons__*',
+];
+
+const FREEPIK_TOOL_NAMES = [
+  'mcp__freepik__*',
+];
+
+const ANIMATOR_TOOL_NAMES = [
+  'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
+  ...MANIFEST_TOOL_NAMES,
+  ...SCENE_TOOL_NAMES,
+  ...RENDER_TOOL_NAMES,
+  ...ASSET_TOOL_NAMES,
+  ...VIEWPORT_TOOL_NAMES,
+  ...ICON_TOOL_NAMES,
+  ...FREEPIK_TOOL_NAMES,
+];
+
 // ---- Build SDK query options ----
 
 /**
  * Load all prompt files and construct the SDK query options object,
- * including subagent (Agent tool) definitions for animator, researcher,
- * and trimmer.
+ * including subagent (Agent tool) definitions for the pipeline agents:
+ * Planner, Editor, Animator (single), Reviewer.
  */
 export async function buildOrchestratorOptions(
   ctx: PromptContext,
   mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [orchestratorPrompt, animatorPrompt, researcherPrompt, trimmerPrompt] =
+  const [orchestratorPrompt, animatorPrompt, editorPrompt, plannerPrompt, reviewerPrompt] =
     await Promise.all([
       loadPrompt('orchestrator-system'),
       loadPromptWithShared('animator-system'),
-      loadPrompt('researcher-system'),
-      loadPrompt('trimmer-system'),
+      loadPrompt('editor-system'),
+      loadPromptWithShared('planner-system'),
+      loadPromptWithShared('reviewer-system'),
     ]);
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
+
+  const animatorSystemPrompt = injectContext(animatorPrompt, ctx);
 
   return {
     model: 'opus',
@@ -85,36 +139,71 @@ export async function buildOrchestratorOptions(
       ...SCENE_TOOL_NAMES,
       ...RENDER_TOOL_NAMES,
       ...WIDGET_TOOL_NAMES,
+      ...ASSET_TOOL_NAMES,
+      ...VIEWPORT_TOOL_NAMES,
+      ...ICON_TOOL_NAMES,
+      ...FREEPIK_TOOL_NAMES,
     ],
     permissionMode: 'bypassPermissions' as const,
     allowDangerouslySkipPermissions: true,
     agents: {
-      animator: {
-        description: 'Writes Remotion .tsx scene files for animation sections.',
-        prompt: injectContext(animatorPrompt, ctx),
+      // ---- Planner ----
+      // Analyzes transcript, does research (WebSearch/WebFetch), produces
+      // SCENE_PLAN.md. Research is part of planning — no separate Researcher agent.
+      planner: {
+        description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, visual descriptions, canvas dimensions, and meaningful scene file names. Also researches web content, screenshots, and supporting materials. Outputs SCENE_PLAN.md.',
+        prompt: injectContext(plannerPrompt, ctx),
         tools: [
-          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
+          'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
           ...MANIFEST_TOOL_NAMES,
-          ...SCENE_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
         ],
         model: 'opus',
       },
-      researcher: {
-        description: 'Finds web content, captures screenshots, downloads stock images.',
-        prompt: injectContext(researcherPrompt, ctx),
+
+      // ---- Editor ----
+      // Handles three phases:
+      // Phase 2: Transcript cleanup (trim fillers/silences via manifest ops)
+      //          + add captions from post-trim transcript
+      // Phase 4: Rough cut (splits, zoom crops, B-roll, mockup rects)
+      // Phase 7: Final assembly (replace mockups, transitions, music, captions)
+      editor: {
+        description: 'Professional video editor. Handles transcript trimming (fillers, silences via manifest ops), rough cut with zoom crops and mockup placeholders, and final assembly with transitions, captions, and music. Re-dispatched per phase — reads workspace state.',
+        prompt: injectContext(editorPrompt, ctx),
         tools: [
-          'Read', 'Write', 'Bash', 'WebSearch', 'WebFetch',
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
+          ...SCENE_TOOL_NAMES,
+          ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+          ...ICON_TOOL_NAMES,
+          ...FREEPIK_TOOL_NAMES,
         ],
-        model: 'sonnet',
+        model: 'opus',
       },
-      trimmer: {
-        description: 'Detects silence, filler words, and dead air in audio tracks.',
-        prompt: injectContext(trimmerPrompt, ctx),
+
+      // ---- Animator ----
+      // Single animator agent. Canvas dimensions come from the scene plan.
+      animator: {
+        description: 'Writes Remotion .tsx scene files based on the scene plan, receiving canvas dimensions from the plan. Self-heals compilation errors.',
+        prompt: animatorSystemPrompt,
+        tools: ANIMATOR_TOOL_NAMES,
+        model: 'opus',
+      },
+
+      // ---- Reviewer ----
+      // Checks each scene after the Animator completes. Renders stills,
+      // validates against plan, checks composition quality. Returns
+      // pass/fail with actionable feedback. Reviews happen as each scene
+      // completes — not after all Animators finish.
+      reviewer: {
+        description: 'Reviews rendered scene screenshots against the plan. Checks composition quality and readability. Returns pass/fail verdict with actionable feedback. Reviews each scene as its Animator completes.',
+        prompt: injectContext(reviewerPrompt, ctx),
         tools: [
-          'Read', 'Write', 'Bash', 'Grep',
-          ...MANIFEST_TOOL_NAMES,
+          'Read', 'Glob', 'Grep',
+          ...RENDER_TOOL_NAMES,
+          ...VIEWPORT_TOOL_NAMES,
         ],
         model: 'sonnet',
       },
@@ -123,7 +212,10 @@ export async function buildOrchestratorOptions(
     includePartialMessages: true,
     thinking: { type: 'adaptive' as const },
     persistSession: true,
-    ...(mcpServers ? { mcpServers } : {}),
+    mcpServers: {
+      ...(mcpServers || {}),
+      ...buildStdioMcpServers(),
+    },
   };
 }
 
@@ -246,4 +338,4 @@ export async function runOrchestrator(
 
 // ---- Exported tool name lists (for agent-server MCP registration) ----
 
-export { MANIFEST_TOOL_NAMES, SCENE_TOOL_NAMES, RENDER_TOOL_NAMES, WIDGET_TOOL_NAMES };
+export { MANIFEST_TOOL_NAMES, SCENE_TOOL_NAMES, RENDER_TOOL_NAMES, WIDGET_TOOL_NAMES, ASSET_TOOL_NAMES, VIEWPORT_TOOL_NAMES };

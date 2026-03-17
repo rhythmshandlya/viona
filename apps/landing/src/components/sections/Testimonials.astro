@@ -4,7 +4,7 @@ import { testimonials } from "@/data/testimonials";
 const cards = testimonials.filter((t) => t.featured);
 ---
 
-<section class="py-12 sm:py-16 lg:py-24">
+<section class="py-12 sm:py-16 lg:py-24 bg-dark text-white">
   <div class="max-w-5xl mx-auto px-4 sm:px-6">
     <!-- Header -->
     <div class="mb-10 sm:mb-14">
@@ -44,23 +44,36 @@ const cards = testimonials.filter((t) => t.featured);
 
 <style>
   .testi-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 20px;
+    position: relative;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 1.5rem;
     padding: 1.25rem 1.5rem;
+    -webkit-backdrop-filter: blur(40px) saturate(200%);
+    backdrop-filter: blur(40px) saturate(200%);
     box-shadow:
-      0 4px 24px rgba(0,0,0,0.25),
-      inset 0 1px 0 rgba(255,255,255,0.06);
-    -webkit-backdrop-filter: blur(40px) saturate(180%) brightness(1.05);
-    backdrop-filter: blur(40px) saturate(180%) brightness(1.05);
-    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+      0 8px 32px rgba(0, 0, 0, 0.25),
+      0 2px 8px rgba(0, 0, 0, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+  }
+
+  .testi-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, transparent 40%);
+    border-radius: inherit;
+    pointer-events: none;
   }
 
   .testi-card:hover {
-    border-color: rgba(255,255,255,0.12);
+    transform: translateY(-3px);
     box-shadow:
-      0 8px 32px rgba(0,0,0,0.3),
-      inset 0 1px 0 rgba(255,255,255,0.08);
-    transform: translateY(-2px);
+      0 16px 48px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 </style>

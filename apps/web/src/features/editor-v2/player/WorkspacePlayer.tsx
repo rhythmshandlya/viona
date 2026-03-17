@@ -34,13 +34,23 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
 
   useEffect(() => {
     const assets = (manifest as any)?.assets;
-    if (assets) setAssetsMap(assets);
+    if (assets) {
+      // Don't pass sandbox's Docker-internal presigned URLs to the browser.
+      // customStaticFile in useWorkspaceComposition falls back to the API proxy
+      // which works for all assets (video, images, etc).
+      setAssetsMap({});
+    }
   }, [manifest]);
 
-  const inputProps = useMemo(
-    () => ({ manifest }),
-    [manifest],
-  );
+  const inputProps = useMemo(() => {
+    // Strip sandbox assets map — composition will use staticFile fallback
+    // which resolves to the API proxy URL (browser-accessible)
+    const m = manifest as any;
+    if (m?.assets) {
+      return { manifest: { ...m, assets: {} } };
+    }
+    return { manifest };
+  }, [manifest]);
 
   if (loading || (!Component && !error)) {
     return (

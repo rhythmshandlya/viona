@@ -4,7 +4,7 @@
  * Viewport Dimension MCP Server for the Animator agent.
  *
  * Provides tools:
- *   get_scene_dimensions   – read scenes.json and return effective dimensions for all or one scene
+ *   get_scene_dimensions   – read manifest.json and return effective dimensions for all or one scene item
  *   validate_scene_code    – check if a scene file correctly uses effective dimensions
  *
  * Usage:
@@ -23,45 +23,53 @@ import { errorMessage } from "./lib/errors.js";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Effective dimensions for a scene viewport area. */
-interface EffectiveDimensions {
-  width?: number;
-  height?: number;
+/** Canvas dimensions from the manifest. */
+interface CanvasDimensions {
+  width: number;
+  height: number;
 }
 
-/** Speaker grid data attached to overlay scenes. */
-interface SpeakerGrid {
-  safePlacement?: string[];
-  occupancy?: string;
+/** Transform on a manifest item (may contain width/height overrides). */
+interface ItemTransform {
+  x?: number | string;
+  y?: number | string;
+  width?: number | string;
+  height?: number | string;
+  rotation?: number;
+  opacity?: number;
 }
 
-/** Shape of each scene entry in scenes.json. */
-interface SceneEntry {
-  title?: string;
-  name?: string;
-  displayMode?: string;
-  effectiveDimensions?: EffectiveDimensions;
-  speakerGrid?: SpeakerGrid;
-  frames?: [number, number];
+/** Shape of each item entry in manifest.json. */
+interface ManifestItem {
+  id: string;
+  type: string;
+  trackId: string;
+  startMs: number;
+  endMs: number;
+  data: Record<string, unknown>;
+  transform?: ItemTransform;
 }
 
-/** The full scenes.json structure. */
-interface ScenesJson {
-  scenes: SceneEntry[];
+/** The manifest.json structure (relevant fields). */
+interface ManifestJson {
+  version?: number;
+  fps?: number;
+  durationMs?: number;
+  canvas: CanvasDimensions;
+  tracks?: unknown[];
+  items: ManifestItem[];
 }
 
-/** Return type of findScenesJson(). */
-interface ScenesJsonResult {
+/** Return type of findManifest(). */
+interface ManifestResult {
   path: string;
-  data: ScenesJson;
-  projDir: string | null;
+  data: ManifestJson;
 }
 
 /** Return type of validateSceneCode(). */
 interface ValidationResult {
   sceneIndex: number;
   sceneNumber: number;
-  displayMode: string;
   effectiveWidth: number | string;
   effectiveHeight: number | string;
   issues: string[];
@@ -79,24 +87,45 @@ const WORKSPACE = parseWorkspace();
 // ---------------------------------------------------------------------------
 
 /**
- * Find scenes.json in the workspace. It could be at:
- *   src/proj_<id>/scenes.json
- * or directly provided. We search for it.
+ * Resolve a dimension value (from transform) against the canvas reference.
+ * Handles numeric, percentage-string, and missing values.
  */
-async function findScenesJson(): Promise<ScenesJsonResult | null> {
+function resolveDimension(
+  value: number | string | undefined,
+  canvasRef: number,
+): number {
+  if (value == null) return canvasRef;
+  if (typeof value === "number") return value;
+  if (typeof value === "string" && value.endsWith("%")) {
+    return (parseFloat(value) / 100) * canvasRef;
+  }
+  const n = Number(value);
+  return isNaN(n) ? canvasRef : n;
+}
+
+/**
+ * Find manifest.json in the workspace.
+ */
+async function findManifest(): Promise<ManifestResult | null> {
+  // Check workspace root first
+  const rootManifest = path.join(WORKSPACE, "manifest.json");
+  try {
+    const content = await readFile(rootManifest, "utf-8");
+    return { path: rootManifest, data: JSON.parse(content) as ManifestJson };
+  } catch {
+    // Not at root
+  }
+
+  // Fallback: check src/proj_* directories
   const srcDir = path.join(WORKSPACE, "src");
   try {
     const entries = await readdir(srcDir, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.isDirectory() && entry.name.startsWith("proj_")) {
-        const scenesPath = path.join(srcDir, entry.name, "scenes.json");
+        const mPath = path.join(srcDir, entry.name, "manifest.json");
         try {
-          const content = await readFile(scenesPath, "utf-8");
-          return {
-            path: scenesPath,
-            data: JSON.parse(content) as ScenesJson,
-            projDir: entry.name,
-          };
+          const content = await readFile(mPath, "utf-8");
+          return { path: mPath, data: JSON.parse(content) as ManifestJson };
         } catch {
           // Not found in this project dir, continue
         }
@@ -106,18 +135,7 @@ async function findScenesJson(): Promise<ScenesJsonResult | null> {
     // src dir doesn't exist
   }
 
-  // Fallback: check workspace root
-  try {
-    const scenesPath = path.join(WORKSPACE, "scenes.json");
-    const content = await readFile(scenesPath, "utf-8");
-    return {
-      path: scenesPath,
-      data: JSON.parse(content) as ScenesJson,
-      projDir: null,
-    };
-  } catch {
-    return null;
-  }
+  return null;
 }
 
 /**
@@ -128,7 +146,6 @@ function validateSceneCode(
   sceneIndex: number,
   effectiveWidth: number | string,
   effectiveHeight: number | string,
-  displayMode: string
 ): ValidationResult {
   const issues: string[] = [];
   const warnings: string[] = [];
@@ -178,41 +195,7 @@ function validateSceneCode(
     }
   }
 
-  // Check 4: Overlay mode — should NOT have Background component
-  if (displayMode === "overlay") {
-    const hasBackground =
-      /import\s+.*Background.*from/i.test(code) || /<Background/i.test(code);
-    if (hasBackground) {
-      issues.push(
-        "Overlay scene renders a Background component — overlay scenes must be transparent so the speaker video shows through. " +
-          "Remove the Background import and component."
-      );
-    }
-
-    // Check for solid background colors
-    const hasBgColor =
-      /background:\s*['"][^'"]*['"](?!\s*,\s*['"]transparent)/i.test(code);
-    const hasFullBg = /backgroundColor:\s*['"][^'"]*['"]/.test(code);
-    if (hasBgColor || hasFullBg) {
-      warnings.push(
-        "Overlay scene may have an opaque background color — ensure backgrounds are transparent or semi-transparent " +
-          "so the speaker video is visible."
-      );
-    }
-
-    // Warn about centered positioning (likely overlaps speaker)
-    const hasCentered =
-      /left:\s*['"]?(?:50%|EW\s*\*\s*0\.5|EW\s*\/\s*2)/i.test(code) &&
-      /top:\s*['"]?(?:30%|40%|50%|EH\s*\*\s*0\.[3-5])/i.test(code);
-    if (hasCentered) {
-      warnings.push(
-        "Overlay scene positions elements near center — likely overlaps speaker's face. " +
-          "Check speakerGrid.safePlacement and position at edges/corners instead."
-      );
-    }
-  }
-
-  // Check 5: Hardcoded pixel values for common sizing
+  // Check 4: Hardcoded pixel values for common sizing
   const hardcodedFontSize = /fontSize:\s*(\d{2,3})(?!\s*[*])/g;
   let fontMatch: RegExpExecArray | null;
   const hardcodedFonts: number[] = [];
@@ -231,7 +214,6 @@ function validateSceneCode(
   return {
     sceneIndex,
     sceneNumber: sceneNum,
-    displayMode,
     effectiveWidth,
     effectiveHeight,
     issues,
@@ -251,14 +233,12 @@ const server = new McpServer({
 /** Formatted scene info returned by get_scene_dimensions. */
 interface FormattedScene {
   sceneNumber: number;
-  title: string;
-  displayMode: string;
-  effectiveWidth: number | string;
-  effectiveHeight: number | string;
+  itemId: string;
+  effectiveWidth: number;
+  effectiveHeight: number;
   aspectRatio: string;
   constantsKey: { width: string; height: string };
   designTips: string;
-  speakerGrid?: SpeakerGrid;
 }
 
 // -- get_scene_dimensions ---------------------------------------------------
@@ -266,7 +246,8 @@ server.registerTool(
   "get_scene_dimensions",
   {
     description:
-      "Read scenes.json and return the effective dimensions, displayMode, and aspect ratio for each scene (or a specific scene). " +
+      "Read manifest.json and return the effective dimensions and aspect ratio for each scene item (or a specific scene). " +
+      "Dimensions are resolved from the item's transform if present, otherwise from the canvas. " +
       "Use this BEFORE writing any scene code to understand the viewport constraints.",
     inputSchema: {
       sceneNumber: z
@@ -279,50 +260,49 @@ server.registerTool(
   },
   async ({ sceneNumber }: { sceneNumber?: number }) => {
     try {
-      const result = await findScenesJson();
+      const result = await findManifest();
       if (!result) {
         return {
           content: [
             {
               type: "text" as const,
               text:
-                "scenes.json not found. It should be at src/proj_<id>/scenes.json. " +
-                "Make sure the Director phase has run and produced a scene plan.",
+                "manifest.json not found. It should be at the workspace root or src/proj_<id>/manifest.json. " +
+                "Make sure the workspace has been initialized.",
             },
           ],
           isError: true,
         };
       }
 
-      const { data, path: scenesPath } = result;
-      const scenes: SceneEntry[] = data.scenes || [];
+      const { data, path: manifestPath } = result;
+      const canvas = data.canvas || { width: 1920, height: 1080 };
+      const allItems = data.items || [];
 
-      if (scenes.length === 0) {
+      // Filter to scene-type items only
+      const sceneItems = allItems.filter((item) => item.type === "scene");
+
+      if (sceneItems.length === 0) {
         return {
           content: [
             {
               type: "text" as const,
-              text: `scenes.json at ${scenesPath} has no scenes array.`,
+              text: `manifest.json at ${manifestPath} has no scene items.`,
             },
           ],
           isError: true,
         };
       }
 
-      const formatScene = (scene: SceneEntry, idx: number): FormattedScene => {
-        const ed = scene.effectiveDimensions || {};
-        const ew: number | string = ed.width || "NOT SET";
-        const eh: number | string = ed.height || "NOT SET";
-        const dm = scene.displayMode || "default";
+      const formatScene = (item: ManifestItem, idx: number): FormattedScene => {
+        const ew = resolveDimension(item.transform?.width, canvas.width);
+        const eh = resolveDimension(item.transform?.height, canvas.height);
         const ar =
-          typeof ew === "number" && typeof eh === "number"
-            ? `${(ew / eh).toFixed(3)}:1 (${ew > eh ? "landscape-ish" : ew === eh ? "square" : "portrait"})`
-            : "unknown";
+          `${(ew / eh).toFixed(3)}:1 (${ew > eh ? "landscape-ish" : ew === eh ? "square" : "portrait"})`;
 
         const formatted: FormattedScene = {
           sceneNumber: idx + 1,
-          title: scene.title || scene.name || `Scene ${idx + 1}`,
-          displayMode: dm,
+          itemId: item.id,
           effectiveWidth: ew,
           effectiveHeight: eh,
           aspectRatio: ar,
@@ -331,36 +311,22 @@ server.registerTool(
             height: `TIMING.scene${idx + 1}EffectiveHeight`,
           },
           designTips:
-            dm === "overlay"
-              ? "NO background. Transparent. Speaker video shows through. Use semi-transparent cards/elements."
-              : dm === "fullscreen"
-                ? "Full canvas. Immersive background. Generous whitespace. Dramatic typography."
-                : typeof eh === "number" && eh < 1200
-                  ? "Compact area. Dense layout. Horizontal arrangements. Larger relative font sizes."
-                  : "Standard pip area. Balanced layout.",
+            eh < 1200
+              ? "Compact area. Dense layout. Horizontal arrangements. Larger relative font sizes."
+              : "Standard area. Balanced layout.",
         };
-
-        // For overlay scenes, include speakerGrid so the AI can avoid the speaker's face
-        if (dm === "overlay" && scene.speakerGrid) {
-          formatted.speakerGrid = scene.speakerGrid;
-          formatted.designTips =
-            "OVERLAY MODE: Transparent background. Place elements ONLY in safe zones " +
-            `(safePlacement: ${JSON.stringify(scene.speakerGrid.safePlacement || [])}). ` +
-            `Speaker occupancy: ${scene.speakerGrid.occupancy || "unknown"}. ` +
-            "Bright colors. Minimal animations (fade/slide only). Opacity 0.8-0.9.";
-        }
 
         return formatted;
       };
 
       if (sceneNumber !== undefined) {
         const idx = sceneNumber - 1;
-        if (idx < 0 || idx >= scenes.length) {
+        if (idx < 0 || idx >= sceneItems.length) {
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Scene ${sceneNumber} not found. scenes.json has ${scenes.length} scene(s).`,
+                text: `Scene ${sceneNumber} not found. manifest.json has ${sceneItems.length} scene item(s).`,
               },
             ],
             isError: true,
@@ -370,22 +336,24 @@ server.registerTool(
           content: [
             {
               type: "text" as const,
-              text: JSON.stringify(formatScene(scenes[idx], idx), null, 2),
+              text: JSON.stringify(formatScene(sceneItems[idx], idx), null, 2),
             },
           ],
         };
       }
 
       // Return all scenes
-      const allScenes = scenes.map((s, i) => formatScene(s, i));
+      const allScenes = sceneItems.map((s, i) => formatScene(s, i));
       return {
         content: [
           {
             type: "text" as const,
             text: JSON.stringify(
               {
-                scenesJsonPath: scenesPath,
-                totalScenes: scenes.length,
+                manifestPath,
+                canvasWidth: canvas.width,
+                canvasHeight: canvas.height,
+                totalScenes: sceneItems.length,
                 scenes: allScenes,
               },
               null,
@@ -399,7 +367,7 @@ server.registerTool(
         content: [
           {
             type: "text" as const,
-            text: `Error reading scenes.json: ${errorMessage(err)}`,
+            text: `Error reading manifest.json: ${errorMessage(err)}`,
           },
         ],
         isError: true,
@@ -414,7 +382,7 @@ server.registerTool(
   {
     description:
       "Validate that a scene's TypeScript/React code correctly uses effective dimensions. " +
-      "Checks for: effective dimension usage from TIMING, clipping container, overlay transparency, " +
+      "Checks for: effective dimension usage from TIMING, clipping container, " +
       "and warns about hardcoded pixel values. Run this AFTER writing scene code.",
     inputSchema: {
       scenePath: z
@@ -443,17 +411,22 @@ server.registerTool(
         : path.join(WORKSPACE, scenePath);
       const code = await readFile(fullPath, "utf-8");
 
-      // Find scenes.json for metadata
-      const result = await findScenesJson();
-      const scenes: SceneEntry[] = result?.data?.scenes || [];
+      // Find manifest for metadata
+      const result = await findManifest();
+      const canvas = result?.data?.canvas || { width: 1920, height: 1080 };
+      const allItems = result?.data?.items || [];
+      const sceneItems = allItems.filter((item) => item.type === "scene");
       const sceneIdx = sceneNumber - 1;
-      const scene: SceneEntry | undefined = scenes[sceneIdx];
+      const sceneItem: ManifestItem | undefined = sceneItems[sceneIdx];
 
-      const dm = scene?.displayMode || "default";
-      const ew = scene?.effectiveDimensions?.width || 1080;
-      const eh = scene?.effectiveDimensions?.height || 1920;
+      const ew = sceneItem
+        ? resolveDimension(sceneItem.transform?.width, canvas.width)
+        : canvas.width;
+      const eh = sceneItem
+        ? resolveDimension(sceneItem.transform?.height, canvas.height)
+        : canvas.height;
 
-      const validation = validateSceneCode(code, sceneIdx, ew, eh, dm);
+      const validation = validateSceneCode(code, sceneIdx, ew, eh);
 
       const summary = validation.valid
         ? `Scene ${sceneNumber} PASSES validation.`

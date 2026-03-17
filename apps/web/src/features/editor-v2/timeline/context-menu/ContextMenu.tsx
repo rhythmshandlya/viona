@@ -8,6 +8,24 @@
 
 import React, { useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  Scissors,
+  Copy,
+  CopyPlus,
+  Trash2,
+  Lock,
+  Unlock,
+  SlidersHorizontal,
+  Diamond,
+  RotateCcw,
+  Blend,
+  Sparkles,
+  ArrowRightLeft,
+  ClipboardPaste,
+  Timer,
+  Layers,
+  type LucideIcon,
+} from 'lucide-react';
 import { ContextMenuState, ContextMenuTarget } from './useContextMenu';
 import {
   useTimelineActions,
@@ -23,7 +41,6 @@ import {
   useSelectedTimeRange,
   useEditorStore,
 } from '../../store/use-editor-store';
-import { VisualItemData } from '../../store/types';
 
 // ============================================
 // Types
@@ -37,6 +54,7 @@ interface ContextMenuProps {
 interface MenuItemDef {
   label: string;
   shortcut?: string;
+  icon?: LucideIcon;
   action: () => void;
   disabled?: boolean;
   checked?: boolean;
@@ -86,7 +104,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     select,
   } = useTimelineActions();
   const { updateTrack } = useTrackActions();
-  const { requestAIEdit, changeDisplayModeWithAI } = useAIActions();
+  const { requestAIEdit } = useAIActions();
   const { openTransitionPicker } = useSafeZoneActions();
   const { updateTransform, updateFilters, updateKeyframes, addKeyframeAtTime } = useTransformActions();
 
@@ -184,27 +202,32 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           {
             label: 'Split Here',
             shortcut: 'S',
+            icon: Scissors,
             action: withSelection(() => splitItem(itemId, currentTimeMs)),
           },
           { type: 'separator' as const },
           {
             label: 'Copy',
-            shortcut: 'Ctrl+C',
+            shortcut: '⌘C',
+            icon: Copy,
             action: withSelection(() => copyItems(idsForAction)),
           },
           {
             label: 'Duplicate',
-            shortcut: 'Ctrl+D',
+            shortcut: '⌘D',
+            icon: CopyPlus,
             action: withSelection(() => duplicateItems(idsForAction)),
           },
           {
             label: 'Delete',
-            shortcut: 'Del',
+            shortcut: '⌫',
+            icon: Trash2,
             action: withSelection(() => deleteItems(idsForAction)),
           },
           { type: 'separator' as const },
           {
             label: isLocked ? 'Unlock Track' : 'Lock Track',
+            icon: isLocked ? Unlock : Lock,
             action: () => {
               if (track) {
                 updateTrack(track.id, { locked: !isLocked });
@@ -215,13 +238,14 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           { type: 'separator' as const },
           {
             label: 'Edit Properties',
+            icon: SlidersHorizontal,
             action: withSelection(() => {
-              // Selection triggers auto-open of the properties panel via Editor.tsx useEffect
               select([itemId], 'replace');
             }),
           },
           {
-            label: 'Add Keyframe at Playhead',
+            label: 'Add Keyframe',
+            icon: Diamond,
             action: withSelection(() => {
               const currentItem = items[itemId];
               if (!currentItem) return;
@@ -234,55 +258,38 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           },
           { type: 'separator' as const },
           {
-            label: 'Clear All Keyframes',
+            label: 'Clear Keyframes',
+            icon: Diamond,
             action: withSelection(() => updateKeyframes(itemId, [])),
             disabled: !item?.keyframes || item.keyframes.length === 0,
           },
           {
             label: 'Reset Transform',
+            icon: RotateCcw,
             action: withSelection(() =>
               updateTransform(itemId, { x: 0, y: 0, width: '100%', height: '100%', rotation: 0, opacity: 1 })
             ),
           },
           {
             label: 'Reset Filters',
+            icon: Blend,
             action: withSelection(() =>
               updateFilters(itemId, { brightness: 1, contrast: 1, saturation: 1, blur: 0, hue: 0, grayscale: 0, sepia: 0 })
             ),
           },
-          // Display Mode submenu and "Edit with AI" for visual items
+          // "Change Transition" and "Edit with AI" for visual items
           ...(item?.type === 'visual'
             ? [
                 { type: 'separator' as const },
-                // V2: Display Mode submenu removed — layout is in AI-generated Composition.tsx
-                {
-                  type: 'submenu' as const,
-                  label: 'Change & AI Adapt',
-                  items: [
-                    {
-                      label: 'Standard + Adapt',
-                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'default')),
-                      disabled: ((item.data as VisualItemData).displayMode || 'default') === 'default' || ((item.data as VisualItemData).displayMode as string) === 'pip',
-                    },
-                    {
-                      label: 'Fullscreen + Adapt',
-                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'fullscreen')),
-                      disabled: (item.data as VisualItemData).displayMode === 'fullscreen',
-                    },
-                    {
-                      label: 'Overlay + Adapt',
-                      action: withSelection(() => changeDisplayModeWithAI(itemId, 'overlay')),
-                      disabled: (item.data as VisualItemData).displayMode === 'overlay',
-                    },
-                  ],
-                },
                 {
                   label: 'Change Transition\u2026',
+                  icon: ArrowRightLeft,
                   action: withSelection(() => openTransitionPicker(itemId)),
                 },
                 {
                   label: 'Edit with AI',
                   shortcut: 'E',
+                  icon: Sparkles,
                   action: withSelection(() => requestAIEdit(item)),
                 },
               ]
@@ -296,17 +303,20 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
             { type: 'separator' as const },
             {
               label: 'Delete Range',
-              shortcut: 'Del',
+              shortcut: '⌫',
+              icon: Trash2,
               action: () => deleteTimeRange(selectedTimeRange.startMs, selectedTimeRange.endMs, false),
             },
             {
               label: 'Ripple Delete Range',
-              shortcut: '⇧Del',
+              shortcut: '⇧⌫',
+              icon: Timer,
               action: () => deleteTimeRange(selectedTimeRange.startMs, selectedTimeRange.endMs, true),
             },
             {
               label: 'Edit with AI',
               shortcut: 'E',
+              icon: Sparkles,
               action: () => useEditorStore.setState({ aiEditRequested: true }),
             },
           ]
@@ -316,7 +326,8 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
         return [
           {
             label: 'Paste',
-            shortcut: 'Ctrl+V',
+            shortcut: '⌘V',
+            icon: ClipboardPaste,
             action: () => pasteItems(target.timeMs),
             disabled: !clipboard || clipboard.length === 0,
           },
@@ -328,7 +339,8 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       return [
         {
           label: 'Paste',
-          shortcut: 'Ctrl+V',
+          shortcut: '⌘V',
+          icon: ClipboardPaste,
           action: () => pasteItems(target.timeMs),
           disabled: !clipboard || clipboard.length === 0,
         },
@@ -350,7 +362,6 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
       pasteItems,
       updateTrack,
       requestAIEdit,
-      changeDisplayModeWithAI,
       openTransitionPicker,
       updateTransform,
       updateFilters,
@@ -367,19 +378,12 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
     <div
       ref={menuRef}
       role="menu"
+      className="context-menu-glass"
       style={{
         position: 'fixed',
         left: state.x,
         top: state.y,
         zIndex: 9999,
-        minWidth: 160,
-        maxWidth: 260,
-        background: 'var(--editor-bg-elevated, #1e1e2e)',
-        border: '1px solid var(--editor-border-subtle, #333)',
-        borderRadius: 8,
-        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-        padding: '4px 0',
-        userSelect: 'none',
       }}
     >
       {entries.map((entry, index) => {
@@ -387,11 +391,7 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
           return (
             <div
               key={`sep-${index}`}
-              style={{
-                height: 1,
-                background: 'var(--editor-border-subtle, #333)',
-                margin: '4px 0',
-              }}
+              className="h-px bg-white/[0.06] mx-2 my-1"
             />
           );
         }
@@ -399,116 +399,50 @@ export function ContextMenu({ state, onClose }: ContextMenuProps) {
         if (isSubMenu(entry)) {
           return (
             <div key={entry.label}>
-              <div
-                style={{
-                  padding: '4px 12px 2px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  color: 'var(--editor-text-secondary, #888)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                }}
-              >
+              <div className="px-3 pt-2 pb-1 text-[10px] font-semibold text-white/30 uppercase tracking-widest">
                 {entry.label}
               </div>
-              {entry.items.map((subItem) => (
-                <button
-                  key={subItem.label}
-                  role="menuitem"
-                  disabled={subItem.disabled}
-                  onClick={() => handleAction(subItem.action)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    width: '100%',
-                    padding: '5px 12px 5px 20px',
-                    background: 'transparent',
-                    border: 'none',
-                    color: subItem.disabled
-                      ? 'var(--editor-text-disabled, #555)'
-                      : 'var(--editor-text-primary, #e0e0e0)',
-                    fontSize: 13,
-                    lineHeight: '20px',
-                    cursor: subItem.disabled ? 'default' : 'pointer',
-                    textAlign: 'left',
-                    outline: 'none',
-                    opacity: subItem.disabled ? 0.5 : 1,
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!subItem.disabled) {
-                      (e.currentTarget as HTMLButtonElement).style.background =
-                        'var(--editor-bg-hover, rgba(255, 255, 255, 0.08))';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                  }}
-                >
-                  <span>
-                    {subItem.checked ? '\u2713 ' : '  '}
-                    {subItem.label}
-                  </span>
-                  {subItem.shortcut && (
-                    <span
-                      style={{
-                        color: 'var(--editor-text-secondary, #888)',
-                        fontSize: 11,
-                        marginLeft: 16,
-                      }}
-                    >
-                      {subItem.shortcut}
+              {entry.items.map((subItem) => {
+                const Icon = subItem.icon;
+                return (
+                  <button
+                    key={subItem.label}
+                    role="menuitem"
+                    disabled={subItem.disabled}
+                    onClick={() => handleAction(subItem.action)}
+                    className={`context-menu-item ${subItem.disabled ? 'opacity-40 cursor-default' : 'cursor-pointer'}`}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      {Icon && <Icon className="w-[15px] h-[15px] text-white/40 flex-shrink-0" />}
+                      <span>{subItem.label}</span>
                     </span>
-                  )}
-                </button>
-              ))}
+                    {subItem.shortcut && (
+                      <span className="text-[11px] text-white/25 ml-4 font-mono">
+                        {subItem.shortcut}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           );
         }
 
+        const Icon = entry.icon;
         return (
           <button
             key={entry.label}
             role="menuitem"
             disabled={entry.disabled}
             onClick={() => handleAction(entry.action)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              width: '100%',
-              padding: '6px 12px',
-              background: 'transparent',
-              border: 'none',
-              color: entry.disabled
-                ? 'var(--editor-text-disabled, #555)'
-                : 'var(--editor-text-primary, #e0e0e0)',
-              fontSize: 13,
-              lineHeight: '20px',
-              cursor: entry.disabled ? 'default' : 'pointer',
-              textAlign: 'left',
-              outline: 'none',
-              opacity: entry.disabled ? 0.5 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (!entry.disabled) {
-                (e.currentTarget as HTMLButtonElement).style.background =
-                  'var(--editor-bg-hover, rgba(255, 255, 255, 0.08))';
-              }
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-            }}
+            className={`context-menu-item ${entry.disabled ? 'opacity-40 cursor-default' : 'cursor-pointer'}`}
           >
-            <span>{entry.label}</span>
+            <span className="flex items-center gap-2.5">
+              {Icon && <Icon className="w-[15px] h-[15px] text-white/40 flex-shrink-0" />}
+              <span>{entry.label}</span>
+            </span>
             {entry.shortcut && (
-              <span
-                style={{
-                  color: 'var(--editor-text-secondary, #888)',
-                  fontSize: 11,
-                  marginLeft: 16,
-                }}
-              >
+              <span className="text-[11px] text-white/25 ml-4 font-mono">
                 {entry.shortcut}
               </span>
             )}

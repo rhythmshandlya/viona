@@ -8,7 +8,7 @@ import { immer } from 'zustand/middleware/immer';
 import { api, Project as ApiProject } from '@/lib/api';
 import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
-import { manifestToStore, StoreManifestOp } from './manifest-bridge';
+import { manifestToStore, storeToManifest, StoreManifestOp } from './manifest-bridge';
 import { dispatchToSandbox, type SandboxOp } from './manifest-dispatch';
 import {
   EditorStore,
@@ -26,12 +26,10 @@ import {
   VideoItemData,
   AudioItemData,
   VisualItemData,
-  VisualDisplayMode,
   VideoSettings,
   CaptionStyle,
   AnimationConfig,
   WordStyleOverrides,
-  OverlayZone,
   Transform,
   Keyframe,
   Filters,
@@ -82,6 +80,38 @@ const dispatchOps = (ops: SandboxOp[]) => {
   const state = useEditorStore.getState();
   if (state.workspaceStatus !== 'active' || !state.project) return;
   dispatchToSandbox(state.project.id, ops);
+};
+
+/**
+ * Rebuild workspaceManifest from current store state so the Remotion player
+ * reflects local edits (shape props, transforms, filters, added/removed items).
+ */
+const syncWorkspaceManifest = () => {
+  const state = useEditorStore.getState();
+  if (!state.project) return;
+
+  // Extract caption style from first caption item, or use default
+  const firstCaption = state.itemIds
+    .map((id) => state.items[id])
+    .find((item) => item?.type === 'caption');
+  const captionStyle = firstCaption
+    ? (firstCaption.data as CaptionItemData).style ?? DEFAULT_CAPTION_STYLE
+    : DEFAULT_CAPTION_STYLE;
+
+  const manifest = storeToManifest(
+    {
+      tracks: state.tracks,
+      items: state.items,
+      itemIds: state.itemIds,
+      duration: state.duration,
+      fps: state.fps,
+      videoSettings: state.project.videoSettings,
+      assets: state.assets,
+    },
+    captionStyle,
+  );
+
+  useEditorStore.setState({ workspaceManifest: manifest });
 };
 
 // Initial state
@@ -201,7 +231,7 @@ function migrateAnimationLegacy(legacy: string): AnimationConfig {
  * Track heights per type — taller for video/audio, compact for text-based tracks
  */
 const TRACK_HEIGHTS: Record<string, number> = {
-  video: 48,
+  video: 80,
   audio: 36,
   caption: 28,
   text: 28,
@@ -366,6 +396,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
               muted: (raw.muted as boolean) ?? false,
               separatedAudioItemId: (raw.separatedAudioItemId as string) || undefined,
               previewUrl: project.videoUrl,
+              thumbnailSrc: `/media-proxy/projects/${apiProject.id}/video`,
             } as VideoItemData,
           };
           // Only set trim if explicit trim data was saved — avoid defaulting to
@@ -404,6 +435,7 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             volume: 1,
             playbackRate: 1,
             previewUrl: project.videoUrl,
+            thumbnailSrc: `/media-proxy/projects/${apiProject.id}/video`,
           } as VideoItemData,
         };
         console.log('[convertApiProject] Synthetic video item:', {
@@ -532,7 +564,6 @@ function convertApiProject(apiProject: ApiProject, videoUrl: string): {
             height: (raw.height as number) || 1080,
             fps: (raw.fps as number) || 30,
             sourceSceneId: (raw.sourceSceneId as number) || undefined,
-            displayMode: (raw.displayMode as VisualDisplayMode) || undefined,
             transition: (raw.transition as VisualItemData['transition']) || undefined,
             speakerBbox: (raw.speakerBbox as VisualItemData['speakerBbox']) ?? undefined,
           } as VisualItemData,
@@ -644,6 +675,11 @@ function splitItemInDraft(
       endMs: original.endMs,
       data: JSON.parse(JSON.stringify(original.data)),
     };
+    // Adjust startFrom for media items so right half plays from correct source position
+    if (original.type === 'video' || original.type === 'audio' || original.type === 'broll') {
+      const currentStartFrom = (original.data as any).startFrom ?? 0;
+      (rightItem.data as any).startFrom = currentStartFrom + splitRelativeMs;
+    }
     if (original.trim) {
       rightItem.trim = {
         startMs: original.trim.startMs + splitRelativeMs,
@@ -716,6 +752,14 @@ export const useEditorStore = create<EditorStore>()(
           compositionId: (apiProject as any).compositionId ?? '',
           visualMeta: (apiProject as any).visualMeta,
         });
+
+        // Set same-origin thumbnailSrc on video items for timeline thumbnail extraction
+        for (const itemId of bridgeResult.itemIds) {
+          const item = bridgeResult.items[itemId];
+          if (item?.type === 'video') {
+            (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
+          }
+        }
 
         const project = {
           id: apiProject.id,
@@ -915,6 +959,7 @@ export const useEditorStore = create<EditorStore>()(
             if (!item) continue;
             if (item.type === 'video' && videoUrl) {
               (item.data as any).src = videoUrl;
+              (item.data as any).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
             } else if (item.type === 'audio') {
               const audioData = item.data as any;
               // Only refresh items that use the project video/audio as source
@@ -1041,8 +1086,24 @@ export const useEditorStore = create<EditorStore>()(
             };
           });
 
+        // Save shape, text, and image items
+        const overlayItems = itemIds
+          .map((id) => items[id])
+          .filter((item): item is TimelineItem => !!item && ['shape', 'text', 'image'].includes(item.type))
+          .map((item) => ({
+            id: item.id,
+            trackId: item.trackId,
+            type: item.type,
+            startMs: item.startMs,
+            endMs: item.endMs,
+            data: item.data as unknown as Record<string, unknown>,
+            ...(item.transform ? { transform: item.transform } : {}),
+            ...(item.filters ? { filters: item.filters } : {}),
+            ...(item.keyframes?.length ? { keyframes: item.keyframes } : {}),
+          }));
+
         // Round all timestamps to integers (DB uses integer columns)
-        const allItems = [...apiItems, ...visualItems, ...videoItems, ...audioItems].map((item) => ({
+        const allItems = [...apiItems, ...visualItems, ...videoItems, ...audioItems, ...overlayItems].map((item) => ({
           ...item,
           startMs: Math.round(item.startMs),
           endMs: Math.round(item.endMs),
@@ -1053,7 +1114,6 @@ export const useEditorStore = create<EditorStore>()(
         const visualItemIds = visualItems.map((item) => item.id);
         const videoItemIds = videoItems.map((item) => item.id);
         const audioItemIds = audioItems.map((item) => item.id);
-
         const videoSettingsPayload = {
           ...project.videoSettings,
         };
@@ -1229,6 +1289,9 @@ export const useEditorStore = create<EditorStore>()(
           startMs: itemData.startMs || 0,
           endMs: itemData.endMs || 1000,
           data: itemData.data || {},
+          ...(itemData.transform ? { transform: itemData.transform } : {}),
+          ...(itemData.keyframes ? { keyframes: itemData.keyframes } : {}),
+          ...(itemData.filters ? { filters: itemData.filters } : {}),
         } as TimelineItem;
 
         state.items[id] = newItem;
@@ -1239,9 +1302,14 @@ export const useEditorStore = create<EditorStore>()(
 
       const addedItem = get().items[id];
       if (addedItem) {
-        dispatchOps([{ tool: 'addItem', input: { id, trackId, type: addedItem.type, startMs: addedItem.startMs, endMs: addedItem.endMs, data: addedItem.data } }]);
+        const input: Record<string, unknown> = { id, trackId, type: addedItem.type, startMs: addedItem.startMs, endMs: addedItem.endMs, data: addedItem.data };
+        if (addedItem.transform) input.transform = addedItem.transform;
+        if (addedItem.keyframes) input.keyframes = addedItem.keyframes;
+        if (addedItem.filters) input.filters = addedItem.filters;
+        dispatchOps([{ tool: 'addItem', input }]);
       }
 
+      syncWorkspaceManifest();
       return id;
     },
 
@@ -1267,6 +1335,7 @@ export const useEditorStore = create<EditorStore>()(
       if (Object.keys(sandboxUpdates).length > 1) {
         dispatchOps([{ tool: 'updateItem', input: sandboxUpdates }]);
       }
+      syncWorkspaceManifest();
     },
 
     updateItemData: (id, dataUpdates) => {
@@ -1279,6 +1348,7 @@ export const useEditorStore = create<EditorStore>()(
 
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId: id, data: dataUpdates } }]);
+      syncWorkspaceManifest();
     },
 
     deleteItems: async (ids) => {
@@ -1371,6 +1441,7 @@ export const useEditorStore = create<EditorStore>()(
       cancelDebouncedSave();
 
       dispatchOps(ids.map(id => ({ tool: 'removeItem' as const, input: { itemId: id } })));
+      syncWorkspaceManifest();
 
       // If visual items were deleted, delete visuals from backend
       if (hasVisualItems && project) {
@@ -1403,6 +1474,7 @@ export const useEditorStore = create<EditorStore>()(
       if (movedItem) {
         dispatchOps([{ tool: 'updateItem', input: { itemId: id, trackId, startMs: movedItem.startMs, endMs: movedItem.endMs } }]);
       }
+      syncWorkspaceManifest();
     },
 
     resizeItem: (id, startMs, endMs) => {
@@ -1419,6 +1491,7 @@ export const useEditorStore = create<EditorStore>()(
       if (resizedItem) {
         dispatchOps([{ tool: 'updateItem', input: { itemId: id, startMs: resizedItem.startMs, endMs: resizedItem.endMs } }]);
       }
+      syncWorkspaceManifest();
     },
 
     // ========================================
@@ -1889,9 +1962,9 @@ export const useEditorStore = create<EditorStore>()(
       debouncedSave(() => get().saveProject());
 
       if (splitResult) {
-        if (item.type === 'video') {
-          // Video items: use splitVideo tool
-          dispatchOps([{ tool: 'splitVideo', input: { itemId, atMs } }]);
+        if (item.type === 'video' || item.type === 'audio') {
+          // Video/audio items: use splitItem tool
+          dispatchOps([{ tool: 'splitItem', input: { itemId, atMs } }]);
         } else {
           // Non-video: remove original + add left/right
           const [leftId, rightId] = splitResult;
@@ -2504,62 +2577,6 @@ export const useEditorStore = create<EditorStore>()(
       });
     },
 
-    changeDisplayModeWithAI: (itemId: string, newDisplayMode: VisualDisplayMode) => {
-      const state = get();
-      const item = state.items[itemId];
-      if (!item || item.type !== 'visual') return;
-
-      const data = item.data as VisualItemData;
-      const oldDisplayMode = data.displayMode || 'default';
-      if (oldDisplayMode === newDisplayMode) return;
-
-      const canvasW = state.project?.videoSettings?.canvasWidth || 1080;
-      const canvasH = state.project?.videoSettings?.canvasHeight || 1920;
-      const newDims = { w: canvasW, h: canvasH };
-      const oldDims = { w: canvasW, h: canvasH };
-
-      // Capture timing before mutating state
-      const { startMs, endMs } = item;
-
-      // Apply the display mode change immediately (inline — updateVisualDisplayMode removed in v2)
-      set((state) => {
-        const stateItem = state.items[itemId];
-        if (stateItem?.type === 'visual') {
-          (stateItem.data as VisualItemData).displayMode = newDisplayMode;
-        }
-      });
-      get().pushHistory();
-
-      // Build human-readable mode labels
-      const modeLabel = (dm: VisualDisplayMode): string => {
-        if (dm === 'default') return 'Standard';
-        return dm === 'fullscreen' ? 'Fullscreen' : 'Overlay';
-      };
-
-      // Build mode-specific guidance suffix
-      let suffix = '';
-      if (newDisplayMode === 'fullscreen') {
-        suffix = 'Since this is now fullscreen mode, the visual takes up the entire canvas with no speaker video visible.';
-      } else if (newDisplayMode === 'overlay') {
-        suffix = "Since this is now overlay mode, the visual will be composited over the speaker video with reduced opacity \u2014 position elements to avoid the center where the speaker's face is.";
-      } else {
-        suffix = `Since this is now standard mode, the visual occupies ${newDims.w}\u00d7${newDims.h} alongside the speaker video.`;
-      }
-
-      const prompt = `The display mode for this scene was changed from "${modeLabel(oldDisplayMode)}" to "${modeLabel(newDisplayMode)}". The effective viewport changed from ${oldDims.w}\u00d7${oldDims.h} to ${newDims.w}\u00d7${newDims.h}. Please adapt the scene's layout, sizing, and positioning to properly fill the new ${newDims.w}\u00d7${newDims.h} viewport. ${suffix}`;
-
-      // Scope the AI edit to this item's time range
-      // Note: pendingAIMessage uses last-write-wins — if the user triggers another
-      // adapt while streaming, the latest one supersedes the previous (intentional UX).
-      set((state) => {
-        state.selectedTimeRange = { startMs, endMs };
-        state.selectedSceneId = null;
-        state.pendingAIMessage = prompt;
-      });
-    },
-
-    // V2: updateVisualDisplayMode, updateVisualTransition removed — display mode and transitions are in AI-generated Composition.tsx
-
     openTransitionPicker: (itemId: string) => {
       set((state) => { state.transitionPickerItemId = itemId; });
     },
@@ -2582,30 +2599,6 @@ export const useEditorStore = create<EditorStore>()(
       set((state) => {
         state.showSafeZone = show;
       });
-    },
-
-    // ========================================
-    // Overlay Zone Actions
-    // ========================================
-
-    updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => {
-      set((state) => {
-        const item = state.items[itemId];
-        if (!item || item.type !== 'visual') return state;
-
-        const data = item.data as VisualItemData;
-        state.items[itemId] = {
-          ...item,
-          data: {
-            ...data,
-            overlayZone: zone,
-            // Clear deprecated displayMode when zone is set
-            displayMode: zone === 'none' ? data.displayMode : undefined,
-          },
-        };
-        state.isDirty = true;
-      });
-      get().pushHistory();
     },
 
     getVideoSegmentation: (videoItemId: string) => {
@@ -2667,6 +2660,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId, transform } }]);
+      syncWorkspaceManifest();
     },
 
     updateFilters: (itemId: string, filters: Partial<Filters>) => {
@@ -2677,6 +2671,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId, filters } }]);
+      syncWorkspaceManifest();
     },
 
     updateKeyframes: (itemId: string, keyframes: Keyframe[]) => {
@@ -2687,6 +2682,7 @@ export const useEditorStore = create<EditorStore>()(
       });
       get().pushHistory();
       dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes } }]);
+      syncWorkspaceManifest();
     },
 
     addKeyframeAtTime: (itemId: string, timeMs: number, props: Partial<Transform>, easing?: string) => {
@@ -2699,6 +2695,7 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
       const item = get().items[itemId];
       if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes } }]);
+      syncWorkspaceManifest();
     },
 
     deleteKeyframe: (itemId: string, index: number) => {
@@ -2710,6 +2707,7 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
       const item = get().items[itemId];
       if (item) dispatchOps([{ tool: 'updateItem', input: { itemId, keyframes: item.keyframes ?? [] } }]);
+      syncWorkspaceManifest();
     },
 
     updateKeyframeEasing: (itemId: string, index: number, easing: string) => {

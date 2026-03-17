@@ -16,7 +16,6 @@ export const transitionConfigSchema = z.object({
 
 export const visualItemDataSchema = z.object({
   sceneFile: z.string(),
-  displayMode: z.enum(['default', 'fullscreen', 'overlay']),
   frameOffset: z.number().int().min(0).default(0),
   transition: z.object({
     enter: transitionConfigSchema.optional(),

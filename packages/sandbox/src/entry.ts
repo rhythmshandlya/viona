@@ -73,6 +73,15 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
+// Prevent SDK AbortError from crashing the process
+process.on('unhandledRejection', (reason: unknown) => {
+  if (reason instanceof Error && reason.name === 'AbortError') {
+    logger.warn('SDK query aborted (client disconnected)');
+    return;
+  }
+  logger.error({ reason }, 'Unhandled rejection');
+});
+
 main().catch((err) => {
   logger.fatal({ err }, 'Sandbox failed to start');
   process.exit(1);

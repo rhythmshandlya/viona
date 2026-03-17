@@ -16,10 +16,27 @@ const WORKSPACE = '/workspace';
 const TEMPLATE = '/app/template';
 const NODE_MODULES_SRC = '/app/node_modules';
 
-interface InitPayload {
+export interface InitPayload {
   videoUrl: string;      // MinIO key for source video
   audioUrl?: string;     // MinIO key for separate audio (optional)
   manifest: object;      // Initial manifest from DB
+  // New fields (all optional for backward compat)
+  transcript?: {
+    words: Array<{ text: string; startMs: number; endMs: number; confidence: number }>;
+    segments: Array<{ text: string; startMs: number; endMs: number }>;
+    language: string;
+  };
+  userBrief?: string;
+  headTracking?: {
+    speakerGrid: number[][];
+    safePlacement: Array<{ x: number; y: number; width: number; height: number }>;
+  };
+  projectMeta?: {
+    width: number;
+    height: number;
+    fps: number;
+    durationMs: number;
+  };
 }
 
 function getMinioClient(): MinioClient {
@@ -78,6 +95,7 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
   await mkdir(join(WORKSPACE, 'public'), { recursive: true });
   await mkdir(join(WORKSPACE, '.build'), { recursive: true });
   await mkdir(join(WORKSPACE, '.claude'), { recursive: true });
+  await mkdir(join(WORKSPACE, 'docs'), { recursive: true });
 
   // Create empty scene-registry.ts stub (PlayerComposition imports it statically)
   await writeFile(join(WORKSPACE, 'src', 'scene-registry.ts'),
@@ -98,11 +116,26 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
   const durationMs = await probeVideoDurationMs(videoPath);
   logger.info({ durationMs }, 'Video duration detected');
 
-  // Download audio if separate
+  // Extract audio track from video for independent playback
+  const audioPath = join(WORKSPACE, 'public', 'audio.aac');
+  try {
+    await execFileAsync('ffmpeg', [
+      '-i', videoPath,
+      '-vn',           // no video
+      '-acodec', 'copy', // copy audio codec (no re-encode)
+      '-y',            // overwrite
+      audioPath,
+    ]);
+    logger.info('Audio extracted from video');
+  } catch (err) {
+    logger.warn({ err }, 'ffmpeg audio extraction failed — falling back to video audio');
+  }
+
+  // Download separate audio if provided (overrides extracted)
   if (payload.audioUrl) {
-    logger.info({ key: payload.audioUrl }, 'Downloading audio');
+    logger.info({ key: payload.audioUrl }, 'Downloading separate audio (overrides extracted)');
     const audioStream = await minio.getObject(bucket, payload.audioUrl);
-    await pipeline(audioStream, createWriteStream(join(WORKSPACE, 'public', 'audio.mp3')));
+    await pipeline(audioStream, createWriteStream(audioPath));
   }
 
   // Patch manifest with detected duration and fix video item endMs
@@ -129,6 +162,17 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
     JSON.stringify(manifest, null, 2),
   );
 
+  // Symlink manifest into public/ so Remotion's staticFile() can read it
+  // (calculateMetadata runs in browser context where fs is unavailable)
+  try {
+    await symlink(
+      join(WORKSPACE, 'manifest.json'),
+      join(WORKSPACE, 'public', 'manifest.json'),
+    );
+  } catch (err: any) {
+    if (err.code !== 'EEXIST') throw err;
+  }
+
   // Copy template files (composition infra, .claude/, configs)
   await cp(TEMPLATE, WORKSPACE, {
     recursive: true,
@@ -146,6 +190,55 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
       logger.warn(`Shared module ${file} not found — skipping`);
     }
   }
+
+  // Copy theme design system files into workspace for Planner/Animator access
+  const themesSrc = join('/app', 'prompts', 'themes');
+  const themesDst = join(WORKSPACE, 'docs', 'themes');
+  try {
+    await cp(themesSrc, themesDst, { recursive: true, force: false });
+  } catch {
+    logger.warn('Theme files not found — skipping');
+  }
+
+  // Write transcript if provided
+  if (payload.transcript) {
+    await writeFile(
+      join(WORKSPACE, 'docs', 'transcript.json'),
+      JSON.stringify(payload.transcript, null, 2),
+    );
+  }
+
+  // Write user brief if provided
+  if (payload.userBrief) {
+    await writeFile(
+      join(WORKSPACE, 'docs', 'user-brief.md'),
+      payload.userBrief,
+    );
+  }
+
+  // Write head-tracking data if provided
+  if (payload.headTracking) {
+    await writeFile(
+      join(WORKSPACE, 'docs', 'speaker-grid.json'),
+      JSON.stringify(payload.headTracking, null, 2),
+    );
+  }
+
+  // Initialize generation progress file
+  await writeFile(
+    join(WORKSPACE, 'generation-progress.json'),
+    JSON.stringify({
+      phase: 'initialized',
+      planApproved: false,
+      totalScenes: 0,
+      completedScenes: [],
+      failedScenes: [],
+      currentScene: null,
+      tsVerified: false,
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+    }, null, 2),
+  );
 
   // Initial asset sync — generate presigned URLs for downloaded media
   await syncAssets();

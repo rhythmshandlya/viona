@@ -35,7 +35,7 @@ export interface SandboxProvider {
    * Create a volume backup, returns backupId for future restore.
    * Accepts Sandbox metadata from DB so provider doesn't need in-memory state.
    */
-  backup(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'volumeInstanceId'>): Promise<string>;
+  backup(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'volumeInstanceId' | 'projectId'>): Promise<string>;
 
   /** Health check — is the sandbox responsive? */
   isReady(url: string): Promise<boolean>;

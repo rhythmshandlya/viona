@@ -26,8 +26,6 @@ import type {
   BrollItemData,
   TextItemData,
   ImageItemData,
-  VisualDisplayMode,
-  OverlayZone,
 } from './types';
 
 import type {
@@ -71,7 +69,6 @@ export type StoreManifestOp =
   | { op: 'update_item'; itemId: string; updates: { startMs?: number; endMs?: number; trackId?: string } }
   | { op: 'update_item_data'; itemId: string; dataUpdates: Record<string, unknown> }
   | { op: 'delete_item'; itemId: string }
-  | { op: 'set_display_mode'; itemId: string; displayMode: 'default' | 'fullscreen' | 'overlay' }
   | { op: 'set_transition'; itemId: string; enter?: { type: string; durationMs: number }; exit?: { type: string; durationMs: number } }
   | { op: 'move_item'; itemId: string; startMs: number; endMs: number }
   | { op: 'update_caption_style'; updates: Record<string, unknown> }
@@ -103,7 +100,7 @@ export function manifestToStore(
     position: t.position,
     locked: false,
     visible: true,
-    height: 48,
+    height: t.type === 'video' ? 80 : t.type === 'audio' ? 36 : t.type === 'visual' ? 48 : 28,
     collapsed: false,
   }));
 
@@ -322,8 +319,6 @@ function convertManifestItem(
         height: 1080,
         fps: 30,
         sourceSceneId: sceneId,
-        displayMode: (d.displayMode as VisualDisplayMode) || 'default',
-        overlayZone: d.overlayZone as OverlayZone | undefined,
         transition: d.transition,
         speakerBbox: d.speakerBbox,
       };
@@ -467,8 +462,6 @@ function convertManifestItemV2(
         height: d.height || 1080,
         fps: d.fps || 30,
         sourceSceneId: sceneId,
-        displayMode: (d.displayMode as VisualDisplayMode) || 'default',
-        overlayZone: d.overlayZone as OverlayZone | undefined,
         transition: d.transition,
         speakerBbox: d.speakerBbox,
       };
@@ -584,10 +577,8 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
     case 'scene': {
       const result: Record<string, unknown> = {
         sceneFile: d.sourceSceneId != null ? `scenes/Scene${d.sourceSceneId}.tsx` : '',
-        displayMode: d.displayMode || 'default',
         frameOffset: 0,
       };
-      if (d.overlayZone) result.overlayZone = d.overlayZone;
       if (d.transition) result.transition = d.transition;
       if (d.speakerBbox) result.speakerBbox = d.speakerBbox;
       return result;

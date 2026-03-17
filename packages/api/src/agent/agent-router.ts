@@ -289,6 +289,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     // Track all content blocks (text + widgets) for persistence
     const contentBlocks: Array<{ type: string; [k: string]: unknown }> = [];
     let pendingText = '';
+    let progressBlockIdx = -1; // Index of the current progress block in contentBlocks
 
     // Flush accumulated text into a content block
     function flushText() {
@@ -343,10 +344,22 @@ export async function agentRoutes(fastify: FastifyInstance) {
             flushText();
             contentBlocks.push({ type: 'widget', widget });
           },
+          onProgress: (progress) => {
+            flushText();
+            if (progressBlockIdx >= 0) {
+              // Replace existing progress block with updated state
+              contentBlocks[progressBlockIdx] = { type: 'progress', ...progress };
+            } else {
+              // First progress event — append new block
+              progressBlockIdx = contentBlocks.length;
+              contentBlocks.push({ type: 'progress', ...progress });
+            }
+          },
           onError: (error) => {
             fastify.log.error({ error }, 'Sandbox orchestrator error');
           },
-        }
+        },
+        projectId,
       );
     } catch (err) {
       fastify.log.error({ err }, 'Agent chat relay error');
@@ -418,11 +431,22 @@ export async function agentRoutes(fastify: FastifyInstance) {
         }
       : null;
 
-    if (!data) {
-      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload });
+    // Fallback: check Redis for sandbox pipeline progress (not BullMQ job-based)
+    let sandboxProgress: Record<string, unknown> | null = null;
+    if (!activeJob) {
+      try {
+        const cached = await redis.get(`sandbox:progress:${projectId}`);
+        if (cached) {
+          sandboxProgress = JSON.parse(cached);
+        }
+      } catch { /* ignore */ }
     }
 
-    return reply.send({ ...data, activeJob: jobPayload });
+    if (!data) {
+      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined });
+    }
+
+    return reply.send({ ...data, activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined });
   });
 
   // ─── DELETE /projects/:id/agent/conversation — clear conversation ────────

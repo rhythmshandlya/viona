@@ -467,7 +467,7 @@ async def _main_inner(args, heartbeat: HeartbeatEmitter):
 
     else:
         # Default: both phases via generate_two_phase (existing behavior)
-        print("[ClaudeGenerator] Using two-phase pipeline (Director + Animator)")
+        print("[ClaudeGenerator] Usingcheckyou two-phase pipeline (Director + Animator)")
         emit_progress(8, "Preparing workspace...", {"phase": "plan", "phaseName": "Setting up"})
         import json as json_mod
         safe_placement_full = json_mod.loads(args.safe_placement) if hasattr(args, 'safe_placement') else []

@@ -40,7 +40,7 @@ async function withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
 // ---- Tool definitions ----
 
 export const readManifestTool = {
-  name: 'readManifest',
+  name: 'read_manifest',
   description:
     'Read the manifest. No args → summary (tracks with item counts, duration, canvas, asset keys, total items). ' +
     'Pass trackId to get items on that track. Pass timeRange [start, end] to get items overlapping that range. ' +
@@ -79,6 +79,7 @@ export const readManifestTool = {
           tracks: trackSummaries,
           totalItems: (manifest.items ?? []).length,
           assetKeys: Object.keys(manifest.assets ?? {}),
+          captionStyle: manifest.captionStyle ?? null,
         });
       }
 
@@ -99,7 +100,7 @@ export const readManifestTool = {
 };
 
 export const readItemTool = {
-  name: 'readItem',
+  name: 'read_item',
   description: 'Read a single item by its ID.',
   input_schema: {
     type: 'object' as const,
@@ -121,7 +122,7 @@ export const readItemTool = {
 };
 
 export const addTrackTool = {
-  name: 'addTrack',
+  name: 'add_track',
   description: 'Add a new track. Auto-generates an ID and assigns the next position.',
   input_schema: {
     type: 'object' as const,
@@ -159,7 +160,7 @@ export const addTrackTool = {
 };
 
 export const updateTrackTool = {
-  name: 'updateTrack',
+  name: 'update_track',
   description: 'Update an existing track\'s name or position.',
   input_schema: {
     type: 'object' as const,
@@ -189,7 +190,7 @@ export const updateTrackTool = {
 };
 
 export const removeTrackTool = {
-  name: 'removeTrack',
+  name: 'remove_track',
   description: 'Remove a track and all items on it.',
   input_schema: {
     type: 'object' as const,
@@ -203,12 +204,15 @@ export const removeTrackTool = {
       try {
         const manifest = await readManifest();
         const trackIdx = (manifest.tracks ?? []).findIndex((t: any) => t.id === input.trackId);
-        if (trackIdx === -1) return `Track not found: ${input.trackId}`;
+        if (trackIdx === -1) {
+          // Idempotent: track already gone — treat as success
+          return JSON.stringify({ removed: input.trackId, removedItems: 0, alreadyGone: true });
+        }
         manifest.tracks.splice(trackIdx, 1);
         const removedCount = (manifest.items ?? []).filter((i: any) => i.trackId === input.trackId).length;
         manifest.items = (manifest.items ?? []).filter((i: any) => i.trackId !== input.trackId);
         await writeManifest(manifest);
-        return `Removed track ${input.trackId} and ${removedCount} item(s).`;
+        return JSON.stringify({ removed: input.trackId, removedItems: removedCount });
       } catch (err: any) {
         return `Failed to remove track: ${err.message}`;
       }
@@ -217,7 +221,7 @@ export const removeTrackTool = {
 };
 
 export const addItemTool = {
-  name: 'addItem',
+  name: 'add_item',
   description: 'Add a new item to a track. Auto-generates an ID. Optional transform.',
   input_schema: {
     type: 'object' as const,
@@ -245,6 +249,10 @@ export const addItemTool = {
         type: 'object',
         description: 'Optional filters (brightness, contrast, saturation, blur, hue, grayscale, sepia)',
       },
+      style: {
+        type: 'object',
+        description: 'Optional CSS-like styling (border, borderRadius, boxShadow, background, overflow, etc.)',
+      },
     },
     required: ['type', 'trackId', 'startMs', 'endMs', 'data'],
   },
@@ -258,6 +266,7 @@ export const addItemTool = {
     transform?: object;
     keyframes?: any[];
     filters?: object;
+    style?: object;
   }): Promise<string> {
     return withManifestLock(async () => {
       try {
@@ -273,6 +282,7 @@ export const addItemTool = {
         };
         if (input.transform) item.transform = input.transform;
         if (input.filters) item.filters = input.filters;
+        if (input.style) item.style = input.style;
         manifest.items = manifest.items ?? [];
         manifest.items.push(item);
         await writeManifest(manifest);
@@ -285,7 +295,7 @@ export const addItemTool = {
 };
 
 export const updateItemTool = {
-  name: 'updateItem',
+  name: 'update_item',
   description:
     'Update an existing item. Deep-merges nested objects (data, transform, filters). ' +
     'Replaces keyframes array if provided. Top-level scalars (startMs, endMs, trackId) set directly.',
@@ -299,6 +309,7 @@ export const updateItemTool = {
       data: { type: 'object', description: 'Partial data to deep-merge' },
       transform: { type: 'object', description: 'Partial transform to deep-merge' },
       filters: { type: 'object', description: 'Partial filters to deep-merge' },
+      style: { type: 'object', description: 'Partial style to deep-merge (border, borderRadius, boxShadow, etc.)' },
       keyframes: {
         type: 'array',
         items: { type: 'object' },
@@ -315,6 +326,7 @@ export const updateItemTool = {
     data?: object;
     transform?: object;
     filters?: object;
+    style?: object;
     keyframes?: any[];
   }): Promise<string> {
     return withManifestLock(async () => {
@@ -333,6 +345,7 @@ export const updateItemTool = {
         if (input.data) item.data = { ...item.data, ...input.data };
         if (input.transform) item.transform = { ...(item.transform ?? {}), ...input.transform };
         if (input.filters) item.filters = { ...(item.filters ?? {}), ...input.filters };
+        if (input.style) item.style = { ...(item.style ?? {}), ...input.style };
 
         // Replace keyframes array
         if (input.keyframes !== undefined) item.keyframes = input.keyframes;
@@ -347,7 +360,7 @@ export const updateItemTool = {
 };
 
 export const removeItemTool = {
-  name: 'removeItem',
+  name: 'remove_item',
   description: 'Remove an item by ID.',
   input_schema: {
     type: 'object' as const,
@@ -362,10 +375,13 @@ export const removeItemTool = {
         const manifest = await readManifest();
         const items: any[] = manifest.items ?? [];
         const idx = items.findIndex((i: any) => i.id === input.itemId);
-        if (idx === -1) return `Item not found: ${input.itemId}`;
+        if (idx === -1) {
+          // Idempotent: item already gone — treat as success
+          return JSON.stringify({ removed: input.itemId, alreadyGone: true });
+        }
         items.splice(idx, 1);
         await writeManifest(manifest);
-        return `Removed item ${input.itemId}.`;
+        return JSON.stringify({ removed: input.itemId });
       } catch (err: any) {
         return `Failed to remove item: ${err.message}`;
       }
@@ -373,15 +389,15 @@ export const removeItemTool = {
   },
 };
 
-export const splitVideoTool = {
-  name: 'splitVideo',
+export const splitItemTool = {
+  name: 'split_item',
   description:
-    'Split a video item at a given time. The original item ends at atMs; a new item starts at atMs. ' +
-    'Keyframes are adjusted accordingly. Returns both item IDs.',
+    'Split a video or audio item at a given time. The original item ends at atMs; a new item starts at atMs. ' +
+    'Adjusts startFrom for media items and redistributes keyframes. Returns both item IDs.',
   input_schema: {
     type: 'object' as const,
     properties: {
-      itemId: { type: 'string', description: 'Video item ID to split' },
+      itemId: { type: 'string', description: 'Item ID to split (must be video or audio)' },
       atMs: { type: 'number', description: 'Time (in timeline ms) to split at' },
     },
     required: ['itemId', 'atMs'],
@@ -393,7 +409,10 @@ export const splitVideoTool = {
         const items: any[] = manifest.items ?? [];
         const item = items.find((i: any) => i.id === input.itemId);
         if (!item) return `Item not found: ${input.itemId}`;
-        if (item.type !== 'video') return `Item ${input.itemId} is not a video (type: ${item.type})`;
+        const SPLITTABLE = new Set(['video', 'audio']);
+        if (!SPLITTABLE.has(item.type)) {
+          return `Item ${input.itemId} is not splittable (type: ${item.type}). Only video and audio items can be split.`;
+        }
         if (input.atMs <= item.startMs || input.atMs >= item.endMs) {
           return `atMs (${input.atMs}) must be between startMs (${item.startMs}) and endMs (${item.endMs})`;
         }
@@ -404,7 +423,7 @@ export const splitVideoTool = {
         // Build the new (right) item
         const newItem: any = {
           id: newId,
-          type: 'video',
+          type: item.type,
           trackId: item.trackId,
           startMs: input.atMs,
           endMs: item.endMs,
@@ -418,6 +437,7 @@ export const splitVideoTool = {
         };
         if (item.transform) newItem.transform = { ...item.transform };
         if (item.filters) newItem.filters = { ...item.filters };
+        if (item.style) newItem.style = { ...item.style };
         if (item.data.crop) newItem.data.crop = { ...item.data.crop };
 
         // Trim the original (left) item
@@ -428,14 +448,57 @@ export const splitVideoTool = {
         await writeManifest(manifest);
         return JSON.stringify({ originalId: item.id, newId });
       } catch (err: any) {
-        return `Failed to split video: ${err.message}`;
+        return `Failed to split item: ${err.message}`;
+      }
+    });
+  },
+};
+
+export const updateCaptionStyleTool = {
+  name: 'update_caption_style',
+  description:
+    'Update the global caption style. Deep-merges with existing style. ' +
+    'Fields: displayMode (word-by-word|phrase|karaoke|dynamic-hierarchy), wordsPerPhrase, ' +
+    'fontFamily, fontSize, fontWeight, color, activeColor, backgroundColor, activeBackgroundColor, ' +
+    'backgroundPadding ({x,y}), backgroundRadius, letterSpacing, textTransform (none|uppercase|lowercase), ' +
+    'opacity, lineHeight, stroke ({width,color}), presetId, ' +
+    'animation ({in,active,out,easing}), position ({anchor,offsetX,offsetY,textAlign,rotation}), ' +
+    'effects ({shadow,shadowSecondary,glow}).',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      updates: {
+        type: 'object',
+        description: 'Partial caption style fields to merge',
+      },
+    },
+    required: ['updates'],
+  },
+  async execute(input: { updates: Record<string, unknown> }): Promise<string> {
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const existing = manifest.captionStyle ?? {};
+        // Deep-merge nested objects (animation, position, effects)
+        for (const [key, value] of Object.entries(input.updates)) {
+          if (value && typeof value === 'object' && !Array.isArray(value) && existing[key] && typeof existing[key] === 'object') {
+            existing[key] = { ...existing[key], ...value };
+          } else {
+            existing[key] = value;
+          }
+        }
+        manifest.captionStyle = existing;
+        await writeManifest(manifest);
+        return JSON.stringify(manifest.captionStyle);
+      } catch (err: any) {
+        return `Failed to update caption style: ${err.message}`;
       }
     });
   },
 };
 
 export const updateManifestTool = {
-  name: 'updateManifest',
+  name: 'update_manifest',
   description: 'Replace the entire manifest and trigger a preview rebuild. Use sparingly — prefer granular tools.',
   input_schema: {
     type: 'object' as const,
@@ -470,6 +533,7 @@ export const allManifestTools = [
   addItemTool,
   updateItemTool,
   removeItemTool,
-  splitVideoTool,
+  splitItemTool,
+  updateCaptionStyleTool,
   updateManifestTool,
 ];

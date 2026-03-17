@@ -2,7 +2,7 @@
 import { faqs } from "@/data/testimonials";
 ---
 
-<section id="faq" class="py-20 lg:py-28">
+<section id="faq" class="py-20 lg:py-28 border-t border-white/[0.06]">
   <div class="max-w-2xl mx-auto px-6">
     <div class="mb-16">
       <h2 class="animate-on-scroll text-3xl sm:text-4xl font-semibold tracking-tight mb-4">
@@ -13,15 +13,17 @@ import { faqs } from "@/data/testimonials";
       </p>
     </div>
 
-    <div class="glass-surface px-6 sm:px-8 py-2">
-      {faqs.map((faq) => (
-        <details>
-          <summary>{faq.question}</summary>
-          <div>
-            <p class="text-sm text-muted-foreground leading-relaxed">{faq.answer}</p>
-          </div>
-        </details>
-      ))}
+    <div class="glass-surface rounded-2xl p-6 sm:p-8">
+      <div class="stagger-children">
+        {faqs.map((faq) => (
+          <details>
+            <summary>{faq.question}</summary>
+            <div>
+              <p class="text-sm text-muted-foreground leading-relaxed">{faq.answer}</p>
+            </div>
+          </details>
+        ))}
+      </div>
     </div>
   </div>
 </section>

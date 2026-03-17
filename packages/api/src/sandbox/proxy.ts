@@ -1,6 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { PassThrough, Readable } from 'stream';
 import { logger } from '../logger.js';
+import { redis } from '../services/redis.js';
 
 /**
  * Proxy a GET request to the sandbox file server.
@@ -35,7 +36,11 @@ export async function proxyFileRequest(
     // Forward response headers
     const contentType = res.headers.get('content-type');
     if (contentType) reply.header('Content-Type', contentType);
-    reply.header('Cache-Control', 'no-cache');
+
+    // Cache media files (video/audio/image) for the session to avoid re-fetching;
+    // other files (JS bundles etc.) stay uncached so hot-reload works.
+    const isMedia = contentType && /^(video|audio|image)\//.test(contentType);
+    reply.header('Cache-Control', isMedia ? 'private, max-age=3600, immutable' : 'no-cache');
     reply.header('Accept-Ranges', 'bytes');
 
     const contentRange = res.headers.get('content-range');
@@ -138,6 +143,7 @@ export interface InterceptCallbacks {
   onText?: (text: string) => void;
   onDone?: (data: { sessionId?: string; cost?: number }) => Promise<void>;
   onWidget?: (widget: Record<string, unknown>) => void;
+  onProgress?: (progress: { phase: string; percent: number; message: string; agentName?: string; trackName?: string; estimatedTimeRemaining?: number }) => void;
   onError?: (error: string) => void;
 }
 
@@ -160,6 +166,7 @@ export async function proxyPromptWithIntercept(
   },
   reply: FastifyReply,
   callbacks: InterceptCallbacks,
+  projectId?: string,
 ): Promise<void> {
   const url = `${agentUrl}/prompt`;
 
@@ -192,16 +199,30 @@ export async function proxyPromptWithIntercept(
       const decoder = new TextDecoder();
       let buffer = '';
 
+      // --- Text buffering to suppress internal monologue ---
+      let textBuffer = '';
+      let lastToolEventTime = 0;
+      const MONOLOGUE_WINDOW_MS = 2000;
+
+      const writeSSE = (eventType: string, data: unknown) => {
+        passthrough.write(`event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`);
+      };
+
+      const flushTextBuffer = () => {
+        if (textBuffer) {
+          writeSSE('text', { text: textBuffer });
+          textBuffer = '';
+        }
+      };
+
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           const chunk = decoder.decode(value, { stream: true });
-          // Write raw chunk to browser immediately
-          passthrough.write(chunk);
 
-          // Buffer and parse SSE events for interception
+          // Buffer and parse SSE events for interception + filtered forwarding
           buffer += chunk;
           const events = buffer.split('\n\n');
           // Last element is incomplete — keep it in the buffer
@@ -225,28 +246,73 @@ export async function proxyPromptWithIntercept(
               const data = JSON.parse(dataStr);
 
               switch (eventType) {
-                case 'text':
-                  callbacks.onText?.(data.text ?? data);
+                case 'text': {
+                  const text = data.text ?? data;
+                  if (typeof text === 'string') {
+                    const timeSinceTool = Date.now() - lastToolEventTime;
+                    if (lastToolEventTime > 0 && timeSinceTool < MONOLOGUE_WINDOW_MS && text.length < 200) {
+                      // Likely internal monologue — buffer it
+                      textBuffer += text;
+                    } else {
+                      // Real response — flush buffer + forward
+                      if (textBuffer) {
+                        writeSSE('text', { text: textBuffer + text });
+                        textBuffer = '';
+                      } else {
+                        writeSSE('text', data);
+                      }
+                    }
+                  }
+                  callbacks.onText?.(text);
                   break;
-                case 'done':
-                  // onDone is async (DB write) — fire and forget so we don't block the stream
+                }
+                case 'done': {
+                  flushTextBuffer();
+                  writeSSE('done', data);
                   callbacks.onDone?.(data).catch((err) =>
                     logger.error({ err }, 'InterceptCallbacks.onDone failed'),
                   );
+                  // Clear progress from Redis on completion
+                  if (projectId) {
+                    redis.del(`sandbox:progress:${projectId}`).catch(() => {});
+                  }
                   break;
+                }
                 case 'widget':
+                  writeSSE('widget', data);
                   callbacks.onWidget?.(data);
                   break;
+                case 'progress': {
+                  writeSSE('progress', data);
+                  callbacks.onProgress?.(data);
+                  // Persist to Redis for refresh recovery (TTL: 30 minutes)
+                  if (projectId) {
+                    redis.set(`sandbox:progress:${projectId}`, JSON.stringify(data), 'EX', 1800).catch(() => {});
+                  }
+                  break;
+                }
+                case 'tool_use':
+                case 'tool_result':
+                  lastToolEventTime = Date.now();
+                  writeSSE(eventType, data);
+                  break;
                 case 'error':
+                  writeSSE('error', data);
                   callbacks.onError?.(data.message ?? data.error ?? String(data));
+                  break;
+                default:
+                  // Forward unknown events as-is
+                  writeSSE(eventType, data);
                   break;
               }
             } catch {
-              // Non-JSON or malformed event — ignore, data still flows to browser
+              // Non-JSON or malformed event — forward raw to browser
+              passthrough.write(raw + '\n\n');
             }
           }
         }
       } finally {
+        flushTextBuffer();
         passthrough.end();
       }
     } else {

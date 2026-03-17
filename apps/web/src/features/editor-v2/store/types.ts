@@ -69,6 +69,7 @@ export interface VideoItemData {
   playbackRate: number;
   startFrom?: number;  // ms offset into source clip (v2)
   previewUrl?: string;
+  thumbnailSrc?: string; // Same-origin proxy URL for timeline thumbnail extraction (avoids CORS)
   muted?: boolean;
   separatedAudioItemId?: string;
   segmentation?: SegmentationData;  // NEW: speaker segmentation data
@@ -400,10 +401,6 @@ export interface ImageItemData {
   opacity: number;
 }
 
-export type VisualDisplayMode = 'default' | 'fullscreen' | 'overlay';
-
-export type OverlayZone = 'behind' | 'lower-third' | 'top' | 'frame' | 'background' | 'none';
-
 export interface FaceBbox {
   frame: number;
   x: number;      // 0-1 normalized (left edge)
@@ -435,14 +432,6 @@ export interface VisualItemData {
   fps: number;
   /** Original 1-indexed scene file ID (scenes/SceneN.tsx). Survives timeline splits. */
   sourceSceneId?: number;
-  /** Effective viewport width for this scene (may differ from width for pip-in-split) */
-  effectiveWidth?: number;
-  /** Effective viewport height for this scene (may differ from height for pip-in-split) */
-  effectiveHeight?: number;
-  /** How this visual composites with speaker video. Defaults to 'default' for standard layout behavior. */
-  displayMode?: VisualDisplayMode;
-  /** Zone-based positioning for overlay compositing */
-  overlayZone?: OverlayZone;
   /** Enter/exit transitions at segment boundaries */
   transition?: {
     enter: { type: 'cut' | 'fade' | 'zoom-in' | 'zoom-out'; durationMs: number };
@@ -462,8 +451,6 @@ export interface VisualItemData {
   // V2 segment fields
   /** Segment index from the director plan (0-based) */
   segmentId?: number;
-  /** Layout type for timeline UI color coding: 'stacked' | 'fullscreen' | 'overlay' */
-  layout?: string;
   /** Number of musical beats in this segment */
   beatCount?: number;
 }
@@ -805,10 +792,6 @@ export interface EditorActions {
 
   // Pending AI message
   setPendingAIMessage: (message: string | null) => void;
-  changeDisplayModeWithAI: (itemId: string, newDisplayMode: VisualDisplayMode) => void;
-
-  // V2: removed — display mode and transitions are in AI-generated Composition.tsx
-  // updateVisualDisplayMode, updateVisualTransition
 
   // Transition picker
   openTransitionPicker: (itemId: string) => void;
@@ -829,8 +812,6 @@ export interface EditorActions {
   deleteKeyframe: (itemId: string, index: number) => void;
   updateKeyframeEasing: (itemId: string, index: number, easing: string) => void;
 
-  // Overlay zone actions
-  updateVisualOverlayZone: (itemId: string, zone: OverlayZone) => void;
   getVideoSegmentation: (videoItemId: string) => SegmentationData | undefined;
 
   // Workspace actions (Plan 3)
@@ -909,13 +890,6 @@ export const DEFAULT_TEXT_STYLE: TextStyle = {
   backgroundColor: undefined,
   textAlign: 'center',
 };
-
-// Normalize legacy per-scene display mode values
-export function normalizeDisplayMode(dm: string | undefined): VisualDisplayMode {
-  if (dm === 'pip') return 'default';
-  if (dm === 'default' || dm === 'fullscreen' || dm === 'overlay') return dm;
-  return 'default'; // default
-}
 
 // ============================================
 // Element Selection (for AI editing)

@@ -21,7 +21,10 @@ export const SceneItem: React.FC<SceneItemProps> = ({
   fps,
   sceneRegistry,
 }) => {
-  const SceneComponent = sceneRegistry[data.sceneFile];
+  // Look up by exact key first, then try with/without extension
+  const SceneComponent = sceneRegistry[data.sceneFile]
+    || sceneRegistry[`${data.sceneFile}.tsx`]
+    || sceneRegistry[`${data.sceneFile}.ts`];
 
   if (!SceneComponent) {
     return (

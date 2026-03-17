@@ -226,7 +226,11 @@
       "Bash(docker-compose down:*)",
       "Bash(docker volume:*)",
       "Bash(docker-compose:*)",
-      "WebFetch(domain:docs.lovable.dev)"
+      "WebFetch(domain:docs.lovable.dev)",
+      "Bash(docker rm:*)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec:*)",
+      "Bash(docker build:*)",
+      "Bash(done)"
     ]
   },
   "enableAllProjectMcpServers": true,

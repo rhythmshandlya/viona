@@ -38,11 +38,19 @@ If an API error occurs on any tool call, CONTINUE implementing remaining scenes.
 ```
 /workspace/
 ├── manifest.json          # Project manifest (read via MCP tools)
+├── docs/SCENE_PLAN.md     # Scene plan from Planner (beats, sync points, techniques)
 ├── src/
-│   ├── scenes/            # Scene .tsx files (write via mcp__scenes__write_scene_file)
+│   ├── scenes/            # Scene .tsx files — MEANINGFUL names from plan's sceneFile field
+│   │   │                  #   e.g., HookTitle.tsx, ProblemDiagram.tsx, DataComparison.tsx
+│   │   │                  #   NOT Scene1.tsx, Scene2.tsx
 │   ├── components/        # Shared components (Background.tsx, etc.)
-│   └── scene-registry.ts  # Auto-generated scene registry
+│   └── scene-registry.ts  # Auto-generated — maps sceneFile names to components
 ├── public/                # Static assets
+├── docs/
+│   ├── SCENE_PLAN.md      # Human-readable scene plan
+│   ├── transcript.json    # Word-level transcript with timestamps
+│   ├── user-brief.md      # User's creative brief (if provided)
+│   └── themes/            # Theme files (design-system.md, style-guide.md)
 └── .claude/
     └── skills/            # Skill .md files for technique reference
 ```
@@ -115,22 +123,44 @@ b) **REASONING (MANDATORY)** — think before ANY code:
    Step 1: ... Step 2: ... Step 3: ...
    ```
 
-c) Create `src/scenes/Scene{n}.tsx` using `mcp__scenes__write_scene_file` — THIS SCENE ONLY
+c) Create scene file using `mcp__scenes__write_scene_file` with the plan's `sceneFile` name — THIS SCENE ONLY.
+   **Use the meaningful name from the plan** (e.g., `HookTitle.tsx`, `ProblemDiagram.tsx`), NOT `Scene1.tsx`.
+   **Only create files for beats with `type: "animation"`.** Skip beats with type `stock_video`, `screenshot`, `text_overlay`, or `speaker_only` — those are handled by the manifest directly.
 
 d) **TypeScript validation**: `npx tsc --noEmit`
    If errors: read, fix, re-run until clean. DO NOT proceed with errors.
 
-e) **Visual verification**: Use `mcp__render__render_still` to render a frame at the keySync point.
-   Check the rendered image — does it match the plan? Fix issues before proceeding.
+e) **Visual verification (SIGHTED)**: Use `mcp__render__render_still` to render a frame at the keySync point.
+   You can see the COMPLETE composition — video + speaker + your scene layered together.
+   Check: Does the visual complement the speaker? Is text readable over the background? Are overlay elements in safe zones?
+   Fix issues before proceeding.
 
 f) Validate against plan: correct keySync frame? matches plan's vision? connects to previous scene?
 
 ## PHASE 3: VERIFY
 
 1. Run `npx tsc --noEmit` — self-heal any errors
-2. Verify all scenes render correctly with `mcp__render__render_still` at key frames
-3. Verify visual continuity between scenes
+2. **Sighted verification**: Use `mcp__render__render_still` at key frames for EACH scene.
+   You can see the actual video with speaker + your visuals composited together.
+   Check: layout works with real footage, text is readable, overlay zones are respected, speaker is not obscured.
+3. Verify visual continuity between scenes — render stills at scene boundaries to check transitions
 </workflow>
+
+<beat_types>
+## BEAT TYPES — WHAT TO IMPLEMENT
+
+The plan assigns a `type` to each beat. You ONLY create scene files for `animation` beats:
+
+| Beat Type | Your Action |
+|-----------|-------------|
+| `animation` | Create scene file using plan's `sceneFile` name (e.g., `HookTitle.tsx`) |
+| `stock_video` | Skip — orchestrator handles via manifest broll item |
+| `screenshot` | Skip — orchestrator handles via manifest image item |
+| `text_overlay` | Skip — orchestrator handles via manifest text item |
+| `speaker_only` | Skip — no visual element needed |
+
+When reading the plan, only process beats where `type === "animation"`. Use the `sceneFile` field as the filename (add `.tsx` extension).
+</beat_types>
 
 <constants_template>
 ## constants.ts — MANDATORY TEMPLATE
@@ -165,7 +195,7 @@ export const COLORS = {
   gridColor: 'rgba(255,255,255,0.04)',
 };
 
-// === TIMING — from scenes.json / manifest ===
+// === TIMING — from SCENE_PLAN.md / manifest ===
 export const TIMING = {
   totalFrames: 0,
   // Per-scene: sceneNStart, sceneNEnd, sceneNKeySync (LOCAL offset), sceneNEffectiveWidth, sceneNEffectiveHeight
@@ -200,16 +230,18 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig, spring, interpolate, Eas
 import { SPRINGS, STAGGER, COLORS, TIMING, EW, EH } from '../constants';
 import { Background } from '../components/Background';
 
-export const SceneN: React.FC = () => {
+// Use the meaningful name from the plan's sceneFile field
+// e.g., HookTitle, ProblemDiagram, DataComparison — NOT Scene1, Scene2
+export const HookTitle: React.FC = () => {
   const frame = useCurrentFrame(); // Already 0-relative inside <Sequence>
   const { fps } = useVideoConfig();
 
-  // Scene dimensions
-  const sceneEW = TIMING.sceneNEffectiveWidth;
-  const sceneEH = TIMING.sceneNEffectiveHeight;
+  // Scene dimensions — use the beat's sceneFile name in TIMING keys
+  const sceneEW = TIMING.hookTitleEffectiveWidth;
+  const sceneEH = TIMING.hookTitleEffectiveHeight;
 
   // Key sync (ALREADY local offset — use frame directly)
-  const keySync = TIMING.sceneNKeySync;
+  const keySync = TIMING.hookTitleKeySync;
   const keySyncProgress = spring({
     frame: frame - keySync, fps, config: SPRINGS.SNAPPY,
   });
@@ -1230,3 +1262,50 @@ export const Background: React.FC = () => {
 
 Do NOT modify this template. Do NOT add topic-specific visuals to Background.
 </background_template>
+
+---
+
+## SELF-HEALING (MANDATORY)
+
+You are responsible for producing CLEAN, COMPILING output. There is no separate healer agent — you self-heal.
+
+### After writing each scene file:
+
+1. **Run TypeScript check:**
+   ```bash
+   npx tsc --noEmit --pretty false 2>&1 | head -30
+   ```
+2. **If errors appear in YOUR scene file:**
+   - Read the error message carefully
+   - Fix the specific issue in your code
+   - Save the file
+   - Re-run tsc
+   - **Max 2 fix attempts per scene.** After 2 failures, accept with a comment noting the issue.
+
+3. **Trigger rebuild:**
+   ```
+   mcp__render__trigger_rebuild
+   ```
+
+4. **Render verification still:**
+   ```
+   mcp__render__render_still at your key sync frame
+   ```
+   Check: no blank frames, content fits within effective dimensions, display mode compliance.
+
+5. **If the still shows problems** (blank frame, overflow, wrong layout):
+   - Fix the code
+   - Trigger rebuild
+   - Re-render
+   - Max 1 visual fix attempt
+
+### Common self-healing patterns:
+
+| Error | Fix |
+|-------|-----|
+| `Cannot find module '../constants'` | Check import path — use relative path from scenes/ |
+| `Property X does not exist on type Y` | Check prop types — use `any` as escape hatch if stuck |
+| `Type 'number' is not assignable to type 'string'` | Wrap in `String()` or fix the prop type |
+| `interpolate() inputRange not monotonically increasing` | Ensure input array is strictly ascending: `[0, 15, 30]` not `[0, 1, 0.4]` |
+| Blank still frame | Check that elements render from frame 0 — don't hide everything behind late animations |
+| Content overflows panel | Add `overflow: 'hidden'` to root container, check effective dimensions |
