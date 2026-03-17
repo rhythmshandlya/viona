@@ -2,8 +2,29 @@
 @import "tw-animate-css";
 @custom-variant dark (&:is(.dark *));
 
+/* Sora type scale — hierarchy via size + opacity, weight capped at 500 */
+@layer base {
+  html {
+    font-size: 16px;                /* 1rem = 16px baseline */
+  }
+  body {
+    font-weight: 400;
+    letter-spacing: 0.01em;         /* Sora benefits from slight tracking */
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
 @theme inline {
-  --font-sans: var(--font-inter), sans-serif;
+  --font-sans: var(--font-sora), sans-serif;
+  --font-size-xs: 0.75rem;         /* 12px */
+  --font-size-sm: 0.875rem;        /* 14px */
+  --font-size-base: 1rem;          /* 16px */
+  --font-size-lg: 1.125rem;        /* 18px */
+  --font-size-xl: 1.25rem;         /* 20px */
+  --font-size-2xl: 1.5rem;         /* 24px */
+  --font-size-3xl: 1.875rem;       /* 30px */
+  --font-size-4xl: 2.25rem;        /* 36px */
+  --font-size-5xl: 3rem;           /* 48px */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-background-subtle: var(--background-subtle);
@@ -89,63 +110,64 @@
 
 :root {
   --radius: 0.5rem;
-  /* Dark purple glass theme — consistent across entire app */
-  --background: #08080C;
+  /* Dark-first: the app is always dark mode */
+  --background: #0A0A0A;
+  --background-subtle: #111111;
   --foreground: #FAFAFA;
-  --card: rgba(28, 28, 35, 0.55);
+  --card: #111111;
   --card-foreground: #FAFAFA;
-  --popover: rgba(28, 28, 35, 0.9);
+  --popover: #191919;
   --popover-foreground: #A1A1A1;
-  --primary: #8B5CF6;
+  --primary: #7C3AED;
   --primary-foreground: #ffffff;
-  --secondary: rgba(255, 255, 255, 0.06);
+  --secondary: #1F1F1F;
   --secondary-foreground: #FAFAFA;
-  --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: rgba(255, 255, 255, 0.4);
-  --accent: rgba(139, 92, 246, 0.15);
+  --muted: #191919;
+  --muted-foreground: #A1A1A1;
+  --accent: #1F1F1F;
   --accent-foreground: #FAFAFA;
-  --destructive: #ef4444;
-  --border: rgba(255, 255, 255, 0.08);
-  --input: rgba(255, 255, 255, 0.06);
-  --ring: #8B5CF6;
-  --chart-1: #8B5CF6;
+  --destructive: #dc2626;
+  --destructive-foreground: #FAFAFA;
+  --border: #2A2A2A;
+  --input: #1F1F1F;
+  --ring: #7C3AED;
+  --chart-1: #7C3AED;
   --chart-2: #3b82f6;
-  --chart-3: #A78BFA;
+  --chart-3: #8b5cf6;
   --chart-4: #10b981;
-  --chart-5: #7C3AED;
-  --sidebar: #08080C;
-  --sidebar-foreground: rgba(255, 255, 255, 0.4);
-  --sidebar-primary: #8B5CF6;
+  --chart-5: #A78BFA;
+  --sidebar: #0A0A0A;
+  --sidebar-foreground: #A1A1A1;
+  --sidebar-primary: #7C3AED;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: rgba(139, 92, 246, 0.15);
+  --sidebar-accent: #1F1F1F;
   --sidebar-accent-foreground: #FAFAFA;
-  --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #8B5CF6;
-  --destructive-foreground: #ffffff;
-  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --sidebar-border: #2A2A2A;
+  --sidebar-ring: #7C3AED;
+  --font-sans: var(--font-sora), system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: monospace;
   --shadow-color: #000000;
-  --shadow-opacity: 0.08;
+  --shadow-opacity: 0.3;
   --shadow-blur: 3px;
   --shadow-spread: 0px;
   --shadow-offset-x: 0px;
   --shadow-offset-y: 1px;
   --letter-spacing: 0.025em;
   --spacing: 0.25rem;
-  --shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.06);
-  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.06);
+  --shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.2);
+  --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.2);
   --shadow-sm:
-    0px 1px 3px 0px hsl(0 0% 0% / 0.08), 0px 1px 2px -1px hsl(0 0% 0% / 0.08);
+    0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.3);
   --shadow:
-    0px 4px 24px 0px hsl(0 0% 0% / 0.06);
+    0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 1px 2px -1px hsl(0 0% 0% / 0.3);
   --shadow-md:
-    0px 1px 3px 0px hsl(0 0% 0% / 0.08), 0px 2px 4px -1px hsl(0 0% 0% / 0.08);
+    0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 2px 4px -1px hsl(0 0% 0% / 0.3);
   --shadow-lg:
-    0px 4px 24px 0px hsl(0 0% 0% / 0.06);
+    0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 4px 6px -1px hsl(0 0% 0% / 0.3);
   --shadow-xl:
-    0px 8px 32px 0px hsl(0 0% 0% / 0.1);
-  --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.25);
+    0px 1px 3px 0px hsl(0 0% 0% / 0.3), 0px 8px 10px -1px hsl(0 0% 0% / 0.3);
+  --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.5);
   --tracking-normal: 0.025em;
 }
 
@@ -184,7 +206,7 @@
   --sidebar-ring: #7C3AED;
   --destructive-foreground: #FAFAFA;
   --radius: 0.5rem;
-  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --font-sans: var(--font-sora), system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   --font-mono: monospace;
   --shadow-color: #000000;
@@ -217,6 +239,26 @@
   body {
     @apply bg-background text-foreground;
     letter-spacing: var(--tracking-normal);
+    color-scheme: dark;
+  }
+
+  /* Dark scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }
 
@@ -234,13 +276,6 @@
 }
 
 @layer utilities {
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
   .masonry {
     column-gap: 1.5em;
     column-count: 1;
@@ -565,7 +600,7 @@ input[type="number"]::-webkit-outer-spin-button {
    ============================================ */
 
 .editor-theme {
-  font-family: "Inter", var(--font-sans);
+  font-family: "Sora", var(--font-sans);
 
   /* Background layers - deep dark with gradient mesh */
   --editor-bg-base: #08080C;
@@ -596,6 +631,18 @@ input[type="number"]::-webkit-outer-spin-button {
   --editor-accent-hover: #7C3AED;
   --editor-accent-muted: rgba(139, 92, 246, 0.15);
   --editor-accent-soft: rgba(139, 92, 246, 0.08);
+
+  /* Chat Glassmorphism */
+  --chat-bubble-assistant-bg: rgba(255, 255, 255, 0.04);
+  --chat-bubble-assistant-border: rgba(255, 255, 255, 0.08);
+  --chat-bubble-user-bg: rgba(139, 92, 246, 0.12);
+  --chat-bubble-user-border: rgba(139, 92, 246, 0.15);
+  --chat-input-bg: rgba(255, 255, 255, 0.06);
+  --chat-input-border: rgba(255, 255, 255, 0.1);
+  --chat-plan-bg: rgba(255, 255, 255, 0.03);
+  --chat-plan-border: rgba(255, 255, 255, 0.06);
+  --chat-progress-bg: rgba(255, 255, 255, 0.04);
+  --chat-chip-bg: rgba(255, 255, 255, 0.08);
 
   /* Semantic colors */
   --editor-info: #60a5fa;
@@ -735,54 +782,6 @@ input[type="number"]::-webkit-outer-spin-button {
 .editor-theme .glass-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-}
-
-/* ═══ Liquid Glass Context Menu ═══ */
-.context-menu-glass {
-  min-width: 200px;
-  max-width: 280px;
-  background: rgba(28, 28, 35, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 14px;
-  box-shadow:
-    0 24px 80px rgba(0, 0, 0, 0.55),
-    0 8px 24px rgba(0, 0, 0, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  -webkit-backdrop-filter: blur(60px) saturate(200%) brightness(1.1);
-  backdrop-filter: blur(60px) saturate(200%) brightness(1.1);
-  padding: 4px;
-  user-select: none;
-  animation: ctx-menu-in 0.12s ease-out;
-}
-
-@keyframes ctx-menu-in {
-  from { opacity: 0; transform: scale(0.96); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-.context-menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  padding: 7px 10px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 13px;
-  line-height: 20px;
-  text-align: left;
-  outline: none;
-  transition: background 0.1s ease;
-}
-
-.context-menu-item:not(:disabled):hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.context-menu-item:not(:disabled):active {
-  background: rgba(255, 255, 255, 0.12);
 }
 .editor-theme .glass-btn:active {
   background: rgba(255, 255, 255, 0.04);
