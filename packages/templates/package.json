@@ -16,11 +16,13 @@
   "scripts": {
     "build": "tsup && tsx scripts/build-registry.ts",
     "build:registry": "tsx scripts/build-registry.ts",
+    "templates:build": "tsx scripts/build-templates.ts",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@remotion/google-fonts": "4.0.422",
+    "react-globe.gl": "^2.37.0",
     "zod": "^3.22.4"
   },
   "peerDependencies": {
@@ -32,8 +34,10 @@
     "@types/node": "^20.10.6",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "esbuild": "^0.24.2",
     "tsup": "^8.0.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "zod-to-json-schema": "^3.25.1"
   }
 }
