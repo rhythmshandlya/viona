@@ -186,6 +186,42 @@ export const sandboxSessions = pgTable('sandbox_sessions', {
   metadata: jsonb('metadata').default({}).$type<Record<string, unknown>>(),
 });
 
+// Templates — reusable video templates with bundled Remotion compositions
+export const templates = pgTable('templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: varchar('slug', { length: 255 }).notNull().unique(),
+  name: varchar('name', { length: 255 }).notNull(),
+  description: text('description'),
+  category: varchar('category', { length: 100 }).notNull(),
+  tags: jsonb('tags').$type<string[]>().default([]),
+  aspectRatio: varchar('aspect_ratio', { length: 10 }).notNull().default('16:9'),
+  durationFrames: integer('duration_frames').notNull().default(360),
+  fps: integer('fps').notNull().default(30),
+  width: integer('width').notNull().default(1920),
+  height: integer('height').notNull().default(1080),
+  propsSchema: jsonb('props_schema').$type<Record<string, unknown>>(),
+  defaultProps: jsonb('default_props').$type<Record<string, unknown>>(),
+  screenshotUrl: varchar('screenshot_url', { length: 1024 }),
+  bundleKey: varchar('bundle_key', { length: 1024 }),
+  sourceKey: varchar('source_key', { length: 1024 }),
+  version: integer('version').notNull().default(1),
+  isPublished: boolean('is_published').notNull().default(false),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// Template exports — user-initiated renders from templates
+export const templateExports = pgTable('template_exports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  templateId: uuid('template_id').notNull().references(() => templates.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  props: jsonb('props').$type<Record<string, unknown>>(),
+  status: varchar('status', { length: 50 }).notNull().default('queued'),
+  outputUrl: varchar('output_url', { length: 1024 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  completedAt: timestamp('completed_at'),
+});
+
 // Waitlist signups
 export const waitlist = pgTable('waitlist', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -218,3 +254,7 @@ export type SandboxSession = typeof sandboxSessions.$inferSelect;
 export type NewSandboxSession = typeof sandboxSessions.$inferInsert;
 export type WaitlistEntry = typeof waitlist.$inferSelect;
 export type NewWaitlistEntry = typeof waitlist.$inferInsert;
+export type Template = typeof templates.$inferSelect;
+export type NewTemplate = typeof templates.$inferInsert;
+export type TemplateExport = typeof templateExports.$inferSelect;
+export type NewTemplateExport = typeof templateExports.$inferInsert;
