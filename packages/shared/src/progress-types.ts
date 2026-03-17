@@ -26,6 +26,18 @@ export interface HealthState {
   retriesMax: number;
 }
 
+/** Current activity state — singleton, not a log. Used by sandbox pipeline ActivityBar. */
+export interface ActivityState {
+  /** Which agent is currently active, or null if idle */
+  agent: string | null;
+  /** Human-readable description of current work, or null if idle */
+  action: string | null;
+  /** Pipeline phase: planning, trimming, editing, generating, reviewing, assembling */
+  phase?: string;
+  /** Timestamp when this activity started (epoch ms) */
+  startedAt?: number;
+}
+
 /** Single entry in the activity log */
 export interface ActivityEvent {
   timestamp: number;
@@ -67,6 +79,41 @@ export const PROGRESS_KEYS = {
   health: (jobId: string) => `job:${jobId}:health`,
   activity: (jobId: string) => `job:${jobId}:activity`,
 } as const;
+
+/* ── Agent Plan (chat redesign) ── */
+
+export interface AgentSubtask {
+  id: string;
+  title: string;
+  status: 'pending' | 'running' | 'complete' | 'failed';
+  tools?: string[];
+}
+
+export interface AgentTask {
+  id: string;
+  title: string;
+  status: 'pending' | 'running' | 'complete' | 'failed';
+  agent?: string;
+  subtasks?: AgentSubtask[];
+}
+
+export interface AgentPlan {
+  title: string;
+  tasks: AgentTask[];
+}
+
+/**
+ * ProgressPayload is the MCP tool input shape (subset of ProgressState).
+ * ProgressState (above) is the full Redis-persisted state with timestamps.
+ */
+export interface ProgressPayload {
+  phase: string;
+  percent?: number;
+  message: string;
+  agentName?: string;
+  trackName?: string;
+  estimatedTimeRemaining?: number;
+}
 
 /** Default empty checkpoint */
 export function createEmptyCheckpoint(jobId: string): CheckpointState {
