@@ -224,6 +224,42 @@ export interface ProjectMediaAsset {
   createdAt: string;
 }
 
+export interface TemplateListItem {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  category: string;
+  tags: string[];
+  aspectRatio: string;
+  durationFrames: number;
+  fps: number;
+  width: number;
+  height: number;
+  screenshotUrl: string | null;
+}
+
+export interface TemplateDetail extends TemplateListItem {
+  propsSchema: Record<string, unknown>;
+  defaultProps: Record<string, unknown>;
+  bundleUrl: string | null;
+  assetBaseUrl: string | null;
+  version: number;
+}
+
+export interface TemplateCategory {
+  category: string;
+  count: number;
+}
+
+export interface TemplateExportStatus {
+  id: string;
+  status: 'queued' | 'processing' | 'completed' | 'failed';
+  downloadUrl: string | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -806,6 +842,50 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify({ tool, input }),
     });
+  }
+
+  // ---- Templates ----
+
+  /** List templates with optional filters (public, no auth required) */
+  async getTemplates(params?: {
+    category?: string;
+    tag?: string;
+    aspectRatio?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ templates: TemplateListItem[]; total: number }> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) searchParams.set(key, String(value));
+      }
+    }
+    const qs = searchParams.toString();
+    return this.request(`/api/templates${qs ? `?${qs}` : ''}`);
+  }
+
+  /** Get template detail by slug (public, no auth required) */
+  async getTemplate(slug: string): Promise<TemplateDetail> {
+    return this.request(`/api/templates/${slug}`);
+  }
+
+  /** List template categories (public, no auth required) */
+  async getTemplateCategories(): Promise<TemplateCategory[]> {
+    return this.request('/api/templates/categories');
+  }
+
+  /** Export a template with custom props (auth required) */
+  async exportTemplate(slug: string, props: Record<string, unknown>): Promise<TemplateExportStatus> {
+    return this.request(`/api/templates/${slug}/export`, {
+      method: 'POST',
+      body: JSON.stringify({ props }),
+    });
+  }
+
+  /** Check export status (auth required) */
+  async getExportStatus(slug: string, exportId: string): Promise<TemplateExportStatus> {
+    return this.request(`/api/templates/${slug}/export/${exportId}`);
   }
 
   /** Send prompt to sandbox agent — returns SSE stream.
