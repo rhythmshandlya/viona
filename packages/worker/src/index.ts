@@ -1,22 +1,13 @@
 import { Worker } from 'bullmq';
-import { config } from './config.js';
 import { logger } from './logger.js';
 import { processTranscribeJob, TranscribeJobData } from './processors/transcribe.js';
-import { processRenderJob, RenderJobData } from './processors/render/index.js';
-
-import { processGenerateVisualsJob, GenerateVisualsJobData, validateEnvironment } from './processors/generate-visuals/index.js';
-import { processEditVisualsJob, EditVisualsJobData } from './processors/edit-visuals/index.js';
 import { processSvgAnimationJob, SvgAnimationJobData } from './processors/svg-animation/index.js';
 import { processPreloadProjectJob, PreloadProjectJobData } from './processors/preload-project.js';
-import { processPlanVisualsJob, PlanVisualsJobData } from './processors/plan-visuals.js';
 import { processHeadTrackingJob, HeadTrackingJobData } from './processors/head-tracking.js';
 import { processGenerateReframeJob } from './processors/generate-reframe.js';
 import { processGenerateCaptionStylesJob, GenerateCaptionStylesJobData } from './processors/generate-caption-styles.js';
 import { processYouTubeClipJob, YouTubeClipJobData } from './processors/youtube-clip.js';
-// Segmentation disabled — SAM2 not available on this machine
-// import { processSegmentation, SegmentationJobData } from './processors/segmentation.js';
-import { initializeWorkspace, getWorkerId } from './workspace.js';
-import { ensureTemplate } from './utils/template.js';
+import { getWorkerId } from './workspace.js';
 import { redisConnection } from './utils/redis.js';
 import { eq, or, and, lt } from 'drizzle-orm';
 import { db, jobs } from './db/index.js';
@@ -27,37 +18,6 @@ const connection = redisConnection;
 async function main() {
   const workerId = getWorkerId();
   logger.info({ workerId }, 'Starting Viona worker...');
-
-  // Auth: Claude Agent SDK reads CLAUDE_CODE_OAUTH_TOKEN from env (long-lived token from `claude setup-token`)
-  if (!process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-    logger.warn('CLAUDE_CODE_OAUTH_TOKEN not set — visual generation will not work in production. Run `claude setup-token` to generate one.');
-  }
-
-  // Ensure remotion template is available (downloads from S3 in prod)
-  logger.info({ workerId }, 'Ensuring remotion template is available...');
-  try {
-    await ensureTemplate();
-    logger.info({ workerId }, 'Template ready');
-  } catch (err) {
-    logger.error({ err, workerId }, 'Failed to ensure template - visual generation will not work');
-  }
-
-  // Initialize workspace for Claude Code generator
-  logger.info({ workerId }, 'Initializing workspace for Claude Code generator...');
-  try {
-    await initializeWorkspace();
-    logger.info({ workerId }, 'Workspace initialized successfully');
-  } catch (err) {
-    logger.error({ err, workerId }, 'Failed to initialize workspace - visual generation will not work');
-  }
-
-  // Validate environment for visual generation (Python + Claude Agent SDK)
-  const envCheck = await validateEnvironment();
-  if (!envCheck.valid) {
-    logger.warn({ error: envCheck.error }, 'Visual generation environment not configured - generate-visuals jobs will fail');
-  } else {
-    logger.info('Visual generation environment validated');
-  }
 
   // Sweep orphaned jobs — if the worker crashed, DB jobs may still be 'processing'
   // or 'pending'. Mark them as failed so the frontend doesn't show a stuck progress bar.
@@ -106,127 +66,6 @@ async function main() {
 
   transcribeWorker.on('failed', (job, err) => {
     logger.error({ jobId: job?.id, err }, 'Transcribe job failed');
-  });
-
-  // Render worker — lockDuration must be long enough for Remotion SSR renders
-  // (can take 2+ minutes). Default 30s causes BullMQ to declare job as stalled.
-  const renderWorker = new Worker<RenderJobData>(
-    'render',
-    async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing render job');
-      await processRenderJob(job);
-    },
-    {
-      connection,
-      concurrency: 2,
-      lockDuration: 10 * 60 * 1000, // 10 minutes — renders can take a while
-      stalledInterval: 5 * 60 * 1000, // Check for stalls every 5 minutes
-    }
-  );
-
-  renderWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Render job completed');
-  });
-
-  renderWorker.on('failed', (job, err) => {
-    logger.error({ jobId: job?.id, err }, 'Render job failed');
-  });
-
-  // Generate visuals worker
-  const generateVisualsWorker = new Worker<GenerateVisualsJobData>(
-    'generate-visuals',
-    async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing generate-visuals job');
-      await processGenerateVisualsJob(job);
-    },
-    {
-      connection,
-      concurrency: 1, // Must be 1 — workspace is shared (Root.tsx, index.ts, public/assets)
-      lockDuration: 100 * 60 * 1000,  // 100 min — 10 min buffer above 90 min subprocess timeout
-      stalledInterval: 10 * 60 * 1000, // Check every 10 min (generous buffer for lock extender)
-      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
-    }
-  );
-
-  generateVisualsWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Generate-visuals job completed');
-  });
-
-  generateVisualsWorker.on('failed', async (job, err) => {
-    logger.error({ jobId: job?.id, err }, 'Generate-visuals job failed');
-    // Ensure DB is updated even if processor catch block didn't run (e.g. OOM kill)
-    if (job?.data?.jobId) {
-      try {
-        await db.update(jobs)
-          .set({ status: 'failed', error: err?.message || 'Generation failed' })
-          .where(eq(jobs.id, job.data.jobId));
-        await publishJobError(job.data.jobId, err?.message || 'Generation failed');
-      } catch { /* best-effort */ }
-    }
-  });
-
-  // Plan visuals worker - Director phase only (creates scene plan for approval)
-  const planVisualsWorker = new Worker<PlanVisualsJobData>(
-    'plan-visuals',
-    async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId }, 'Processing plan-visuals job');
-      await processPlanVisualsJob(job);
-    },
-    {
-      connection,
-      concurrency: 1,
-      lockDuration: 15 * 60 * 1000,  // 15 min — Director runs 5-12 min
-      stalledInterval: 10 * 60 * 1000,
-      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
-    }
-  );
-
-  planVisualsWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Plan-visuals job completed');
-  });
-
-  planVisualsWorker.on('failed', async (job, err) => {
-    logger.error({ jobId: job?.id, err }, 'Plan-visuals job failed');
-    if (job?.data?.jobId) {
-      try {
-        await db.update(jobs)
-          .set({ status: 'failed', error: err?.message || 'Planning failed' })
-          .where(eq(jobs.id, job.data.jobId));
-        await publishJobError(job.data.jobId, err?.message || 'Planning failed');
-      } catch { /* best-effort */ }
-    }
-  });
-
-  // Edit visuals worker - for continuing to edit existing compositions
-  const editVisualsWorker = new Worker<EditVisualsJobData>(
-    'edit-visuals',
-    async (job) => {
-      logger.info({ jobId: job.id, projectId: job.data.projectId, prompt: job.data.prompt.slice(0, 50) }, 'Processing edit-visuals job');
-      await processEditVisualsJob(job);
-    },
-    {
-      connection,
-      concurrency: 1,
-      lockDuration: 20 * 60 * 1000,  // 20 min — edit jobs run 5-15 min
-      stalledInterval: 10 * 60 * 1000,
-      maxStalledCount: 2,              // Tolerate up to 2 stall events (subprocess monitor handles real hangs)
-    }
-  );
-
-  editVisualsWorker.on('completed', (job) => {
-    logger.info({ jobId: job.id }, 'Edit-visuals job completed');
-  });
-
-  editVisualsWorker.on('failed', async (job, err) => {
-    logger.error({ jobId: job?.id, err }, 'Edit-visuals job failed');
-    if (job?.data?.jobId) {
-      try {
-        await db.update(jobs)
-          .set({ status: 'failed', error: err?.message || 'Edit failed' })
-          .where(eq(jobs.id, job.data.jobId));
-        await publishJobError(job.data.jobId, err?.message || 'Edit failed');
-      } catch { /* best-effort */ }
-    }
   });
 
   // SVG Animation worker - converts images to animated SVG compositions
@@ -363,8 +202,7 @@ async function main() {
   // Graceful shutdown — close all workers in parallel, waiting for in-progress
   // jobs to finish. This prevents stalled jobs on deploys/restarts.
   const allWorkers = [
-    transcribeWorker, renderWorker,
-    generateVisualsWorker, planVisualsWorker, editVisualsWorker,
+    transcribeWorker,
     svgAnimationWorker, preloadProjectWorker,
     headTrackingWorker, generateReframeWorker, generateCaptionStylesWorker,
     youtubeClipWorker,

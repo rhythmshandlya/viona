@@ -11,7 +11,6 @@ if (isProduction) {
   const prodEnvSchema = z.object({
     DATABASE_URL: z.string().url(),
     REDIS_URL: z.string().url(),
-    CLAUDE_CODE_OAUTH_TOKEN: z.string().min(1),
   });
 
   const result = prodEnvSchema.safeParse(process.env);
@@ -39,26 +38,6 @@ export const config = {
     workspacePath: process.env.WORKSPACE_PATH || (
       process.env.RAILWAY_ENVIRONMENT ? '/tmp/workspace' : join(process.cwd(), 'workspace')
     ),
-    // Template directory - downloaded from S3 on startup
-    templatePath: process.env.WORKSPACE_TEMPLATE_PATH || (
-      process.env.RAILWAY_ENVIRONMENT ? '/tmp/template' : join(process.cwd(), 'remotion-template')
-    ),
-    // Template name in S3 storage
-    templateName: process.env.TEMPLATE_NAME || 'remotion-template.zip',
-  },
-
-  // Claude Agent SDK visual generator (uses OAuth authentication)
-  claudeAgent: {
-    // Model for visual generation
-    model: process.env.CLAUDE_AGENT_MODEL || 'claude-opus-4-6',
-    // Extended thinking tokens for planning
-    maxThinkingTokens: parseInt(process.env.CLAUDE_AGENT_MAX_THINKING_TOKENS || '10000', 10),
-    // Maximum agent turns
-    maxTurns: parseInt(process.env.CLAUDE_AGENT_MAX_TURNS || '100', 10),
-    // Timeout for generation (90 minutes default - includes Director + Animator + verification + retries)
-    timeoutSeconds: parseInt(process.env.CLAUDE_AGENT_TIMEOUT || '5400', 10),
-    // Maximum retries on failure (more for transient API errors)
-    maxRetries: parseInt(process.env.CLAUDE_AGENT_MAX_RETRIES || '4', 10),
   },
 
   database: {
@@ -118,24 +97,6 @@ export const config = {
     // Set WORD_STYLE_ANALYSIS_ENABLED=false to skip LLM word analysis
     enabled: process.env.WORD_STYLE_ANALYSIS_ENABLED === 'true',
     model: process.env.WORD_STYLE_ANALYSIS_MODEL || 'gpt-4o-mini',
-  },
-
-  freepik: {
-    apiKey: process.env.FREEPIK_API_KEY || '',
-  },
-
-  // Stock photo API keys (optional — passed to asset MCP server)
-  unsplash: {
-    accessKey: process.env.UNSPLASH_ACCESS_KEY || '',
-  },
-
-
-  pexels: {
-    apiKey: process.env.PEXELS_API_KEY || '',
-  },
-
-  youtube: {
-    apiKey: process.env.YOUTUBE_API_KEY || '',
   },
 
   remotion: {

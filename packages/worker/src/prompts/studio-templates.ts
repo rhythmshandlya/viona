@@ -1,7 +1,16 @@
 import { readFileSync } from 'fs';
-import { join } from 'path';
-import { findPackagesRoot } from '../processors/generate-visuals/validation.js';
+import { join, resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { getTemplateTags } from './theme-loader.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+/** Resolve the monorepo packages/ root from this file's location */
+function findPackagesRoot(): string {
+  // packages/worker/src/prompts/studio-templates.ts -> packages/
+  return resolve(__dirname, '..', '..', '..');
+}
 
 interface RegistryCatalogItem {
   name: string;
