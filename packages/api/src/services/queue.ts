@@ -208,6 +208,35 @@ export async function queueYouTubeClipJob(data: YouTubeClipJobData) {
   });
 }
 
+// Render template queue — renders a template with custom props
+export interface RenderTemplateJobData {
+  exportId: string;
+  templateId: string;
+  slug: string;
+  bundleKey: string;
+  props: Record<string, unknown>;
+  userId: string;
+}
+
+export const renderTemplateQueue = new Queue('render-template', {
+  connection,
+  defaultJobOptions: {
+    removeOnComplete: { count: 200 },
+    removeOnFail: { count: 500 },
+  },
+});
+
+export async function queueRenderTemplateJob(data: RenderTemplateJobData) {
+  return renderTemplateQueue.add('render-template', data, {
+    jobId: `render-tpl-${data.exportId}`,
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 5000,
+    },
+  });
+}
+
 // Redis publisher for job cancellation
 const redisPublisher = new Redis(config.redis.url);
 
