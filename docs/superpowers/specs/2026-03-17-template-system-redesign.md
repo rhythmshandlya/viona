@@ -41,10 +41,12 @@ Replace the current static template system (90 templates in an npm package + sta
 | `fps` | integer | Default 30 |
 | `width` | integer | Composition width |
 | `height` | integer | Composition height |
-| `props_schema` | jsonb | Zod-compatible JSON schema for customizable props |
+| `props_schema` | jsonb | JSON Schema (generated via `zod-to-json-schema` at build time) |
 | `default_props` | jsonb | Default prop values |
 | `screenshot_url` | varchar | S3 path to auto-generated still frame |
+| `bundle_key` | varchar | S3 key to content-hashed bundle (e.g. `templates/globe-spin/bundle.a1b2c3.js`) |
 | `source_key` | varchar | S3 key prefix for template source files |
+| `version` | integer | Incremented on each build, used for cache busting |
 | `is_published` | boolean | Controls visibility |
 | `created_at` | timestamp | |
 | `updated_at` | timestamp | |
@@ -73,8 +75,9 @@ templates/
 
 - Source files stored individually (update a single file without re-uploading everything)
 - Heavy assets loaded at runtime via URL, not bundled into the app
-- Template components reference assets via `props.__assetBaseUrl` injected by the API
+- Template components reference assets via an `assetBaseUrl` prop. The `GET /templates/:slug` API endpoint returns this URL as a separate field (presigned S3 prefix). The frontend merges it into props before passing to `<Player>`. The Zod schema does not include `assetBaseUrl` — it is injected externally.
 - `source_key` in DB points to `templates/{slug}/`
+- S3 bucket must have CORS configured to allow `fetch()` from the web app's origin (for bundle and asset loading).
 
 ---
 
@@ -82,33 +85,46 @@ templates/
 
 ### Build Side
 
-Each template is compiled by **esbuild** into a self-contained ES module:
+Each template is compiled by **esbuild** into a self-contained **UMD bundle**:
 
-- **Externals:** `react`, `react-dom`, `remotion` (provided by the host app)
-- **Bundled in:** All other dependencies (three.js, d3-geo, topojson, etc.)
-- **Output:** Single `bundle.js` per template
+- **Externals:** `react`, `react-dom`, `remotion`, `@remotion/core` (provided by the host app)
+- **Bundled in:** All other dependencies (three.js, d3-geo, topojson, `@remotion/google-fonts`, etc.)
+- **Output format:** ESM with a custom esbuild plugin that rewrites bare `react`/`remotion` imports to `window.React`/`window.Remotion` global references
+- **Output:** Single `bundle.{contentHash}.js` per template (content-hashed for cache busting)
+
+**Shared module handling:** Templates import shared code from the package level (`fonts.ts`, `use-scale.ts`, `lib/map/`). At build time, the build CLI **inlines** these shared dependencies into each template's bundle. Each template is fully self-contained — no cross-template imports at runtime. Templates should only import the fonts they actually use (refactor away from the shared 20-font `fonts.ts`).
 
 This means:
 - The web app stays lightweight — zero template dependencies in the main bundle
 - Each template is fully isolated — different templates can use different library versions
 - No redeploy needed to add new templates
-- Same bundle works client-side (preview) and server-side (worker rendering)
 
 ### Runtime Loading (Client)
 
-When a user opens a template detail view:
-1. Client fetches `bundle.js` from S3 (via presigned URL or CDN)
-2. Bundle is loaded via dynamic `import()`
-3. React/Remotion are already on the page as externals
-4. The loaded component is passed to Remotion's `<Player>` for live preview
+Browser `import()` cannot reliably load ES modules from cross-origin S3 URLs. Instead, use the **fetch + blob URL** pattern:
+
+1. Client fetches `bundle.{hash}.js` from S3 via presigned URL
+2. Response text is wrapped in a Blob with `type: 'application/javascript'`
+3. `URL.createObjectURL(blob)` creates a same-origin blob URL
+4. `import(/* webpackIgnore: true */ blobUrl)` loads the module
+5. The loaded component is passed to Remotion's `<Player>` for live preview
+6. Blob URL is revoked on unmount to prevent memory leaks
+
+The esbuild plugin rewrites `import React from 'react'` → `const React = window.React` (and same for Remotion) at build time, so the ESM bundle is self-contained with global references baked in.
+
+The host page must expose React and Remotion on `window` before loading any template bundle. A one-time setup script in the app handles this.
 
 ### Runtime Loading (Worker)
 
-For MP4 export:
-1. Worker downloads `bundle.js` + `assets/` from S3 into temp directory
-2. Creates a thin Remotion entry wrapping the component in a `<Composition>`
-3. `bundle()` → `selectComposition()` → `renderMedia()` → MP4
-4. Uploads to S3, returns download URL
+For MP4 export, the worker uses **pre-processed source files** (not the esbuild client bundle) to avoid double-bundling:
+
+1. Worker downloads pre-processed source files (shared modules already inlined by the build CLI) + `assets/` from S3 into temp directory
+2. Creates a thin Remotion entry that imports the template source + wraps in `<Composition>`
+3. `bundle()` from `@remotion/bundler` (webpack) compiles the source with full Node.js resolution
+4. `selectComposition()` → `renderMedia()` → MP4
+5. Uploads to S3, returns download URL
+
+The build CLI uploads source with `../../fonts`, `../../use-scale`, `../../lib/map/` imports already resolved — shared modules are copied into each template's source directory in S3. This way the worker can compile in an isolated temp directory without needing the full package structure. The worker has all npm dependencies installed, so webpack resolves `three.js`, `d3-geo`, etc. normally.
 
 ---
 
@@ -116,13 +132,30 @@ For MP4 export:
 
 All in `packages/api`.
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/templates` | GET | List templates with filters (category, tags, search, aspect_ratio). Paginated. Returns metadata + screenshot URLs. |
-| `/templates/:slug` | GET | Full detail: metadata, props schema, default props, bundle URL (presigned S3) |
-| `/templates/:slug/export` | POST | Accepts custom props, queues `render-template` BullMQ job, returns job ID |
-| `/templates/:slug/export/:jobId` | GET | Poll job status + download URL when complete |
-| `/templates/categories` | GET | List available categories with template counts (for filter UI) |
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/templates` | GET | No | List templates with filters (category, tags, search, aspect_ratio). Paginated. Returns metadata + screenshot URLs. |
+| `/templates/:slug` | GET | No | Full detail: metadata, props schema, default props, bundle URL (presigned S3) |
+| `/templates/:slug/export` | POST | Yes | Accepts custom props, queues `render-template` BullMQ job, returns job ID. Rate-limited per user. |
+| `/templates/:slug/export/:jobId` | GET | Yes | Poll job status + download URL when complete |
+| `/templates/categories` | GET | No | List available categories with template counts (for filter UI) |
+
+Browse/detail endpoints are public (templates are the free-tier entry point). Export requires authentication to prevent abuse. The export endpoint is rate-limited (e.g., 5 exports/hour per user).
+
+### Export Job Tracking
+
+Template exports are tracked in a new `template_exports` table (separate from project jobs since templates have no project):
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid | PK |
+| `template_id` | uuid | FK to templates |
+| `user_id` | uuid | FK to users (required — export requires auth) |
+| `props` | jsonb | Props used for this render |
+| `status` | varchar | `queued`, `processing`, `completed`, `failed` |
+| `output_url` | varchar | S3 path to rendered MP4 |
+| `created_at` | timestamp | |
+| `completed_at` | timestamp | |
 
 ---
 
@@ -131,18 +164,21 @@ All in `packages/api`.
 **New worker processor: `render-template`** in `packages/worker/src/processors/render-template.ts`
 
 ```
-Input:  { slug, props, width, height, fps, durationInFrames }
+Input:  { templateId, slug, props, width, height, fps, durationInFrames }
 Output: { downloadUrl: string }
 ```
 
 **Flow:**
-1. Download `bundle.js` + `assets/` from S3 into temp directory
-2. Create thin Remotion entry file wrapping the template in `<Composition>`
-3. `bundle()` from `@remotion/bundler` → static serve directory
+1. Download raw source files + `assets/` from S3 into temp directory (using `source_key` from DB)
+2. Create thin Remotion entry file that imports the template source + wraps in `<Composition>`
+3. `bundle()` from `@remotion/bundler` (webpack) compiles with full Node.js resolution
 4. `selectComposition()` → resolve composition with input props
 5. `renderMedia()` → output MP4
 6. Upload MP4 to S3, return presigned download URL
-7. Clean up temp files
+7. Update `template_exports` row with status + output URL
+8. Clean up temp files
+
+Concurrency limit: 2 concurrent `render-template` jobs (configurable). Queue uses standard BullMQ priority.
 
 **What it does NOT do** (unlike the existing visual generation pipeline):
 - No AI agents, no Director/Animator
@@ -197,12 +233,18 @@ Props changes re-render the Remotion Player in real-time.
 **Command:** `pnpm templates:build`
 
 New script in `packages/templates` that for each template:
-1. **esbuild** compiles source → `bundle.js` (React/Remotion as externals)
-2. **`remotion still`** renders a frame → `screenshot.png`
-3. **Uploads** bundle + screenshot + assets to S3
-4. **Upserts** metadata row in the database
+1. **Resolve shared modules** — inline `fonts.ts`, `use-scale.ts`, `lib/map/` into the template's source tree (temp copy)
+2. **esbuild** compiles resolved source → `bundle.{contentHash}.js` (UMD, React/Remotion as externals)
+3. **`zod-to-json-schema`** converts the Zod schema → JSON Schema for DB storage
+4. **`renderStill()`** from `@remotion/renderer` API renders a frame → `screenshot.png` (programmatic, no CLI dependency)
+5. **Uploads** bundle + screenshot + source + assets to S3
+6. **Upserts** metadata row in the database (including `bundle_key` with content hash, `props_schema`, `version`)
 
 Adding a new template = write the code, run the build script, done.
+
+### Drizzle Migration
+
+A new migration in `packages/api/drizzle/` creates the `templates` and `template_exports` tables.
 
 ---
 
@@ -221,10 +263,9 @@ Adding a new template = write the code, run the build script, done.
 - `packages/worker/workspace/src/.templates/` — remove cached directories except 3 keepers
 
 ### Kept & Refactored
-- `packages/templates/src/registry.ts` — adapted for DB-driven architecture
-- `packages/templates/src/types.ts` — updated type definitions
+- `packages/templates/` — becomes the template build toolkit (`@viona/template-builder`). Registry and types updated for the new system. Old runtime registry code removed (DB replaces it).
 - Build scripts — replaced with esbuild-based `templates:build` CLI
-- `StaticTemplateRenderer.tsx` — updated to load bundles dynamically from URLs
+- `StaticTemplateRenderer.tsx` — updated to load bundles dynamically via fetch + blob URL pattern
 
 ### Not Touched
 - Existing visual generation pipeline (Director/Animator) — separate system
