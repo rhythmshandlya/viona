@@ -96,8 +96,11 @@ export function startAgentServer(port = 8081): void {
       res.write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
-    // Heartbeat to keep connection alive
-    const heartbeat = setInterval(() => sendSSE('heartbeat', {}), 15000);
+    // Track current activity for stateful heartbeats
+    let currentActivity: { agent: string | null; action: string | null; phase?: string; startedAt?: number } | null = null;
+
+    // Heartbeat with activity snapshot
+    const heartbeat = setInterval(() => sendSSE('heartbeat', { activity: currentActivity }), 15000);
 
     // Wire cancellation to connection close — use res.on('close') not req.on('close')
     // because Express 4.x fires req 'close' when the request body finishes reading
@@ -109,6 +112,7 @@ export function startAgentServer(port = 8081): void {
     const mcpServers = createMcpServers({
       onWidget: (widget) => sendSSE('widget', widget),
       onProgress: (progress) => sendSSE('progress', progress),
+      onPlan: (plan) => sendSSE('agent_plan', plan),
     });
 
     try {
@@ -116,14 +120,23 @@ export function startAgentServer(port = 8081): void {
         onText: (text) => sendSSE('text', { text }),
         onWidget: (widget) => sendSSE('widget', widget),
         onProgress: (progress) => sendSSE('progress', progress),
+        onActivity: (activity) => {
+          currentActivity = activity.agent ? activity : null;
+          sendSSE('activity', activity);
+        },
         onDone: async (result) => {
+          currentActivity = null;
           sendSSE('done', result);
           await checkpoint();
         },
-        onError: (error) => sendSSE('error', { message: error }),
+        onError: (error) => {
+          currentActivity = null;
+          sendSSE('error', { message: error });
+        },
         signal: abortController.signal,
       }, mcpServers);
     } catch (err) {
+      currentActivity = null;
       sendSSE('error', { message: err instanceof Error ? err.message : 'Internal error' });
     } finally {
       clearInterval(heartbeat);
