@@ -143,7 +143,9 @@ export interface InterceptCallbacks {
   onText?: (text: string) => void;
   onDone?: (data: { sessionId?: string; cost?: number }) => Promise<void>;
   onWidget?: (widget: Record<string, unknown>) => void;
-  onProgress?: (progress: { phase: string; percent: number; message: string; agentName?: string; trackName?: string; estimatedTimeRemaining?: number }) => void;
+  onProgress?: (progress: { phase: string; percent?: number; message: string; agentName?: string; trackName?: string; estimatedTimeRemaining?: number }) => void;
+  onActivity?: (activity: { agent: string | null; action: string | null; phase?: string; startedAt?: number }) => void;
+  onPlan?: (plan: { title: string; tasks: Array<{ id: string; title: string; status: string; agent?: string; subtasks?: Array<{ id: string; title: string; status: string; tools?: string[] }> }> }) => void;
   onError?: (error: string) => void;
 }
 
@@ -269,12 +271,16 @@ export async function proxyPromptWithIntercept(
                 case 'done': {
                   flushTextBuffer();
                   writeSSE('done', data);
-                  callbacks.onDone?.(data).catch((err) =>
-                    logger.error({ err }, 'InterceptCallbacks.onDone failed'),
-                  );
+                  try {
+                    await callbacks.onDone?.(data);
+                  } catch (err) {
+                    logger.error({ err }, 'InterceptCallbacks.onDone failed');
+                  }
                   // Clear progress from Redis on completion
                   if (projectId) {
                     redis.del(`sandbox:progress:${projectId}`).catch(() => {});
+                    redis.del(`sandbox:activity:${projectId}`).catch(() => {});
+                    redis.del(`sandbox:plan:${projectId}`).catch(() => {});
                   }
                   break;
                 }
@@ -291,6 +297,15 @@ export async function proxyPromptWithIntercept(
                   }
                   break;
                 }
+                case 'activity': {
+                  writeSSE('activity', data);
+                  callbacks.onActivity?.(data);
+                  // Persist to Redis for refresh recovery (TTL: 30 minutes)
+                  if (projectId) {
+                    redis.set(`sandbox:activity:${projectId}`, JSON.stringify(data), 'EX', 1800).catch(() => {});
+                  }
+                  break;
+                }
                 case 'tool_use':
                 case 'tool_result':
                   lastToolEventTime = Date.now();
@@ -299,7 +314,19 @@ export async function proxyPromptWithIntercept(
                 case 'error':
                   writeSSE('error', data);
                   callbacks.onError?.(data.message ?? data.error ?? String(data));
+                  if (projectId) {
+                    redis.del(`sandbox:activity:${projectId}`).catch(() => {});
+                  }
                   break;
+                case 'agent_plan': {
+                  writeSSE('agent_plan', data);
+                  callbacks.onPlan?.(data);
+                  // Persist to Redis for refresh recovery (TTL: 30 minutes)
+                  if (projectId) {
+                    redis.set(`sandbox:plan:${projectId}`, JSON.stringify(data), 'EX', 1800).catch(() => {});
+                  }
+                  break;
+                }
                 default:
                   // Forward unknown events as-is
                   writeSSE(eventType, data);
