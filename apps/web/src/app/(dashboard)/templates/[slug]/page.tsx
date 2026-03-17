@@ -73,7 +73,8 @@ export default function TemplateDetailPage() {
 
     try {
       const initial = await api.exportTemplate(template.slug, props);
-      setExportStatus(initial);
+      const exportId = initial.exportId;
+      setExportStatus({ id: exportId, status: initial.status as TemplateExportStatus['status'], downloadUrl: null, createdAt: new Date().toISOString(), completedAt: null });
 
       if (initial.status === "completed") {
         setExporting(false);
@@ -83,7 +84,7 @@ export default function TemplateDetailPage() {
       // Poll every 2s
       pollRef.current = setInterval(async () => {
         try {
-          const status = await api.getExportStatus(template.slug, initial.id);
+          const status = await api.getExportStatus(template.slug, exportId);
           setExportStatus(status);
 
           if (status.status === "completed" || status.status === "failed") {
@@ -191,7 +192,7 @@ export default function TemplateDetailPage() {
               {Component && !bundleLoading && !bundleError && (
                 <Player
                   component={Component}
-                  inputProps={props}
+                  inputProps={{ ...props, assetBaseUrl: template.assetBaseUrl }}
                   durationInFrames={template.durationFrames || 150}
                   compositionWidth={template.width}
                   compositionHeight={template.height}

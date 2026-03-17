@@ -854,7 +854,7 @@ class ApiClient {
     search?: string;
     limit?: number;
     offset?: number;
-  }): Promise<{ templates: TemplateListItem[]; total: number }> {
+  }): Promise<{ items: TemplateListItem[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
     const searchParams = new URLSearchParams();
     if (params) {
       for (const [key, value] of Object.entries(params)) {
@@ -872,11 +872,12 @@ class ApiClient {
 
   /** List template categories (public, no auth required) */
   async getTemplateCategories(): Promise<TemplateCategory[]> {
-    return this.request('/api/templates/categories');
+    const res = await this.request<{ categories: TemplateCategory[] }>('/api/templates/categories');
+    return res.categories;
   }
 
   /** Export a template with custom props (auth required) */
-  async exportTemplate(slug: string, props: Record<string, unknown>): Promise<TemplateExportStatus> {
+  async exportTemplate(slug: string, props: Record<string, unknown>): Promise<{ exportId: string; status: string }> {
     return this.request(`/api/templates/${slug}/export`, {
       method: 'POST',
       body: JSON.stringify({ props }),

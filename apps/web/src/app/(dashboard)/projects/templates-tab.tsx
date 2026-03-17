@@ -57,8 +57,8 @@ export function TemplatesTab() {
       if (selectedAspectRatio !== "all") params.aspectRatio = selectedAspectRatio;
 
       const result = await api.getTemplates(params);
-      setTemplates(result.templates);
-      setTotal(result.total);
+      setTemplates(result.items);
+      setTotal(result.pagination.total);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load templates");
     } finally {
