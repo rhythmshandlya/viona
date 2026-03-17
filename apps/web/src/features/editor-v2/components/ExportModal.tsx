@@ -5,8 +5,8 @@
 
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Download, X, CheckCircle, AlertCircle, Loader2, Film, Settings } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Download, CheckCircle, AlertCircle, Film, Settings } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { useJobWebSocket } from '../hooks/use-job-websocket';
-import { useProjectActions } from '../store/use-editor-store';
 
 interface ExportModalProps {
   open: boolean;
@@ -34,7 +33,6 @@ export function ExportModal({
   projectStatus,
   hasOutputKey,
 }: ExportModalProps) {
-  const { saveProject } = useProjectActions();
   const [exportState, setExportState] = useState<ExportState>('idle');
   const [jobId, setJobId] = useState<string | null>(null);
   const jobIdRef = useRef<string | null>(null);
@@ -145,25 +143,9 @@ export function ExportModal({
   }, [open, exportState]);
 
   const handleStartExport = async () => {
-    setExportState('rendering');
-    setProgress(0);
-    setStatusMessage('Saving project...');
-    setError(null);
-    setDownloadUrl(null);
-
-    try {
-      // Save project first to ensure caption styles are persisted to database
-      await saveProject();
-
-      setStatusMessage('Starting export...');
-      // Layout and visual data now come from the workspace manifest
-      const { jobId: newJobId } = await api.renderProject(projectId);
-      setJobId(newJobId);
-      jobIdRef.current = newJobId;
-    } catch (err) {
-      setExportState('error');
-      setError(err instanceof Error ? err.message : 'Failed to start export');
-    }
+    // TODO: Replace with sandbox export endpoint
+    setExportState('error');
+    setError('Export is temporarily unavailable. The render pipeline is being migrated to the sandbox architecture.');
   };
 
   const handleDownload = () => {
@@ -206,7 +188,7 @@ export function ExportModal({
                   <div className="flex items-center gap-3">
                     <Settings className="w-4 h-4 text-gray-400" />
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-normal text-gray-900">
                         Output Format
                       </div>
                       <div className="text-xs text-gray-500">
@@ -220,7 +202,7 @@ export function ExportModal({
                   <div className="flex items-center gap-3">
                     <Settings className="w-4 h-4 text-gray-400" />
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-normal text-gray-900">
                         Quality
                       </div>
                       <div className="text-xs text-gray-500">
@@ -235,7 +217,7 @@ export function ExportModal({
                 <button
                   onClick={handleStartExport}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                             bg-violet-500 text-white font-medium
+                             bg-violet-500 text-white font-normal
                              hover:bg-violet-600 transition-colors"
                 >
                   <Download className="w-4 h-4" />
@@ -266,14 +248,14 @@ export function ExportModal({
                     </svg>
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-lg font-semibold text-gray-900">
+                    <span className="text-lg font-normal text-gray-900">
                       {progress}%
                     </span>
                   </div>
                 </div>
 
                 <div className="text-center">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-normal text-gray-900">
                     Exporting...
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
@@ -299,7 +281,7 @@ export function ExportModal({
                   <CheckCircle className="w-8 h-8 text-green-600" />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-normal text-gray-900">
                     Export Complete!
                   </div>
                   <div className="text-xs text-gray-500 mt-1">
@@ -312,7 +294,7 @@ export function ExportModal({
                 <button
                   onClick={handleDownload}
                   className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                             bg-green-600 text-white font-medium
+                             bg-green-600 text-white font-normal
                              hover:bg-green-700 transition-colors"
                 >
                   <Download className="w-4 h-4" />
@@ -321,7 +303,7 @@ export function ExportModal({
                 <button
                   onClick={handleExportAgain}
                   className="px-4 py-2.5 rounded-lg
-                             bg-white text-gray-700 font-medium
+                             bg-white text-gray-700 font-normal
                              hover:bg-gray-100 transition-colors
                              border border-gray-300"
                 >
@@ -339,7 +321,7 @@ export function ExportModal({
                   <AlertCircle className="w-8 h-8 text-red-500" />
                 </div>
                 <div className="text-center">
-                  <div className="text-sm font-medium text-gray-900">
+                  <div className="text-sm font-normal text-gray-900">
                     Export Failed
                   </div>
                   <div className="text-xs text-red-600 mt-1">
@@ -351,7 +333,7 @@ export function ExportModal({
               <button
                 onClick={handleExportAgain}
                 className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg
-                           bg-violet-500 text-white font-medium
+                           bg-violet-500 text-white font-normal
                            hover:bg-violet-600 transition-colors"
               >
                 Try Again

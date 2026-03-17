@@ -1,5 +1,3 @@
-import type { RenderOptions } from '@viona/shared';
-import type { StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions } from '@viona/shared/queue-types';
 import { getSessionToken } from './auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -121,25 +119,6 @@ export interface SeparateAudioResponse {
   src: string;
 }
 
-// StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions
-// are imported from @viona/shared/queue-types
-export type { StylePreset, VisualsLayoutMode, VisualsDimensions, GenerateVisualsOptions } from '@viona/shared/queue-types';
-
-export interface GenerateVisualsResponse {
-  jobId: string;
-}
-
-export interface EditVisualsResponse {
-  jobId: string;
-}
-
-export interface EditVisualsContext {
-  type: 'element' | 'item' | 'scene' | 'composition';
-  sceneId?: number | null;
-  elementName?: string;
-  itemId?: string;
-  itemType?: string;
-}
 
 export interface SceneElement {
   name: string;
@@ -254,7 +233,8 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    timeoutMs = 60_000,
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
 
@@ -271,7 +251,7 @@ class ApiClient {
     }
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30_000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     let response: Response;
     try {
@@ -283,7 +263,7 @@ class ApiClient {
       });
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
-        throw new Error('Request timed out after 30 seconds');
+        throw new Error(`Request timed out after ${timeoutMs / 1000} seconds`);
       }
       throw err;
     } finally {
@@ -338,13 +318,6 @@ class ApiClient {
     });
   }
 
-  async renderProject(projectId: string, options?: RenderOptions): Promise<ProcessProjectResponse> {
-    return this.request(`/api/projects/${projectId}/render`, {
-      method: 'POST',
-      body: JSON.stringify(options || {}),
-    });
-  }
-
   async separateAudio(projectId: string, videoItemId: string): Promise<SeparateAudioResponse> {
     return this.request(`/api/projects/${projectId}/separate-audio`, {
       method: 'POST',
@@ -359,13 +332,6 @@ class ApiClient {
     });
   }
 
-  async generateVisuals(projectId: string, options: GenerateVisualsOptions): Promise<GenerateVisualsResponse> {
-    return this.request(`/api/projects/${projectId}/generate-visuals`, {
-      method: 'POST',
-      body: JSON.stringify(options),
-    });
-  }
-
   async getDownloadUrl(projectId: string): Promise<DownloadResponse> {
     return this.request(`/api/projects/${projectId}/download`);
   }
@@ -373,24 +339,6 @@ class ApiClient {
   async deleteVisuals(projectId: string): Promise<{ message: string; deleted: number }> {
     return this.request(`/api/projects/${projectId}/visuals`, {
       method: 'DELETE',
-    });
-  }
-
-  async editVisuals(
-    projectId: string,
-    prompt: string,
-    context?: EditVisualsContext
-  ): Promise<EditVisualsResponse> {
-    return this.request(`/api/projects/${projectId}/edit-visuals`, {
-      method: 'POST',
-      body: JSON.stringify({
-        prompt,
-        sceneId: context?.sceneId,
-        targetType: context?.type,
-        elementName: context?.elementName,
-        itemId: context?.itemId,
-        itemType: context?.itemType,
-      }),
     });
   }
 
@@ -738,19 +686,6 @@ class ApiClient {
       xhr.send(formData);
     });
   }
-  async splitVisualScene(projectId: string, data: {
-    compositionId: string;
-    sourceSceneId?: number;
-    splitAtMs: number;
-    leftItemId: string;
-    rightItemId: string;
-  }): Promise<{ jobId: string }> {
-    return this.request<{ jobId: string }>(`/api/projects/${projectId}/split-visual`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
-
   // ---- Workspace API ----
 
   /** Spin up workspace — returns manifest + initial bundle URL */
@@ -832,7 +767,7 @@ class ApiClient {
   async createSandbox(projectId: string): Promise<{ status: string; internalUrl: string }> {
     return this.request(`/api/projects/${projectId}/sandbox`, {
       method: 'POST',
-    });
+    }, 180_000);
   }
 
   /** Get sandbox status */

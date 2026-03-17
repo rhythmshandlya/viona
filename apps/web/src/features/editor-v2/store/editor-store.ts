@@ -6,7 +6,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import { api, Project as ApiProject } from '@/lib/api';
-import { wsClient } from '@/lib/ws';
 import { loadFont, findFont } from '@/lib/font-registry';
 import { manifestToStore, storeToManifest, StoreManifestOp } from './manifest-bridge';
 import { dispatchToSandbox, type SandboxOp } from './manifest-dispatch';
@@ -106,6 +105,8 @@ const syncWorkspaceManifest = () => {
       duration: state.duration,
       fps: state.fps,
       videoSettings: state.project.videoSettings,
+      sourceWidth: state.project.sourceWidth,
+      sourceHeight: state.project.sourceHeight,
       assets: state.assets,
     },
     captionStyle,
@@ -191,6 +192,9 @@ const initialState: EditorState = {
 
   // Pending AI message
   pendingAIMessage: null,
+
+  // Agent activity
+  agentActivity: null,
 
   // Transition picker
   transitionPickerItemId: null,
@@ -978,7 +982,7 @@ export const useEditorStore = create<EditorStore>()(
     },
 
     saveProject: async () => {
-      const { project, items, itemIds } = get();
+      const { project, items, itemIds, tracks: editorTracks } = get();
       if (!project) return;
 
       set((state) => {
@@ -1118,7 +1122,18 @@ export const useEditorStore = create<EditorStore>()(
           ...project.videoSettings,
         };
 
+        // Send tracks so the backend can create any that only exist on the frontend
+        const tracksPayload = editorTracks.map((t) => ({
+          id: t.id,
+          type: t.type,
+          name: t.name,
+          position: t.position,
+          locked: t.locked,
+          visible: t.visible,
+        }));
+
         await api.updateProject(project.id, {
+          tracks: tracksPayload,
           items: allItems,
           captionItemIds,
           visualItemIds,
@@ -1941,20 +1956,12 @@ export const useEditorStore = create<EditorStore>()(
 
       if (splitRelativeMs <= 100 || splitRelativeMs >= duration - 100) return;
 
-      // Capture pre-split info for visual items
-      const isVisual = item.type === 'visual';
-      const visualData = isVisual ? (item.data as VisualItemData) : null;
-
       let splitResult: [string, string] | null = null as [string, string] | null;
 
       set((state) => {
         const result = splitItemInDraft(state, itemId, atMs);
         if (result) {
           splitResult = result;
-          if (isVisual) {
-            state.regeneratingVisualItemIds.add(result[0]);
-            state.regeneratingVisualItemIds.add(result[1]);
-          }
         }
       });
 
@@ -1981,31 +1988,6 @@ export const useEditorStore = create<EditorStore>()(
         }
       }
 
-      // Trigger AI regeneration for visual splits
-      if (isVisual && splitResult && visualData?.sourceSceneId) {
-        const [leftId, rightId] = splitResult;
-        const projectId = get().project?.id;
-        if (projectId) {
-          api.splitVisualScene(projectId, {
-            compositionId: visualData.compositionId,
-            sourceSceneId: visualData.sourceSceneId,
-            splitAtMs: atMs,
-            leftItemId: leftId,
-            rightItemId: rightId,
-          }).then(({ jobId }) => {
-            wsClient.subscribeToJob(jobId);
-            set((state) => {
-              state.splitJobToItems[jobId] = [leftId, rightId];
-            });
-          }).catch((err) => {
-            console.error('[splitItem] Failed to trigger scene split:', err);
-            set((state) => {
-              state.regeneratingVisualItemIds.delete(leftId);
-              state.regeneratingVisualItemIds.delete(rightId);
-            });
-          });
-        }
-      }
     },
 
     splitAllAtPlayhead: () => {
@@ -2574,6 +2556,12 @@ export const useEditorStore = create<EditorStore>()(
     setPendingAIMessage: (message: string | null) => {
       set((state) => {
         state.pendingAIMessage = message;
+      });
+    },
+
+    setAgentActivity: (activity) => {
+      set((state) => {
+        state.agentActivity = activity;
       });
     },
 
