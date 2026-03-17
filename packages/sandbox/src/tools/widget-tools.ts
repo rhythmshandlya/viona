@@ -1,3 +1,5 @@
+import type { AgentPlan } from '@viona/shared/progress-types.js';
+
 export interface WidgetCallbacks {
   onWidget: (widget: Record<string, unknown>) => void;
   onProgress: (progress: {
@@ -8,6 +10,7 @@ export interface WidgetCallbacks {
     trackName?: string;
     estimatedTimeRemaining?: number;
   }) => void;
+  onPlan: (plan: AgentPlan) => void;
 }
 
 export const showWidgetTool = {
