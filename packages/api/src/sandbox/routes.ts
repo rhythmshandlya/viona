@@ -128,7 +128,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
       const session = await manager.getActiveSession(projectId);
       if (!session) return reply.status(404).send({ error: 'No active sandbox' });
 
-      const agentUrl = session.agentUrl || (session.metadata as any)?.agentUrl;
+      const agentUrl = session.agentUrl;
       if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
 
       await proxyPrompt(agentUrl, session.sandboxSecret, request.body as any, reply);
@@ -142,7 +142,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
       const session = await manager.getActiveSession(projectId);
       if (!session) return reply.status(404).send({ error: 'No active sandbox' });
 
-      const agentUrl = session.agentUrl || (session.metadata as any)?.agentUrl;
+      const agentUrl = session.agentUrl;
       if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
       try {
         const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'GET');
@@ -161,7 +161,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
       const session = await manager.getActiveSession(projectId);
       if (!session) return reply.status(404).send({ error: 'No active sandbox' });
 
-      const agentUrl = session.agentUrl || (session.metadata as any)?.agentUrl;
+      const agentUrl = session.agentUrl;
       if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
       try {
         const result = await proxyManifestOp(agentUrl, session.sandboxSecret, 'PATCH', request.body as object);
@@ -180,7 +180,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
       const session = await manager.getActiveSession(projectId);
       if (!session) return reply.status(404).send({ error: 'No active sandbox' });
 
-      const agentUrl = session.agentUrl || (session.metadata as any)?.agentUrl;
+      const agentUrl = session.agentUrl;
       if (!agentUrl) return reply.status(500).send({ error: 'Agent URL not found in session' });
 
       try {
@@ -242,7 +242,7 @@ export function createSandboxRoutes(manager: SandboxManager) {
       // Debounced DB sync via manager
       const session = await manager.getActiveSession(projectId);
       if (session) {
-        const agentUrl = session.agentUrl || (session.metadata as any)?.agentUrl;
+        const agentUrl = session.agentUrl;
         if (agentUrl) {
           manager.debouncedSync(projectId, agentUrl, session.sandboxSecret);
         }

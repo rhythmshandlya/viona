@@ -177,7 +177,7 @@ export class SandboxManager {
       volumeId: session.railwayVolumeId || '',
       volumeInstanceId: session.railwayVolumeInstanceId || '',
       internalUrl: session.internalUrl || '',
-      agentUrl: session.agentUrl || (session.metadata as any)?.agentUrl || '',
+      agentUrl: session.agentUrl || '',
       secret: session.sandboxSecret,
       status: session.status as Sandbox['status'],
     };
@@ -412,7 +412,7 @@ export class SandboxManager {
           sandboxSecret: sandbox.secret,
           internalUrl: sandbox.internalUrl,
           agentUrl: sandbox.agentUrl,
-          metadata: { agentUrl: sandbox.agentUrl },
+          metadata: {},
           lastActivityAt: new Date(),
           suspendedAt: null,
           suspendReason: null,
@@ -584,7 +584,7 @@ export class SandboxManager {
     projectId: string,
     session: typeof sandboxSessions.$inferSelect,
   ): Promise<void> {
-    const agentUrl = session.agentUrl || (session.metadata as any)?.agentUrl;
+    const agentUrl = session.agentUrl;
     if (!agentUrl) {
       logger.warn({ projectId }, 'No agentUrl for durable checkpoint');
       return;
@@ -681,7 +681,7 @@ export class SandboxManager {
 
       // Fallback: poll sandbox directly if Redis has no busy state
       if (!busy) {
-        const agentUrl = session.agentUrl || (session.metadata as any)?.agentUrl;
+        const agentUrl = session.agentUrl;
         if (agentUrl) {
           try {
             const sbStatus = await fetch(`${agentUrl}/status`, {
