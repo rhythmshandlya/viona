@@ -8,6 +8,7 @@ import { logger } from '../logger.js';
 import { withProjectMutex } from './mutex.js';
 import { proxyFileRequest, proxyPrompt, proxyManifestOp, proxyOps } from './proxy.js';
 import { touchActivity, onSandboxIdle, removeActivity } from './health.js';
+import { redis } from '../services/redis.js';
 import { dbToManifest } from '@viona/shared';
 import { syncManifestToDb } from './sync.js';
 import { emitWorkspaceReady, emitBundleReady, emitWorkspaceTeardown, emitManifestUpdated } from '../workspace/workspace-ws.js';
@@ -244,7 +245,8 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
           });
 
           // Override video/audio src to sandbox-local paths (workspace-init downloads them)
-          // DB stores API endpoint URLs (e.g. /api/projects/:id/video) which don't exist inside sandbox
+          // DB stores API endpoint URLs (e.g. /api/projects/:id/video) which don't exist inside sandbox.
+          // Volume and other properties are preserved from the manifest — no overrides here.
           if (Array.isArray(manifest.items)) {
             let hasAudioItem = false;
             let videoDurationMs = 0;
@@ -252,7 +254,6 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
             for (const item of manifest.items) {
               if (item.type === 'video' && item.data) {
                 item.data.src = 'source.mp4';
-                item.data.volume = 0; // Mute — audio comes from separate audio item
                 videoDurationMs = item.endMs || manifest.durationMs || 0;
               } else if (item.type === 'audio' && item.data) {
                 item.data.src = 'audio.aac';
@@ -260,7 +261,7 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
               }
             }
 
-            // Create independent audio item if none exists
+            // Create independent audio item if none exists (for timeline waveform display)
             if (!hasAudioItem && videoDurationMs > 0) {
               const audioTrackId = crypto.randomUUID();
               if (Array.isArray(manifest.tracks)) {
@@ -277,7 +278,8 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
                 trackId: audioTrackId,
                 startMs: 0,
                 endMs: videoDurationMs,
-                data: { src: 'audio.aac', volume: 1 },
+                keyframes: [],
+                data: { src: 'audio.aac', volume: 1, playbackRate: 1 },
               });
             }
           }
@@ -366,9 +368,71 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
       }
     }
 
+    // Include current agent progress/activity/plan from Redis so the
+    // frontend can restore the progress pill after a page refresh.
+    let agentProgress = null;
+    let agentActivity = null;
+    let agentPlan: unknown = null;
+    let activeTasks: unknown[] = [];
+    let busy = false;
+    let startedAt: number | null = null;
+
+    if (session.status === 'ready') {
+      const [progressRaw, activityRaw, tasksRaw, busyRaw, planRaw] = await Promise.all([
+        redis.get(`sandbox:progress:${projectId}`).catch(() => null),
+        redis.get(`sandbox:activity:${projectId}`).catch(() => null),
+        redis.get(`sandbox:tasks:${projectId}`).catch(() => null),
+        redis.get(`sandbox:busy:${projectId}`).catch(() => null),
+        redis.get(`sandbox:plan:${projectId}`).catch(() => null),
+      ]);
+      if (progressRaw) try { agentProgress = JSON.parse(progressRaw); } catch {}
+      if (activityRaw) try { agentActivity = JSON.parse(activityRaw); } catch {}
+      if (tasksRaw) try { activeTasks = JSON.parse(tasksRaw); } catch {}
+      if (busyRaw) try {
+        const b = JSON.parse(busyRaw);
+        busy = b.busy;
+        startedAt = b.startedAt;
+      } catch {}
+      if (planRaw) try { agentPlan = JSON.parse(planRaw); } catch {}
+
+      // Fallback: if Redis has no busy state but sandbox is ready,
+      // poll the sandbox directly in case callbacks were lost
+      if (!busy) {
+        const agentUrl = (session.metadata as any)?.agentUrl;
+        if (agentUrl) {
+          try {
+            const sbStatus = await fetch(`${agentUrl}/status`, {
+              headers: { 'Authorization': `Bearer ${session.sandboxSecret}` },
+              signal: AbortSignal.timeout(3000),
+            }).then(r => r.json()) as {
+              busy?: boolean;
+              activeTasks?: unknown[];
+              startedAt?: number;
+              plan?: unknown;
+            };
+            if (sbStatus.busy) {
+              busy = true;
+              activeTasks = sbStatus.activeTasks ?? [];
+              startedAt = sbStatus.startedAt ?? null;
+              agentPlan = sbStatus.plan ?? agentPlan;
+            }
+          } catch { /* sandbox unreachable — ignore */ }
+        }
+      }
+    }
+
     return {
       status: session.status,
       previewUrl: session.status === 'ready' ? `/api/projects/${projectId}/sandbox/bundle/player-composition.cjs.js` : null,
+      // Legacy fields (backward compat)
+      agentProgress,
+      agentActivity,
+      agentPlan,
+      // New fields
+      busy,
+      activeTasks,
+      plan: agentPlan,
+      startedAt,
     };
   });
 
@@ -535,6 +599,75 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
     if (!projectId) return;
     // Checkpoint data lives in sandbox volume only — no DB sync
     logger.debug({ projectId }, 'Checkpoint received (not persisted to DB)');
+    return { ok: true };
+  });
+
+  // POST /internal/sandbox/:id/agent-state — Receive agent state pushes
+  fastify.post('/internal/sandbox/:id/agent-state', async (request, reply) => {
+    const projectId = await validateInternalCallback(request, reply);
+    if (!projectId) return;
+
+    const { type, data, timestamp } = request.body as {
+      type: string;
+      data?: any;
+      timestamp?: number;
+    };
+
+    const TASK_TTL = 30 * 60; // 30 minutes in seconds
+
+    try {
+      switch (type) {
+        case 'task_started': {
+          const tasksRaw = await redis.get(`sandbox:tasks:${projectId}`).catch(() => null);
+          let tasks: unknown[] = [];
+          if (tasksRaw) try { tasks = JSON.parse(tasksRaw); } catch {}
+          tasks.push(data);
+          await redis.set(`sandbox:tasks:${projectId}`, JSON.stringify(tasks), 'EX', TASK_TTL);
+          await redis.set(`sandbox:busy:${projectId}`, JSON.stringify({ busy: true, startedAt: timestamp ?? Date.now() }), 'EX', TASK_TTL);
+          break;
+        }
+        case 'task_updated': {
+          const tasksRaw = await redis.get(`sandbox:tasks:${projectId}`).catch(() => null);
+          let tasks: any[] = [];
+          if (tasksRaw) try { tasks = JSON.parse(tasksRaw); } catch {}
+          const idx = tasks.findIndex((t: any) => t.id === data?.id);
+          if (idx >= 0) {
+            tasks[idx].action = data.action;
+            await redis.set(`sandbox:tasks:${projectId}`, JSON.stringify(tasks), 'EX', TASK_TTL);
+          }
+          break;
+        }
+        case 'task_completed': {
+          const tasksRaw = await redis.get(`sandbox:tasks:${projectId}`).catch(() => null);
+          let tasks: any[] = [];
+          if (tasksRaw) try { tasks = JSON.parse(tasksRaw); } catch {}
+          tasks = tasks.filter((t: any) => t.id !== data?.id);
+          await redis.set(`sandbox:tasks:${projectId}`, JSON.stringify(tasks), 'EX', TASK_TTL);
+          break;
+        }
+        case 'plan': {
+          await redis.set(`sandbox:plan:${projectId}`, JSON.stringify(data), 'EX', TASK_TTL);
+          break;
+        }
+        case 'done': {
+          await redis.del(`sandbox:tasks:${projectId}`, `sandbox:busy:${projectId}`);
+          break;
+        }
+        case 'error': {
+          await redis.del(`sandbox:tasks:${projectId}`, `sandbox:busy:${projectId}`);
+          break;
+        }
+        default: {
+          // Refresh TTL on busy key to keep it alive
+          await redis.expire(`sandbox:busy:${projectId}`, TASK_TTL);
+          break;
+        }
+      }
+    } catch (err) {
+      logger.error({ err, projectId, type }, 'Failed to process agent-state callback');
+      return reply.status(500).send({ error: 'Internal error' });
+    }
+
     return { ok: true };
   });
 }
