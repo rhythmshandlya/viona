@@ -10,7 +10,7 @@ import { runOrchestrator, type OrchestratorRequest } from './orchestrator.js';
 import { createMcpServers } from './mcp-servers.js';
 import { renderVideo } from './tools/render-video.js';
 import {
-  startJob, getJobState, isJobBusy, onStateChange, failJob,
+  startJob, getJobState, isJobBusy, onStateChange, failJob, updatePlan,
 } from './job-state.js';
 import { pushState, flushCallbacks } from './api-callback.js';
 
@@ -92,7 +92,7 @@ export function startAgentServer(port = 8081): void {
 
     // R1.6: reject if already busy
     if (isJobBusy()) {
-      res.status(409).json({ error: 'A job is already running' });
+      res.status(409).json({ error: 'Agent is already busy', busy: true });
       return;
     }
 
@@ -147,8 +147,10 @@ export function startAgentServer(port = 8081): void {
       // Push to API regardless of SSE connection
       pushState(type, data);
 
-      // Stream to connected SSE client
-      sendSSE(type, data);
+      // Stream to connected SSE client (skip 'plan' — it's sent as 'agent_plan' via MCP callback)
+      if (type !== 'plan') {
+        sendSSE(type, data);
+      }
 
       // R5.4: Backward-compatible progress/activity events
       if (type === 'task_started') {
@@ -165,7 +167,10 @@ export function startAgentServer(port = 8081): void {
     const mcpServers = createMcpServers({
       onWidget: (widget) => sendSSE('widget', widget),
       onProgress: (progress) => sendSSE('progress', progress),
-      onPlan: (plan) => sendSSE('agent_plan', plan),
+      onPlan: (plan) => {
+        updatePlan(plan);  // Tracks in job-state → triggers onStateChange → pushState to API
+        sendSSE('agent_plan', plan);
+      },
     });
 
     try {

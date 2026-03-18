@@ -60,6 +60,13 @@ function TaskRow({ task }: { task: ActiveTask }) {
 export const ActiveTaskList = memo(function ActiveTaskList({ tasks, busy, isVisible }: ActiveTaskListProps) {
   // Stable fallback timestamp — avoids creating new Date.now() on every render
   const fallbackStartRef = React.useRef(Date.now());
+  const prevBusyRef = React.useRef(false);
+
+  // Reset fallback timestamp when a new job starts
+  if (busy && !prevBusyRef.current) {
+    fallbackStartRef.current = Date.now();
+  }
+  prevBusyRef.current = busy;
 
   if (!isVisible || !busy) return null;
 
