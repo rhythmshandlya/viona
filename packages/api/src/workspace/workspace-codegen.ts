@@ -363,7 +363,7 @@ const ItemRenderer: React.FC<{ item: any }> = ({ item }) => {
       );
 
     case 'audio':
-      return <Audio src={staticFile(d.src || '')} volume={d.volume ?? 1} />;
+      return <Audio src={staticFile(d.src || '')} volume={d.volume ?? 1} playbackRate={d.playbackRate ?? 1} startFrom={d.startFrom ?? 0} />;
 
     case 'scene': {
       const SceneComponent = SCENE_MAP[d.sceneFile || ''];

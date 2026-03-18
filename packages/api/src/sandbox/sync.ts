@@ -2,6 +2,24 @@ import { db, tracks as tracksTable, timelineItems, projects } from '../db/index.
 import { eq, and, notInArray, inArray } from 'drizzle-orm';
 import { logger } from '../logger.js';
 
+/** Convert v2 manifest track type to DB track type */
+function manifestTrackTypeToDb(type: string): string {
+  switch (type) {
+    case 'caption': return 'subtitle';
+    case 'overlay': return 'overlay';
+    default: return type; // video, audio stay the same
+  }
+}
+
+/** Convert v2 manifest item type to DB item type */
+function manifestItemTypeToDb(type: string): string {
+  switch (type) {
+    case 'scene': return 'visual';
+    case 'caption': return 'subtitle';
+    default: return type; // video, audio, text, image, shape stay the same
+  }
+}
+
 export async function syncManifestToDb(
   projectId: string,
   manifest: any,
@@ -17,18 +35,19 @@ export async function syncManifestToDb(
     // 2. Upsert tracks
     const manifestTrackIds = (manifest.tracks ?? []).map((t: any) => t.id);
     for (const track of manifest.tracks ?? []) {
+      const dbType = manifestTrackTypeToDb(track.type);
       await tx
         .insert(tracksTable)
         .values({
           id: track.id,
           projectId,
-          type: track.type,
+          type: dbType,
           name: track.name,
           position: track.position,
         })
         .onConflictDoUpdate({
           target: tracksTable.id,
-          set: { type: track.type, name: track.name, position: track.position },
+          set: { type: dbType, name: track.name, position: track.position },
         });
     }
     // Remove orphan tracks
@@ -46,6 +65,7 @@ export async function syncManifestToDb(
     // 3. Upsert items
     const manifestItemIds = (manifest.items ?? []).map((i: any) => i.id);
     for (const item of manifest.items ?? []) {
+      const dbType = manifestItemTypeToDb(item.type);
       const data = {
         ...item.data,
         ...(item.transform ? { _transform: item.transform } : {}),
@@ -57,7 +77,7 @@ export async function syncManifestToDb(
         .values({
           id: item.id,
           trackId: item.trackId,
-          type: item.type,
+          type: dbType,
           startMs: item.startMs,
           endMs: item.endMs,
           data,
@@ -66,7 +86,7 @@ export async function syncManifestToDb(
           target: timelineItems.id,
           set: {
             trackId: item.trackId,
-            type: item.type,
+            type: dbType,
             startMs: item.startMs,
             endMs: item.endMs,
             data,

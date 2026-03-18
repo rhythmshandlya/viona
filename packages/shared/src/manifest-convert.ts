@@ -150,7 +150,9 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         data: {
           src,
           volume: (data as any).volume ?? 1,
-          playbackRate: 1,
+          playbackRate: (data as any).playbackRate ?? 1,
+          ...((data as any).fadeInMs ? { fadeInMs: (data as any).fadeInMs } : {}),
+          ...((data as any).fadeOutMs ? { fadeOutMs: (data as any).fadeOutMs } : {}),
         },
       };
     }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
-import type { Manifest, ManifestItem } from './manifest.js';
+import type { ManifestV2 as Manifest, ManifestItemV2 as ManifestItem } from './manifest-v2.js';
 
 // ---- Operation schemas ----
 
@@ -22,10 +22,6 @@ export const manifestOpSchema = z.discriminatedUnion('op', [
   z.object({
     op: z.literal('delete_item'),
     itemId: z.string(),
-  }),
-  z.object({
-    op: z.literal('set_layout'),
-    layout: z.record(z.string(), z.unknown()),
   }),
   z.object({
     op: z.literal('set_transition'),
@@ -95,15 +91,10 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       break;
     }
 
-    case 'set_layout': {
-      m.layout = { ...m.layout, ...op.layout } as any;
-      break;
-    }
-
     case 'set_transition': {
       const item = m.items.find(i => i.id === op.itemId);
       if (!item) throw new Error(`Item not found: ${op.itemId}`);
-      if (item.type !== 'visual') throw new Error(`Item ${op.itemId} is not a visual`);
+      if (item.type !== 'scene') throw new Error(`Item ${op.itemId} is not a scene`);
       const data = item.data as any;
       if (!data.transition) data.transition = {};
       if (op.enter) data.transition.enter = op.enter;
@@ -138,8 +129,8 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       secondHalf.id = newId;
       secondHalf.startMs = op.atMs;
 
-      // If visual, set frameOffset on second half
-      if (item.type === 'visual') {
+      // If scene, set frameOffset on second half
+      if (item.type === 'scene') {
         const fps = manifest.fps || 30;
         const offsetFrames = Math.round(((op.atMs - item.startMs) / 1000) * fps);
         (secondHalf.data as any).frameOffset = ((item.data as any).frameOffset || 0) + offsetFrames;

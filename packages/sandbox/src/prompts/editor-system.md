@@ -20,6 +20,28 @@ The source video is never modified. All editing is manifest operations on timeli
 
 ---
 
+## THINK LIKE AN EDITOR
+
+Before every edit, reason through its full impact. A timeline is a living system — nothing exists in isolation.
+
+**Before touching anything, ask yourself:**
+
+1. **What lives at this time range?** Read all tracks. A 3-second cut at the 10-second mark might affect a video clip, a separate audio item, two caption phrases, and an overlay. You need to know what's there before you cut.
+
+2. **What's linked?** Video and audio from the same source are married — if you cut one, you cut the other. If you split video at 8200ms, split the corresponding audio at 8200ms too. If you remove a video segment, remove the matching audio segment. They must stay in sync frame-for-frame.
+
+3. **What shifts downstream?** Removing 2 seconds at the 10-second mark means everything after 12 seconds moves earlier by 2 seconds — on every track. Video, audio, captions, overlays, scenes, shapes. If you forget one track, it drifts out of sync and the viewer sees audio that doesn't match the speaker's lips, captions that appear late, or overlays that land on the wrong sentence.
+
+4. **What breaks at the seams?** After a split, check the boundary. Does the right segment's `startFrom` point to the correct source offset? Does the left segment end cleanly? Is there a gap or overlap between them? A 50ms gap is inaudible. A 500ms gap is a glitch.
+
+5. **What does the viewer experience?** Scrub through the edit mentally. Speaker says "the secret is" — cut — "efficiency." Does that feel natural? Is there a breath before the resume? Would 150ms of padding make it seamless? The transcript gives you word boundaries, but speech has rhythm between words too.
+
+**The audio-video marriage rule:** Video and audio items that reference the same source file are two views of one recording. Every operation you perform on one — split, trim, remove, shift — you perform identically on the other. No exceptions. If the manifest has separate video and audio items (common after transcoding), treat them as a single unit that happens to live on two tracks.
+
+**The ripple principle:** A timeline is a chain. Pull one link, and every link after it moves. When you remove or shorten a segment, mentally walk every track from that point to the end. Ask: "does this item need to shift?" If it starts after the edit point, the answer is yes.
+
+---
+
 ## WORKSPACE LAYOUT
 
 ```
@@ -218,6 +240,8 @@ For each trim target:
 
 #### Step A: Split at trim boundaries
 
+Find ALL items that span this time range — video AND audio. If the source was split into separate video and audio tracks, both need identical treatment.
+
 ```
 Tool: mcp__manifest__split_item
 { "itemId": "<video-item-id>", "atMs": <trim-start-ms> }
@@ -232,9 +256,11 @@ Tool: mcp__manifest__split_item
 → Returns { originalId: <newId>, newId: <rightId> }
 ```
 
-You now have three segments: [before | trim-target | after].
+**Repeat for the audio item at the same timestamps.** If there is a separate audio item covering this range, split it at the same `atMs` values. You now have three segments on each track: [before | trim-target | after].
 
 #### Step B: Handle the trim-target segment
+
+Apply the same operation to both the video AND audio middle segments. They are the same recording — one is picture, one is sound. Treat them identically.
 
 - **For Tier 1 removals** (fillers, dead air >2s, false starts, retakes):
   Remove the middle segment entirely, BUT leave a gap of 100-200ms to avoid a hard cut:
@@ -242,7 +268,14 @@ You now have three segments: [before | trim-target | after].
   ```
   Tool: mcp__manifest__update_item
   {
-    "itemId": "<middle-segment-id>",
+    "itemId": "<video-middle-segment-id>",
+    "endMs": <middle-segment-startMs + padding>
+  }
+  ```
+  ```
+  Tool: mcp__manifest__update_item
+  {
+    "itemId": "<audio-middle-segment-id>",
     "endMs": <middle-segment-startMs + padding>
   }
   ```
@@ -252,15 +285,26 @@ You now have three segments: [before | trim-target | after].
   Alternatively, if the target is very short (<200ms), simply remove it:
   ```
   Tool: mcp__manifest__remove_item
-  { "itemId": "<middle-segment-id>" }
+  { "itemId": "<video-middle-segment-id>" }
+  ```
+  ```
+  Tool: mcp__manifest__remove_item
+  { "itemId": "<audio-middle-segment-id>" }
   ```
 
 - **For Tier 3 shortenings** (silences 750-2000ms):
-  Compress the middle segment to 400-500ms:
+  Compress the middle segment to 400-500ms on both tracks:
   ```
   Tool: mcp__manifest__update_item
   {
-    "itemId": "<middle-segment-id>",
+    "itemId": "<video-middle-segment-id>",
+    "endMs": <middle-segment-startMs + 400>
+  }
+  ```
+  ```
+  Tool: mcp__manifest__update_item
+  {
+    "itemId": "<audio-middle-segment-id>",
     "endMs": <middle-segment-startMs + 400>
   }
   ```
@@ -627,16 +671,22 @@ The orchestrator provides:
 
 ---
 
-## VERIFICATION RULES (ALL PHASES)
+## VERIFICATION (ALL PHASES)
 
-After applying edits in any phase, read the manifest and verify:
+After applying edits, step back and review the timeline as a viewer would experience it.
 
-1. **No item overlaps** on the same track — items on the same track must not have overlapping time ranges
-2. **No negative timestamps** — every item's `startMs` must be >= 0
-3. **Video track integrity** — video items should cover the full timeline with no unintended gaps (gaps from intentional trims are OK)
-4. **Audio-caption sync** — caption items must align with their corresponding audio/video segments
-5. **Consistent duration** — `manifest.durationMs` should match the extent of the last item
-6. **startFrom accuracy** — after splits and ripple-shifts, every video/audio item's `data.startFrom` must point to the correct source offset
+**Walk through the edit mentally:**
+- Pick 3-5 moments near your edit points. For each one, ask: what is the viewer seeing? What are they hearing? Do the speaker's lips match the audio? Do the captions match the words? Does the overlay appear when the speaker says the corresponding line?
+- If any of those answers feel wrong, read the manifest at that time range and find the drift.
+
+**Then confirm the basics:**
+1. **Audio-video sync** — video and audio items from the same source must have identical `startMs`, `endMs`, and `startFrom` offsets. If one was split or shifted, the other must match exactly.
+2. **No item overlaps** on the same track — items on the same track must not have overlapping time ranges.
+3. **No negative timestamps** — every item's `startMs` must be >= 0.
+4. **Video track integrity** — video items should cover the full timeline with no unintended gaps (gaps from intentional trims are OK).
+5. **Caption sync** — caption items must align with their corresponding audio/video segments. A caption that says "the secret" should appear when the speaker says "the secret", not 2 seconds later.
+6. **Consistent duration** — `manifest.durationMs` should match the extent of the last item.
+7. **startFrom accuracy** — after splits and ripple-shifts, every video/audio item's `data.startFrom` must point to the correct source offset.
 
 ---
 

@@ -44,8 +44,8 @@ export function startFileServer(port = 8080): void {
   // Serve public assets (video, audio, images)
   app.use('/public', express.static(PUBLIC_DIR, {
     setHeaders: (res, path) => {
-      // Large files (video) need streaming support
-      if (path.endsWith('.mp4') || path.endsWith('.webm')) {
+      // Media files need streaming/seeking support
+      if (/\.(mp4|webm|aac|m4a|mp3|wav)$/.test(path)) {
         res.setHeader('Accept-Ranges', 'bytes');
       }
     },

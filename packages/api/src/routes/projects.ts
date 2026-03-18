@@ -160,7 +160,7 @@ export async function projectRoutes(fastify: FastifyInstance) {
               endMs: 0, // Will be updated once duration is known
               data: {
                 src: `/api/projects/${id}/video`,
-                volume: 1,
+                volume: 0, // Muted — audio plays from the separate audio track
               },
             }).returning();
           }

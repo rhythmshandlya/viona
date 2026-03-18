@@ -92,14 +92,12 @@ export class RailwaySandboxProvider implements SandboxProvider {
 
       // 4. Deploy
       await railwayGql(`
-        mutation($input: ServiceInstanceDeployInput!) {
-          serviceInstanceDeployV2(input: $input)
+        mutation($serviceId: String!, $environmentId: String!) {
+          serviceInstanceDeployV2(serviceId: $serviceId, environmentId: $environmentId)
         }
       `, {
-        input: {
-          serviceId,
-          environmentId: config.sandbox.railway.environmentId,
-        },
+        serviceId,
+        environmentId: config.sandbox.railway.environmentId,
       });
 
       // 5. Wait for deployment and get volume instance ID
@@ -129,11 +127,15 @@ export class RailwaySandboxProvider implements SandboxProvider {
       // 6. Restore backup if provided
       if (backupId) {
         await railwayGql(`
-          mutation($input: VolumeInstanceBackupRestoreInput!) {
-            volumeInstanceBackupRestore(input: $input)
+          mutation($volumeInstanceBackupId: String!, $volumeInstanceId: String!) {
+            volumeInstanceBackupRestore(
+              volumeInstanceBackupId: $volumeInstanceBackupId,
+              volumeInstanceId: $volumeInstanceId
+            )
           }
         `, {
-          input: { backupId, volumeInstanceId },
+          volumeInstanceBackupId: backupId,
+          volumeInstanceId,
         });
       }
 
@@ -158,7 +160,12 @@ export class RailwaySandboxProvider implements SandboxProvider {
 
       return sandbox;
     } catch (err: any) {
-      // Cleanup on failure
+      // Cleanup on failure — delete both service and orphaned volume
+      if (volumeId) {
+        try {
+          await railwayGql(`mutation($volumeId: String!) { volumeDelete(volumeId: $volumeId) }`, { volumeId });
+        } catch {}
+      }
       if (serviceId) {
         try {
           await railwayGql(`mutation($id: String!) { serviceDelete(id: $id) }`, { id: serviceId });
@@ -177,7 +184,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
 
     if (sandbox.volumeId) {
       try {
-        await railwayGql(`mutation($id: String!) { volumeDelete(id: $id) }`, { id: sandbox.volumeId });
+        await railwayGql(`mutation($volumeId: String!) { volumeDelete(volumeId: $volumeId) }`, { volumeId: sandbox.volumeId });
         logger.info({ volumeId: sandbox.volumeId }, 'Railway volume deleted');
       } catch (err: any) {
         logger.warn({ err: err.message, volumeId: sandbox.volumeId }, 'Railway volume delete failed');
@@ -187,14 +194,14 @@ export class RailwaySandboxProvider implements SandboxProvider {
 
   async backup(sandbox: Pick<Sandbox, 'id' | 'volumeId' | 'volumeInstanceId' | 'projectId'>): Promise<string> {
     const result = await railwayGql(`
-      mutation($input: VolumeInstanceBackupCreateInput!) {
-        volumeInstanceBackupCreate(input: $input) { id }
+      mutation($volumeInstanceId: String!) {
+        volumeInstanceBackupCreate(volumeInstanceId: $volumeInstanceId)
       }
     `, {
-      input: { volumeInstanceId: sandbox.volumeInstanceId },
+      volumeInstanceId: sandbox.volumeInstanceId,
     });
 
-    return result.volumeInstanceBackupCreate.id;
+    return result.volumeInstanceBackupCreate;
   }
 
   async listContainers(): Promise<Array<{ id: string; projectId: string; createdAt: number }>> {

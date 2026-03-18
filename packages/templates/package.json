@@ -18,7 +18,8 @@
     "build:registry": "tsx scripts/build-registry.ts",
     "templates:build": "tsx scripts/build-templates.ts",
     "templates:upload": "tsx scripts/upload-templates.ts",
-    "templates:publish": "pnpm templates:build && pnpm templates:upload",
+    "templates:screenshots": "tsx scripts/generate-screenshots.ts",
+    "templates:publish": "pnpm templates:build && pnpm templates:upload && pnpm templates:screenshots",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
@@ -33,6 +34,8 @@
     "remotion": ">=4"
   },
   "devDependencies": {
+    "@remotion/bundler": "4.0.422",
+    "@remotion/renderer": "4.0.422",
     "@types/node": "^20.10.6",
     "@types/pg": "^8.18.0",
     "@types/react": "^19.0.0",
@@ -40,6 +43,9 @@
     "esbuild": "^0.24.2",
     "minio": "^7.1.4",
     "pg": "^8.20.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "remotion": "4.0.422",
     "tsup": "^8.0.1",
     "tsx": "^4.21.0",
     "typescript": "^5.3.3",

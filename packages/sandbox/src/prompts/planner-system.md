@@ -166,14 +166,39 @@ Rules:
 
 ---
 
+## Display Modes
+
+Every scene has a display mode that controls how animations compose with the speaker video. Choose the mode that best serves each scene's content.
+
+| Mode | Scene Canvas | Speaker | When to Use |
+|------|-------------|---------|-------------|
+| **stacked** | {{CANVAS_WIDTH}} × {{STACKED_VISUAL_HEIGHT}} (55% of canvas) | Visible in bottom 45% | Visuals need dedicated space — data viz, feature cards, process diagrams, comparisons. |
+| **overlay** | {{CANVAS_WIDTH}} × {{CANVAS_HEIGHT}} (transparent bg) | Full canvas, visible through/around content | Speaker should stay prominent — hooks, emotional beats, CTAs, direct address. Content layers in safe zones. |
+| **fullscreen** | {{CANVAS_WIDTH}} × {{CANVAS_HEIGHT}} | Hidden | Visuals ARE the content — dramatic reveals, complex diagrams, immersive moments. Speaker invisible, so keep these brief. |
+
+### Overlay Safe Zones
+
+When using overlay mode, content layers over the speaker on a transparent background. Respect these zones:
+
+| Zone | Y Range | Usage |
+|------|---------|-------|
+| Top (0-15%) | 0 – {{CANVAS_HEIGHT}}×0.15 | Short labels, icons (1-2 words max) |
+| Face (15-58%) | — | **NEVER place content here** — speaker's face |
+| Lower-third (58-85%) | {{CANVAS_HEIGHT}}×0.58 – {{CANVAS_HEIGHT}}×0.85 | Primary content zone — text, stats, CTAs |
+| Subtitle area (85-100%) | — | Reserved for captions — do not use |
+
+Overlay constraints: max 2 elements visible at once, max 1-3 words per element, max width 55% of canvas. Text shadow mandatory for readability.
+
+---
+
 ## Spatial Design — Designing the Layout
 
-You are a creative director designing a composition from available materials. You don't pick from predefined layouts — you DESIGN the spatial arrangement for each scene based on:
+You are a creative director designing a composition from available materials. The display mode sets the canvas dimensions and speaker handling; within those constraints, you have full creative control over placement, sizing, and styling.
 
 ### Available Data (read before designing)
 
 1. **Speaker video dimensions** — from canvas width/height in the brief
-2. **Head tracking** (`/workspace/docs/speaker-grid.json`) — where the speaker's face is in the frame. Place animations where the face ISN'T.
+2. **Head tracking** (`/workspace/docs/speaker-grid.json`) — where the speaker's face is in the frame. For overlay scenes, use this to place content where the face ISN'T.
 3. **Transcript** (`/workspace/docs/transcript.json`) — timing, emotional peaks, key moments
 4. **Media assets** — any logos, product screenshots, images the user provided. Note their dimensions.
 5. **Content type** — ad, educational, brand story (from the brief)
@@ -182,57 +207,86 @@ You are a creative director designing a composition from available materials. Yo
 ### Design Principles
 
 - **One focal point per moment.** Either the speaker OR the animation dominates — never both competing.
-- **Speaker face avoidance.** Use head tracking to find where the face is. Place animations in the opposite region.
+- **Speaker face avoidance.** In overlay mode, use head tracking to find where the face is. Place content in safe zones only.
 - **Content type guides speaker visibility:**
-  - Ads: speaker prominent (visible 60%+ of time), overlay-style with annotations
+  - Ads: speaker prominent (visible 60%+ of time)
   - Educational: visuals prominent (60%+ of screen), speaker in smaller region
   - Brand story: varies by emotional beat
-- **Canvas-aware sizing.** Portrait (1080×1920): stack vertically. Landscape (1920×1080): side by side. Square: speaker center, animations around edges.
+- **Canvas-aware sizing.** Portrait (1080×1920): stacked splits vertically, overlay uses safe zones. Landscape (1920×1080): stacked can split side-by-side. Square: speaker center, content around edges.
 - **Asset dimensions matter.** A wide product screenshot needs a wide region. A tall infographic needs a tall region. Don't force square assets into narrow strips.
 
 ### How to Specify Layout in SCENE_PLAN.md
 
 For EVERY scene, specify:
 
-1. **Scene files to create** — name and dimensions (width × height in pixels)
-2. **Where each item goes** — {x, y, width, height} in canvas coordinates
-3. **What happens to the video** — visible at what position/size, or hidden for this range
-4. **Styling** — borders, borderRadius, shadows, background if needed
-5. **Audio** — speaker voice continues, or muted, or music
+1. **Display mode** — stacked, overlay, or fullscreen
+2. **Scene files to create** — name and dimensions (width × height in pixels, matching the display mode's canvas)
+3. **Where each item goes** — {x, y, width, height} in canvas coordinates
+4. **What happens to the video** — visible at what position/size, or hidden (fullscreen only)
+5. **Styling** — borders, borderRadius, shadows, background if needed
+6. **Audio** — speaker voice continues, or muted, or music
 
-Example:
+Examples:
 
 ```markdown
-## Scene 3: The Comparison (5.2s - 8.4s)
+## Scene 2: Pain Points (3.3s - 17.7s)
+**Display Mode: stacked**
 
-Speaker stays in a horizontal band across the center — full width, 500px tall, centered vertically at y=710. Subtle white border (2px), rounded corners (16px).
+Animation in top 55% ({{CANVAS_WIDTH}} × {{STACKED_VISUAL_HEIGHT}}), speaker in bottom 45%.
 
 **Scene files:**
-- StatsComparison.tsx (1080 × 690) — stats chart, bar animation synced to "numbers speak"
-- TestimonialScroll.tsx (1080 × 690) — testimonial cards scrolling upward
+- PainPoints.tsx ({{CANVAS_WIDTH}} × {{STACKED_VISUAL_HEIGHT}}) — three pain point cards with icon stagger
 
 **Placement:**
-- Video: {x: 0, y: 710, width: 1080, height: 500} — style: border 2px solid rgba(255,255,255,0.3), borderRadius 16px
-- StatsComparison: {x: 0, y: 0, width: 1080, height: 690}
-- TestimonialScroll: {x: 0, y: 1210, width: 1080, height: 690}
+- Video: {x: 0, y: {{STACKED_VISUAL_HEIGHT}}, width: {{CANVAS_WIDTH}}, height: remaining}
+- PainPoints: {x: 0, y: 0, width: {{CANVAS_WIDTH}}, height: {{STACKED_VISUAL_HEIGHT}}}
 
-**Audio:** Speaker voice continues uninterrupted.
+**Audio:** Speaker voice continues.
 ```
 
-You can use familiar terms like "stacked", "PiP", "fullscreen" — they are words in your vocabulary, not code variables. But ALWAYS include the exact coordinates and dimensions. The executor needs numbers, not just words.
+```markdown
+## Scene 1: Hook (0s - 3.3s)
+**Display Mode: overlay**
+
+Speaker fills entire frame. Bold kinetic typography in top safe zone, subtle accent in lower-third.
+
+**Scene files:**
+- HookTitle.tsx ({{CANVAS_WIDTH}} × {{CANVAS_HEIGHT}}) — transparent background, kinetic text in safe zones
+
+**Placement:**
+- Video: {x: 0, y: 0, width: {{CANVAS_WIDTH}}, height: {{CANVAS_HEIGHT}}} (speaker fully visible)
+- HookTitle: {x: 0, y: 0, width: {{CANVAS_WIDTH}}, height: {{CANVAS_HEIGHT}}} (transparent overlay)
+
+**Audio:** Speaker voice begins immediately.
+```
+
+```markdown
+## Scene 3: The Reveal (17.7s - 29.2s)
+**Display Mode: fullscreen**
+
+Speaker hidden. Full-canvas dramatic comparison animation.
+
+**Scene files:**
+- TruthReveal.tsx ({{CANVAS_WIDTH}} × {{CANVAS_HEIGHT}}) — split comparison with shape morph
+
+**Placement:**
+- Video: **HIDDEN**
+- TruthReveal: {x: 0, y: 0, width: {{CANVAS_WIDTH}}, height: {{CANVAS_HEIGHT}}}
+
+**Audio:** Speaker voice continues (audio only).
+```
+
+Always include exact coordinates and dimensions. The executor needs numbers, not just descriptive terms.
 
 ### When there's no brief
 
 If the user says "just make it" or gives no layout guidance, design the layout yourself:
 
-1. Read head tracking → find safe animation zones
+1. Read head tracking → find safe zones for overlay content
 2. Read transcript → identify emotional arc, key moments, content type
 3. Read assets → note dimensions, what they depict
-4. Apply content type heuristics:
-   - **Ad:** Speaker prominent. Overlay-style for most beats. Fullscreen animations for hook and dramatic reveals.
-   - **Educational:** Visuals prominent. Speaker in bottom 40%. Animations fill top 60%.
-   - **Brand story:** Alternate between speaker-prominent and visual-prominent based on emotional beats.
-5. Design layout with variety — don't use the same arrangement for every scene.
+4. Assign display modes using the content type mix table above
+5. **Verify variety** — no 3 consecutive same-mode scenes, at least 2-3 different modes used
 
 ---
 
@@ -572,6 +626,7 @@ These rules are enforced programmatically. Your plan WILL be rejected if it viol
 12. Audio instructions specified for every scene
 13. **Hook (Beat 1) has speaker visible**
 14. **At least 60% of beats are type `animation`**
+15. **Every scene specifies a display mode (stacked, overlay, or fullscreen)**
 
 ---
 
@@ -596,7 +651,7 @@ Before writing SCENE_PLAN.md, include this completed table:
 | Scene file dimensions match their placement region? | | |
 | Speaker face not obscured by animation placement (check head tracking)? | | |
 | Audio instructions specified for every scene? | | |
-| No two adjacent scenes have identical layout? | | |
+| Display mode specified for every scene? | | |
 | Technique variety: no two adjacent beats share same technique? | | |
 | Motion emphasis: ≥60% of beats are type animation? | | |
 | Scene names: animation beats have meaningful PascalCase sceneFile? | | |
