@@ -178,11 +178,12 @@ export const sandboxSessions = pgTable('sandbox_sessions', {
   backupId: varchar('backup_id', { length: 255 }),
   sandboxSecret: varchar('sandbox_secret', { length: 255 }).notNull(),
   internalUrl: varchar('internal_url', { length: 512 }),
-  sandboxPort: integer('sandbox_port'),
+  agentUrl: varchar('agent_url', { length: 512 }),
   provider: varchar('provider', { length: 20 }).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   lastActivityAt: timestamp('last_activity_at').defaultNow().notNull(),
   suspendedAt: timestamp('suspended_at'),
+  suspendReason: varchar('suspend_reason', { length: 50 }), // 'idle' | 'user' | 'health_failure' | 'limit_exceeded' | 'api_shutdown'
   metadata: jsonb('metadata').default({}).$type<Record<string, unknown>>(),
 });
 
