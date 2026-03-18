@@ -7,7 +7,7 @@ export interface ProgressState {
   detail?: string;
   updatedAt: number;
   meta?: Record<string, unknown>;
-  /** Which agent is currently working (Editor, Planner, Animator, Reviewer) */
+  /** Which agent is currently working (Trim Editor, Planner, Visual Editor, Animator, QC Reviewer) */
   agentName?: string;
   /** Which track/region is being edited (Video, Overlay, Captions, Audio) */
   trackName?: string;

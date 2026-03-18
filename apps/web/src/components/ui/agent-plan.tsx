@@ -20,10 +20,11 @@ export type { AgentPlan, AgentTask, AgentSubtask };
 
 // Agent color config — maps agent names to visual styles
 const AGENT_STYLES: Record<string, { color: string; icon: string }> = {
-  Editor:   { color: "#60a5fa", icon: "✂" },
-  Planner:  { color: "#a78bfa", icon: "◈" },
-  Animator: { color: "#34d399", icon: "◆" },
-  Reviewer: { color: "#fbbf24", icon: "◉" },
+  "Trim Editor":   { color: "#60a5fa", icon: "✂" },
+  "Visual Editor": { color: "#818cf8", icon: "✎" },
+  Planner:         { color: "#a78bfa", icon: "◈" },
+  Animator:        { color: "#34d399", icon: "◆" },
+  "QC Reviewer":   { color: "#fbbf24", icon: "◉" },
 };
 
 // Reduced motion preference (static at module level for SSR safety)

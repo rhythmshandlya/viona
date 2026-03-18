@@ -132,7 +132,7 @@ export function createMcpServers(
           phase: z.string().describe('Pipeline phase: trimming, planning, editing, generating, reviewing, assembling, complete'),
           percent: z.number().optional().describe('Optional progress percentage (ignored by frontend)'),
           message: z.string().describe('Human-readable status message (Viona-centric, no internal agent names)'),
-          agentName: z.string().optional().describe('Which agent is working: Editor, Planner, Animator, Reviewer'),
+          agentName: z.string().optional().describe('Which agent is working: Trim Editor, Planner, Visual Editor, Animator, QC Reviewer'),
           trackName: z.string().optional().describe('Which track/region is being edited: Video, Overlay, Captions, Audio'),
           estimatedTimeRemaining: z.number().optional().describe('Estimated seconds remaining for current phase'),
         },
@@ -157,7 +157,7 @@ export function createMcpServers(
             id: z.string(),
             title: z.string(),
             status: z.enum(['pending', 'running', 'complete', 'failed']),
-            agent: z.string().optional().describe('Agent handling this task: Editor, Planner, Animator, Reviewer'),
+            agent: z.string().optional().describe('Agent handling this task: Trim Editor, Planner, Visual Editor, Animator, QC Reviewer'),
             subtasks: z.array(z.object({
               id: z.string(),
               title: z.string(),

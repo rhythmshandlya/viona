@@ -17,8 +17,9 @@ RUN mkdir -p node_modules/@viona/shared && \
 
 RUN npx tsc
 
-# Copy prompt .md files (tsc only compiles .ts, not .md)
-RUN mkdir -p dist/prompts && cp src/prompts/*.md dist/prompts/
+# Copy prompt files (tsc only compiles .ts, not .md/.xml)
+RUN find src/prompts -type f \( -name '*.md' -o -name '*.xml' \) ! -name '*.old' \
+    -exec sh -c 'dest="dist/${1#src/}" && mkdir -p "$(dirname "$dest")" && cp "$1" "$dest"' _ {} \;
 
 # Copy shared prompt modules from worker (available because build context is repo root)
 COPY packages/worker/src/prompts/shared/ /app/prompts/shared/
