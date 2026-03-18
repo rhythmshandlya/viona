@@ -1,7 +1,7 @@
-import type { AgentPlan, AgentTask, AgentSubtask, ProgressPayload } from '@viona/shared/progress-types';
+import type { AgentPlan, AgentTask, AgentSubtask, ProgressPayload, ActivityState } from '@viona/shared/progress-types';
 
 /* ── Re-exports for convenience ── */
-export type { AgentPlan, AgentTask, AgentSubtask, ProgressPayload };
+export type { AgentPlan, AgentTask, AgentSubtask, ProgressPayload, ActivityState };
 
 /* ── Message Block Types ── */
 
@@ -61,19 +61,24 @@ export interface ProgressState {
   startedAt: number;
 }
 
-/* ── Agent Activity ── */
+/* ── Active Task (new resilient progress model) ── */
 
-export interface ActivityState {
+export interface ActiveTask {
+  id: string;
   agent: string;
-  action: string | null;
+  action: string;
+  target?: string;
   startedAt: number;
+  status: 'active' | 'completed';
 }
 
 /* ── Agent style config ── */
 
 export const AGENT_STYLES: Record<string, { color: string; icon: string }> = {
+  Viona:    { color: '#f472b6', icon: '✦' },
   Editor:   { color: '#60a5fa', icon: '✂' },
   Planner:  { color: '#a78bfa', icon: '◈' },
   Animator: { color: '#34d399', icon: '◆' },
   Reviewer: { color: '#fbbf24', icon: '◉' },
+  Renderer: { color: '#fb923c', icon: '▶' },
 };

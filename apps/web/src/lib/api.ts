@@ -1,4 +1,5 @@
 import { getSessionToken } from './auth';
+import type { ActiveTask } from '../features/editor-v2/components/ai-chat/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -210,6 +211,16 @@ export interface UserProject {
   durationMs: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProjectsListResponse {
+  items: UserProject[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface ProjectMediaAsset {
@@ -450,8 +461,22 @@ class ApiClient {
     });
   }
 
-  async getCurrentUserProjects(): Promise<UserProject[]> {
-    return this.request('/api/users/me/projects');
+  async getCurrentUserProjects(params?: {
+    page?: number;
+    limit?: number;
+    sortBy?: 'createdAt' | 'updatedAt' | 'title' | 'status';
+    sortOrder?: 'asc' | 'desc';
+    status?: string;
+    search?: string;
+  }): Promise<ProjectsListResponse> {
+    const searchParams = new URLSearchParams();
+    if (params) {
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined) searchParams.set(key, String(value));
+      }
+    }
+    const qs = searchParams.toString();
+    return this.request(`/api/users/me/projects${qs ? `?${qs}` : ''}`);
   }
 
   async deleteCurrentUser(): Promise<{ success: boolean; message: string }> {
@@ -550,6 +575,21 @@ class ApiClient {
         detail?: string;
       } | null;
     } | null;
+    sandboxProgress?: {
+      phase?: string;
+      message?: string;
+      agentName?: string;
+      percent?: number;
+    } | null;
+    sandboxActivity?: {
+      agent?: string;
+      action?: string;
+      phase?: string;
+      startedAt?: number;
+    } | null;
+    activeTasks: ActiveTask[];
+    busy: boolean;
+    sandboxPlan: unknown | null;
   }> {
     return this.request(`/api/projects/${projectId}/agent/conversation`);
   }
@@ -806,8 +846,18 @@ class ApiClient {
     }, 180_000);
   }
 
-  /** Get sandbox status */
-  async getSandboxStatus(projectId: string): Promise<{ status: string; previewUrl: string | null }> {
+  /** Get sandbox status (includes current agent progress from Redis for restore on reconnect) */
+  async getSandboxStatus(projectId: string): Promise<{
+    status: string;
+    previewUrl: string | null;
+    agentProgress?: { phase: string; message: string; agentName?: string } | null;
+    agentActivity?: { agent: string | null; action: string | null; phase?: string; startedAt?: number } | null;
+    agentPlan?: { title: string; tasks: unknown[] } | null;
+    busy: boolean;
+    activeTasks: ActiveTask[];
+    plan: { title: string; tasks: unknown[] } | null;
+    startedAt: number | null;
+  }> {
     return this.request(`/api/projects/${projectId}/sandbox/status`);
   }
 
