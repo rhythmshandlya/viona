@@ -9,6 +9,10 @@ import { mountOpsEndpoint } from './ops-endpoint.js';
 import { runOrchestrator, type OrchestratorRequest } from './orchestrator.js';
 import { createMcpServers } from './mcp-servers.js';
 import { renderVideo } from './tools/render-video.js';
+import {
+  startJob, getJobState, isJobBusy, onStateChange, failJob,
+} from './job-state.js';
+import { pushState, flushCallbacks } from './api-callback.js';
 
 const logger = pino({ name: 'agent-server' });
 
@@ -76,12 +80,24 @@ export function startAgentServer(port = 8081): void {
   });
 
   // Prompt endpoint — streams orchestrator output via SSE
+  // The orchestrator runs independently of the SSE connection: if the client
+  // disconnects (page refresh, tab close) the orchestrator keeps running and
+  // state is pushed to the API via callbacks.  Only /cancel stops it.
   app.post('/prompt', async (req: express.Request, res: express.Response) => {
     const body = req.body as OrchestratorRequest;
     if (!body.prompt || typeof body.prompt !== 'string') {
       res.status(400).json({ error: 'prompt is required' });
       return;
     }
+
+    // R1.6: reject if already busy
+    if (isJobBusy()) {
+      res.status(409).json({ error: 'A job is already running' });
+      return;
+    }
+
+    // Initialize ground-truth job state
+    startJob();
 
     // Set SSE headers
     res.writeHead(200, {
@@ -91,23 +107,60 @@ export function startAgentServer(port = 8081): void {
     });
 
     let eventId = 0;
+    let connectionAlive = true;
+
     const sendSSE = (event: string, data: unknown) => {
-      eventId++;
-      res.write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      if (!connectionAlive) return;
+      try {
+        eventId++;
+        res.write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      } catch {
+        connectionAlive = false;
+      }
     };
 
-    // Track current activity for stateful heartbeats
-    let currentActivity: { agent: string | null; action: string | null; phase?: string; startedAt?: number } | null = null;
+    // R1.3 / R1.4: disconnect does NOT abort the orchestrator
+    res.on('close', () => {
+      connectionAlive = false;
+      logger.info('SSE client disconnected — orchestrator continues');
+    });
+    res.on('error', () => {
+      connectionAlive = false;
+      logger.warn('SSE connection error — orchestrator continues');
+    });
 
-    // Heartbeat with activity snapshot
-    const heartbeat = setInterval(() => sendSSE('heartbeat', { activity: currentActivity }), 15000);
+    // R5.1: Heartbeat with activeTasks snapshot
+    const heartbeat = setInterval(() => {
+      const state = getJobState();
+      sendSSE('heartbeat', {
+        activeTasks: state?.activeTasks.filter(t => t.status === 'active') ?? [],
+        busy: state?.isBusy ?? false,
+      });
+    }, 15000);
 
-    // Wire cancellation to connection close — use res.on('close') not req.on('close')
-    // because Express 4.x fires req 'close' when the request body finishes reading
-    // (immediately for POST), not when the client disconnects.
+    // R1.5: AbortController only triggered by /cancel
     const abortController = new AbortController();
     currentAbortController = abortController;
-    res.on('close', () => abortController.abort());
+
+    // Wire job-state changes → SSE stream + API callback
+    const unsubscribe = onStateChange((type, data) => {
+      // Push to API regardless of SSE connection
+      pushState(type, data);
+
+      // Stream to connected SSE client
+      sendSSE(type, data);
+
+      // R5.4: Backward-compatible progress/activity events
+      if (type === 'task_started') {
+        const task = data as { agent: string; action: string; phase?: string; startedAt?: number };
+        sendSSE('activity', { agent: task.agent, action: task.action, phase: task.phase, startedAt: task.startedAt });
+        sendSSE('progress', { phase: task.action, percent: -1, message: `${task.agent}: ${task.action}` });
+      } else if (type === 'task_updated') {
+        const update = data as { id: string; action: string };
+        sendSSE('activity', { agent: null, action: update.action });
+        sendSSE('progress', { phase: update.action, percent: -1, message: update.action });
+      }
+    });
 
     const mcpServers = createMcpServers({
       onWidget: (widget) => sendSSE('widget', widget),
@@ -121,42 +174,56 @@ export function startAgentServer(port = 8081): void {
         onWidget: (widget) => sendSSE('widget', widget),
         onProgress: (progress) => sendSSE('progress', progress),
         onActivity: (activity) => {
-          currentActivity = activity.agent ? activity : null;
           sendSSE('activity', activity);
         },
         onDone: async (result) => {
-          currentActivity = null;
           sendSSE('done', result);
           await checkpoint();
         },
         onError: (error) => {
-          currentActivity = null;
           sendSSE('error', { message: error });
         },
         signal: abortController.signal,
       }, mcpServers);
     } catch (err) {
-      currentActivity = null;
-      sendSSE('error', { message: err instanceof Error ? err.message : 'Internal error' });
+      const msg = err instanceof Error ? err.message : 'Internal error';
+      sendSSE('error', { message: msg });
+      failJob(msg);
     } finally {
       clearInterval(heartbeat);
+      unsubscribe();
+      flushCallbacks();
       currentAbortController = null;
-      res.end();
+
+      // Safely close SSE if client is still connected
+      if (connectionAlive) {
+        try { res.end(); } catch { /* already closed */ }
+      }
     }
   });
 
-  // Cancel endpoint — aborts the current orchestrator run
+  // Cancel endpoint — the ONLY way to stop a running orchestrator (R1.5)
   app.post('/cancel', (_req, res) => {
     if (currentAbortController) {
       currentAbortController.abort();
+      failJob('Cancelled by user');
+      flushCallbacks();
+      currentAbortController = null;
     }
     res.json({ ok: true });
   });
 
-  // Status endpoint
+  // Status endpoint — R4.1: returns ground-truth job state
   app.get('/status', (_req, res) => {
+    const state = getJobState();
     res.json({
       bundleVersion: getBundleVersion(),
+      busy: state?.isBusy ?? false,
+      activeTasks: state?.activeTasks.filter(t => t.status === 'active') ?? [],
+      plan: state?.plan ?? null,
+      startedAt: state?.startedAt ?? null,
+      result: state?.result ?? null,
+      error: state?.error ?? null,
     });
   });
 
