@@ -800,32 +800,46 @@ export class SandboxManager {
       where: eq(sandboxSessions.status, 'ready'),
     });
 
-    for (const session of sessions) {
-      if (!session.internalUrl) continue;
-
-      // Check skip window (exponential backoff for known-unhealthy)
+    // Filter to sessions that need checking (skip those in backoff window)
+    const toCheck = sessions.filter(session => {
+      if (!session.internalUrl) return false;
       const tracking = this.healthFailures.get(session.id);
-      if (tracking && Date.now() < tracking.skipUntil) continue;
+      return !tracking || Date.now() >= tracking.skipUntil;
+    });
 
-      const healthy = await provider.isReady(session.internalUrl);
+    // Check in parallel batches of 20 to avoid overwhelming the network
+    const BATCH_SIZE = 20;
+    for (let i = 0; i < toCheck.length; i += BATCH_SIZE) {
+      const batch = toCheck.slice(i, i + BATCH_SIZE);
+      const results = await Promise.allSettled(
+        batch.map(async session => {
+          const healthy = await provider.isReady(session.internalUrl!);
+          return { session, healthy };
+        })
+      );
 
-      if (healthy) {
-        this.healthFailures.delete(session.id);
-      } else {
-        const current = this.healthFailures.get(session.id) || { count: 0, lastCheck: 0, skipUntil: 0 };
-        current.count++;
-        current.lastCheck = Date.now();
-        // Exponential skip: 30s, 60s, 120s, 240s cap
-        const skipMs = Math.min(30_000 * Math.pow(2, current.count - 1), 240_000);
-        current.skipUntil = Date.now() + skipMs;
-        this.healthFailures.set(session.id, current);
+      for (const result of results) {
+        if (result.status === 'rejected') continue;
+        const { session, healthy } = result.value;
 
-        if (current.count >= 3) {
-          logger.warn({ projectId: session.projectId, failures: current.count }, 'Sandbox unhealthy, suspending');
+        if (healthy) {
           this.healthFailures.delete(session.id);
-          await this.suspend(session.projectId, 'health_failure').catch(err => {
-            logger.error({ err: (err as Error).message, projectId: session.projectId }, 'Auto-suspend failed');
-          });
+        } else {
+          const current = this.healthFailures.get(session.id) || { count: 0, lastCheck: 0, skipUntil: 0 };
+          current.count++;
+          current.lastCheck = Date.now();
+          // Exponential skip: 30s, 60s, 120s, 240s cap
+          const skipMs = Math.min(30_000 * Math.pow(2, current.count - 1), 240_000);
+          current.skipUntil = Date.now() + skipMs;
+          this.healthFailures.set(session.id, current);
+
+          if (current.count >= 3) {
+            logger.warn({ projectId: session.projectId, failures: current.count }, 'Sandbox unhealthy, suspending');
+            this.healthFailures.delete(session.id);
+            await this.suspend(session.projectId, 'health_failure').catch(err => {
+              logger.error({ err: (err as Error).message, projectId: session.projectId }, 'Auto-suspend failed');
+            });
+          }
         }
       }
     }
