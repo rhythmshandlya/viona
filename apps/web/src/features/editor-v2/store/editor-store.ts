@@ -195,6 +195,7 @@ const initialState: EditorState = {
 
   // Agent activity
   agentActivity: null,
+  agentBusy: false,
 
   // Transition picker
   transitionPickerItemId: null,
@@ -757,11 +758,17 @@ export const useEditorStore = create<EditorStore>()(
           visualMeta: (apiProject as any).visualMeta,
         });
 
-        // Set same-origin thumbnailSrc on video items for timeline thumbnail extraction
+        // Set same-origin proxy URLs on media items for timeline rendering (avoids CORS / relative path issues)
+        const publicBaseUrl = `/api/projects/${projectId}/sandbox/public`;
         for (const itemId of bridgeResult.itemIds) {
           const item = bridgeResult.items[itemId];
           if (item?.type === 'video') {
             (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
+          } else if (item?.type === 'audio') {
+            const audioData = item.data as AudioItemData;
+            if (audioData.src) {
+              audioData.browserSrc = `${publicBaseUrl}/${audioData.src}`;
+            }
           }
         }
 
@@ -2562,6 +2569,12 @@ export const useEditorStore = create<EditorStore>()(
     setAgentActivity: (activity) => {
       set((state) => {
         state.agentActivity = activity;
+      });
+    },
+
+    setAgentBusy: (busy) => {
+      set((state) => {
+        state.agentBusy = busy;
       });
     },
 

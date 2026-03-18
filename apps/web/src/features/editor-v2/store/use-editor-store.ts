@@ -296,6 +296,14 @@ export function usePendingAIMessage() {
   return useEditorStore((state) => state.pendingAIMessage);
 }
 
+export function useAgentActivity() {
+  return useEditorStore((state) => state.agentActivity);
+}
+
+export function useAgentBusy() {
+  return useEditorStore((state) => state.agentBusy);
+}
+
 export function useTransitionPickerItemId() {
   return useEditorStore((state) => state.transitionPickerItemId);
 }

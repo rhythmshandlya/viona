@@ -85,6 +85,7 @@ export interface AudioItemData {
   waveformData?: number[];
   enhancementStatus?: 'idle' | 'processing' | 'complete' | 'error';
   enhancementProgress?: number;
+  browserSrc?: string; // Same-origin proxy URL for waveform decoding (avoids CORS / relative path issues)
 }
 
 export interface CaptionItemData {
@@ -665,6 +666,12 @@ export interface EditorState {
   // Pending AI message (auto-sent by AI panel, e.g. from "Change & AI Adapt")
   pendingAIMessage: string | null;
 
+  // Agent activity state (surfaced from AIAssistantPanel for global visibility)
+  agentActivity: { agent: string; action: string | null; startedAt: number } | null;
+
+  // Whether the agent is busy (true while activeTasks are running)
+  agentBusy: boolean;
+
   // Transition picker (set when user triggers "Change Transition" from context menu)
   transitionPickerItemId: string | null;
 
@@ -792,6 +799,10 @@ export interface EditorActions {
 
   // Pending AI message
   setPendingAIMessage: (message: string | null) => void;
+
+  // Agent activity (global visibility)
+  setAgentActivity: (activity: { agent: string; action: string | null; startedAt: number } | null) => void;
+  setAgentBusy: (busy: boolean) => void;
 
   // Transition picker
   openTransitionPicker: (itemId: string) => void;

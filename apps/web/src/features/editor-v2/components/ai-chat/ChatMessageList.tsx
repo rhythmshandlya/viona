@@ -1,18 +1,21 @@
 'use client';
 
-import React, { memo, useRef, useEffect } from 'react';
-import type { Message, TextBlock, WidgetBlock, PlanBlock, ProgressState } from './types';
+import React, { memo } from 'react';
+import type { Message, TextBlock, WidgetBlock, PlanBlock, ActiveTask } from './types';
 import { ChatBubble } from './ChatBubble';
 import { WidgetRenderer } from './WidgetRenderer';
 import { AgentPlanWidget } from './AgentPlanWidget';
-import { ProgressIndicator } from './ProgressIndicator';
+import { ActiveTaskList } from './ActiveTaskList';
 
 interface ChatMessageListProps {
   messages: Message[];
   isStreaming: boolean;
-  currentProgress: ProgressState | null;
+  /** True only while text events are actively arriving (goes false ~500ms after last text). */
+  isTextActive: boolean;
+  activeTasks: ActiveTask[];
+  busy: boolean;
   onWidgetResponse: (widgetId: string, value: unknown) => void;
-  onEditScene?: (sceneIndex: number, sceneTitle: string) => void;
+  onEditScene?: (sceneIndex: number, sceneTitle: string, planJobId: string) => void;
   onScenesUpdate?: (planJobId: string, scenes: unknown[]) => void | Promise<void>;
 }
 
@@ -21,21 +24,22 @@ function renderMessageBlocks(
   msg: Message,
   isLastMessage: boolean,
   isStreaming: boolean,
+  isTextActive: boolean,
   onWidgetResponse: (widgetId: string, value: unknown) => void,
-  onEditScene?: (sceneIndex: number, sceneTitle: string) => void,
+  onEditScene?: (sceneIndex: number, sceneTitle: string, planJobId: string) => void,
   onScenesUpdate?: (planJobId: string, scenes: unknown[]) => void | Promise<void>,
 ) {
   const elements: React.ReactNode[] = [];
   let textAccum = '';
 
-  const flushText = () => {
+  const flushText = (isFinal: boolean) => {
     if (textAccum.trim()) {
       elements.push(
         <ChatBubble
           key={`text-${elements.length}`}
           role={msg.role}
           text={textAccum}
-          isStreaming={isLastMessage && isStreaming && msg.role === 'assistant'}
+          isStreaming={isFinal && isLastMessage && isTextActive && msg.role === 'assistant'}
         />,
       );
     }
@@ -46,7 +50,7 @@ function renderMessageBlocks(
     if (block.type === 'text' && !(block as TextBlock).hidden) {
       textAccum += (textAccum ? '\n' : '') + (block as TextBlock).text;
     } else if (block.type === 'widget') {
-      flushText();
+      flushText(false);
       elements.push(
         <WidgetRenderer
           key={`widget-${(block as WidgetBlock).widget.id}`}
@@ -58,7 +62,7 @@ function renderMessageBlocks(
         />,
       );
     } else if (block.type === 'plan') {
-      flushText();
+      flushText(false);
       elements.push(
         <AgentPlanWidget
           key={`plan-${elements.length}`}
@@ -69,57 +73,56 @@ function renderMessageBlocks(
     // 'progress' blocks (deprecated) are silently skipped
   }
 
-  flushText();
+  flushText(true);
   return elements;
 }
 
+/**
+ * Renders the message list and inline active task list.
+ * Does NOT own scrolling — the parent container handles scroll tracking.
+ */
 export const ChatMessageList = memo(function ChatMessageList({
   messages,
   isStreaming,
-  currentProgress,
+  isTextActive,
+  activeTasks,
+  busy,
   onWidgetResponse,
   onEditScene,
   onScenesUpdate,
 }: ChatMessageListProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom on new messages or streaming
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    // Only auto-scroll if user is near bottom (within 120px)
-    const isNearBottom =
-      container.scrollHeight - container.scrollTop - container.clientHeight < 120;
-    if (isNearBottom) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, isStreaming, currentProgress]);
-
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
-      {messages.map((msg, i) => (
-        <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : ''}>
-          <div className={msg.role === 'user' ? 'max-w-[85%]' : 'w-full space-y-2'}>
-            {renderMessageBlocks(
-              msg,
-              i === messages.length - 1,
-              isStreaming,
-              onWidgetResponse,
-              onEditScene,
-              onScenesUpdate,
-            )}
+    <>
+      {messages
+        .filter((m) => m.content.length > 0 || m.role === 'assistant')
+        .map((msg, i, filtered) => (
+          <div key={msg.id} className={msg.role === 'user' ? 'flex justify-end' : ''}>
+            <div className={msg.role === 'user' ? 'max-w-[85%]' : 'w-full space-y-2'}>
+              {/* Empty assistant placeholder — streaming dots (hidden when tasks are showing) */}
+              {msg.role === 'assistant' && msg.content.length === 0 && i === filtered.length - 1 && isStreaming && !busy && (
+                <div className="w-fit bg-[var(--chat-bubble-assistant-bg)] border border-[var(--chat-bubble-assistant-border)] rounded-2xl rounded-bl-md px-3 py-2 backdrop-blur-xl">
+                  <div className="flex gap-1">
+                    <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-1.5 h-1.5 bg-[var(--editor-accent)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                </div>
+              )}
+              {renderMessageBlocks(
+                msg,
+                i === filtered.length - 1,
+                isStreaming,
+                isTextActive,
+                onWidgetResponse,
+                onEditScene,
+                onScenesUpdate,
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
 
-      {/* Inline progress indicator — shown after last message during streaming */}
-      <ProgressIndicator
-        progress={currentProgress}
-        isVisible={isStreaming && currentProgress != null}
-      />
-
-      <div ref={bottomRef} />
-    </div>
+      {/* Active task list — replaces the old ProgressIndicator */}
+      <ActiveTaskList tasks={activeTasks} busy={busy} isVisible={isStreaming} />
+    </>
   );
 });
