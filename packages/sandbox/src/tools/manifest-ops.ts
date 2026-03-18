@@ -2,6 +2,7 @@ import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { notifyManifestUpdated } from '../ws-notify.js';
+import { syncTranscript } from './transcript-sync.js';
 
 const MANIFEST_PATH = join('/workspace', 'manifest.json');
 
@@ -381,6 +382,8 @@ export const removeItemTool = {
         }
         items.splice(idx, 1);
         await writeManifest(manifest);
+        // Auto-sync transcript after remove
+        syncTranscript().catch(() => {});
         return JSON.stringify({ removed: input.itemId });
       } catch (err: any) {
         return `Failed to remove item: ${err.message}`;
@@ -446,6 +449,8 @@ export const splitItemTool = {
 
         items.push(newItem);
         await writeManifest(manifest);
+        // Auto-sync transcript after split
+        syncTranscript().catch(() => {});
         return JSON.stringify({ originalId: item.id, newId });
       } catch (err: any) {
         return `Failed to split item: ${err.message}`;

@@ -4,6 +4,8 @@ import { allManifestTools } from './tools/manifest-ops.js';
 import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js';
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
+import { analyzeTranscriptTool } from './tools/transcript-analysis.js';
+import { validateTimelineTool } from './tools/timeline-validation.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
 
 /**
@@ -172,10 +174,16 @@ export function createMcpServers(
     ],
   });
 
+  const analysisServer = createSdkMcpServer({
+    name: 'analysis',
+    tools: [wrapTool(analyzeTranscriptTool), wrapTool(validateTimelineTool)],
+  });
+
   return {
     manifest: manifestServer,
     scenes: scenesServer,
     render: renderServer,
     widgets: widgetServer,
+    analysis: analysisServer,
   };
 }
