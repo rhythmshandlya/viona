@@ -432,38 +432,47 @@ export async function agentRoutes(fastify: FastifyInstance) {
         }
       : null;
 
-    // Fallback: check Redis for sandbox pipeline progress (not BullMQ job-based)
-    let sandboxProgress: Record<string, unknown> | null = null;
-    if (!activeJob) {
-      try {
-        const cached = await redis.get(`sandbox:progress:${projectId}`);
-        if (cached) {
-          sandboxProgress = JSON.parse(cached);
-        }
-      } catch { /* ignore */ }
-    }
+    // Read active task state from Redis (populated by sandbox HTTP callbacks)
+    const [tasksRaw, busyRaw, planRaw] = await Promise.all([
+      redis.get(`sandbox:tasks:${projectId}`).catch(() => null),
+      redis.get(`sandbox:busy:${projectId}`).catch(() => null),
+      redis.get(`sandbox:plan:${projectId}`).catch(() => null),
+    ]);
 
-    let sandboxActivity: Record<string, unknown> | null = null;
-    if (!activeJob) {
-      try {
-        const cachedActivity = await redis.get(`sandbox:activity:${projectId}`);
-        if (cachedActivity) sandboxActivity = JSON.parse(cachedActivity);
-      } catch { /* ignore */ }
-    }
+    let activeTasks: unknown[] = [];
+    let busy = false;
+    if (tasksRaw) try { activeTasks = JSON.parse(tasksRaw); } catch { /* ignore */ }
+    if (busyRaw) try { busy = JSON.parse(busyRaw).busy; } catch { /* ignore */ }
 
     let sandboxPlan: Record<string, unknown> | null = null;
-    if (!activeJob) {
-      try {
-        const cachedPlan = await redis.get(`sandbox:plan:${projectId}`);
-        if (cachedPlan) sandboxPlan = JSON.parse(cachedPlan);
-      } catch { /* ignore */ }
-    }
+    if (planRaw) try { sandboxPlan = JSON.parse(planRaw); } catch { /* ignore */ }
+
+    // Backward compat: keep sandboxProgress/sandboxActivity as null
+    const sandboxProgress = null;
+    const sandboxActivity = null;
 
     if (!data) {
-      return reply.send({ conversationId: null, messages: [], activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined, sandboxActivity: sandboxActivity ?? undefined, sandboxPlan: sandboxPlan ?? undefined });
+      return reply.send({
+        conversationId: null,
+        messages: [],
+        activeJob: jobPayload,
+        activeTasks,
+        busy,
+        sandboxPlan: sandboxPlan ?? undefined,
+        sandboxProgress: sandboxProgress ?? undefined,
+        sandboxActivity: sandboxActivity ?? undefined,
+      });
     }
 
-    return reply.send({ ...data, activeJob: jobPayload, sandboxProgress: sandboxProgress ?? undefined, sandboxActivity: sandboxActivity ?? undefined, sandboxPlan: sandboxPlan ?? undefined });
+    return reply.send({
+      ...data,
+      activeJob: jobPayload,
+      activeTasks,
+      busy,
+      sandboxPlan: sandboxPlan ?? undefined,
+      sandboxProgress: sandboxProgress ?? undefined,
+      sandboxActivity: sandboxActivity ?? undefined,
+    });
   });
 
   // ─── DELETE /projects/:id/agent/conversation — clear conversation ────────
