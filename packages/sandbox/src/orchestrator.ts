@@ -1,18 +1,21 @@
 // packages/sandbox/src/orchestrator.ts
 //
 // Core orchestrator module for the sandbox. Builds SDK query options with
-// subagent definitions (5 agents: Trim Editor, Planner, Visual Editor, Animator, QC Reviewer),
-// manages session resume, and streams events back to the caller via callbacks.
+// subagent definitions (6 agents: Trim Editor, Planner, Setup Agent,
+// Layout Editor, Animator, Final Editor), manages session resume,
+// and streams events back to the caller via callbacks.
 //
 // Pipeline phases:
-// 1. Brainstorming — Viona + user
-// 2. Transcript Cleanup — Editor (trim fillers, silences, add captions)
-// 3. Planning — Planner (scene-by-scene plan with research)
-// 4. Editor Pass 1 — rough cut + colored rect mockups
-// 5. Animation Generation — setup + parallel Animators (self-healing)
-// 6. Review — Reviewer checks each scene as it completes
-// 7. Editor Pass 2 — final assembly (replace mockups, transitions, music)
-// 8. Refinement — conversational editing via Viona
+// 1. Brief & Clarification — Viona + user
+// 2. Trimming — Trim Editor (fillers, silences, captions)
+// 3. Planning — Planner (SCENE_PLAN.md with per-scene schema)
+// 4. Setup — Setup Agent (constants, shared components)
+// 5. Layout — Layout Editor (timeline skeleton, mockups, transforms)
+// 6. Animation — Animators in PARALLEL (one per scene)
+// 7. Review — Viona renders stills, dispatches fix agents
+// 8. Final Assembly — Final Editor (replace mockups, captions, validation)
+// 9. Final Review — Viona spot-checks
+// 10. Done
 
 import { query, type SDKPartialAssistantMessage, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
@@ -131,46 +134,48 @@ const ANIMATOR_TOOL_NAMES = [
 // Maps internal MCP server names to user-facing agent/tool labels.
 
 const MCP_SERVER_LABELS: Record<string, string> = {
-  manifest: 'Visual Editor',
+  manifest: 'Editor',
   scenes: 'Animator',
   render: 'Renderer',
   widgets: 'Viona',
   assets: 'Viona',
-  viewport: 'QC Reviewer',
+  viewport: 'Viona',
   analysis: 'Viona',
   'better-icons': 'Animator',
   freepik: 'Animator',
 };
 
 const SUBAGENT_LABELS: Record<string, string> = {
-  planner: 'Planner',
   trim_editor: 'Trim Editor',
-  visual_editor: 'Visual Editor',
+  planner: 'Planner',
+  setup_agent: 'Setup Agent',
+  layout_editor: 'Layout Editor',
   animator: 'Animator',
-  qc_reviewer: 'QC Reviewer',
+  final_editor: 'Final Editor',
 };
 
 // ---- Build SDK query options ----
 
 /**
  * Load all prompt files and construct the SDK query options object,
- * including subagent (Agent tool) definitions for the 5 pipeline agents:
- * Trim Editor, Planner, Visual Editor, Animator, QC Reviewer.
+ * including subagent (Agent tool) definitions for the 6 pipeline agents:
+ * Trim Editor, Planner, Setup Agent, Layout Editor, Animator, Final Editor.
  *
- * Prompts are assembled using the new prompt-loader with research-backed
+ * Prompts are assembled using the prompt-loader with research-backed
  * order: shared modules (cacheable) → agent system → examples → context → reminder.
  */
 export async function buildOrchestratorOptions(
   ctx: PromptContext,
   mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, visualEditorPrompt, qcReviewerPrompt] =
+  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, setupAgentPrompt, layoutEditorPrompt, finalEditorPrompt] =
     await Promise.all([
       loadPrompt('orchestrator/system'),
       assembleAgentPrompt('trim-editor', ctx),
       assembleAgentPrompt('planner', ctx),
-      assembleAgentPrompt('visual-editor', ctx),
-      assembleAgentPrompt('qc-reviewer', ctx),
+      assembleAgentPrompt('setup-agent', ctx),
+      assembleAgentPrompt('layout-editor', ctx),
+      assembleAgentPrompt('final-editor', ctx),
     ]);
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
@@ -201,9 +206,8 @@ export async function buildOrchestratorOptions(
     allowDangerouslySkipPermissions: true,
     agents: {
       // ---- Trim Editor (Phase 2) ----
-      // Transcript trimming, jump cut coverage, J/L-cuts, pacing, captions.
       trim_editor: {
-        description: 'Trims transcript (fillers, silences, retakes), covers jump cuts with zoom punch-ins, applies J/L-cuts for smooth audio transitions, refines pacing, generates captions.',
+        description: 'Trims transcript (fillers, silences, retakes), covers jump cuts with zoom punch-ins, applies J/L-cuts, generates captions.',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
@@ -221,9 +225,8 @@ export async function buildOrchestratorOptions(
       },
 
       // ---- Planner (Phase 3) ----
-      // Transcript analysis, spatial layout, creative direction, display modes.
       planner: {
-        description: 'Analyzes transcript, designs spatial layout with exact coordinates, assigns display modes, creates SCENE_PLAN.md with sync points and energy arc.',
+        description: 'Analyzes transcript with editing style guide, designs spatial layout, creates SCENE_PLAN.md with per-scene entries (speaker layout, scene placement, transitions, animation brief).',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
@@ -240,40 +243,49 @@ export async function buildOrchestratorOptions(
         skills: ['editorial-planning', 'visual-treatment-guide', 'narrative-structure', 'transcript-analysis'],
       },
 
-      // ---- Visual Editor (Phases 4, 7) ----
-      // Rough cut with zoom crops, B-roll, mockup placeholders (Phase 4).
-      // Final assembly replacing mockups with scenes, transitions, caption styling (Phase 7).
-      visual_editor: {
-        description: 'Builds rough cut with zoom crops, B-roll, and mockup placeholders (Phase 4). Handles final assembly replacing mockups with scenes, transitions, caption styling (Phase 7).',
+      // ---- Setup Agent (Phase 4) ----
+      // No SCENE_TOOL_NAMES — this agent writes to src/components/ and src/constants.ts
+      // via the Write tool, NOT to src/scenes/ (that's the animators' job).
+      setup_agent: {
+        description: 'Scaffolds shared workspace code — constants.ts (theme tokens), Background.tsx, GlassCard.tsx, shared components. Must complete before animators start.',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
-          append: visualEditorPrompt,
+          append: setupAgentPrompt,
         },
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
-          ...MANIFEST_TOOL_NAMES,
-          ...SCENE_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
-          ...ASSET_TOOL_NAMES,
-          ...ICON_TOOL_NAMES,
-          ...FREEPIK_TOOL_NAMES,
-          ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
-        skills: ['cutting-and-pacing', 'transitions', 'lower-third-and-overlays', 'platform-optimization'],
+        skills: ['remotion-best-practices', 'typescript-skills'],
       },
 
-      // ---- Animator (Phase 5) ----
-      // Per-scene .tsx generation. Prompt comes from prompt-assembly.ts ONLY.
-      animator: {
-        description: 'Writes Remotion .tsx scene files. Receives per-scene prompt with dimensions, brief, sync points. Self-heals compilation errors.',
+      // ---- Layout Editor (Phase 5) ----
+      layout_editor: {
+        description: 'Builds timeline skeleton from SCENE_PLAN.md — splits video, sets speaker transforms per display mode, places mockup placeholders, creates overlay tracks, applies transitions.',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
-          // Note: The actual animator prompt is built dynamically per-scene
-          // via buildAnimatorPrompt() and passed as the dispatch message.
-          // This base prompt is a fallback / minimal context.
+          append: layoutEditorPrompt,
+        },
+        tools: [
+          'Read', 'Write', 'Glob', 'Grep', 'Bash',
+          ...MANIFEST_TOOL_NAMES,
+          ...RENDER_TOOL_NAMES,
+          ...ANALYSIS_TOOL_NAMES,
+        ],
+        model: 'opus',
+        skills: ['cutting-and-pacing', 'transitions', 'lower-third-and-overlays'],
+      },
+
+      // ---- Animator (Phase 6) ----
+      // Prompt built per-scene via buildAnimatorPrompt() — base prompt is minimal.
+      animator: {
+        description: 'Writes Remotion .tsx scene files. Receives per-scene prompt with dimensions, display mode, brief, sync points. Self-heals compilation errors.',
+        prompt: {
+          type: 'preset' as const,
+          preset: 'claude_code' as const,
           append: 'You are a Remotion motion graphics engineer. Wait for a scene assignment.',
         },
         tools: ANIMATOR_TOOL_NAMES,
@@ -281,23 +293,24 @@ export async function buildOrchestratorOptions(
         skills: ['remotion-best-practices', 'framer-motion', 'motion-one', 'video-engagement'],
       },
 
-      // ---- QC Reviewer (Phase 6, 7.5) ----
-      // Per-scene review + full-timeline verification after assembly.
-      qc_reviewer: {
-        description: 'Reviews scene screenshots + code quality. After final assembly, runs full-timeline verification (gaps, sync, transitions). Returns pass/fail with actionable feedback.',
+      // ---- Final Editor (Phase 8) ----
+      final_editor: {
+        description: 'Replaces mockup placeholders with real scene items, applies caption styling, validates all tracks (overlaps, z-order, gaps), verifies overlay placements, final quality pass.',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
-          append: qcReviewerPrompt,
+          append: finalEditorPrompt,
         },
         tools: [
-          'Read', 'Glob', 'Grep',
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
+          ...MANIFEST_TOOL_NAMES,
+          ...SCENE_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
-          ...VIEWPORT_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
           ...ANALYSIS_TOOL_NAMES,
         ],
-        model: 'sonnet',
-        skills: ['remotion-best-practices', 'motion-one', 'framer-motion'],
+        model: 'opus',
+        skills: ['cutting-and-pacing', 'transitions', 'lower-third-and-overlays', 'platform-optimization'],
       },
     },
     maxTurns: 100,
