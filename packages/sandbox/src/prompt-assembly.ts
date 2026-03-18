@@ -108,6 +108,25 @@ ${syncPointsText}
 `;
 }
 
+// ---- Coding rules (NON-NEGOTIABLE) ----
+
+const CODING_RULES = `
+<rules>
+## Remotion Coding Rules (NON-NEGOTIABLE)
+- Use \`useCurrentFrame()\` directly. NEVER subtract scene start — frames are 0-relative inside Sequence.
+- EVERY \`interpolate()\` call MUST have BOTH \`extrapolateLeft: 'clamp'\` AND \`extrapolateRight: 'clamp'\`.
+- Use \`spring()\` for entrances/exits. Minimum damping: 18. Import SPRINGS from constants.ts.
+- Stagger elements by 6+ frames minimum. NEVER animate all at once.
+- Root container: \`overflow: 'hidden'\`.
+- All sizes relative to effective width/height (EW/EH). No hardcoded pixels.
+- No \`Math.sin()\`/\`Math.cos()\` on text positions (causes jitter).
+- No CSS \`animation\` property — use Remotion \`interpolate\`/\`spring\`.
+- Scene files: \`export default\` for the component.
+- Import from \`../constants\` and \`../components/Background\`.
+- After writing, verify: \`npx tsc --noEmit\`, then \`trigger_rebuild\`, then \`render_still\` at key sync frame.
+</rules>
+`;
+
 // ---- Self-healing section ----
 
 const SELF_HEALING_RULES = `
@@ -147,27 +166,26 @@ export async function buildAnimatorPrompt(config: SceneConfig): Promise<string> 
   // Load theme content
   const themeContent = await loadThemeContent(config.theme);
 
-  // Assemble the prompt
+  // Assemble the prompt — this is the ONLY prompt source for the Animator.
+  // No separate system.md. Skills are injected via SDK skills field.
   const sections = [
-    `# Animator — Scene: ${config.sceneName}`,
+    `<role>You are a motion graphics engineer. Write one Remotion .tsx scene file based on the brief below. You decide HOW to animate — techniques, spring physics, choreography.</role>`,
     '',
     `Canvas: ${config.canvasWidth}×${config.canvasHeight} @ ${config.fps}fps`,
     '',
-    '---',
+    CODING_RULES,
     '',
     themeContent,
     '',
-    '---',
-    '',
     LAYOUT_RULES,
-    '',
-    '---',
     '',
     formatSceneBrief(config),
     '',
-    '---',
-    '',
     SELF_HEALING_RULES,
+    '',
+    `<critical_reminder>`,
+    `EVERY interpolate() needs extrapolateLeft:'clamp' AND extrapolateRight:'clamp'. Use useCurrentFrame() directly — NEVER subtract scene start. Stagger by 6+ frames. overflow:'hidden' on root.`,
+    `</critical_reminder>`,
   ];
 
   return sections.join('\n');
