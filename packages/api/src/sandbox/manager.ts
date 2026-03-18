@@ -856,15 +856,18 @@ export class SandboxManager {
     if (provider.listContainers) {
       try {
         const containers = await provider.listContainers();
-        const dbProjectIds = new Set(
-          (await db.query.sandboxSessions.findMany({
-            where: inArray(sandboxSessions.status, ['creating', 'ready']),
-            columns: { projectId: true },
-          })).map((s: { projectId: string }) => s.projectId)
-        );
+        const activeSessions = await db.query.sandboxSessions.findMany({
+          where: inArray(sandboxSessions.status, ['creating', 'ready']),
+          columns: { projectId: true, railwayServiceId: true },
+        });
+
+        // Match by full projectId (Docker labels) OR by service ID (Railway)
+        const knownProjectIds = new Set(activeSessions.map((s: any) => s.projectId));
+        const knownServiceIds = new Set(activeSessions.map((s: any) => s.railwayServiceId).filter(Boolean));
 
         for (const c of containers) {
-          if (!dbProjectIds.has(c.projectId)) {
+          const isKnown = knownProjectIds.has(c.projectId) || knownServiceIds.has(c.id);
+          if (!isKnown) {
             // Grace period: don't delete containers younger than 10 minutes
             if (Date.now() - c.createdAt < 10 * 60_000) continue;
             logger.warn({ projectId: c.projectId, containerId: c.id }, 'Orphaned container found, removing');

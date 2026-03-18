@@ -197,6 +197,40 @@ export class RailwaySandboxProvider implements SandboxProvider {
     return result.volumeInstanceBackupCreate.id;
   }
 
+  async listContainers(): Promise<Array<{ id: string; projectId: string; createdAt: number }>> {
+    // Query all services in our Railway project that match the sandbox naming convention.
+    // Railway service names are `sandbox-{projectId.slice(0,8)}` (32-char limit).
+    // We return the Railway serviceId as `id` — the GC sweep reconciles against
+    // `railwayServiceId` in the DB, not the Viona projectId.
+    const result = await railwayGql(`
+      query($projectId: String!) {
+        project(id: $projectId) {
+          services {
+            edges {
+              node {
+                id
+                name
+                createdAt
+              }
+            }
+          }
+        }
+      }
+    `, { projectId: config.sandbox.railway.projectId });
+
+    const services = result.project?.services?.edges || [];
+
+    return services
+      .filter((edge: any) => edge.node.name.startsWith('sandbox-'))
+      .map((edge: any) => ({
+        id: edge.node.id,
+        // Railway doesn't have labels — use the truncated projectId from the name.
+        // GC sweep will match by service ID against railwayServiceId in DB.
+        projectId: edge.node.name.replace('sandbox-', ''),
+        createdAt: new Date(edge.node.createdAt).getTime(),
+      }));
+  }
+
   async isReady(url: string): Promise<boolean> {
     try {
       const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
