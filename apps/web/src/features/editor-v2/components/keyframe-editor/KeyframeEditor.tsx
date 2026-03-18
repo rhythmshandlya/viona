@@ -41,7 +41,7 @@ export const KeyframeEditor: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <span
-          className="text-xs font-semibold"
+          className="text-xs font-normal"
           style={{ color: 'var(--editor-text-primary)' }}
         >
           Keyframe Editor

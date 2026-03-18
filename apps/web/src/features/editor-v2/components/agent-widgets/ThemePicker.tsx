@@ -34,7 +34,7 @@ export function ThemePicker({ onSelect, disabled, selectedValue }: ThemePickerPr
               />
             ))}
           </div>
-          <div className="text-sm font-medium text-[var(--editor-text-primary)]">{theme.label}</div>
+          <div className="text-sm font-normal text-[var(--editor-text-primary)]">{theme.label}</div>
           <div className="text-xs text-[var(--editor-text-muted)]">{theme.description}</div>
         </button>
       ))}

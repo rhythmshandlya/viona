@@ -285,7 +285,7 @@ export function Scene({ className, activePlatform, overlayMode, padding = 64 }: 
                           className="w-2.5 h-2.5 rounded-full animate-pulse"
                           style={{ backgroundColor: 'var(--editor-accent, #8b5cf6)' }}
                         />
-                        <span className="text-white text-sm font-medium">
+                        <span className="text-white text-sm font-normal">
                           {selectedElement.name}
                         </span>
                       </div>

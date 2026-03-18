@@ -25,7 +25,7 @@ export function ItemInspector() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="px-3 py-2 border-b border-[var(--editor-border-subtle)] flex-shrink-0">
-        <span className="text-xs font-semibold text-[var(--editor-text-primary)]">
+        <span className="text-xs font-normal text-[var(--editor-text-primary)]">
           {typeLabel}
         </span>
         <span className="text-xs text-[var(--editor-text-muted)] ml-1.5">

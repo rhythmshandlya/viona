@@ -37,7 +37,7 @@ interface FieldProps {
 function Field({ label, value, onChange, min, max, step = 1, unit }: FieldProps) {
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-[10px] font-medium text-zinc-400 uppercase tracking-wide">
+      <label className="text-[10px] font-normal text-zinc-400 uppercase tracking-wide">
         {label}
       </label>
       <div className="flex items-center gap-1">
@@ -109,7 +109,7 @@ export function ItemPropertiesPanel() {
 
   return (
     <div className="p-3 flex flex-col gap-3">
-      <h4 className="text-xs font-semibold text-zinc-300">Transform</h4>
+      <h4 className="text-xs font-normal text-zinc-300">Transform</h4>
       <div className="grid grid-cols-2 gap-2">
         <Field label="X" value={x} onChange={(v) => handleChange('x', v)} unit="px" />
         <Field label="Y" value={y} onChange={(v) => handleChange('y', v)} unit="px" />

@@ -1,0 +1,12 @@
+<quality_rules>
+## Non-Negotiable Rules (ALL agents)
+- ALWAYS read the manifest before making ANY edits. Never edit blind.
+- Source video is NEVER modified. All edits are manifest operations.
+- transcript.json is auto-synced after every manifest trim/split/remove. Trust it.
+- Scene files use meaningful PascalCase names (HookTitle.tsx, NOT Scene1.tsx).
+- Every interpolate() call MUST have BOTH extrapolateLeft: 'clamp' AND extrapolateRight: 'clamp'.
+- Use useCurrentFrame() directly — NEVER subtract scene start (frames are 0-relative inside Sequence).
+- Audio and video items from the same source are married — every split/trim/remove on one must be applied identically to the other.
+- After writing or modifying .tsx files, call trigger_rebuild.
+- Use render_still to verify visual changes.
+</quality_rules>

@@ -7,7 +7,7 @@ import { ScenePlanCard } from '../agent-widgets/ScenePlanCard';
 interface WidgetRendererProps {
   block: WidgetBlock;
   onWidgetResponse: (widgetId: string, value: unknown) => void;
-  onEditScene?: (sceneIndex: number, sceneTitle: string) => void;
+  onEditScene?: (sceneIndex: number, sceneTitle: string, planJobId: string) => void;
   onScenesUpdate?: (planJobId: string, scenes: unknown[]) => void | Promise<void>;
   disabled?: boolean;
 }
@@ -23,25 +23,36 @@ export const WidgetRenderer = memo(function WidgetRenderer({
   const isApproved = block.response != null;
 
   switch (widget.kind) {
-    case 'scene_plan':
+    case 'scene_plan': {
+      const planJobId = widget.planJobId || '';
+      const approvedValue = isApproved && typeof block.response === 'object' && block.response !== null && 'approved' in (block.response as Record<string, unknown>)
+        ? (block.response as { approved: boolean }).approved
+        : undefined;
       return (
         <div className="w-full my-2">
           <ScenePlanCard
             scenes={(widget.scenes as any[]) ?? []}
             scenePlanMarkdown={widget.scenePlanMarkdown as string | undefined}
             metadata={widget.metadata as any}
-            planJobId={widget.planJobId}
+            planJobId={planJobId}
             onApprove={(iconSelections) =>
-              onWidgetResponse(widget.id, { approved: true, iconSelections })
+              onWidgetResponse(widget.id, {
+                approved: true,
+                planJobId,
+                ...(iconSelections ? { selectedIcons: iconSelections } : {}),
+              })
             }
-            onReject={() => onWidgetResponse(widget.id, { approved: false })}
-            onEditScene={onEditScene}
+            onReject={() => onWidgetResponse(widget.id, { approved: false, planJobId })}
+            onEditScene={onEditScene
+              ? (sceneIndex: number, sceneTitle: string) => onEditScene(sceneIndex, sceneTitle, planJobId)
+              : undefined}
             onScenesUpdate={onScenesUpdate}
             disabled={disabled || isApproved}
-            approved={isApproved}
+            approved={approvedValue}
           />
         </div>
       );
+    }
 
     case 'choice':
       return (

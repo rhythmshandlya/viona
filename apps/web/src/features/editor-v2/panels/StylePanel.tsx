@@ -290,7 +290,7 @@ export function StylePanel() {
             <button
               key={tab.id}
               onClick={() => setTopTab(tab.id)}
-              className={`flex-1 px-2 py-1.5 text-[11px] font-medium rounded transition-all ${
+              className={`flex-1 px-2 py-1.5 text-[11px] font-normal rounded transition-all ${
                 topTab === tab.id
                   ? 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)] shadow-sm'
                   : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'
@@ -315,7 +315,7 @@ export function StylePanel() {
                   <button
                     key={cat.id}
                     onClick={() => setActiveTab(cat.id)}
-                    className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-all ${
+                    className={`flex-1 px-3 py-1.5 text-xs font-normal rounded transition-all ${
                       activeTab === cat.id
                         ? 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)] shadow-sm'
                         : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'
@@ -451,7 +451,7 @@ export function StylePanel() {
             {/* Colors Section */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+                <label className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
                   Colors
                 </label>
                 {videoUrl && (
@@ -684,7 +684,7 @@ export function StylePanel() {
                   <button
                     key={presetId}
                     onClick={() => customizeStyle({ effects: EFFECT_PRESETS[presetId] })}
-                    className="flex-1 px-2 py-1.5 text-[10px] font-medium rounded
+                    className="flex-1 px-2 py-1.5 text-[10px] font-normal rounded
                                bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)]
                                hover:bg-[var(--editor-bg-surface)] hover:text-[var(--editor-text-primary)]
                                transition-colors capitalize"
@@ -1114,7 +1114,7 @@ function PositionTab({
   return (
     <div className="px-4 py-3 space-y-4">
       <div className="flex items-center justify-between">
-        <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+        <label className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
           Position
         </label>
         <button
@@ -1314,7 +1314,7 @@ function PositionTab({
             <button
               key={sp.label}
               onClick={() => customizeStyle({ fontSize: sp.size })}
-              className={`flex-1 px-2 py-1.5 text-xs font-medium rounded transition-all ${
+              className={`flex-1 px-2 py-1.5 text-xs font-normal rounded transition-all ${
                 style.fontSize === sp.size
                   ? 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)] shadow-sm'
                   : 'bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'
@@ -1374,7 +1374,7 @@ function PositionTab({
 
       {/* Safe Zone Section */}
       <div className="space-y-3">
-        <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+        <label className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
           Safe Zone Guide
         </label>
 
@@ -1423,7 +1423,7 @@ function Section({
 }) {
   return (
     <div className={`space-y-2 ${className ?? ''}`}>
-      <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+      <label className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
         {label}
       </label>
       {children}
@@ -1460,7 +1460,7 @@ function SegmentedControl({
         <button
           key={option.value}
           onClick={() => onChange(option.value)}
-          className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-all ${
+          className={`flex-1 px-3 py-1.5 text-xs font-normal rounded transition-all ${
             value === option.value
               ? 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)] shadow-sm'
               : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'

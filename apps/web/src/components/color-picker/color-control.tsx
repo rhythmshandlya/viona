@@ -86,7 +86,7 @@ const InputRgba: FC<TProps> = ({
     >
       <div className="relative">
         <Popover>
-          <PopoverTrigger className="absolute left-3 top-0 flex h-full items-center gap-1 border-r border-black/15 pr-2 text-sm font-medium">
+          <PopoverTrigger className="absolute left-3 top-0 flex h-full items-center gap-1 border-r border-black/15 pr-2 text-sm font-normal">
             Hex
             <svg
               fill="none"

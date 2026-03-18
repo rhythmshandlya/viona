@@ -24,19 +24,21 @@ export class AudioRenderer extends BaseRenderer {
     const { x, y, width, height } = rect;
     const cache = getWaveformCache();
 
-    // Draw waveform
+    // Draw waveform — use browserSrc (proxy URL) for fetching, fall back to raw src for cache key
+    const fetchSrc = data.browserSrc || data.src;
     const waveform = data.waveformData
       ? new Float32Array(data.waveformData)
-      : cache.getWaveform(data.src);
+      : cache.getWaveform(fetchSrc);
 
-    const isLoading = !waveform && !!data.src;
+    const isFailed = fetchSrc ? cache.hasFailed(fetchSrc) : false;
+    const isLoading = !waveform && !!fetchSrc && !isFailed;
 
     if (waveform && waveform.length > 0) {
       this.drawWaveform(ctx, waveform, x, y, width, height);
     } else {
       this.drawFakeWaveform(ctx, x, y, width, height, isLoading);
-      if (data.src) {
-        cache.requestWaveform(data.src, this.requestRedraw);
+      if (fetchSrc && !isFailed) {
+        cache.requestWaveform(fetchSrc, this.requestRedraw);
       }
     }
 

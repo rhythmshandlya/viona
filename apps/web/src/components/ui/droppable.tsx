@@ -73,7 +73,7 @@ export function Droppable(props: DroppableProps) {
                   aria-hidden="true"
                 />
               </div>
-              <p className="font-medium text-muted-foreground">
+              <p className="font-normal text-muted-foreground">
                 Drop the files here
               </p>
             </div>

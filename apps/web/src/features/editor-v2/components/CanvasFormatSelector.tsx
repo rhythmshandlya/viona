@@ -57,7 +57,7 @@ export function CanvasFormatSelector() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-normal
                      text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]
                      hover:bg-[var(--editor-bg-hover)] transition-colors"
           title="Canvas format"
@@ -94,7 +94,7 @@ export function CanvasFormatSelector() {
               }}
             />
             <div className="flex flex-col">
-              <span className="text-sm font-medium">
+              <span className="text-sm font-normal">
                 {format.name} ({format.aspectRatio})
               </span>
               <span className="text-xs text-[var(--editor-text-muted)]">

@@ -338,13 +338,13 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
       {/* Your Assets section */}
       <div className="border-b border-[var(--editor-border-subtle)]">
         <div className="flex items-center justify-between px-4 py-2">
-          <span className="text-xs font-medium text-[var(--editor-text-secondary)]">
+          <span className="text-xs font-normal text-[var(--editor-text-secondary)]">
             Your Assets {uploadedAssets.length > 0 && `(${uploadedAssets.length})`}
           </span>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium
+            className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-normal
                        text-[var(--editor-accent)] hover:bg-[var(--editor-accent-soft)] transition-colors
                        disabled:opacity-50"
           >
@@ -407,7 +407,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
               <button
                 onClick={handleUpload}
                 disabled={uploading}
-                className="px-2 py-1 rounded text-[10px] font-medium bg-[var(--editor-accent)]
+                className="px-2 py-1 rounded text-[10px] font-normal bg-[var(--editor-accent)]
                            text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
               >
                 {uploading ? `${uploadProgress}%` : pendingFiles.length > 1 ? `Upload (${pendingFiles.length})` : 'Upload'}
@@ -457,7 +457,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
                     <div className="text-[10px] text-[var(--editor-text-primary)] truncate">
                       {asset.label || asset.filename}
                     </div>
-                    <span className={`inline-block text-[9px] font-medium px-1 rounded ${badge.color}`}>
+                    <span className={`inline-block text-[9px] font-normal px-1 rounded ${badge.color}`}>
                       {badge.label}
                     </span>
                   </div>
@@ -537,7 +537,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
       {assets.length > 0 && (
         <>
           <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--editor-border-subtle)]">
-            <span className="text-xs font-medium text-[var(--editor-text-secondary)]">
+            <span className="text-xs font-normal text-[var(--editor-text-secondary)]">
               Scene Assets ({assets.length})
             </span>
             <button
@@ -566,7 +566,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
                         isExpanded ? 'rotate-90' : ''
                       }`}
                     />
-                    <span className="text-xs font-medium text-[var(--editor-text-primary)]">
+                    <span className="text-xs font-normal text-[var(--editor-text-primary)]">
                       {sceneName}
                     </span>
                     <span className="text-[10px] text-[var(--editor-text-muted)] ml-auto">
@@ -641,7 +641,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
         <div className="px-4 py-3 border-t border-[var(--editor-border-subtle)] bg-[var(--editor-accent)]/5 flex-shrink-0">
           <div className="text-[10px] text-[var(--editor-text-muted)] mb-1">Selected:</div>
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium text-[var(--editor-accent)]">
+            <span className="text-sm font-normal text-[var(--editor-accent)]">
               {selectedElement.name}
             </span>
             <span className="text-[10px] text-[var(--editor-text-muted)]">
@@ -654,7 +654,7 @@ export function AssetsPanel({ className = '', onEditWithAI, onYouTubeClipAdded }
                 const asset = assets.find(a => a.name === selectedElement.name && a.sceneId === selectedElement.sceneId);
                 if (asset) onEditWithAI(asset);
               }}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+              className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-normal
                          bg-[var(--editor-accent-soft)] text-[var(--editor-accent)] border border-[var(--editor-accent)]/25
                          hover:bg-[var(--editor-accent-muted)] transition-colors"
             >

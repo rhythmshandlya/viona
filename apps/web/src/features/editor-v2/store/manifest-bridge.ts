@@ -1,16 +1,11 @@
 /**
  * Manifest-Store Bridge
  *
- * Converts between @viona/shared Manifest format and the Zustand editor store format.
+ * Converts between @viona/shared Manifest (v2) format and the Zustand editor store format.
  * Used when loading workspace state from the API or applying remote manifest updates.
- *
- * Supports both v1 manifests (version: 1) and v2 manifests (version: 2).
- * v2 adds per-item transform/keyframes/filters, asset resolution, and scene/shape types.
  */
 
 import type {
-  Manifest,
-  ManifestItem,
   ManifestCaptionStyle,
 } from '@viona/shared';
 
@@ -23,12 +18,8 @@ import type {
   VideoItemData,
   AudioItemData,
   VisualItemData,
-  BrollItemData,
   TextItemData,
   ImageItemData,
-} from './types';
-
-import type {
   Transform,
   Keyframe,
   Filters,
@@ -83,24 +74,19 @@ export type StoreManifestOp =
 
 /**
  * Convert a Manifest (from @viona/shared) into the shape expected by the Zustand editor store.
- * Supports both v1 and v2 manifests — v2 detection is automatic.
  */
 export function manifestToStore(
-  manifest: any,  // Accept any — could be v1 or v2
+  manifest: any,
   context: ManifestToStoreContext,
 ): ManifestToStoreResult {
-  const isV2 = manifest.version === 2 || manifest.items?.some((i: any) => i.transform);
-
   const tracks = (manifest.tracks as any[]).map<Track>((t: any) => ({
     id: t.id,
-    type: isV2
-      ? (t.type === 'overlay' ? 'overlay' : t.type as Track['type'])
-      : (t.type === 'broll' ? 'overlay' : t.type as Track['type']),
+    type: t.type === 'overlay' ? 'overlay' : t.type as Track['type'],
     name: t.name,
     position: t.position,
     locked: false,
     visible: true,
-    height: t.type === 'video' ? 80 : t.type === 'audio' ? 36 : t.type === 'visual' ? 48 : 28,
+    height: t.type === 'video' ? 80 : t.type === 'audio' ? 36 : t.type === 'overlay' ? 48 : 28,
     collapsed: false,
   }));
 
@@ -117,28 +103,18 @@ export function manifestToStore(
   };
 
   for (const manifestItem of manifest.items) {
-    const storeItem = isV2
-      ? convertManifestItemV2(manifestItem, context, captionStyle, resolvedSrc)
-      : convertManifestItem(manifestItem as ManifestItem, context, captionStyle);
+    const storeItem = convertManifestItemV2(manifestItem, context, captionStyle, resolvedSrc);
     items[storeItem.id] = storeItem;
     itemIds.push(storeItem.id);
   }
 
-  const videoSettings: VideoSettings = isV2
-    ? {
-        canvasWidth: manifest.canvas.width,
-        canvasHeight: manifest.canvas.height,
-        cropX: 50,
-        cropY: 50,
-        scale: 1,
-      }
-    : {
-        canvasWidth: manifest.canvas.width,
-        canvasHeight: manifest.canvas.height,
-        cropX: manifest.videoSettings.cropX,
-        cropY: manifest.videoSettings.cropY,
-        scale: manifest.videoSettings.scale,
-      };
+  const videoSettings: VideoSettings = {
+    canvasWidth: manifest.canvas.width,
+    canvasHeight: manifest.canvas.height,
+    cropX: 50,
+    cropY: 50,
+    scale: 1,
+  };
 
   return {
     tracks,
@@ -162,6 +138,8 @@ export function storeToManifest(
     duration: number;
     fps: number;
     videoSettings: VideoSettings;
+    sourceWidth?: number;
+    sourceHeight?: number;
     assets?: Record<string, string>;
   },
   captionStyle: CaptionStyle,
@@ -211,8 +189,8 @@ export function storeToManifest(
       cropX: state.videoSettings.cropX,
       cropY: state.videoSettings.cropY,
       scale: state.videoSettings.scale,
-      sourceWidth: 1920,
-      sourceHeight: 1080,
+      sourceWidth: state.sourceWidth ?? state.videoSettings.canvasWidth,
+      sourceHeight: state.sourceHeight ?? state.videoSettings.canvasHeight,
     },
   };
 
@@ -239,142 +217,7 @@ export function extractCompositionId(sceneFile: string): string | undefined {
 }
 
 // ============================================
-// Internal Helpers — v1
-// ============================================
-
-function convertManifestItem(
-  item: ManifestItem,
-  context: ManifestToStoreContext,
-  captionStyle: CaptionStyle,
-): TimelineItem {
-  const base = {
-    id: item.id,
-    type: item.type as TimelineItem['type'],
-    trackId: item.trackId,
-    startMs: item.startMs,
-    endMs: item.endMs,
-  };
-
-  switch (item.type) {
-    case 'video': {
-      const d = item.data as any;
-      const data: VideoItemData = {
-        src: context.videoUrl ?? '',
-        width: 1920,
-        height: 1080,
-        volume: d.volume ?? 1,
-        playbackRate: d.playbackRate ?? 1,
-      };
-      return { ...base, data };
-    }
-
-    case 'audio': {
-      const d = item.data as any;
-      // d.src from manifest is a worker-internal path like 'source.mp4';
-      // use absolute videoUrl for the editor preview instead
-      const videoUrl = context.videoUrl ?? '';
-      const audioSrc = (d.src && /^https?:\/\//.test(d.src)) ? d.src : videoUrl;
-      const data: AudioItemData = {
-        src: audioSrc,
-        originalSrc: audioSrc,
-        enhancedSrc: d.enhancedSrc || undefined,
-        isEnhanced: !!d.enhancedSrc,
-        sourceVideoItemId: '',
-        volume: d.volume ?? 1,
-      };
-      return { ...base, data };
-    }
-
-    case 'caption': {
-      const d = item.data as any;
-      const words = (d.words || []).map((w: any) => ({
-        text: w.text,
-        // Convert absolute word timestamps to relative (matching store convention).
-        // DB/manifest stores absolute ms; the store uses relative-to-item-start.
-        startMs: w.startMs - item.startMs,
-        endMs: w.endMs - item.startMs,
-        ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
-      }));
-      const text = words.map((w: any) => w.text).join(' ');
-      const data: CaptionItemData = {
-        text,
-        words,
-        style: captionStyle,
-      };
-      return { ...base, data };
-    }
-
-    case 'visual': {
-      const d = item.data as any;
-      const meta = context.visualMeta?.[item.id];
-      const sceneId = extractSceneId(d.sceneFile || '');
-      const data: VisualItemData = {
-        visualId: item.id,
-        compositionId: meta?.compositionId || context.compositionId,
-        bundleUrl: meta?.bundleUrl || context.bundleUrl,
-        videoUrl: context.videoUrl,
-        type: 'visual',
-        description: '',
-        width: 1920,
-        height: 1080,
-        fps: 30,
-        sourceSceneId: sceneId,
-        transition: d.transition,
-        speakerBbox: d.speakerBbox,
-      };
-      return { ...base, data };
-    }
-
-    case 'broll': {
-      const d = item.data as any;
-      const data: BrollItemData = {
-        sourceType: d.sourceType || 'upload',
-        src: d.src || '',
-        filename: d.filename,
-        photographer: d.photographer,
-        previewUrl: d.previewUrl,
-        volume: d.volume ?? 1,
-      };
-      return { ...base, data };
-    }
-
-    case 'text': {
-      const d = item.data as any;
-      const data: TextItemData = {
-        text: d.text || '',
-        style: d.style || {
-          fontFamily: 'Inter, system-ui, sans-serif',
-          fontSize: 48,
-          fontWeight: 600,
-          color: '#ffffff',
-          textAlign: 'center' as const,
-        },
-        position: d.position || { x: 0, y: 0 },
-        size: d.size || { width: 400, height: 100 },
-      };
-      return { ...base, data };
-    }
-
-    case 'image': {
-      const d = item.data as any;
-      const data: ImageItemData = {
-        src: d.src || '',
-        width: d.width || 400,
-        height: d.height || 300,
-        position: d.position || { x: 0, y: 0 },
-        opacity: d.opacity ?? 1,
-      };
-      return { ...base, data };
-    }
-
-    default:
-      // Fallback — should not happen with well-formed manifests
-      return { ...base, data: item.data as any };
-  }
-}
-
-// ============================================
-// Internal Helpers — v2
+// Internal Helpers — manifest to store
 // ============================================
 
 function convertManifestItemV2(
@@ -577,7 +420,6 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
     case 'scene': {
       const result: Record<string, unknown> = {
         sceneFile: d.sourceSceneId != null ? `scenes/Scene${d.sourceSceneId}.tsx` : '',
-        frameOffset: 0,
       };
       if (d.transition) result.transition = d.transition;
       if (d.speakerBbox) result.speakerBbox = d.speakerBbox;

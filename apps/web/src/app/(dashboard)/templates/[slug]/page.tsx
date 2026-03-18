@@ -58,6 +58,9 @@ export default function TemplateDetailPage() {
     error: bundleError,
   } = useTemplateBundle(template?.bundleUrl ?? null);
 
+  // Only render the Player once props have been populated from defaultProps
+  const propsReady = Object.keys(props).length > 0;
+
   // Cleanup poll on unmount
   useEffect(() => {
     return () => {
@@ -140,7 +143,7 @@ export default function TemplateDetailPage() {
       <div className="max-w-[1400px] mx-auto">
         {/* Back link */}
         <button
-          onClick={() => router.push("/projects?tab=templates")}
+          onClick={() => router.push("/templates")}
           className="flex items-center gap-2 text-sm text-white/40 hover:text-white/70 transition-colors mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -189,10 +192,10 @@ export default function TemplateDetailPage() {
                   </div>
                 </div>
               )}
-              {Component && !bundleLoading && !bundleError && (
+              {Component && propsReady && !bundleLoading && !bundleError && (
                 <Player
                   component={Component}
-                  inputProps={{ ...props, assetBaseUrl: template.assetBaseUrl }}
+                  inputProps={{ ...(template.defaultProps || {}), ...props, assetBaseUrl: template.assetBaseUrl }}
                   durationInFrames={template.durationFrames || 150}
                   compositionWidth={template.width}
                   compositionHeight={template.height}
@@ -227,6 +230,8 @@ export default function TemplateDetailPage() {
                     type?: string;
                     properties?: Record<string, any>;
                     required?: string[];
+                    $ref?: string;
+                    definitions?: Record<string, any>;
                   }) || {}
                 }
                 values={props}

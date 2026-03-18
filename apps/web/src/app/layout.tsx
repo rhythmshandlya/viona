@@ -1,4 +1,4 @@
-import { Geist_Mono, Geist, Inter } from "next/font/google";
+import { Geist_Mono, Geist, Inter, Sora } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { baseUrl, createMetadata } from "@/utils/metadata";
 import {
@@ -29,6 +29,12 @@ const inter = Inter({
   weight: ["300", "400", "500", "600", "700"]
 });
 
+const sora = Sora({
+  variable: "--font-sora",
+  subsets: ["latin"],
+  weight: ["300", "400", "500"]
+});
+
 // Prevent static prerendering — all pages require StytchProvider at runtime
 export const dynamic = "force-dynamic";
 
@@ -49,7 +55,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistMono.variable} ${geist.variable} ${inter.variable} antialiased font-sans bg-background text-foreground`}
+        className={`${geistMono.variable} ${geist.variable} ${inter.variable} ${sora.variable} antialiased font-sans bg-background`}
         suppressHydrationWarning
       >
         <StytchProvider>

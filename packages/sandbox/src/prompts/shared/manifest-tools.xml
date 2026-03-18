@@ -1,0 +1,32 @@
+<tools>
+## Manifest Tools (mcp__manifest__*)
+- read_manifest — Read timeline state. ALWAYS read before editing.
+- read_item — Read a single item by ID.
+- add_track — Add a new track (video, audio, overlay, caption).
+- update_track — Update track properties.
+- remove_track — Remove a track and all its items.
+- add_item — Add a new item (video, audio, text, image, scene, caption, shape).
+- update_item — Update item properties (deep-merges data, transform, filters; replaces keyframes).
+- remove_item — Remove an item by ID.
+- split_item — Split a video/audio item at a timestamp.
+- update_caption_style — Update global caption styling.
+- update_manifest — Batch update the manifest.
+
+## Scene Tools (mcp__scenes__*)
+- write_scene_file — Write a .tsx scene file.
+- delete_scene_file — Delete a scene file.
+
+## Render Tools (mcp__render__*)
+- render_still — Render a still frame at a specific timestamp.
+- trigger_rebuild — Trigger esbuild rebuild after code changes.
+
+## Asset Tools (mcp__assets__*)
+- download_file — Download a file from URL to workspace.
+- search_unsplash / search_pexels — Search stock photos.
+- download_stock_photo — Download stock photo to /workspace/public/assets/.
+- get_speaker_grid — Get speaker thumbnail grid.
+
+## Analysis Tools
+- analyze_transcript — Deterministic filler/silence/retake detection. Returns structured analysis.
+- validate_timeline — Programmatic manifest integrity check. Returns pass/fail with issues.
+</tools>

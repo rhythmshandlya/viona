@@ -1175,3 +1175,12 @@ input[type="number"]::-webkit-outer-spin-button {
 .stagger-4 { animation-delay: 200ms; }
 .stagger-5 { animation-delay: 250ms; }
 .stagger-6 { animation-delay: 300ms; }
+
+/* AI thinking shimmer text */
+@keyframes shimmer-text {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.animate-shimmer-text {
+  animation: shimmer-text 5s linear infinite;
+}

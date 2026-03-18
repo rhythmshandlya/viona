@@ -143,7 +143,7 @@ export function JobLogsPanel({
         <div className="h-8 flex items-center justify-between px-3">
           <div className="flex items-center gap-2">
             <Terminal className="w-3.5 h-3.5 text-[var(--editor-text-muted)]" />
-            <span className="text-xs font-medium text-[var(--editor-text-secondary)]">
+            <span className="text-xs font-normal text-[var(--editor-text-secondary)]">
               Agent Logs
             </span>
             {isSubscribed && (

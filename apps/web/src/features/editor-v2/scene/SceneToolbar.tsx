@@ -99,7 +99,7 @@ export function SceneToolbar({
             <button
               type="button"
               onClick={() => onModeChange('mockup')}
-              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+              className={`px-2 py-0.5 rounded text-[10px] font-normal transition-colors ${
                 overlayMode === 'mockup'
                   ? 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)]'
                   : 'text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]'
@@ -110,7 +110,7 @@ export function SceneToolbar({
             <button
               type="button"
               onClick={() => onModeChange('safezones')}
-              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+              className={`px-2 py-0.5 rounded text-[10px] font-normal transition-colors ${
                 overlayMode === 'safezones'
                   ? 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)]'
                   : 'text-[var(--editor-text-muted)] hover:text-[var(--editor-text-secondary)]'

@@ -79,7 +79,7 @@ function CaptionStylePanel() {
     <div className="p-4 space-y-6">
       {/* Apply to All Toggle */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+        <span className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
           Apply to all
         </span>
         <button
@@ -159,7 +159,7 @@ function CaptionStylePanel() {
                 }`}
               >
                 <div
-                  className="text-sm font-bold truncate"
+                  className="text-sm font-normal truncate"
                   style={{
                     color: preset.activeColor,
                     textShadow: preset.textShadow,
@@ -280,7 +280,7 @@ function CaptionStylePanel() {
 
       {/* Text Stroke */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+        <span className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
           Stroke
         </span>
         <button
@@ -443,7 +443,7 @@ function AudioPanel() {
         {isComplete && (
           <button
             onClick={() => toggleEnhancement(audioItem.id)}
-            className={`w-full py-2 px-3 text-sm font-medium rounded-md transition-all ${
+            className={`w-full py-2 px-3 text-sm font-normal rounded-md transition-all ${
               data.isEnhanced
                 ? 'bg-[var(--editor-accent)] text-white'
                 : 'bg-[var(--editor-bg-elevated)] text-[var(--editor-text-secondary)] border border-[var(--editor-border-default)]'
@@ -648,7 +648,7 @@ function VisualPropertiesPanel() {
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <label className="text-xs font-medium text-[var(--editor-text-secondary)] uppercase tracking-wide">
+      <label className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
         {label}
       </label>
       {children}
@@ -680,7 +680,7 @@ function SegmentedControl({
         <button
           key={option.value}
           onClick={() => onChange(option.value)}
-          className={`flex-1 px-3 py-1.5 text-xs font-medium rounded transition-all ${
+          className={`flex-1 px-3 py-1.5 text-xs font-normal rounded transition-all ${
             value === option.value
               ? 'bg-[var(--editor-bg-hover)] text-[var(--editor-text-primary)] shadow-sm'
               : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'

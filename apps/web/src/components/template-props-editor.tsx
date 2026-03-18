@@ -1,14 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { ChevronRight } from "lucide-react";
 
 interface SchemaProperty {
@@ -21,6 +13,8 @@ interface SchemaProperty {
   minimum?: number;
   maximum?: number;
   step?: number;
+  $ref?: string;
+  definitions?: Record<string, SchemaProperty>;
 }
 
 interface PropsEditorProps {
@@ -28,9 +22,19 @@ interface PropsEditorProps {
     type?: string;
     properties?: Record<string, SchemaProperty>;
     required?: string[];
+    $ref?: string;
+    definitions?: Record<string, SchemaProperty>;
   };
   values: Record<string, unknown>;
   onChange: (values: Record<string, unknown>) => void;
+}
+
+/** Dereference top-level $ref pointing into definitions */
+function resolveSchema(schema: PropsEditorProps["schema"]): PropsEditorProps["schema"] {
+  if (!schema.$ref || !schema.definitions) return schema;
+  const refName = schema.$ref.replace("#/definitions/", "");
+  const resolved = schema.definitions[refName];
+  return resolved ? { ...resolved, definitions: schema.definitions } : schema;
 }
 
 function isColorField(name: string, schema: SchemaProperty): boolean {
@@ -85,39 +89,40 @@ function PropertyField({
     return (
       <div>
         <FieldLabel name={name} schema={schema} />
-        <Select
+        <select
           value={String(value ?? schema.default ?? schema.enum[0])}
-          onValueChange={onChange}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full h-8 rounded-lg bg-white/[0.06] border border-white/[0.08] text-white/80 text-sm px-2 outline-none focus:border-[#8B5CF6]/50"
         >
-          <SelectTrigger className="h-8 bg-white/[0.06] border-white/[0.08] text-white/80 text-sm w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="bg-[rgba(28,28,35,0.95)] backdrop-blur-2xl border-white/[0.08] shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
-            {schema.enum.map((opt) => (
-              <SelectItem
-                key={opt}
-                value={opt}
-                className="text-white/70 focus:bg-white/[0.06] focus:text-white"
-              >
-                {opt}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {schema.enum.map((opt) => (
+            <option key={opt} value={opt} className="bg-[#1a1a2e]">
+              {opt}
+            </option>
+          ))}
+        </select>
       </div>
     );
   }
 
   // Boolean -> toggle switch
   if (schema.type === "boolean") {
+    const checked = Boolean(value ?? schema.default ?? false);
     return (
       <div className="flex items-center justify-between py-1">
         <FieldLabel name={name} schema={schema} />
-        <Switch
-          checked={Boolean(value ?? schema.default ?? false)}
-          onCheckedChange={onChange}
-          className="data-[state=checked]:bg-[#8B5CF6]"
-        />
+        <button
+          type="button"
+          onClick={() => onChange(!checked)}
+          className={`w-9 h-5 rounded-full transition-colors relative ${
+            checked ? "bg-[#8B5CF6]" : "bg-white/[0.1]"
+          }`}
+        >
+          <div
+            className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${
+              checked ? "translate-x-4" : "translate-x-0.5"
+            }`}
+          />
+        </button>
       </div>
     );
   }
@@ -242,10 +247,12 @@ function ObjectSection({
 }
 
 export function TemplatePropsEditor({
-  schema,
+  schema: rawSchema,
   values,
   onChange,
 }: PropsEditorProps) {
+  const schema = resolveSchema(rawSchema);
+
   const handleFieldChange = useCallback(
     (key: string, newValue: unknown) => {
       onChange({ ...values, [key]: newValue });

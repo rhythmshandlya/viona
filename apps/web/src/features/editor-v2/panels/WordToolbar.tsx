@@ -245,7 +245,7 @@ export function WordToolbar({ captionId, wordIndex, word, position, onClose }: W
             <div className="flex rounded overflow-hidden border border-[var(--editor-border-subtle)]">
               <button
                 onClick={() => handleTextTransformChange(overrides.textTransform === 'uppercase' ? undefined : 'uppercase')}
-                className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                className={`px-1.5 py-1 text-[10px] font-normal transition-colors ${
                   overrides.textTransform === 'uppercase'
                     ? 'bg-[var(--editor-accent)]/20 text-[var(--editor-accent)]'
                     : 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'
@@ -256,7 +256,7 @@ export function WordToolbar({ captionId, wordIndex, word, position, onClose }: W
               </button>
               <button
                 onClick={() => handleTextTransformChange(overrides.textTransform === 'lowercase' ? undefined : 'lowercase')}
-                className={`px-1.5 py-1 text-[10px] font-medium transition-colors ${
+                className={`px-1.5 py-1 text-[10px] font-normal transition-colors ${
                   overrides.textTransform === 'lowercase'
                     ? 'bg-[var(--editor-accent)]/20 text-[var(--editor-accent)]'
                     : 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'

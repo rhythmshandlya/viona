@@ -12,7 +12,7 @@ export function useTemplateBundle(bundleUrl: string | null): {
   error: string | null;
 } {
   const [Component, setComponent] = useState<ComponentType<any> | null>(
-    bundleUrl && bundleCache.has(bundleUrl) ? bundleCache.get(bundleUrl)! : null,
+    () => bundleUrl && bundleCache.has(bundleUrl) ? bundleCache.get(bundleUrl)! : null,
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export function useTemplateBundle(bundleUrl: string | null): {
 
     // Use cached component if available
     if (bundleCache.has(bundleUrl)) {
-      setComponent(bundleCache.get(bundleUrl)!);
+      setComponent(() => bundleCache.get(bundleUrl)!);
       setLoading(false);
       setError(null);
       return;
@@ -67,7 +67,7 @@ export function useTemplateBundle(bundleUrl: string | null): {
 
         const LoadedComponent = module.default as ComponentType<any>;
         bundleCache.set(bundleUrl!, LoadedComponent);
-        setComponent(LoadedComponent);
+        setComponent(() => LoadedComponent);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Failed to load template bundle');

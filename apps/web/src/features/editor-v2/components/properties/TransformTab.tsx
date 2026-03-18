@@ -98,7 +98,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({ item }) => {
       {/* Section: Position */}
       <div>
         <h4
-          className="text-xs font-semibold mb-2"
+          className="text-xs font-normal mb-2"
           style={{ color: 'var(--editor-text-secondary)' }}
         >
           Position
@@ -112,7 +112,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({ item }) => {
       {/* Section: Size */}
       <div>
         <h4
-          className="text-xs font-semibold mb-2"
+          className="text-xs font-normal mb-2"
           style={{ color: 'var(--editor-text-secondary)' }}
         >
           Size
@@ -126,7 +126,7 @@ export const TransformTab: React.FC<TransformTabProps> = ({ item }) => {
       {/* Section: Rotation & Opacity */}
       <div>
         <h4
-          className="text-xs font-semibold mb-2"
+          className="text-xs font-normal mb-2"
           style={{ color: 'var(--editor-text-secondary)' }}
         >
           Appearance

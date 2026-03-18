@@ -167,7 +167,7 @@ export function Timeline({ className }: TimelineProps) {
             {showSnapSettings && (
               <div className="absolute bottom-full right-0 mb-1 w-44 bg-[var(--editor-bg-elevated)] border border-[var(--editor-border-subtle)]
                               rounded-lg shadow-xl p-2 space-y-1.5 z-50">
-                <div className="text-[10px] font-medium text-[var(--editor-text-muted)] uppercase tracking-wider px-1 pb-0.5">
+                <div className="text-[10px] font-normal text-[var(--editor-text-muted)] uppercase tracking-wider px-1 pb-0.5">
                   Snap To
                 </div>
                 <label className="flex items-center gap-2 px-1 py-0.5 rounded hover:bg-[var(--editor-bg-hover)] cursor-pointer">

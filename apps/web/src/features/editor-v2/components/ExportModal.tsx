@@ -48,7 +48,7 @@ export function ExportModal({
     {
       onProgress: (data) => {
         if (data.jobId === jobIdRef.current) {
-          setProgress(data.progress || 0);
+          setProgress(data.progress ?? data.percent ?? 0);
           if (data.message) {
             setStatusMessage(data.message);
           }

@@ -40,7 +40,7 @@ export function TrackHeaders({ rulerHeight = 24, className }: TrackHeadersProps)
       {/* Header row aligned with ruler */}
       <div
         className="flex items-center px-3 border-b border-white/[0.06]
-                   text-[10px] text-[var(--editor-text-muted)] uppercase tracking-wider font-medium"
+                   text-[10px] text-[var(--editor-text-muted)] uppercase tracking-wider font-normal"
         style={{ height: rulerHeight }}
       >
         Tracks

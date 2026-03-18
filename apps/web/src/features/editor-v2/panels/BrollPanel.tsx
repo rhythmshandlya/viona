@@ -162,7 +162,7 @@ export function BrollPanel({ className = '' }: BrollPanelProps) {
       {/* Section A: Media Library */}
       <div className="border-b border-[var(--editor-border-subtle)]">
         <div className="px-4 py-2 flex items-center justify-between">
-          <span className="text-xs font-semibold text-[var(--editor-text-secondary)] uppercase tracking-wide">
+          <span className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
             Media Library
           </span>
         </div>
@@ -180,7 +180,7 @@ export function BrollPanel({ className = '' }: BrollPanelProps) {
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || !projectId}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-normal
                        rounded-md transition-all border border-dashed border-[var(--editor-border-subtle)]
                        text-[var(--editor-text-secondary)]
                        hover:border-[var(--editor-accent)] hover:text-[var(--editor-accent)]
@@ -255,14 +255,14 @@ export function BrollPanel({ className = '' }: BrollPanelProps) {
       {/* Section B: AI Generate */}
       <div className="px-4 py-3 border-b border-[var(--editor-border-subtle)]">
         <div className="mb-2">
-          <span className="text-xs font-semibold text-[var(--editor-text-secondary)] uppercase tracking-wide">
+          <span className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
             AI Generate
           </span>
         </div>
         <button
           onClick={handleGenerate}
           disabled={isGenerating || !projectId}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-normal
                      rounded-md transition-all
                      bg-[var(--editor-accent)] text-white
                      hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -294,7 +294,7 @@ export function BrollPanel({ className = '' }: BrollPanelProps) {
       {/* Section C: Timeline B-Roll Items */}
       <div>
         <div className="px-4 py-2">
-          <span className="text-xs font-semibold text-[var(--editor-text-secondary)] uppercase tracking-wide">
+          <span className="text-xs font-normal text-[var(--editor-text-secondary)] uppercase tracking-wide">
             Timeline Clips
           </span>
         </div>

@@ -54,7 +54,7 @@ export function SafeZoneOverlay({ platform }: SafeZoneOverlayProps) {
       />
       {/* Label */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 text-xs text-green-500/80 font-medium px-2 py-0.5 bg-black/40 rounded"
+        className="absolute left-1/2 -translate-x-1/2 text-xs text-green-500/80 font-normal px-2 py-0.5 bg-black/40 rounded"
         style={{ top: `calc(${zone.top}% + 4px)` }}
       >
         Safe Zone ({platform})

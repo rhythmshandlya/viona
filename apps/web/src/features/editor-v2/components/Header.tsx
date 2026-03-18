@@ -104,14 +104,14 @@ export function Header({
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleTitleBlur}
             onKeyDown={handleTitleKeyDown}
-            className="bg-[var(--editor-bg-elevated)] text-[var(--editor-text-primary)] text-sm font-medium
+            className="bg-[var(--editor-bg-elevated)] text-[var(--editor-text-primary)] text-sm font-normal
                        border border-[var(--editor-border-default)] rounded-md px-3 py-1
                        focus:outline-none focus:border-[var(--editor-border-focus)] focus:ring-2 focus:ring-[var(--editor-accent-soft)]"
           />
         ) : (
           <button
             onClick={() => setIsEditingTitle(true)}
-            className="flex items-center gap-1.5 text-[var(--editor-text-primary)] text-sm font-medium px-3 py-1
+            className="flex items-center gap-1.5 text-[var(--editor-text-primary)] text-sm font-normal px-3 py-1
                        rounded-md hover:bg-[var(--editor-bg-hover)] transition-colors truncate max-w-[300px]"
           >
             <span className="truncate">{title}</span>
@@ -140,7 +140,7 @@ export function Header({
 
         <button
           onClick={onExport}
-          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-medium
+          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-normal
                      bg-[var(--editor-accent)] text-white
                      hover:bg-[var(--editor-accent-hover)] active:scale-[0.97] transition-all
                      shadow-[0_2px_12px_rgba(139,92,246,0.3),inset_0_1px_0_rgba(255,255,255,0.15)]"

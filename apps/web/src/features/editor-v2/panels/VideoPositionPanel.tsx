@@ -39,7 +39,7 @@ export function VideoPositionPanel() {
     <div className="p-4 space-y-6">
       {/* Output Format */}
       <div className="space-y-2">
-        <label className="text-sm text-zinc-400 font-medium">Output Format</label>
+        <label className="text-sm text-zinc-400 font-normal">Output Format</label>
         <div className="text-sm text-zinc-300">
           {videoSettings.canvasWidth} x {videoSettings.canvasHeight}
           <span className="text-zinc-500 ml-2">(9:16 Reel)</span>
@@ -53,7 +53,7 @@ export function VideoPositionPanel() {
       {isLandscapeSource && (
         <div className="space-y-2">
           <div className="flex justify-between">
-            <label className="text-sm text-zinc-400 font-medium">Horizontal Position</label>
+            <label className="text-sm text-zinc-400 font-normal">Horizontal Position</label>
             <span className="text-sm text-zinc-300">
               {(videoSettings.cropX ?? 50) === 50
                 ? 'Center'
@@ -81,7 +81,7 @@ export function VideoPositionPanel() {
       {!isLandscapeSource && (
         <div className="space-y-2">
           <div className="flex justify-between">
-            <label className="text-sm text-zinc-400 font-medium">Vertical Position</label>
+            <label className="text-sm text-zinc-400 font-normal">Vertical Position</label>
             <span className="text-sm text-zinc-300">
               {(videoSettings.cropY ?? 50) === 50
                 ? 'Center'
@@ -108,7 +108,7 @@ export function VideoPositionPanel() {
       {/* Zoom */}
       <div className="space-y-2">
         <div className="flex justify-between">
-          <label className="text-sm text-zinc-400 font-medium">Zoom</label>
+          <label className="text-sm text-zinc-400 font-normal">Zoom</label>
           <span className="text-sm text-zinc-300">{Math.round((videoSettings.scale ?? 1) * 100)}%</span>
         </div>
         <Slider

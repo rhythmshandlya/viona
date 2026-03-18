@@ -7,8 +7,9 @@ export type WSMessageType =
   | 'job:progress'
   | 'job:complete'
   | 'job:error'
+  | 'job:activity'
+  | 'job:health'
   | 'job:logs'
-  | 'project:updated'
   | 'workspace:ready'
   | 'manifest:updated'
   | 'bundle:ready'
@@ -105,14 +106,18 @@ export interface WorkspaceTeardownPayload {
 }
 
 type MessageHandler = (message: WSMessage) => void;
+type StateHandler = (connected: boolean) => void;
 
 class WebSocketClient {
   private ws: WebSocket | null = null;
   private projectId: string | null = null;
   private handlers: Set<MessageHandler> = new Set();
+  private stateHandlers: Set<StateHandler> = new Set();
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
   private reconnectDelay = 1000;
+  private _isConnected = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   // Track subscribed job IDs so we can re-subscribe on reconnect
   // and queue subscriptions if WS isn't open yet
   private subscribedJobIds: Set<string> = new Set();
@@ -138,6 +143,8 @@ class WebSocketClient {
     this.ws.onopen = () => {
       console.log('WebSocket connected');
       this.reconnectAttempts = 0;
+      this._isConnected = true;
+      this.stateHandlers.forEach((h) => h(true));
 
       // Flush any pending/previously-subscribed job IDs
       for (const jobId of this.subscribedJobIds) {
@@ -157,6 +164,8 @@ class WebSocketClient {
     this.ws.onclose = () => {
       console.log('WebSocket disconnected');
       this.ws = null;
+      this._isConnected = false;
+      this.stateHandlers.forEach((h) => h(false));
 
       // Attempt to reconnect (subscribedJobIds are preserved so onopen re-subscribes)
       if (this.reconnectAttempts < this.maxReconnectAttempts && this.projectId) {
@@ -166,7 +175,8 @@ class WebSocketClient {
           10_000, // Cap at 10 seconds
         );
         console.log(`Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
-        setTimeout(() => {
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
           if (this.projectId) {
             this.connect(this.projectId);
           }
@@ -183,13 +193,27 @@ class WebSocketClient {
     };
   }
 
+  get isConnected(): boolean {
+    return this._isConnected;
+  }
+
+  addStateHandler(handler: StateHandler): () => void {
+    this.stateHandlers.add(handler);
+    return () => this.stateHandlers.delete(handler);
+  }
+
   disconnect(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
     this.projectId = null;
     this.reconnectAttempts = 0;
+    this._isConnected = false;
     this.subscribedJobIds.clear();
   }
 
