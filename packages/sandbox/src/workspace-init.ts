@@ -204,9 +204,15 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
 
   // Write transcript if provided
   if (payload.transcript) {
+    const transcriptStr = JSON.stringify(payload.transcript, null, 2);
     await writeFile(
       join(baseDir, 'docs', 'transcript.json'),
-      JSON.stringify(payload.transcript, null, 2),
+      transcriptStr,
+    );
+    // Preserve original transcript — never modified, used by sync_transcript
+    await writeFile(
+      join(baseDir, 'docs', 'transcript-original.json'),
+      transcriptStr,
     );
   }
 
