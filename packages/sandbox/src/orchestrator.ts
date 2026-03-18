@@ -1,7 +1,7 @@
 // packages/sandbox/src/orchestrator.ts
 //
 // Core orchestrator module for the sandbox. Builds SDK query options with
-// subagent definitions (4 agents: Planner, Editor, Animator, Reviewer),
+// subagent definitions (5 agents: Trim Editor, Planner, Visual Editor, Animator, QC Reviewer),
 // manages session resume, and streams events back to the caller via callbacks.
 //
 // Pipeline phases:
@@ -32,7 +32,7 @@ interface ContentBlockDeltaEvent {
   type: 'content_block_delta';
   delta: { type: string; text?: string };
 }
-import { loadPrompt, loadPromptWithShared, injectContext, type PromptContext } from './prompts/prompt-loader.js';
+import { assembleAgentPrompt, loadPrompt, injectContext, type PromptContext } from './prompts/prompt-loader.js';
 import { allManifestTools } from './tools/manifest-ops.js';
 import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js';
 import { renderStillTool } from './tools/render-still.js';
@@ -111,6 +111,11 @@ const FREEPIK_TOOL_NAMES = [
   'mcp__freepik__*',
 ];
 
+const ANALYSIS_TOOL_NAMES = [
+  'mcp__analysis__analyze_transcript',
+  'mcp__analysis__validate_timeline',
+];
+
 const ANIMATOR_TOOL_NAMES = [
   'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
   ...MANIFEST_TOOL_NAMES,
@@ -126,46 +131,49 @@ const ANIMATOR_TOOL_NAMES = [
 // Maps internal MCP server names to user-facing agent/tool labels.
 
 const MCP_SERVER_LABELS: Record<string, string> = {
-  manifest: 'Editor',
+  manifest: 'Visual Editor',
   scenes: 'Animator',
   render: 'Renderer',
   widgets: 'Viona',
   assets: 'Viona',
-  viewport: 'Reviewer',
+  viewport: 'QC Reviewer',
+  analysis: 'Viona',
   'better-icons': 'Animator',
   freepik: 'Animator',
 };
 
 const SUBAGENT_LABELS: Record<string, string> = {
   planner: 'Planner',
-  editor: 'Editor',
+  trim_editor: 'Trim Editor',
+  visual_editor: 'Visual Editor',
   animator: 'Animator',
-  reviewer: 'Reviewer',
+  qc_reviewer: 'QC Reviewer',
 };
 
 // ---- Build SDK query options ----
 
 /**
  * Load all prompt files and construct the SDK query options object,
- * including subagent (Agent tool) definitions for the pipeline agents:
- * Planner, Editor, Animator (single), Reviewer.
+ * including subagent (Agent tool) definitions for the 5 pipeline agents:
+ * Trim Editor, Planner, Visual Editor, Animator, QC Reviewer.
+ *
+ * Prompts are assembled using the new prompt-loader with research-backed
+ * order: shared modules (cacheable) → agent system → examples → context → reminder.
  */
 export async function buildOrchestratorOptions(
   ctx: PromptContext,
   mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [orchestratorPrompt, animatorPrompt, editorPrompt, plannerPrompt, reviewerPrompt] =
+  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, visualEditorPrompt, qcReviewerPrompt] =
     await Promise.all([
-      loadPrompt('orchestrator-system'),
-      loadPromptWithShared('animator-system'),
-      loadPrompt('editor-system'),
-      loadPromptWithShared('planner-system'),
-      loadPromptWithShared('reviewer-system'),
+      loadPrompt('orchestrator/system'),
+      assembleAgentPrompt('trim-editor', ctx),
+      assembleAgentPrompt('planner', ctx),
+      assembleAgentPrompt('visual-editor', ctx),
+      assembleAgentPrompt('qc-reviewer', ctx),
     ]);
 
   const systemPrompt = injectContext(orchestratorPrompt, ctx);
-
-  const animatorSystemPrompt = injectContext(animatorPrompt, ctx);
 
   return {
     model: 'opus',
@@ -187,85 +195,109 @@ export async function buildOrchestratorOptions(
       ...VIEWPORT_TOOL_NAMES,
       ...ICON_TOOL_NAMES,
       ...FREEPIK_TOOL_NAMES,
+      ...ANALYSIS_TOOL_NAMES,
     ],
     permissionMode: 'bypassPermissions' as const,
     allowDangerouslySkipPermissions: true,
     agents: {
-      // ---- Planner ----
-      // Analyzes transcript, does research (WebSearch/WebFetch), produces
-      // SCENE_PLAN.md. Research is part of planning — no separate Researcher agent.
-      planner: {
-        description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, visual descriptions, canvas dimensions, and meaningful scene file names. Also researches web content, screenshots, and supporting materials. Outputs SCENE_PLAN.md.',
+      // ---- Trim Editor (Phase 2) ----
+      // Transcript trimming, jump cut coverage, J/L-cuts, pacing, captions.
+      trim_editor: {
+        description: 'Trims transcript (fillers, silences, retakes), covers jump cuts with zoom punch-ins, applies J/L-cuts for smooth audio transitions, refines pacing, generates captions.',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
-          append: injectContext(plannerPrompt, ctx),
+          append: trimEditorPrompt,
         },
         tools: [
-          'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'Skill',
+          'Read', 'Write', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
+          ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
+        skills: ['cutting-and-pacing', 'transcript-analysis', 'transitions'],
       },
 
-      // ---- Editor ----
-      // Handles three phases:
-      // Phase 2: Transcript cleanup (trim fillers/silences via manifest ops)
-      //          + add captions from post-trim transcript
-      // Phase 4: Rough cut (splits, zoom crops, B-roll, mockup rects)
-      // Phase 7: Final assembly (replace mockups, transitions, music, captions)
-      editor: {
-        description: 'Professional video editor. Handles transcript trimming (fillers, silences via manifest ops), rough cut with zoom crops and mockup placeholders, and final assembly with transitions, captions, and music. Re-dispatched per phase — reads workspace state.',
+      // ---- Planner (Phase 3) ----
+      // Transcript analysis, spatial layout, creative direction, display modes.
+      planner: {
+        description: 'Analyzes transcript, designs spatial layout with exact coordinates, assigns display modes, creates SCENE_PLAN.md with sync points and energy arc.',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
-          append: injectContext(editorPrompt, ctx),
+          append: plannerPrompt,
         },
         tools: [
-          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
+          'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
+          ...MANIFEST_TOOL_NAMES,
+          ...RENDER_TOOL_NAMES,
+          ...ASSET_TOOL_NAMES,
+          ...ANALYSIS_TOOL_NAMES,
+        ],
+        model: 'opus',
+        skills: ['editorial-planning', 'visual-treatment-guide', 'narrative-structure', 'transcript-analysis'],
+      },
+
+      // ---- Visual Editor (Phases 4, 7) ----
+      // Rough cut with zoom crops, B-roll, mockup placeholders (Phase 4).
+      // Final assembly replacing mockups with scenes, transitions, caption styling (Phase 7).
+      visual_editor: {
+        description: 'Builds rough cut with zoom crops, B-roll, and mockup placeholders (Phase 4). Handles final assembly replacing mockups with scenes, transitions, caption styling (Phase 7).',
+        prompt: {
+          type: 'preset' as const,
+          preset: 'claude_code' as const,
+          append: visualEditorPrompt,
+        },
+        tools: [
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
           ...SCENE_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
           ...ICON_TOOL_NAMES,
           ...FREEPIK_TOOL_NAMES,
+          ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
+        skills: ['cutting-and-pacing', 'transitions', 'lower-third-and-overlays', 'platform-optimization'],
       },
 
-      // ---- Animator ----
-      // Single animator agent. Canvas dimensions come from the scene plan.
+      // ---- Animator (Phase 5) ----
+      // Per-scene .tsx generation. Prompt comes from prompt-assembly.ts ONLY.
       animator: {
-        description: 'Writes Remotion .tsx scene files based on the scene plan, receiving canvas dimensions from the plan. Self-heals compilation errors.',
+        description: 'Writes Remotion .tsx scene files. Receives per-scene prompt with dimensions, brief, sync points. Self-heals compilation errors.',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
-          append: animatorSystemPrompt,
+          // Note: The actual animator prompt is built dynamically per-scene
+          // via buildAnimatorPrompt() and passed as the dispatch message.
+          // This base prompt is a fallback / minimal context.
+          append: 'You are a Remotion motion graphics engineer. Wait for a scene assignment.',
         },
         tools: ANIMATOR_TOOL_NAMES,
         model: 'opus',
+        skills: ['remotion-best-practices', 'framer-motion', 'motion-one', 'video-engagement'],
       },
 
-      // ---- Reviewer ----
-      // Checks each scene after the Animator completes. Renders stills,
-      // validates against plan, checks composition quality. Returns
-      // pass/fail with actionable feedback. Reviews happen as each scene
-      // completes — not after all Animators finish.
-      reviewer: {
-        description: 'Reviews rendered scene screenshots against the plan. Checks composition quality and readability. Returns pass/fail verdict with actionable feedback. Reviews each scene as its Animator completes.',
+      // ---- QC Reviewer (Phase 6, 7.5) ----
+      // Per-scene review + full-timeline verification after assembly.
+      qc_reviewer: {
+        description: 'Reviews scene screenshots + code quality. After final assembly, runs full-timeline verification (gaps, sync, transitions). Returns pass/fail with actionable feedback.',
         prompt: {
           type: 'preset' as const,
           preset: 'claude_code' as const,
-          append: injectContext(reviewerPrompt, ctx),
+          append: qcReviewerPrompt,
         },
         tools: [
-          'Read', 'Glob', 'Grep', 'Skill',
+          'Read', 'Glob', 'Grep',
           ...RENDER_TOOL_NAMES,
           ...VIEWPORT_TOOL_NAMES,
+          ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'sonnet',
+        skills: ['remotion-best-practices', 'motion-one', 'framer-motion'],
       },
     },
     maxTurns: 100,
