@@ -2,11 +2,19 @@
 FROM node:20-slim AS builder
 
 WORKDIR /app
+
+# Install deps — strip workspace:* (type-only, erased at compile time)
 COPY packages/sandbox/package.json packages/sandbox/package-lock.json* ./
-RUN npm install
+RUN sed -i '/"@viona\/shared"/d' package.json && npm install
 
 COPY packages/sandbox/tsconfig.json ./
 COPY packages/sandbox/src/ ./src/
+
+# Stub @viona/shared types (import type only — erased at compile time)
+RUN mkdir -p node_modules/@viona/shared && \
+    printf '{"name":"@viona/shared","version":"0.0.0","exports":{"./progress-types":{"types":"./progress-types.d.ts"},"./progress-types.js":{"types":"./progress-types.d.ts"}}}\n' > node_modules/@viona/shared/package.json && \
+    printf 'export interface AgentSubtask { id: string; title: string; status: string; tools?: string[]; }\nexport interface AgentTask { id: string; title: string; status: string; agent?: string; subtasks?: AgentSubtask[]; }\nexport interface AgentPlan { title: string; tasks: AgentTask[]; }\nexport interface ProgressPayload { phase: string; percent?: number; message: string; agentName?: string; trackName?: string; estimatedTimeRemaining?: number; }\n' > node_modules/@viona/shared/progress-types.d.ts
+
 RUN npx tsc
 
 # Copy prompt .md files (tsc only compiles .ts, not .md)
@@ -46,9 +54,9 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
-# Install production dependencies only
+# Install production dependencies only (strip type-only workspace dep)
 COPY packages/sandbox/package.json packages/sandbox/package-lock.json* ./
-RUN npm install --production
+RUN sed -i '/"@viona\/shared"/d' package.json && npm install --omit=dev
 
 # Install Claude Code CLI (required by @anthropic-ai/claude-agent-sdk)
 RUN npm install -g @anthropic-ai/claude-code
@@ -75,7 +83,7 @@ COPY --from=mcp-builder /mcp/dist/ /app/mcp-servers/
 
 # Install MCP server runtime deps alongside the compiled files
 COPY packages/mcp-servers/package.json /app/mcp-servers/
-RUN cd /app/mcp-servers && npm install --production
+RUN cd /app/mcp-servers && npm install --omit=dev
 
 # Copy template files (composition infrastructure, .claude/, configs)
 COPY packages/sandbox/template/ /app/template/
@@ -95,7 +103,10 @@ RUN chown -R sandbox:sandbox /app
 
 # Entrypoint fixes volume permissions then drops to sandbox user
 COPY packages/sandbox/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=60s --retries=3 \
+  CMD node -e "fetch('http://localhost:8080/health').then(r=>r.ok?process.exit(0):process.exit(1)).catch(()=>process.exit(1))"
 
 EXPOSE 8080 8081
 CMD ["/app/entrypoint.sh"]
