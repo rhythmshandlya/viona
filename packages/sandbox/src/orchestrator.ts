@@ -304,6 +304,7 @@ export async function buildOrchestratorOptions(
     includePartialMessages: true,
     thinking: { type: 'adaptive' as const },
     env: {
+      ...process.env,
       ENABLE_TOOL_SEARCH: 'false',
     },
     persistSession: true,
