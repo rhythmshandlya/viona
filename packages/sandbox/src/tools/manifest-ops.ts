@@ -511,15 +511,17 @@ export const updateManifestTool = {
     required: ['manifest'],
   },
   async execute(input: { manifest: object }): Promise<string> {
-    try {
-      await writeFile(MANIFEST_PATH, JSON.stringify(input.manifest, null, 2));
-      // Trigger rebuild so preview picks up manifest changes
-      const { triggerRebuild } = await import('../esbuild-watcher.js');
-      triggerRebuild();
-      return 'Manifest updated and rebuild triggered.';
-    } catch (err: any) {
-      return `Failed to update manifest: ${err.message}`;
-    }
+    return withManifestLock(async () => {
+      try {
+        await writeFile(MANIFEST_PATH, JSON.stringify(input.manifest, null, 2));
+        await notifyManifestUpdated();
+        const { triggerRebuild } = await import('../esbuild-watcher.js');
+        triggerRebuild();
+        return 'Manifest updated and rebuild triggered.';
+      } catch (err: any) {
+        return `Failed to update manifest: ${err.message}`;
+      }
+    });
   },
 };
 

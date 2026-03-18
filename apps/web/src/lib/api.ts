@@ -514,7 +514,6 @@ class ApiClient {
       widgetResponse?: { widgetId: string; value: unknown };
     },
     signal?: AbortSignal,
-    lastEventId?: number,
   ): Promise<ReadableStream<Uint8Array>> {
     const url = `${this.baseUrl}/api/projects/${projectId}/agent/chat`;
     const token = getSessionToken();
@@ -523,9 +522,6 @@ class ApiClient {
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
-    }
-    if (lastEventId !== undefined) {
-      headers['Last-Event-ID'] = String(lastEventId);
     }
 
     const response = await fetch(url, {

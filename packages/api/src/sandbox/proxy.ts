@@ -51,17 +51,29 @@ export async function proxyFileRequest(
     // Stream response body via PassThrough
     if (res.body) {
       const passthrough = new PassThrough();
+      let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+
+      // Stop reading from sandbox if client disconnects
+      passthrough.on('close', () => {
+        if (reader) { reader.cancel().catch(() => {}); reader = null; }
+      });
+      passthrough.on('error', () => {
+        if (reader) { reader.cancel().catch(() => {}); reader = null; }
+      });
+
       reply.status(res.status).send(passthrough);
 
-      const reader = (res.body as ReadableStream).getReader();
+      reader = (res.body as ReadableStream).getReader();
       try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
+          if (passthrough.destroyed) break;
           passthrough.write(value);
         }
       } finally {
-        passthrough.end();
+        if (reader) { reader.cancel().catch(() => {}); }
+        if (!passthrough.destroyed) { try { passthrough.end(); } catch { /* already ended */ } }
       }
     } else {
       reply.status(res.status).send('');
@@ -162,7 +174,7 @@ export async function proxyPrompt(
  */
 export interface InterceptCallbacks {
   onText?: (text: string) => void;
-  onDone?: (data: { sessionId?: string; cost?: number }) => Promise<void>;
+  onDone?: (data: { sessionId?: string; cost?: number; numTurns?: number }) => Promise<void>;
   onWidget?: (widget: Record<string, unknown>) => void;
   onProgress?: (progress: { phase: string; percent?: number; message: string; agentName?: string; trackName?: string; estimatedTimeRemaining?: number }) => void;
   onActivity?: (activity: { agent: string | null; action: string | null; phase?: string; startedAt?: number }) => void;
@@ -212,6 +224,19 @@ export async function proxyPromptWithIntercept(
 
     if (!res.ok) {
       logger.warn({ ...logCtx, status: res.status }, 'Proxy: sandbox returned non-OK');
+
+      if (res.status === 409) {
+        // Agent busy — send as SSE error so frontend can show a friendly message
+        const errorStream = new PassThrough();
+        reply
+          .header('Content-Type', 'text/event-stream')
+          .header('Cache-Control', 'no-cache')
+          .send(errorStream);
+        errorStream.write(`event: error\ndata: ${JSON.stringify({ message: 'Agent is busy processing another request. Please wait.', busy: true, recoverable: true })}\n\n`);
+        errorStream.end();
+        return;
+      }
+
       reply.status(res.status).send({ error: `Agent returned ${res.status}` });
       return;
     }
@@ -251,10 +276,13 @@ export async function proxyPromptWithIntercept(
       .header('X-Accel-Buffering', 'no')
       .send(passthrough);
 
-    const writeSSE = (eventType: string, data: unknown) => {
+    const writeSSE = (eventType: string, data: unknown, id?: string) => {
       if (!clientAlive || passthrough.destroyed) return;
       try {
-        passthrough.write(`event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`);
+        let sse = '';
+        if (id) sse += `id: ${id}\n`;
+        sse += `event: ${eventType}\ndata: ${JSON.stringify(data)}\n\n`;
+        passthrough.write(sse);
       } catch {
         clientAlive = false;
         safeAbort();
@@ -266,14 +294,19 @@ export async function proxyPromptWithIntercept(
       const decoder = new TextDecoder();
       let buffer = '';
 
-      // --- Text buffering to suppress internal monologue ---
+      // --- Text dedup + monologue suppression ---
       let textBuffer = '';
       let lastToolEventTime = 0;
-      const MONOLOGUE_WINDOW_MS = 2000;
+      let toolsUsedInTurn = false;
+      let lastTextContent = '';
+      let lastTextTime = 0;
+      const MONOLOGUE_WINDOW_MS = 5000;
+      const MONOLOGUE_CHAR_LIMIT = 500;
 
       const flushTextBuffer = () => {
         if (textBuffer) {
           writeSSE('text', { text: textBuffer });
+          callbacks.onText?.(textBuffer);
           textBuffer = '';
         }
       };
@@ -305,12 +338,16 @@ export async function proxyPromptWithIntercept(
             try {
               let eventType = 'message';
               let dataStr = '';
+              let eventId = '';
 
               for (const line of raw.split('\n')) {
                 if (line.startsWith('event:')) {
                   eventType = line.slice(6).trim();
                 } else if (line.startsWith('data:')) {
-                  dataStr += line.slice(5).trim();
+                  // Use newline separator for multi-line data (SSE spec)
+                  dataStr += (dataStr ? '\n' : '') + line.slice(5).trim();
+                } else if (line.startsWith('id:')) {
+                  eventId = line.slice(3).trim();
                 }
               }
 
@@ -321,26 +358,41 @@ export async function proxyPromptWithIntercept(
               switch (eventType) {
                 case 'text': {
                   const text = data.text ?? data;
-                  if (typeof text === 'string') {
-                    const timeSinceTool = Date.now() - lastToolEventTime;
-                    if (lastToolEventTime > 0 && timeSinceTool < MONOLOGUE_WINDOW_MS && text.length < 200) {
-                      textBuffer += text;
+                  if (typeof text !== 'string') break;
+
+                  // Dedup: skip identical consecutive text chunks within 100ms.
+                  // Catches transport-level duplication (SDK, proxy, network).
+                  const now = Date.now();
+                  if (text.length > 0 && text === lastTextContent && now - lastTextTime < 100) {
+                    break;
+                  }
+                  lastTextContent = text;
+                  lastTextTime = now;
+
+                  // Monologue suppression: buffer text that arrives shortly after
+                  // tool events (model reasoning between tool calls).
+                  const timeSinceTool = now - lastToolEventTime;
+                  if (toolsUsedInTurn && timeSinceTool < MONOLOGUE_WINDOW_MS && text.length < MONOLOGUE_CHAR_LIMIT) {
+                    textBuffer += text;
+                  } else {
+                    if (textBuffer) {
+                      writeSSE('text', { text: textBuffer + text }, eventId);
+                      callbacks.onText?.(textBuffer + text);
+                      textBuffer = '';
                     } else {
-                      if (textBuffer) {
-                        writeSSE('text', { text: textBuffer + text });
-                        textBuffer = '';
-                      } else {
-                        writeSSE('text', data);
-                      }
+                      writeSSE('text', data, eventId);
+                      callbacks.onText?.(text);
                     }
                   }
-                  callbacks.onText?.(text);
                   break;
                 }
                 case 'done': {
                   receivedDone = true;
                   flushTextBuffer();
-                  writeSSE('done', data);
+                  // Reset monologue suppression so it doesn't carry over
+                  toolsUsedInTurn = false;
+                  lastToolEventTime = 0;
+                  writeSSE('done', data, eventId);
                   try {
                     await callbacks.onDone?.(data);
                   } catch (err) {
@@ -349,40 +401,42 @@ export async function proxyPromptWithIntercept(
                   break;
                 }
                 case 'widget':
-                  writeSSE('widget', data);
+                  writeSSE('widget', data, eventId);
                   callbacks.onWidget?.(data);
                   break;
                 case 'progress': {
-                  writeSSE('progress', data);
+                  writeSSE('progress', data, eventId);
                   callbacks.onProgress?.(data);
                   break;
                 }
                 case 'activity': {
-                  writeSSE('activity', data);
+                  writeSSE('activity', data, eventId);
                   callbacks.onActivity?.(data);
                   break;
                 }
                 case 'tool_use':
                 case 'tool_result':
                   lastToolEventTime = Date.now();
-                  writeSSE(eventType, data);
+                  toolsUsedInTurn = true;
+                  writeSSE(eventType, data, eventId);
+                  callbacks.onActivity?.(data);
                   break;
                 case 'error':
-                  writeSSE('error', data);
+                  writeSSE('error', data, eventId);
                   callbacks.onError?.(data.message ?? data.error ?? String(data));
                   break;
                 case 'agent_plan': {
-                  writeSSE('agent_plan', data);
+                  writeSSE('agent_plan', data, eventId);
                   callbacks.onPlan?.(data);
                   break;
                 }
                 case 'task_started':
                 case 'task_updated':
                 case 'task_completed':
-                  writeSSE(eventType, data);
+                  writeSSE(eventType, data, eventId);
                   break;
                 default:
-                  writeSSE(eventType, data);
+                  writeSSE(eventType, data, eventId);
                   break;
               }
             } catch {

@@ -241,4 +241,4 @@ Use `mcp__viewport__submit_verdict` with:
 - **Max 2 retries.** After 2 failed verdicts for the same scene, the pipeline accepts it and moves on.
 - **One scene at a time.** You review the scene dispatched to you — nothing else.
 - **Do NOT write PASS or FAIL as text.** Use the `mcp__viewport__submit_verdict` tool exclusively.
-- **Routing hint:** Animation and visual issues route to the Animator for a fix pass. Compilation errors route to the Healer. Include this distinction in your issue descriptions when relevant.
+- **Routing hint:** Animation and visual issues route to the Animator for a fix pass. Compilation errors are self-healed by the Animator (max 2 retries). Include this distinction in your issue descriptions when relevant.

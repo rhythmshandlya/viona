@@ -1,22 +1,39 @@
 ## Skill Loading Order
 
-### When planning (orchestrator mode):
-1. FIRST: editorial-planning (content type detection, edit plan format)
-2. SECOND: visual-treatment-guide (treatment selection decision tree)
-3. THIRD: narrative-structure (story arc, emotional pacing)
-4. FOURTH: transcript-analysis (sync points, filler detection)
+Load skills using the `Skill` tool before starting work. Pick skills relevant to your current task.
 
-### When editing code (animator mode):
-1. FIRST: framer-motion (technique components)
-2. SECOND: motion-one (spring configs, timing)
-3. THIRD: video-engagement (hooks, retention, visual metaphors)
-4. REFERENCE: remotion-best-practices, graphic-designer, interaction-design
+### Planner agent:
+1. editorial-planning (content type detection, edit plan format)
+2. visual-treatment-guide (treatment selection decision tree)
+3. narrative-structure (story arc, emotional pacing)
+4. transcript-analysis (sync points, filler detection, beat mapping)
+5. screenshot-and-research (web research, reference gathering)
 
-### When researching (researcher mode):
-1. FIRST: screenshot-and-research (web research, screenshot framing)
+### Editor agent:
+1. cutting-and-pacing (cut rules, retention rhythm, Dmytryk's rules)
+2. transcript-analysis (filler detection, speech patterns, timestamp analysis)
+3. transitions (transition types, timing, narrative meaning)
+4. sound-design (music placement, audio layering, volume management)
+5. lower-third-and-overlays (overlay composition, safe zones, typography)
+6. platform-optimization (platform-specific aspect ratios, pacing, export)
 
-### When cutting (trimmer mode):
-1. FIRST: cutting-and-pacing (cut rules, retention rhythm)
+### Animator agent:
+1. framer-motion (technique components, spring entrances, stagger patterns)
+2. motion-one (spring configs, Disney's 12 principles, timing)
+3. video-engagement (hooks, retention, color palettes, visual metaphors)
+4. REFERENCE: remotion-best-practices, graphic-designer, interaction-design, lower-third-and-overlays
+
+### Reviewer agent:
+1. remotion-best-practices (Remotion patterns, common pitfalls)
+2. motion-one (animation timing, easing quality)
+3. framer-motion (spring configs, stagger patterns)
+4. video-engagement (engagement mechanics, retention checks)
+
+### Orchestrator (Viona):
+1. editorial-planning (content type detection, section breakdown)
+2. visual-treatment-guide (treatment selection)
+3. narrative-structure (story arc, emotional pacing)
+4. transcript-analysis (sync points, filler detection)
 
 # Remotion Visual Generator
 
@@ -34,27 +51,24 @@
 
 ## File Structure
 ```
-src/proj_<id>/
-├── index.tsx           # Main composition - imports and assembles scenes
-├── constants.ts        # COLORS, TIMING, SPRING_CONFIG
-├── metadata.json       # Composition metadata for renderer
-├── components/         # Reusable components
-│   ├── Background.tsx  # Animated background
-│   └── ...             # Shared icons, shapes, etc.
-└── scenes/             # Individual scene components
-    ├── Scene1.tsx
-    ├── Scene2.tsx
-    └── ...
+src/
+├── PlayerComposition.tsx   # Main composition - imports scenes via registry
+├── scenes/                 # Individual scene components (PascalCase)
+│   ├── constants.ts        # COLORS, TIMING, SPRING_CONFIG shared across scenes
+│   ├── Background.tsx      # Animated background component
+│   ├── HookTitle.tsx       # Scene files — one per plan entry
+│   ├── DataComparison.tsx
+│   └── ...
+└── scene-registry.ts       # Auto-generated — maps scene names to components
 ```
 
 ### Import Pattern
 ```tsx
-// In scenes/Scene1.tsx
-import { COLORS, SPRING_CONFIG } from '../constants';
-import { Background } from '../components/Background';
+// In scenes/HookTitle.tsx
+import { COLORS, SPRING_CONFIG } from './constants';
+import { Background } from './Background';
 
-// In index.tsx
-import { Scene1 } from './scenes/Scene1';
+// In PlayerComposition.tsx — scenes loaded via scene-registry.ts
 import { Background } from './components/Background';
 ```
 

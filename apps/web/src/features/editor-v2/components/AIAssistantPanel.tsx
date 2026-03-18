@@ -113,6 +113,24 @@ interface AIAssistantPanelProps {
   className?: string;
 }
 
+// -- Widget response persistence (survives page refresh) --
+const PENDING_WIDGET_KEY_PREFIX = 'viona:pendingWidgets:';
+function getPendingWidgetResponses(projectId: string): Array<{ widgetId: string; value: unknown }> {
+  try {
+    const stored = sessionStorage.getItem(`${PENDING_WIDGET_KEY_PREFIX}${projectId}`);
+    return stored ? JSON.parse(stored) : [];
+  } catch { return []; }
+}
+function setPendingWidgetResponses(projectId: string, responses: Array<{ widgetId: string; value: unknown }>) {
+  try {
+    if (responses.length === 0) {
+      sessionStorage.removeItem(`${PENDING_WIDGET_KEY_PREFIX}${projectId}`);
+    } else {
+      sessionStorage.setItem(`${PENDING_WIDGET_KEY_PREFIX}${projectId}`, JSON.stringify(responses));
+    }
+  } catch { /* storage full — non-critical */ }
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -147,14 +165,12 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const isNearBottomRef = useRef(true);
   const chatInputRef = useRef<ChatInputHandle>(null);
   const abortRef = useRef<AbortController | null>(null);
-  const pendingWidgetResponseRef = useRef<Array<{ widgetId: string; value: unknown }>>([]);
-  const lastEventIdRef = useRef<number | undefined>(undefined);
   const sandboxBootAttempted = useRef(false);
   const bootAndRetryRef = useRef<((message: string, widgetResponse?: { widgetId: string; value: unknown }) => Promise<void>) | null>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
-  const lastProgressTimeRef = useRef(Date.now());
   const lastTextTimeRef = useRef(Date.now());
   const receivedDoneRef = useRef(false);
+  const lastTextDedupRef = useRef<{ text: string; time: number }>({ text: '', time: 0 });
 
   // -- Hooks ---------------------------------------------------------------
   const activityState = useActivity();
@@ -173,7 +189,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   // -- WebSocket for job progress ------------------------------------------
   const { subscribeToJob } = useJobWebSocket(projectId, {
     onProgress: (data) => {
-      lastProgressTimeRef.current = Date.now();
             activityState.onProgress({
         message: data.message || `Processing... (${data.progress}%)`,
         phase: data.meta?.phase || data.phase,
@@ -250,7 +265,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     const poll = async () => {
       try {
         const job = await api.getJob(activeJobId);
-        lastProgressTimeRef.current = Date.now();
                 if (job.status === 'complete') {
           setActiveJobId(null); activityState.reset(); setLastError(null); setCurrentProgress(null);
           setMessages(prev => [...prev, {
@@ -286,7 +300,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   }, [activeJobId, isStreaming, projectId, reloadVisuals, activityState]);
 
   const onProgressReceived = useCallback(() => {
-    lastProgressTimeRef.current = Date.now();
+    // no-op — progress timing tracked by recovery polling
   }, []);
 
   // Typing dot
@@ -432,8 +446,8 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
 
   const startRecoveryPolling = useCallback(() => {
     stopRecoveryPolling();
-    const MAX_POLL_MS = 30 * 60 * 1000; // 30 min
-    const POLL_INTERVAL = 5000;
+    const MAX_POLL_MS = 5 * 60 * 1000; // 5 min — don't trap user in loading state
+    const POLL_INTERVAL = 3000;
     const startedAt = Date.now();
 
     console.info('[recovery] Starting status polling...');
@@ -452,7 +466,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         const status = await api.getSandboxStatus(projectId);
         if (status.busy) {
           activeTasksState.restoreFromApi(status.activeTasks ?? [], true);
-          lastProgressTimeRef.current = Date.now();
         } else {
           stopRecoveryPolling();
           activeTasksState.onDone();
@@ -490,11 +503,6 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const handleSSEEvent = useCallback(
     (event: { event: string; data: unknown }, assistantMessageId: string) => {
       const { event: eventType, data } = event;
-
-      // Reset stall timer on meaningful activity
-      if (['text', 'widget', 'progress', 'heartbeat', 'activity', 'health', 'agent_plan', 'task_started', 'task_updated', 'task_completed'].includes(eventType)) {
-        lastProgressTimeRef.current = Date.now();
-      }
 
       // Non-content events
       switch (eventType) {
@@ -556,13 +564,25 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
               return { ...m, content: blocks.filter(b => b.type === 'widget') };
 
             case 'text': {
-              lastTextTimeRef.current = Date.now();
+              const now = Date.now();
+              lastTextTimeRef.current = now;
               const textData = data as { text: string };
+              const chunk = textData.text;
+
+              // Dedup: skip identical consecutive text chunks within 100ms
+              // (catches transport-level duplication)
+              if (chunk && chunk === lastTextDedupRef.current.text && now - lastTextDedupRef.current.time < 100) {
+                break;
+              }
+              if (chunk) {
+                lastTextDedupRef.current = { text: chunk, time: now };
+              }
+
               const last = blocks[blocks.length - 1];
               if (last && last.type === 'text') {
-                blocks[blocks.length - 1] = { ...last, text: last.text + textData.text };
+                blocks[blocks.length - 1] = { ...last, text: last.text + chunk };
               } else {
-                blocks.push({ type: 'text', text: textData.text });
+                blocks.push({ type: 'text', text: chunk });
               }
               break;
             }
@@ -657,6 +677,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       const assistantId = generateId();
       setMessages((prev) => [...prev, { id: assistantId, role: 'assistant', content: [], createdAt: new Date().toISOString() }]);
       setIsStreaming(true);
+      lastTextDedupRef.current = { text: '', time: 0 }; // Reset dedup for new message
 
       const effectiveTimeRange = snapshotContext?.selectedTimeRange ?? selectedTimeRange;
 
@@ -688,12 +709,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
             message: fullMessage,
             context: Object.keys(context).length > 0 ? context : undefined,
             widgetResponse,
-          }, controller.signal, lastEventIdRef.current ?? undefined);
+          }, controller.signal);
 
           // Sandbox sends heartbeats every 15s — 3 min without any data means connection is dead
           for await (const event of parseSSEStream(stream, { signal: controller.signal, inactivityTimeoutMs: 3 * 60 * 1000 })) {
             resetSafetyTimeout();
-            if (event.id !== undefined) lastEventIdRef.current = event.id;
             handleSSEEvent(event, assistantId);
           }
 
@@ -894,7 +914,9 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const handleWidgetResponse = useCallback(
     (widgetId: string, value: unknown) => {
       if (isStreaming) {
-        pendingWidgetResponseRef.current.push({ widgetId, value });
+        const pending = getPendingWidgetResponses(projectId);
+        pending.push({ widgetId, value });
+        setPendingWidgetResponses(projectId, pending);
         return;
       }
       setMessages((prev) => prev.map((m) => ({
@@ -906,25 +928,29 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
       })));
       sendMessage('', { widgetId, value });
     },
-    [sendMessage, isStreaming]
+    [sendMessage, isStreaming, projectId]
   );
 
-  // Flush pending widget responses
+  // Flush pending widget responses (survives page refresh via sessionStorage)
   useEffect(() => {
-    if (!isStreaming && pendingWidgetResponseRef.current.length > 0) {
-      const next = pendingWidgetResponseRef.current.shift()!;
-      handleWidgetResponse(next.widgetId, next.value);
+    if (!isStreaming) {
+      const pending = getPendingWidgetResponses(projectId);
+      if (pending.length > 0) {
+        const next = pending.shift()!;
+        setPendingWidgetResponses(projectId, pending);
+        handleWidgetResponse(next.widgetId, next.value);
+      }
     }
-  }, [isStreaming, handleWidgetResponse]);
+  }, [isStreaming, handleWidgetResponse, projectId]);
 
   // Flush queued user messages
   useEffect(() => {
-    if (!isStreaming && pendingWidgetResponseRef.current.length === 0 && messageQueueRef.current.length > 0) {
+    if (!isStreaming && getPendingWidgetResponses(projectId).length === 0 && messageQueueRef.current.length > 0) {
       const next = messageQueueRef.current.shift()!;
       setQueueSize(messageQueueRef.current.length);
       _executeMessage({ messageText: next.text, fullMessage: next.fullMessage, existingUserMsgId: next.id, snapshotContext: next.context });
     }
-  }, [isStreaming, _executeMessage]);
+  }, [isStreaming, _executeMessage, projectId]);
 
   // Auto-send pending AI message (from "Change & AI Adapt" context menu)
   useEffect(() => {
@@ -998,6 +1024,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setIsStreaming(false);
     setActiveJobId(null);
     sessionStorage.removeItem(`viona:activeJobId:${projectId}`);
+    setPendingWidgetResponses(projectId, []);
     try { await Promise.all([api.clearConversation(projectId), api.deleteVisuals(projectId)]); }
     catch (err) { console.error('Failed to reset:', err); }
     setMessages([]);

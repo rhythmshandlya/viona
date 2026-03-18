@@ -18,105 +18,8 @@ import {
   updateConversationSessionId,
 } from './conversation-store.js';
 
-// Per-project event buffer for Last-Event-ID resumption
-const EVENT_BUFFER_SIZE = 100;
-interface EventBuffer {
-  events: Array<{ id: number; event: string; data: string }>;
-  lastUpdated: number;
-}
-const projectEventBuffers = new Map<string, EventBuffer>();
-
-// Periodic sweep of stale event buffers
-const MAX_EVENT_BUFFERS = 200; // Safety cap — at 50 users, max ~50 active
-setInterval(() => {
-  const now = Date.now();
-  // Remove stale buffers (older than 5 minutes)
-  for (const [key, buffer] of projectEventBuffers) {
-    if (now - buffer.lastUpdated > 5 * 60 * 1000) {
-      projectEventBuffers.delete(key);
-    }
-  }
-  // If still over cap, evict oldest
-  if (projectEventBuffers.size > MAX_EVENT_BUFFERS) {
-    const sorted = [...projectEventBuffers.entries()]
-      .sort((a, b) => a[1].lastUpdated - b[1].lastUpdated);
-    const toRemove = sorted.slice(0, sorted.length - MAX_EVENT_BUFFERS);
-    for (const [key] of toRemove) {
-      projectEventBuffers.delete(key);
-    }
-  }
-}, 60 * 1000); // Run every minute instead of every 5 minutes
-
-// SSE helper — returns a closure that writes server-sent events with
-// auto-incrementing IDs, basic backpressure awareness, and event buffering
-// for Last-Event-ID resumption.
-function createSSEWriter(stream: NodeJS.WritableStream, projectId: string) {
-  let eventId = 0;
-  let draining = true;
-  stream.on('drain', () => { draining = true; });
-
-  // Always create a fresh buffer — replaces any stale buffer from a prior stream
-  const bufferObj: EventBuffer = { events: [], lastUpdated: Date.now() };
-  projectEventBuffers.set(projectId, bufferObj);
-
-  function sendSSE(event: string, data: unknown, skipBuffer = false) {
-    if ((stream as any).destroyed) return;
-    eventId++;
-    const serialized = JSON.stringify(data);
-
-    // Buffer for potential replay (skip for replayed events to prevent duplicates)
-    if (!skipBuffer) {
-      bufferObj.events.push({ id: eventId, event, data: serialized });
-      bufferObj.lastUpdated = Date.now();
-      if (bufferObj.events.length > EVENT_BUFFER_SIZE) bufferObj.events.shift();
-    }
-
-    try {
-      const ok = (stream as any).write(`id: ${eventId}\nevent: ${event}\ndata: ${serialized}\n\n`);
-      if (!ok) draining = false;
-    } catch {
-      // Stream closed — ignore
-    }
-  }
-
-  return { sendSSE, bufferObj };
-}
-
 // Per-project concurrent SSE stream counter
 const activeStreams = new Map<string, number>();
-
-// Format stored messages into text for system prompt context
-function formatConversationHistory(
-  storedMessages: Array<{ role: string; content: unknown }>,
-): string {
-  if (storedMessages.length === 0) return '';
-
-  const lines = storedMessages.map((m) => {
-    const contentBlocks = m.content as Array<{ type: string; text?: string; widget?: { kind?: string; planJobId?: string }; response?: unknown }>;
-    const parts: string[] = [];
-
-    for (const b of contentBlocks) {
-      if (b.type === 'text' && typeof b.text === 'string') {
-        parts.push(b.text);
-      } else if (b.type === 'widget' && b.widget) {
-        // Include key widget info so the agent can reference planJobId etc.
-        if (b.widget.kind === 'scene_plan' && b.widget.planJobId) {
-          parts.push(`[Shown scene plan widget — planJobId: ${b.widget.planJobId}]`);
-        } else if (b.widget.kind) {
-          parts.push(`[Shown ${b.widget.kind} widget]`);
-        }
-        // Include widget responses so the agent knows what the user picked (for retry context)
-        if (b.response !== undefined) {
-          parts.push(`[User responded: ${JSON.stringify(b.response)}]`);
-        }
-      }
-    }
-
-    return `[${m.role}]: ${parts.join('\n')}`;
-  });
-
-  return '\n\nCONVERSATION HISTORY:\n' + lines.join('\n\n');
-}
 
 export async function agentRoutes(fastify: FastifyInstance) {
   // ─── POST /projects/:id/agent/chat — SSE streaming chat ──────────────────
@@ -258,21 +161,20 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     // 6. Get sandbox connection for this project
     const session = await sandboxManager.getActiveSession(projectId);
-    const agentUrl = (session?.metadata as any)?.agentUrl as string | undefined;
+    const agentUrl = session?.agentUrl as string | undefined;
 
     if (!session || !agentUrl) {
       // No sandbox available — send error via SSE so frontend handles it gracefully
-      const sseStream = new PassThrough();
+      const errorStream = new PassThrough();
       reply
         .header('Content-Type', 'text/event-stream')
         .header('Cache-Control', 'no-cache')
         .header('Connection', 'keep-alive')
         .header('X-Accel-Buffering', 'no')
-        .send(sseStream);
+        .send(errorStream);
 
-      const { sendSSE } = createSSEWriter(sseStream, projectId);
-      sendSSE('error', { message: 'Sandbox not available. Please start the sandbox first.' });
-      sseStream.end();
+      errorStream.write(`event: error\ndata: ${JSON.stringify({ message: 'Sandbox not available. Please start the sandbox first.', recoverable: true })}\n\n`);
+      errorStream.end();
 
       // Decrement counter
       const c = activeStreams.get(projectId) || 1;
@@ -299,18 +201,28 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
 
     // Build the body to forward to sandbox
+    // If conversation has too many messages, start fresh to prevent context overflow
+    const MAX_RESUME_MESSAGES = 40; // ~20 user + 20 assistant turns
+    const shouldResume = conversation.sdkSessionId && storedMessages.length < MAX_RESUME_MESSAGES;
+
+    if (conversation.sdkSessionId && !shouldResume) {
+      fastify.log.info({ projectId, messageCount: storedMessages.length }, 'Skipping session resume — conversation too long');
+    }
+
     const proxyBody = {
       prompt: userText,
-      conversationHistory: storedMessages.map(m => ({
-        role: m.role,
-        content: typeof m.content === 'string' ? m.content :
-          (m.content as Array<{ type: string; text?: string }>)
-            .filter(b => b.type === 'text' && b.text)
-            .map(b => b.text!)
-            .join('\n'),
-      })),
+      conversationHistory: storedMessages
+        .slice(-20)  // Last 20 messages to prevent context overflow on non-resume
+        .map(m => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content :
+            (m.content as Array<{ type: string; text?: string }>)
+              .filter(b => b.type === 'text' && b.text)
+              .map(b => b.text!)
+              .join('\n'),
+        })),
       projectContext,
-      sessionId: conversation.sdkSessionId,
+      sessionId: shouldResume ? conversation.sdkSessionId : null,
       widgetResponse: body.widgetResponse,
       editingContext: body.context ? {
         type: body.context.selectedVisualItem ? 'visual' : 'general',
@@ -333,6 +245,9 @@ export async function agentRoutes(fastify: FastifyInstance) {
           onDone: async (data) => {
             if (data.sessionId) {
               await updateConversationSessionId(conversation.id, data.sessionId);
+            }
+            if (data.numTurns) {
+              fastify.log.info({ projectId, numTurns: data.numTurns, cost: data.cost }, 'Agent turn completed');
             }
             // Final flush
             flushText();

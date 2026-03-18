@@ -15,10 +15,13 @@
 // 8. Refinement — conversational editing via Viona
 
 import { query, type SDKPartialAssistantMessage, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+
+// Local type aliases for discriminated union extraction — the SDK doesn't export these directly
+type SDKAssistantMessage = Extract<SDKMessage, { type: 'assistant' }>;
 import pino from 'pino';
 import {
   addTask, updateTask, completeTask, appendText,
-  finishJob, failJob,
+  finishJob,
 } from './job-state.js';
 import { flushCallbacks } from './api-callback.js';
 
@@ -166,7 +169,11 @@ export async function buildOrchestratorOptions(
 
   return {
     model: 'opus',
-    systemPrompt,
+    systemPrompt: {
+      type: 'preset' as const,
+      preset: 'claude_code' as const,
+      append: systemPrompt,
+    },
     cwd: '/workspace',
     settingSources: ['project'],
     allowedTools: [
@@ -189,7 +196,11 @@ export async function buildOrchestratorOptions(
       // SCENE_PLAN.md. Research is part of planning — no separate Researcher agent.
       planner: {
         description: 'Analyzes transcript and creates a detailed scene-by-scene plan with timing, visual descriptions, canvas dimensions, and meaningful scene file names. Also researches web content, screenshots, and supporting materials. Outputs SCENE_PLAN.md.',
-        prompt: injectContext(plannerPrompt, ctx),
+        prompt: {
+          type: 'preset' as const,
+          preset: 'claude_code' as const,
+          append: injectContext(plannerPrompt, ctx),
+        },
         tools: [
           'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch', 'Skill',
           ...MANIFEST_TOOL_NAMES,
@@ -207,7 +218,11 @@ export async function buildOrchestratorOptions(
       // Phase 7: Final assembly (replace mockups, transitions, music, captions)
       editor: {
         description: 'Professional video editor. Handles transcript trimming (fillers, silences via manifest ops), rough cut with zoom crops and mockup placeholders, and final assembly with transitions, captions, and music. Re-dispatched per phase — reads workspace state.',
-        prompt: injectContext(editorPrompt, ctx),
+        prompt: {
+          type: 'preset' as const,
+          preset: 'claude_code' as const,
+          append: injectContext(editorPrompt, ctx),
+        },
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
           ...MANIFEST_TOOL_NAMES,
@@ -224,7 +239,11 @@ export async function buildOrchestratorOptions(
       // Single animator agent. Canvas dimensions come from the scene plan.
       animator: {
         description: 'Writes Remotion .tsx scene files based on the scene plan, receiving canvas dimensions from the plan. Self-heals compilation errors.',
-        prompt: animatorSystemPrompt,
+        prompt: {
+          type: 'preset' as const,
+          preset: 'claude_code' as const,
+          append: animatorSystemPrompt,
+        },
         tools: ANIMATOR_TOOL_NAMES,
         model: 'opus',
       },
@@ -236,7 +255,11 @@ export async function buildOrchestratorOptions(
       // completes — not after all Animators finish.
       reviewer: {
         description: 'Reviews rendered scene screenshots against the plan. Checks composition quality and readability. Returns pass/fail verdict with actionable feedback. Reviews each scene as its Animator completes.',
-        prompt: injectContext(reviewerPrompt, ctx),
+        prompt: {
+          type: 'preset' as const,
+          preset: 'claude_code' as const,
+          append: injectContext(reviewerPrompt, ctx),
+        },
         tools: [
           'Read', 'Glob', 'Grep', 'Skill',
           ...RENDER_TOOL_NAMES,
@@ -248,6 +271,9 @@ export async function buildOrchestratorOptions(
     maxTurns: 100,
     includePartialMessages: true,
     thinking: { type: 'adaptive' as const },
+    env: {
+      ENABLE_TOOL_SEARCH: 'false',
+    },
     persistSession: true,
     mcpServers: {
       ...(mcpServers || {}),
@@ -312,6 +338,8 @@ export async function runOrchestrator(
   let toolUses = 0;
   let lastActivityTime = Date.now();
   let currentToolName: string | null = null;
+  let lastResultCost: number | undefined;
+  let lastResultTurns: number | undefined;
 
   // ---- Mechanical progress emitter ----
   // Emits lifecycle events so the frontend always has something to show,
@@ -343,67 +371,121 @@ export async function runOrchestrator(
         emitProgress('connecting', 'Session established', 'Viona');
       }
 
-      // Log init message for session diagnostics (tool count, context size)
+      // Log init message for session diagnostics (tool count, MCP server health)
       if ((message as any).type === 'system' && (message as any).subtype === 'init') {
         const init = message as Record<string, unknown>;
+        const mcpServers = init.mcp_servers as Array<{ name: string; status: string }> | undefined;
+        const failedServers = mcpServers?.filter(s => s.status !== 'connected') ?? [];
+
         logger.info({
           tools: (init.tools as any[])?.length ?? 0,
-          mcpServers: Object.keys((init.mcp_servers as Record<string, unknown>) ?? {}).length,
+          mcpServers: mcpServers?.length ?? 0,
+          failedMcpServers: failedServers.map(s => `${s.name}:${s.status}`),
+          model: init.model,
           sessionId: init.session_id,
+          permissionMode: init.permissionMode,
         }, 'SDK init message');
+
+        if (failedServers.length > 0) {
+          logger.warn({ failedServers }, 'Some MCP servers failed to connect');
+        }
       }
 
       // Log and emit non-stream messages (tool use, tool result, agent dispatch, etc.)
       if (message.type !== 'stream_event') {
-        const msg = message as Record<string, unknown>;
-        if (msg.type === 'tool_use' || msg.role === 'tool_use') {
-          toolUses++;
-          const toolName = (msg.name || (msg.content as any)?.name) as string | undefined;
-          currentToolName = toolName ?? null;
-          logger.info({ tool: toolName, messageCount }, 'Tool use');
 
-          // Emit mechanical progress for tool usage
-          if (toolName?.startsWith('mcp__')) {
-            // MCP tool — extract server and tool name for display
-            const parts = toolName.split('__');
-            const server = parts[1];
-            const tool = parts.slice(2).join('__');
-            const displayServer = MCP_SERVER_LABELS[server] ?? server;
-            emitActivity(displayServer, tool, 'working');
-            emitProgress('working', `${tool}`, displayServer);
-            // Update Viona's task with current tool action
-            if (vionaTaskId) updateTask(vionaTaskId, tool);
-          } else if (toolName === 'Agent') {
-            // Subagent dispatch — map agent name to friendly label
-            const input = msg.input as Record<string, unknown> | undefined;
-            const subagentType = (input?.subagent_type ?? input?.description ?? '') as string;
-            const label = SUBAGENT_LABELS[subagentType.toLowerCase()] ?? (subagentType || 'subagent');
-            emitActivity('Viona', `dispatching ${label}`, 'working');
-            emitProgress('working', `Dispatching ${label}`, 'Viona');
-            // Track subagent as its own task
-            const toolUseId = (msg.id ?? msg.tool_use_id ?? '') as string;
-            const subTaskId = addTask(label, 'Starting...', subagentType.toLowerCase());
-            if (toolUseId) subagentTaskIds.set(toolUseId, subTaskId);
-          } else if (toolName) {
-            emitActivity('Viona', toolName, 'working');
-            emitProgress('working', toolName, 'Viona');
+        // --- Handle complete assistant messages (tool_use detection) ---
+        // SDK tool uses are content blocks INSIDE SDKAssistantMessage, not top-level messages.
+        // SDKAssistantMessage.message.content[] contains { type: 'tool_use', name, id, input } blocks.
+        if (message.type === 'assistant') {
+          const assistantMsg = message as SDKAssistantMessage;
+          const content = (assistantMsg as any).message?.content;
+          if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === 'tool_use') {
+                toolUses++;
+                const toolName: string | undefined = block.name;
+                currentToolName = toolName ?? null;
+                logger.info({ tool: toolName, toolUseId: block.id, messageCount }, 'Tool use');
+
+                if (toolName?.startsWith('mcp__')) {
+                  const parts = toolName.split('__');
+                  const server = parts[1];
+                  const tool = parts.slice(2).join('__');
+                  const displayServer = MCP_SERVER_LABELS[server] ?? server;
+                  emitActivity(displayServer, tool, 'working');
+                  emitProgress('working', `${tool}`, displayServer);
+                  if (vionaTaskId) updateTask(vionaTaskId, tool);
+                } else if (toolName === 'Agent') {
+                  const input = block.input as Record<string, unknown> | undefined;
+                  const agentKey = (input?.subagent_type ?? input?.description ?? '') as string;
+                  const label = SUBAGENT_LABELS[agentKey.toLowerCase()] ?? (agentKey || 'subagent');
+                  emitActivity('Viona', `dispatching ${label}`, 'working');
+                  emitProgress('working', `Dispatching ${label}`, 'Viona');
+                  const subTaskId = addTask(label, 'Starting...', agentKey.toLowerCase());
+                  subagentTaskIds.set(block.id, subTaskId);
+                } else if (toolName) {
+                  emitActivity('Viona', toolName, 'working');
+                  emitProgress('working', toolName, 'Viona');
+                }
+              }
+            }
           }
-        } else if (msg.type === 'tool_result') {
-          // Tool completed
+
+          // When we see a new assistant message at orchestrator level (no parent_tool_use_id),
+          // all pending subagent tasks from the previous turn are done.
+          const parentId = (assistantMsg as any).parent_tool_use_id;
+          if (!parentId) {
+            for (const [, taskId] of subagentTaskIds) {
+              completeTask(taskId);
+            }
+            subagentTaskIds.clear();
+          }
+        }
+
+        // --- Handle tool results (SDKUserMessage with tool_use_result) ---
+        if (message.type === 'user') {
           if (currentToolName) {
             logger.info({ tool: currentToolName, messageCount }, 'Tool result');
+            currentToolName = null;
           }
-          currentToolName = null;
-          // Complete subagent task if this result matches a tracked dispatch
-          const resultToolUseId = (msg.tool_use_id ?? '') as string;
-          if (resultToolUseId && subagentTaskIds.has(resultToolUseId)) {
-            completeTask(subagentTaskIds.get(resultToolUseId)!);
-            subagentTaskIds.delete(resultToolUseId);
+        }
+
+        // --- SDK result message (end of query) — contains cost, turns, usage ---
+        if (message.type === 'result') {
+          const result = message as Record<string, unknown>;
+          lastResultCost = result.total_cost_usd as number | undefined;
+          lastResultTurns = result.num_turns as number | undefined;
+          logger.info({
+            messageCount,
+            textChunks,
+            toolUses,
+            subtype: result.subtype,
+            numTurns: result.num_turns,
+            totalCostUsd: result.total_cost_usd,
+            durationMs: result.duration_ms,
+            durationApiMs: result.duration_api_ms,
+            stopReason: result.stop_reason,
+            sessionId: result.session_id,
+            errors: (result as any).errors,
+            permissionDenials: (result.permission_denials as any[])?.length ?? 0,
+          }, 'SDK result message');
+        }
+
+        // --- Handle tool_progress for long-running tools ---
+        if (message.type === 'tool_progress') {
+          const progress = message as { tool_use_id: string; tool_name: string; elapsed_time_seconds: number };
+          if (vionaTaskId && progress.tool_name) {
+            updateTask(vionaTaskId, `${progress.tool_name} (${Math.round(progress.elapsed_time_seconds)}s)`);
           }
-        } else if (msg.type === 'result') {
-          logger.info({ messageCount, textChunks, toolUses }, 'SDK result message');
-        } else {
-          logger.debug({ type: msg.type, messageCount }, 'SDK message');
+          if (progress.elapsed_time_seconds > 10) {
+            logger.info({ tool: progress.tool_name, elapsed: progress.elapsed_time_seconds }, 'Long-running tool');
+          }
+        }
+
+        // --- Log other message types for debugging ---
+        if (!['stream_event', 'assistant', 'user', 'result', 'tool_progress'].includes(message.type)) {
+          logger.debug({ type: message.type, messageCount }, 'SDK message');
         }
       }
 
@@ -462,7 +544,13 @@ export async function runOrchestrator(
 
         logger.warn({ err: resumeErr instanceof Error ? resumeErr.message : String(resumeErr) }, 'Resume failed, retrying fresh');
         emitProgress('connecting', 'Resume failed, starting fresh...', 'Viona');
+        // Reset all counters for the fresh attempt
         capturedSessionId = null;
+        textChunks = 0;
+        toolUses = 0;
+        messageCount = 0;
+        vionaTaskId = null;
+        subagentTaskIds.clear();
         callbacks.onText(''); // Signal reset to caller
 
         const iter = query(buildQueryOpts(false));
@@ -477,11 +565,28 @@ export async function runOrchestrator(
     }
 
     const elapsed = Math.round((Date.now() - startTime) / 1000);
-    logger.info({ elapsed, messageCount, textChunks, toolUses, sessionId: capturedSessionId }, 'Orchestrator completed');
+
+    // Health check: detect text-only responses that should have used tools
+    const userPrompt = request.prompt.toLowerCase();
+    const isActionable = userPrompt.includes('fix') || userPrompt.includes('error') ||
+      userPrompt.includes('change') || userPrompt.includes('update') ||
+      userPrompt.includes('add') || userPrompt.includes('remove') ||
+      userPrompt.includes('edit') || userPrompt.includes('debug');
+
+    if (isActionable && toolUses === 0 && textChunks > 50) {
+      logger.warn({
+        prompt: request.prompt.substring(0, 100),
+        textChunks,
+        toolUses,
+        messageCount,
+      }, 'Agent produced long text response without tool use for actionable request');
+    }
+
+    logger.info({ elapsed, messageCount, textChunks, toolUses, sessionId: capturedSessionId, cost: lastResultCost, turns: lastResultTurns }, 'Orchestrator completed');
 
     // Complete Viona's task and finish the job
     if (vionaTaskId) { completeTask(vionaTaskId); vionaTaskId = null; }
-    const doneResult = { sessionId: capturedSessionId ?? undefined };
+    const doneResult = { sessionId: capturedSessionId ?? undefined, cost: lastResultCost, numTurns: lastResultTurns };
     finishJob(doneResult);
     flushCallbacks();
 
@@ -491,10 +596,8 @@ export async function runOrchestrator(
     const message = err instanceof Error ? err.message : String(err);
     logger.error({ err: message, elapsed, messageCount, textChunks, toolUses }, 'Orchestrator failed');
 
-    // Fail the job and flush any pending callbacks
-    failJob(message);
-    flushCallbacks();
-
+    // Don't call failJob here — agent-server.ts handles it in its catch block
+    // to avoid double error notification.
     callbacks.onError(message);
   }
 }

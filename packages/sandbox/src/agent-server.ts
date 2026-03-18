@@ -147,8 +147,10 @@ export function startAgentServer(port = 8081): void {
       // Push to API regardless of SSE connection
       pushState(type, data);
 
-      // Stream to connected SSE client (skip 'plan' — it's sent as 'agent_plan' via MCP callback)
-      if (type !== 'plan') {
+      // Stream to connected SSE client
+      // Skip 'plan' — sent as 'agent_plan' via MCP callback
+      // Skip 'text' — sent directly via onText callback (avoids double-send)
+      if (type !== 'plan' && type !== 'text') {
         sendSSE(type, data);
       }
 
@@ -259,10 +261,20 @@ export function startAgentServer(port = 8081): void {
     });
 
     let eventId = 0;
+    let connectionAlive = true;
+
     const sendSSE = (event: string, data: unknown) => {
-      eventId++;
-      res.write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      if (!connectionAlive) return;
+      try {
+        eventId++;
+        res.write(`id: ${eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      } catch {
+        connectionAlive = false;
+      }
     };
+
+    res.on('close', () => { connectionAlive = false; });
+    res.on('error', () => { connectionAlive = false; });
 
     const heartbeat = setInterval(() => sendSSE('heartbeat', {}), 15000);
 
@@ -274,7 +286,6 @@ export function startAgentServer(port = 8081): void {
         crf,
         concurrency,
         onProgress: (line) => {
-          // Parse Remotion progress output
           const renderMatch = line.match(/Rendering frames.*?(\d+)%/);
           const stitchMatch = line.match(/Stitching.*?(\d+)%/);
           if (renderMatch) {
@@ -295,7 +306,9 @@ export function startAgentServer(port = 8081): void {
       sendSSE('error', { message: err instanceof Error ? err.message : 'Render failed' });
     } finally {
       clearInterval(heartbeat);
-      res.end();
+      if (connectionAlive) {
+        try { res.end(); } catch { /* already closed */ }
+      }
     }
   });
 
