@@ -1,5 +1,5 @@
-import { mkdir, writeFile, cp, access, symlink, readlink, copyFile } from 'fs/promises';
-import { createWriteStream } from 'fs';
+import { mkdir, writeFile, cp, access, symlink, readlink, copyFile, rm } from 'fs/promises';
+import { createWriteStream, cpSync, rmSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
 import { execFile } from 'child_process';
@@ -13,6 +13,7 @@ const execFileAsync = promisify(execFile);
 const logger = pino({ name: 'workspace-init' });
 
 const WORKSPACE = '/workspace';
+const STAGING = join(WORKSPACE, '.staging');
 const TEMPLATE = '/app/template';
 const NODE_MODULES_SRC = '/app/node_modules';
 
@@ -82,30 +83,30 @@ export async function isInitialized(): Promise<boolean> {
 }
 
 /**
- * Initialize workspace on first boot.
- * Downloads video, writes manifest, copies template files.
+ * Write all init-generated files into `baseDir`.
+ * This is the inner implementation — does NOT touch syncAssets or symlink recreation.
+ * All file paths for CREATED content use `baseDir`; paths to pre-existing
+ * Docker image files (e.g. /app/template, /app/prompts) stay absolute.
  */
-export async function initWorkspace(payload: InitPayload): Promise<void> {
-  logger.info('Initializing workspace (first boot)');
-
+async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promise<void> {
   // Create directory structure
-  await mkdir(join(WORKSPACE, 'src', 'segments'), { recursive: true });
-  await mkdir(join(WORKSPACE, 'src', 'components'), { recursive: true });
-  await mkdir(join(WORKSPACE, 'src', 'scenes'), { recursive: true });
-  await mkdir(join(WORKSPACE, 'public'), { recursive: true });
-  await mkdir(join(WORKSPACE, '.build'), { recursive: true });
-  await mkdir(join(WORKSPACE, '.claude'), { recursive: true });
-  await mkdir(join(WORKSPACE, 'docs'), { recursive: true });
+  await mkdir(join(baseDir, 'src', 'segments'), { recursive: true });
+  await mkdir(join(baseDir, 'src', 'components'), { recursive: true });
+  await mkdir(join(baseDir, 'src', 'scenes'), { recursive: true });
+  await mkdir(join(baseDir, 'public'), { recursive: true });
+  await mkdir(join(baseDir, '.build'), { recursive: true });
+  await mkdir(join(baseDir, '.claude'), { recursive: true });
+  await mkdir(join(baseDir, 'docs'), { recursive: true });
 
   // Create empty scene-registry.ts stub (PlayerComposition imports it statically)
-  await writeFile(join(WORKSPACE, 'src', 'scene-registry.ts'),
+  await writeFile(join(baseDir, 'src', 'scene-registry.ts'),
     `// AUTO-GENERATED — do not edit\nimport React from 'react';\nexport const sceneRegistry: Record<string, React.ComponentType<any>> = {};\n`);
 
   // Download video from MinIO
   const minio = getMinioClient();
   const bucket = process.env.MINIO_BUCKET || 'viona';
 
-  const videoPath = join(WORKSPACE, 'public', 'source.mp4');
+  const videoPath = join(baseDir, 'public', 'source.mp4');
 
   logger.info({ key: payload.videoUrl }, 'Downloading source video');
   const videoStream = await minio.getObject(bucket, payload.videoUrl);
@@ -117,7 +118,7 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
   logger.info({ durationMs }, 'Video duration detected');
 
   // Extract audio track from video for independent playback
-  const audioPath = join(WORKSPACE, 'public', 'audio.aac');
+  const audioPath = join(baseDir, 'public', 'audio.aac');
   try {
     await execFileAsync('ffmpeg', [
       '-i', videoPath,
@@ -158,30 +159,31 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
 
   // Write manifest
   await writeFile(
-    join(WORKSPACE, 'manifest.json'),
+    join(baseDir, 'manifest.json'),
     JSON.stringify(manifest, null, 2),
   );
 
   // Symlink manifest into public/ so Remotion's staticFile() can read it
   // (calculateMetadata runs in browser context where fs is unavailable)
+  // Note: uses baseDir-relative paths so the symlink is valid after promotion
   try {
     await symlink(
-      join(WORKSPACE, 'manifest.json'),
-      join(WORKSPACE, 'public', 'manifest.json'),
+      join(baseDir, 'manifest.json'),
+      join(baseDir, 'public', 'manifest.json'),
     );
   } catch (err: any) {
     if (err.code !== 'EEXIST') throw err;
   }
 
   // Copy template files (composition infra, .claude/, configs)
-  await cp(TEMPLATE, WORKSPACE, {
+  await cp(TEMPLATE, baseDir, {
     recursive: true,
     force: false,  // Don't overwrite existing files
   });
 
   // Copy shared prompt modules into workspace for orchestrator access
   const sharedSrc = join('/app', 'prompts', 'shared');
-  const sharedDst = join(WORKSPACE, 'docs', 'shared');
+  const sharedDst = join(baseDir, 'docs', 'shared');
   await mkdir(sharedDst, { recursive: true });
   for (const file of ['technical-rules.md', 'motion-design-principles.md', 'vocabulary.md', 'quality-checklist.md']) {
     try {
@@ -193,7 +195,7 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
 
   // Copy theme design system files into workspace for Planner/Animator access
   const themesSrc = join('/app', 'prompts', 'themes');
-  const themesDst = join(WORKSPACE, 'docs', 'themes');
+  const themesDst = join(baseDir, 'docs', 'themes');
   try {
     await cp(themesSrc, themesDst, { recursive: true, force: false });
   } catch {
@@ -203,7 +205,7 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
   // Write transcript if provided
   if (payload.transcript) {
     await writeFile(
-      join(WORKSPACE, 'docs', 'transcript.json'),
+      join(baseDir, 'docs', 'transcript.json'),
       JSON.stringify(payload.transcript, null, 2),
     );
   }
@@ -211,7 +213,7 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
   // Write user brief if provided
   if (payload.userBrief) {
     await writeFile(
-      join(WORKSPACE, 'docs', 'user-brief.md'),
+      join(baseDir, 'docs', 'user-brief.md'),
       payload.userBrief,
     );
   }
@@ -219,14 +221,14 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
   // Write head-tracking data if provided
   if (payload.headTracking) {
     await writeFile(
-      join(WORKSPACE, 'docs', 'speaker-grid.json'),
+      join(baseDir, 'docs', 'speaker-grid.json'),
       JSON.stringify(payload.headTracking, null, 2),
     );
   }
 
   // Initialize generation progress file
   await writeFile(
-    join(WORKSPACE, 'generation-progress.json'),
+    join(baseDir, 'generation-progress.json'),
     JSON.stringify({
       phase: 'initialized',
       planApproved: false,
@@ -239,11 +241,56 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
       updatedAt: new Date().toISOString(),
     }, null, 2),
   );
+}
 
-  // Initial asset sync — generate presigned URLs for downloaded media
-  await syncAssets();
+/**
+ * Initialize workspace on first boot using atomic staging pattern.
+ * Writes all files to /workspace/.staging first, then promotes to /workspace
+ * on success. If init fails mid-way, the staging dir is cleaned up and the
+ * workspace is left untouched.
+ */
+export async function initWorkspace(payload: InitPayload): Promise<void> {
+  logger.info('Initializing workspace (first boot) — using staging directory');
 
-  logger.info('Workspace initialized');
+  // Clean any previous failed staging attempt
+  rmSync(STAGING, { recursive: true, force: true });
+
+  // Create fresh staging directory
+  mkdirSync(STAGING, { recursive: true });
+
+  try {
+    // Write all init files into staging
+    await initWorkspaceInDir(payload, STAGING);
+
+    // Promote: copy staging contents into workspace root
+    // Using cpSync (not rename) because staging and workspace may be on different mount points
+    cpSync(STAGING, WORKSPACE, { recursive: true, force: true });
+
+    // Recreate symlink — cpSync turns symlinks into regular file copies
+    // Remove the copied regular file first, then create proper symlink
+    try {
+      await rm(join(WORKSPACE, 'public', 'manifest.json'), { force: true });
+      await symlink(
+        join(WORKSPACE, 'manifest.json'),
+        join(WORKSPACE, 'public', 'manifest.json'),
+      );
+    } catch (err: any) {
+      if (err.code !== 'EEXIST') throw err;
+    }
+
+    // Clean up staging directory
+    rmSync(STAGING, { recursive: true, force: true });
+
+    // Asset sync runs after promotion — it reads/writes /workspace directly
+    await syncAssets();
+
+    logger.info('Workspace initialized');
+  } catch (err) {
+    // Clean up staging on failure
+    logger.error({ err }, 'Workspace init failed — cleaning up staging directory');
+    rmSync(STAGING, { recursive: true, force: true });
+    throw err;
+  }
 }
 
 /**
