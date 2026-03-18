@@ -1,0 +1,195 @@
+{
+  "main": {
+    "id": "1d7bc264eaa538bb",
+    "type": "split",
+    "children": [
+      {
+        "id": "e8fe93cd3cba8b03",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "417b6e0326048328",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "plans/2026-03-17-v2-migration-cleanup.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "2026-03-17-v2-migration-cleanup"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "f1f4ffa5c61e40e4",
+    "type": "split",
+    "children": [
+      {
+        "id": "88b256c1e536ec7b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "1d6a52f5ede41c65",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "25f0718a816f78c2",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "a51e38d74c96e4c4",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "4f7cebeb84f7a4dc",
+    "type": "split",
+    "children": [
+      {
+        "id": "c93496023d459cde",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "827cddb5318a00c7",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "plans/2026-03-17-v2-migration-cleanup.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for 2026-03-17-v2-migration-cleanup"
+            }
+          },
+          {
+            "id": "ec84e2a09fade073",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "plans/2026-03-17-v2-migration-cleanup.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from 2026-03-17-v2-migration-cleanup"
+            }
+          },
+          {
+            "id": "08b7b4ff518d9546",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "6b3367be937897f2",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "e9b35a2f99244c1f",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "plans/2026-03-17-v2-migration-cleanup.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of 2026-03-17-v2-migration-cleanup"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "417b6e0326048328",
+  "lastOpenFiles": [
+    "plans/2026-03-17-template-system-redesign.md.tmp.6760.1773754857346",
+    "plans/2026-03-17-template-system-redesign.md.tmp.6760.1773754852522",
+    "plans/2026-03-17-template-system-redesign.md",
+    "plans/2026-03-10-progress-reliability-plan.md",
+    "plans/2026-03-17-v2-migration-cleanup.md",
+    "specs/2026-03-17-template-system-redesign.md.tmp.6760.1773752882841"
+  ]
+}

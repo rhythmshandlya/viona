@@ -81,3 +81,6 @@ tests/e2e/fixtures/*.mp4
 tests/e2e/fixtures/*.mov
 tests/e2e/fixtures/*.mkv
 tests/e2e/output/
+
+# Obsidian vault (separate repo)
+docs/viona-notes/
