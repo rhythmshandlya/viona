@@ -7,7 +7,7 @@ import { redis, publishJobError } from '../services/redis.js';
 import { releaseLock } from '../workspace/workspace-lock.js';
 import { emitLockReleased } from '../workspace/workspace-ws.js';
 import { proxyPromptWithIntercept, proxyCancelAgent } from '../sandbox/proxy.js';
-import { getActiveSession } from '../sandbox/routes.js';
+import { sandboxManager } from '../sandbox/manager.js';
 import {
   getOrCreateConversation,
   getConversationMessages,
@@ -257,7 +257,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
     }
 
     // 6. Get sandbox connection for this project
-    const session = await getActiveSession(projectId);
+    const session = await sandboxManager.getActiveSession(projectId);
     const agentUrl = (session?.metadata as any)?.agentUrl as string | undefined;
 
     if (!session || !agentUrl) {
@@ -512,7 +512,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       }
 
       // Forward cancel to sandbox
-      const session = await getActiveSession(projectId);
+      const session = await sandboxManager.getActiveSession(projectId);
       if (session) {
         const agentUrl = (session.metadata as any)?.agentUrl as string | undefined;
         if (agentUrl) {
