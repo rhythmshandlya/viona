@@ -517,9 +517,15 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
           activityState.onActivity(data as Record<string, unknown>);
           return;
         case 'heartbeat':
-        case 'health':
+        case 'health': {
           activityState.onHeartbeat(data as Record<string, unknown>);
+          // Restore activeTasks from heartbeat snapshot (helps reconnecting clients)
+          const hb = data as { activeTasks?: any[]; busy?: boolean };
+          if (hb.activeTasks !== undefined) {
+            activeTasksState.restoreFromApi(hb.activeTasks, hb.busy ?? false);
+          }
           return;
+        }
         case 'progress': {
           onProgressReceived();
           const pd = data as { message?: string; phase?: string; agentName?: string; jobId?: string; error?: boolean };

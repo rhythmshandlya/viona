@@ -614,38 +614,55 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
     };
 
     const TASK_TTL = 30 * 60; // 30 minutes in seconds
+    const tasksKey = `sandbox:tasks:${projectId}`;
+    const busyKey = `sandbox:busy:${projectId}`;
+
+    // Lua script for atomic task mutations — avoids TOCTOU race on concurrent callbacks
+    const TASK_MUTATION_LUA = `
+      local tasks_raw = redis.call('GET', KEYS[1])
+      local tasks = tasks_raw and cjson.decode(tasks_raw) or {}
+      local op = ARGV[1]
+      local task_data = ARGV[2]
+      local ttl = tonumber(ARGV[3])
+
+      if op == 'add' then
+        local task = cjson.decode(task_data)
+        table.insert(tasks, task)
+      elseif op == 'update' then
+        local upd = cjson.decode(task_data)
+        for i, t in ipairs(tasks) do
+          if t.id == upd.id then
+            t.action = upd.action
+            break
+          end
+        end
+      elseif op == 'complete' then
+        local upd = cjson.decode(task_data)
+        for i, t in ipairs(tasks) do
+          if t.id == upd.id then
+            t.status = 'completed'
+            break
+          end
+        end
+      end
+
+      redis.call('SET', KEYS[1], cjson.encode(tasks), 'EX', ttl)
+      return #tasks
+    `;
 
     try {
       switch (type) {
         case 'task_started': {
-          const tasksRaw = await redis.get(`sandbox:tasks:${projectId}`).catch(() => null);
-          let tasks: unknown[] = [];
-          if (tasksRaw) try { tasks = JSON.parse(tasksRaw); } catch {}
-          tasks.push(data);
-          await redis.set(`sandbox:tasks:${projectId}`, JSON.stringify(tasks), 'EX', TASK_TTL);
-          await redis.set(`sandbox:busy:${projectId}`, JSON.stringify({ busy: true, startedAt: timestamp ?? Date.now() }), 'EX', TASK_TTL);
+          await redis.eval(TASK_MUTATION_LUA, 1, tasksKey, 'add', JSON.stringify(data), TASK_TTL);
+          await redis.set(busyKey, JSON.stringify({ busy: true, startedAt: timestamp ?? Date.now() }), 'EX', TASK_TTL);
           break;
         }
         case 'task_updated': {
-          const tasksRaw = await redis.get(`sandbox:tasks:${projectId}`).catch(() => null);
-          let tasks: any[] = [];
-          if (tasksRaw) try { tasks = JSON.parse(tasksRaw); } catch {}
-          const idx = tasks.findIndex((t: any) => t.id === data?.id);
-          if (idx >= 0) {
-            tasks[idx].action = data.action;
-            await redis.set(`sandbox:tasks:${projectId}`, JSON.stringify(tasks), 'EX', TASK_TTL);
-          }
+          await redis.eval(TASK_MUTATION_LUA, 1, tasksKey, 'update', JSON.stringify(data), TASK_TTL);
           break;
         }
         case 'task_completed': {
-          const tasksRaw = await redis.get(`sandbox:tasks:${projectId}`).catch(() => null);
-          let tasks: any[] = [];
-          if (tasksRaw) try { tasks = JSON.parse(tasksRaw); } catch {}
-          const cIdx = tasks.findIndex((t: any) => t.id === data?.id);
-          if (cIdx >= 0) {
-            tasks[cIdx].status = 'completed';
-          }
-          await redis.set(`sandbox:tasks:${projectId}`, JSON.stringify(tasks), 'EX', TASK_TTL);
+          await redis.eval(TASK_MUTATION_LUA, 1, tasksKey, 'complete', JSON.stringify(data), TASK_TTL);
           break;
         }
         case 'plan': {
@@ -653,16 +670,16 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
           break;
         }
         case 'done': {
-          await redis.del(`sandbox:tasks:${projectId}`, `sandbox:busy:${projectId}`);
+          await redis.del(tasksKey, busyKey);
           break;
         }
         case 'error': {
-          await redis.del(`sandbox:tasks:${projectId}`, `sandbox:busy:${projectId}`);
+          await redis.del(tasksKey, busyKey);
           break;
         }
         default: {
           // Refresh TTL on busy key to keep it alive
-          await redis.expire(`sandbox:busy:${projectId}`, TASK_TTL);
+          await redis.expire(busyKey, TASK_TTL);
           break;
         }
       }
