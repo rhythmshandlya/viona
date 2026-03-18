@@ -79,11 +79,13 @@ export class SandboxManager {
   // Graceful shutdown flag
   private shuttingDown = false;
 
+  // Health monitoring
+  private healthTimer: ReturnType<typeof setInterval> | null = null;
+  private gcTimer: ReturnType<typeof setInterval> | null = null;
+  private healthFailures = new Map<string, { count: number; lastCheck: number; skipUntil: number }>();
+
   constructor() {
-    // Register idle suspension callback
-    onSandboxIdle(async (projectId, reason) => {
-      await this.suspend(projectId, (reason as SuspendReason) || 'idle');
-    });
+    // No-op — call startMonitoring() after boot
   }
 
   // -----------------------------------------------------------------------
@@ -750,20 +752,215 @@ export class SandboxManager {
   }
 
   // -----------------------------------------------------------------------
-  // Graceful shutdown
+  // Monitoring — startMonitoring() / stopMonitoring()
   // -----------------------------------------------------------------------
 
-  /** Mark manager as shutting down — acquire() will reject */
-  markShuttingDown(): void {
-    this.shuttingDown = true;
+  /** Start health sweep, GC sweep, and idle-suspension callback. Call once on boot. */
+  startMonitoring(): void {
+    // Register idle callback — when health.ts detects idle, suspend with reason
+    onSandboxIdle(async (projectId, reason) => {
+      await this.suspend(projectId, (reason as SuspendReason) || 'idle');
+    });
+
+    // Health sweep every 30s
+    this.healthTimer = setInterval(() => {
+      this.healthSweep().catch(err => {
+        logger.error({ err: (err as Error).message }, 'Health sweep failed');
+      });
+    }, 30_000);
+
+    // GC sweep every 5 minutes
+    this.gcTimer = setInterval(() => {
+      this.gcSweep().catch(err => {
+        logger.error({ err: (err as Error).message }, 'GC sweep failed');
+      });
+    }, 5 * 60_000);
+
+    // Rehydrate existing sessions on boot
+    this.rehydrate().catch(err => {
+      logger.error({ err: (err as Error).message }, 'Rehydration failed');
+    });
+
+    logger.info('Sandbox monitoring started');
   }
 
-  /** Cancel all debounced sync timers */
-  clearSyncTimers(): void {
-    for (const timer of this.syncTimers.values()) {
-      clearTimeout(timer);
+  // -----------------------------------------------------------------------
+  // healthSweep() — check all ready sessions, suspend after 3 consecutive failures
+  // -----------------------------------------------------------------------
+
+  private async healthSweep(): Promise<void> {
+    const provider = await this.getProvider();
+    const sessions = await db.query.sandboxSessions.findMany({
+      where: eq(sandboxSessions.status, 'ready'),
+    });
+
+    for (const session of sessions) {
+      if (!session.internalUrl) continue;
+
+      // Check skip window (exponential backoff for known-unhealthy)
+      const tracking = this.healthFailures.get(session.id);
+      if (tracking && Date.now() < tracking.skipUntil) continue;
+
+      const healthy = await provider.isReady(session.internalUrl);
+
+      if (healthy) {
+        this.healthFailures.delete(session.id);
+      } else {
+        const current = this.healthFailures.get(session.id) || { count: 0, lastCheck: 0, skipUntil: 0 };
+        current.count++;
+        current.lastCheck = Date.now();
+        // Exponential skip: 30s, 60s, 120s, 240s cap
+        const skipMs = Math.min(30_000 * Math.pow(2, current.count - 1), 240_000);
+        current.skipUntil = Date.now() + skipMs;
+        this.healthFailures.set(session.id, current);
+
+        if (current.count >= 3) {
+          logger.warn({ projectId: session.projectId, failures: current.count }, 'Sandbox unhealthy, suspending');
+          this.healthFailures.delete(session.id);
+          await this.suspend(session.projectId, 'health_failure').catch(err => {
+            logger.error({ err: (err as Error).message, projectId: session.projectId }, 'Auto-suspend failed');
+          });
+        }
+      }
     }
+  }
+
+  // -----------------------------------------------------------------------
+  // gcSweep() — clean orphaned containers + stuck transitional DB rows
+  // -----------------------------------------------------------------------
+
+  private async gcSweep(): Promise<void> {
+    const provider = await this.getProvider();
+
+    // 1. Provider-level orphan detection (if supported)
+    if (provider.listContainers) {
+      try {
+        const containers = await provider.listContainers();
+        const dbProjectIds = new Set(
+          (await db.query.sandboxSessions.findMany({
+            where: inArray(sandboxSessions.status, ['creating', 'ready']),
+            columns: { projectId: true },
+          })).map((s: { projectId: string }) => s.projectId)
+        );
+
+        for (const c of containers) {
+          if (!dbProjectIds.has(c.projectId)) {
+            // Grace period: don't delete containers younger than 10 minutes
+            if (Date.now() - c.createdAt < 10 * 60_000) continue;
+            logger.warn({ projectId: c.projectId, containerId: c.id }, 'Orphaned container found, removing');
+            try {
+              await provider.destroy({ id: c.id, volumeId: '', projectId: c.projectId });
+            } catch (err: unknown) {
+              logger.error({ err: (err as Error).message }, 'Failed to remove orphaned container');
+            }
+          }
+        }
+      } catch (err: unknown) {
+        logger.warn({ err: (err as Error).message }, 'Container listing for GC failed');
+      }
+    }
+
+    // 2. DB cleanup: stuck transitional states
+    const now = new Date();
+    const tenMinAgo = new Date(now.getTime() - 10 * 60_000);
+    const fiveMinAgo = new Date(now.getTime() - 5 * 60_000);
+
+    const stuckCreating = await db.query.sandboxSessions.findMany({
+      where: and(
+        eq(sandboxSessions.status, 'creating'),
+        sql`${sandboxSessions.createdAt} < ${tenMinAgo}`,
+      ),
+    });
+    for (const s of stuckCreating) {
+      logger.warn({ projectId: s.projectId }, 'Session stuck in creating for >10min, marking suspended');
+      await db.update(sandboxSessions)
+        .set({ status: 'suspended', suspendReason: 'health_failure' })
+        .where(eq(sandboxSessions.id, s.id));
+    }
+
+    const stuckSuspending = await db.query.sandboxSessions.findMany({
+      where: and(
+        eq(sandboxSessions.status, 'suspending'),
+        sql`${sandboxSessions.lastActivityAt} < ${fiveMinAgo}`,
+      ),
+    });
+    for (const s of stuckSuspending) {
+      logger.warn({ projectId: s.projectId }, 'Session stuck in suspending for >5min, force cleanup');
+      try {
+        await provider.destroy({
+          id: s.railwayServiceId || s.id,
+          volumeId: s.railwayVolumeId || '',
+          projectId: s.projectId,
+        });
+      } catch { /* best-effort */ }
+      await db.update(sandboxSessions)
+        .set({ status: 'suspended', suspendReason: 'health_failure' })
+        .where(eq(sandboxSessions.id, s.id));
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // stopMonitoring() — graceful shutdown: checkpoint all, drain, clean up
+  // -----------------------------------------------------------------------
+
+  async stopMonitoring(): Promise<void> {
+    this.shuttingDown = true;
+
+    // Stop loops
+    if (this.healthTimer) { clearInterval(this.healthTimer); this.healthTimer = null; }
+    if (this.gcTimer) { clearInterval(this.gcTimer); this.gcTimer = null; }
+
+    // Clear sync timers
+    for (const timer of this.syncTimers.values()) clearTimeout(timer);
     this.syncTimers.clear();
+
+    // Graceful drain: backup all active sandboxes
+    const readySessions = await db.query.sandboxSessions.findMany({
+      where: eq(sandboxSessions.status, 'ready'),
+    });
+
+    if (readySessions.length === 0) {
+      logger.info('Shutdown complete: no active sandboxes');
+      return;
+    }
+
+    logger.info({ count: readySessions.length }, 'Shutting down: backing up active sandboxes');
+
+    let succeeded = 0;
+    let failed = 0;
+
+    // Process in batches of 10
+    const batchSize = 10;
+    for (let i = 0; i < readySessions.length; i += batchSize) {
+      const batch = readySessions.slice(i, i + batchSize);
+      const results = await Promise.allSettled(
+        batch.map(async (session) => {
+          const prov = await this.getProvider();
+          // Checkpoint to S3
+          await this.durableCheckpoint(session.projectId, session).catch(() => {});
+          // Backup volume
+          let backupId: string | null = null;
+          try {
+            backupId = await prov.backup({
+              id: session.railwayServiceId || session.id,
+              volumeId: session.railwayVolumeId || session.internalUrl || '',
+              volumeInstanceId: session.railwayVolumeInstanceId || session.internalUrl || '',
+              projectId: session.projectId,
+            });
+          } catch { /* best-effort */ }
+          // Mark as suspended
+          await db.update(sandboxSessions)
+            .set({ status: 'suspended', backupId, suspendReason: 'api_shutdown', suspendedAt: new Date() })
+            .where(eq(sandboxSessions.id, session.id));
+        })
+      );
+      for (const r of results) {
+        if (r.status === 'fulfilled') succeeded++;
+        else failed++;
+      }
+    }
+
+    logger.info({ succeeded, failed }, 'Shutdown complete');
   }
 }
 
