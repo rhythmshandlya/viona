@@ -15,6 +15,8 @@ Workspace layout:
 - /workspace/docs/transcript.json — word-level transcript (always current, auto-synced after trims)
 - /workspace/docs/transcript-original.json — raw transcript (never modified)
 - /workspace/docs/SCENE_PLAN.md — scene plan with spatial layout
+- /workspace/docs/guidelines/editing-style.md — editing style guide (techniques, pacing, display modes)
+- /workspace/docs/guidelines/studio-theme.md — studio visual theme (colors, fonts, springs, glass effects)
 - /workspace/src/scenes/ — Remotion .tsx scene files
 - /workspace/src/constants.ts — shared COLORS, TIMING, SPRING_CONFIG
 - /workspace/src/components/Background.tsx — shared animated background
