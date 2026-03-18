@@ -235,54 +235,60 @@ export class SandboxManager {
         .limit(1);
       const backupId = suspended?.backupId || undefined;
 
-      // 3. Atomic concurrent limit: SELECT FOR UPDATE to prevent races
-      // Count active sessions in app code
-      const activeRows = await db.select({ id: sandboxSessions.id, userId: sandboxSessions.userId, projectId: sandboxSessions.projectId })
-        .from(sandboxSessions)
-        .where(inArray(sandboxSessions.status, ['creating', 'ready']));
+      // 3. Atomic concurrent limit check + session upsert inside a DB transaction
+      //    SELECT FOR UPDATE locks active rows to prevent concurrent creates
+      let deferredSuspensions: Array<{ projectId: string }> = [];
+      let sessionId: string = '';
 
-      if (activeRows.length >= config.sandbox.maxConcurrent) {
-        throw new Error('Maximum concurrent sandboxes reached');
-      }
+      await db.transaction(async (tx: any) => {
+        // Lock all active session rows
+        const activeRows = await tx.execute(
+          sql`SELECT id, user_id, project_id FROM sandbox_sessions WHERE status IN ('creating', 'ready') FOR UPDATE`
+        );
+        const rows: Array<{ id: string; user_id: string; project_id: string }> = activeRows.rows ?? activeRows;
 
-      // 4. Per-user limit: find other active sessions for this user
-      const otherUserSandboxes = activeRows.filter(
-        r => r.userId === userId && r.projectId !== projectId,
-      );
+        if (rows.length >= config.sandbox.maxConcurrent) {
+          throw new Error('Maximum concurrent sandboxes reached');
+        }
 
-      // 5. Upsert session: UPDATE if suspended exists, INSERT if not
-      const sessionData = {
-        status: 'creating' as const,
-        railwayServiceId: null as string | null,
-        railwayVolumeId: null as string | null,
-        railwayVolumeInstanceId: null as string | null,
-        internalUrl: null as string | null,
-        agentUrl: null as string | null,
-        sandboxSecret: randomUUID(),
-        metadata: {} as Record<string, unknown>,
-        lastActivityAt: new Date(),
-        suspendedAt: null as Date | null,
-        suspendReason: null as string | null,
-      };
+        // Per-user limit: find other active sessions for this user
+        deferredSuspensions = rows
+          .filter(r => r.user_id === userId && r.project_id !== projectId)
+          .map(r => ({ projectId: r.project_id }));
 
-      let sessionId: string;
-      if (suspended) {
-        await db.update(sandboxSessions)
-          .set(sessionData)
-          .where(eq(sandboxSessions.id, suspended.id));
-        sessionId = suspended.id;
-      } else {
-        const [inserted] = await db.insert(sandboxSessions).values({
-          projectId,
-          userId,
-          provider: config.sandbox.provider,
-          ...sessionData,
-        }).returning({ id: sandboxSessions.id });
-        sessionId = inserted.id;
-      }
+        // Upsert session: UPDATE if suspended exists, INSERT if not
+        const sessionData = {
+          status: 'creating' as const,
+          railwayServiceId: null as string | null,
+          railwayVolumeId: null as string | null,
+          railwayVolumeInstanceId: null as string | null,
+          internalUrl: null as string | null,
+          agentUrl: null as string | null,
+          sandboxSecret: randomUUID(),
+          metadata: {} as Record<string, unknown>,
+          lastActivityAt: new Date(),
+          suspendedAt: null as Date | null,
+          suspendReason: null as string | null,
+        };
 
-      // 6. After transaction: suspend other user sandboxes (fire-and-forget)
-      for (const other of otherUserSandboxes) {
+        if (suspended) {
+          await tx.update(sandboxSessions)
+            .set(sessionData)
+            .where(eq(sandboxSessions.id, suspended.id));
+          sessionId = suspended.id;
+        } else {
+          const [inserted] = await tx.insert(sandboxSessions).values({
+            projectId,
+            userId,
+            provider: config.sandbox.provider,
+            ...sessionData,
+          }).returning({ id: sandboxSessions.id });
+          sessionId = inserted.id;
+        }
+      });
+
+      // 4. After transaction committed: suspend other user sandboxes (fire-and-forget)
+      for (const other of deferredSuspensions) {
         this.suspend(other.projectId, 'limit_exceeded').catch(err => {
           logger.error({ err, projectId: other.projectId }, 'Failed to suspend other user sandbox');
         });

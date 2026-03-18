@@ -514,7 +514,7 @@ export async function agentRoutes(fastify: FastifyInstance) {
       // Forward cancel to sandbox
       const session = await sandboxManager.getActiveSession(projectId);
       if (session) {
-        const agentUrl = (session.metadata as any)?.agentUrl as string | undefined;
+        const agentUrl = session.agentUrl || (session.metadata as any)?.agentUrl as string | undefined;
         if (agentUrl) {
           try {
             await proxyCancelAgent(agentUrl, session.sandboxSecret);
