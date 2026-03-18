@@ -10,7 +10,7 @@ interface ProjectActivity {
 
 const activityMap = new Map<string, ProjectActivity>();
 
-type SuspendCallback = (projectId: string) => Promise<void>;
+type SuspendCallback = (projectId: string, reason: string) => Promise<void>;
 let onSuspend: SuspendCallback | null = null;
 
 /**
@@ -80,7 +80,7 @@ function startIdleTimer(projectId: string): void {
 
     if (onSuspend) {
       try {
-        await onSuspend(projectId);
+        await onSuspend(projectId, 'idle');
       } catch (err) {
         logger.error({ err, projectId }, 'Failed to suspend sandbox');
       }
