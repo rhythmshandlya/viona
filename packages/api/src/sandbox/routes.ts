@@ -641,7 +641,10 @@ export async function sandboxRoutes(fastify: FastifyInstance): Promise<void> {
           const tasksRaw = await redis.get(`sandbox:tasks:${projectId}`).catch(() => null);
           let tasks: any[] = [];
           if (tasksRaw) try { tasks = JSON.parse(tasksRaw); } catch {}
-          tasks = tasks.filter((t: any) => t.id !== data?.id);
+          const cIdx = tasks.findIndex((t: any) => t.id === data?.id);
+          if (cIdx >= 0) {
+            tasks[cIdx].status = 'completed';
+          }
           await redis.set(`sandbox:tasks:${projectId}`, JSON.stringify(tasks), 'EX', TASK_TTL);
           break;
         }

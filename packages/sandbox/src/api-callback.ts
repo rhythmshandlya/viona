@@ -5,7 +5,7 @@ import pino from 'pino';
 const logger = pino({ name: 'api-callback' });
 
 const API_CALLBACK_URL = process.env.API_CALLBACK_URL;
-const PROJECT_ID = process.env.PROJECT_ID;
+const SANDBOX_ID = process.env.SANDBOX_ID;
 const SANDBOX_SECRET = process.env.SANDBOX_SECRET;
 
 // Debounce timers per event type
@@ -27,7 +27,7 @@ const DEBOUNCE: Record<string, number> = {
  * text chunks batch at 500ms, task updates at 200ms, everything else is immediate.
  */
 export function pushState(type: string, data: unknown): void {
-  if (!API_CALLBACK_URL || !PROJECT_ID) return;
+  if (!API_CALLBACK_URL || !SANDBOX_ID) return;
 
   const debounceMs = DEBOUNCE[type] ?? 0;
 
@@ -61,7 +61,7 @@ export function flushCallbacks(): void {
 }
 
 function send(type: string, data: unknown): void {
-  const url = `${API_CALLBACK_URL}/internal/sandbox/${PROJECT_ID}/agent-state`;
+  const url = `${API_CALLBACK_URL}/internal/sandbox/${SANDBOX_ID}/agent-state`;
   fetch(url, {
     method: 'POST',
     headers: {
