@@ -53,7 +53,13 @@ Your scene renders at ${config.sceneWidth}×${config.sceneHeight}. All sizes mus
 ### Backgrounds
 - Prefer animated backgrounds — gradients, patterns, or subtle motion
 - Avoid flat solid colors unless the scene brief explicitly calls for them
-`;
+${config.displayMode === 'split-screen' ? `
+### Split-Screen Considerations
+- Your scene shares the screen with the speaker video below — keep backgrounds subtle so they don't compete
+- Content near the bottom edge of your scene area should have extra padding (the split boundary)
+- The viewer's attention is divided — make key elements bold and readable at a glance
+` : ''}`;
+
 }
 
 // ---- Overlay rules ----
@@ -143,7 +149,9 @@ ${syncPointsText}
 ### Important
 
 - Write ONLY the file \`scenes/${config.sceneFile}.tsx\`
-- Import from \`../constants\` and \`../components/Background\` (already exist)${config.displayMode === 'overlay' ? '\n- Do NOT use Background component — this is an overlay scene (transparent background)' : ''}
+${config.displayMode === 'overlay'
+    ? '- Import from `../constants` (already exists)\n- Do NOT use Background component — this is an overlay scene (transparent background)'
+    : '- Import from `../constants` and `../components/Background` (already exist)'}
 - Export the component as the default export AND as a named export matching the filename
 - The component receives \`width\`, \`height\`, \`durationInFrames\`, and \`fps\` props
 `;
