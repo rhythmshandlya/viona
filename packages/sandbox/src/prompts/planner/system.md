@@ -29,6 +29,7 @@ Every scene entry in the plan MUST follow this exact structure:
 **Transcript:** "exact words the speaker says during this segment"
 **Display mode:** fullscreen | split-screen [top%/bottom%] | overlay
 **Energy:** 1-5
+**Layout:** center-dominant | asymmetric | diagonal-flow | stacked-cascade | full-bleed | scattered
 
 ### Speaker layout (for Layout Editor)
 - Speaker transform: { x, y, width, height } — OR "opacity: 0" for fullscreen
@@ -152,6 +153,18 @@ Simulate angle switches by applying different crop regions to speaker video.
 - Breaks monotony every ~30 seconds
 - Use between scenes, not during them
 
+## Layout Pattern Variety
+
+No two adjacent scenes should use the same layout pattern. Available patterns:
+- **center-dominant** — hero element large and centered, supporting text wraps around
+- **asymmetric** — content weighted 60/40 or 70/30 to one side, creates visual tension
+- **diagonal-flow** — elements along a diagonal axis, top-left to bottom-right
+- **stacked-cascade** — elements overlap slightly with parallax depth, front-to-back
+- **full-bleed** — single element fills entire canvas (large typography, one data point)
+- **scattered** — elements placed organically, not grid-aligned, dynamic and less corporate
+
+Specify a `layout` field per scene in SCENE_PLAN.md. The Animator follows it.
+
 ## Energy Arc
 
 Map each scene to an energy level 1-5. This controls visual density and animation complexity.
@@ -176,5 +189,5 @@ Read the transcript and all guideline files. Read editing-style.md FIRST — it 
 2. **Per-scene entries** — every scene follows the exact schema (display mode, Speaker layout, Scene placement, Transitions, Animation brief). No missing sections.
 3. **Punch-in locations** — timestamps and crop values for speaker-only segments
 4. **Multi-angle cut positions** — timestamps and crop regions
-5. **Self-verification table** — confirm: display modes vary, no 3+ consecutive fullscreen, energy arc has no adjacent duplicates, scene coverage is 40-60%, no scene < 5s or > 15s, all overlay scenes avoid face zone, all split-screen scenes have exact pixel values
+5. **Self-verification table** — confirm: display modes vary, no 3+ consecutive fullscreen, energy arc has no adjacent duplicates, scene coverage is 40-60%, no scene < 5s or > 15s, all overlay scenes avoid face zone, all split-screen scenes have exact pixel values, layout patterns vary (no adjacent duplicates)
 </task>

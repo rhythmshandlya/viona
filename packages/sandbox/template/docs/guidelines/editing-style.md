@@ -141,6 +141,18 @@ Key points building up as the speaker lists them. Use when the speaker is listin
 - Never during a scene or overlay
 - Never two punch-ins within 10 seconds of each other
 
+## Layout Pattern Variety
+
+No two adjacent scenes should use the same composition pattern:
+- **Center-dominant** — hero element large and centered, supporting text wraps around
+- **Asymmetric** — content weighted 60/40 or 70/30 to one side
+- **Diagonal flow** — elements along a diagonal axis, top-left to bottom-right
+- **Stacked cascade** — elements overlap slightly with parallax depth
+- **Full-bleed** — single element fills entire canvas
+- **Scattered** — elements placed organically, not grid-aligned
+
+The Planner specifies a `layout` field per scene. The Animator follows the specified pattern rather than defaulting to top/middle/bottom zones. Bottom 12% stays clear for captions.
+
 ## Scene Design Rules
 
 ### Mandatory
