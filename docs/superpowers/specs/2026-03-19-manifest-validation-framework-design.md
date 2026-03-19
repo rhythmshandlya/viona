@@ -29,7 +29,8 @@ There is no validation bridge between them. The agent can write any shape of dat
 ### Out of scope
 - `packages/shared/src/manifest-ops.ts` (client-side ops — separate system, separate fix)
 - Frontend validation (already has its own layer)
-- Changing the Zod schema itself (schema is correct, writes are wrong)
+- Changing the Zod schema itself (schema is correct, writes are wrong) — except for `style` and `displayMode` (see Layers 5 and schema notes)
+- The `update_manifest` HTTP-only tool is explicitly excluded from validation gates (it replaces the entire manifest and is not agent-facing; see `allManifestTools` exclusion comment in `manifest-ops.ts:615-619`)
 
 ---
 
@@ -37,11 +38,12 @@ There is no validation bridge between them. The agent can write any shape of dat
 
 ### Layer 1: Rulebook (Prompt-level prevention)
 
-A new shared prompt module `docs/shared/manifest-rules.md` loaded by all agents that touch the manifest. Concise, example-heavy, LLM-optimized.
+A new shared prompt module `shared/manifest-rules.xml` loaded by all agents via the existing `SHARED_FILES` array in `prompt-loader.ts`. Concise, example-heavy, LLM-optimized.
 
 **Content structure:**
 
-```markdown
+```xml
+<manifest-rules>
 # Manifest Field Rules
 
 ## Items
@@ -52,7 +54,7 @@ A new shared prompt module `docs/shared/manifest-rules.md` loaded by all agents 
 - `data`: type-specific (see below)
 
 ## Transform (optional)
-All fields have defaults. If you set transform, provide an object:
+Only these 6 keys are valid — anything else is stripped:
 { x: 0, y: 0, width: "100%", height: "100%", rotation: 0, opacity: 1 }
 - x, y: number or string percentage ("50%")
 - width, height: number or string percentage
@@ -63,11 +65,12 @@ All fields have defaults. If you set transform, provide an object:
 Each keyframe MUST have all three fields:
 { timeMs: 500, props: { opacity: 0 }, easing: "ease-out" }
 - timeMs: number >= 0 (relative to item start)
-- props: object with transform properties to animate (REQUIRED, use {} if empty)
+- props: object with ONLY transform keys to animate: x, y, width, height, rotation, opacity (REQUIRED, use {} if empty)
 - easing: "linear" | "ease-in" | "ease-out" | "ease-in-out" | "spring" | cubic-bezier(...)
 
 WRONG: { timeMs: 500, easing: "ease-out" }           // missing props
 WRONG: { timeMs: 500, opacity: 0 }                   // props not nested
+WRONG: { timeMs: 500, props: { scale: 2 } }          // scale is not a valid transform key
 RIGHT: { timeMs: 500, props: { opacity: 0 }, easing: "ease-out" }
 
 ## Filters (optional)
@@ -83,17 +86,19 @@ One of: video, audio, overlay, caption
 ## Type-specific data
 
 ### video
-{ src: string, startFrom: number>=0, volume: 0-2, playbackRate: 0.25-4 }
+{ src, startFrom: number>=0, volume: 0-2, playbackRate: 0.25-4 }
+Optional: fadeInMs, fadeOutMs (number>=0), crop: { x: 0-100, y: 0-100, scale: 0.5-3 }
 
 ### audio
-{ src: string, volume: 0-2, playbackRate: 0.25-4 }
+{ src, volume: 0-2, playbackRate: 0.25-4 }
+Optional: fadeInMs, fadeOutMs (number>=0)
 
 ### scene
-{ sceneFile: "scenes/SceneN.tsx" }
+{ sceneFile: "scenes/SceneN.tsx", displayMode?: "fullscreen"|"split-screen"|"overlay" }
 
 ### text
-{ text: string, fontFamily: string, fontSize: number>=1, fontWeight: 100-900,
-  color: "#hex", textAlign: "left"|"center"|"right" }
+{ text, fontFamily, fontSize: number>=1, fontWeight: 100-900, color: "#hex", textAlign: "left"|"center"|"right" }
+Optional: backgroundColor, borderRadius, padding, lineHeight, letterSpacing (numbers), textTransform: "none"|"uppercase"|"lowercase"
 
 ### image
 { src: string }
@@ -103,9 +108,11 @@ One of: video, audio, overlay, caption
 
 ### shape
 { shape: "rectangle"|"circle"|"line", fill: "#hex" }
+Optional: stroke: "#hex", strokeWidth: number, borderRadius: number
+</manifest-rules>
 ```
 
-This module gets prepended to every agent that calls manifest tools (layout-editor, final-editor, trim-editor, and the orchestrator itself).
+This module gets added to the `SHARED_FILES` array in `prompt-loader.ts`, so it is loaded for ALL agents (consistent with existing shared modules like `identity.xml`, `manifest-tools.xml`, `quality-rules.xml`).
 
 ### Layer 2: Sanitization functions
 
@@ -113,7 +120,25 @@ New file: `packages/sandbox/src/tools/manifest-sanitize.ts`
 
 Lightweight coercion layer that fixes trivially-wrong data before validation. Runs before the Zod gate. Does NOT silently swallow real errors — only fills obvious defaults.
 
+**Important:** `sanitizeTransform` always fills all 6 default fields. This means a "partial transform update" (e.g. `{ opacity: 0.5 }`) will become a full transform object after sanitization. This is intentional for `add_item` (new items need complete transforms). For `update_item`, the sanitization runs on the already-merged item, so existing values are preserved.
+
+**Note on rescued keyframe props:** The rescue logic moves ALL non-meta keys into `props` blindly. If the agent writes an invalid prop name (e.g. `{ timeMs: 0, scale: 2 }`), sanitization produces `{ timeMs: 0, props: { scale: 2 }, easing: "linear" }` — the structural issue is fixed, but `scale` will be stripped by Zod's `.strip()` on `transformSchema.partial()`. This surfaces as a validation pass (not an error), which is acceptable since the Zod gate catches the structural problems.
+
 ```typescript
+// Helpers
+function clamp(val: number, min: number, max: number): number {
+  return Math.min(Math.max(val, min), max);
+}
+
+function getNestedValue(obj: any, path: (string | number)[]): unknown {
+  let current = obj;
+  for (const key of path) {
+    if (current == null) return undefined;
+    current = current[key];
+  }
+  return current;
+}
+
 // Known keyframe meta-fields (everything else is a flat transform prop)
 const KF_META = new Set(['timeMs', 'props', 'easing']);
 
@@ -183,6 +208,8 @@ function sanitizeItem(item: any): any {
 
 After sanitization, validate the full item against `manifestItemV2Schema` before writing. On failure, return a structured error message the LLM can act on.
 
+**Import restriction:** `manifest-ops.ts` intentionally duplicates schemas inline to avoid runtime dependency on `@viona/shared` inside the Docker container (see comment at line 8-9). The validation gate will use a NEW inline full-item schema in `manifest-sanitize.ts` that mirrors `manifestItemV2Schema` from `@viona/shared`. This keeps the import restriction intact. The schema duplication is acceptable because: (a) it already exists for `itemDataSchemas`, (b) the sanitize file is a single source of truth within the sandbox, (c) CI can lint-check schema parity.
+
 **Changes to `add_item` execute():**
 
 ```typescript
@@ -200,25 +227,31 @@ async execute(input) {
     const manifest = await readManifest();
     const raw = { id: input.id ?? randomUUID(), ... };
 
-    // 3. Sanitize + validate (NEW)
+    // 3. Duplicate ID check (NEW — hard error, blocks write)
+    const items: any[] = manifest.items ?? [];
+    if (items.some((i: any) => i.id === raw.id)) {
+      return `Item "${raw.id}" already exists. Use update_item to modify it.`;
+    }
+
+    // 4. Sanitize + validate (NEW)
     const sanitized = sanitizeItem(raw);
     const validation = manifestItemV2Schema.safeParse(sanitized);
     if (!validation.success) {
       return formatItemError(validation.error, sanitized);
     }
 
-    // 4. Referential integrity check (NEW)
+    // 5. Referential integrity check (NEW)
     const tracks = manifest.tracks ?? [];
     if (!tracks.some(t => t.id === sanitized.trackId)) {
       return `Track "${sanitized.trackId}" not found. Available: ${tracks.map(t => t.id).join(', ')}`;
     }
 
-    // 5. Range check (NEW)
+    // 6. Range check (NEW)
     if (sanitized.startMs >= sanitized.endMs) {
       return `startMs (${sanitized.startMs}) must be less than endMs (${sanitized.endMs})`;
     }
 
-    // 6. Write validated item
+    // 7. Write validated item
     manifest.items.push(validation.data);
     await writeManifest(manifest);
     return JSON.stringify(validation.data);
@@ -290,6 +323,37 @@ if (!validTypes.includes(input.type)) {
 newItem.keyframes = sanitizeKeyframes(newItem.keyframes);
 ```
 
+**Changes to `update_caption_style` execute():**
+
+```typescript
+async execute(input: { updates: Record<string, unknown> }): Promise<string> {
+  return withManifestLock(async () => {
+    const manifest = await readManifest();
+    const existing = manifest.captionStyle ?? {};
+    // Deep-merge (existing logic preserved)
+    for (const [key, value] of Object.entries(input.updates)) {
+      if (value && typeof value === 'object' && !Array.isArray(value) && existing[key] && typeof existing[key] === 'object') {
+        existing[key] = { ...existing[key], ...value };
+      } else {
+        existing[key] = value;
+      }
+    }
+    // NEW: Validate merged caption style against schema
+    const validation = manifestCaptionStyleSchema.safeParse(existing);
+    if (!validation.success) {
+      return formatCaptionStyleError(validation.error, existing);
+    }
+    manifest.captionStyle = validation.data;
+    await writeManifest(manifest);
+    return JSON.stringify(manifest.captionStyle);
+  });
+}
+```
+
+**`remove_track`:** Gets semantic warnings only (W23, W24), no validation gate needed — it takes only a `trackId` string, no complex data to validate.
+
+**`remove_item`:** Gets semantic warnings only (W4), no validation gate — same reasoning.
+
 ### Layer 4: Error message formatting
 
 The LLM needs actionable errors, not raw Zod output. New helper:
@@ -320,28 +384,54 @@ Invalid item (type: scene, id: abc123):
 Fix the invalid fields and retry.
 ```
 
-### Layer 5: `style` field handling
+### Layer 5: Schema additions + DB round-trip fixes
+
+#### 5a. `style` field
 
 The `style` field is written by manifest-ops but is NOT in `manifestV2Schema`. It is also **not preserved during DB round-trips** — `manifestToDb` does not store it as `data._style`, and `dbToManifest` does not reconstruct it. This is a silent data-loss bug today.
 
+#### 5b. `displayMode` on scene data
+
+The `displayMode` field is written by the layout-editor agent on scene items (`data.displayMode`) but is NOT in `sceneItemDataV2Schema`. Without this fix, the Layer 3 validation gate's `manifestItemV2Schema.safeParse()` would silently strip `displayMode` from scene items (Zod's default `.strip()` behavior), causing:
+1. Data loss — downstream agents lose layout information
+2. False-positive warnings W7 and W17 (they check `data.displayMode` which would always be absent)
+
 **Fix (required)**:
 
-1. Add `style` to the item schema:
+1. Add `style` to the item base schema:
 ```typescript
 // In manifest-v2.ts, add to itemBaseV2:
 style: z.record(z.string(), z.union([z.string(), z.number()])).optional(),
 ```
 
-2. Preserve in DB round-trip (`manifest-convert.ts`):
+2. Add `displayMode` to the scene data schema:
 ```typescript
-// In manifestToDb — after filters preservation:
+// In manifest-v2.ts, update sceneItemDataV2Schema:
+export const sceneItemDataV2Schema = z.object({
+  sceneFile: z.string(),
+  displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
+});
+```
+
+3. Preserve `style` in DB round-trip — **both** `manifest-convert.ts` AND `sync.ts`:
+```typescript
+// In manifest-convert.ts manifestToDb — after filters preservation:
 if ((item as any).style) {
   data._style = (item as any).style;
 }
 
-// In dbToManifest — in each item type branch that reads _transform/_keyframes:
+// In manifest-convert.ts dbToManifest — in each item type branch:
 const storedStyle = (data as any)._style as Record<string, unknown> | undefined;
 // ...and include in return: ...(storedStyle ? { style: storedStyle } : {})
+
+// In sync.ts syncManifestToDb — line 69-74, add _style to data blob:
+const data = {
+  ...item.data,
+  ...(item.transform ? { _transform: item.transform } : {}),
+  ...(item.keyframes?.length ? { _keyframes: item.keyframes } : {}),
+  ...(item.filters ? { _filters: item.filters } : {}),
+  ...(item.style ? { _style: item.style } : {}),  // NEW
+};
 ```
 
 ---
@@ -350,12 +440,13 @@ const storedStyle = (data as any)._style as Record<string, unknown> | undefined;
 
 | File | Change |
 |------|--------|
-| `packages/sandbox/src/tools/manifest-sanitize.ts` | NEW — sanitization functions + formatItemError helper |
+| `packages/sandbox/src/tools/manifest-sanitize.ts` | NEW — sanitization functions, inline full-item schema (mirroring `@viona/shared`), formatItemError + helpers |
 | `packages/sandbox/src/tools/manifest-ops.ts` | Add validation gates to add_item, update_item, add_track, split_item, update_caption_style |
-| `packages/shared/src/manifest-v2.ts` | Add optional `style` field to item base schema |
+| `packages/shared/src/manifest-v2.ts` | Add optional `style` to item base; add optional `displayMode` to `sceneItemDataV2Schema` |
 | `packages/shared/src/manifest-convert.ts` | Add `_style` preservation in manifestToDb + reconstruction in dbToManifest |
-| `packages/sandbox/src/prompts/shared/manifest-rules.md` | NEW — agent rulebook |
-| `packages/sandbox/src/prompts/prompt-loader.ts` | Load manifest-rules.md into agents that use manifest tools |
+| `packages/api/src/sandbox/sync.ts` | Add `_style` to data blob in syncManifestToDb (line 69-74) |
+| `packages/sandbox/src/prompts/shared/manifest-rules.xml` | NEW — agent rulebook (`.xml` to match existing shared modules) |
+| `packages/sandbox/src/prompts/prompt-loader.ts` | Add `manifest-rules.xml` to `SHARED_FILES` array (loaded for all agents universally) |
 | `packages/sandbox/template/.claude/CLAUDE.md` | Add brief manifest rules reference |
 
 ---
@@ -366,7 +457,7 @@ const storedStyle = (data as any)._style as Record<string, unknown> | undefined;
 |---|---|
 | Missing `keyframe.props` | Sanitization (auto-fix: rescue flat props into `props`) + Validation gate |
 | Flat keyframe transform props (`{ timeMs, opacity }`) | Sanitization (auto-rescue into `props`) |
-| Duplicate item ID | Referential integrity check in add_item |
+| Duplicate item ID | Hard error in add_item (blocks write, returns error) |
 | Wrong transform field types | Validation gate |
 | Invalid track/item type enum | Validation gate (enum check) |
 | Nonexistent trackId | Referential integrity check |
@@ -435,8 +526,9 @@ Detection: Map of valid item→track pairings: `video→video`, `audio→audio`,
 |---|---|---|
 | W10 | Item endMs exceeds manifest.durationMs | `Item extends past timeline end ({endMs}ms > durationMs {durationMs}ms).` |
 | W11 | New/moved item overlaps another on same track | `Overlaps with item "{id}" on same track ({startMs}-{endMs}).` |
-| W12 | add_item called with ID that already exists | `Item "{id}" already exists. Use update_item to modify it.` |
 | W13 | Image/video `data.src` references file not found in workspace | `Source file "{src}" not found in workspace.` |
+
+Note: Duplicate item ID is a **hard error** in `add_item` (Layer 3), not a warning.
 
 #### Keyframe integrity (on add_item, update_item with keyframes)
 
@@ -556,12 +648,7 @@ export function collectWarnings(ctx: WarningContext): string[] {
     }
   }
 
-  // --- W12: Duplicate ID ---
-  if (operation === 'add') {
-    if (items.some((i: any) => i.id === item.id)) {
-      warnings.push(`Item "${item.id}" already exists. Use update_item to modify it.`);
-    }
-  }
+  // (W12 duplicate ID is a hard error in add_item Layer 3, not a warning)
 
   // --- W14: Keyframe beyond item duration ---
   const duration = item.endMs - item.startMs;
@@ -692,14 +779,15 @@ return JSON.stringify({ original: item.id, new: newItem.id }) + formatWarnings(w
 
 ## Migration / Rollout
 
-Schema and prompt changes MUST land before validation gates (otherwise the gate strips valid `style` fields via Zod's default `strip` behavior).
+Schema and prompt changes MUST land before validation gates (otherwise the gate strips valid `style`/`displayMode` fields via Zod's default `strip` behavior).
 
-1. Add `manifest-sanitize.ts` and the validation helpers (no behavior change yet)
-2. Add `style` to schema + fix `manifest-convert.ts` round-trip (schema-only, no gates)
-3. Add rulebook prompt module and wire into prompt-loader (gives agents guidance before gates)
-4. Add validation gates to `add_item` and `add_track` (lowest risk, most common)
-5. Add validation gate to `update_item` (with snapshot rollback)
-6. Add validation to `split_item` and `update_caption_style`
-7. Add duplicate item ID check to `add_item`
+1. Add `manifest-sanitize.ts` with sanitization functions, inline full-item schema, helpers (`clamp`, `getNestedValue`, `formatItemError`) — no behavior change yet
+2. Add `style` to item base schema + `displayMode` to `sceneItemDataV2Schema` in `manifest-v2.ts` (schema-only, no gates)
+3. Fix `_style` round-trip in both `manifest-convert.ts` AND `sync.ts` (data preservation)
+4. Add rulebook prompt module (`manifest-rules.xml`) and wire into `SHARED_FILES` in `prompt-loader.ts`
+5. Add validation gates to `add_item` (with duplicate ID hard error) and `add_track`
+6. Add validation gate to `update_item` (with snapshot rollback)
+7. Add validation to `split_item` and `update_caption_style`
+8. Add semantic warnings (`manifest-warnings.ts`) and integrate into all tools
 
 Each step is independently deployable. If validation causes false rejections in production, the sanitization layer can be made more permissive without removing the gate.
