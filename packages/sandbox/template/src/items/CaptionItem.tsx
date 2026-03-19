@@ -72,7 +72,7 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
   }
 
   return (
-    <div style={positionStyles}>
+    <div style={positionStyles} data-caption-overlay>
       <span
         style={{
           fontFamily: captionStyle.fontFamily ?? 'Inter',
