@@ -2,6 +2,7 @@ import { readdir, readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { Client as MinioClient } from 'minio';
 import pino from 'pino';
+import { withManifestLock } from './tools/manifest-ops.js';
 
 const logger = pino({ name: 'asset-sync' });
 
@@ -13,7 +14,6 @@ const PRESIGNED_TTL = 8 * 60 * 60; // 8 hours in seconds
 const uploadedFiles = new Set<string>();
 
 let _minioClient: MinioClient | null = null;
-let _minioUrlClient: MinioClient | null = null;
 
 function getMinioClient(): MinioClient {
   if (!_minioClient) {
@@ -28,21 +28,12 @@ function getMinioClient(): MinioClient {
   return _minioClient;
 }
 
-/** Client for generating browser-accessible presigned URLs.
- *  Uses localhost instead of host.docker.internal since presignedGetObject
- *  is a local signing operation (no network call). */
-function getMinioUrlClient(): MinioClient {
-  if (!_minioUrlClient) {
-    const endpoint = process.env.MINIO_ENDPOINT || 'localhost';
-    _minioUrlClient = new MinioClient({
-      endPoint: endpoint === 'host.docker.internal' ? 'localhost' : endpoint,
-      port: parseInt(process.env.MINIO_PORT || '9000', 10),
-      useSSL: process.env.MINIO_USE_SSL === 'true',
-      accessKey: process.env.MINIO_ACCESS_KEY || '',
-      secretKey: process.env.MINIO_SECRET_KEY || '',
-    });
-  }
-  return _minioUrlClient;
+/** Rewrite Docker-internal hostname to localhost for browser-accessible URLs.
+ *  presignedGetObject makes a network call so the client must use the real
+ *  endpoint (e.g. host.docker.internal), but the resulting URL must be
+ *  reachable from the browser (Issue #4). */
+function toBrowserUrl(url: string): string {
+  return url.replace(/host\.docker\.internal/g, 'localhost');
 }
 
 export async function syncAssets(): Promise<void> {
@@ -85,20 +76,22 @@ export async function syncAssets(): Promise<void> {
     }
 
     try {
-      const urlClient = getMinioUrlClient();
-      const url = await urlClient.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
-      assets[file] = url;
+      const url = await minio.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
+      assets[file] = toBrowserUrl(url);
     } catch (err) {
       logger.warn({ err, file }, 'Failed to generate presigned URL');
     }
   }
 
+  // Use manifest lock to prevent race with agent manifest writes (Issue #10)
   try {
-    const manifestRaw = await readFile(MANIFEST_PATH, 'utf-8');
-    const manifest = JSON.parse(manifestRaw);
-    manifest.assets = assets;
-    await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
-    logger.info({ assetCount: Object.keys(assets).length }, 'Assets map updated in manifest');
+    await withManifestLock(async () => {
+      const manifestRaw = await readFile(MANIFEST_PATH, 'utf-8');
+      const manifest = JSON.parse(manifestRaw);
+      manifest.assets = assets;
+      await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+      logger.info({ assetCount: Object.keys(assets).length }, 'Assets map updated in manifest');
+    });
   } catch (err) {
     logger.error({ err }, 'Failed to update manifest assets map');
   }

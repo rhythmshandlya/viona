@@ -1,8 +1,67 @@
 import { readFile, writeFile } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { z } from 'zod';
 import { notifyManifestUpdated } from '../ws-notify.js';
 import { syncTranscript } from './transcript-sync.js';
+
+// ---- Inline item data schemas (mirrors @viona/shared/manifest-v2) ----
+// Defined here to avoid runtime dependency on @viona/shared inside Docker container.
+
+const captionWordSchema = z.object({
+  text: z.string(),
+  startMs: z.number().min(0),
+  endMs: z.number().min(0),
+  classification: z.enum(['power', 'medium', 'filler']).optional(),
+  styleOverrides: z.record(z.string(), z.unknown()).optional(),
+});
+
+const itemDataSchemas: Record<string, z.ZodTypeAny> = {
+  video: z.object({
+    src: z.string(),
+    startFrom: z.number().min(0).default(0),
+    volume: z.number().min(0).max(2).default(1),
+    playbackRate: z.number().min(0.25).max(4).default(1),
+    fadeInMs: z.number().min(0).optional(),
+    fadeOutMs: z.number().min(0).optional(),
+    crop: z.object({
+      x: z.number().min(0).max(100).default(50),
+      y: z.number().min(0).max(100).default(50),
+      scale: z.number().min(0.5).max(3).default(1),
+    }).optional(),
+  }),
+  audio: z.object({
+    src: z.string(),
+    volume: z.number().min(0).max(2).default(1),
+    playbackRate: z.number().min(0.25).max(4).default(1),
+    fadeInMs: z.number().min(0).optional(),
+    fadeOutMs: z.number().min(0).optional(),
+  }),
+  text: z.object({
+    text: z.string(),
+    fontFamily: z.string().default('Inter'),
+    fontSize: z.number().min(1).default(48),
+    fontWeight: z.number().min(100).max(900).default(600),
+    color: z.string().default('#FFFFFF'),
+    backgroundColor: z.string().optional(),
+    borderRadius: z.number().optional(),
+    padding: z.number().optional(),
+    textAlign: z.enum(['left', 'center', 'right']).default('center'),
+    lineHeight: z.number().optional(),
+    letterSpacing: z.number().optional(),
+    textTransform: z.enum(['none', 'uppercase', 'lowercase']).default('none'),
+  }),
+  image: z.object({ src: z.string() }),
+  scene: z.object({ sceneFile: z.string() }),
+  caption: z.object({ words: z.array(captionWordSchema) }),
+  shape: z.object({
+    shape: z.enum(['rectangle', 'circle', 'line']),
+    fill: z.string().default('#FFFFFF'),
+    stroke: z.string().optional(),
+    strokeWidth: z.number().optional(),
+    borderRadius: z.number().optional(),
+  }),
+};
 
 const MANIFEST_PATH = join('/workspace', 'manifest.json');
 
@@ -19,14 +78,26 @@ export async function readManifestRaw(): Promise<string> {
   return readFile(MANIFEST_PATH, 'utf-8');
 }
 
+/** Write counter for periodic DB checkpointing (Issue #12). */
+let manifestWriteCount = 0;
+const CHECKPOINT_EVERY_N_WRITES = 5;
+
 async function writeManifest(manifest: any): Promise<void> {
   await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
   // Notify frontend of manifest change (best-effort)
   notifyManifestUpdated().catch(() => {});
+
+  // Periodic DB checkpoint every N writes
+  manifestWriteCount++;
+  if (manifestWriteCount % CHECKPOINT_EVERY_N_WRITES === 0) {
+    import('../manifest-checkpoint.js')
+      .then(({ checkpoint }) => checkpoint())
+      .catch(() => {}); // best-effort
+  }
 }
 
 /** Run a read-modify-write operation with mutex to prevent concurrent overwrites. */
-async function withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
+export async function withManifestLock<T>(fn: () => Promise<T>): Promise<T> {
   const prev = writeLock;
   let resolve: () => void;
   writeLock = new Promise<void>((r) => { resolve = r; });
@@ -271,6 +342,17 @@ export const addItemTool = {
   }): Promise<string> {
     return withManifestLock(async () => {
       try {
+        // Validate data against type-specific schema
+        const schema = itemDataSchemas[input.type];
+        if (schema) {
+          const result = schema.safeParse(input.data);
+          if (!result.success) {
+            const issues = result.error.issues.map((i: any) => `${i.path.join('.')}: ${i.message}`).join('; ');
+            return `Invalid data for ${input.type} item: ${issues}`;
+          }
+          input.data = result.data; // use parsed data (with defaults applied)
+        }
+
         const manifest = await readManifest();
         const item: any = {
           id: input.id ?? randomUUID(),
@@ -530,7 +612,11 @@ export const updateManifestTool = {
   },
 };
 
-/** All manifest tools for registration with the agent. */
+/** All manifest tools for registration with the agent.
+ *  NOTE: update_manifest is intentionally excluded — it replaces the entire
+ *  manifest in one call and has caused full data loss (Issue #9). The agent
+ *  must use granular tools (add_item, update_item, etc.) instead.
+ *  update_manifest is still available for the HTTP PATCH /manifest endpoint. */
 export const allManifestTools = [
   readManifestTool,
   readItemTool,
@@ -542,5 +628,4 @@ export const allManifestTools = [
   removeItemTool,
   splitItemTool,
   updateCaptionStyleTool,
-  updateManifestTool,
 ];

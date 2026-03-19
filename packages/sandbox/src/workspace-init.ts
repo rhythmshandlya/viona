@@ -157,11 +157,10 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
   if (!manifest.version) manifest.version = 2;
   if (!manifest.assets) manifest.assets = {};
 
-  // Write manifest
-  await writeFile(
-    join(baseDir, 'manifest.json'),
-    JSON.stringify(manifest, null, 2),
-  );
+  // Write manifest + backup for reset
+  const manifestStr = JSON.stringify(manifest, null, 2);
+  await writeFile(join(baseDir, 'manifest.json'), manifestStr);
+  await writeFile(join(baseDir, 'manifest-original.json'), manifestStr);
 
   // Symlink manifest into public/ so Remotion's staticFile() can read it
   // (calculateMetadata runs in browser context where fs is unavailable)
@@ -297,6 +296,60 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
     rmSync(STAGING, { recursive: true, force: true });
     throw err;
   }
+}
+
+/**
+ * Reset workspace to post-init state. Keeps video, audio, transcript, docs.
+ * Clears all generated content (scenes, plan, progress) and restores original manifest.
+ */
+export async function resetWorkspace(): Promise<void> {
+  logger.info('Resetting workspace to initial state');
+
+  // Clear generated scene files
+  rmSync(join(WORKSPACE, 'src', 'scenes'), { recursive: true, force: true });
+  mkdirSync(join(WORKSPACE, 'src', 'scenes'), { recursive: true });
+
+  // Clear generated components (Background.tsx etc.)
+  rmSync(join(WORKSPACE, 'src', 'components'), { recursive: true, force: true });
+  mkdirSync(join(WORKSPACE, 'src', 'components'), { recursive: true });
+
+  // Reset scene registry to empty
+  await writeFile(join(WORKSPACE, 'src', 'scene-registry.ts'),
+    `// AUTO-GENERATED — do not edit\nimport React from 'react';\nexport const sceneRegistry: Record<string, React.ComponentType<any>> = {};\n`);
+
+  // Restore original manifest
+  try {
+    await copyFile(
+      join(WORKSPACE, 'manifest-original.json'),
+      join(WORKSPACE, 'manifest.json'),
+    );
+    logger.info('Manifest restored from original');
+  } catch {
+    logger.warn('No manifest-original.json found — manifest unchanged');
+  }
+
+  // Clear plan and progress files
+  await rm(join(WORKSPACE, 'SCENE_PLAN.md'), { force: true });
+  await writeFile(
+    join(WORKSPACE, 'generation-progress.json'),
+    JSON.stringify({
+      phase: 'initialized',
+      planApproved: false,
+      totalScenes: 0,
+      completedScenes: [],
+      failedScenes: [],
+      currentScene: null,
+      tsVerified: false,
+      lastError: null,
+      updatedAt: new Date().toISOString(),
+    }, null, 2),
+  );
+
+  // Clear .build output
+  rmSync(join(WORKSPACE, '.build'), { recursive: true, force: true });
+  mkdirSync(join(WORKSPACE, '.build'), { recursive: true });
+
+  logger.info('Workspace reset complete');
 }
 
 /**

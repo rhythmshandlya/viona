@@ -536,6 +536,26 @@ export async function proxyManifestOp(
 }
 
 /**
+ * Send a reset request to the sandbox agent (clears workspace back to post-init state).
+ */
+export async function proxyResetSandbox(
+  agentUrl: string,
+  secret: string,
+): Promise<void> {
+  const res = await fetch(`${agentUrl}/reset`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${secret}`,
+      'Content-Type': 'application/json',
+    },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Reset failed' }));
+    throw new Error(body.error || `Sandbox reset returned ${res.status}`);
+  }
+}
+
+/**
  * Forward a granular manifest operation to the sandbox.
  */
 export async function proxyOps(

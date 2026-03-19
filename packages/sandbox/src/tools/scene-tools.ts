@@ -19,6 +19,11 @@ export const writeSceneFileTool = {
       await mkdir(SCENES_DIR, { recursive: true });
       const filePath = join(SCENES_DIR, input.filename);
       await writeFile(filePath, input.code);
+      // Trigger rebuild explicitly — chokidar inotify doesn't work on Docker Desktop Windows bind mounts
+      try {
+        const { triggerRebuild } = await import('../esbuild-watcher.js');
+        triggerRebuild();
+      } catch { /* watcher not started yet */ }
       return `Scene file written: ${input.filename}`;
     } catch (err: any) {
       return `Failed to write scene file: ${err.message}`;
@@ -39,6 +44,10 @@ export const deleteSceneFileTool = {
   async execute(input: { filename: string }): Promise<string> {
     try {
       await unlink(join(SCENES_DIR, input.filename));
+      try {
+        const { triggerRebuild } = await import('../esbuild-watcher.js');
+        triggerRebuild();
+      } catch { /* watcher not started yet */ }
       return `Scene file deleted: ${input.filename}`;
     } catch (err: any) {
       return `Error: ${err.message}`;

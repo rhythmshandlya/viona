@@ -1,13 +1,16 @@
 import { PassThrough } from 'stream';
 import { FastifyInstance } from 'fastify';
 import { eq, or, and } from 'drizzle-orm';
-import { db, projects, transcripts, jobs } from '../db/index.js';
+import { db, projects, transcripts, jobs, tracks, visuals, sandboxSessions } from '../db/index.js';
+import { inArray, notInArray } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { redis, publishJobError } from '../services/redis.js';
 import { releaseLock } from '../workspace/workspace-lock.js';
 import { emitLockReleased } from '../workspace/workspace-ws.js';
 import { proxyPromptWithIntercept, proxyCancelAgent } from '../sandbox/proxy.js';
 import { sandboxManager } from '../sandbox/manager.js';
+import { minioClient } from '../services/minio.js';
+import { config } from '../config.js';
 import {
   getOrCreateConversation,
   getConversationMessages,
@@ -408,6 +411,101 @@ export async function agentRoutes(fastify: FastifyInstance) {
 
     return reply.send({ success: true });
   });
+
+  // ─── POST /projects/:id/agent/reset — full project reset ────────────────
+  // Cancels agent, resets sandbox workspace, clears DB conversation + Redis state,
+  // and returns the original creative brief so the frontend can re-send it.
+
+  fastify.post<{ Params: { id: string } }>(
+    '/projects/:id/agent/reset',
+    { preHandler: authMiddleware },
+    async (request, reply) => {
+      const projectId = request.params.id;
+
+      // Check project ownership
+      const project = await db.query.projects.findFirst({
+        where: eq(projects.id, projectId),
+      });
+      if (!project) return reply.code(404).send({ error: 'Project not found' });
+      if (project.userId && project.userId !== request.user?.id) {
+        return reply.code(403).send({ error: 'Forbidden' });
+      }
+
+      // 1. Extract the creative brief (first non-hidden user message) before clearing
+      let brief: string | null = null;
+      const data = await getConversationWithMessages(projectId);
+      if (data?.messages) {
+        for (const msg of data.messages) {
+          if (msg.role !== 'user') continue;
+          const blocks = msg.content as Array<{ type: string; text?: string; hidden?: boolean }>;
+          if (!Array.isArray(blocks)) continue;
+          const textBlock = blocks.find(b => b.type === 'text' && b.text && !b.hidden);
+          if (textBlock?.text) {
+            brief = textBlock.text;
+            break;
+          }
+        }
+      }
+
+      // 2. Cancel active BullMQ jobs
+      const activeJobRows = await db.select().from(jobs).where(
+        and(
+          eq(jobs.projectId, projectId),
+          or(eq(jobs.status, 'pending'), eq(jobs.status, 'processing')),
+        ),
+      );
+      for (const job of activeJobRows) {
+        await redis.publish('job:cancel', JSON.stringify({ jobId: job.id }));
+        await db.update(jobs)
+          .set({ status: 'cancelled', error: 'Reset by user' })
+          .where(eq(jobs.id, job.id));
+      }
+
+      // 3. Destroy the sandbox entirely — container, volume, Redis keys
+      // Next createSandbox() call will spin up a fresh container + re-init
+      try {
+        await sandboxManager.suspend(projectId, 'user');
+      } catch (err) {
+        fastify.log.warn({ err, projectId }, 'Sandbox suspend failed during reset');
+      }
+
+      // Clear backup + S3 checkpoint so the next acquire() does a fresh init
+      // (not restore from dirty backup that suspend() just saved)
+      await db.update(sandboxSessions)
+        .set({ backupId: null })
+        .where(eq(sandboxSessions.projectId, projectId))
+        .catch(() => {});
+      await minioClient.removeObject(
+        config.storage.bucket,
+        `checkpoints/${projectId}/manifest.json`,
+      ).catch(() => {});
+
+      // 4. Reset DB project state — remove agent-generated tracks/items/visuals
+      // Keep only original tracks (video, audio, caption); cascade deletes their items
+      const ORIGINAL_TRACK_TYPES = ['video', 'audio', 'caption'];
+      await db.delete(tracks).where(
+        and(
+          eq(tracks.projectId, projectId),
+          notInArray(tracks.type, ORIGINAL_TRACK_TYPES),
+        ),
+      );
+
+      // Clear visuals table
+      await db.delete(visuals).where(eq(visuals.projectId, projectId)).catch(() => {});
+
+      // Reset project status back to ready
+      await db.update(projects)
+        .set({ status: 'ready' as any, outputKey: null })
+        .where(eq(projects.id, projectId));
+
+      // 5. Clear conversation in DB
+      await deleteConversation(projectId);
+
+      fastify.log.info({ projectId, hasBrief: !!brief }, 'Project reset complete');
+
+      reply.send({ ok: true, brief });
+    }
+  );
 
   // ─── POST /projects/:id/agent/cancel — cancel active agent ──────────────
 

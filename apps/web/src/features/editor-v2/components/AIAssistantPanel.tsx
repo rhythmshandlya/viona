@@ -182,7 +182,7 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
   const selectedTimeRange = useSelectedTimeRange();
   const aiEditRequested = useAIEditRequested();
   const pendingAIMessage = usePendingAIMessage();
-  const { reloadVisuals } = useProjectActions();
+  const { reloadVisuals, loadProject } = useProjectActions();
   const { setSelectedScene, setSelectedElement, setSelectedTimeRange, setPendingAIMessage } = useAIActions();
   const { clearSelection } = useTimelineActions();
 
@@ -1020,13 +1020,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     setIsResetting(true);
     abortRef.current?.abort();
     stopRecoveryPolling();
-    try { await api.cancelAgent(projectId); } catch { /* best-effort */ }
+
+    // Full reset: cancels agent, destroys sandbox, clears DB + Redis
+    let brief: string | null = null;
+    try {
+      const result = await api.resetProject(projectId);
+      brief = result.brief;
+    } catch (err) {
+      console.error('Failed to reset project:', err);
+    }
+
+    // Clear all local UI state
     setIsStreaming(false);
     setActiveJobId(null);
     sessionStorage.removeItem(`viona:activeJobId:${projectId}`);
     setPendingWidgetResponses(projectId, []);
-    try { await Promise.all([api.clearConversation(projectId), api.deleteVisuals(projectId)]); }
-    catch (err) { console.error('Failed to reset:', err); }
     setMessages([]);
     setConversationId(null);
     setSceneTags([]);
@@ -1037,9 +1045,21 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
     activityState.reset();
     setLastError(null);
     setAttachmentFiles([]);
-    autoGreetSent.current = false;
     clearCompositionCache();
-    if (reloadVisuals) await reloadVisuals(projectId);
+
+    // Boot fresh sandbox and reload project (manifest, preview, tracks)
+    // loadProject handles createSandbox + polling + manifest read internally
+    try {
+      await loadProject(projectId);
+    } catch (err) {
+      console.error('Failed to reload project after reset:', err);
+    }
+
+    // Now that sandbox is ready and preview is clean, trigger auto-greet with the brief
+    if (brief) {
+      sessionStorage.setItem(`project-brief-${projectId}`, brief);
+    }
+    autoGreetSent.current = false;
     setIsResetting(false);
   };
 

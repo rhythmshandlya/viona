@@ -22,9 +22,13 @@ export const SceneItem: React.FC<SceneItemProps> = ({
   sceneRegistry,
 }) => {
   // Look up by exact key first, then try with/without extension
-  const SceneComponent = sceneRegistry[data.sceneFile]
-    || sceneRegistry[`${data.sceneFile}.tsx`]
-    || sceneRegistry[`${data.sceneFile}.ts`];
+  // Fallback: accept data.src for backward compat with agents that use the wrong field name
+  const sceneFile = data.sceneFile || (data as any).src;
+  const SceneComponent = sceneFile
+    ? (sceneRegistry[sceneFile]
+      || sceneRegistry[`${sceneFile}.tsx`]
+      || sceneRegistry[`${sceneFile}.ts`])
+    : undefined;
 
   if (!SceneComponent) {
     return (
@@ -43,7 +47,7 @@ export const SceneItem: React.FC<SceneItemProps> = ({
           textAlign: 'center',
         }}
       >
-        Scene not found: {data.sceneFile}
+        Scene not found: {sceneFile ?? 'unknown'}
       </div>
     );
   }

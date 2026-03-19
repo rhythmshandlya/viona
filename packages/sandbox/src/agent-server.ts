@@ -1,7 +1,7 @@
 import express from 'express';
 import pino from 'pino';
 import { authMiddleware } from './auth.js';
-import { isInitialized, initWorkspace, ensureNodeModulesSymlink } from './workspace-init.js';
+import { isInitialized, initWorkspace, ensureNodeModulesSymlink, resetWorkspace } from './workspace-init.js';
 import { startWatcher, onBundle, getBundleVersion } from './esbuild-watcher.js';
 import { checkpoint, startCheckpointing } from './manifest-checkpoint.js';
 import { readManifestRaw, updateManifestTool } from './tools/manifest-ops.js';
@@ -218,6 +218,29 @@ export function startAgentServer(port = 8081): void {
       currentAbortController = null;
     }
     res.json({ ok: true });
+  });
+
+  // Reset endpoint — clears workspace back to post-init state, triggers rebuild
+  app.post('/reset', async (_req, res) => {
+    try {
+      // Cancel active orchestrator first
+      if (currentAbortController) {
+        currentAbortController.abort();
+        failJob('Reset by user');
+        flushCallbacks();
+        currentAbortController = null;
+      }
+
+      await resetWorkspace();
+
+      // Trigger esbuild rebuild with clean workspace
+      await startWatcher();
+
+      res.json({ ok: true });
+    } catch (err: any) {
+      logger.error({ err }, 'Reset failed');
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Status endpoint — R4.1: returns ground-truth job state

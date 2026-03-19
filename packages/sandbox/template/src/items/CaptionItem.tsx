@@ -30,6 +30,10 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
   // Caption word timestamps are ABSOLUTE. Convert current frame to absolute ms.
   const currentTimeMs = itemStartMs + (frame / fps) * 1000;
 
+  if (!data.words || !Array.isArray(data.words)) {
+    return null;
+  }
+
   const activeWords = data.words.filter(
     (word) => currentTimeMs >= word.startMs && currentTimeMs <= word.endMs,
   );

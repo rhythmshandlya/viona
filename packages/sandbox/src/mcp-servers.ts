@@ -6,6 +6,7 @@ import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { analyzeTranscriptTool } from './tools/transcript-analysis.js';
 import { validateTimelineTool } from './tools/timeline-validation.js';
+import { validateWorkspaceTool } from './tools/validate-workspace.js';
 import { type WidgetCallbacks } from './tools/widget-tools.js';
 
 /**
@@ -99,7 +100,7 @@ export function createMcpServers(
 
   const renderServer = createSdkMcpServer({
     name: 'render',
-    tools: [wrapTool(renderStillTool), wrapTool(triggerRebuildTool)],
+    tools: [wrapTool(renderStillTool), wrapTool(triggerRebuildTool), wrapTool(validateWorkspaceTool)],
   });
 
   const widgetServer = createSdkMcpServer({

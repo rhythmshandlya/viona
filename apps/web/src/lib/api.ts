@@ -620,6 +620,13 @@ class ApiClient {
     });
   }
 
+  /** Full project reset — clears sandbox, DB conversation, Redis state, returns original brief */
+  async resetProject(projectId: string): Promise<{ ok: boolean; brief: string | null }> {
+    return this.request(`/api/projects/${projectId}/agent/reset`, {
+      method: 'POST',
+    });
+  }
+
   // Project media (B-roll assets)
   async getProjectMedia(projectId: string): Promise<{ assets: ProjectMediaAsset[] }> {
     return this.request(`/api/projects/${projectId}/media`);

@@ -1592,6 +1592,10 @@ export const useEditorStore = create<EditorStore>()(
 
     play: () => {
       set((state) => {
+        // If at the end, restart from beginning
+        if (state.currentTimeMs >= state.duration) {
+          state.currentTimeMs = 0;
+        }
         state.isPlaying = true;
       });
     },
@@ -1604,7 +1608,12 @@ export const useEditorStore = create<EditorStore>()(
 
     togglePlayback: () => {
       set((state) => {
-        state.isPlaying = !state.isPlaying;
+        const willPlay = !state.isPlaying;
+        // If starting playback while at the end, restart from beginning
+        if (willPlay && state.currentTimeMs >= state.duration) {
+          state.currentTimeMs = 0;
+        }
+        state.isPlaying = willPlay;
       });
     },
 

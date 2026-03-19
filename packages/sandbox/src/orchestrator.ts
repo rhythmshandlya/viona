@@ -40,6 +40,7 @@ import { allManifestTools } from './tools/manifest-ops.js';
 import { writeSceneFileTool, deleteSceneFileTool } from './tools/scene-tools.js';
 import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
+import { validateWorkspaceTool } from './tools/validate-workspace.js';
 import { buildStdioMcpServers } from './mcp-config.js';
 
 // ---- Public interfaces ----
@@ -80,6 +81,11 @@ export interface OrchestratorCallbacks {
 
 const MANIFEST_TOOL_NAMES = allManifestTools.map(t => `mcp__manifest__${t.name}`);
 
+// Read-only manifest tools for the orchestrator (Issue #1: prevent direct writes)
+const MANIFEST_READ_TOOL_NAMES = allManifestTools
+  .filter(t => t.name.startsWith('read_'))
+  .map(t => `mcp__manifest__${t.name}`);
+
 const SCENE_TOOL_NAMES = [
   `mcp__scenes__${writeSceneFileTool.name}`,
   `mcp__scenes__${deleteSceneFileTool.name}`,
@@ -88,6 +94,7 @@ const SCENE_TOOL_NAMES = [
 const RENDER_TOOL_NAMES = [
   `mcp__render__${renderStillTool.name}`,
   `mcp__render__${triggerRebuildTool.name}`,
+  `mcp__render__${validateWorkspaceTool.name}`,
 ];
 
 const WIDGET_TOOL_NAMES = ['mcp__widgets__show_widget', 'mcp__widgets__report_progress', 'mcp__widgets__report_plan'];
@@ -189,17 +196,16 @@ export async function buildOrchestratorOptions(
     },
     cwd: '/workspace',
     settingSources: ['project'],
+    // Issue #1: Orchestrator gets read-only + routing tools only.
+    // Write/Edit/Bash/scene tools are restricted to subagents, forcing delegation.
     allowedTools: [
-      'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
-      'WebSearch', 'WebFetch', 'Agent', 'Skill',
-      ...MANIFEST_TOOL_NAMES,
-      ...SCENE_TOOL_NAMES,
+      'Read', 'Glob', 'Grep',
+      'WebSearch', 'WebFetch', 'Agent',
+      ...MANIFEST_READ_TOOL_NAMES,
       ...RENDER_TOOL_NAMES,
       ...WIDGET_TOOL_NAMES,
       ...ASSET_TOOL_NAMES,
       ...VIEWPORT_TOOL_NAMES,
-      ...ICON_TOOL_NAMES,
-      ...FREEPIK_TOOL_NAMES,
       ...ANALYSIS_TOOL_NAMES,
     ],
     permissionMode: 'bypassPermissions' as const,
