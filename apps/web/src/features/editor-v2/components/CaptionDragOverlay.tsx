@@ -419,6 +419,14 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
     }
   }, []);
 
+  // Sync local isSelected with store — clear when caption deselected externally
+  const hasCaptionSelected = selectedIds.length > 0 && captionItems.some((item) => selectedIds.includes(item.id));
+  useEffect(() => {
+    if (!hasCaptionSelected) {
+      setIsSelected(false);
+    }
+  }, [hasCaptionSelected]);
+
   // --- Render ---
 
   if (!box || !showCaptions || captionItems.length === 0) return null;
@@ -428,7 +436,6 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const currentRotation = currentPosition.rotation;
 
   // Show box + handles when a caption is selected, hovered, or being dragged
-  const hasCaptionSelected = selectedIds.length > 0 && captionItems.some((item) => selectedIds.includes(item.id));
   const isActive = isHovered || isSelected || isDragging || hasCaptionSelected;
 
   return (
