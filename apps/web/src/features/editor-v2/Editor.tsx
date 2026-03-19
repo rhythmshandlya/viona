@@ -131,14 +131,20 @@ export function Editor({ projectId }: EditorProps) {
     // No-op: right panel no longer has tabs
   }, []);
 
-  // Auto-open right panel when an item is selected
+  // Auto-open right panel when a non-caption item is selected
   useEffect(() => {
     if (selectedIds.length > 0) {
-      setPanelOpen(true);
+      const state = useEditorStore.getState();
+      const allCaptions = selectedIds.every((id) => state.items[id]?.type === 'caption');
+      if (!allCaptions) {
+        setPanelOpen(true);
+      } else {
+        setPanelOpen(false);
+      }
     } else {
       setPanelOpen(false);
     }
-  }, [selectedIds.length]);
+  }, [selectedIds]);
 
   // Handle closing the panel
   const handleClosePanel = useCallback(() => {
@@ -303,13 +309,19 @@ export function Editor({ projectId }: EditorProps) {
     };
   }, [project?.id, updateEnhancementStatus]);
 
-  // Auto-switch to Style tab when a single non-caption item is selected and sidebar is open
+  // Auto-switch to Style tab when a single item is selected
   useEffect(() => {
-    if (selectedIds.length === 1 && leftSidebarOpen) {
+    if (selectedIds.length === 1) {
       const state = useEditorStore.getState();
       const item = state.items[selectedIds[0]];
-      if (item && item.type !== 'caption' && item.type !== 'visual') {
-        setLeftSidebarTab('style');
+      if (item && item.type !== 'visual') {
+        // For captions, always open sidebar and switch to Style tab
+        if (item.type === 'caption') {
+          setLeftSidebarOpen(true);
+          setLeftSidebarTab('style');
+        } else if (leftSidebarOpen) {
+          setLeftSidebarTab('style');
+        }
       }
     }
   }, [selectedIds, leftSidebarOpen]);
