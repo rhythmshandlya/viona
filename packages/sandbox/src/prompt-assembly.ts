@@ -35,24 +35,29 @@ function layoutRules(config: SceneConfig): string {
 
 Your scene renders at ${config.sceneWidth}×${config.sceneHeight}. All sizes must be relative to these dimensions.
 
-### Motion & Direction
-- Animate entrance from a consistent direction (e.g., left-to-right for new content)
-- Exit animations should reverse the entrance direction
-- Stagger entrances by at least 4 frames to avoid simultaneous pops
+### Liquid Glass — MANDATORY
+Every container, card, or panel in this scene uses the liquid glass treatment. This is not optional. A scene with flat-colored rectangles or static styled divs is a failure. The glass treatment applies to every surface that holds content:
+- **Animated gradient surface** — \`linear-gradient\` with angle shifting over time via \`Math.sin(frame * 0.02)\`
+- **Specular highlight sweep** — bright gradient overlay translating across the panel
+- **Depth shadow** — animates in with the panel (0 → full over 15 frames)
+- **Glass shimmer** — at least one continuously oscillating property (opacity, highlight position, or gradient shift)
+
+A glass surface with a static \`background: 'rgba(...)'\` and no animated properties is NOT liquid glass — it is a flat rectangle.
+
+### Layout Composition
+Follow the layout pattern from the plan (center-dominant, asymmetric, diagonal, stacked, full-bleed, or scattered). Do not default to top/middle/bottom zones. Place elements according to the specified pattern. Leave bottom 12% clear for captions, but otherwise use the full canvas creatively.
 
 ### Text Placement
-- Bottom ~15% of the scene should be kept clear for potential captions
 - Text must have \`textShadow\` or a contrasting backdrop for readability
 - Text opacity 1.0 at rest — no dimming
 
 ### Z-Ordering & Overflow
 - Use \`overflow: 'hidden'\` on the root container
 - Layer decorative elements behind content (lower z-index)
-- Max 2-3 elements visible at any moment — avoid clutter
 
 ### Backgrounds
-- Prefer animated backgrounds — gradients, patterns, or subtle motion
-- Avoid flat solid colors unless the scene brief explicitly calls for them
+- Background is NEVER static — at least one of: gradient angle shift, mesh gradient movement, slow color rotation
+- Avoid flat solid colors — always use an animated gradient or layered mesh
 ${config.displayMode === 'split-screen' ? `
 ### Split-Screen Considerations
 - Your scene shares the screen with the speaker video below — keep backgrounds subtle so they don't compete
@@ -85,11 +90,12 @@ This scene will be composited ON TOP of the speaker video. It MUST have a transp
 - Keep it focused — overlays supplement the speaker, they don't compete
 - Maximum 3-4 visible elements at once
 - Ensure all text is readable at the scene's actual render size
-- Glass card backgrounds must be semi-transparent (see GLASS constants)
+- Glass cards must use animated liquid glass (animated gradient + at least one of: specular sweep, shimmer, or depth shadow animation). Static \`GLASS.background\` alone is not enough — every glass surface needs at least one continuously animating property.
 
 ### Motion
-- Entrance from a consistent direction (slide in from left/right/bottom)
-- Exit should reverse the entrance direction
+- Entrance directions must vary — not everything from the same direction
+- Opacity and transform offsets: stagger by 3-5 frames (never start on same frame)
+- Every settled element needs idle motion (float, breathe, or glow pulse)
 - Keep animations subtle — overlays should enhance, not distract
 `;
 }
@@ -164,11 +170,13 @@ const CODING_RULES = `
 ## Remotion Coding Rules (NON-NEGOTIABLE)
 - Use \`useCurrentFrame()\` directly. NEVER subtract scene start — frames are 0-relative inside Sequence.
 - EVERY \`interpolate()\` call MUST have BOTH \`extrapolateLeft: 'clamp'\` AND \`extrapolateRight: 'clamp'\`.
-- Use \`spring()\` for entrances/exits. Minimum damping: 18. Import SPRINGS from constants.ts.
+- Use \`spring()\` for entrances/exits. Select from SPRINGS vocabulary (SNAPPY, SMOOTH, BOUNCY, HEAVY) — adjacent elements should use different springs.
 - Stagger elements by 6+ frames minimum. NEVER animate all at once.
+- Entrance directions MUST vary within a scene — not everything from bottom. Mix: translateY, translateX, scale, rotation.
+- Opacity and transform must NOT start on the same frame — offset by 3-5 frames for physical weight.
+- Every settled element needs idle motion (float, breathe, rotate drift, or glow pulse). Nothing frozen >45 frames.
 - Root container: \`overflow: 'hidden'\`.
 - All sizes relative to effective width/height (EW/EH). No hardcoded pixels.
-- No \`Math.sin()\`/\`Math.cos()\` on text positions (causes jitter).
 - No CSS \`animation\` property — use Remotion \`interpolate\`/\`spring\`.
 - Scene files: \`export default\` for the component.
 - Import from \`../constants\` and \`../components/Background\`.
