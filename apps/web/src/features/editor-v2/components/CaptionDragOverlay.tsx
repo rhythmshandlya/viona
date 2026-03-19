@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  useEditorStore,
   useShowCaptions,
   useCaptionItems,
   useSelectedIds,
@@ -149,6 +150,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
   const captionItems = useCaptionItems();
   const selectedIds = useSelectedIds();
   const { updateAllCaptionStyles, updateSelectedCaptionStyles } = useCaptionActions();
+  const select = useEditorStore((s) => s.select);
 
   const [box, setBox] = useState<BoundingBox | null>(null);
   const [isHovered, setIsHovered] = useState(false);
@@ -437,6 +439,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         // Click on background (not a child) to deselect
         if (e.target === e.currentTarget && !isDragging) {
           setIsSelected(false);
+          select([], 'replace');
         }
       }}
       onPointerMove={isDragging ? handlePointerMove : undefined}
@@ -505,6 +508,10 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         }}
         onPointerDown={(e) => {
           setIsSelected(true);
+          // Select the first caption item in the store so style panel activates
+          if (captionItems.length > 0) {
+            select([captionItems[0].id], 'replace');
+          }
           handlePointerDown(e, 'move');
         }}
       />
