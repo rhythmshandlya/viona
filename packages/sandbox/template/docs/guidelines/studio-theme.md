@@ -44,35 +44,73 @@ const COLORS = {
 };
 ```
 
-### Glass Effect Recipe
-Every "glass panel" or "glass card" in a scene uses this combination:
+### Content-Adaptive Color
+
+Color direction comes from the scene content, not a fixed palette. Read the scene's description from the plan:
+- Growth/money/success -> emerald/gold tones (`#10b981`, `#f59e0b`)
+- Danger/urgency/warning -> warm red/amber (`#ef4444`, `#f97316`)
+- Technical/data/analysis -> cool blue/cyan (`#3b82f6`, `#06b6d4`)
+- Creative/inspiration -> violet/magenta (`#8b5cf6`, `#ec4899`)
+- Calm/health/nature -> teal/green (`#14b8a6`, `#22c55e`)
+
+The violet accent (`#8B5CF6`) is ONE option, not the default. Each scene should feel like it belongs to the video's topic. The background base can shift too -- deep navy (`#0a0a1a`), dark warm gray (`#1a1412`), or deep emerald (`#0a1a12`) instead of always `#08080C`.
+
+**Implementation:** `constants.ts` defines `COLORS.primary` as a single value (written by Setup Agent). Animators use inline hex colors per scene rather than relying on `COLORS.primary` for accent color. `COLORS.primary` remains as a fallback.
+
+### Liquid Glass Effect (Remotion-Compatible)
+
+`backdrop-filter` is unreliable in Remotion canvas rendering. Liquid glass is achieved through animated gradients, specular sweeps, and depth shadows instead.
+
+**Base GLASS constant** (starting point -- animators MUST animate these properties per frame):
 ```typescript
 const GLASS = {
   background: 'rgba(28, 28, 35, 0.55)',
-  backdropFilter: 'blur(40px) saturate(180%) brightness(1.1)',
   border: '1px solid rgba(255, 255, 255, 0.08)',
-  borderTop: '1px solid rgba(255, 255, 255, 0.12)',  // Specular highlight on top edge
+  borderTop: '1px solid rgba(255, 255, 255, 0.12)',
   borderRadius: 20,
   shadow: '0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06)',
 };
 ```
 
-**Example usage in a scene:**
+**1. Animated gradient surface** -- the glass background shifts color angle over time:
 ```tsx
-<div style={{
-  background: GLASS.background,
-  backdropFilter: GLASS.backdropFilter,
-  border: GLASS.border,
-  borderTop: GLASS.borderTop,
-  borderRadius: GLASS.borderRadius,
-  boxShadow: GLASS.shadow,
-  padding: 32,
-}}>
-  <h2 style={{ color: COLORS.textPrimary, fontSize: 48, fontFamily: FONTS.heading }}>
-    Key Insight
-  </h2>
-</div>
+const glassAngle = 135 + Math.sin(frame * 0.02) * 15;
+const glassBg = `linear-gradient(${glassAngle}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 65, 0.4), rgba(28, 28, 35, 0.55))`;
 ```
+
+**2. Specular highlight sweep** -- a bright gradient translates across the surface:
+```tsx
+const specularX = interpolate(frame, [entryFrame, entryFrame + 40], [-100, 200], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const specularHighlight = `linear-gradient(105deg, transparent ${specularX}%, rgba(255,255,255,0.12) ${specularX + 10}%, transparent ${specularX + 20}%)`;
+// Apply as a positioned overlay div inside the glass container
+```
+
+**3. Depth shadows that animate in** -- shadows grow from nothing over 15 frames:
+```tsx
+const shadowProgress = interpolate(frame, [entryFrame, entryFrame + 15], [0, 1], {
+  extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+});
+const animatedShadow = `0 ${8 * shadowProgress}px ${32 * shadowProgress}px rgba(0, 0, 0, ${0.35 * shadowProgress}), 0 ${2 * shadowProgress}px ${8 * shadowProgress}px rgba(0, 0, 0, ${0.2 * shadowProgress})`;
+```
+
+**4. Grain texture** -- shift background position every 3-4 frames, 5-8% opacity:
+```tsx
+const grainShift = Math.floor(frame / 3) * 100;
+// Add a grain overlay div:
+// backgroundImage: url("data:image/svg+xml,...") or noise pattern
+// backgroundPosition: `${grainShift}px ${grainShift}px`
+// opacity: 0.06
+```
+
+**5. Glass shimmer** -- oscillating opacity adds life to the surface:
+```tsx
+const shimmer = 0.55 + Math.sin(frame * 0.04) * 0.05;
+// Use shimmer as the alpha in the glass background color
+```
+
+**Key rule:** A glass surface with a static background and no animated properties is NOT liquid glass. Every glass element must have at least one continuously animated visual property (angle shift, shimmer, specular sweep).
 
 ### Hover/Interactive States (for animated elements)
 ```typescript
@@ -109,23 +147,29 @@ const FONT_SIZES = {
 ```
 
 ### Weight & Emphasis
-- **Max font weight: 500** — never use bold (600+). Emphasis comes from opacity and color, not weight.
-- Heading weight: 500
-- Body weight: 400
-- Label weight: 400
+- **Hero text** (main numbers, key phrases, titles): weight **700-800**. Bold text stops the scroll.
+- **Heading weight:** 500
+- **Body weight:** 400
+- **Label weight:** 400
 - Letter spacing: `0.025em` standard, `-0.025em` for tight headings
+- The weight differential (700+ vs 400) creates hierarchy that reads at scroll speed on a phone screen.
 
 ## Animation Style
 
-### Spring Configuration
+### Spring Vocabulary
+
+Replace the single universal spring with semantic-purpose springs. Select based on what the element IS, not random choice.
+
 ```typescript
-const SPRING_CONFIG = {
-  damping: 30,
-  mass: 1,
-  stiffness: 500,
+const SPRINGS = {
+  SNAPPY:  { damping: 20, mass: 1, stiffness: 180 },   // Hero reveals, key numbers, emphasis
+  SMOOTH:  { damping: 28, mass: 1, stiffness: 120 },   // Cards, containers, supporting elements
+  BOUNCY:  { damping: 12, mass: 0.8, stiffness: 200 }, // Icons, small accents, playful moments
+  HEAVY:   { damping: 35, mass: 1.5, stiffness: 100 }, // Large panels, backgrounds, weighty arrivals
 };
 ```
-This produces a snappy, confident feel with minimal overshoot. Used for all entrance animations.
+
+**Rule:** Adjacent elements SHOULD use different springs. A hero number enters SNAPPY while its label enters SMOOTH. A card enters HEAVY while its icon enters BOUNCY. Spring contrast creates choreography. Same spring on adjacent elements is acceptable if semantically justified, but never the default.
 
 ### Ease Curve
 ```typescript
@@ -148,26 +192,33 @@ const TIMING = {
 
 ### Motion Principles
 
-**Entrances:**
-- Elements enter from bottom (`translateY(20px) → 0`) with opacity fade (`0 → 1`)
-- Use spring animation (SPRING_CONFIG) for position
-- Scale entrances: start at 90% → 100% (subtle, not dramatic)
-- Opacity ALWAYS fades in from 0 — never pop in instantly
-- Stagger elements by 6-10 frames minimum
+**Entrances -- vary the direction:**
+- Entrance directions MUST vary across elements in the same scene. Use a mix of: bottom rise, left/right slide, scale up from 0.8, scale down from 1.2, slight rotation (-3deg to 0deg).
+- NEVER have all elements enter from the same direction. If three cards enter, one from left, one from bottom, one from right (or scale).
+- **Overlapping action:** Opacity and transform should be offset by 3-5 frames. Opacity starts first, transform follows. This creates a softer, more organic arrival.
+- Opacity ALWAYS fades in from 0 -- never pop in instantly.
+- Stagger elements by 6-10 frames minimum.
+- Use SPRINGS vocabulary (SNAPPY, SMOOTH, BOUNCY, HEAVY) matched to element purpose.
+
+**Mandatory continuous idle motion:**
+- After an element enters, it must NOT become static. Apply at least one idle animation:
+  - Float: `translateY(Math.sin(frame * 0.03) * 3)` -- gentle vertical bob
+  - Breathe: `scale(1 + Math.sin(frame * 0.025) * 0.015)` -- subtle pulse
+  - Rotate drift: `rotate(Math.sin(frame * 0.02) * 0.5)` -- micro-rotation
+  - Glow pulse: oscillating box-shadow opacity or border brightness
+- **Background is NEVER static.** Use gradient angle shift, mesh gradient movement, or slow color drift on the base background.
+- **45 frames frozen = needs attention.** If any visible element has zero property changes for 45+ consecutive frames, add idle motion.
 
 **Exits:**
-- Fade out (`opacity: 1 → 0`) with slight downward drift
+- Fade out (`opacity: 1 -> 0`) with slight downward drift (`translateY(0 -> 10px)`)
 - Use `ease-out` easing, NOT spring
 - Faster than entrances (12 frames vs 20 frames)
+- Exit animations should feel like a gentle release, not an abrupt cut
 
-**Repositions:**
-- Use `ease-in-out` for elements moving between positions
-- Duration proportional to distance traveled
-
-**Continuous motion:**
-- Subtle floating/breathing animations for ambient elements
-- Very slow scale oscillation (0.98 → 1.02) over 60+ frames
-- Never distract from primary content
+**Scene choreography:**
+- Motion energy should follow audio energy. Louder/faster speech = more simultaneous entrances. Quiet moments = slower, individual reveals.
+- **No dead air rule:** Never allow 20+ frames where nothing is entering, exiting, or animating. If the scene holds, idle motion keeps it alive.
+- Scene transitions: last elements exit 5-10 frames before the scene cut. Clean handoff, no leftover elements.
 
 ### Stagger Delays
 ```typescript
@@ -241,7 +292,7 @@ const SHADOWS = {
 
 ### Background Treatment
 - **Scene backgrounds:** Dark base (`#08080C`) with optional mesh gradient overlay
-- **Glass containers:** Semi-transparent with backdrop blur
+- **Glass containers:** Semi-transparent with animated gradient surfaces (liquid glass)
 - **Never pure black (`#000000`)** — always use `#08080C` or darker grays
 - **Never pure white text** — always use `rgba(255, 255, 255, 0.95)` max
 
@@ -249,22 +300,38 @@ const SHADOWS = {
 
 ### Example 1: Three-Step Process
 ```tsx
-import { useCurrentFrame, useVideoConfig, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
 
 const COLORS = { /* as above */ };
 const GLASS = { /* as above */ };
-const SPRING_CONFIG = { damping: 30, mass: 1, stiffness: 500 };
+const SPRINGS = {
+  SNAPPY:  { damping: 20, mass: 1, stiffness: 180 },
+  SMOOTH:  { damping: 28, mass: 1, stiffness: 120 },
+};
 
 const ThreeStepProcess: React.FC = () => {
   const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
 
   const steps = ['Research', 'Design', 'Build'];
+
+  // Animated background gradient angle
+  const bgAngle = 135 + Math.sin(frame * 0.02) * 15;
+  const bgGradient = `linear-gradient(${bgAngle}deg, #08080C 0%, #0f0a1a 50%, #08080C 100%)`;
+
+  // Title entrance -- SNAPPY spring, opacity leads transform by 4 frames
+  const titleOpacity = interpolate(frame, [0, 12], [0, 1], {
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+  });
+  const titleSpring = spring({ frame: Math.max(0, frame - 4), fps, config: SPRINGS.SNAPPY });
+  const titleY = interpolate(titleSpring, [0, 1], [25, 0]);
+  // Title idle breathe
+  const titleBreathe = 1 + Math.sin(frame * 0.025) * 0.01;
 
   return (
     <div style={{
       width, height,
-      background: '#08080C',
+      background: bgGradient,
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
@@ -277,37 +344,55 @@ const ThreeStepProcess: React.FC = () => {
         color: COLORS.textPrimary,
         fontSize: 56,
         fontFamily: 'Sora',
-        fontWeight: 500,
-        opacity: interpolate(frame, [0, 15], [0, 1], {
-          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-        }),
-        transform: `translateY(${interpolate(frame, [0, 15], [20, 0], {
-          extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-        })}px)`,
+        fontWeight: 700,
+        opacity: titleOpacity,
+        transform: `translateY(${titleY}px) scale(${titleBreathe})`,
       }}>
         The Process
       </h1>
 
-      {/* Step cards — staggered entrance */}
+      {/* Step cards -- staggered entrance, SMOOTH spring, liquid glass */}
       <div style={{ display: 'flex', gap: 20 }}>
         {steps.map((step, i) => {
-          const delay = 15 + i * 8;  // 8 frame stagger
-          const opacity = interpolate(frame, [delay, delay + 20], [0, 1], {
+          const delay = 18 + i * 8;
+          // Opacity leads transform by 3 frames
+          const cardOpacity = interpolate(frame, [delay, delay + 15], [0, 1], {
             extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
           });
-          const y = interpolate(frame, [delay, delay + 20], [30, 0], {
+          const cardSpring = spring({ frame: Math.max(0, frame - delay - 3), fps, config: SPRINGS.SMOOTH });
+          const cardY = interpolate(cardSpring, [0, 1], [30, 0]);
+          // Liquid glass animated gradient per card
+          const glassAngle = 135 + Math.sin((frame + i * 20) * 0.02) * 15;
+          const glassBg = `linear-gradient(${glassAngle}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 65, 0.4), rgba(28, 28, 35, 0.55))`;
+          // Specular highlight sweep
+          const specX = interpolate(frame, [delay, delay + 40], [-100, 200], {
             extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
           });
+          // Card idle float
+          const cardFloat = Math.sin((frame + i * 15) * 0.03) * 3;
+
           return (
             <div key={step} style={{
-              ...GLASS,
+              position: 'relative',
+              overflow: 'hidden',
+              background: glassBg,
+              border: GLASS.border,
+              borderTop: GLASS.borderTop,
+              borderRadius: GLASS.borderRadius,
+              boxShadow: GLASS.shadow,
               padding: 32,
               width: 280,
               textAlign: 'center',
-              opacity,
-              transform: `translateY(${y}px)`,
+              opacity: cardOpacity,
+              transform: `translateY(${cardY + cardFloat}px)`,
             }}>
-              <div style={{ color: COLORS.primary, fontSize: 40, fontWeight: 500 }}>
+              {/* Specular highlight overlay */}
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                background: `linear-gradient(105deg, transparent ${specX}%, rgba(255,255,255,0.1) ${specX + 10}%, transparent ${specX + 20}%)`,
+                pointerEvents: 'none',
+              }} />
+              <div style={{ color: COLORS.primary, fontSize: 40, fontWeight: 700 }}>
                 {i + 1}
               </div>
               <div style={{ color: COLORS.textPrimary, fontSize: 32, marginTop: 12 }}>
@@ -378,7 +463,7 @@ const DataComparison: React.FC = () => {
         <div style={{
           color: '#8B5CF6',
           fontSize: 40,
-          fontWeight: 500,
+          fontWeight: 700,
           marginTop: 8,
           fontFamily: 'Sora',
         }}>
@@ -414,7 +499,7 @@ const DataComparison: React.FC = () => {
         <div style={{
           color: 'rgba(255, 255, 255, 0.55)',
           fontSize: 40,
-          fontWeight: 500,
+          fontWeight: 700,
           marginTop: 8,
           fontFamily: 'Sora',
         }}>
@@ -457,8 +542,7 @@ const FloatingLabel: React.FC = () => {
       transform: `translateY(${y}px)`,
     }}>
       <div style={{
-        background: 'rgba(28, 28, 35, 0.55)',
-        backdropFilter: 'blur(40px) saturate(180%) brightness(1.1)',
+        background: `linear-gradient(${135 + Math.sin(frame * 0.02) * 10}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 65, 0.4), rgba(28, 28, 35, 0.55))`,
         border: '1px solid rgba(255, 255, 255, 0.08)',
         borderTop: '1px solid rgba(255, 255, 255, 0.12)',
         borderRadius: 14,
@@ -469,7 +553,7 @@ const FloatingLabel: React.FC = () => {
           color: '#8B5CF6',
           fontSize: 18,
           fontFamily: 'Sora',
-          fontWeight: 500,
+          fontWeight: 700,
           letterSpacing: '0.05em',
           textTransform: 'uppercase',
         }}>
@@ -493,15 +577,16 @@ export default FloatingLabel;
 ```
 
 ## Do NOT Use
-- Pure black (`#000000`) or pure white (`#FFFFFF`) — always off-black and off-white
-- Font weight above 500 — emphasis via color and opacity only
-- Hard borders (1px solid white) — all borders are low-opacity white
-- Bright saturated backgrounds — backgrounds are always dark with subtle tints
-- Drop shadows with color (colored shadows) — shadows are always neutral black at varying opacity
+- Pure black (`#000000`) or pure white (`#FFFFFF`) -- always off-black and off-white
+- Hard borders (1px solid white) -- all borders are low-opacity white
+- Bright saturated backgrounds -- backgrounds are always dark with subtle tints
+- Drop shadows with color (colored shadows) -- shadows are always neutral black at varying opacity
 - Gradients on text
-- 3D transforms (rotateX, rotateY, perspective) — keep everything flat/2D
-- Heavy textures or patterns — glassmorphism is about translucency, not texture
+- 3D transforms (rotateX, rotateY, perspective) -- keep everything flat/2D
+- Heavy textures or patterns -- glassmorphism is about translucency, not texture
+- Static flat-colored rectangles as containers -- every surface must use liquid glass treatment
+- `backdrop-filter` -- unreliable in Remotion canvas rendering. Use animated gradients instead.
 
 ---
 
-*This is Viona's default studio theme. Every animator agent loads this before generating scene code. All `COLORS`, `GLASS`, `SPRING_CONFIG`, `FONTS`, `SPACING` constants in the workspace `constants.ts` must match these values exactly.*
+*This is Viona's default studio theme. Every animator agent loads this before generating scene code. All COLORS, SPRINGS, FONTS, SPACING constants in the workspace constants.ts must match these values. Liquid glass is mandatory on every surface -- no static flat rectangles.*
