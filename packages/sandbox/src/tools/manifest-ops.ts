@@ -1,9 +1,9 @@
-import { readFile, writeFile } from 'fs/promises';
+import { readFile, writeFile, rename } from 'fs/promises';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { z } from 'zod';
 import { notifyManifestUpdated } from '../ws-notify.js';
-import { syncTranscript } from './transcript-sync.js';
+import { syncTranscript, syncCaptions } from './transcript-sync.js';
 
 // ---- Inline item data schemas (mirrors @viona/shared/manifest-v2) ----
 // Defined here to avoid runtime dependency on @viona/shared inside Docker container.
@@ -32,6 +32,7 @@ const itemDataSchemas: Record<string, z.ZodTypeAny> = {
   }),
   audio: z.object({
     src: z.string(),
+    startFrom: z.number().min(0).default(0),
     volume: z.number().min(0).max(2).default(1),
     playbackRate: z.number().min(0.25).max(4).default(1),
     fadeInMs: z.number().min(0).optional(),
@@ -52,7 +53,10 @@ const itemDataSchemas: Record<string, z.ZodTypeAny> = {
     textTransform: z.enum(['none', 'uppercase', 'lowercase']).default('none'),
   }),
   image: z.object({ src: z.string() }),
-  scene: z.object({ sceneFile: z.string() }),
+  scene: z.object({
+    sceneFile: z.string(),
+    displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
+  }),
   caption: z.object({ words: z.array(captionWordSchema) }),
   shape: z.object({
     shape: z.enum(['rectangle', 'circle', 'line']),
@@ -60,8 +64,43 @@ const itemDataSchemas: Record<string, z.ZodTypeAny> = {
     stroke: z.string().optional(),
     strokeWidth: z.number().optional(),
     borderRadius: z.number().optional(),
+    // Layout Editor uses shape items as mockup placeholders with scene metadata
+    sceneFile: z.string().optional(),
+    displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
   }),
 };
+
+// ---- Normalization helpers ----
+
+/**
+ * Normalize keyframes from flat {timeMs, y, height, opacity, ...} to
+ * canonical {timeMs, props: {y, height, opacity, ...}, easing?} format.
+ * Agents often write flat keyframes; this prevents Zod validation errors on the frontend.
+ */
+function normalizeKeyframes(keyframes: any[]): any[] {
+  if (!keyframes || keyframes.length === 0) return keyframes;
+  return keyframes.map(kf => {
+    if (kf.props && typeof kf.props === 'object') return kf; // already canonical
+    const { timeMs, easing, props, ...rest } = kf;
+    // If there are extra fields beyond timeMs/easing, they're flat transform props
+    if (Object.keys(rest).length > 0) {
+      return { timeMs, props: rest, ...(easing ? { easing } : {}) };
+    }
+    return kf;
+  });
+}
+
+/**
+ * Ensure sceneFile has .tsx extension. Agents write "Scene1" but the
+ * scene-registry keys use "Scene1.tsx", so lookups fail without this.
+ */
+function normalizeSceneFile(data: any, type: string): void {
+  if ((type === 'scene' || type === 'shape') && typeof data?.sceneFile === 'string') {
+    if (data.sceneFile && !data.sceneFile.endsWith('.tsx')) {
+      data.sceneFile += '.tsx';
+    }
+  }
+}
 
 const MANIFEST_PATH = join('/workspace', 'manifest.json');
 
@@ -83,7 +122,11 @@ let manifestWriteCount = 0;
 const CHECKPOINT_EVERY_N_WRITES = 5;
 
 async function writeManifest(manifest: any): Promise<void> {
-  await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2));
+  // Atomic write: write to temp file then rename, so concurrent reads
+  // never see a truncated manifest.json
+  const tmpPath = `${MANIFEST_PATH}.${randomUUID()}.tmp`;
+  await writeFile(tmpPath, JSON.stringify(manifest, null, 2));
+  await rename(tmpPath, MANIFEST_PATH);
   // Notify frontend of manifest change (best-effort)
   notifyManifestUpdated().catch(() => {});
 
@@ -152,6 +195,7 @@ export const readManifestTool = {
           totalItems: (manifest.items ?? []).length,
           assetKeys: Object.keys(manifest.assets ?? {}),
           captionStyle: manifest.captionStyle ?? null,
+          videoSettings: manifest.videoSettings ?? null,
         });
       }
 
@@ -353,6 +397,9 @@ export const addItemTool = {
           input.data = result.data; // use parsed data (with defaults applied)
         }
 
+        // Normalize sceneFile extension
+        normalizeSceneFile(input.data, input.type);
+
         const manifest = await readManifest();
         const item: any = {
           id: input.id ?? randomUUID(),
@@ -361,7 +408,7 @@ export const addItemTool = {
           startMs: input.startMs,
           endMs: input.endMs,
           data: input.data,
-          keyframes: input.keyframes ?? [],
+          keyframes: normalizeKeyframes(input.keyframes ?? []),
         };
         if (input.transform) item.transform = input.transform;
         if (input.filters) item.filters = input.filters;
@@ -425,15 +472,22 @@ export const updateItemTool = {
         if (input.trackId !== undefined) item.trackId = input.trackId;
 
         // Deep-merge nested objects
-        if (input.data) item.data = { ...item.data, ...input.data };
+        if (input.data) {
+          item.data = { ...item.data, ...input.data };
+          normalizeSceneFile(item.data, item.type);
+        }
         if (input.transform) item.transform = { ...(item.transform ?? {}), ...input.transform };
         if (input.filters) item.filters = { ...(item.filters ?? {}), ...input.filters };
         if (input.style) item.style = { ...(item.style ?? {}), ...input.style };
 
-        // Replace keyframes array
-        if (input.keyframes !== undefined) item.keyframes = input.keyframes;
+        // Replace keyframes array (normalize flat → canonical format)
+        if (input.keyframes !== undefined) item.keyframes = normalizeKeyframes(input.keyframes);
 
         await writeManifest(manifest);
+        // Auto-sync transcript after update (timing changes shift the timeline)
+        if (input.startMs !== undefined || input.endMs !== undefined || input.data) {
+          syncTranscript().then(() => syncCaptions()).catch(() => {});
+        }
         return JSON.stringify(item);
       } catch (err: any) {
         return `Failed to update item: ${err.message}`;
@@ -464,8 +518,8 @@ export const removeItemTool = {
         }
         items.splice(idx, 1);
         await writeManifest(manifest);
-        // Auto-sync transcript after remove
-        syncTranscript().catch(() => {});
+        // Auto-sync transcript and captions after remove
+        syncTranscript().then(() => syncCaptions()).catch(() => {});
         return JSON.stringify({ removed: input.itemId });
       } catch (err: any) {
         return `Failed to remove item: ${err.message}`;
@@ -505,6 +559,9 @@ export const splitItemTool = {
         const splitOffset = input.atMs - item.startMs;
         const newId = randomUUID();
 
+        // Normalize existing keyframes before redistributing
+        const existingKeyframes = normalizeKeyframes(item.keyframes ?? []);
+
         // Build the new (right) item
         const newItem: any = {
           id: newId,
@@ -516,7 +573,7 @@ export const splitItemTool = {
             ...item.data,
             startFrom: (item.data.startFrom ?? 0) + splitOffset,
           },
-          keyframes: (item.keyframes ?? [])
+          keyframes: existingKeyframes
             .filter((kf: any) => kf.timeMs >= splitOffset)
             .map((kf: any) => ({ ...kf, timeMs: kf.timeMs - splitOffset })),
         };
@@ -527,12 +584,12 @@ export const splitItemTool = {
 
         // Trim the original (left) item
         item.endMs = input.atMs;
-        item.keyframes = (item.keyframes ?? []).filter((kf: any) => kf.timeMs < splitOffset);
+        item.keyframes = existingKeyframes.filter((kf: any) => kf.timeMs < splitOffset);
 
         items.push(newItem);
         await writeManifest(manifest);
-        // Auto-sync transcript after split
-        syncTranscript().catch(() => {});
+        // Auto-sync transcript and captions after split
+        syncTranscript().then(() => syncCaptions()).catch(() => {});
         return JSON.stringify({ originalId: item.id, newId });
       } catch (err: any) {
         return `Failed to split item: ${err.message}`;
@@ -617,6 +674,85 @@ export const updateManifestTool = {
  *  manifest in one call and has caused full data loss (Issue #9). The agent
  *  must use granular tools (add_item, update_item, etc.) instead.
  *  update_manifest is still available for the HTTP PATCH /manifest endpoint. */
+export const generateCaptionsTool = {
+  name: 'generate_captions',
+  description:
+    'Generate caption items from the transcript. Syncs transcript timing with current manifest edits, ' +
+    'creates a caption track if none exists, and builds phrase-grouped caption items. ' +
+    'Optionally accepts a captionStyle to apply (deep-merged with existing). ' +
+    'Call this after transcription is done or when the user wants captions added/regenerated.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      wordsPerPhrase: {
+        type: 'number',
+        description: 'Words per caption phrase (default: uses existing captionStyle.wordsPerPhrase or 5)',
+      },
+      captionStyle: {
+        type: 'object',
+        description: 'Optional caption style to apply (deep-merged with existing). ' +
+          'Fields: displayMode, fontFamily, fontSize, fontWeight, color, activeColor, ' +
+          'backgroundColor, activeBackgroundColor, stroke, animation, position, effects, etc.',
+      },
+    },
+    required: [],
+  },
+  async execute(input: { wordsPerPhrase?: number; captionStyle?: Record<string, unknown> }): Promise<string> {
+    return withManifestLock(async () => {
+      try {
+        // 1. Sync transcript timing with current manifest edits
+        await syncTranscript();
+
+        // 2. Ensure caption track exists
+        const manifest = await readManifest();
+        let captionTrack = (manifest.tracks ?? []).find((t: any) => t.type === 'caption');
+        if (!captionTrack) {
+          const maxPos = Math.max(0, ...(manifest.tracks ?? []).map((t: any) => t.position ?? 0));
+          captionTrack = {
+            id: `track-caption-${randomUUID().slice(0, 8)}`,
+            type: 'caption',
+            name: 'Captions',
+            position: maxPos + 1,
+          };
+          manifest.tracks = [...(manifest.tracks ?? []), captionTrack];
+        }
+
+        // 3. Apply wordsPerPhrase override
+        if (input.wordsPerPhrase) {
+          manifest.captionStyle = manifest.captionStyle ?? {};
+          manifest.captionStyle.wordsPerPhrase = input.wordsPerPhrase;
+        }
+
+        // 4. Apply caption style if provided (deep-merge)
+        if (input.captionStyle) {
+          const existing = manifest.captionStyle ?? {};
+          for (const [key, value] of Object.entries(input.captionStyle)) {
+            if (value && typeof value === 'object' && !Array.isArray(value) && existing[key] && typeof existing[key] === 'object') {
+              existing[key] = { ...existing[key], ...value };
+            } else {
+              existing[key] = value;
+            }
+          }
+          manifest.captionStyle = existing;
+        }
+
+        // Write manifest with track + style changes before syncCaptions reads it
+        await writeManifest(manifest);
+
+        // 5. Generate caption items from synced transcript
+        await syncCaptions();
+
+        // Re-read to get final state with captions
+        const final = await readManifest();
+        const captionCount = (final.items ?? []).filter((i: any) => i.type === 'caption').length;
+        return JSON.stringify({ ok: true, captionCount, trackId: captionTrack.id });
+      } catch (err: any) {
+        return `Failed to generate captions: ${err.message}`;
+      }
+    });
+  },
+};
+
 export const allManifestTools = [
   readManifestTool,
   readItemTool,
@@ -628,4 +764,5 @@ export const allManifestTools = [
   removeItemTool,
   splitItemTool,
   updateCaptionStyleTool,
+  generateCaptionsTool,
 ];
