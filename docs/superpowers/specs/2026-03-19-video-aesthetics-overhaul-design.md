@@ -19,7 +19,7 @@ Pipeline output has 4 critical aesthetic issues:
 |----------|----------|
 | Glass fix: components vs prompts vs both? | **Prompts only (B)** — no new template components |
 | Video zoom: where does it happen? | **Layout Editor** — new Step 0 before any scene work |
-| Zoom cuts: who executes? | **Both (C)** — Trim Editor: jump-cut coverage at edit points. Layout Editor: plan punch-ins + scene splits (enforced) |
+| Zoom cuts: who executes? | **Both (C)** — Trim Editor: jump-cut coverage at edit points (relative crops). Layout Editor: zoom-to-fill base + plan punch-ins + scene splits (enforced). Layout Editor preserves Trim Editor's relative crop offsets when applying zoom-to-fill. |
 | Motion fix: reinforce vs rewrite vs QC gate? | **Rewrite entirely (B)** — replace conservative spring config, add choreography patterns |
 
 ## Design
@@ -33,23 +33,28 @@ Pipeline output has 4 critical aesthetic issues:
 
 Before any splits or scene work, the Layout Editor positions the source video on the 9:16 canvas. Added as Step 0 before the current Step 1.
 
-The Layout Editor reads `manifest.canvas` (width/height) and `manifest.videoSettings` (sourceWidth/sourceHeight). If the source aspect ratio differs from canvas, it updates ALL video items with a `data.crop` that zooms to fill the frame.
+The Layout Editor reads `manifest.canvas` (width/height) and `manifest.videoSettings` (sourceWidth/sourceHeight). If the source aspect ratio differs from the canvas, it updates video items with a `data.crop` that zooms to fill the frame.
 
-Calculation:
-```
-sourceAR = sourceWidth / sourceHeight    (e.g. 1920/1080 = 1.78)
-canvasAR = canvasWidth / canvasHeight    (e.g. 1080/1920 = 0.56)
-scale = sourceAR / canvasAR              (e.g. 1.78 / 0.56 ≈ 3.17)
-→ But this is the ratio needed to fill height. In practice:
-scale = (sourceWidth / sourceHeight) * (canvasHeight / canvasWidth)
-      = (1920/1080) * (1920/1080) ≈ 3.16...
+**Crop coordinate system** (from `VideoItem.tsx`):
+- `x, y`: center-point percentages (0-100). `x=50, y=50` = center of video.
+- `scale`: zoom factor. `scale=1` = no zoom, `scale=2` = 200% zoom.
+- CSS applied: `width: scale*100%`, `height: scale*100%`, `left: 50 - x*scale %`, `top: 50 - y*scale %`
+- The video is wrapped in `overflow: hidden`, so `x=50, y=50` centers the crop at any scale.
 
-Simplified: scale = sourceHeight > 0 ? (canvasHeight / canvasWidth) / (sourceHeight / sourceWidth) : 1
-```
+**Approach:** The Layout Editor should:
+1. Read canvas and source dimensions from manifest
+2. Calculate an initial crop scale that eliminates black bars
+3. Apply `update_item` with `data.crop` on each video item
+4. **Render a still** via `render_still` at frame 10 and verify zero black bars
+5. If black bars remain, adjust the scale up and re-render
 
-The Layout Editor applies `update_item` with `data.crop: { x: 50, y: 50, scale }` on every video item. Center-cropped by default. After this step, zero black bars should be visible when rendering a still.
+If an item already has a `data.crop` (from Trim Editor jump-cut coverage), the Layout Editor multiplies the existing scale by the zoom-to-fill factor and preserves the x/y offset: `newCrop = { x: existingCrop.x, y: existingCrop.y, scale: existingCrop.scale * zoomFillScale }`.
 
-If `speaker-grid.json` exists, the crop center should be adjusted to keep the speaker's face visible (shift y toward the face zone).
+If `speaker-grid.json` exists, shift the crop y-center toward the speaker's face zone.
+
+**Prerequisite:** The `read_manifest` MCP tool's summary mode does not currently include `videoSettings`. Add `videoSettings: manifest.videoSettings ?? null` to the summary response in `manifest-ops.ts` (line ~197). This is a one-line change to expose existing data, not a behavior change.
+
+**Edge case:** If source aspect ratio matches canvas (both 9:16), skip this step (scale=1, no crop needed).
 
 #### 1b. Enforce Splits as Non-Negotiable
 
@@ -79,11 +84,11 @@ Add to `reminder.md`:
 
 **File:** `packages/sandbox/src/prompts/trim-editor/system.md`
 
-Minimal change. After all trims are complete, the Trim Editor applies automatic zoom coverage at every visible edit point (where two clips meet after a section was removed).
+Minimal change. The existing Professional Techniques section already mentions jump-cut coverage but the instruction is vague. **Replace** it with:
 
-Add to the Professional Techniques section:
+> **Jump cut coverage:** After trimming, every visible edit point needs visual coverage. On alternating video segments, apply a subtle relative crop — `{ x: 50, y: 48, scale: 1.06 }` on odd segments (slight zoom + pan up) vs no crop on even segments. Use `update_item` on `data.crop`. This creates visual variety at cuts.
 
-> **Jump cut coverage:** After trimming, every visible edit point needs coverage. At each cut boundary, apply a subtle crop change — alternate between `{ x: 50, y: 50, scale: 1.0 }` (default framing) and `{ x: 50, y: 45, scale: 1.08 }` (slight zoom-in, shifted up slightly) on alternating segments using `update_item` on `data.crop`. This creates visual variety at cuts. Process after all trims are done, before reporting completion.
+**Pipeline ordering note:** The Trim Editor (Phase 2) runs BEFORE the Layout Editor (Phase 5). These relative crops are small (1.06x). The Layout Editor's Step 0 zoom-to-fill will later multiply these by the zoom-fill factor, preserving the alternating pattern while adding the base zoom. No conflict.
 
 No other changes to the Trim Editor. Video canvas positioning stays in Layout Editor.
 
@@ -91,8 +96,15 @@ No other changes to the Trim Editor. Video canvas positioning stays in Layout Ed
 
 ### 3. Animator Prompt — Liquid Glass Across All Scenes
 
-**File:** Animator system prompt (fullscreen rules, overlay rules, or unified prompt)
-**File:** `packages/sandbox/template/docs/guidelines/studio-theme.md`
+The Animator prompt is assembled programmatically in `packages/sandbox/src/prompt-assembly.ts` via `buildAnimatorPrompt()`. It composes from:
+- `layoutRules()` function — non-overlay scene rules (edit this for fullscreen glass mandate)
+- `overlayRules()` function — overlay scene rules
+- `CODING_RULES` constant — Remotion coding rules (edit for spring vocabulary)
+- `studio-theme.md` — loaded dynamically at runtime (edit for glass recipe, colors, typography)
+
+**Files:**
+- `packages/sandbox/src/prompt-assembly.ts` — `layoutRules()`, `overlayRules()`, `CODING_RULES`
+- `packages/sandbox/template/docs/guidelines/studio-theme.md` — glass recipe, spring configs, typography, colors
 
 #### 3a. Liquid Glass in Remotion
 
@@ -153,10 +165,14 @@ Replace fixed `#08080C + #8B5CF6` approach:
 > - Calm/health/nature → teal/green (`#14b8a6`, `#22c55e`)
 >
 > The violet accent is ONE option, not the default. Each scene should feel like it belongs to the video's topic. The background base can shift too — deep navy, dark warm gray, or deep emerald instead of always `#08080C`.
+>
+> **Implementation note:** `constants.ts` defines `COLORS.primary` as a single value (written by Setup Agent). Animators should use inline hex colors per scene rather than relying on `COLORS.primary` for accent color. `COLORS.primary` remains as a fallback. The Setup Agent prompt does NOT change — it still writes a single theme, but animators are free to override accent colors inline based on scene content.
 
 #### 3d. Typography Upgrade
 
-Remove max-weight-500 rule from `studio-theme.md`:
+Remove max-weight-500 rule from `studio-theme.md` in TWO locations:
+1. The Typography/Font section — update to allow 700-800 for hero text
+2. The "Do NOT Use" section at the bottom — remove "Font weight above 500" bullet
 
 > Hero text (main numbers, key phrases, titles) uses weight 700-800. Supporting text and labels stay at 400-500 for contrast. The weight differential creates hierarchy that reads at scroll speed on a phone screen. Light text disappears in motion — bold text stops the scroll.
 
@@ -178,7 +194,7 @@ Remove `SPRING_CONFIG = { damping: 30, mass: 1, stiffness: 500 }`. Replace with 
 | **BOUNCY** | `{ damping: 12, mass: 0.8, stiffness: 200 }` | Icons, small accents, playful moments |
 | **HEAVY** | `{ damping: 35, mass: 1.5, stiffness: 100 }` | Large panels, backgrounds, weighty arrivals |
 
-**Rule: Adjacent elements must NOT use the same spring.** A hero number enters SNAPPY while its label enters SMOOTH. A card enters HEAVY while the icon inside enters BOUNCY. Contrast is what makes motion feel choreographed.
+**Rule: Adjacent elements SHOULD use different springs.** A hero number enters SNAPPY while its label enters SMOOTH. A card enters HEAVY while the icon inside enters BOUNCY. Contrast is what makes motion feel choreographed. (Same spring on adjacent elements is acceptable if semantically justified, but never the default.)
 
 #### 4b. Varied Entrance Directions
 
@@ -205,7 +221,7 @@ Replace vague "ambient motion" with specific patterns:
 >
 > The background is NEVER static. At least one of: gradient position shift, dot grid drift, slow color rotation, particle movement.
 >
-> **A scene where anything is frozen for more than 30 frames (1 second) is a failure.**
+> **A scene where anything is frozen for more than 45 frames (~1.5 seconds) needs attention.** Check if idle motion was missed.
 
 #### 4d. Overlapping Action
 
@@ -248,13 +264,31 @@ Replace rigid zone percentages with composition patterns:
 >
 > The Planner specifies a `layout` field per scene in SCENE_PLAN.md. The Animator follows it.
 
-#### 5b. Remove Rigid Zone System
+#### 5b. Add Creative Layout Guidance
 
-Remove from animator fullscreen rules: "top 20% title, middle 40% content, bottom 25% detail". Replace with:
+The current `layoutRules()` in `prompt-assembly.ts` has no explicit zone system, but the animator defaults to rigid top/middle/bottom placement. Add to `layoutRules()`:
 
 > Follow the layout pattern from the plan. Do not default to top/middle/bottom zones. Place elements according to the specified pattern. Leave bottom 12% clear for captions, but otherwise use the full canvas creatively.
 
 ---
+
+## CLAUDE.md Updates
+
+Add to `packages/sandbox/template/.claude/CLAUDE.md`:
+
+```markdown
+## Glass & Motion Rules
+- Every container/card/panel uses animated liquid glass (gradient surface + specular highlight + depth shadow + grain). Static flat rectangles are wrong.
+- Spring vocabulary: SNAPPY (hero), SMOOTH (cards), BOUNCY (accents), HEAVY (panels). Adjacent elements should use different springs.
+- Entrance directions must vary within a scene — not everything from bottom.
+- Every settled element needs idle motion (float, breathe, rotate drift, or glow pulse).
+- Background is never static — at least one continuously animating property.
+- Opacity and transform offsets: stagger by 3-5 frames (never start on same frame).
+
+## Video Positioning
+- Layout Editor Step 0: zoom-to-fill eliminates black bars on 9:16 canvas from landscape sources.
+- If source video has a crop from Trim Editor, Layout Editor multiplies by zoom-fill factor (preserves relative offsets).
+```
 
 ## Files Changed
 
@@ -263,12 +297,14 @@ Remove from animator fullscreen rules: "top 20% title, middle 40% content, botto
 | `packages/sandbox/src/prompts/layout-editor/system.md` | Edit | New Step 0 (zoom-to-fill), enforce splits, enforce punch-ins, self-checks |
 | `packages/sandbox/src/prompts/layout-editor/reminder.md` | Edit | Add zoom/split/punch-in reminders |
 | `packages/sandbox/src/prompts/trim-editor/system.md` | Edit | Add jump-cut coverage zoom technique |
-| Animator system prompt | Edit | Liquid glass section, content-adaptive color, typography, full motion rewrite |
-| Animator fullscreen rules | Edit | Remove rigid zones, require glass on all surfaces |
+| `packages/sandbox/src/prompt-assembly.ts` (`layoutRules()`) | Edit | Glass mandate for fullscreen scenes, creative layout guidance, motion rewrite |
+| `packages/sandbox/src/prompt-assembly.ts` (`overlayRules()`) | Edit | Reinforce glass treatment (already partially there) |
+| `packages/sandbox/src/prompt-assembly.ts` (`CODING_RULES`) | Edit | Spring vocabulary reference, entrance direction variety |
+| `packages/sandbox/src/tools/manifest-ops.ts` | Edit | Expose `videoSettings` in `read_manifest` summary (one-line addition) |
 | `packages/sandbox/src/prompts/planner/system.md` | Edit | Layout pattern variety, scene composition freedom |
-| `packages/sandbox/template/docs/guidelines/studio-theme.md` | Edit | Liquid glass recipe for Remotion, spring vocabulary, remove max-weight-500 |
-| `packages/sandbox/template/docs/guidelines/editing-style.md` | Edit | Remove rigid zone percentages, add layout patterns |
-| `packages/sandbox/template/.claude/CLAUDE.md` | Edit | Add liquid glass rules, zoom-to-fill note |
+| `packages/sandbox/template/docs/guidelines/studio-theme.md` | Edit | Liquid glass recipe for Remotion, spring vocabulary, content-adaptive color, typography update, remove max-weight-500 |
+| `packages/sandbox/template/docs/guidelines/editing-style.md` | Edit | Add layout patterns section |
+| `packages/sandbox/template/.claude/CLAUDE.md` | Edit | Add glass/motion rules, video positioning note |
 
 ## Out of Scope
 
