@@ -53,7 +53,7 @@ interface CaptionPreset {
 
   // Layout & Position
   position: CaptionPosition;
-  displayMode: CaptionDisplayMode;
+  displayMode: CaptionDisplayMode;  // 'word-by-word' | 'phrase' | 'karaoke'
   wordsPerPhrase: number;
 
   // Animation
@@ -94,13 +94,13 @@ Note: The existing `CaptionPosition` type in `types.ts` has required fields (`an
 
 ### CaptionDisplayMode
 
-Extend the existing type to include `dynamic-hierarchy`:
+No change needed — the existing type already covers the three supported modes:
 
 ```typescript
-type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke' | 'dynamic-hierarchy';
+type CaptionDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
 ```
 
-Update in `apps/web/src/features/editor-v2/store/types.ts`.
+`dynamic-hierarchy` is deprecated and removed from display mode options.
 
 ### WordRoleStyle
 
@@ -284,9 +284,30 @@ Add:
 
 ### Subtitle Presets (`subtitle-presets.ts`)
 
-- `SubtitlePreset` type gains optional `wordEmphasis` field
-- `dynamic-hierarchy` preset gets `wordEmphasis: { enabled: true, roles: { power: {...}, medium: {...}, filler: {...} } }`
-- All other presets unchanged — they just don't define emphasis rules
+**Curated preset list.** Remove all presets except these 9 (+ default):
+
+| Preset ID | Name | Display Modes |
+|-----------|------|---------------|
+| `default` | Default | word-by-word, phrase, karaoke |
+| `hormozi` | Hormozi | word-by-word, phrase, karaoke |
+| `ali-abdaal` | Ali Abdaal | word-by-word, phrase, karaoke |
+| `nas-daily` | Nas Daily | word-by-word, phrase |
+| `netflix` | Netflix | phrase, karaoke |
+| `behind-person` | Behind Person | word-by-word, phrase |
+| `retro-vhs` | Retro VHS | word-by-word, phrase |
+| `cottagecore` | Cottagecore | word-by-word, phrase, karaoke |
+| `apple-clean` | Apple | phrase, karaoke |
+| `google-material` | Google | word-by-word, phrase |
+
+**Display mode variants.** Each preset that works with multiple display modes gets variant entries. The preset picker shows the base preset; selecting it shows the available display mode variants as a sub-option. Internally, the preset ID encodes the variant: `hormozi` (default mode), `hormozi:phrase`, `hormozi:karaoke`. The `presetId` field on `CaptionPreset` stores the full variant ID.
+
+Implementation: Each preset definition includes a `supportedModes: CaptionDisplayMode[]` array. The first mode is the default. When the user selects a preset, it applies with the default mode. The display mode picker in the StylePanel only shows modes from `supportedModes`.
+
+**Deprecate `dynamic-hierarchy`.** Remove the `dynamic-hierarchy` preset and display mode. The AI word emphasis feature can be re-introduced later through the `wordEmphasis` system on individual presets.
+
+- `SubtitlePreset` type gains optional `wordEmphasis` and `supportedModes` fields
+- All presets not in the curated list above are removed
+- Categories simplified — remove the category system for now (only 10 presets)
 
 ### DB
 
@@ -334,13 +355,33 @@ Individual word rendering is required anyway for future features (dynamic sizing
 
 ## Frontend Controls
 
-### StylePanel
+### StylePanel — Simplified
 
-- Reads style from `store.captionPreset`
-- All updates go through `updateCaptionPreset()`
-- `applyPreset()` does full replacement: `updateCaptionPreset(fullPresetObject)`
-- Individual knobs do partial merge: `updateCaptionPreset({ fontSize: 64 })`
-- "Apply to selected captions only" concept removed for style (selection still matters for word editing)
+The current StylePanel has ~20 controls. Most are removed — presets handle them. The simplified panel has:
+
+**Keep:**
+- **Preset picker** — grid of 10 presets. Selecting one is a full reset.
+- **Display mode** — word-by-word / phrase / karaoke. Only shows modes from the active preset's `supportedModes`.
+- **Words per phrase** — slider, only visible when display mode is phrase or karaoke.
+- **Colors** — all colors used by the caption (text, active, background, active background). Multi-color editor, not individual pickers.
+- **Font family** — dropdown/picker.
+- **Font size** — slider.
+- **Font weight** — dropdown (400, 500, 600, 700, 800, 900).
+- **Letter spacing** — slider.
+- **Text transform** — none / uppercase / lowercase toggle.
+- **Line height** — slider.
+- **Background padding** — x/y sliders.
+- **Background radius** — slider.
+
+**Remove:**
+- Position controls (anchor, offset sliders) — handled by drag in preview.
+- Animation/transition controls — preset owns these.
+- Opacity slider — preset owns.
+- Stroke/text shadow/text stroke — preset owns.
+- Effects (shadow, glow) — preset owns.
+- "Apply to selected only" toggle — all style is global.
+
+All updates go through `updateCaptionPreset()`. `applyPreset()` does full replacement. Individual knobs do partial merge.
 
 ### CaptionDragOverlay
 
@@ -361,13 +402,16 @@ Individual word rendering is required anyway for future features (dynamic sizing
 ## Scope
 
 ### Build Now
-1. `CaptionPreset` data model on manifest
+1. `CaptionPreset` data model on manifest (replaces `captionStyle`)
 2. `updateCaptionPreset()` store action (replaces two style functions)
 3. Renderer resolves preset + word roles
-4. Migration: `captionStyle` → `captionPreset`, strip `data.style` from items
-5. StylePanel and DragOverlay use single dispatch path
-6. Click propagation fix
-7. Sync re-render fix
+4. Migration: `captionStyle` → `captionPreset`, strip `data.style` from items, `classification` → `role`
+5. Curate presets: keep 9 + default, remove the rest, add `supportedModes` and display mode variants
+6. Simplify StylePanel: remove position/animation/effects/opacity controls, keep typography + colors + background + display mode
+7. Deprecate `dynamic-hierarchy` display mode
+8. StylePanel and DragOverlay use single dispatch path
+9. Click propagation fix
+10. Sync re-render fix
 
 ### Designed For, Not Built
 - `speakers` config for speaker-aware positioning + line breaking
@@ -375,3 +419,4 @@ Individual word rendering is required anyway for future features (dynamic sizing
 - Auto line-breaking strategies
 - Dynamic resize curves
 - Custom user-created presets
+- Re-introduce dynamic-hierarchy via `wordEmphasis` on individual presets
