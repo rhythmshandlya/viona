@@ -2681,6 +2681,11 @@ export const useEditorStore = create<EditorStore>()(
         s.items = bridgeResult.items;
         s.itemIds = bridgeResult.itemIds;
         s.duration = bridgeResult.duration;
+        // Preserve presigned S3 URLs so syncWorkspaceManifest includes them
+        // when rebuilding manifest after local edits
+        if (manifest?.assets && typeof manifest.assets === 'object') {
+          s.assets = manifest.assets as Record<string, string>;
+        }
       });
 
       // Also store the raw manifest
