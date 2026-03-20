@@ -41,9 +41,7 @@ import type { AnimationConfig, AnimationType, EasingType } from '@viona/renderer
 import { EFFECT_PRESETS, effectsToCss, type EffectPresetId } from '@/lib/effects-utils';
 import {
   SUBTITLE_PRESETS,
-  PRESET_CATEGORIES,
-  getPresetsByCategory,
-  type PresetCategory,
+  PRESET_ORDER,
   type SubtitlePreset,
 } from '@/lib/subtitle-presets';
 import { FONT_REGISTRY, loadFont, findFont, getFontsByCategory, type FontEntry } from '@/lib/font-registry';
@@ -101,7 +99,6 @@ export function StylePanel() {
   const videoUrl = useVideoUrl();
   const currentTimeMs = useCurrentTimeMs();
 
-  const [activeTab, setActiveTab] = useState<PresetCategory>('viral');
   const [topTab, setTopTab] = useState<'templates' | 'font' | 'position' | 'transitions'>('templates');
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoPalettes, setAutoPalettes] = useState<ColorPalette[] | null>(null);
@@ -238,7 +235,7 @@ export function StylePanel() {
     }
   };
 
-  const filteredPresets = getPresetsByCategory(activeTab);
+  const filteredPresets = PRESET_ORDER.map((id) => SUBTITLE_PRESETS[id]);
 
   // Determine if current style matches a preset (only by presetId, not fuzzy matching)
   const isPresetSelected = (preset: SubtitlePreset) =>
@@ -308,25 +305,6 @@ export function StylePanel() {
         {/* ===== TEMPLATES TAB ===== */}
         {topTab === 'templates' && (
           <>
-            {/* Category Tabs */}
-            <div className="px-4 pt-1 pb-1">
-              <div className="flex p-0.5 bg-[var(--editor-bg-elevated)] rounded-md">
-                {PRESET_CATEGORIES.map((cat) => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setActiveTab(cat.id)}
-                    className={`flex-1 px-3 py-1.5 text-xs font-normal rounded transition-all ${
-                      activeTab === cat.id
-                        ? 'bg-[var(--editor-bg-surface)] text-[var(--editor-text-primary)] shadow-sm'
-                        : 'text-[var(--editor-text-secondary)] hover:text-[var(--editor-text-primary)]'
-                    }`}
-                  >
-                    {cat.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Preset Grid */}
             <div className="px-4 py-3">
               <div className="grid grid-cols-2 gap-2">

@@ -892,7 +892,7 @@ export const DEFAULT_CAPTION_STYLE: CaptionStyle = {
 
   position: DEFAULT_CAPTION_POSITION,
 
-  presetId: 'mrbeast-bold',
+  presetId: 'default',
 };
 
 export const DEFAULT_TEXT_STYLE: TextStyle = {
