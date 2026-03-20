@@ -32,7 +32,7 @@ function jsonPropToZod(prop: any, isRequired: boolean): z.ZodTypeAny {
       zodType = z.array(z.unknown());
       break;
     case 'object':
-      zodType = z.record(z.unknown());
+      zodType = z.record(z.string(), z.unknown());
       break;
     default:
       zodType = z.unknown();
@@ -112,7 +112,7 @@ export function createMcpServers(
         {
           kind: z.enum(['theme_picker', 'scene_plan', 'choice', 'confirmation', 'completion']),
           id: z.string(),
-          data: z.record(z.unknown()).optional(),
+          data: z.record(z.string(), z.unknown()).optional(),
         },
         async (input) => {
           // Spread data to top level so frontend sees widget.scenes, not widget.data.scenes

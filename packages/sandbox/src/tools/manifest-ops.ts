@@ -384,7 +384,7 @@ export const addItemTool = {
             const issues = result.error.issues.map((i: any) => `${i.path.join('.')}: ${i.message}`).join('; ');
             return `Invalid data for ${input.type} item: ${issues}`;
           }
-          input.data = result.data; // use parsed data (with defaults applied)
+          input.data = result.data as object; // use parsed data (with defaults applied)
         }
 
         // Normalize sceneFile extension

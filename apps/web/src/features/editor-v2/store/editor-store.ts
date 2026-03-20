@@ -69,6 +69,11 @@ const dispatchManifestOp = async (op: StoreManifestOp): Promise<void> => {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to sync edit';
+    // "No active workspace" is expected for older projects — demote to no-op
+    if (message.includes('No active workspace')) {
+      useEditorStore.setState({ workspaceStatus: 'inactive' as any });
+      return;
+    }
     console.error('Failed to apply manifest op:', err);
     useEditorStore.setState({ manifestSyncError: message });
   }
