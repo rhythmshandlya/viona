@@ -324,40 +324,38 @@ export class SandboxManager {
         throw err;
       }
 
-      // 8. Check if workspace initialized (isReady) for backup-restore case
+      // 8. Check if workspace initialized (isReady) — works for both bundle and volume restore
       let workspaceReady = false;
       let recovery: AcquireResult['recovery'];
 
-      if (backupId) {
-        try {
-          const checkRes = await fetch(`${sandbox.agentUrl}/health`, {
-            signal: AbortSignal.timeout(5000),
-          });
-          if (checkRes.ok) {
-            const body = await checkRes.json() as { initialized?: boolean };
-            workspaceReady = body.initialized === true;
-          }
-        } catch {
-          // Sandbox not reachable yet or workspace broken
+      try {
+        const checkRes = await fetch(`${sandbox.agentUrl}/health`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (checkRes.ok) {
+          const body = await checkRes.json() as { initialized?: boolean };
+          workspaceReady = body.initialized === true;
         }
+      } catch {
+        // Sandbox not reachable yet or workspace broken
+      }
 
-        if (workspaceReady) {
-          recovery = 'full';
-        } else {
-          // Check if S3 checkpoint exists as fallback
-          let hasS3Checkpoint = false;
-          try {
-            await minioClient.statObject(
-              config.storage.bucket,
-              `checkpoints/${projectId}/manifest.json`,
-            );
-            hasS3Checkpoint = true;
-          } catch {
-            // No S3 checkpoint
-          }
-          recovery = hasS3Checkpoint ? 'partial' : 'lost';
-          logger.warn({ projectId, recovery }, 'Backup restore did not produce initialized workspace');
+      if (workspaceReady) {
+        recovery = 'full';
+      } else if (backupId) {
+        // Had a backup but workspace not ready — check S3 for manifest-only fallback
+        let hasS3Checkpoint = false;
+        try {
+          await minioClient.statObject(
+            config.storage.bucket,
+            `checkpoints/${projectId}/manifest.json`,
+          );
+          hasS3Checkpoint = true;
+        } catch {
+          // No S3 checkpoint
         }
+        recovery = hasS3Checkpoint ? 'partial' : 'lost';
+        logger.warn({ projectId, recovery }, 'Restore did not produce initialized workspace');
       }
 
       // 9. If not initialized and initData provided: POST to agentUrl/init
