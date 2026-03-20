@@ -293,7 +293,6 @@ Add:
 | `ali-abdaal` | Ali Abdaal | word-by-word, phrase, karaoke |
 | `nas-daily` | Nas Daily | word-by-word, phrase |
 | `netflix` | Netflix | phrase, karaoke |
-| `behind-person` | Behind Person | word-by-word, phrase |
 | `retro-vhs` | Retro VHS | word-by-word, phrase |
 | `cottagecore` | Cottagecore | word-by-word, phrase, karaoke |
 | `apple-clean` | Apple | phrase, karaoke |
@@ -419,4 +418,4 @@ All updates go through `updateCaptionPreset()`. `applyPreset()` does full replac
 - Auto line-breaking strategies
 - Dynamic resize curves
 - Custom user-created presets
-- Re-introduce dynamic-hierarchy via `wordEmphasis` on individual presets
+- Dynamic-hierarchy / word emphasis on individual presets
