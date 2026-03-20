@@ -114,21 +114,26 @@ function createRequire(bundleBaseUrl: string) {
   const customStaticFile = (relativePath: string) => {
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
 
-    // Check assets map first (presigned S3 URL)
+    // 1. Check assets map for presigned S3 URLs (direct, no proxy hops)
+    //    Also check proxy variant in assets map
+    const proxyKey = deriveProxyKey(cleanPath);
+    if (proxyKey && _currentAssetsMap[proxyKey]) {
+      return _currentAssetsMap[proxyKey];
+    }
     if (_currentAssetsMap[cleanPath]) {
       return _currentAssetsMap[cleanPath];
     }
 
-    // Same-origin proxy URL — Next.js rewrites /api/* to the backend
+    // 2. Fallback to same-origin API proxy
     const projectIdMatch = bundleBaseUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
     const publicBase = projectIdMatch
       ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
       : `${bundleBaseUrl}/public`;
 
-    // Prefer proxy file for preview performance (480p video, 960px images, 64k audio).
-    // If proxy doesn't exist on disk, request 404s and Remotion handles gracefully.
-    const proxyKey = deriveProxyKey(cleanPath);
-    if (proxyKey) {
+    // Use proxy variant for preview performance if available.
+    // Only try proxy URL if we have a non-empty assets map (meaning proxies were generated).
+    // When assets map is empty, go straight to the original to avoid 404 round-trips.
+    if (proxyKey && Object.keys(_currentAssetsMap).length > 0) {
       return `${publicBase}/${proxyKey}`;
     }
 
@@ -164,10 +169,10 @@ function createRequire(bundleBaseUrl: string) {
       // eliminating the black flash at cut boundaries.
       const PremountSequence = (props: any) => {
         const { layout, premountFor, children, ...rest } = props;
-        // 30 frames ≈ 1s at 30fps — enough for video to load & seek from cache
+        // 60 frames ≈ 2s at 30fps — enough for video to load & seek from cache
         return React.createElement(Remotion.Sequence, {
           ...rest,
-          premountFor: premountFor ?? 30,
+          premountFor: premountFor ?? 60,
           children,
         });
       };

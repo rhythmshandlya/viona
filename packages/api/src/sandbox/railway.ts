@@ -80,6 +80,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
         MINIO_SECRET_KEY: config.storage.secretKey,
         MINIO_BUCKET: config.storage.bucket,
         MINIO_USE_SSL: 'true',
+        MINIO_PUBLIC_ENDPOINT: process.env.BUCKET_PUBLIC_ENDPOINT || process.env.RAILWAY_SERVICE_STORAGE_URL || '',
         ...env,
       };
 

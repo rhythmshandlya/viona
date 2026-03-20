@@ -22,7 +22,7 @@ export const ChatBubble = memo(function ChatBubble({ role, text, isStreaming }: 
       className={cn(
         'relative px-3.5 py-2.5 rounded-2xl backdrop-blur-xl text-sm',
         isUser
-          ? 'ml-auto max-w-[85%] rounded-tr-md bg-[var(--chat-bubble-user-bg)] border border-[var(--chat-bubble-user-border)] text-white/95'
+          ? 'ml-auto rounded-tr-md bg-[var(--chat-bubble-user-bg)] border border-[var(--chat-bubble-user-border)] text-white/95'
           : 'mr-2 rounded-tl-md bg-[var(--chat-bubble-assistant-bg)] border border-[var(--chat-bubble-assistant-border)] text-white/90',
       )}
     >

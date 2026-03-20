@@ -14,6 +14,7 @@ const PRESIGNED_TTL = 8 * 60 * 60; // 8 hours in seconds
 const uploadedFiles = new Set<string>();
 
 let _minioClient: MinioClient | null = null;
+let _presignedClient: MinioClient | null = null;
 
 function getMinioClient(): MinioClient {
   if (!_minioClient) {
@@ -28,12 +29,23 @@ function getMinioClient(): MinioClient {
   return _minioClient;
 }
 
-/** Rewrite Docker-internal hostname to localhost for browser-accessible URLs.
- *  presignedGetObject makes a network call so the client must use the real
- *  endpoint (e.g. host.docker.internal), but the resulting URL must be
- *  reachable from the browser (Issue #4). */
-function toBrowserUrl(url: string): string {
-  return url.replace(/host\.docker\.internal/g, 'localhost');
+/** Get a MinIO client configured with the public endpoint for generating
+ *  browser-accessible presigned URLs. Falls back to the internal client. */
+function getPresignedClient(): MinioClient {
+  if (!_presignedClient) {
+    const publicEndpoint = process.env.MINIO_PUBLIC_ENDPOINT;
+    if (publicEndpoint) {
+      _presignedClient = new MinioClient({
+        endPoint: publicEndpoint,
+        useSSL: true,
+        accessKey: process.env.MINIO_ACCESS_KEY || '',
+        secretKey: process.env.MINIO_SECRET_KEY || '',
+      });
+    } else {
+      _presignedClient = getMinioClient();
+    }
+  }
+  return _presignedClient;
 }
 
 export async function syncAssets(): Promise<void> {
@@ -78,8 +90,9 @@ export async function syncAssets(): Promise<void> {
     }
 
     try {
-      const url = await minio.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
-      assets[file] = toBrowserUrl(url);
+      const presignedMinio = getPresignedClient();
+      const url = await presignedMinio.presignedGetObject(bucket, objectKey, PRESIGNED_TTL);
+      assets[file] = url;
     } catch (err) {
       logger.warn({ err, file }, 'Failed to generate presigned URL');
     }
