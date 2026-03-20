@@ -62,7 +62,7 @@ export type StoreManifestOp =
   | { op: 'delete_item'; itemId: string }
   | { op: 'set_transition'; itemId: string; enter?: { type: string; durationMs: number }; exit?: { type: string; durationMs: number } }
   | { op: 'move_item'; itemId: string; startMs: number; endMs: number }
-  | { op: 'update_caption_style'; updates: Record<string, unknown> }
+  | { op: 'update_caption_preset'; updates: Record<string, unknown> }
   | { op: 'split_item'; itemId: string; atMs: number }
   | { op: 'reorder_tracks'; trackIds: string[] }
   | { op: 'update_video_settings'; updates: Record<string, unknown> }

@@ -4,7 +4,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { RotateCcw, Wand2, Loader2 } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import {
-  useFirstCaptionStyle,
+  useCaptionPreset,
   useSelectedIds,
   useCaptionActions,
   useTimelineActions,
@@ -87,11 +87,11 @@ function getEffectsValue(style: CaptionStyle): CaptionEffects {
 // ============================================
 
 export function StylePanel() {
-  const style = useFirstCaptionStyle();
+  const style = useCaptionPreset();
   const selectedIds = useSelectedIds();
   const safeZonePlatform = useSafeZonePlatform();
   const projectId = useProjectId();
-  const { updateAllCaptionStyles, updateSelectedCaptionStyles } = useCaptionActions();
+  const { updateCaptionPreset } = useCaptionActions();
   const { clearSelection, selectAll } = useTimelineActions();
   const { setSafeZonePlatform, setShowSafeZone } = useSafeZoneActions();
   const { loadProject } = useProjectActions();
@@ -134,18 +134,12 @@ export function StylePanel() {
     };
   }, [aiStylingJobId, aiStylingStatus, projectId, loadProject]);
 
-  // Apply to all when nothing selected, otherwise apply to selected only
+  // All caption style updates go through the single preset action
   const updateStyle = useCallback(
     (updates: Partial<CaptionStyle>) => {
-      if (selectedIds.length === 0) {
-        // No selection - apply to all captions
-        updateAllCaptionStyles(updates);
-      } else {
-        // Has selection - apply only to selected captions
-        updateSelectedCaptionStyles(selectedIds, updates);
-      }
+      updateCaptionPreset(updates);
     },
-    [selectedIds, updateAllCaptionStyles, updateSelectedCaptionStyles]
+    [updateCaptionPreset]
   );
 
   // Customize style - keeps presetId so the template stays selected

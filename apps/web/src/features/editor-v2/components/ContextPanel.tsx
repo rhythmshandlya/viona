@@ -58,7 +58,7 @@ function CaptionStylePanel() {
   const style = useActiveCaptionStyle();
   const applyToAll = useApplyStyleToAll();
   const selectedIds = useSelectedIds();
-  const { updateAllCaptionStyles, updateSelectedCaptionStyles, setApplyStyleToAll } = useCaptionActions();
+  const { updateCaptionPreset, setApplyStyleToAll } = useCaptionActions();
 
   // Default: apply-to-all when single selection, per-selection when multi
   useEffect(() => {
@@ -68,11 +68,7 @@ function CaptionStylePanel() {
   if (!style) return null;
 
   const updateStyle = (updates: Partial<CaptionStyle>) => {
-    if (applyToAll) {
-      updateAllCaptionStyles(updates);
-    } else {
-      updateSelectedCaptionStyles(selectedIds, updates);
-    }
+    updateCaptionPreset(updates);
   };
 
   return (

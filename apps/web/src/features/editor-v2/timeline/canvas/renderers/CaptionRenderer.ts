@@ -1,6 +1,7 @@
 import { BaseRenderer } from './BaseRenderer';
 import { ItemRect, RenderItemState } from './types';
 import { TimelineItem, CaptionItemData } from '../../../store/types';
+import { useEditorStore } from '../../../store/editor-store';
 import { truncateText, drawPill } from './canvasUtils';
 
 export class CaptionRenderer extends BaseRenderer {
@@ -18,8 +19,9 @@ export class CaptionRenderer extends BaseRenderer {
 
     // 1. Display mode indicator (top-left corner)
     if (width > 80) {
-      const modeLabel = data.style.displayMode === 'word-by-word' ? 'W'
-        : data.style.displayMode === 'karaoke' ? 'K'
+      const displayMode = useEditorStore.getState().captionPreset.displayMode;
+      const modeLabel = displayMode === 'word-by-word' ? 'W'
+        : displayMode === 'karaoke' ? 'K'
         : 'P';
 
       ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';

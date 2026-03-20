@@ -89,11 +89,10 @@ export interface AudioItemData {
 }
 
 export interface CaptionItemData {
-  text: string;
+  text: string;   // Kept for search/display
   words: CaptionWord[];
-  style: CaptionStyle;
-  styleOverrides?: Partial<CaptionStyle>;
   aiWordOverrides?: Record<number, WordStyleOverrides>;
+  // style field REMOVED — lives at store.captionPreset
 }
 
 export interface WordStyleOverrides {
@@ -581,6 +580,7 @@ export interface HistoryEntry {
   items: Record<string, TimelineItem>;
   itemIds: string[];
   selectedIds: string[];
+  captionPreset: CaptionStyle;
 }
 
 // ============================================
@@ -599,6 +599,9 @@ export interface EditorState {
   itemIds: string[];
   duration: number;  // Total duration in ms
   fps: number;
+
+  // Caption preset (single source of truth for all caption styling)
+  captionPreset: CaptionStyle;
 
   // Asset registry (v2)
   assets: Record<string, string>;
@@ -705,8 +708,7 @@ export interface EditorActions {
   updateVideoSettings: (settings: Partial<VideoSettings>) => void;
 
   // Caption style actions
-  updateAllCaptionStyles: (style: Partial<CaptionStyle>) => void;
-  updateSelectedCaptionStyles: (ids: string[], style: Partial<CaptionStyle>) => void;
+  updateCaptionPreset: (updates: Partial<CaptionStyle>) => void;
   updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => void;
   setApplyStyleToAll: (value: boolean) => void;
   setShowCaptions: (value: boolean) => void;
