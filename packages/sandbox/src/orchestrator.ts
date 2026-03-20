@@ -42,6 +42,7 @@ import { renderStillTool } from './tools/render-still.js';
 import { triggerRebuildTool } from './tools/trigger-rebuild.js';
 import { validateWorkspaceTool } from './tools/validate-workspace.js';
 import { buildStdioMcpServers } from './mcp-config.js';
+import { checkpoint } from './checkpoint.js';
 
 // ---- Public interfaces ----
 
@@ -566,6 +567,11 @@ export async function runOrchestrator(
                   emitProgress('working', `${finishedLabel} finished`, finishedLabel);
                   activeSubagents.delete(block.tool_use_id);
                   subagentLabels.delete(block.tool_use_id);
+
+                  // Fire-and-forget checkpoint after subagent completes (mutex guards concurrency)
+                  checkpoint().catch(err => {
+                    logger.warn({ err, agent: finishedLabel }, 'Phase boundary checkpoint failed');
+                  });
                 }
               }
             }
