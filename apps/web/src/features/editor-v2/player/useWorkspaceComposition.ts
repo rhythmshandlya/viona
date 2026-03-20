@@ -119,18 +119,22 @@ function createRequire(bundleBaseUrl: string) {
     }
 
     if (moduleName === 'remotion') {
-      // Disable premounting — blob prefetch already keeps all media in memory,
-      // so videos load from blob URLs in <1 frame. Premounting creates offscreen
-      // <video> elements that Chrome's power saver pauses, causing AbortError
-      // on play() and chunky lag.
-      const NoPremountSequence = (props: any) => {
+      // Cap premountFor to 10 frames (~333ms at 30fps). This gives the browser
+      // enough time to parse the blob container and init the decoder before
+      // the cut, but is short enough to avoid Chrome's power-saver which pauses
+      // offscreen videos after sustained background playback (the old 60-frame
+      // premount triggered it, causing AbortError).
+      const CappedPremountSequence = (props: any) => {
         const { premountFor, ...rest } = props;
-        return React.createElement(Remotion.Sequence, rest);
+        return React.createElement(Remotion.Sequence, {
+          ...rest,
+          premountFor: premountFor != null ? Math.min(premountFor, 10) : undefined,
+        });
       };
 
       return {
         ...Remotion,
-        Sequence: NoPremountSequence,
+        Sequence: CappedPremountSequence,
         Composition: () => null,
         staticFile: customStaticFile,
         // OffthreadVideo is for rendering; in the Player context, use Video
