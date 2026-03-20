@@ -131,12 +131,12 @@ export default function LandingPage() {
                     {/* Timeline bar */}
                     <div className="h-16 border-t border-white/[0.06] flex items-center px-3 gap-1">
                       <div className="w-2 h-8 rounded bg-[#8B5CF6]/30" />
-                      {Array.from({ length: 12 }).map((_, i) => (
+                      {[11.9, 10.7, 14.2, 8.5, 16.7, 10.6, 11.3, 10.2, 9.4, 13.1, 17.8, 9.9].map((w, i) => (
                         <div
                           key={i}
                           className="h-6 rounded"
                           style={{
-                            width: `${8 + Math.random() * 12}%`,
+                            width: `${w}%`,
                             backgroundColor: i < 3 ? 'rgba(139,92,246,0.15)' : 'rgba(255,255,255,0.04)',
                           }}
                         />
