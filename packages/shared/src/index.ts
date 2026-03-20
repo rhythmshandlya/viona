@@ -2,6 +2,7 @@ export * from './types';
 export * from './storage';
 export * from './dynamic-hierarchy';
 export * from './progress-types';
+export * from './manifest-shared';
 export * from './manifest';
 export * from './manifest-ops';
 export * from './manifest-convert';

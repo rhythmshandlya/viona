@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { captionWordSchema, manifestCaptionStyleSchema } from './manifest.js';
+import { captionWordSchema, manifestCaptionStyleSchema } from './manifest-shared.js';
 
 // ---- Transform & Keyframes ----
 
