@@ -1,6 +1,6 @@
 // ---- Re-export shared schemas so existing consumers of './manifest' still work ----
-export { captionWordSchema, manifestCaptionStyleSchema } from './manifest-shared.js';
-export type { ManifestCaptionStyle, ManifestCaptionWord } from './manifest-shared.js';
+export { captionWordSchema, manifestCaptionPresetSchema, manifestCaptionStyleSchema } from './manifest-shared.js';
+export type { ManifestCaptionPreset, ManifestCaptionStyle, ManifestCaptionWord } from './manifest-shared.js';
 
 // ---- Re-export v2 as canonical types ----
 // Derived type for videoSettings (not explicitly exported from manifest-v2)

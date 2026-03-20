@@ -36,6 +36,11 @@ export const manifestOpSchema = z.discriminatedUnion('op', [
     endMs: z.number().min(0),
   }),
   z.object({
+    op: z.literal('update_caption_preset'),
+    updates: z.record(z.string(), z.unknown()),
+  }),
+  /** @deprecated Use `update_caption_preset` instead */
+  z.object({
     op: z.literal('update_caption_style'),
     updates: z.record(z.string(), z.unknown()),
   }),
@@ -110,8 +115,28 @@ export function applyManifestOp(manifest: Manifest, op: ManifestOp): Manifest {
       break;
     }
 
-    case 'update_caption_style': {
-      m.captionStyle = { ...m.captionStyle, ...op.updates } as any;
+    case 'update_caption_preset':
+    case 'update_caption_style': { // deprecated alias — falls through to same logic
+      const existing: Record<string, any> = m.captionPreset ?? {};
+      const updates: Record<string, any> = op.updates;
+      // Deep merge nested objects, shallow replace scalars.
+      // When a nested key exists in updates but not in existing, the ...updates spread
+      // provides the full replacement (the conditional spread evaluates to {}).
+      m.captionPreset = {
+        ...existing,
+        ...updates,
+        ...(updates.position && existing.position ? { position: { ...existing.position, ...updates.position } } : {}),
+        ...(updates.animation && existing.animation && typeof existing.animation === 'object' ? { animation: { ...existing.animation, ...updates.animation } } : {}),
+        ...(updates.effects && existing.effects ? { effects: { ...existing.effects, ...updates.effects } } : {}),
+        ...(updates.wordEmphasis && existing.wordEmphasis ? {
+          wordEmphasis: {
+            ...existing.wordEmphasis,
+            ...updates.wordEmphasis,
+            roles: { ...existing.wordEmphasis?.roles, ...updates.wordEmphasis?.roles },
+          },
+        } : {}),
+        ...(updates.backgroundPadding && existing.backgroundPadding ? { backgroundPadding: { ...existing.backgroundPadding, ...updates.backgroundPadding } } : {}),
+      } as any;
       break;
     }
 

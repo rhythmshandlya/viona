@@ -7,12 +7,14 @@ export const captionWordSchema = z.object({
   text: z.string(),
   startMs: z.number().min(0),
   endMs: z.number().min(0),
+  role: z.string().optional(),
+  // Kept for backwards compatibility during migration
   classification: z.enum(['power', 'medium', 'filler']).optional(),
   styleOverrides: z.record(z.string(), z.unknown()).optional(),
 });
 
-export const manifestCaptionStyleSchema = z.object({
-  displayMode: z.enum(['word-by-word', 'phrase', 'karaoke', 'dynamic-hierarchy']).default('phrase'),
+export const manifestCaptionPresetSchema = z.object({
+  displayMode: z.enum(['word-by-word', 'phrase', 'karaoke']).default('phrase'),
   wordsPerPhrase: z.number().min(1).max(10).default(5),
   fontFamily: z.string().default('Inter'),
   fontSize: z.number().min(8).max(200).default(56),
@@ -55,8 +57,27 @@ export const manifestCaptionStyleSchema = z.object({
       intensity: z.number(), size: z.number(),
     }).nullable().default(null),
   }).optional(),
+  wordEmphasis: z.object({
+    enabled: z.boolean(),
+    roles: z.record(z.string(), z.object({
+      fontFamily: z.string().optional(),
+      fontSize: z.number().optional(),
+      fontWeight: z.number().optional(),
+      color: z.string().optional(),
+      activeColor: z.string().optional(),
+      scale: z.number().optional(),
+      letterSpacing: z.number().optional(),
+      textTransform: z.enum(['none', 'uppercase', 'lowercase']).optional(),
+      emphasisBg: z.string().optional(),
+    })),
+  }).optional(),
   presetId: z.string().nullable().optional(),
 }).passthrough();
 
-export type ManifestCaptionStyle = z.infer<typeof manifestCaptionStyleSchema>;
+/** @deprecated Use `manifestCaptionPresetSchema` instead */
+export const manifestCaptionStyleSchema = manifestCaptionPresetSchema;
+
+export type ManifestCaptionPreset = z.infer<typeof manifestCaptionPresetSchema>;
+/** @deprecated Use `ManifestCaptionPreset` instead */
+export type ManifestCaptionStyle = ManifestCaptionPreset;
 export type ManifestCaptionWord = z.infer<typeof captionWordSchema>;

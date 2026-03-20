@@ -346,7 +346,7 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
     tracks: manifestTracks,
     items: manifestItems,
     assets: {},
-    captionStyle: (videoSettings.captionStyle as any) || {},
+    captionPreset: (videoSettings.captionStyle as any) || {},
     videoSettings: {
       sourceWidth: project.sourceWidth || 1920,
       sourceHeight: project.sourceHeight || 1080,
@@ -435,7 +435,8 @@ export function manifestToDb(manifest: ManifestV2): {
     scale: videoCrop?.scale ?? 1,
     sourceWidth: manifest.videoSettings.sourceWidth,
     sourceHeight: manifest.videoSettings.sourceHeight,
-    captionStyle: manifest.captionStyle,
+    // DB stores as "captionStyle" for backward compat, but manifest field is "captionPreset"
+    captionStyle: manifest.captionPreset ?? (manifest as any).captionStyle ?? {},
   };
 
   return { tracks, items, videoSettings };

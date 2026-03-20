@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { captionWordSchema, manifestCaptionStyleSchema } from './manifest-shared.js';
+import { captionWordSchema, manifestCaptionPresetSchema } from './manifest-shared.js';
 
 // ---- Transform & Keyframes ----
 
@@ -150,7 +150,7 @@ export const manifestV2Schema = z.object({
   tracks: z.array(manifestTrackV2Schema),
   items: z.array(manifestItemV2Schema),
   assets: z.record(z.string(), z.string()).default({}),
-  captionStyle: manifestCaptionStyleSchema.default(() => ({
+  captionPreset: manifestCaptionPresetSchema.default(() => ({
     displayMode: 'phrase' as const,
     wordsPerPhrase: 5,
     fontFamily: 'Inter',
