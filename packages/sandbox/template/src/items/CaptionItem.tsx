@@ -5,8 +5,9 @@ interface CaptionWord {
   text: string;
   startMs: number;
   endMs: number;
-  classification?: 'power' | 'medium' | 'filler';
-  styleOverrides?: Record<string, unknown>;
+  role?: string;
+  classification?: 'power' | 'medium' | 'filler';  // deprecated, use role
+  styleOverrides?: Record<string, unknown>;           // deprecated
 }
 
 interface CaptionItemData {
@@ -42,10 +43,34 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
     return null;
   }
 
-  const anchor = captionStyle.position?.anchor ?? 'bottom';
-  const offsetX = captionStyle.position?.offsetX ?? 0;
-  const offsetY = captionStyle.position?.offsetY ?? 0;
-  const textAlign = captionStyle.position?.textAlign ?? 'center';
+  const captionPreset = captionStyle;
+
+  // Resolve role for a word (role field, or fallback to classification)
+  const getWordRole = (word: CaptionWord): string | undefined => {
+    return word.role || word.classification || undefined;
+  };
+
+  // Resolve style for a word based on its role
+  const resolveWordStyle = (word: CaptionWord) => {
+    const role = getWordRole(word);
+    const roleStyle = role ? captionPreset.wordEmphasis?.roles?.[role] : undefined;
+    return {
+      fontFamily: roleStyle?.fontFamily ?? captionPreset.fontFamily ?? 'Inter',
+      fontSize: roleStyle?.fontSize ?? captionPreset.fontSize ?? 56,
+      fontWeight: roleStyle?.fontWeight ?? captionPreset.fontWeight ?? 800,
+      color: roleStyle?.activeColor ?? roleStyle?.color ?? captionPreset.activeColor ?? captionPreset.color ?? '#FFD700',
+      letterSpacing: roleStyle?.letterSpacing ?? captionPreset.letterSpacing,
+      textTransform: roleStyle?.textTransform ?? captionPreset.textTransform,
+      lineHeight: captionPreset.lineHeight,
+      scale: roleStyle?.scale,
+      emphasisBg: roleStyle?.emphasisBg,
+    };
+  };
+
+  const anchor = captionPreset.position?.anchor ?? 'bottom';
+  const offsetX = captionPreset.position?.offsetX ?? 0;
+  const offsetY = captionPreset.position?.offsetY ?? 0;
+  const textAlign = captionPreset.position?.textAlign ?? 'center';
 
   const positionStyles: React.CSSProperties = {
     position: 'absolute',
@@ -73,24 +98,32 @@ export const CaptionItem: React.FC<CaptionItemProps> = ({
 
   return (
     <div style={positionStyles} data-caption-overlay>
-      <span
-        style={{
-          fontFamily: captionStyle.fontFamily ?? 'Inter',
-          fontSize: captionStyle.fontSize ?? 56,
-          fontWeight: captionStyle.fontWeight ?? 800,
-          color: captionStyle.activeColor ?? captionStyle.color ?? '#FFD700',
-          backgroundColor: captionStyle.activeBackgroundColor ?? 'transparent',
-          letterSpacing: captionStyle.letterSpacing,
-          textTransform: captionStyle.textTransform,
-          lineHeight: captionStyle.lineHeight,
-          padding: captionStyle.backgroundPadding
-            ? `${captionStyle.backgroundPadding.y}px ${captionStyle.backgroundPadding.x}px`
-            : undefined,
-          borderRadius: captionStyle.backgroundRadius,
-        }}
-      >
-        {activeWords.map((word) => word.text).join(' ')}
-      </span>
+      {activeWords.map((word, i) => {
+        const ws = resolveWordStyle(word);
+        return (
+          <span
+            key={i}
+            style={{
+              fontFamily: ws.fontFamily,
+              fontSize: ws.fontSize,
+              fontWeight: ws.fontWeight,
+              color: ws.color,
+              letterSpacing: ws.letterSpacing,
+              textTransform: ws.textTransform as any,
+              lineHeight: ws.lineHeight,
+              transform: ws.scale && ws.scale !== 1 ? `scale(${ws.scale})` : undefined,
+              display: 'inline-block',
+              backgroundColor: ws.emphasisBg ?? (captionPreset.activeBackgroundColor ?? 'transparent'),
+              padding: captionPreset.backgroundPadding
+                ? `${captionPreset.backgroundPadding.y}px ${captionPreset.backgroundPadding.x}px`
+                : undefined,
+              borderRadius: captionPreset.backgroundRadius,
+            }}
+          >
+            {word.text}{i < activeWords.length - 1 ? ' ' : ''}
+          </span>
+        );
+      })}
     </div>
   );
 };
