@@ -98,6 +98,7 @@ const PROXY_EXTENSIONS: Record<string, string> = {
 };
 
 function deriveProxyKey(src: string): string | null {
+  if (src.includes('-proxy.')) return null; // Already a proxy
   const ext = src.match(/\.\w+$/)?.[0]?.toLowerCase();
   if (ext && PROXY_EXTENSIONS[ext]) {
     return src.replace(/\.\w+$/, PROXY_EXTENSIONS[ext]);

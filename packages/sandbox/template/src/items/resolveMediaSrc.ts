@@ -24,6 +24,7 @@ export const PROXY_EXTENSIONS: Record<string, string> = {
  * Example: "source.mp4" → "source-proxy.mp4"
  */
 export function deriveProxyKey(src: string): string | null {
+  if (src.includes('-proxy.')) return null; // Already a proxy
   const ext = src.match(/\.\w+$/)?.[0]?.toLowerCase();
   if (ext && PROXY_EXTENSIONS[ext]) {
     return src.replace(/\.\w+$/, PROXY_EXTENSIONS[ext]);
