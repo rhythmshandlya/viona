@@ -155,10 +155,35 @@ async function postManifestToApi(): Promise<void> {
 }
 
 /**
+ * Ensure git repo is ready for checkpointing.
+ * On first boot: initGitRepo() handles this.
+ * On resume (bundle restore): .git exists but gitReady flag is false and
+ * user config may be missing (git clone doesn't copy local config).
+ */
+async function ensureGitReady(): Promise<void> {
+  if (gitReady) return;
+
+  try {
+    // Check if .git directory exists (bundle restore case)
+    await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: WORKSPACE });
+    // Repo exists — ensure config is set (clone doesn't copy local config)
+    await execFileAsync('git', ['config', 'user.email', 'sandbox@viona.ai'], { cwd: WORKSPACE });
+    await execFileAsync('git', ['config', 'user.name', 'Viona Sandbox'], { cwd: WORKSPACE });
+    gitReady = true;
+    logger.info('Existing git repo detected and configured (resumed from bundle)');
+  } catch {
+    // No git repo — initGitRepo() will be called by workspace-init
+  }
+}
+
+/**
  * Start watching manifest.json for changes. Debounces 5s then runs checkpoint().
  */
 export function startCheckpointWatcher(): void {
   if (watcher) return; // Already watching
+
+  // On resume, .git may exist from bundle restore but gitReady is false
+  ensureGitReady().catch(err => logger.warn({ err }, 'ensureGitReady failed'));
 
   try {
     watcher = watch(MANIFEST_PATH, () => {
