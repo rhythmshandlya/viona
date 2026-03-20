@@ -19,8 +19,12 @@ interface UseActiveTasksResult {
 export function useActiveTasks(): UseActiveTasksResult {
   const [tasks, setTasks] = useState<ActiveTask[]>([]);
   const [busy, setBusy] = useState(false);
+  // Track IDs with pending removal timers so restoreFromApi doesn't re-add them
+  const pendingRemovals = useRef(new Set<string>());
 
   const onTaskStarted = useCallback((task: ActiveTask) => {
+    // If this task was pending removal (e.g. restarted), cancel that
+    pendingRemovals.current.delete(task.id);
     setTasks(prev => [...prev.filter(t => t.id !== task.id), task]);
     setBusy(true);
   }, []);
@@ -30,19 +34,36 @@ export function useActiveTasks(): UseActiveTasksResult {
   }, []);
 
   const onTaskCompleted = useCallback((id: string) => {
+    pendingRemovals.current.add(id);
     setTasks(prev => prev.map(t => t.id === id ? { ...t, status: 'completed' as const } : t));
     setTimeout(() => {
       setTasks(prev => prev.filter(t => t.id !== id));
+      pendingRemovals.current.delete(id);
     }, 2500);
   }, []);
 
   const onDone = useCallback(() => {
+    pendingRemovals.current.clear();
     setTasks([]);
     setBusy(false);
   }, []);
 
   const restoreFromApi = useCallback((apiTasks: ActiveTask[], apiBusy: boolean) => {
-    setTasks(apiTasks);
+    setTasks(prev => {
+      // Don't re-add tasks that have pending removal timers (already completed on frontend)
+      const filtered = apiTasks.filter(t => !pendingRemovals.current.has(t.id));
+      // Preserve completed tasks that are mid-fade-out (have pending timers)
+      const completedPending = prev.filter(t =>
+        t.status === 'completed' && pendingRemovals.current.has(t.id)
+      );
+      // Build merged list: API active tasks + transitioning-out completed tasks
+      const apiIds = new Set(filtered.map(t => t.id));
+      const merged = [...filtered];
+      for (const ct of completedPending) {
+        if (!apiIds.has(ct.id)) merged.push(ct);
+      }
+      return merged;
+    });
     setBusy(apiBusy);
   }, []);
 

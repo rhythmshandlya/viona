@@ -207,11 +207,19 @@ export function Editor({ projectId }: EditorProps) {
     },
     onManifestUpdated: async (data) => {
       if (data.source === 'ai' && projectId) {
-        try {
-          const manifest = await api.readSandboxManifest(projectId);
-          useEditorStore.getState().applyRemoteManifestUpdate(manifest);
-        } catch (err) {
-          console.error('Failed to apply remote manifest update:', err);
+        // Retry up to 3 times — manifest write may be in-flight when we read
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const manifest = await api.readSandboxManifest(projectId);
+            useEditorStore.getState().applyRemoteManifestUpdate(manifest);
+            break;
+          } catch (err) {
+            if (attempt < 2) {
+              await new Promise(r => setTimeout(r, 200 * (attempt + 1)));
+            } else {
+              console.error('Failed to apply remote manifest update:', err);
+            }
+          }
         }
       }
     },

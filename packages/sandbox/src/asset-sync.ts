@@ -42,7 +42,9 @@ export async function syncAssets(): Promise<void> {
 
   let files: string[] = [];
   try {
-    files = await readdir(PUBLIC_DIR);
+    // Use withFileTypes to distinguish files from directories (fixes EISDIR error)
+    const entries = await readdir(PUBLIC_DIR, { withFileTypes: true });
+    files = entries.filter(e => e.isFile()).map(e => e.name);
   } catch {
     logger.debug('No public directory yet');
     return;

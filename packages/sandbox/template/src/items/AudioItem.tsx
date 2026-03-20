@@ -3,6 +3,7 @@ import { Audio, staticFile } from 'remotion';
 
 interface AudioItemData {
   src: string;
+  startFrom?: number;
   volume?: number;
   playbackRate?: number;
 }
@@ -13,7 +14,7 @@ interface AudioItemProps {
   fps: number;
 }
 
-export const AudioItem: React.FC<AudioItemProps> = ({ data, assets }) => {
+export const AudioItem: React.FC<AudioItemProps> = ({ data, assets, fps }) => {
   // Resolve src: check assets map first, handle http(s)/blob URLs directly,
   // fallback to staticFile for local paths
   let src: string;
@@ -25,9 +26,15 @@ export const AudioItem: React.FC<AudioItemProps> = ({ data, assets }) => {
     src = staticFile(data.src);
   }
 
+  const startFrom =
+    data.startFrom != null
+      ? Math.round((data.startFrom / 1000) * fps)
+      : undefined;
+
   return (
     <Audio
       src={src}
+      startFrom={startFrom}
       volume={data.volume ?? 1}
       playbackRate={data.playbackRate ?? 1}
     />

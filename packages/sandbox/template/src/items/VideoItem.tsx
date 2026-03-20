@@ -38,9 +38,10 @@ export const VideoItem: React.FC<VideoItemProps> = ({
   durationInFrames,
 }) => {
   const src = resolveMediaSrc(data.src, assets);
-  const startFrom = data.startFrom
-    ? Math.round((data.startFrom / 1000) * fps)
-    : undefined;
+  const startFrom =
+    data.startFrom != null
+      ? Math.round((data.startFrom / 1000) * fps)
+      : undefined;
 
   const videoElement = (
     <Video

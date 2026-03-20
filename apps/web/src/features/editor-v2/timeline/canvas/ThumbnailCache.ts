@@ -23,8 +23,10 @@ interface CacheEntry {
 class ThumbnailCache {
   private cache = new Map<string, CacheEntry>();
   private pending = new Set<string>();
+  private failed = new Map<string, number>(); // src → failure timestamp (avoid retry storms)
   private activeExtractions = 0;
   private queue: Array<{ key: string; src: string; timeMs: number; callback: () => void }> = [];
+  private static FAIL_COOLDOWN = 30_000; // Don't retry a failed src for 30s
 
   private makeKey(src: string, timeMs: number): string {
     return `${src}:${Math.round(timeMs / 500) * 500}`; // Round to 500ms intervals
@@ -43,6 +45,10 @@ class ThumbnailCache {
   requestThumbnail(src: string, timeMs: number, callback: () => void): void {
     const key = this.makeKey(src, timeMs);
     if (this.cache.has(key) || this.pending.has(key)) return;
+
+    // Skip sources that recently failed (avoid retry storms with bad URLs)
+    const failedAt = this.failed.get(src);
+    if (failedAt && Date.now() - failedAt < ThumbnailCache.FAIL_COOLDOWN) return;
 
     this.pending.add(key);
     this.queue.push({ key, src, timeMs, callback });
@@ -110,6 +116,7 @@ class ThumbnailCache {
       callback();
     } catch (err) {
       console.warn('[ThumbnailCache] extraction failed:', err);
+      this.failed.set(src, Date.now());
     } finally {
       // Release video resources
       if (video) {
@@ -147,6 +154,7 @@ class ThumbnailCache {
     }
     this.cache.clear();
     this.pending.clear();
+    this.failed.clear();
     this.queue = [];
   }
 }

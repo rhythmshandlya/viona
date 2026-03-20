@@ -152,6 +152,53 @@ const MCP_SERVER_LABELS: Record<string, string> = {
   freepik: 'Animator',
 };
 
+// Maps raw MCP tool names and built-in tools to user-friendly descriptions.
+const TOOL_DISPLAY_NAMES: Record<string, string> = {
+  // Manifest tools
+  read_manifest: 'Reading timeline',
+  add_track: 'Adding track',
+  add_item: 'Adding to timeline',
+  update_item: 'Updating timeline',
+  delete_item: 'Removing from timeline',
+  split_item: 'Splitting clip',
+  move_item: 'Moving clip',
+  update_track: 'Updating track',
+  delete_track: 'Removing track',
+  // Scene tools
+  write_scene_file: 'Generating animation',
+  delete_scene_file: 'Removing animation',
+  // Render tools
+  render_still: 'Rendering preview',
+  trigger_rebuild: 'Rebuilding project',
+  validate_workspace: 'Validating workspace',
+  // Analysis tools
+  analyze_transcript: 'Analyzing transcript',
+  validate_timeline: 'Validating timeline',
+  // Asset tools
+  download_file: 'Downloading asset',
+  search_unsplash: 'Searching photos',
+  search_pexels: 'Searching stock footage',
+  download_stock_photo: 'Downloading photo',
+  get_speaker_grid: 'Analyzing speaker position',
+  // Viewport tools
+  get_scene_dimensions: 'Checking dimensions',
+  validate_scene_code: 'Validating animation',
+  submit_verdict: 'Reviewing scene',
+  // Widget tools
+  show_widget: 'Showing options',
+  report_progress: 'Updating progress',
+  report_plan: 'Updating plan',
+  // Built-in tools
+  Read: 'Reading file',
+  Write: 'Writing file',
+  Edit: 'Editing file',
+  Glob: 'Searching files',
+  Grep: 'Searching code',
+  Bash: 'Running command',
+  WebSearch: 'Searching web',
+  WebFetch: 'Fetching page',
+};
+
 const SUBAGENT_LABELS: Record<string, string> = {
   trim_editor: 'Trim Editor',
   planner: 'Planner',
@@ -196,11 +243,13 @@ export async function buildOrchestratorOptions(
     },
     cwd: '/workspace',
     settingSources: ['project'],
-    // Issue #1: Orchestrator gets read-only + routing tools only.
-    // Write/Edit/Bash/scene tools are restricted to subagents, forcing delegation.
+    // NOTE: disallowedTools applies to the ENTIRE session including subagents,
+    // so we cannot use it to restrict the orchestrator while allowing subagents.
+    // Tool access control is enforced via the system prompt (orchestrator is told
+    // to delegate, not write directly) and subagent tool whitelists.
     allowedTools: [
       'Read', 'Glob', 'Grep',
-      'WebSearch', 'WebFetch', 'Agent',
+      'WebSearch', 'WebFetch', 'Task',
       ...MANIFEST_READ_TOOL_NAMES,
       ...RENDER_TOOL_NAMES,
       ...WIDGET_TOOL_NAMES,
@@ -214,11 +263,7 @@ export async function buildOrchestratorOptions(
       // ---- Trim Editor (Phase 2) ----
       trim_editor: {
         description: 'Trims transcript (fillers, silences, retakes), covers jump cuts with zoom punch-ins, applies J/L-cuts, generates captions.',
-        prompt: {
-          type: 'preset' as const,
-          preset: 'claude_code' as const,
-          append: trimEditorPrompt,
-        },
+        prompt: trimEditorPrompt,
         tools: [
           'Read', 'Write', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
@@ -227,17 +272,12 @@ export async function buildOrchestratorOptions(
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
-        skills: ['cutting-and-pacing', 'transcript-analysis', 'transitions'],
       },
 
       // ---- Planner (Phase 3) ----
       planner: {
         description: 'Analyzes transcript with editing style guide, designs spatial layout, creates SCENE_PLAN.md with per-scene entries (speaker layout, scene placement, transitions, animation brief).',
-        prompt: {
-          type: 'preset' as const,
-          preset: 'claude_code' as const,
-          append: plannerPrompt,
-        },
+        prompt: plannerPrompt,
         tools: [
           'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
           ...MANIFEST_TOOL_NAMES,
@@ -246,7 +286,6 @@ export async function buildOrchestratorOptions(
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
-        skills: ['editorial-planning', 'visual-treatment-guide', 'narrative-structure', 'transcript-analysis'],
       },
 
       // ---- Setup Agent (Phase 4) ----
@@ -254,27 +293,18 @@ export async function buildOrchestratorOptions(
       // via the Write tool, NOT to src/scenes/ (that's the animators' job).
       setup_agent: {
         description: 'Scaffolds shared workspace code — constants.ts (theme tokens), Background.tsx, GlassCard.tsx, shared components. Must complete before animators start.',
-        prompt: {
-          type: 'preset' as const,
-          preset: 'claude_code' as const,
-          append: setupAgentPrompt,
-        },
+        prompt: setupAgentPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...RENDER_TOOL_NAMES,
         ],
         model: 'opus',
-        skills: ['remotion-best-practices', 'typescript-skills'],
       },
 
       // ---- Layout Editor (Phase 5) ----
       layout_editor: {
         description: 'Builds timeline skeleton from SCENE_PLAN.md — splits video, sets speaker transforms per display mode, places mockup placeholders, creates overlay tracks, applies transitions.',
-        prompt: {
-          type: 'preset' as const,
-          preset: 'claude_code' as const,
-          append: layoutEditorPrompt,
-        },
+        prompt: layoutEditorPrompt,
         tools: [
           'Read', 'Write', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
@@ -282,31 +312,21 @@ export async function buildOrchestratorOptions(
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
-        skills: ['cutting-and-pacing', 'transitions', 'lower-third-and-overlays'],
       },
 
       // ---- Animator (Phase 6) ----
       // Prompt built per-scene via buildAnimatorPrompt() — base prompt is minimal.
       animator: {
         description: 'Writes Remotion .tsx scene files. Receives per-scene prompt with dimensions, display mode, brief, sync points. Self-heals compilation errors.',
-        prompt: {
-          type: 'preset' as const,
-          preset: 'claude_code' as const,
-          append: 'You are a Remotion motion graphics engineer. Wait for a scene assignment.',
-        },
+        prompt: 'You are a Remotion motion graphics engineer. Wait for a scene assignment.',
         tools: ANIMATOR_TOOL_NAMES,
         model: 'opus',
-        skills: ['remotion-best-practices', 'framer-motion', 'motion-one', 'video-engagement'],
       },
 
       // ---- Final Editor (Phase 8) ----
       final_editor: {
         description: 'Replaces mockup placeholders with real scene items, applies caption styling, validates all tracks (overlaps, z-order, gaps), verifies overlay placements, final quality pass.',
-        prompt: {
-          type: 'preset' as const,
-          preset: 'claude_code' as const,
-          append: finalEditorPrompt,
-        },
+        prompt: finalEditorPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
@@ -316,7 +336,6 @@ export async function buildOrchestratorOptions(
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
-        skills: ['cutting-and-pacing', 'transitions', 'lower-third-and-overlays', 'platform-optimization'],
       },
     },
     maxTurns: 100,
@@ -389,7 +408,6 @@ export async function runOrchestrator(
   let textChunks = 0;
   let toolUses = 0;
   let lastActivityTime = Date.now();
-  let currentToolName: string | null = null;
   let lastResultCost: number | undefined;
   let lastResultTurns: number | undefined;
 
@@ -405,6 +423,15 @@ export async function runOrchestrator(
 
   let vionaTaskId: string | null = null;
   const subagentTaskIds = new Map<string, string>(); // tool_use_id → taskId
+  const subagentLabels = new Map<string, string>();  // tool_use_id → display label
+
+  // Track active subagents (Task tools in-flight).
+  // SDK v0.1.x does NOT surface subagent messages via onMessage — it only
+  // shows the Task tool_use and then the tool_result. We use this to emit
+  // the subagent label for the entire duration the Task is running.
+  // Multiple subagents can run in parallel (e.g., parallel Animator dispatches).
+  const activeSubagents = new Map<string, string>(); // tool_use_id → label
+  // No queue needed — we match tool_result blocks by tool_use_id directly.
 
   async function processStream(iter: AsyncIterable<SDKMessage>): Promise<void> {
     for await (const message of iter) {
@@ -449,57 +476,99 @@ export async function runOrchestrator(
         // --- Handle complete assistant messages (tool_use detection) ---
         // SDK tool uses are content blocks INSIDE SDKAssistantMessage, not top-level messages.
         // SDKAssistantMessage.message.content[] contains { type: 'tool_use', name, id, input } blocks.
+        //
+        // IMPORTANT: SDK v0.1.x does NOT surface subagent messages through onMessage.
+        // When the orchestrator dispatches a subagent via Task, the SDK only emits:
+        //   1. assistant message with tool_use { name: 'Task', id: '...' }
+        //   2. user message with tool_result (when the subagent finishes)
+        // Individual tool calls made BY the subagent are NOT visible here.
+        // We track "active subagent" state to attribute the Task duration to the right agent.
         if (message.type === 'assistant') {
           const assistantMsg = message as SDKAssistantMessage;
           const content = (assistantMsg as any).message?.content;
+
+          // Check parent_tool_use_id for SDK versions that surface subagent messages (v0.2+)
+          const parentId = (assistantMsg as any).parent_tool_use_id as string | undefined;
+          const subagentLabel = parentId ? subagentLabels.get(parentId) : undefined;
+
           if (Array.isArray(content)) {
             for (const block of content) {
               if (block.type === 'tool_use') {
                 toolUses++;
                 const toolName: string | undefined = block.name;
-                currentToolName = toolName ?? null;
                 logger.info({ tool: toolName, toolUseId: block.id, messageCount }, 'Tool use');
 
-                if (toolName?.startsWith('mcp__')) {
-                  const parts = toolName.split('__');
-                  const server = parts[1];
-                  const tool = parts.slice(2).join('__');
-                  const displayServer = MCP_SERVER_LABELS[server] ?? server;
-                  emitActivity(displayServer, tool, 'working');
-                  emitProgress('working', `${tool}`, displayServer);
-                  if (vionaTaskId) updateTask(vionaTaskId, tool);
-                } else if (toolName === 'Agent') {
+                // Resolve user-friendly tool name
+                const rawTool = toolName?.startsWith('mcp__')
+                  ? toolName.split('__').slice(2).join('__')
+                  : toolName ?? 'working';
+                const friendlyTool = TOOL_DISPLAY_NAMES[rawTool] ?? rawTool;
+
+                if (toolName === 'Task') {
+                  // Orchestrator dispatching a subagent
                   const input = block.input as Record<string, unknown> | undefined;
                   const agentKey = (input?.subagent_type ?? input?.description ?? '') as string;
                   const label = SUBAGENT_LABELS[agentKey.toLowerCase()] ?? (agentKey || 'subagent');
-                  emitActivity('Viona', `dispatching ${label}`, 'working');
-                  emitProgress('working', `Dispatching ${label}`, 'Viona');
+
+                  // Mark this subagent as actively running (supports parallel dispatches)
+                  activeSubagents.set(block.id, label);
+
+                  emitActivity(label, 'Starting...', 'working');
+                  emitProgress('working', `${label} starting`, label);
                   const subTaskId = addTask(label, 'Starting...', agentKey.toLowerCase());
                   subagentTaskIds.set(block.id, subTaskId);
+                  subagentLabels.set(block.id, label);
+                } else if (subagentLabel) {
+                  // Tool call from inside a subagent (SDK v0.2+ only)
+                  emitActivity(subagentLabel, friendlyTool, 'working');
+                  emitProgress('working', friendlyTool, subagentLabel);
+                  const taskId = parentId ? subagentTaskIds.get(parentId) : undefined;
+                  if (taskId) updateTask(taskId, friendlyTool);
+                } else if (toolName?.startsWith('mcp__')) {
+                  // Orchestrator-level MCP tool call
+                  const server = toolName.split('__')[1];
+                  const displayServer = MCP_SERVER_LABELS[server] ?? server;
+                  emitActivity(displayServer, friendlyTool, 'working');
+                  emitProgress('working', friendlyTool, displayServer);
+                  if (vionaTaskId) updateTask(vionaTaskId, friendlyTool);
                 } else if (toolName) {
-                  emitActivity('Viona', toolName, 'working');
-                  emitProgress('working', toolName, 'Viona');
+                  // Orchestrator-level non-MCP tool call
+                  emitActivity('Viona', friendlyTool, 'working');
+                  emitProgress('working', friendlyTool, 'Viona');
                 }
               }
             }
           }
 
-          // When we see a new assistant message at orchestrator level (no parent_tool_use_id),
-          // all pending subagent tasks from the previous turn are done.
-          const parentId = (assistantMsg as any).parent_tool_use_id;
-          if (!parentId) {
-            for (const [, taskId] of subagentTaskIds) {
-              completeTask(taskId);
-            }
-            subagentTaskIds.clear();
-          }
+          // NOTE: We do NOT clear subagent state here. Subagent completion is handled
+          // by matching tool_result blocks to activeSubagents in the 'user' message handler below.
+          // This supports parallel subagent dispatches where multiple Tasks are in-flight.
         }
 
-        // --- Handle tool results (SDKUserMessage with tool_use_result) ---
+        // --- Handle tool results (SDKUserMessage) ---
+        // SDK v0.1.x sends tool results as user messages containing tool_result blocks.
+        // Each block has a tool_use_id that matches the original tool_use dispatch.
+        // We check each block against activeSubagents to detect subagent completion.
         if (message.type === 'user') {
-          if (currentToolName) {
-            logger.info({ tool: currentToolName, messageCount }, 'Tool result');
-            currentToolName = null;
+          const userContent = (message as any).message?.content ?? (message as any).content;
+          if (Array.isArray(userContent)) {
+            for (const block of userContent) {
+              if (block.type === 'tool_result' && block.tool_use_id) {
+                const finishedLabel = activeSubagents.get(block.tool_use_id);
+                if (finishedLabel) {
+                  const taskId = subagentTaskIds.get(block.tool_use_id);
+                  if (taskId) {
+                    completeTask(taskId);
+                    subagentTaskIds.delete(block.tool_use_id);
+                  }
+                  logger.info({ agent: finishedLabel, toolUseId: block.tool_use_id, messageCount }, 'Subagent completed');
+                  emitActivity(finishedLabel, 'Done', 'complete');
+                  emitProgress('working', `${finishedLabel} finished`, finishedLabel);
+                  activeSubagents.delete(block.tool_use_id);
+                  subagentLabels.delete(block.tool_use_id);
+                }
+              }
+            }
           }
         }
 
@@ -527,9 +596,19 @@ export async function runOrchestrator(
         // --- Handle tool_progress for long-running tools ---
         if (message.type === 'tool_progress') {
           const progress = message as { tool_use_id: string; tool_name: string; elapsed_time_seconds: number };
-          if (vionaTaskId && progress.tool_name) {
+
+          // If this progress is for an active subagent's Task, attribute to that agent
+          const progressAgentLabel = activeSubagents.get(progress.tool_use_id);
+          if (progressAgentLabel) {
+            const elapsed = Math.round(progress.elapsed_time_seconds);
+            const taskId = subagentTaskIds.get(progress.tool_use_id);
+            if (taskId) updateTask(taskId, `Working... (${elapsed}s)`);
+            emitActivity(progressAgentLabel, `Working... (${elapsed}s)`, 'working');
+            emitProgress('working', `${progressAgentLabel} working (${elapsed}s)`, progressAgentLabel);
+          } else if (vionaTaskId && progress.tool_name) {
             updateTask(vionaTaskId, `${progress.tool_name} (${Math.round(progress.elapsed_time_seconds)}s)`);
           }
+
           if (progress.elapsed_time_seconds > 10) {
             logger.info({ tool: progress.tool_name, elapsed: progress.elapsed_time_seconds }, 'Long-running tool');
           }
@@ -603,6 +682,8 @@ export async function runOrchestrator(
         messageCount = 0;
         vionaTaskId = null;
         subagentTaskIds.clear();
+        subagentLabels.clear();
+        activeSubagents.clear();
         callbacks.onText(''); // Signal reset to caller
 
         const iter = query(buildQueryOpts(false));

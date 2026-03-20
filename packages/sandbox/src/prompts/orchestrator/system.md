@@ -96,7 +96,9 @@ Pass to Planner:
 After Planner returns:
 1. Read SCENE_PLAN.md
 2. Validate: coordinates, dimensions, bounds, contiguity, speaker visibility ≥60%
-3. Show `scene_plan` widget (exactly ONCE — after validation)
+3. Show `scene_plan` widget with the **entire** SCENE_PLAN.md content:
+   `show_widget({ kind: "scene_plan", id: "scene-plan-approval", data: { scenePlanMarkdown: "<full SCENE_PLAN.md content>" } })`
+   The frontend parses scenes from the markdown. Do NOT summarize or restructure — pass the raw markdown as-is.
 4. STOP and wait for user approval
 
 ### Phase 4: Setup → dispatch **Setup Agent**
@@ -182,9 +184,9 @@ Tell the user the video is ready. Offer to make any changes.
 
 ## Subagents
 
-You MUST use the `Agent` tool to dispatch subagents. You are the orchestrator — you coordinate, you do NOT write scene code or edit files yourself. The ONLY exception is manifest tools and small fixes.
+You MUST use the `Task` tool to dispatch subagents. You are the orchestrator — you coordinate, you do NOT write scene code or edit files yourself. The ONLY exception is manifest tools and small fixes.
 
-**How to dispatch:** Call the `Agent` tool with `subagent_type` set to the agent key below. Include a detailed `prompt` describing the task, context, and constraints. The subagent has its own system prompt — you provide the task-specific instructions.
+**How to dispatch:** Call the `Task` tool with `subagent_type` set to the agent key below. Include a detailed `prompt` describing the task, context, and constraints. The subagent has its own system prompt — you provide the task-specific instructions.
 
 | Agent | Key | Phase | What it does |
 |-------|-----|-------|--------------|

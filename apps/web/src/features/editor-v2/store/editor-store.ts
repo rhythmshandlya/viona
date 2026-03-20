@@ -1984,6 +1984,9 @@ export const useEditorStore = create<EditorStore>()(
       get().pushHistory();
       debouncedSave(() => get().saveProject());
 
+      // Immediately rebuild workspace manifest so the Remotion Player reflects the split
+      syncWorkspaceManifest();
+
       if (splitResult) {
         if (item.type === 'video' || item.type === 'audio') {
           // Video/audio items: use splitItem tool
@@ -2043,6 +2046,7 @@ export const useEditorStore = create<EditorStore>()(
 
       if (get().selectedIds.length > 0) {
         get().pushHistory();
+        syncWorkspaceManifest();
       }
     },
 
@@ -2143,6 +2147,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      syncWorkspaceManifest();
       // Cancel the debounced save from pushHistory — we save immediately below
       cancelDebouncedSave();
 
@@ -2312,6 +2317,7 @@ export const useEditorStore = create<EditorStore>()(
       });
 
       get().pushHistory();
+      syncWorkspaceManifest();
       const trimOps: SandboxOp[] = [];
       for (const id of ids) {
         const item = get().items[id];
@@ -2325,6 +2331,14 @@ export const useEditorStore = create<EditorStore>()(
     // ========================================
     // Subtitle-Specific Actions
     // ========================================
+
+    generateCaptions: (options?: { wordsPerPhrase?: number; captionStyle?: Record<string, unknown> }) => {
+      dispatchOps([{ tool: 'generateCaptions', input: options ?? {} }]);
+    },
+
+    applyCaptionStyle: (style: Record<string, unknown>) => {
+      dispatchOps([{ tool: 'updateCaptionStyle', input: { updates: style } }]);
+    },
 
     splitCaption: (captionId: string, wordIndex: number) => {
       const item = get().items[captionId];
@@ -2630,6 +2644,7 @@ export const useEditorStore = create<EditorStore>()(
     applyRemoteManifestUpdate: async (manifest) => {
       const state = get();
       if (!state.project) return;
+      const projectId = state.project.id;
 
       // Preserve existing visual metadata from current store items
       const existingVideoItem = state.itemIds
@@ -2646,6 +2661,20 @@ export const useEditorStore = create<EditorStore>()(
         compositionId: existingVisualData?.compositionId ?? '',
         visualMeta: undefined,
       });
+
+      // Set same-origin proxy URLs on media items (same as loadProject)
+      const publicBaseUrl = `/api/projects/${projectId}/sandbox/public`;
+      for (const itemId of bridgeResult.itemIds) {
+        const item = bridgeResult.items[itemId];
+        if (item?.type === 'video') {
+          (item.data as VideoItemData).thumbnailSrc = `/media-proxy/projects/${projectId}/video`;
+        } else if (item?.type === 'audio') {
+          const audioData = item.data as AudioItemData;
+          if (audioData.src) {
+            audioData.browserSrc = `${publicBaseUrl}/${audioData.src}`;
+          }
+        }
+      }
 
       set((s) => {
         s.tracks = bridgeResult.tracks;

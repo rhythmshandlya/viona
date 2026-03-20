@@ -16,7 +16,9 @@ export const VideoOverlay: React.FC<VideoOverlayProps> = ({ data }) => {
   const src = resolveVideoSrc(data.src);
   if (!src) return null;
 
-  const startFromFrames = Math.round(((data.startFrom || 0) / 1000) * fps);
+  const startFromFrames = data.startFrom != null
+    ? Math.round((data.startFrom / 1000) * fps)
+    : 0;
 
   return (
     <OffthreadVideo

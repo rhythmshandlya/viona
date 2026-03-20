@@ -45,11 +45,25 @@ export async function validateTimeline(): Promise<ValidationResult> {
         }
       }
 
-      // Scene file exists
+      // Scene file exists (handle both with and without .tsx extension)
       if (item.type === 'scene' && item.data?.sceneFile) {
-        const scenePath = `/workspace/src/scenes/${item.data.sceneFile}.tsx`;
+        const sf = item.data.sceneFile;
+        const scenePath = sf.endsWith('.tsx')
+          ? `/workspace/src/scenes/${sf}`
+          : `/workspace/src/scenes/${sf}.tsx`;
         if (!existsSync(scenePath)) {
           issues.push({ severity: 'error', track: track.name, itemId: item.id, message: `Scene file not found: ${scenePath}` });
+        }
+        // Scene items should have displayMode
+        if (!item.data.displayMode) {
+          issues.push({ severity: 'warning', track: track.name, itemId: item.id, message: `Scene item missing displayMode` });
+        }
+      }
+
+      // Shape mockup placeholders should have sceneFile + displayMode
+      if (item.type === 'shape' && item.data?.sceneFile) {
+        if (!item.data.displayMode) {
+          issues.push({ severity: 'warning', track: track.name, itemId: item.id, message: `Shape mockup placeholder missing displayMode` });
         }
       }
 
@@ -57,6 +71,30 @@ export async function validateTimeline(): Promise<ValidationResult> {
       if ((item.type === 'video' || item.type === 'audio') && item.data?.startFrom != null) {
         if (item.data.startFrom < 0) {
           issues.push({ severity: 'error', track: track.name, itemId: item.id, message: `Negative startFrom: ${item.data.startFrom}` });
+        }
+      }
+
+      // Keyframe structure validation
+      if (item.keyframes && Array.isArray(item.keyframes)) {
+        for (let k = 0; k < item.keyframes.length; k++) {
+          const kf = item.keyframes[k];
+          if (typeof kf.timeMs !== 'number' || kf.timeMs < 0) {
+            issues.push({ severity: 'error', track: track.name, itemId: item.id, message: `keyframes[${k}].timeMs invalid: ${kf.timeMs}` });
+          }
+          if (!kf.props || typeof kf.props !== 'object') {
+            // Check if it's a flat keyframe (missing props wrapper)
+            const { timeMs, easing, props, ...rest } = kf;
+            if (Object.keys(rest).length > 0) {
+              issues.push({ severity: 'error', track: track.name, itemId: item.id, message: `keyframes[${k}] uses flat format (missing props wrapper). Found keys: ${Object.keys(rest).join(', ')}` });
+            } else if (!props) {
+              issues.push({ severity: 'warning', track: track.name, itemId: item.id, message: `keyframes[${k}] has no props` });
+            }
+          }
+          // Keyframe timeMs should be within item duration
+          const itemDuration = item.endMs - item.startMs;
+          if (typeof kf.timeMs === 'number' && kf.timeMs > itemDuration) {
+            issues.push({ severity: 'warning', track: track.name, itemId: item.id, message: `keyframes[${k}].timeMs (${kf.timeMs}) exceeds item duration (${itemDuration}ms)` });
+          }
         }
       }
 

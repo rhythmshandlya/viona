@@ -527,11 +527,11 @@ export function AIAssistantPanel({ projectId, onEditComplete, className = '' }: 
         case 'heartbeat':
         case 'health': {
           activityState.onHeartbeat(data as Record<string, unknown>);
-          // Restore activeTasks from heartbeat snapshot (helps reconnecting clients)
-          const hb = data as { activeTasks?: any[]; busy?: boolean };
-          if (hb.activeTasks !== undefined) {
-            activeTasksState.restoreFromApi(hb.activeTasks, hb.busy ?? false);
-          }
+          // Don't call restoreFromApi from heartbeats during active SSE streaming —
+          // SSE task events (task_started/task_completed) are authoritative.
+          // restoreFromApi from heartbeats would race with onTaskCompleted's removal
+          // timers, causing completed tasks to linger in the list.
+          // Recovery polling handles reconnection scenarios separately.
           return;
         }
         case 'progress': {

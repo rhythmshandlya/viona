@@ -75,8 +75,9 @@ Verify: scenes are visible, speaker is visible in split-screen/overlay layouts, 
 4. **Do NOT change scene timing** — the Layout Editor already set start/end times. Preserve them exactly.
 5. **If a scene file is missing**, report it in your completion summary but continue replacing other mockups.
 6. **Mockup identification:** Shape items with `data.sceneFile` set. This is the ONLY way to identify mockups.
-7. **Scene item format:** `type: 'scene'`, `data: { sceneFile: 'scenes/{name}.tsx' }`.
+7. **Scene item format:** `type: 'scene'`, `data: { sceneFile: 'SceneName.tsx', displayMode: 'fullscreen' }`. Always include `displayMode`.
 8. **Keyframe timeMs is relative** to the item's own `startMs`, not the absolute timeline.
+9. **Keyframe format:** Always use `{timeMs, props: {...}}` wrapper format. Example: `{"timeMs": 0, "props": {"opacity": 0}}`. NEVER flat `{"timeMs": 0, "opacity": 0}`.
 </rules>
 
 <task>

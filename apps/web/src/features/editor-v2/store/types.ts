@@ -779,6 +779,8 @@ export interface EditorActions {
   trimItems: (ids: string[], edge: 'start' | 'end', deltaMs: number) => void;
 
   // Subtitle-specific
+  generateCaptions: (options?: { wordsPerPhrase?: number; captionStyle?: Record<string, unknown> }) => void;
+  applyCaptionStyle: (style: Record<string, unknown>) => void;
   splitCaption: (captionId: string, wordIndex: number) => void;
   mergeCaptions: (captionId1: string, captionId2: string) => void;
   updateCaptionText: (captionId: string, newText: string) => void;

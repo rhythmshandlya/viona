@@ -149,6 +149,7 @@ export function dbToManifest(input: DbToManifestInput): ManifestV2 {
         keyframes: [],
         data: {
           src,
+          startFrom: (data as any).startFrom ?? 0,
           volume: (data as any).volume ?? 1,
           playbackRate: (data as any).playbackRate ?? 1,
           ...((data as any).fadeInMs ? { fadeInMs: (data as any).fadeInMs } : {}),

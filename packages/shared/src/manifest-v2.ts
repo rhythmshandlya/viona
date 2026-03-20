@@ -60,6 +60,7 @@ export const videoItemDataV2Schema = z.object({
 
 export const audioItemDataV2Schema = z.object({
   src: z.string(),
+  startFrom: z.number().min(0).default(0),
   volume: z.number().min(0).max(2).default(1),
   playbackRate: z.number().min(0.25).max(4).default(1),
   fadeInMs: z.number().min(0).optional(),
@@ -87,6 +88,7 @@ export const imageItemDataV2Schema = z.object({
 
 export const sceneItemDataV2Schema = z.object({
   sceneFile: z.string(),
+  displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
 });
 
 export const shapeItemDataV2Schema = z.object({
@@ -95,6 +97,9 @@ export const shapeItemDataV2Schema = z.object({
   stroke: z.string().optional(),
   strokeWidth: z.number().optional(),
   borderRadius: z.number().optional(),
+  // Used by Layout Editor for mockup placeholders
+  sceneFile: z.string().optional(),
+  displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
 });
 
 export const captionItemDataV2Schema = z.object({

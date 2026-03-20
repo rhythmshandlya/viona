@@ -75,11 +75,13 @@ export interface ActiveTask {
 /* ── Agent style config ── */
 
 export const AGENT_STYLES: Record<string, { color: string; icon: string }> = {
-  Viona:           { color: '#f472b6', icon: '✦' },
-  'Trim Editor':   { color: '#60a5fa', icon: '✂' },
-  'Visual Editor': { color: '#818cf8', icon: '✎' },
-  Planner:         { color: '#a78bfa', icon: '◈' },
-  Animator:        { color: '#34d399', icon: '◆' },
-  'QC Reviewer':   { color: '#fbbf24', icon: '◉' },
-  Renderer:        { color: '#fb923c', icon: '▶' },
+  Viona:            { color: '#f472b6', icon: '✦' },
+  'Trim Editor':    { color: '#60a5fa', icon: '✂' },
+  Planner:          { color: '#a78bfa', icon: '◈' },
+  'Setup Agent':    { color: '#818cf8', icon: '⚙' },
+  'Layout Editor':  { color: '#fbbf24', icon: '▦' },
+  Animator:         { color: '#34d399', icon: '◆' },
+  'Final Editor':   { color: '#c084fc', icon: '✓' },
+  Editor:           { color: '#94a3b8', icon: '✎' },
+  Renderer:         { color: '#fb923c', icon: '▶' },
 };

@@ -263,7 +263,13 @@ export function startAgentServer(port = 8081): void {
       const content = await readManifestRaw();
       res.json(JSON.parse(content));
     } catch (err: any) {
-      res.status(500).json({ error: err.message });
+      // Retry once — atomic rename writes can briefly race with reads
+      try {
+        const retry = await readManifestRaw();
+        res.json(JSON.parse(retry));
+      } catch {
+        res.status(500).json({ error: err.message });
+      }
     }
   });
 

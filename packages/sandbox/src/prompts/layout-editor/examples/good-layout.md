@@ -73,7 +73,7 @@ split_item({ itemId: "vid-seg-3", atMs: 42000 })
 
 update_item({
   itemId: "vid-seg-3",
-  keyframes: [{ timeMs: 0, opacity: 0 }]
+  keyframes: [{ timeMs: 0, props: { opacity: 0 } }]
 })
 ```
 
@@ -138,8 +138,8 @@ Scene 1 crossfade entry (12 frames = 400ms at 30fps): add keyframes to the mocku
 update_item({
   itemId: "<scene1-mockup-id>",
   keyframes: [
-    { timeMs: 0, opacity: 0 },
-    { timeMs: 400, opacity: 1 }
+    { timeMs: 0, props: { opacity: 0 } },
+    { timeMs: 400, props: { opacity: 1 } }
   ]
 })
 ```
@@ -153,7 +153,7 @@ add_item({
   endMs: 28100,
   data: { shape: "rectangle", fill: "#FFFFFF" },
   transform: { x: 0, y: 0, width: 1080, height: 1920 },
-  keyframes: [{ timeMs: 0, opacity: 0.8 }]
+  keyframes: [{ timeMs: 0, props: { opacity: 0.8 } }]
 })
 ```
 

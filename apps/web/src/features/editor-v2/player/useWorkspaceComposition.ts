@@ -125,8 +125,24 @@ function createRequire(bundleBaseUrl: string) {
     }
 
     if (moduleName === 'remotion') {
+      // Wrap Sequence to enable premounting — the composition template uses
+      // layout="none" on all Sequences, which prevents premounting.
+      // By overriding layout to undefined for visual items and adding premountFor,
+      // Remotion pre-mounts <Video> elements ~1s before they become visible,
+      // eliminating the black flash at cut boundaries.
+      const PremountSequence = (props: any) => {
+        const { layout, premountFor, children, ...rest } = props;
+        // 30 frames ≈ 1s at 30fps — enough for video to load & seek from cache
+        return React.createElement(Remotion.Sequence, {
+          ...rest,
+          premountFor: premountFor ?? 30,
+          children,
+        });
+      };
+
       return {
         ...Remotion,
+        Sequence: PremountSequence,
         Composition: () => null,
         staticFile: customStaticFile,
         // OffthreadVideo is for rendering; in the Player context, use Video

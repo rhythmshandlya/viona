@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Player } from '@remotion/player';
-import { AbsoluteFill } from 'remotion';
+import { AbsoluteFill, prefetch } from 'remotion';
 import { useWorkspaceComposition, setAssetsMap } from './useWorkspaceComposition';
 
 interface WorkspacePlayerProps {
@@ -41,6 +41,58 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
       setAssetsMap({});
     }
   }, [manifest]);
+
+  // Prefetch video sources as blob URLs so <Video> re-mounts at cut boundaries
+  // don't trigger network requests — the blob is already in memory.
+  const prefetchHandlesRef = useRef<Map<string, { free: () => void }>>(new Map());
+
+  useEffect(() => {
+    const m = manifest as any;
+    if (!m?.items || !bundleUrl) return;
+
+    // Resolve video source URLs the same way the composition's staticFile shim does
+    const projectIdMatch = bundleUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
+    const publicBase = projectIdMatch
+      ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
+      : `${bundleUrl}/public`;
+
+    const currentSrcs = new Set<string>();
+    for (const item of m.items) {
+      if ((item.type === 'video' || item.type === 'audio') && item.data?.src) {
+        const src = item.data.src as string;
+        const resolved = /^https?:\/\/|^blob:/.test(src)
+          ? src
+          : `${publicBase}/${src.startsWith('/') ? src.slice(1) : src}`;
+        currentSrcs.add(resolved);
+      }
+    }
+
+    // Prefetch new sources
+    for (const url of currentSrcs) {
+      if (!prefetchHandlesRef.current.has(url)) {
+        const handle = prefetch(url, { method: 'blob-url', credentials: 'include' });
+        prefetchHandlesRef.current.set(url, handle);
+      }
+    }
+
+    // Free sources no longer in the manifest
+    for (const [url, handle] of prefetchHandlesRef.current) {
+      if (!currentSrcs.has(url)) {
+        handle.free();
+        prefetchHandlesRef.current.delete(url);
+      }
+    }
+  }, [manifest, bundleUrl]);
+
+  // Cleanup all prefetches on unmount
+  useEffect(() => {
+    return () => {
+      for (const [, handle] of prefetchHandlesRef.current) {
+        handle.free();
+      }
+      prefetchHandlesRef.current.clear();
+    };
+  }, []);
 
   const inputProps = useMemo(() => {
     // Strip sandbox assets map — composition will use staticFile fallback

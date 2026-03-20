@@ -61,7 +61,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
               const startFrame = Math.round((item.startMs / 1000) * fps);
               const durationInFrames = Math.max(1, Math.round(((item.endMs - item.startMs) / 1000) * fps));
 
-              // Audio items don't need spatial transforms
+              // Audio items: layout="none" (no visual container needed), no premount
               if (item.type === 'audio') {
                 return (
                   <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} layout="none">
@@ -70,9 +70,15 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
                 );
               }
 
+              // Visual items: premount video/image sequences so media elements
+              // load before becoming visible (avoids flash at cut boundaries).
+              // premountFor requires a container (no layout="none").
+              const needsPremount = item.type === 'video' || item.type === 'image';
+              const premountFrames = needsPremount ? fps : 0;
+
               const transform = item.transform ?? FULL_CANVAS_TRANSFORM;
               return (
-                <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} layout="none">
+                <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} premountFor={premountFrames}>
                   <TransformWrapper transform={transform} keyframes={item.keyframes} filters={item.filters} fps={fps} style={item.style}>
                     <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionStyle={captionStyle} />
                   </TransformWrapper>

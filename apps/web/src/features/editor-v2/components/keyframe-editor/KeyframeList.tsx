@@ -157,7 +157,7 @@ export const KeyframeList: React.FC<KeyframeListProps> = ({
                     border: '1px solid var(--editor-border-default)',
                   }}
                 >
-                  {kf.easing.startsWith('cubic-bezier') ? 'custom' : kf.easing}
+                  {kf.easing?.startsWith('cubic-bezier') ? 'custom' : (kf.easing ?? 'linear')}
                 </span>
 
                 {/* Delete button */}
