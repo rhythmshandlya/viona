@@ -3,7 +3,7 @@ import pino from 'pino';
 import { authMiddleware } from './auth.js';
 import { isInitialized, initWorkspace, ensureNodeModulesSymlink, resetWorkspace } from './workspace-init.js';
 import { startWatcher, onBundle, getBundleVersion } from './esbuild-watcher.js';
-import { checkpoint, startCheckpointing } from './manifest-checkpoint.js';
+import { checkpoint, startCheckpointWatcher } from './checkpoint.js';
 import { readManifestRaw, updateManifestTool } from './tools/manifest-ops.js';
 import { mountOpsEndpoint } from './ops-endpoint.js';
 import { runOrchestrator, type OrchestratorRequest } from './orchestrator.js';
@@ -19,7 +19,6 @@ const logger = pino({ name: 'agent-server' });
 const API_CALLBACK_URL = process.env.API_CALLBACK_URL;
 const SANDBOX_ID = process.env.SANDBOX_ID;
 const SANDBOX_SECRET = process.env.SANDBOX_SECRET;
-const CHECKPOINT_INTERVAL = parseInt(process.env.CHECKPOINT_INTERVAL_MS || '60000', 10);
 
 let currentAbortController: AbortController | null = null;
 
@@ -70,7 +69,7 @@ export function startAgentServer(port = 8081): void {
         }
       });
       await startWatcher();
-      startCheckpointing(CHECKPOINT_INTERVAL);
+      startCheckpointWatcher();
 
       res.json({ ok: true });
     } catch (err: any) {

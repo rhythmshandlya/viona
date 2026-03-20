@@ -2,14 +2,13 @@ import pino from 'pino';
 import { isInitialized, ensureNodeModulesSymlink } from './workspace-init.js';
 import { startFileServer } from './file-server.js';
 import { startWatcher, onBundle } from './esbuild-watcher.js';
-import { startCheckpointing, checkpoint } from './manifest-checkpoint.js';
+import { startCheckpointWatcher, stopCheckpointWatcher, checkpoint } from './checkpoint.js';
 
 const logger = pino({ name: 'sandbox' });
 
 const API_CALLBACK_URL = process.env.API_CALLBACK_URL;
 const SANDBOX_ID = process.env.SANDBOX_ID;
 const SANDBOX_SECRET = process.env.SANDBOX_SECRET;
-const CHECKPOINT_INTERVAL = parseInt(process.env.CHECKPOINT_INTERVAL_MS || '60000', 10);
 
 async function notifyApi(event: string, payload: Record<string, unknown> = {}): Promise<void> {
   if (!API_CALLBACK_URL || !SANDBOX_ID) return;
@@ -56,7 +55,7 @@ async function main(): Promise<void> {
       notifyApi('bundle-ready', { version });
     });
     await startWatcher();
-    startCheckpointing(CHECKPOINT_INTERVAL);
+    startCheckpointWatcher();
 
     // Only notify ready after workspace is initialized and watcher is running.
     await notifyApi('ready');
@@ -69,6 +68,7 @@ async function main(): Promise<void> {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down');
+  stopCheckpointWatcher(); // Prevent debounce timer from racing
   await checkpoint(); // Final checkpoint
   process.exit(0);
 });
