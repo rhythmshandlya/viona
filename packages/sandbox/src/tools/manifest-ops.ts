@@ -117,10 +117,6 @@ export async function readManifestRaw(): Promise<string> {
   return readFile(MANIFEST_PATH, 'utf-8');
 }
 
-/** Write counter for periodic DB checkpointing (Issue #12). */
-let manifestWriteCount = 0;
-const CHECKPOINT_EVERY_N_WRITES = 5;
-
 async function writeManifest(manifest: any): Promise<void> {
   // Atomic write: write to temp file then rename, so concurrent reads
   // never see a truncated manifest.json
@@ -129,14 +125,6 @@ async function writeManifest(manifest: any): Promise<void> {
   await rename(tmpPath, MANIFEST_PATH);
   // Notify frontend of manifest change (best-effort)
   notifyManifestUpdated().catch(() => {});
-
-  // Periodic DB checkpoint every N writes
-  manifestWriteCount++;
-  if (manifestWriteCount % CHECKPOINT_EVERY_N_WRITES === 0) {
-    import('../manifest-checkpoint.js')
-      .then(({ checkpoint }) => checkpoint())
-      .catch(() => {}); // best-effort
-  }
 }
 
 /** Run a read-modify-write operation with mutex to prevent concurrent overwrites. */
