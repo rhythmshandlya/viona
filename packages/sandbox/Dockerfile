@@ -96,9 +96,8 @@ RUN groupadd -r sandbox && useradd -r -g sandbox -m -s /bin/bash sandbox
 # Install gosu for entrypoint privilege drop
 RUN apt-get update && apt-get install -y --no-install-recommends gosu && rm -rf /var/lib/apt/lists/*
 
-# Workspace will be mounted as a volume at /workspace
+# Workspace will be mounted as a volume at /workspace (Railway attaches volumes externally)
 RUN mkdir -p /workspace && chown sandbox:sandbox /workspace
-VOLUME /workspace
 
 # Give sandbox user ownership of app files
 RUN chown -R sandbox:sandbox /app
