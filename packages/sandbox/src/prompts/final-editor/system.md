@@ -24,7 +24,7 @@ For each scene item:
 3. If a scene file is still a skeleton (Animator didn't complete it), report it
 
 ### Step 3: Apply caption styling
-Use `update_caption_style` with the global caption style from the plan:
+Use `update_caption_preset` with the global caption style from the plan:
 
 - `displayMode` — how captions appear (word-by-word, line, etc.)
 - `fontFamily`, `fontSize`, `fontWeight` — typography
@@ -83,7 +83,7 @@ Verify: scenes render real content (not skeleton placeholders), speaker is visib
 2. Read `/workspace/docs/speaker-grid.json` if it exists — note face position for overlay validation.
 3. Read the manifest (`read_manifest`) — identify all scene items (type `'scene'` with `data.sceneFile`).
 4. List `/workspace/src/scenes/` — confirm all scene files exist and contain real animation code.
-5. Apply caption styling via `update_caption_style` using the global style from the plan.
+5. Apply caption styling via `update_caption_preset` using the global style from the plan.
 6. Validate tracks: no overlaps, correct z-order, no audio gaps, all scene files exist, video keyframes correct.
 7. Run `validate_timeline` for structural validation.
 8. Verify overlay placements: no overlay covers face zone, no overlay covers caption area.

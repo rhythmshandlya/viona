@@ -2,7 +2,7 @@
 // Core Types - Extensible for Phase 2+
 // ============================================
 
-export type SubtitleDisplayMode = 'word-by-word' | 'phrase' | 'karaoke' | 'dynamic-hierarchy';
+export type SubtitleDisplayMode = 'word-by-word' | 'phrase' | 'karaoke';
 
 // Legacy position type (for backward compatibility)
 export type SubtitlePositionLegacy = 'top' | 'center' | 'bottom';

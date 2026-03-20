@@ -230,7 +230,7 @@ export async function generatePlayerComposition(projectId: string): Promise<void
   try {
     const manifestJson = await readFile(manifestPath, 'utf-8');
     const manifest = JSON.parse(manifestJson);
-    captionFontFamily = manifest.captionStyle?.fontFamily || 'Inter';
+    captionFontFamily = manifest.captionPreset?.fontFamily || manifest.captionStyle?.fontFamily || 'Inter';
     textFontFamilies = (manifest.items || [])
       .filter((i: any) => i.type === 'text' && i.data?.fontFamily)
       .map((i: any) => i.data.fontFamily as string);
@@ -458,7 +458,7 @@ export const PlayerComposition: React.FC<{
 
   ${hasCompositionTsx ? `// AI-generated composition: render with error boundary fallback
   if (HAS_AI_COMPOSITION) {
-    const fallback = renderNLEComposition(items, fps, manifest?.captionStyle || {});
+    const fallback = renderNLEComposition(items, fps, manifest?.captionPreset || manifest?.captionStyle || {});
     return (
       <CompositionErrorBoundary fallback={fallback}>
         <ProjectComposition
@@ -470,7 +470,7 @@ export const PlayerComposition: React.FC<{
     );
   }` : ''}
 
-  return renderNLEComposition(items, fps, manifest?.captionStyle || {});
+  return renderNLEComposition(items, fps, manifest?.captionPreset || manifest?.captionStyle || {});
 };
 
 function renderNLEComposition(items: any[], fps: number, captionStyle?: any) {

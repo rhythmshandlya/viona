@@ -14,7 +14,7 @@ Verification checklist:
 - Audio is continuous (no gaps)
 - Track z-order: video (bottom), scenes (middle), captions (top)
 
-Caption styling: apply via update_caption_style using the global style from the plan.
+Caption styling: apply via update_caption_preset using the global style from the plan.
 
 Do NOT modify: scene timing, scene transforms, video keyframes, scene files.
 If a scene file is missing or still a skeleton, report it — do NOT fix it.

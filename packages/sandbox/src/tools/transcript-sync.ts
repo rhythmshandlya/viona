@@ -160,7 +160,7 @@ export async function syncCaptions(): Promise<void> {
   const captionTrack = (manifest.tracks ?? []).find((t: any) => t.type === 'caption');
   if (!captionTrack) return; // no caption track — nothing to do
 
-  const wordsPerPhrase = manifest.captionStyle?.wordsPerPhrase ?? 5;
+  const wordsPerPhrase = manifest.captionPreset?.wordsPerPhrase ?? manifest.captionStyle?.wordsPerPhrase ?? 5;
 
   // Remove existing caption items
   manifest.items = (manifest.items ?? []).filter((i: any) => i.trackId !== captionTrack.id);

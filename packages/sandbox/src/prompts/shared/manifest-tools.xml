@@ -9,7 +9,7 @@
 - update_item — Update item properties (deep-merges data, transform, filters; replaces keyframes).
 - remove_item — Remove an item by ID.
 - split_item — Split a video/audio item at a timestamp.
-- update_caption_style — Update global caption styling.
+- update_caption_preset — Update global caption preset (font, colors, animation, position, effects).
 - update_manifest — Batch update the manifest.
 
 ## Scene Tools (mcp__scenes__*)
