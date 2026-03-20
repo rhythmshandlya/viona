@@ -7,7 +7,7 @@ import {
   updateItemTool,
   removeItemTool,
   splitItemTool,
-  updateCaptionStyleTool,
+  updateCaptionPresetTool,
   generateCaptionsTool,
 } from './tools/manifest-ops.js';
 
@@ -19,7 +19,7 @@ const toolMap: Record<string, { execute: (input: any) => Promise<string> }> = {
   updateItem: updateItemTool,
   removeItem: removeItemTool,
   splitItem: splitItemTool,
-  updateCaptionStyle: updateCaptionStyleTool,
+  updateCaptionPreset: updateCaptionPresetTool,
   generateCaptions: generateCaptionsTool,
 };
 

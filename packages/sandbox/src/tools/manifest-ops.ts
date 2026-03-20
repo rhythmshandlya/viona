@@ -184,7 +184,7 @@ export const readManifestTool = {
           tracks: trackSummaries,
           totalItems: (manifest.items ?? []).length,
           assetKeys: Object.keys(manifest.assets ?? {}),
-          captionStyle: manifest.captionStyle ?? null,
+          captionPreset: manifest.captionPreset ?? manifest.captionStyle ?? null,
           videoSettings: manifest.videoSettings ?? null,
         });
       }
@@ -588,11 +588,11 @@ export const splitItemTool = {
   },
 };
 
-export const updateCaptionStyleTool = {
-  name: 'update_caption_style',
+export const updateCaptionPresetTool = {
+  name: 'update_caption_preset',
   description:
-    'Update the global caption style. Deep-merges with existing style. ' +
-    'Fields: displayMode (word-by-word|phrase|karaoke|dynamic-hierarchy), wordsPerPhrase, ' +
+    'Update the global caption preset. Deep-merges with existing preset. ' +
+    'Fields: displayMode (word-by-word|phrase|karaoke), wordsPerPhrase, ' +
     'fontFamily, fontSize, fontWeight, color, activeColor, backgroundColor, activeBackgroundColor, ' +
     'backgroundPadding ({x,y}), backgroundRadius, letterSpacing, textTransform (none|uppercase|lowercase), ' +
     'opacity, lineHeight, stroke ({width,color}), presetId, ' +
@@ -603,7 +603,7 @@ export const updateCaptionStyleTool = {
     properties: {
       updates: {
         type: 'object',
-        description: 'Partial caption style fields to merge',
+        description: 'Partial caption preset fields to merge',
       },
     },
     required: ['updates'],
@@ -612,7 +612,12 @@ export const updateCaptionStyleTool = {
     return withManifestLock(async () => {
       try {
         const manifest = await readManifest();
-        const existing = manifest.captionStyle ?? {};
+        // Migrate: if captionPreset is undefined but captionStyle exists, migrate it
+        if (manifest.captionPreset === undefined && manifest.captionStyle !== undefined) {
+          manifest.captionPreset = manifest.captionStyle;
+          delete manifest.captionStyle;
+        }
+        const existing = manifest.captionPreset ?? {};
         // Deep-merge nested objects (animation, position, effects)
         for (const [key, value] of Object.entries(input.updates)) {
           if (value && typeof value === 'object' && !Array.isArray(value) && existing[key] && typeof existing[key] === 'object') {
@@ -621,11 +626,11 @@ export const updateCaptionStyleTool = {
             existing[key] = value;
           }
         }
-        manifest.captionStyle = existing;
+        manifest.captionPreset = existing;
         await writeManifest(manifest);
-        return JSON.stringify(manifest.captionStyle);
+        return JSON.stringify(manifest.captionPreset);
       } catch (err: any) {
-        return `Failed to update caption style: ${err.message}`;
+        return `Failed to update caption preset: ${err.message}`;
       }
     });
   },
@@ -669,25 +674,25 @@ export const generateCaptionsTool = {
   description:
     'Generate caption items from the transcript. Syncs transcript timing with current manifest edits, ' +
     'creates a caption track if none exists, and builds phrase-grouped caption items. ' +
-    'Optionally accepts a captionStyle to apply (deep-merged with existing). ' +
+    'Optionally accepts a captionPreset to apply (deep-merged with existing). ' +
     'Call this after transcription is done or when the user wants captions added/regenerated.',
   input_schema: {
     type: 'object' as const,
     properties: {
       wordsPerPhrase: {
         type: 'number',
-        description: 'Words per caption phrase (default: uses existing captionStyle.wordsPerPhrase or 5)',
+        description: 'Words per caption phrase (default: uses existing captionPreset.wordsPerPhrase or 5)',
       },
-      captionStyle: {
+      captionPreset: {
         type: 'object',
-        description: 'Optional caption style to apply (deep-merged with existing). ' +
+        description: 'Optional caption preset to apply (deep-merged with existing). ' +
           'Fields: displayMode, fontFamily, fontSize, fontWeight, color, activeColor, ' +
           'backgroundColor, activeBackgroundColor, stroke, animation, position, effects, etc.',
       },
     },
     required: [],
   },
-  async execute(input: { wordsPerPhrase?: number; captionStyle?: Record<string, unknown> }): Promise<string> {
+  async execute(input: { wordsPerPhrase?: number; captionPreset?: Record<string, unknown> }): Promise<string> {
     return withManifestLock(async () => {
       try {
         // 1. Sync transcript timing with current manifest edits
@@ -707,26 +712,32 @@ export const generateCaptionsTool = {
           manifest.tracks = [...(manifest.tracks ?? []), captionTrack];
         }
 
+        // Migrate: read captionPreset with fallback to captionStyle
+        const currentPreset = manifest.captionPreset ?? manifest.captionStyle ?? {};
+
         // 3. Apply wordsPerPhrase override
         if (input.wordsPerPhrase) {
-          manifest.captionStyle = manifest.captionStyle ?? {};
-          manifest.captionStyle.wordsPerPhrase = input.wordsPerPhrase;
+          currentPreset.wordsPerPhrase = input.wordsPerPhrase;
         }
 
-        // 4. Apply caption style if provided (deep-merge)
-        if (input.captionStyle) {
-          const existing = manifest.captionStyle ?? {};
-          for (const [key, value] of Object.entries(input.captionStyle)) {
-            if (value && typeof value === 'object' && !Array.isArray(value) && existing[key] && typeof existing[key] === 'object') {
-              existing[key] = { ...existing[key], ...value };
+        // 4. Apply caption preset if provided (deep-merge)
+        if (input.captionPreset) {
+          for (const [key, value] of Object.entries(input.captionPreset)) {
+            if (value && typeof value === 'object' && !Array.isArray(value) && currentPreset[key] && typeof currentPreset[key] === 'object') {
+              currentPreset[key] = { ...currentPreset[key], ...value };
             } else {
-              existing[key] = value;
+              currentPreset[key] = value;
             }
           }
-          manifest.captionStyle = existing;
         }
 
-        // Write manifest with track + style changes before syncCaptions reads it
+        // Write to captionPreset; clean up legacy captionStyle if it existed
+        manifest.captionPreset = currentPreset;
+        if (manifest.captionStyle !== undefined) {
+          delete manifest.captionStyle;
+        }
+
+        // Write manifest with track + preset changes before syncCaptions reads it
         await writeManifest(manifest);
 
         // 5. Generate caption items from synced transcript
@@ -835,6 +846,6 @@ export const allManifestTools = [
   removeItemTool,
   splitItemTool,
   rippleDeleteTool,
-  updateCaptionStyleTool,
+  updateCaptionPresetTool,
   generateCaptionsTool,
 ];

@@ -32,6 +32,7 @@ interface Manifest {
   tracks: ManifestTrack[];
   items: ManifestItem[];
   assets: Record<string, string>;
+  captionPreset?: any;
   captionStyle?: any;
 }
 
@@ -44,7 +45,8 @@ const FULL_CANVAS_TRANSFORM = {
 };
 
 export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }) => {
-  const { fps, canvas, items, assets, captionStyle } = manifest;
+  const { fps, canvas, items, assets } = manifest;
+  const captionPreset = manifest.captionPreset ?? manifest.captionStyle ?? {};
   const sortedTracks = [...manifest.tracks].sort((a, b) => a.position - b.position);
 
   return (
@@ -65,7 +67,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
               if (item.type === 'audio') {
                 return (
                   <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} layout="none">
-                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionStyle={captionStyle} />
+                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} />
                   </Sequence>
                 );
               }
@@ -80,7 +82,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
               return (
                 <Sequence key={item.id} from={startFrame} durationInFrames={durationInFrames} premountFor={premountFrames}>
                   <TransformWrapper transform={transform} keyframes={item.keyframes} filters={item.filters} fps={fps} style={item.style}>
-                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionStyle={captionStyle} />
+                    <ItemRenderer item={item} assets={assets} fps={fps} durationInFrames={durationInFrames} canvas={canvas} captionPreset={captionPreset} />
                   </TransformWrapper>
                 </Sequence>
               );
@@ -98,10 +100,10 @@ interface ItemRendererProps {
   fps: number;
   durationInFrames: number;
   canvas: { width: number; height: number };
-  captionStyle?: any;
+  captionPreset?: any;
 }
 
-const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, durationInFrames, canvas, captionStyle }) => {
+const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, durationInFrames, canvas, captionPreset }) => {
   switch (item.type) {
     case 'video':
       return <VideoItem data={item.data} assets={assets} fps={fps} durationInFrames={durationInFrames} />;
@@ -136,7 +138,7 @@ const ItemRenderer: React.FC<ItemRendererProps> = ({ item, assets, fps, duration
     case 'shape':
       return <ShapeItem data={item.data} />;
     case 'caption':
-      return <CaptionItem data={item.data} captionStyle={captionStyle || {}} fps={fps} itemStartMs={item.startMs} />;
+      return <CaptionItem data={item.data} captionStyle={captionPreset || {}} fps={fps} itemStartMs={item.startMs} />;
     default:
       return null;
   }
