@@ -41,11 +41,12 @@ RUN npx tsc
 # Stage 2: Production image
 FROM node:20-slim
 
-# System dependencies for Remotion (Chromium), ffmpeg, and Python
+# System dependencies for Remotion (Chromium), ffmpeg, Python, and git (checkpoint system)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     chromium \
     ffmpeg \
+    git \
     python3 \
     unzip \
     && rm -rf /var/lib/apt/lists/*
