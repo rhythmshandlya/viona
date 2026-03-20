@@ -3,9 +3,11 @@ import { promisify } from 'util';
 import { randomUUID } from 'crypto';
 import { homedir } from 'os';
 import { join, resolve } from 'path';
-import { existsSync, mkdirSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, rmSync, cpSync, createWriteStream } from 'fs';
+import { pipeline } from 'stream/promises';
 import { logger } from '../logger.js';
 import { config } from '../config.js';
+import { minioClient } from '../services/minio.js';
 import type { SandboxProvider, Sandbox, CreateSandboxOpts } from './provider.js';
 
 // Keep execFile for backup operations where dockerode doesn't add value
@@ -48,8 +50,11 @@ export class DockerSandboxProvider implements SandboxProvider {
       // 1. Create local workspace directory (bind mount — visible on host)
       mkdirSync(workspacePath, { recursive: true });
 
-      // 2. If restoring from backup, copy backup volume into local directory
-      if (backupId) {
+      // 2. Try git bundle restore from MinIO first, fall back to backup volume
+      let bundleRestored = false;
+      bundleRestored = await this.tryBundleRestore(projectId, workspacePath);
+
+      if (!bundleRestored && backupId) {
         await execFileAsync('docker', [
           'run', '--rm',
           '-v', `${backupId}:/backup`,
@@ -162,6 +167,57 @@ export class DockerSandboxProvider implements SandboxProvider {
       }
 
       throw new Error(`Docker sandbox create failed: ${err.message}`);
+    }
+  }
+
+  /**
+   * Attempt to restore workspace from git bundle in MinIO.
+   * Returns true if restore succeeded, false if no bundle or restore failed.
+   * Git operations run inside a container (API host may be Windows).
+   */
+  private async tryBundleRestore(projectId: string, workspacePath: string): Promise<boolean> {
+    const bundleKey = `checkpoints/${projectId}/workspace.bundle`;
+    const bundleTmpPath = join(workspacePath, `${projectId}.bundle`);
+
+    try {
+      // Check if bundle exists in MinIO
+      await minioClient.statObject(config.storage.bucket, bundleKey);
+    } catch {
+      return false; // No bundle available
+    }
+
+    try {
+      // Download bundle to workspace dir (which is bind-mounted into containers)
+      const stream = await minioClient.getObject(config.storage.bucket, bundleKey);
+      await pipeline(stream, createWriteStream(bundleTmpPath));
+
+      // Use a git-capable Docker image to verify and clone the bundle.
+      // The workspace dir is bind-mounted so the container can access the bundle file.
+      // Clone into /workspace/repo-tmp, then move contents to /workspace root.
+      await execFileAsync('docker', [
+        'run', '--rm',
+        '-v', `${workspacePath}:/workspace`,
+        'alpine/git',
+        'sh', '-c',
+        `cd /workspace && git bundle verify ${projectId}.bundle && git clone ${projectId}.bundle /workspace/repo-tmp`,
+      ], { timeout: 60_000 });
+
+      // Move cloned contents (including .git) to workspace root using Node.js cross-platform APIs
+      const cloneTmp = join(workspacePath, 'repo-tmp');
+      // Copy all contents from repo-tmp to workspace root
+      cpSync(cloneTmp, workspacePath, { recursive: true, force: true });
+      // Clean up temp clone dir and bundle file
+      rmSync(cloneTmp, { recursive: true, force: true });
+      rmSync(bundleTmpPath, { force: true });
+
+      logger.info({ projectId }, 'Workspace restored from git bundle');
+      return true;
+    } catch (err) {
+      logger.warn({ err, projectId }, 'Git bundle restore failed, falling back to volume backup');
+      // Cleanup temp files on failure
+      try { rmSync(bundleTmpPath, { force: true }); } catch {}
+      try { rmSync(join(workspacePath, 'repo-tmp'), { recursive: true, force: true }); } catch {}
+      return false;
     }
   }
 
