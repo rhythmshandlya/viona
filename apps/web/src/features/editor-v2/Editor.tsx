@@ -131,7 +131,7 @@ export function Editor({ projectId }: EditorProps) {
     // No-op: right panel no longer has tabs
   }, []);
 
-  // Auto-open right panel when a non-caption item is selected
+  // Auto-open right panel when a non-caption item is selected, and seek to midpoint
   useEffect(() => {
     if (selectedIds.length > 0) {
       const state = useEditorStore.getState();
@@ -140,6 +140,14 @@ export function Editor({ projectId }: EditorProps) {
         setPanelOpen(true);
       } else {
         setPanelOpen(false);
+      }
+      // Seek timeline to the midpoint of the first selected item
+      if (selectedIds.length === 1) {
+        const item = state.items[selectedIds[0]];
+        if (item) {
+          const midpoint = Math.round((item.startMs + item.endMs) / 2);
+          state.seek(midpoint);
+        }
       }
     } else {
       setPanelOpen(false);
@@ -322,7 +330,7 @@ export function Editor({ projectId }: EditorProps) {
     if (selectedIds.length === 1) {
       const state = useEditorStore.getState();
       const item = state.items[selectedIds[0]];
-      if (item && item.type !== 'visual') {
+      if (item && item.type !== 'visual' && item.type !== 'scene') {
         // For captions, always open sidebar and switch to Style tab
         if (item.type === 'caption') {
           setLeftSidebarOpen(true);

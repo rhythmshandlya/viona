@@ -177,7 +177,7 @@ export async function syncCaptions(): Promise<void> {
     const endMs = chunk[chunk.length - 1].endMs;
 
     newCaptionItems.push({
-      id: `caption-${i / wordsPerPhrase}`,
+      id: randomUUID(),
       type: 'caption',
       trackId: captionTrack.id,
       startMs,
