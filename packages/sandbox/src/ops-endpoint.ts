@@ -20,6 +20,7 @@ const toolMap: Record<string, { execute: (input: any) => Promise<string> }> = {
   removeItem: removeItemTool,
   splitItem: splitItemTool,
   updateCaptionPreset: updateCaptionPresetTool,
+  updateCaptionStyle: updateCaptionPresetTool, // deprecated alias
   generateCaptions: generateCaptionsTool,
 };
 

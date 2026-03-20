@@ -2297,7 +2297,7 @@ export const useEditorStore = create<EditorStore>()(
     // Subtitle-Specific Actions
     // ========================================
 
-    generateCaptions: (options?: { wordsPerPhrase?: number; captionStyle?: Record<string, unknown> }) => {
+    generateCaptions: (options?: { wordsPerPhrase?: number; captionPreset?: Record<string, unknown> }) => {
       dispatchOps([{ tool: 'generateCaptions', input: options ?? {} }]);
     },
 
