@@ -191,15 +191,16 @@ export class DockerSandboxProvider implements SandboxProvider {
       const stream = await minioClient.getObject(config.storage.bucket, bundleKey);
       await pipeline(stream, createWriteStream(bundleTmpPath));
 
-      // Use a git-capable Docker image to verify and clone the bundle.
+      // Use a git-capable Docker image to clone the bundle.
       // The workspace dir is bind-mounted so the container can access the bundle file.
       // Clone into /workspace/repo-tmp, then move contents to /workspace root.
+      // Note: skip `git bundle verify` — it requires an existing repo. `git clone`
+      // will fail naturally if the bundle is corrupt.
       await execFileAsync('docker', [
         'run', '--rm',
         '-v', `${workspacePath}:/workspace`,
         'alpine/git',
-        'sh', '-c',
-        `cd /workspace && git bundle verify ${projectId}.bundle && git clone ${projectId}.bundle /workspace/repo-tmp`,
+        'clone', `/workspace/${projectId}.bundle`, '/workspace/repo-tmp',
       ], { timeout: 60_000 });
 
       // Move cloned contents (including .git) to workspace root using Node.js cross-platform APIs

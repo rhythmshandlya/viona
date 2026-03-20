@@ -52,6 +52,8 @@ public/proxy-*
  */
 export async function initGitRepo(): Promise<void> {
   try {
+    // Mark workspace as safe (handles ownership mismatches from entrypoint privilege drop)
+    await execFileAsync('git', ['config', '--global', '--add', 'safe.directory', WORKSPACE]);
     await execFileAsync('git', ['init'], { cwd: WORKSPACE });
     await execFileAsync('git', ['config', 'user.email', 'sandbox@viona.ai'], { cwd: WORKSPACE });
     await execFileAsync('git', ['config', 'user.name', 'Viona Sandbox'], { cwd: WORKSPACE });
@@ -164,6 +166,8 @@ async function ensureGitReady(): Promise<void> {
   if (gitReady) return;
 
   try {
+    // Mark workspace as safe (handles ownership mismatches from entrypoint privilege drop)
+    await execFileAsync('git', ['config', '--global', '--add', 'safe.directory', WORKSPACE]);
     // Check if .git directory exists (bundle restore case)
     await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: WORKSPACE });
     // Repo exists — ensure config is set (clone doesn't copy local config)
