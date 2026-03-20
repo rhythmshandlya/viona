@@ -469,7 +469,7 @@ export default function ProjectsPage() {
     setUploadProgress(0);
 
     try {
-      const title = message.trim() || file.name.replace(/\.[^/.]+$/, "");
+      const title = (message.trim() || file.name.replace(/\.[^/.]+$/, "")).slice(0, 255);
 
       setProcessingMessage("Creating project...");
       const { projectId } = await api.createProject(file.name, title, message);

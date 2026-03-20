@@ -246,7 +246,14 @@ export function useWorkspaceComposition(
 
         // Use same-origin path — Next.js rewrites /api/* to the backend
         const fullUrl = `${bundleUrl}/player-composition.cjs.js?v=${bundleVersion}`;
-        const response = await fetch(fullUrl, { credentials: 'include' });
+        let response = await fetch(fullUrl, { credentials: 'include' });
+
+        // On 401, the Stytch JWT may have expired — wait for SDK refresh and retry once
+        if (response.status === 401) {
+          await new Promise(r => setTimeout(r, 2000));
+          response = await fetch(fullUrl, { credentials: 'include' });
+        }
+
         if (!response.ok) {
           throw new Error(`Failed to fetch composition: ${response.status}`);
         }

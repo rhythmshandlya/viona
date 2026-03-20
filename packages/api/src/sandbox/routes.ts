@@ -306,12 +306,13 @@ export function createSandboxRoutes(manager: SandboxManager) {
           end
         elseif op == 'complete' then
           local upd = cjson.decode(task_data)
+          local new_tasks = {}
           for i, t in ipairs(tasks) do
-            if t.id == upd.id then
-              t.status = 'completed'
-              break
+            if t.id ~= upd.id then
+              table.insert(new_tasks, t)
             end
           end
+          tasks = new_tasks
         end
 
         redis.call('SET', KEYS[1], cjson.encode(tasks), 'EX', ttl)

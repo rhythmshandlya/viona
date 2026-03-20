@@ -1,240 +1,170 @@
-Now# Editing Style: Motion Graphics Focused
+# Editing Style: Motion Graphics Focused
 
-> Use when the video is explanatory — tutorials, educational content, presentations, technical breakdowns, thought leadership.
-> All visuals are purpose-built Remotion animations. No stock footage. The result looks like a professionally produced explainer video.
+> All visuals are purpose-built Remotion animations. No stock footage, no templates. The result looks like a professionally produced explainer video.
+> The studio theme (`studio-theme.md`) controls visual design (colors, fonts, springs, glass effects). This file controls WHEN and HOW animations are used.
 
-## Core Approach
+## 1. Core Approach
 
-The speaker explains concepts. Viona listens to what's being said, identifies moments that benefit from visual reinforcement, and generates custom animated scenes that illustrate the concept in real time. Every visual is tailored to the specific content — not generic, not stock, not template.
+- Every visual is a dense, purpose-built Remotion animation tailored to the specific content
+- Captions are a SEPARATE system — never part of scene animations
+- Animations are dense, not sparse — every scene should feel rich and purposeful
+- The Planner covers the ENTIRE timeline: every moment is either a scene (Stacked/Fullscreen) or an overlay
 
-The studio theme (`viona-glass.md`) controls all visual design decisions (colors, fonts, springs, glass effects). This file controls WHEN and HOW animations are used.
+## 2. Spatial States & Display Modes
 
-## Technique Selection
+4 spatial states define WHERE the speaker and animation live on the canvas:
 
-### Primary Techniques
+### Speaker (spatial state only — NOT planned)
 
-**1. Explanatory Scene Animations**
-Custom Remotion `.tsx` scenes that visualize what the speaker is saying. These are the backbone of this editing style.
+Speaker video at full canvas, nothing else visible. The Planner never plans speaker-only time. This state exists only as a transition target at video boundaries (start/end).
 
-Scene types by content:
+### Overlay (display mode)
 
-| Speaker says... | Scene type | Example |
-|---|---|---|
-| Lists items or steps | **Numbered step cards** | Glass cards appearing one by one with spring animation, numbered 1-2-3 |
-| Compares two+ things | **Side-by-side comparison** | Two glass columns with labels, checkmarks, values animating in |
-| Describes a process/flow | **Animated flowchart** | Nodes connected by lines, each node entering with stagger, lines drawing between them |
-| Mentions data/numbers/stats | **Data visualization** | Animated bar chart, progress rings, or counting numbers |
-| Defines a term/concept | **Definition card** | Glass card with term highlighted in violet, definition text fading in below |
-| Tells a chronological story | **Timeline** | Horizontal or vertical timeline with events appearing sequentially |
-| Explains a hierarchy/structure | **Tree/org diagram** | Nodes branching out from center with staggered spring entrances |
-| Describes cause → effect | **Arrow chain** | Elements connected by animated arrows, left-to-right flow |
-| Mentions a quote or key phrase | **Kinetic typography** | Key words scale up with spring, hold, then settle into position |
-| Gives a percentage or ratio | **Progress indicator** | Animated ring/bar filling to the value with counting number |
+Speaker video IS the full-screen content. Animation elements are placed on it.
 
-**2. Three Display Modes**
+- **Default placement:** lower third, center (around the speaker's chest area in a talking head). User can reposition.
+- Avoid speaker face zone.
+- Dense real animations — logo morphing, mini data-viz, animated icons, key visual metaphors. NOT text labels or lightweight annotations.
 
-Every scene is shown in one of three modes. Viona decides which mode based on the scene complexity and whether the speaker's expression matters at that moment.
+**Overlay quality:** Overlays are NOT filler or basic text pop-ups. Same production quality as scene animations — viona-glass theme (glass effects, springs, motion), contextual to what the speaker is saying, meaningful durations (not <5 second flashes).
 
-**Fullscreen** — scene takes the entire canvas, speaker audio continues underneath.
-- When: complex visuals with 5+ elements, detailed diagrams, data-heavy charts
-- Transition in: speaker footage fades out (12 frames) while scene fades in
-- Transition out: scene fades out, speaker fades back in
-- Duration: 5-15 seconds typically
-- Rule: never more than 3 consecutive fullscreen scenes — break with split-screen or speaker-only
+Good overlays:
+- Animated icon sequences illustrating a concept
+- Mini data-viz that builds as the speaker explains
+- Glass cards with key terms + depth/parallax entrance
+- Abstract pattern animations that visualize metaphors
+- Logo morphing sequences
 
-**Split-screen** — speaker video animates to the bottom 40-60% of the canvas, scene fills the top 30-60%.
-- When: the visual is simple enough to read at reduced size AND the speaker's expression/gestures add value
-- Transition in: speaker video scales down + translates down (20 frames, spring), scene enters from top with fade
-- Transition out: scene fades out (12 frames), speaker scales back to full (20 frames, spring)
-- The dividing line is NOT hard — speaker fades into the scene area slightly (no harsh cut)
-- Default mode — use this most often
+The Planner's animation brief for overlays must be just as detailed as for scenes.
 
-**Transparent overlay** — scene rendered without a background, composited directly on top of the speaker video.
-- When: lightweight annotations — floating labels, arrows, small accent graphics, single stat callouts
-- Max 1-3 elements visible at once
-- **CRITICAL: NEVER place overlays near the speaker's face.** Use dead zones only — sides, top corners, bottom area
-- Enter: fade + slight translateY (12px up), spring
-- Exit: fade out (8 frames)
+### Stacked (display mode)
 
-**3. Punch-in on Speaker**
-Hard cut to a cropped/zoomed version of the speaker at emphasis moments. Use BETWEEN scene segments when the speaker is making a direct point without needing a visual.
-- Crop to ~130-150% of original frame, centered on face
-- 1-2 per minute max
-- Only during speaker-only segments, never during a scene
+Animation gets its own dedicated space by MOVING THE SPEAKER. Speaker shrinks to the bottom portion, animation occupies the top portion. Two separate zones.
 
-**4. Jump Cuts**
-Remove all filler words, silences >750ms, retakes, false starts. Tighten pacing.
-- Add 100-200ms gaps at cut points (not hard cuts)
-- 3-8% zoom punch-in at each cut point to mask the jump
+- Default split ratio: 50/50
+- Ratio calculated from source video dimensions to fit speaker without black bars or excessive cropping
+- Default mode for most structured content scenes
 
-**5. Kinetic Typography**
-Key phrases animate on screen as the speaker says them. Used for emphasis when a full scene would be overkill.
-- Text enters with spring (scale 0.8 → 1.0, opacity 0 → 1, translateY 20 → 0)
-- Hold for 1.5-3 seconds while speaker says the phrase
-- Exit with fade-out (opacity 1 → 0, 12 frames)
-- Color: `COLORS.primary` (#8B5CF6) for the key word, `COLORS.textPrimary` for surrounding text
-- Positioned center-screen or lower third depending on context
-- Never overlap with a scene — kinetic text is used in speaker-only segments
+### Fullscreen (display mode)
 
-### Secondary Techniques
+Speaker video hidden (opacity 0, not removed). Animation takes the full canvas. Speaker audio continues underneath.
 
-**6. Heading/Topic Text**
-Section title that appears at section transitions. Positioned at top of frame.
-- Glass pill background with topic label
-- Enter: slide down from top + fade (15 frames)
-- Hold: entire section duration
-- Exit: fade out when section changes
+- Used when the visual needs full viewer attention — complex diagrams, dense data, visual metaphors that need space
 
-**7. Lower Thirds**
-Speaker name + title at video start. Topic labels at section changes.
-- Glass card style from `viona-glass.md` theme
-- Position: bottom-left, above caption area
-- Enter: slide right + fade (15 frames, spring)
-- Hold: 3-5 seconds
-- Exit: fade out (12 frames)
+**Key distinction:** Overlay adds elements ON the speaker video. Stacked gives the animation its own space BY moving the speaker. Fullscreen removes the speaker entirely.
 
-~~**SFX & Background Music** — later phase, not in scope for now.~~
+## 3. Transitions (15 total)
 
-**8. Flash/White Frame**
-Brief flash between major section transitions. Signals "new topic" to the viewer.
-- Duration: 2-3 frames only
-- Color: white at 80% opacity (not pure white — matches the glass aesthetic)
-- Use sparingly: only between major sections, not between every scene
+**Duration: 300ms for ALL transitions.** Core principle: each state defines spatial positions for speaker and animation. A transition animates both elements to their new positions simultaneously, same speed, 300ms. No sequential animations. Scenes chain directly — no mandatory Speaker state between scenes.
 
-**9. On-Screen Bullet Points**
-Key points building up as the speaker lists them. Use when the speaker is listing 3-7 items.
-- Each bullet enters with spring animation as the speaker says it
-- Glass card background containing all bullets
-- Active bullet: `COLORS.primary` text, previous bullets: `COLORS.textSecondary`
-- Position: split-screen mode (speaker bottom, bullets top) or overlay (right side)
+### Same-mode transitions (content swap, no speaker movement)
 
-### Do NOT Use
-- B-roll stock footage or photos
-- Ken Burns pan/zoom
-- Emoji/sticker overlays
-- Meme/pop culture clips
-- Glitch/RGB split transitions (doesn't match the polished glass aesthetic)
-- Screen shake (too aggressive for educational content)
+**Stacked → Stacked:** Scene A animation exits top. Scene B animation enters top. Speaker stays in bottom portion. Content swap only. 300ms.
 
-## Pacing Rules
+**Fullscreen → Fullscreen:** Scene A exits (fade/scale). Scene B enters (fade/scale). Speaker stays hidden. Content swap. 300ms.
 
-### Visual Density
-- **Never more than 8 seconds** of speaker-only without a visual element (scene, overlay, kinetic text, or heading)
-- **Scenes should cover 40-60%** of total video duration
-- **Speaker-only segments: 20-35%** of total duration — these are breathing room
-- **Overlays/kinetic text: 10-20%** of total duration — lightweight reinforcement
+**Overlay → Overlay:** Overlay A exits. Overlay B enters its position. Speaker stays full screen. Content swap. 300ms.
 
-### Scene Timing
-- Scene duration: **5-15 seconds** per scene animation
-- Elements within a scene: stagger entrances by **6-10 frames** minimum
-- No element should enter after 70% of the scene duration — leave time for the viewer to absorb
-- Scene must have motion from **frame 0** — never a static opening frame
+### Cross-state transitions (speaker position changes)
 
-### Transition Timing
-- Speaker → fullscreen scene: **12-15 frames** crossfade
-- Speaker → split-screen: **20 frames** speaker resize (spring) + scene fade-in
-- Scene → speaker: **12 frames** scene fade-out + speaker restore
-- Between scenes: **6-10 frame** gap with speaker visible (don't chain scenes back-to-back)
+**Speaker → Stacked:** Speaker shrinks from full canvas → bottom portion. Animation slides in from top → top portion. Simultaneous, 300ms.
 
-### Punch-in Frequency
-- **1-2 per minute** in speaker-only segments
-- Never during a scene or overlay
-- Never two punch-ins within 10 seconds of each other
+**Speaker → Fullscreen:** Speaker shrinks away (scale down + fade → opacity 0). Animation expands in → full canvas. Simultaneous, 300ms.
 
-## Layout Pattern Variety
+**Speaker → Overlay:** Speaker stays full canvas (no movement). Overlay animation slides into its placement position. 300ms.
 
-No two adjacent scenes should use the same composition pattern:
-- **Center-dominant** — hero element large and centered, supporting text wraps around
-- **Asymmetric** — content weighted 60/40 or 70/30 to one side
-- **Diagonal flow** — elements along a diagonal axis, top-left to bottom-right
-- **Stacked cascade** — elements overlap slightly with parallax depth
-- **Full-bleed** — single element fills entire canvas
-- **Scattered** — elements placed organically, not grid-aligned
+**Stacked → Speaker:** Animation slides out → off top. Speaker expands from bottom → full canvas. Simultaneous, 300ms.
 
-The Planner specifies a `layout` field per scene. The Animator follows the specified pattern rather than defaulting to top/middle/bottom zones. Bottom 12% stays clear for captions.
+**Stacked → Fullscreen:** Animation expands from top portion → full canvas. Speaker shrinks from bottom → hidden (opacity 0). Simultaneous, 300ms.
 
-## Scene Design Rules
+**Stacked → Overlay:** Stacked animation slides out top. Speaker expands bottom → full canvas. Overlay slides into placement position. All simultaneous, 300ms.
+
+**Fullscreen → Speaker:** Animation shrinks away (scale down + fade). Speaker fades/scales back in → full canvas. Simultaneous, 300ms.
+
+**Fullscreen → Stacked:** Animation contracts from full canvas → top portion. Speaker slides in from bottom → bottom portion. Simultaneous, 300ms.
+
+**Fullscreen → Overlay:** Fullscreen animation shrinks away. Speaker fades/scales back in → full canvas. Overlay slides into placement position. All simultaneous, 300ms.
+
+**Overlay → Speaker:** Overlay slides out. Speaker stays full canvas (no change needed). 300ms.
+
+**Overlay → Stacked:** Overlay slides out. Speaker shrinks from full → bottom portion. Stacked animation slides in from top. All simultaneous, 300ms.
+
+**Overlay → Fullscreen:** Overlay slides out. Animation expands in → full canvas. Speaker shrinks away → hidden. All simultaneous, 300ms.
+
+### Major section boundary
+
+Optional white flash frame (2-3 frames, 80% opacity) to signal new topic. Use sparingly — only between major sections.
+
+## 4. Speaker Zoom/Punch-in
+
+- Zoom 130-150%, centered on face
+- 1-2 per minute during overlay segments (speaker is full screen, overlay is a separate layer on top)
+- Never during Stacked or Fullscreen scenes (speaker is moved/hidden)
+- Never two punch-ins within 10 seconds
+- Hard cut (split video, apply crop), not animated zoom
+- Planner decides timestamps, Layout Editor executes
+
+## 5. Animation Scene Types
+
+| Content pattern | Scene type |
+|---|---|
+| Lists, steps, reasons | Step cards |
+| A vs B, pros/cons | Comparison columns |
+| Process, workflow | Flowchart |
+| Stats, percentages | Data visualization |
+| Term definition | Definition card |
+| Chronological events | Timeline |
+| Structure, dependencies | Hierarchy/tree |
+| Cause → effect | Arrow chain |
+| Percentage, ratio | Progress indicator |
+| Visual metaphor, abstract/emotional content | Custom animation |
+
+No content is "too abstract" for a scene. If transcript content doesn't fit a structured type, use **Custom animation** with abstract visual metaphors. Example: "thinking outside the box" → animate a glowing dot (person) outside a box with other dots inside. The Planner interprets speech metaphors into literal/abstract visual concepts.
+
+## 6. Layout Patterns (composition within a scene)
+
+- **Center-dominant** — hero element large and centered
+- **Asymmetric** — content weighted 60/40 or 70/30
+- **Diagonal flow** — elements along a diagonal axis
+- **Stacked cascade** — elements overlap with parallax depth
+- **Full-bleed** — single element fills canvas
+- **Scattered** — organic placement, not grid-aligned
+
+**Rule:** No two adjacent scenes use the same layout pattern. Bottom 12% stays clear for captions.
+
+## 7. Pacing Rules
+
+- Planner covers the ENTIRE timeline — every moment is either a scene (Stacked/Fullscreen) or an overlay
+- Stacked/Fullscreen scenes cover 40-60% of total duration (rest is overlays)
+- Scene duration: 5-15 seconds each (overlays fill remaining time)
+- Elements stagger entrances by 6-10 frames minimum
+- Motion from frame 0 — never a static opening frame
+- Transitions go directly from one state to the next (300ms)
+
+## 8. Scene Design Rules
 
 ### Mandatory
-- Every scene follows `viona-glass.md` theme — colors, fonts, springs, glass effects
-- All `interpolate()` calls must have BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'`
+- Follow viona-glass theme (colors, fonts, springs, glass effects)
+- All `interpolate()` calls need BOTH `extrapolateLeft: 'clamp'` AND `extrapolateRight: 'clamp'`
 - No `useCurrentFrame()` subtraction inside `<Sequence>` — frame is already 0-relative
-- `overflow: 'hidden'` on all containers with moving elements
-- Minimum **3 distinct animated elements** per scene
-- Motion from **frame 0** — never a static opening frame
+- `overflow: 'hidden'` on containers with moving elements
+- Content must match EXACTLY what the speaker says
+- Numbers, labels, items must match transcript verbatim
 
 ### Visual Quality
 - Every glass card uses the full glass recipe (bg, backdrop-filter, border, borderTop specular, shadow)
-- Text hierarchy: headings at `COLORS.textPrimary`, supporting text at `COLORS.textSecondary`
-- Accent elements use `COLORS.primary` (#8B5CF6)
-- Numbers and data use monospace font
+- Text hierarchy: headings at primary color, supporting text at secondary
+- Accent elements use primary violet (#8B5CF6)
 - Minimum 48px from canvas edge for any content
 
-### Content Accuracy
-- Scene content must match EXACTLY what the speaker is saying — not a loose interpretation
-- If speaker says "three reasons" the scene must show exactly three items, not two or four
-- Numbers shown must match numbers spoken
-- Labels must use the speaker's terminology, not synonyms
+## 9. Do NOT Use
 
-## Display Mode Decision Tree
-
-```
-Is the concept complex? (5+ elements, detailed relationships, data-heavy)
-  → YES → Fullscreen
-  → NO →
-    Does the speaker's face/expression add value right now?
-      → YES → Split-screen
-      → NO →
-        Is it a simple annotation? (1-3 elements, label, single stat)
-          → YES → Transparent overlay
-          → NO → Split-screen (default)
-```
-
-Additional rules:
-- Never more than 3 consecutive fullscreen scenes
-- After a fullscreen scene, next scene should be split-screen or speaker-only
-- Overlay scenes should be short (3-8 seconds)
-- Start the video with speaker-only or split-screen, not fullscreen (viewer needs to see who's talking)
-
-## Scene Content Strategy
-
-The planner reads the transcript and decides what type of scene to generate for each segment. The decision is based on the CONTENT of what's being said, not keywords.
-
-### Pattern Matching
-
-**Enumeration** — speaker lists items, steps, reasons, tips
-→ Numbered glass cards with staggered entrance. Each card appears as the speaker mentions that item.
-
-**Comparison** — speaker contrasts A vs B, pros/cons, before/after
-→ Two-column layout. Left column enters first, right column enters 8 frames later. Matching rows highlight differences.
-
-**Process** — speaker describes a workflow, pipeline, how something works
-→ Flowchart with nodes and connecting lines. Nodes enter with spring, lines draw between them progressively.
-
-**Data** — speaker mentions a statistic, percentage, growth, measurement
-→ Animated bar/ring/counter. Number counts up from 0 to the value. Bar fills with violet gradient.
-
-**Definition** — speaker explains what something means
-→ Glass card with the term in large violet text, definition in secondary text below. Simple, clean.
-
-**Timeline** — speaker describes events in order, history, phases
-→ Horizontal timeline with date/event markers appearing left-to-right.
-
-**Hierarchy** — speaker describes relationships, org structure, dependencies
-→ Tree diagram. Root node enters first, children branch out with staggered springs.
-
-**Cause & Effect** — speaker explains if X then Y, consequences, results
-→ Two elements connected by an animated arrow. Left element enters, arrow draws, right element enters.
-
-**Key Phrase** — speaker says something quotable, a principle, a rule
-→ Kinetic typography. Key words scale up with spring, hold, settle. No glass card needed — text directly on screen.
-
-**Quantity/Scale** — speaker compares sizes, amounts, magnitudes
-→ Proportional shapes or bars showing relative scale. Animated fill to represent each value.
-
-### When NOT to Add a Scene
-- Speaker is telling a personal anecdote or story — let them talk, face-to-camera is best
-- Speaker is asking a rhetorical question — let the pause land
-- Speaker is being emotional — don't cover their face with graphics
-- The concept is already clear without a visual — don't add scenes just to fill time
-- Two scenes would be less than 3 seconds apart — consolidate or skip one
+- B-roll stock footage or photos
+- Emoji/sticker overlays
+- Meme/pop culture clips
+- Glitch/RGB split transitions
+- Screen shake
+- Captions or subtitles in animations (separate system)
+- Kinetic typography as standalone technique (text animation is part of scenes)
+- Ken Burns pan/zoom
+- Speaker-only segments (entire timeline must be covered)

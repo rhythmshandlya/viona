@@ -56,6 +56,8 @@ const itemDataSchemas: Record<string, z.ZodTypeAny> = {
   scene: z.object({
     sceneFile: z.string(),
     displayMode: z.enum(['fullscreen', 'split-screen', 'overlay']).optional(),
+    sceneName: z.string().optional(),
+    sceneType: z.string().optional(),
   }),
   caption: z.object({ words: z.array(captionWordSchema) }),
   shape: z.object({
@@ -741,6 +743,87 @@ export const generateCaptionsTool = {
   },
 };
 
+export const rippleDeleteTool = {
+  name: 'ripple_delete',
+  description:
+    'Remove an item and shift all later items on the SAME track backward to close the gap. ' +
+    'Optionally leave a gap (gapMs, default 150ms). Also shifts items on paired tracks — ' +
+    'e.g., if you ripple-delete a video item, matching audio items after that point shift too. ' +
+    'Use this instead of remove_item when trimming fillers to keep the timeline tight.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      itemId: { type: 'string', description: 'Item ID to remove' },
+      gapMs: {
+        type: 'number',
+        description: 'Gap to leave at the cut point (default 150ms). Set to 0 for no gap.',
+      },
+    },
+    required: ['itemId'],
+  },
+  async execute(input: { itemId: string; gapMs?: number }): Promise<string> {
+    return withManifestLock(async () => {
+      try {
+        const manifest = await readManifest();
+        const items: any[] = manifest.items ?? [];
+        const item = items.find((i: any) => i.id === input.itemId);
+        if (!item) {
+          return JSON.stringify({ removed: input.itemId, alreadyGone: true });
+        }
+
+        const gapMs = input.gapMs ?? 150;
+        const removedDuration = item.endMs - item.startMs;
+        const shiftMs = Math.max(0, removedDuration - gapMs);
+        const cutPointMs = item.startMs;
+
+        // Determine which tracks to ripple. Video and audio tracks are paired —
+        // if you ripple on a video track, also ripple audio tracks and vice versa.
+        const tracks: any[] = manifest.tracks ?? [];
+        const sourceTrack = tracks.find((t: any) => t.id === item.trackId);
+        const MEDIA_TYPES = new Set(['video', 'audio']);
+        const isMediaTrack = sourceTrack && MEDIA_TYPES.has(sourceTrack.type);
+
+        const tracksToRipple = new Set<string>();
+        tracksToRipple.add(item.trackId);
+        if (isMediaTrack) {
+          // Also ripple all other media tracks (audio ↔ video pairing)
+          for (const t of tracks) {
+            if (MEDIA_TYPES.has(t.type)) {
+              tracksToRipple.add(t.id);
+            }
+          }
+        }
+
+        // Remove the item
+        const idx = items.indexOf(item);
+        items.splice(idx, 1);
+
+        // Shift all items on rippled tracks that start AFTER the cut point
+        let shifted = 0;
+        for (const i of items) {
+          if (tracksToRipple.has(i.trackId) && i.startMs >= cutPointMs) {
+            i.startMs = Math.max(0, i.startMs - shiftMs);
+            i.endMs = Math.max(i.startMs + 1, i.endMs - shiftMs);
+            shifted++;
+          }
+        }
+
+        await writeManifest(manifest);
+        // Auto-sync transcript and captions
+        syncTranscript().then(() => syncCaptions()).catch(() => {});
+        return JSON.stringify({
+          removed: input.itemId,
+          shiftMs,
+          gapMs,
+          itemsShifted: shifted,
+        });
+      } catch (err: any) {
+        return `Failed to ripple delete: ${err.message}`;
+      }
+    });
+  },
+};
+
 export const allManifestTools = [
   readManifestTool,
   readItemTool,
@@ -751,6 +834,7 @@ export const allManifestTools = [
   updateItemTool,
   removeItemTool,
   splitItemTool,
+  rippleDeleteTool,
   updateCaptionStyleTool,
   generateCaptionsTool,
 ];

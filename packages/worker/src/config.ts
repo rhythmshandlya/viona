@@ -78,19 +78,10 @@ export const config = {
     return this.storage;
   },
 
-  // Transcription mode: "local" (WhisperX) or "api" (OpenAI Whisper API)
+  // Transcription via OpenAI Whisper API
   transcription: {
-    mode: (process.env.TRANSCRIPTION_MODE || 'local') as 'local' | 'api',
     openaiApiKey: process.env.OPENAI_API_KEY,
-  },
-
-  whisperx: {
-    scriptPath: process.env.WHISPERX_SCRIPT_PATH || join(WORKER_ROOT, 'scripts', 'whisperx_transcribe.py'),
-    model: process.env.WHISPER_MODEL || 'base',
     language: process.env.WHISPER_LANGUAGE || 'en',
-    device: process.env.WHISPER_DEVICE || 'auto',
-    computeType: process.env.WHISPER_COMPUTE_TYPE || 'float16',
-    batchSize: parseInt(process.env.WHISPER_BATCH_SIZE || '16', 10),
   },
 
   wordStyleAnalysis: {
@@ -108,6 +99,6 @@ export const config = {
     )),
   },
 
-  // Python path for running Python scripts (transcription, enhancement)
+  // Python path for running Python scripts (head-tracking)
   pythonPath: process.env.PYTHON_PATH || 'python3',
 } as const;

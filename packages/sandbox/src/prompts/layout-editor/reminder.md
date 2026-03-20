@@ -1,18 +1,31 @@
 <critical_reminder>
-- Split in REVERSE chronological order — always. Latest timestamp first, work backward.
-- Audio and video are married — split_item is per-item, so split BOTH the video AND audio item separately at the same timestamp.
-- Every mockup MUST have: data.sceneFile + data.displayMode set.
-- Fullscreen scenes: speaker opacity 0 via keyframes (do NOT remove the item — audio must continue).
-- Split-screen scenes: exact transform { x, y, width, height } from the plan.
-- Overlay scenes: speaker stays full size — no transform change.
-- Overlay tracks: type 'overlay', above video track, below caption track.
-- Read speaker-grid.json for face position validation if available. Fallback: face centered in top 40%.
-- Zero creative decisions — execute the plan mechanically. Every value comes from SCENE_PLAN.md.
-- Keyframe timeMs is relative to the item's startMs, NOT the absolute timeline.
-- Keyframes MUST use `{timeMs, props: {...}}` format. Example: `{"timeMs": 0, "props": {"opacity": 0}}`. NEVER flat `{"timeMs": 0, "opacity": 0}`.
-- After splits: track which ID is the left (original) vs right (newId) portion.
-- Step 0: zoom-to-fill MUST be done first. No black bars on 9:16 canvas.
-- Splits are MANDATORY. Keyframes on unsplit items = wrong. Each scene boundary = split_item on BOTH video AND audio.
-- Every punch-in in the plan MUST be executed. Every multi-angle cut MUST be executed.
-- After splits, read the manifest and count video items — verify the count matches your expected number.
+## Video — Multiple Segments, No New Splits
+- After the Trim Editor, the video track has MULTIPLE video items (fillers removed). Enumerate ALL of them.
+- Do NOT split video at scene boundaries. Keyframes handle display mode changes.
+- For each video segment: determine which scene(s) it overlaps → set correct transform/opacity.
+- Segments within ONE scene: set static transform via `update_item` (no keyframes needed).
+- Segments spanning a scene boundary: add 300ms transition keyframes at the boundary.
+- Do NOT split video for any reason. No punch-ins or crop changes.
+
+## Keyframes
+- Build ONE complete keyframe array for the video item covering ALL scene boundaries.
+- Each boundary: 300ms transition from previous state to new state.
+- Stacked speaker: `{ x: 0, y: SCENE_H, width: CANVAS_W, height: CANVAS_H - SCENE_H, opacity: 1 }`
+- Fullscreen speaker: `{ opacity: 0 }` (hidden, audio continues)
+- Overlay speaker: `{ x: 0, y: 0, width: CANVAS_W, height: CANVAS_H, opacity: 1 }` (full canvas)
+- Format: `{ timeMs: T, props: { ... } }` — NEVER flat format.
+- timeMs is RELATIVE to the item's startMs.
+
+## Scene Items
+- Type `'scene'` (NOT `'shape'`).
+- Must have `data.sceneFile` (with `.tsx`), `data.displayMode`, `data.sceneName`, `data.sceneType`.
+- `displayMode` API value for Stacked = `"split-screen"`.
+- All scenes go on ONE overlay track, sequential, no overlap.
+- Each scene gets entrance/exit keyframes matching the plan's transition type.
+
+## Video fill
+- Handled by the renderer via `objectFit: 'cover'`. Do NOT apply any crop or zoom transforms.
+
+## Zero creative decisions
+- Execute the plan mechanically. Every value comes from SCENE_PLAN.md.
 </critical_reminder>

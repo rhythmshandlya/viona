@@ -110,7 +110,7 @@ export function createMcpServers(
         'show_widget',
         'Show an interactive widget to the user in the chat panel. Use this to present choices, plans for approval, theme pickers, and confirmations. The widget appears inline in the conversation and the user can interact with it.',
         {
-          kind: z.enum(['theme_picker', 'scene_plan', 'choice', 'confirmation']),
+          kind: z.enum(['theme_picker', 'scene_plan', 'choice', 'confirmation', 'completion']),
           id: z.string(),
           data: z.record(z.unknown()).optional(),
         },

@@ -31,7 +31,7 @@ Read and modify the manifest via MCP tools (`read_manifest`, `add_item`, `update
 - `split_item` operates on ONE item. When splitting video, ALSO split its paired audio item at the same timestamp.
 - Audio items MUST have `data.startFrom` set (milliseconds into the source file). Without it, audio plays from 0ms regardless of timeline position.
 - Keyframes MUST use `{timeMs, props: {...}}` format. Example: `{"timeMs": 0, "props": {"opacity": 0}}`. NEVER flat `{"timeMs": 0, "opacity": 0}`.
-- Scene items MUST have `data.displayMode` set (`fullscreen`, `split-screen`, or `overlay`).
+- Scene items MUST have `data.displayMode` set (`fullscreen`, `split-screen`, or `overlay`). Note: `split-screen` is the API value for what the Planner calls "Stacked".
 - `data.sceneFile` should include `.tsx` extension (e.g., `Scene1.tsx` not `Scene1`).
 - transcript.json syncs automatically after manifest changes. Use post-sync timestamps (not source timestamps) for scene planning.
 
@@ -45,6 +45,11 @@ import { Background } from '../components/Background';
 Scene files use `export default` for the component.
 Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
 
+## interpolate() Rules — CRITICAL
+- `inputRange` MUST be strictly monotonically increasing: `[0, 100]` is valid, `[400, 100]` CRASHES.
+- If you need "higher input = lower output", swap both ranges: `interpolate(x, [100, 400], [0.4, 0])` not `interpolate(x, [400, 100], [0, 0.4])`.
+- ALWAYS include `extrapolateLeft: 'clamp', extrapolateRight: 'clamp'` to prevent runaway values.
+
 ## Glass & Motion Rules
 - Every container/card/panel uses animated liquid glass (gradient surface + specular highlight + depth shadow + grain). Static flat rectangles are wrong.
 - Spring vocabulary: SNAPPY (hero), SMOOTH (cards), BOUNCY (accents), HEAVY (panels). Adjacent elements should use different springs.
@@ -54,5 +59,5 @@ Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
 - Opacity and transform offsets: stagger by 3-5 frames (never start on same frame).
 
 ## Video Positioning
-- Layout Editor Step 0: zoom-to-fill eliminates black bars on 9:16 canvas from landscape sources.
-- If source video has a crop from Trim Editor, Layout Editor multiplies by zoom-fill factor (preserves relative offsets).
+- Video uses `objectFit: 'cover'` in the renderer — it automatically fills the canvas with no black bars.
+- No manual crop/zoom-to-fill is needed. The renderer handles it.

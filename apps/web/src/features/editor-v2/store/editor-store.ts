@@ -1205,6 +1205,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      syncWorkspaceManifest();
       dispatchManifestOp({ op: 'update_caption_style', updates: { ...styleUpdates } });
     },
 
@@ -1232,6 +1233,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       }
       if (ops.length > 0) dispatchOps(ops);
+      syncWorkspaceManifest();
     },
 
     updateWordStyleOverrides: (captionId: string, wordIndex: number, overrides: Partial<WordStyleOverrides> | null) => {
@@ -1265,6 +1267,7 @@ export const useEditorStore = create<EditorStore>()(
         }
       });
       get().pushHistory();
+      syncWorkspaceManifest();
       const updatedItem = get().items[captionId];
       if (updatedItem) {
         dispatchOps([{ tool: 'updateItem', input: { itemId: captionId, data: updatedItem.data } }]);

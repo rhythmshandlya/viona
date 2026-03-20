@@ -1,15 +1,23 @@
 <critical_reminder>
-Read manifest BEFORE editing. Replace mockups ONE at a time: remove_item then add_item (scene type) with same track, time, transform.
+Read manifest BEFORE making any changes. Understand the full state first.
 
-Mockup identification: shape items with data.sceneFile set.
+Scene items: type 'scene' with data.sceneFile set (e.g., 'Scene1.tsx'). These were placed by the Layout Editor — do NOT move, resize, or retime them.
 
-Scene items: type 'scene', data { sceneFile: 'scenes/{name}.tsx' }.
+Verification checklist:
+- Every scene item's data.sceneFile points to a real file in src/scenes/
+- Scene files contain real animation code (not skeleton placeholders)
+- No overlaps on any track
+- Video keyframes match plan's display modes at each boundary
+- Scene entrance/exit keyframes are 300ms
+- No overlay covers the speaker's face zone
+- No overlay covers the caption area (bottom ~15%)
+- Audio is continuous (no gaps)
+- Track z-order: video (bottom), scenes (middle), captions (top)
 
-Caption styling: update_caption_style with global style from plan.
+Caption styling: apply via update_caption_style using the global style from the plan.
 
-Track z-order: video (bottom) then overlay (middle) then caption (top).
-
-Verify: no overlaps, no gaps, all scene files exist, overlays don't cover face, transitions correct.
+Do NOT modify: scene timing, scene transforms, video keyframes, scene files.
+If a scene file is missing or still a skeleton, report it — do NOT fix it.
 
 Render 3-5 stills to verify visually.
 </critical_reminder>

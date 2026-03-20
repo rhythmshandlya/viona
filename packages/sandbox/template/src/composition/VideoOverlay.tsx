@@ -24,6 +24,7 @@ export const VideoOverlay: React.FC<VideoOverlayProps> = ({ data }) => {
     <OffthreadVideo
       src={src}
       startFrom={startFromFrames}
+      pauseWhenBuffering
       volume={data.volume ?? 1}
       playbackRate={data.playbackRate ?? 1}
       style={{

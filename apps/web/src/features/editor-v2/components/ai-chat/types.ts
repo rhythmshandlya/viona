@@ -15,7 +15,7 @@ export interface WidgetBlock {
   type: 'widget';
   widget: {
     id: string;
-    kind: 'theme_picker' | 'scene_plan' | 'choice' | 'confirmation';
+    kind: 'theme_picker' | 'scene_plan' | 'choice' | 'confirmation' | 'completion';
     message?: string;
     scenes?: unknown[];
     options?: unknown[];

@@ -74,7 +74,7 @@ export const PlayerComposition: React.FC<PlayerCompositionProps> = ({ manifest }
               // load before becoming visible (avoids flash at cut boundaries).
               // premountFor requires a container (no layout="none").
               const needsPremount = item.type === 'video' || item.type === 'image';
-              const premountFrames = needsPremount ? fps : 0;
+              const premountFrames = needsPremount ? fps * 2 : 0; // 2s buffer for video seek
 
               const transform = item.transform ?? FULL_CANVAS_TRANSFORM;
               return (

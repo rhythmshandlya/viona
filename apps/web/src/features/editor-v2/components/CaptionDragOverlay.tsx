@@ -498,6 +498,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
         }}
         onPointerEnter={() => setIsHovered(true)}
         onPointerLeave={() => !isDragging && setIsHovered(false)}
+        onClick={(e) => e.stopPropagation()}
       />
 
       {/* Bounding box + move area */}
@@ -521,6 +522,7 @@ export function CaptionDragOverlay({ containerRef, canvasWidth, canvasHeight }: 
           }
           handlePointerDown(e, 'move');
         }}
+        onClick={(e) => e.stopPropagation()}
       />
 
       {/* Position readout tooltip during drag */}

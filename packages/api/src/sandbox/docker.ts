@@ -14,7 +14,8 @@ import type { SandboxProvider, Sandbox, CreateSandboxOpts } from './provider.js'
 const execFileAsync = promisify(execFile);
 
 // Local directory for bind-mounted workspaces (visible on host for dev inspection)
-const WORKSPACES_ROOT = resolve(process.cwd(), '.sandbox-workspaces');
+// Resolve to monorepo root — API cwd is packages/api/, go up two levels
+const WORKSPACES_ROOT = resolve(process.cwd(), '..', '..', '.sandbox-workspaces');
 
 // Lazy-load dockerode — only used in Docker provider, not on Railway
 import type Docker from 'dockerode';

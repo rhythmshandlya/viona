@@ -1,7 +1,9 @@
 'use client';
 
 import React, { memo, useState } from 'react';
+import { CheckCircle2, Clock, Sparkles } from 'lucide-react';
 import type { WidgetBlock } from './types';
+import type { AgentPlan } from '@viona/shared/progress-types';
 import { ScenePlanCard } from '../agent-widgets/ScenePlanCard';
 
 interface WidgetRendererProps {
@@ -203,7 +205,79 @@ export const WidgetRenderer = memo(function WidgetRenderer({
         </div>
       );
 
+    case 'completion':
+      return <CompletionCard widget={widget} />;
+
     default:
       return null;
   }
+});
+
+// ---------------------------------------------------------------------------
+// CompletionCard — persistent "pipeline done" widget
+// ---------------------------------------------------------------------------
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
+
+const CompletionCard = memo(function CompletionCard({ widget }: { widget: WidgetBlock['widget'] }) {
+  const durationSeconds = (widget.durationSeconds as number) ?? 0;
+  const plan = widget.plan as AgentPlan | undefined;
+
+  const completedTasks = plan?.tasks.filter(t => t.status === 'complete').length ?? 0;
+  const totalTasks = plan?.tasks.length ?? 0;
+
+  return (
+    <div className="w-full my-2 rounded-xl border border-green-500/20 bg-green-500/[0.06] backdrop-blur-xl overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center gap-2.5 px-3.5 py-2.5 border-b border-green-500/10">
+        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-500/15">
+          <CheckCircle2 className="w-3.5 h-3.5 text-green-400" />
+        </div>
+        <span className="text-sm font-medium text-green-300/90">Video ready for review</span>
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center gap-4 px-3.5 py-2">
+        {durationSeconds > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-white/40">
+            <Clock className="w-3 h-3" />
+            <span>{formatDuration(durationSeconds)}</span>
+          </div>
+        )}
+        {totalTasks > 0 && (
+          <div className="flex items-center gap-1.5 text-xs text-white/40">
+            <Sparkles className="w-3 h-3" />
+            <span>{completedTasks}/{totalTasks} tasks</span>
+          </div>
+        )}
+      </div>
+
+      {/* Completed plan tasks (collapsed summary) */}
+      {plan && plan.tasks.length > 0 && (
+        <div className="px-3.5 pb-2.5">
+          <div className="flex flex-wrap gap-1.5">
+            {plan.tasks.map((task) => (
+              <span
+                key={task.id}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border ${
+                  task.status === 'complete'
+                    ? 'bg-green-500/10 border-green-500/15 text-green-400/70'
+                    : task.status === 'failed'
+                    ? 'bg-red-500/10 border-red-500/15 text-red-400/70'
+                    : 'bg-white/[0.04] border-white/[0.06] text-white/30'
+                }`}
+              >
+                {task.status === 'complete' ? '✓' : task.status === 'failed' ? '✗' : '○'} {task.title}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 });

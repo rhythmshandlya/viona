@@ -195,7 +195,34 @@ function validateSceneCode(
     }
   }
 
-  // Check 4: Hardcoded pixel values for common sizing
+  // Check 4: Reversed interpolate inputRange (must be strictly monotonically increasing)
+  // Catches patterns like interpolate(x, [400, 100], ...) where 400 > 100
+  const interpolatePattern = /interpolate\s*\([^,]+,\s*\[([^\]]+)\]/g;
+  let interpMatch: RegExpExecArray | null;
+  while ((interpMatch = interpolatePattern.exec(code)) !== null) {
+    const rangeStr = interpMatch[1];
+    const values = rangeStr.split(',').map(s => {
+      const trimmed = s.trim();
+      const num = parseFloat(trimmed);
+      return isNaN(num) ? null : num;
+    });
+    // Only check when all values are numeric literals (skip variable references)
+    if (values.length >= 2 && values.every(v => v !== null)) {
+      const nums = values as number[];
+      for (let i = 1; i < nums.length; i++) {
+        if (nums[i] <= nums[i - 1]) {
+          issues.push(
+            `interpolate() inputRange is not strictly increasing: [${rangeStr.trim()}] — ` +
+            `Remotion requires inputRange to be strictly monotonically increasing. ` +
+            `Swap the order and adjust outputRange to match.`
+          );
+          break;
+        }
+      }
+    }
+  }
+
+  // Check 5: Hardcoded pixel values for common sizing
   const hardcodedFontSize = /fontSize:\s*(\d{2,3})(?!\s*[*])/g;
   let fontMatch: RegExpExecArray | null;
   const hardcodedFonts: number[] = [];

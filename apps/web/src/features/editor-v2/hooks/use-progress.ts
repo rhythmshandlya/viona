@@ -50,8 +50,12 @@ export function useActiveTasks(): UseActiveTasksResult {
 
   const restoreFromApi = useCallback((apiTasks: ActiveTask[], apiBusy: boolean) => {
     setTasks(prev => {
-      // Don't re-add tasks that have pending removal timers (already completed on frontend)
-      const filtered = apiTasks.filter(t => !pendingRemovals.current.has(t.id));
+      // Filter out completed tasks from API (they should have been removed, but
+      // Redis may still hold them if the Lua complete op races with a read)
+      // Also don't re-add tasks that have pending removal timers
+      const filtered = apiTasks.filter(t =>
+        t.status !== 'completed' && !pendingRemovals.current.has(t.id)
+      );
       // Preserve completed tasks that are mid-fade-out (have pending timers)
       const completedPending = prev.filter(t =>
         t.status === 'completed' && pendingRemovals.current.has(t.id)

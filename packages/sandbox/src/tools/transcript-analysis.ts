@@ -25,6 +25,9 @@ const TIER_1_FILLERS = new Set(['um', 'uh', 'er', 'ah', 'hmm', 'mmm', 'erm', 'uh
 // Tier 2 fillers — context-dependent
 const TIER_2_FILLERS = new Set(['you know', 'i mean', 'like', 'so', 'basically', 'actually', 'literally', 'sort of', 'kind of']);
 
+// Buffer around content window edges (breathing room before first / after last word)
+const CONTENT_BUFFER_MS = 500;
+
 interface FillerDetection {
   wordIndex: number;
   text: string;
@@ -51,15 +54,31 @@ interface FalseStartDetection {
   wordCount: number;
 }
 
+/** The usable region of the video — everything outside is BTS/dead air */
+interface ContentWindow {
+  startMs: number;
+  endMs: number;
+  /** Dead air before first word (BTS/setup) — should be removed entirely */
+  headTrimMs: number;
+  /** Dead air after last word (BTS/outro) — should be removed entirely */
+  tailTrimMs: number;
+}
+
 export interface TranscriptAnalysis {
+  /** The usable content region — trim everything outside this window first */
+  contentWindow: ContentWindow;
   fillers: FillerDetection[];
+  /** Silences WITHIN the content window only (head/tail are in contentWindow) */
   silences: SilenceDetection[];
   retakes: RetakeDetection[];
   falseStarts: FalseStartDetection[];
   contentType: 'tutorial' | 'podcast' | 'interview' | 'vlog' | 'presentation' | 'keynote';
   stats: {
     totalWords: number;
-    totalDurationMs: number;
+    /** Full video duration from manifest (not just transcript) */
+    videoDurationMs: number;
+    /** Duration of actual content (content window) */
+    contentDurationMs: number;
     fillerCount: number;
     silenceCount: number;
     estimatedTrimMs: number;
@@ -96,6 +115,7 @@ function detectFillers(words: Word[]): FillerDetection[] {
   return fillers;
 }
 
+/** Detect silences between words WITHIN the content window only */
 function detectSilences(words: Word[]): SilenceDetection[] {
   const silences: SilenceDetection[] = [];
 
@@ -110,6 +130,28 @@ function detectSilences(words: Word[]): SilenceDetection[] {
   }
 
   return silences;
+}
+
+/** Determine the content window — the usable region of the video */
+function detectContentWindow(words: Word[], videoDurationMs: number): ContentWindow {
+  if (words.length === 0) {
+    return { startMs: 0, endMs: videoDurationMs, headTrimMs: 0, tailTrimMs: 0 };
+  }
+
+  const firstWordStart = words[0].startMs;
+  const lastWordEnd = words[words.length - 1].endMs;
+
+  // Content starts CONTENT_BUFFER_MS before first word (or 0)
+  const contentStart = Math.max(0, firstWordStart - CONTENT_BUFFER_MS);
+  // Content ends CONTENT_BUFFER_MS after last word (or video end)
+  const contentEnd = Math.min(videoDurationMs, lastWordEnd + CONTENT_BUFFER_MS);
+
+  return {
+    startMs: contentStart,
+    endMs: contentEnd,
+    headTrimMs: contentStart, // amount to remove from the start
+    tailTrimMs: videoDurationMs - contentEnd, // amount to remove from the end
+  };
 }
 
 function tokenize(text: string): string[] {
@@ -166,23 +208,25 @@ function detectContentType(segments: Segment[]): TranscriptAnalysis['contentType
   return 'vlog';
 }
 
-export function analyzeTranscript(transcript: Transcript): TranscriptAnalysis {
+export function analyzeTranscript(transcript: Transcript, videoDurationMs: number): TranscriptAnalysis {
+  const contentWindow = detectContentWindow(transcript.words, videoDurationMs);
   const fillers = detectFillers(transcript.words);
   const silences = detectSilences(transcript.words);
   const retakes = detectRetakes(transcript.segments);
   const falseStarts = detectFalseStarts(transcript.segments);
   const contentType = detectContentType(transcript.segments);
 
+  const contentDurationMs = contentWindow.endMs - contentWindow.startMs;
+
   const estimatedTrimMs =
+    contentWindow.headTrimMs +
+    contentWindow.tailTrimMs +
     fillers.reduce((sum, f) => sum + (f.endMs - f.startMs), 0) +
     silences.filter(s => s.tier === 1).reduce((sum, s) => sum + s.durationMs - 400, 0) +
     silences.filter(s => s.tier === 3).reduce((sum, s) => sum + s.durationMs - 450, 0);
 
-  const totalDurationMs = transcript.words.length > 0
-    ? transcript.words[transcript.words.length - 1].endMs
-    : 0;
-
   return {
+    contentWindow,
     fillers,
     silences,
     retakes,
@@ -190,7 +234,8 @@ export function analyzeTranscript(transcript: Transcript): TranscriptAnalysis {
     contentType,
     stats: {
       totalWords: transcript.words.length,
-      totalDurationMs,
+      videoDurationMs,
+      contentDurationMs,
       fillerCount: fillers.length,
       silenceCount: silences.length,
       estimatedTrimMs,
@@ -199,14 +244,15 @@ export function analyzeTranscript(transcript: Transcript): TranscriptAnalysis {
 }
 
 /**
- * MCP tool wrapper for analyzeTranscript — reads transcript from disk.
+ * MCP tool wrapper for analyzeTranscript — reads transcript and manifest from disk.
  */
 export const analyzeTranscriptTool = {
   name: 'analyze_transcript',
   description:
-    'Deterministic filler/silence/retake/false-start detection on the current transcript. ' +
-    'Returns structured analysis with tier classifications and content type detection. ' +
-    'No arguments — reads /workspace/docs/transcript.json automatically.',
+    'Analyze transcript for trimming: detects content window (usable footage vs BTS/dead air), ' +
+    'filler words, silences, retakes, and false starts. Returns contentWindow (head/tail to trim), ' +
+    'plus fine-grained detections within the content. ' +
+    'No arguments — reads transcript.json and manifest.json automatically.',
   input_schema: {
     type: 'object' as const,
     properties: {} as Record<string, never>,
@@ -216,7 +262,24 @@ export const analyzeTranscriptTool = {
     try {
       const raw = await readFile('/workspace/docs/transcript.json', 'utf-8');
       const transcript: Transcript = JSON.parse(raw);
-      const analysis = analyzeTranscript(transcript);
+
+      // Read manifest to get video duration
+      let videoDurationMs = 0;
+      try {
+        const manifestRaw = await readFile('/workspace/manifest.json', 'utf-8');
+        const manifest = JSON.parse(manifestRaw);
+        const videoItem = manifest.items?.find((it: any) => it.type === 'video');
+        if (videoItem) {
+          videoDurationMs = videoItem.endMs - videoItem.startMs;
+        }
+      } catch { /* manifest read is best-effort */ }
+
+      // Fall back to transcript duration if manifest unavailable
+      if (!videoDurationMs && transcript.words.length > 0) {
+        videoDurationMs = transcript.words[transcript.words.length - 1].endMs;
+      }
+
+      const analysis = analyzeTranscript(transcript, videoDurationMs);
       return JSON.stringify(analysis, null, 2);
     } catch (err: any) {
       return `Failed to analyze transcript: ${err.message}`;

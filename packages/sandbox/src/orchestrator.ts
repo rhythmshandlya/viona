@@ -13,7 +13,7 @@
 // 5. Layout — Layout Editor (timeline skeleton, mockups, transforms)
 // 6. Animation — Animators in PARALLEL (one per scene)
 // 7. Review — Viona renders stills, dispatches fix agents
-// 8. Final Assembly — Final Editor (replace mockups, captions, validation)
+// 8. Final Assembly — Final Editor (verify scenes, captions, validation)
 // 9. Final Review — Viona spot-checks
 // 10. Done
 
@@ -24,7 +24,7 @@ type SDKAssistantMessage = Extract<SDKMessage, { type: 'assistant' }>;
 import pino from 'pino';
 import {
   addTask, updateTask, completeTask, appendText,
-  finishJob,
+  finishJob, getJobState,
 } from './job-state.js';
 import { flushCallbacks } from './api-callback.js';
 
@@ -129,7 +129,7 @@ const ANALYSIS_TOOL_NAMES = [
 
 const ANIMATOR_TOOL_NAMES = [
   'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash', 'Skill',
-  ...MANIFEST_TOOL_NAMES,
+  ...MANIFEST_READ_TOOL_NAMES,
   ...SCENE_TOOL_NAMES,
   ...RENDER_TOOL_NAMES,
   ...ASSET_TOOL_NAMES,
@@ -223,13 +223,14 @@ export async function buildOrchestratorOptions(
   ctx: PromptContext,
   mcpServers?: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, setupAgentPrompt, layoutEditorPrompt, finalEditorPrompt] =
+  const [orchestratorPrompt, trimEditorPrompt, plannerPrompt, setupAgentPrompt, layoutEditorPrompt, animatorPrompt, finalEditorPrompt] =
     await Promise.all([
       loadPrompt('orchestrator/system'),
       assembleAgentPrompt('trim-editor', ctx),
       assembleAgentPrompt('planner', ctx),
       assembleAgentPrompt('setup-agent', ctx),
       assembleAgentPrompt('layout-editor', ctx),
+      assembleAgentPrompt('animator', ctx),
       assembleAgentPrompt('final-editor', ctx),
     ]);
 
@@ -263,16 +264,24 @@ export async function buildOrchestratorOptions(
     agents: {
       // ---- Trim Editor (Phase 2) ----
       trim_editor: {
-        description: 'Trims transcript (fillers, silences, retakes), covers jump cuts with zoom punch-ins, applies J/L-cuts, generates captions.',
+        description: 'Trims fillers and silences, verifies audio/video marriage. No visual decisions.',
         prompt: trimEditorPrompt,
         tools: [
-          'Read', 'Write', 'Glob', 'Grep', 'Bash',
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
+        maxTurns: 40,
+        criticalSystemReminder_EXPERIMENTAL:
+          'CRITICAL RULES:\n' +
+          '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
+          '- Use Glob/Grep instead of find/grep via Bash.\n' +
+          '- Audio and video items are MARRIED — every split/trim/remove must be applied to both.\n' +
+          '- ALWAYS read the manifest (read_manifest) before making changes.\n' +
+          '- After changes, use validate_timeline to verify manifest integrity.',
       },
 
       // ---- Planner (Phase 3) ----
@@ -280,68 +289,113 @@ export async function buildOrchestratorOptions(
         description: 'Analyzes transcript with editing style guide, designs spatial layout, creates SCENE_PLAN.md with per-scene entries (speaker layout, scene placement, transitions, animation brief).',
         prompt: plannerPrompt,
         tools: [
-          'Read', 'Write', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'WebSearch', 'WebFetch',
           ...MANIFEST_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
+        maxTurns: 50,
+        criticalSystemReminder_EXPERIMENTAL:
+          'CRITICAL RULES:\n' +
+          '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
+          '- Use Glob/Grep instead of find/grep via Bash.\n' +
+          '- ALWAYS read the manifest and transcript before planning.\n' +
+          '- Scene durations: min 210 frames, max 450 frames. Auto-split longer scenes at largest sync gap.\n' +
+          '- Include self-verification table in SCENE_PLAN.md before writing scenes.json.',
       },
 
       // ---- Setup Agent (Phase 4) ----
       // No SCENE_TOOL_NAMES — this agent writes to src/components/ and src/constants.ts
       // via the Write tool, NOT to src/scenes/ (that's the animators' job).
       setup_agent: {
-        description: 'Scaffolds shared workspace code — constants.ts (theme tokens), Background.tsx, GlassCard.tsx, shared components. Must complete before animators start.',
+        description: 'Scaffolds shared workspace code — constants.ts (theme tokens), Background.tsx, GlassCard.tsx, shared components, AND scene file skeletons with pre-filled DATA objects. Must complete before animators start.',
         prompt: setupAgentPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...RENDER_TOOL_NAMES,
         ],
         model: 'opus',
+        maxTurns: 40,
+        criticalSystemReminder_EXPERIMENTAL:
+          'CRITICAL RULES:\n' +
+          '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
+          '- Every interpolate() call MUST have BOTH extrapolateLeft: "clamp" AND extrapolateRight: "clamp".\n' +
+          '- NEVER subtract scene start from useCurrentFrame() — frames are already 0-relative inside Sequence.\n' +
+          '- After writing .tsx files, ALWAYS call trigger_rebuild to verify compilation.\n' +
+          '- Use render_still to verify visual output after code changes.',
       },
 
       // ---- Layout Editor (Phase 5) ----
       layout_editor: {
-        description: 'Builds timeline skeleton from SCENE_PLAN.md — splits video, sets speaker transforms per display mode, places mockup placeholders, creates overlay tracks, applies transitions.',
+        description: 'Builds timeline skeleton from SCENE_PLAN.md — keyframes speaker transforms per display mode, places scene items, creates overlay tracks, applies transitions. NEVER splits video.',
         prompt: layoutEditorPrompt,
         tools: [
-          'Read', 'Write', 'Glob', 'Grep', 'Bash',
+          'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
+        maxTurns: 40,
+        criticalSystemReminder_EXPERIMENTAL:
+          'CRITICAL RULES:\n' +
+          '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
+          '- Use Glob/Grep instead of find/grep via Bash.\n' +
+          '- NEVER split video items. Display mode changes are handled ENTIRELY through keyframes.\n' +
+          '- Keyframe format: { timeMs, props: {...} } — NEVER flat { timeMs, opacity }.\n' +
+          '- timeMs is RELATIVE to the item\'s own startMs, not the absolute timeline.\n' +
+          '- Scene items MUST have data.sceneFile (.tsx), data.displayMode, data.sceneName, data.sceneType.\n' +
+          '- ALWAYS read_manifest before and after major operations to verify state.',
       },
 
       // ---- Animator (Phase 6) ----
-      // Prompt built per-scene via buildAnimatorPrompt() — base prompt is minimal.
+      // Full system prompt loaded from prompts/animator/system.md + reminder.md.
+      // Per-scene context (brief, dimensions, display mode) is injected by Viona's dispatch message.
       animator: {
-        description: 'Writes Remotion .tsx scene files. Receives per-scene prompt with dimensions, display mode, brief, sync points. Self-heals compilation errors.',
-        prompt: 'You are a Remotion motion graphics engineer. Wait for a scene assignment.',
+        description: 'Motion design engineer. Edits scene skeleton files (created by Setup Agent) to add dense, choreographed Remotion animations. Self-heals compilation errors.',
+        prompt: animatorPrompt,
         tools: ANIMATOR_TOOL_NAMES,
         model: 'opus',
+        maxTurns: 60,
+        criticalSystemReminder_EXPERIMENTAL:
+          'CRITICAL RULES:\n' +
+          '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
+          '- Every interpolate() call MUST have BOTH extrapolateLeft: "clamp" AND extrapolateRight: "clamp".\n' +
+          '- NEVER subtract scene start from useCurrentFrame() — frames are already 0-relative inside Sequence.\n' +
+          '- After editing .tsx files, ALWAYS call trigger_rebuild. If compilation fails, read the error, fix it, rebuild again (max 2 retries).\n' +
+          '- Use render_still to verify visual output. Every settled element needs idle motion.\n' +
+          '- Glass surfaces: gradient + specular + shadow + grain. No static flat rectangles.',
       },
 
       // ---- Final Editor (Phase 8) ----
       final_editor: {
-        description: 'Replaces mockup placeholders with real scene items, applies caption styling, validates all tracks (overlaps, z-order, gaps), verifies overlay placements, final quality pass.',
+        description: 'Verifies scene files are complete (not skeletons), applies caption styling, validates all tracks (overlaps, z-order, gaps), verifies overlay placements, final quality pass.',
         prompt: finalEditorPrompt,
         tools: [
           'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash',
           ...MANIFEST_TOOL_NAMES,
-          ...SCENE_TOOL_NAMES,
           ...RENDER_TOOL_NAMES,
           ...ASSET_TOOL_NAMES,
           ...ANALYSIS_TOOL_NAMES,
         ],
         model: 'opus',
+        maxTurns: 50,
+        criticalSystemReminder_EXPERIMENTAL:
+          'CRITICAL RULES:\n' +
+          '- Use Read tool before editing any file. Use Edit for targeted changes, Write only for new files.\n' +
+          '- Every interpolate() call MUST have BOTH extrapolateLeft: "clamp" AND extrapolateRight: "clamp".\n' +
+          '- NEVER subtract scene start from useCurrentFrame() — frames are already 0-relative inside Sequence.\n' +
+          '- Verify scene files are COMPLETE implementations (not skeletons with TODO placeholders).\n' +
+          '- After any code edits, call trigger_rebuild then render_still to verify.\n' +
+          '- Use validate_timeline for final manifest integrity check.',
       },
     },
     maxTurns: 100,
     includePartialMessages: true,
     thinking: { type: 'adaptive' as const },
+    effort: 'max' as const,
     env: {
       ...process.env,
       ENABLE_TOOL_SEARCH: 'false',
@@ -408,6 +462,8 @@ export async function runOrchestrator(
   let messageCount = 0;
   let textChunks = 0;
   let toolUses = 0;
+  let subagentsDispatched = 0;
+  const subagentTypesDispatched = new Set<string>();
   let lastActivityTime = Date.now();
   let lastResultCost: number | undefined;
   let lastResultTurns: number | undefined;
@@ -519,6 +575,8 @@ export async function runOrchestrator(
                   const subTaskId = addTask(label, 'Starting...', agentKey.toLowerCase());
                   subagentTaskIds.set(block.id, subTaskId);
                   subagentLabels.set(block.id, label);
+                  subagentsDispatched++;
+                  subagentTypesDispatched.add(agentKey.toLowerCase());
                 } else if (subagentLabel) {
                   // Tool call from inside a subagent (SDK v0.2+ only)
                   emitActivity(subagentLabel, friendlyTool, 'working');
@@ -685,6 +743,7 @@ export async function runOrchestrator(
         capturedSessionId = null;
         textChunks = 0;
         toolUses = 0;
+        subagentsDispatched = 0;
         messageCount = 0;
         vionaTaskId = null;
         subagentTaskIds.clear();
@@ -725,6 +784,23 @@ export async function runOrchestrator(
 
     // Complete Viona's task and finish the job
     if (vionaTaskId) { completeTask(vionaTaskId); vionaTaskId = null; }
+
+    // Emit a persistent completion widget BEFORE done so it gets saved in message content.
+    // Only emit if actual video generation happened (animator/final_editor ran),
+    // not for plan-only or conversational turns.
+    const VIDEO_PHASES = ['animator', 'final_editor', 'layout_editor', 'setup_agent'];
+    const videoWorkDone = VIDEO_PHASES.some(p => subagentTypesDispatched.has(p));
+    if (videoWorkDone) {
+      const jobState = getJobState();
+      callbacks.onWidget({
+        kind: 'completion',
+        id: `completion-${Date.now()}`,
+        durationSeconds: elapsed,
+        cost: lastResultCost,
+        plan: jobState?.plan ?? undefined,
+      });
+    }
+
     const doneResult = { sessionId: capturedSessionId ?? undefined, cost: lastResultCost, numTurns: lastResultTurns };
     finishJob(doneResult);
     flushCallbacks();

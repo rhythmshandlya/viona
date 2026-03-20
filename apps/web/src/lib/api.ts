@@ -317,6 +317,27 @@ class ApiClient {
       clearTimeout(timeout);
     }
 
+    // On 401, the Stytch JWT may have expired — wait for SDK background refresh and retry once
+    if (response.status === 401) {
+      await new Promise(r => setTimeout(r, 2000));
+      const retryToken = getSessionToken();
+      if (retryToken) {
+        headers['Authorization'] = `Bearer ${retryToken}`;
+        const retryController = new AbortController();
+        const retryTimeout = setTimeout(() => retryController.abort(), timeoutMs);
+        try {
+          response = await fetch(url, {
+            ...options,
+            headers,
+            credentials: 'include',
+            signal: retryController.signal,
+          });
+        } finally {
+          clearTimeout(retryTimeout);
+        }
+      }
+    }
+
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Unknown error' }));
       console.error('[API Error]', response.status, url, JSON.stringify(error).slice(0, 500));

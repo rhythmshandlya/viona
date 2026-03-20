@@ -3,119 +3,226 @@
 
 ## Global
 - **Canvas:** 1080x1920
-- **Caption style:** Sora 32px, rgba(255,255,255,0.95), active word #8B5CF6
-- **Energy arc:** Hook high (4) → building (3) → dip (2) → climax (5) → close (3)
-- **Total scenes:** 3
-- **Scene coverage:** ~48% of total duration
+- **Source video:** 1080x1920
+- **Total duration:** 62000ms
+- **Total scenes:** 6
 
 ---
 
-## Scene 1: Three Key Benefits
-**Time:** 12000 – 24000
-**Transcript:** "there are three key benefits to this approach: faster iteration, lower costs, and better retention"
-**Display mode:** split-screen 55/45
-**Energy:** 4
+## Scene 1: Opening Hook — Communication Matters
+**File:** Scene1.tsx
+**Time:** 0 – 8500
+**Transcript:** "most people think they're good communicators but studies show that sixty-five percent of workplace conflicts come from miscommunication"
+**Display mode:** Overlay
+**Scene type:** data-viz
+**Layout pattern:** center-dominant
 
-### Speaker layout (for Layout Editor)
-- Speaker transform: { x: 0, y: 1056, width: 1080, height: 864 }
+### Speaker layout
+- Speaker: "full size"
 
-### Scene placement (for Layout Editor)
-- Scene dimensions: 1080x1056
-- Scene transform: { x: 0, y: 0, width: 1080, height: 1056 }
-- Track: overlay
-- Z-order: above speaker, below captions
+### Scene dimensions
+- Width: 800 Height: 480
 
-### Transitions (for Layout Editor)
-- Entry: crossfade 12f
-- Exit: crossfade 12f
+### Scene placement
+- Placement: lower-third-center
 
-### Animation brief (for Animator)
-- Scene type: step-cards
-- Description: "Three glass cards appear one by one with spring animation. Each card has a numbered circle on the left (1, 2, 3) in violet and the benefit text on the right. Cards stagger in 8 frames apart from the left side. After all three appear, checkmark icons fade in on each card simultaneously."
-- Key data: ["Faster iteration", "Lower costs", "Better retention"]
-- Must show: exactly three cards, one per benefit, using the speaker's exact words
+### Transition IN
+- From: Speaker
+- Transition: Speaker → Overlay
 
----
+### Transition OUT
+- To: Overlay (Scene 2)
+- Transition: Overlay → Overlay
 
-## Scene 2: User Satisfaction Stat
-**Time:** 31000 – 37000
-**Transcript:** "and seventy-three percent of users said they actually preferred the new version"
-**Display mode:** overlay
-**Energy:** 2
-
-### Speaker layout (for Layout Editor)
-- Speaker transform: full size (no change)
-
-### Scene placement (for Layout Editor)
-- Scene dimensions: 280x160
-- Scene transform: { x: 750, y: 620, width: 280, height: 160 }
-- Track: overlay
-- Z-order: above speaker, below captions
-
-### Transitions (for Layout Editor)
-- Entry: none
-- Exit: fade 8f
-
-### Animation brief (for Animator)
-- Scene type: data-viz
-- Description: "Glass card with a large counting number that animates from 0 to 73 over 22 frames, followed by a percent sign. Below the number, secondary text reads 'preferred new version'. The card scales in from 0.85 to 1.0 with a spring."
-- Key data: ["73%", "preferred new version"]
-- Must show: the number 73%, the phrase "preferred new version"
+### Animation brief
+- Description: Glass card appears at lower third with spring scale-in from 0.9 to 1.0. Inside the card, a large counter animates from 0 to 65, followed by a percent sign that fades in. Below the number, the text "workplace conflicts from miscommunication" types in word by word, synced to the speaker. A thin progress ring around the number fills clockwise as the counter increments. Card has a subtle violet glow border matching the studio theme.
+- Key data: ["65%", "workplace conflicts", "miscommunication"]
+- Must show: the number 65%, the phrase "workplace conflicts from miscommunication"
 
 ---
 
-## Scene 3: Architecture Overview
+## Scene 2: Introduction — Three Steps Preview
+**File:** Scene2.tsx
+**Time:** 8500 – 16000
+**Transcript:** "today I'm going to share three steps that completely changed how I communicate and they'll work for you too whether it's at work with friends or even with your family"
+**Display mode:** Overlay
+**Scene type:** custom
+**Layout pattern:** asymmetric
+
+### Speaker layout
+- Speaker: "full size"
+
+### Scene dimensions
+- Width: 800 Height: 640
+
+### Scene placement
+- Placement: center-card
+
+### Transition IN
+- From: Overlay (Scene 1)
+- Transition: Overlay → Overlay
+
+### Transition OUT
+- To: Stacked (Scene 3)
+- Transition: Overlay → Stacked
+
+### Animation brief
+- Description: Three numbered circles (1, 2, 3) stagger in from the right edge with spring physics, 8 frames apart. Each circle is a frosted glass disc with the number inside in bold. They arrange vertically, slightly overlapping. After all three land, a subtle connecting line draws between them top-to-bottom with a violet glow pulse that travels down the line. The circles pulse gently in a breathing loop until the scene exits.
+- Key data: ["three steps", "at work", "with friends", "with your family"]
+- Must show: three distinct numbered circles representing the three steps
+
+---
+
+## Scene 3: Step 1 — Active Listening
+**File:** Scene3.tsx
+**Time:** 16000 – 29000
+**Transcript:** "step one is active listening and I don't just mean nodding your head I mean actually pausing before you respond repeating back what you heard and asking clarifying questions these three things alone will transform how people perceive you"
+**Display mode:** Stacked [50/50]
+**Scene type:** step-cards
+**Layout pattern:** diagonal-flow
+
+### Speaker layout
+- Speaker: "bottom 50%"
+
+### Scene dimensions
+- Width: 1080 Height: 960
+
+### Scene placement
+- Placement: top half
+
+### Transition IN
+- From: Overlay (Scene 2)
+- Transition: Overlay → Stacked
+
+### Transition OUT
+- To: Stacked (Scene 4)
+- Transition: Stacked → Stacked
+
+### Animation brief
+- Description: Title card "Active Listening" slides in from top with spring easing and settles at the top-left. Three action cards appear along a diagonal from top-left to bottom-right, staggered 10 frames apart. Card 1: "Pause before responding" with a pause icon. Card 2: "Repeat back what you heard" with a speech bubble icon. Card 3: "Ask clarifying questions" with a question mark icon. Each card is a frosted glass rectangle with an icon on the left and text on the right. After all three are visible, a checkmark stamps onto each card sequentially (6 frames apart) with a satisfying scale-bounce. A subtle number "1" badge sits in the top-right corner throughout.
+- Key data: ["Active listening", "Pause before responding", "Repeat back what you heard", "Ask clarifying questions"]
+- Must show: the title "Active Listening", all three sub-points with exact wording from the transcript, the number 1
+
+---
+
+## Scene 4: Step 2 — Emotional Awareness
+**File:** Scene4.tsx
+**Time:** 29000 – 42000
+**Transcript:** "step two is emotional awareness before any important conversation check in with yourself ask am I frustrated am I anxious am I defensive because if you go in with unresolved emotions they leak into your tone your body language everything"
+**Display mode:** Stacked [50/50]
+**Scene type:** comparison
+**Layout pattern:** stacked-cascade
+
+### Speaker layout
+- Speaker: "bottom 50%"
+
+### Scene dimensions
+- Width: 1080 Height: 960
+
+### Scene placement
+- Placement: top half
+
+### Transition IN
+- From: Stacked (Scene 3)
+- Transition: Stacked → Stacked
+
+### Transition OUT
+- To: Fullscreen (Scene 5)
+- Transition: Stacked → Fullscreen
+
+### Animation brief
+- Description: Title "Emotional Awareness" fades in at the top with a number "2" badge. Three emotional state cards cascade front-to-back with increasing blur/opacity: front card "Frustrated" with a flame icon (fully opaque), middle card "Anxious" with a wave icon (slightly recessed), back card "Defensive" with a shield icon (most recessed). The cascade creates a depth illusion. After the three emotions appear, an arrow animates from the card stack pointing right toward a results panel showing three leak targets: "Tone", "Body language", "Everything" — each appearing with a subtle red glow to indicate negative impact. The arrow pulses with a gradient that shifts from orange to red.
+- Key data: ["Emotional awareness", "Frustrated", "Anxious", "Defensive", "Tone", "Body language", "Everything"]
+- Must show: the title "Emotional Awareness", all three emotions (frustrated, anxious, defensive), the three leak targets (tone, body language, everything), the number 2
+
+---
+
+## Scene 5: Step 3 — Clear Structure
+**File:** Scene5.tsx
 **Time:** 42000 – 55000
-**Transcript:** "so the architecture has three layers — the API gateway handles routing, the service mesh manages communication between microservices, and the data layer persists everything to postgres and redis"
-**Display mode:** fullscreen
-**Energy:** 5
+**Transcript:** "and step three is structure your message before you speak think about what is my main point what are my supporting reasons and what do I want the other person to do this simple framework will make you ten times more persuasive I guarantee it"
+**Display mode:** Fullscreen
+**Scene type:** flowchart
+**Layout pattern:** full-bleed
 
-### Speaker layout (for Layout Editor)
-- Speaker transform: opacity: 0
+### Speaker layout
+- Speaker: "opacity: 0"
 
-### Scene placement (for Layout Editor)
-- Scene dimensions: 1080x1920
-- Scene transform: { x: 0, y: 0, width: 1080, height: 1920 }
-- Track: overlay
-- Z-order: above speaker, below captions
+### Scene dimensions
+- Width: 1080 Height: 1920
 
-### Transitions (for Layout Editor)
-- Entry: crossfade 12f
-- Exit: crossfade 12f
+### Scene placement
+- Placement: full canvas
 
-### Animation brief (for Animator)
-- Scene type: hierarchy
-- Description: "Three-layer architecture diagram on dark mesh background. Top layer: glass card labeled 'API Gateway' with routing icon. Middle layer: glass card labeled 'Service Mesh' with three small connected nodes inside. Bottom layer: glass card labeled 'Data Layer' with Postgres and Redis icons side by side. Layers enter top-to-bottom with 10-frame stagger. After all layers are in, animated connecting lines draw between them vertically with a violet glow."
-- Key data: ["API Gateway — routing", "Service Mesh — microservice communication", "Data Layer — Postgres + Redis"]
-- Must show: three distinct layers, exact names (API Gateway, Service Mesh, Data Layer), Postgres and Redis mentioned in data layer
+### Transition IN
+- From: Stacked (Scene 4)
+- Transition: Stacked → Fullscreen
+
+### Transition OUT
+- To: Overlay (Scene 6)
+- Transition: Fullscreen → Overlay
+
+### Animation brief
+- Description: Dark background with a vertical flowchart that fills the canvas. Title "Structure Your Message" at the top with a number "3" badge. Three large frosted glass nodes connected by animated downward arrows. Node 1: "Main Point" with a target icon — enters from top with spring physics. Arrow draws downward (8 frames). Node 2: "Supporting Reasons" with a list icon — enters with spring. Arrow draws downward (8 frames). Node 3: "Desired Action" with a checkmark icon — enters with spring. After all three nodes are visible, a glowing "10x more persuasive" badge scales in at the bottom with a bounce animation and a starburst particle effect behind it. The connecting arrows pulse with a violet gradient that flows top-to-bottom in a loop.
+- Key data: ["Structure your message", "Main point", "Supporting reasons", "Desired action", "10x more persuasive"]
+- Must show: the title "Structure Your Message", all three framework elements (main point, supporting reasons, desired action), the "10x" claim, the number 3
+
+---
+
+## Scene 6: Closing Recap
+**File:** Scene6.tsx
+**Time:** 55000 – 62000
+**Transcript:** "so remember active listening emotional awareness and clear structure master these three and you'll never struggle with communication again"
+**Display mode:** Overlay
+**Scene type:** step-cards
+**Layout pattern:** scattered
+
+### Speaker layout
+- Speaker: "full size"
+
+### Scene dimensions
+- Width: 800 Height: 480
+
+### Scene placement
+- Placement: lower-third-center
+
+### Transition IN
+- From: Fullscreen (Scene 5)
+- Transition: Fullscreen → Overlay
+
+### Transition OUT
+- To: Speaker
+- Transition: Overlay → Speaker
+
+### Animation brief
+- Description: Three compact glass pills appear in a scattered arrangement at the lower third, slightly rotated for organic feel. Pill 1: "1. Active Listening" enters from bottom-left with spring. Pill 2: "2. Emotional Awareness" enters from bottom-center with spring (6 frame delay). Pill 3: "3. Clear Structure" enters from bottom-right with spring (6 frame delay). After all three are visible, a golden checkmark stamps over each pill sequentially (4 frames apart). The pills then gently float in place with a breathing animation. On exit, all three pills scale down and fade out simultaneously.
+- Key data: ["Active listening", "Emotional awareness", "Clear structure"]
+- Must show: all three steps with their numbers, exact names from transcript
 
 ---
 
 ## Punch-in Locations
 | Timestamp | Crop | Notes |
 |---|---|---|
-| 26000ms | { x: 50, y: 40, scale: 1.3 } | "this is the key insight" — emphasis moment |
-| 58000ms | { x: 50, y: 40, scale: 1.35 } | "and that's what makes this work" — closing emphasis |
-
-## Multi-angle Cuts
-| Timestamp | Crop region | Notes |
-|---|---|---|
-| 38000ms | { x: 45, y: 42, scale: 1.1 } | Slight left offset before architecture scene |
+| 5200ms | { x: 50, y: 40, scale: 1.3 } | "sixty-five percent" — emphasis on the statistic during Scene 1 (Overlay) |
+| 12500ms | { x: 50, y: 42, scale: 1.25 } | "they'll work for you too" — personal connection during Scene 2 (Overlay) |
+| 58000ms | { x: 50, y: 38, scale: 1.35 } | "you'll never struggle with communication again" — closing conviction during Scene 6 (Overlay) |
 
 ---
 
 ## Self-verification
 
-| Check | Status |
-|---|---|
-| Display modes vary (not 3+ same in a row) | PASS — split-screen, overlay, fullscreen |
-| No 3+ consecutive fullscreen | PASS — only 1 fullscreen scene |
-| Energy arc: no adjacent duplicates | PASS — 4, 2, 5 |
-| Energy arc: hook at 4-5 | PASS — Scene 1 at 4 |
-| Energy arc: at least one dip | PASS — Scene 2 at 2 |
-| Scene coverage 40-60% | PASS — 25s of scenes / 52s total ≈ 48% |
-| All scenes 5-15s | PASS — 12s, 6s, 13s |
-| Overlay scenes avoid face zone | PASS — Scene 2 at x:750 y:620, right side |
-| Split-screen has exact pixel values | PASS — Scene 1: speaker {0,1056,1080,864} + scene {0,0,1080,1056} |
-| Fullscreen speaker opacity 0 | PASS — Scene 3 |
+- [x] Every moment of the timeline is covered (no speaker-only gaps): 0–8500 (Scene 1 Overlay) → 8500–16000 (Scene 2 Overlay) → 16000–29000 (Scene 3 Stacked) → 29000–42000 (Scene 4 Stacked) → 42000–55000 (Scene 5 Fullscreen) → 55000–62000 (Scene 6 Overlay). Complete coverage.
+- [x] All transitions use names from the 15-transition set: Speaker → Overlay, Overlay → Overlay, Overlay → Stacked, Stacked → Stacked, Stacked → Fullscreen, Fullscreen → Overlay, Overlay → Speaker.
+- [x] No two adjacent scenes use the same layout pattern: center-dominant → asymmetric → diagonal-flow → stacked-cascade → full-bleed → scattered.
+- [x] All scene types are from the 10-type table: data-viz, custom, step-cards, comparison, flowchart, step-cards.
+- [x] All display modes are Overlay, Stacked, or Fullscreen (no "split-screen"): Overlay, Overlay, Stacked, Stacked, Fullscreen, Overlay.
+- [x] Transcript segments are copied verbatim — no paraphrasing.
+- [x] Punch-ins only appear during overlay segments: 5200ms (Scene 1 Overlay), 12500ms (Scene 2 Overlay), 58000ms (Scene 6 Overlay).
+- [x] Speaker transitions only at video boundaries: Speaker → Overlay at start (Scene 1), Overlay → Speaker at end (Scene 6).
+- [x] Every field in the per-scene schema is present for every scene.
+- [x] Every scene has a **File** field (Scene{N}.tsx format): Scene1.tsx through Scene6.tsx.
+- [x] Every scene has **Scene dimensions** (Width × Height in pixels): Overlays use preset sizes, Stacked scenes 1080×960, Fullscreen 1080×1920.
+- [x] Every Overlay scene uses a placement preset name from the preset table: lower-third-center, center-card, lower-third-center.
+- [x] Stacked dimensions calculated correctly: 1080 × (1920 × 50%) = 1080 × 960.
 </example>

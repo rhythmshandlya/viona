@@ -8,9 +8,16 @@ const execFileAsync = promisify(execFile);
 const WORKSPACE = '/workspace';
 const MANIFEST_PATH = join(WORKSPACE, 'manifest.json');
 
+interface SceneRenderResult {
+  sceneFile: string;
+  frame: number;
+  pass: boolean;
+  error?: string;
+}
+
 interface ValidationResult {
   tsc: { pass: boolean; errors?: string };
-  render: { pass: boolean; error?: string };
+  render: { pass: boolean; error?: string; sceneResults?: SceneRenderResult[] };
   schema: { pass: boolean; issues?: string[] };
 }
 
@@ -18,7 +25,8 @@ export const validateWorkspaceTool = {
   name: 'validate_workspace',
   description:
     'Run a full workspace validation: TypeScript compilation (tsc --noEmit), ' +
-    'test render of frame 10 (remotion still), and manifest schema validation. ' +
+    'test render of a frame from EACH scene (remotion still — catches runtime errors ' +
+    'like reversed interpolate inputRange), and manifest schema validation. ' +
     'Call this BEFORE reporting "done" to ensure the workspace is in a working state.',
   input_schema: {
     type: 'object' as const,
@@ -31,7 +39,6 @@ export const validateWorkspaceTool = {
     required: [] as string[],
   },
   async execute(input: { renderFrame?: number }): Promise<string> {
-    const frame = input.renderFrame ?? 10;
     const result: ValidationResult = {
       tsc: { pass: false },
       render: { pass: false },
@@ -50,23 +57,79 @@ export const validateWorkspaceTool = {
       result.tsc = { pass: false, errors: output.slice(0, 2000) };
     }
 
-    // 2. Test render
+    // 2. Test render — render a frame from EACH scene (catches runtime errors
+    //    like reversed interpolate inputRange that only fire in specific scenes)
     try {
-      const outputPath = join(WORKSPACE, '.build', `validate-still-${frame}.png`);
-      await execFileAsync('npx', [
-        'remotion', 'still',
-        'src/Root.tsx',
-        'MainComposition',
-        outputPath,
-        `--frame=${frame}`,
-      ], {
-        timeout: 60_000,
-        cwd: WORKSPACE,
-      });
-      result.render = { pass: true };
+      const manifestRaw = await readFile(MANIFEST_PATH, 'utf-8');
+      const manifest = JSON.parse(manifestRaw);
+      const fps = manifest.fps ?? 30;
+
+      // Collect frames to render: one from the midpoint of each scene item
+      const framesToRender: { frame: number; sceneFile: string }[] = [];
+
+      for (const item of (manifest.items ?? [])) {
+        if (item.type === 'scene' && typeof item.startMs === 'number' && typeof item.endMs === 'number') {
+          const midMs = (item.startMs + item.endMs) / 2;
+          const midFrame = Math.round((midMs / 1000) * fps);
+          framesToRender.push({
+            frame: midFrame,
+            sceneFile: item.data?.sceneFile ?? item.id,
+          });
+        }
+      }
+
+      // If no scenes found, fall back to frame 10 (or user-provided frame)
+      if (framesToRender.length === 0) {
+        framesToRender.push({ frame: input.renderFrame ?? 10, sceneFile: 'fallback' });
+      }
+
+      const sceneResults: SceneRenderResult[] = [];
+      let allScenesPassed = true;
+
+      for (const { frame, sceneFile } of framesToRender) {
+        try {
+          const outputPath = join(WORKSPACE, '.build', `validate-still-${frame}.png`);
+          await execFileAsync('npx', [
+            'remotion', 'still',
+            'src/Root.tsx',
+            'MainComposition',
+            outputPath,
+            `--frame=${frame}`,
+          ], {
+            timeout: 60_000,
+            cwd: WORKSPACE,
+          });
+          sceneResults.push({ sceneFile, frame, pass: true });
+        } catch (err: any) {
+          allScenesPassed = false;
+          const output = (err.stdout || '') + (err.stderr || '');
+          sceneResults.push({ sceneFile, frame, pass: false, error: output.slice(0, 2000) });
+        }
+      }
+
+      result.render = allScenesPassed
+        ? { pass: true, sceneResults }
+        : { pass: false, error: `${sceneResults.filter(r => !r.pass).length}/${sceneResults.length} scene renders failed`, sceneResults };
     } catch (err: any) {
-      const output = (err.stdout || '') + (err.stderr || '');
-      result.render = { pass: false, error: output.slice(0, 2000) };
+      // Manifest read failed — fall back to single-frame render
+      const frame = input.renderFrame ?? 10;
+      try {
+        const outputPath = join(WORKSPACE, '.build', `validate-still-${frame}.png`);
+        await execFileAsync('npx', [
+          'remotion', 'still',
+          'src/Root.tsx',
+          'MainComposition',
+          outputPath,
+          `--frame=${frame}`,
+        ], {
+          timeout: 60_000,
+          cwd: WORKSPACE,
+        });
+        result.render = { pass: true };
+      } catch (renderErr: any) {
+        const output = (renderErr.stdout || '') + (renderErr.stderr || '');
+        result.render = { pass: false, error: output.slice(0, 2000) };
+      }
     }
 
     // 3. Manifest schema validation

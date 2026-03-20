@@ -22,6 +22,7 @@ export const AudioOverlay: React.FC<AudioOverlayProps> = ({ data }) => {
     <Audio
       src={resolveVideoSrc(data.src)!}
       startFrom={startFrom}
+      pauseWhenBuffering
       volume={data.volume ?? 1}
       playbackRate={data.playbackRate ?? 1}
     />
