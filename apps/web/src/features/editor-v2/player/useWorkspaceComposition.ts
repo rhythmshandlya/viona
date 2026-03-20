@@ -82,6 +82,30 @@ function makeJsx() {
 }
 
 // ---------------------------------------------------------------------------
+// Proxy key derivation — matches proxy naming from sandbox workspace-init
+// ---------------------------------------------------------------------------
+const PROXY_EXTENSIONS: Record<string, string> = {
+  '.mp4': '-proxy.mp4',
+  '.webm': '-proxy.mp4',
+  '.png': '-proxy.webp',
+  '.jpg': '-proxy.webp',
+  '.jpeg': '-proxy.webp',
+  '.webp': '-proxy.webp',
+  '.aac': '-proxy.aac',
+  '.mp3': '-proxy.aac',
+  '.wav': '-proxy.aac',
+  '.m4a': '-proxy.aac',
+};
+
+function deriveProxyKey(src: string): string | null {
+  const ext = src.match(/\.\w+$/)?.[0]?.toLowerCase();
+  if (ext && PROXY_EXTENSIONS[ext]) {
+    return src.replace(/\.\w+$/, PROXY_EXTENSIONS[ext]);
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Custom require() — provides module shims for CJS evaluation
 // ---------------------------------------------------------------------------
 
@@ -94,12 +118,19 @@ function createRequire(bundleBaseUrl: string) {
       return _currentAssetsMap[cleanPath];
     }
 
-    // Fallback to same-origin proxy URL (no cross-origin apiUrl prefix).
-    // Next.js rewrites /api/* to the backend, so media elements send cookies.
+    // Same-origin proxy URL — Next.js rewrites /api/* to the backend
     const projectIdMatch = bundleBaseUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
     const publicBase = projectIdMatch
       ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
       : `${bundleBaseUrl}/public`;
+
+    // Prefer proxy file for preview performance (480p video, 960px images, 64k audio).
+    // If proxy doesn't exist on disk, request 404s and Remotion handles gracefully.
+    const proxyKey = deriveProxyKey(cleanPath);
+    if (proxyKey) {
+      return `${publicBase}/${proxyKey}`;
+    }
+
     return `${publicBase}/${cleanPath}`;
   };
 
@@ -148,6 +179,8 @@ function createRequire(bundleBaseUrl: string) {
         // OffthreadVideo is for rendering; in the Player context, use Video
         // which renders a native <video> element with proper frame sync
         OffthreadVideo: Remotion.Video,
+        // Stub for resolveMediaSrc proxy logic — browser Player is always preview mode
+        getRemotionEnvironment: () => ({ isRendering: false, isPlayer: true }),
       };
     }
 
