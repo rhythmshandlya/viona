@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Player, type RenderLoading } from '@remotion/player';
 import { AbsoluteFill, prefetch } from 'remotion';
-import { useWorkspaceComposition, setAssetsMap } from './useWorkspaceComposition';
+import { useWorkspaceComposition, resolvePublicBase } from './useWorkspaceComposition';
 
 interface WorkspacePlayerProps {
   manifest: Record<string, unknown>;
@@ -32,96 +32,44 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
 
   const durationInFrames = Math.max(1, Math.round((durationMs / 1000) * fps));
 
-  useEffect(() => {
-    const assets = (manifest as any)?.assets;
-    if (assets && typeof assets === 'object') {
-      // Pass through browser-accessible presigned URLs (https://).
-      // Filter out Docker-internal URLs (host.docker.internal, *.railway.internal)
-      // which aren't reachable from the browser.
-      const browserSafe: Record<string, string> = {};
-      for (const [key, url] of Object.entries(assets)) {
-        if (typeof url === 'string' && url.startsWith('https://')) {
-          browserSafe[key] = url;
-        }
-      }
-      setAssetsMap(browserSafe);
-    }
-  }, [manifest]);
-
-  // Prefetch video sources as blob URLs so <Video> re-mounts at cut boundaries
-  // don't trigger network requests — the blob is already in memory.
-  // IMPORTANT: Must match the proxy URL that customStaticFile in
-  // useWorkspaceComposition resolves to, otherwise the blob URL won't be
-  // intercepted by Remotion's prefetch mechanism.
+  // -----------------------------------------------------------------------
+  // Blob-based media prefetch
+  //
+  // Fetch every video/audio src exactly once into a blob URL.
+  // Remotion intercepts matching URLs and serves from blob — zero network
+  // during playback, instant seeks, no proxy latency after initial load.
+  //
+  // The URL passed to prefetch() MUST match what customStaticFile() returns
+  // in useWorkspaceComposition, which is: `${publicBase}/${cleanPath}`
+  // -----------------------------------------------------------------------
   const prefetchHandlesRef = useRef<Map<string, { free: () => void }>>(new Map());
 
   useEffect(() => {
     const m = manifest as any;
     if (!m?.items || !bundleUrl) return;
 
-    // Resolve video source URLs the same way the composition's staticFile shim does
-    const projectIdMatch = bundleUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
-    const publicBase = projectIdMatch
-      ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
-      : `${bundleUrl}/public`;
-
-    // Proxy key derivation — must match useWorkspaceComposition's customStaticFile
-    const PROXY_EXTENSIONS: Record<string, string> = {
-      '.mp4': '-proxy.mp4',
-      '.webm': '-proxy.mp4',
-      '.png': '-proxy.webp',
-      '.jpg': '-proxy.webp',
-      '.jpeg': '-proxy.webp',
-      '.webp': '-proxy.webp',
-      '.aac': '-proxy.aac',
-      '.mp3': '-proxy.aac',
-      '.wav': '-proxy.aac',
-      '.m4a': '-proxy.aac',
-    };
-
-    // Check which assets have presigned S3 URLs (browser-safe)
-    const browserAssets: Record<string, string> = {};
-    if (m.assets && typeof m.assets === 'object') {
-      for (const [key, url] of Object.entries(m.assets)) {
-        if (typeof url === 'string' && url.startsWith('https://')) {
-          browserAssets[key] = url;
-        }
-      }
-    }
+    const publicBase = resolvePublicBase(bundleUrl);
 
     const currentSrcs = new Set<string>();
     for (const item of m.items) {
       if ((item.type === 'video' || item.type === 'audio') && item.data?.src) {
         const src = item.data.src as string;
         if (/^https?:\/\/|^blob:/.test(src)) {
+          // Absolute URL — prefetch as-is
           currentSrcs.add(src);
         } else {
+          // Relative path — resolve to same proxy URL that customStaticFile returns
           const cleanPath = src.startsWith('/') ? src.slice(1) : src;
-
-          // If this asset has a presigned S3 URL, prefetch that (direct, no proxy)
-          if (browserAssets[cleanPath]) {
-            currentSrcs.add(browserAssets[cleanPath]);
-            continue;
-          }
-
-          // Otherwise use the API proxy URL — only prefetch the proxy variant
-          // (what the composition will actually request), not both proxy + original
-          const ext = cleanPath.match(/\.\w+$/)?.[0]?.toLowerCase();
-          const proxyKey = ext && PROXY_EXTENSIONS[ext] && !cleanPath.includes('-proxy.')
-            ? cleanPath.replace(/\.\w+$/, PROXY_EXTENSIONS[ext])
-            : null;
-          currentSrcs.add(`${publicBase}/${proxyKey ?? cleanPath}`);
+          currentSrcs.add(`${publicBase}/${cleanPath}`);
         }
       }
     }
 
-    // Prefetch new sources — use blob-url for proxy/API URLs (same-origin),
-    // uncached fetch for presigned S3 URLs (cross-origin, blob would CORS-fail)
+    // Prefetch new sources
     for (const url of currentSrcs) {
       if (!prefetchHandlesRef.current.has(url)) {
-        const method = url.startsWith('/') ? 'blob-url' : 'blob-url';
         const handle = prefetch(url, {
-          method,
+          method: 'blob-url',
           credentials: url.startsWith('/') ? 'include' : 'omit',
         });
         prefetchHandlesRef.current.set(url, handle);
@@ -147,8 +95,7 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
     };
   }, []);
 
-  // Show a subtle loading indicator when the Player is paused due to buffering
-  // (triggered by pauseWhenBuffering on <Video>/<Audio> components)
+  // Buffering indicator
   const renderLoading: RenderLoading = useCallback(() => {
     return (
       <AbsoluteFill style={{ backgroundColor: 'transparent' }}>
@@ -183,12 +130,6 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
   }, []);
 
   const inputProps = useMemo(() => {
-    // Strip sandbox assets map — composition will use staticFile fallback
-    // which resolves to the API proxy URL (browser-accessible)
-    const m = manifest as any;
-    if (m?.assets) {
-      return { manifest: { ...m, assets: {} } };
-    }
     return { manifest };
   }, [manifest]);
 

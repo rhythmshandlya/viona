@@ -8,15 +8,6 @@ import * as RemotionPaths from '@remotion/paths';
 import { FONT_REGISTRY, loadFont } from '@/lib/font-registry';
 
 // ---------------------------------------------------------------------------
-// Module-level mutable ref for assets map — staticFile() reads this
-// ---------------------------------------------------------------------------
-let _currentAssetsMap: Record<string, string> = {};
-
-export function setAssetsMap(map: Record<string, string>) {
-  _currentAssetsMap = map;
-}
-
-// ---------------------------------------------------------------------------
 // Composition cache
 // ---------------------------------------------------------------------------
 const compositionCache = new Map<string, React.ComponentType<any>>();
@@ -82,28 +73,13 @@ function makeJsx() {
 }
 
 // ---------------------------------------------------------------------------
-// Proxy key derivation — matches proxy naming from sandbox workspace-init
+// Resolve the public base URL from a bundle URL
 // ---------------------------------------------------------------------------
-const PROXY_EXTENSIONS: Record<string, string> = {
-  '.mp4': '-proxy.mp4',
-  '.webm': '-proxy.mp4',
-  '.png': '-proxy.webp',
-  '.jpg': '-proxy.webp',
-  '.jpeg': '-proxy.webp',
-  '.webp': '-proxy.webp',
-  '.aac': '-proxy.aac',
-  '.mp3': '-proxy.aac',
-  '.wav': '-proxy.aac',
-  '.m4a': '-proxy.aac',
-};
-
-function deriveProxyKey(src: string): string | null {
-  if (src.includes('-proxy.')) return null; // Already a proxy
-  const ext = src.match(/\.\w+$/)?.[0]?.toLowerCase();
-  if (ext && PROXY_EXTENSIONS[ext]) {
-    return src.replace(/\.\w+$/, PROXY_EXTENSIONS[ext]);
-  }
-  return null;
+export function resolvePublicBase(bundleBaseUrl: string): string {
+  const match = bundleBaseUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
+  return match
+    ? `/api/projects/${match[1]}/${match[2]}/public`
+    : `${bundleBaseUrl}/public`;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,32 +87,13 @@ function deriveProxyKey(src: string): string | null {
 // ---------------------------------------------------------------------------
 
 function createRequire(bundleBaseUrl: string) {
+  const publicBase = resolvePublicBase(bundleBaseUrl);
+
+  // staticFile returns a deterministic same-origin proxy URL.
+  // Remotion's prefetch() in WorkspacePlayer downloads these into blob URLs,
+  // so after initial load all playback is from memory — zero network.
   const customStaticFile = (relativePath: string) => {
     const cleanPath = relativePath.startsWith('/') ? relativePath.slice(1) : relativePath;
-
-    // 1. Check assets map for presigned S3 URLs (direct, no proxy hops)
-    //    Also check proxy variant in assets map
-    const proxyKey = deriveProxyKey(cleanPath);
-    if (proxyKey && _currentAssetsMap[proxyKey]) {
-      return _currentAssetsMap[proxyKey];
-    }
-    if (_currentAssetsMap[cleanPath]) {
-      return _currentAssetsMap[cleanPath];
-    }
-
-    // 2. Fallback to same-origin API proxy
-    const projectIdMatch = bundleBaseUrl.match(/\/projects\/([^/]+)\/(workspace|sandbox)\//);
-    const publicBase = projectIdMatch
-      ? `/api/projects/${projectIdMatch[1]}/${projectIdMatch[2]}/public`
-      : `${bundleBaseUrl}/public`;
-
-    // Use proxy variant for preview performance if available.
-    // Only try proxy URL if we have a non-empty assets map (meaning proxies were generated).
-    // When assets map is empty, go straight to the original to avoid 404 round-trips.
-    if (proxyKey && Object.keys(_currentAssetsMap).length > 0) {
-      return `${publicBase}/${proxyKey}`;
-    }
-
     return `${publicBase}/${cleanPath}`;
   };
 
@@ -239,8 +196,6 @@ export function useWorkspaceComposition(
   const [error, setError] = useState<string | null>(null);
   const loadedRef = useRef<string | null>(null);
   const [reloadCounter, setReloadCounter] = useState(0);
-
-
 
   const reload = useCallback(() => {
     if (bundleUrl) {
