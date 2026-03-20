@@ -384,7 +384,7 @@ export const DEFAULT_SUBTITLE_STYLE: SubtitleStyle = {
 
   position: DEFAULT_CAPTION_POSITION,
 
-  presetId: 'mrbeast-bold',
+  presetId: 'default',
 };
 
 export const DEFAULT_FPS = 30;
