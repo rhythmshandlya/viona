@@ -204,7 +204,7 @@ const TIMING = {
 - After an element enters, it must NOT become static. Apply at least one idle animation:
   - Float: `translateY(Math.sin(frame * 0.03) * 3)` -- gentle vertical bob
   - Breathe: `scale(1 + Math.sin(frame * 0.025) * 0.015)` -- subtle pulse
-  - Rotate drift: `rotate(Math.sin(frame * 0.02) * 0.5)` -- micro-rotation
+  - Rotate drift: `rotate(Math.sin(frame * 0.02) * 1.5)` -- barely perceptible tilt
   - Glow pulse: oscillating box-shadow opacity or border brightness
 - **Background is NEVER static.** Use gradient angle shift, mesh gradient movement, or slow color drift on the base background.
 - **45 frames frozen = needs attention.** If any visible element has zero property changes for 45+ consecutive frames, add idle motion.
@@ -411,101 +411,111 @@ export default ThreeStepProcess;
 
 ### Example 2: Data Comparison (Two Values)
 ```tsx
-import { useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
+
+const SPRINGS = {
+  SNAPPY: { damping: 20, mass: 1, stiffness: 180 },
+  SMOOTH: { damping: 28, mass: 1, stiffness: 120 },
+};
 
 const DataComparison: React.FC = () => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
   const barMaxWidth = 600;
-  const value1 = 73; // percent
-  const value2 = 41; // percent
+  const value1 = 73;
+  const value2 = 41;
 
-  const bar1Width = interpolate(frame, [10, 40], [0, barMaxWidth * (value1 / 100)], {
+  // Animated background gradient
+  const bgAngle = 145 + Math.sin(frame * 0.015) * 6;
+
+  // Bar 1 enters with SNAPPY spring (hero value)
+  const bar1Progress = spring({ frame, fps, config: SPRINGS.SNAPPY, delay: 10 });
+  const bar1Width = bar1Progress * barMaxWidth * (value1 / 100);
+  const bar1Opacity = interpolate(frame, [7, 18], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
-  const bar2Width = interpolate(frame, [18, 48], [0, barMaxWidth * (value2 / 100)], {
+
+  // Bar 2 enters with SMOOTH spring (supporting), staggered
+  const bar2Progress = spring({ frame, fps, config: SPRINGS.SMOOTH, delay: 18 });
+  const bar2Width = bar2Progress * barMaxWidth * (value2 / 100);
+  const bar2Opacity = interpolate(frame, [15, 26], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
+
+  // Idle float after bars settle
+  const idleFloat1 = frame > 45 ? Math.sin(frame * 0.03) * 2 : 0;
+  const idleFloat2 = frame > 50 ? Math.sin((frame + 15) * 0.03) * 2 : 0;
 
   return (
     <div style={{
       width: 1080, height: 1920,
-      background: '#08080C',
+      background: `linear-gradient(${bgAngle}deg, #08080C, #12101a)`,
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'center',
       padding: 64,
       gap: 48,
     }}>
-      {/* Bar 1 */}
-      <div>
+      {/* Bar 1 — glass container */}
+      <div style={{
+        opacity: bar1Opacity,
+        transform: `translateY(${idleFloat1}px)`,
+      }}>
         <div style={{
           color: 'rgba(255, 255, 255, 0.95)',
-          fontSize: 32,
-          fontFamily: 'Sora',
-          marginBottom: 12,
+          fontSize: 32, fontFamily: 'Sora', marginBottom: 12,
         }}>
           With AI Editing
         </div>
         <div style={{
-          background: 'rgba(255, 255, 255, 0.06)',
-          borderRadius: 10,
-          height: 48,
-          overflow: 'hidden',
+          position: 'relative',
+          background: `linear-gradient(${90 + Math.sin(frame * 0.02) * 5}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 60, 0.4))`,
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 10, height: 48, overflow: 'hidden',
         }}>
           <div style={{
-            width: bar1Width,
-            height: '100%',
+            width: bar1Width, height: '100%',
             background: 'linear-gradient(90deg, #7C3AED, #8B5CF6)',
             borderRadius: 10,
           }} />
         </div>
         <div style={{
-          color: '#8B5CF6',
-          fontSize: 40,
-          fontWeight: 700,
-          marginTop: 8,
-          fontFamily: 'Sora',
+          color: '#8B5CF6', fontSize: 40, fontWeight: 700,
+          marginTop: 8, fontFamily: 'Sora',
         }}>
-          {Math.round(interpolate(frame, [10, 40], [0, value1], {
-            extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-          }))}%
+          {Math.round(bar1Progress * value1)}%
         </div>
       </div>
 
-      {/* Bar 2 */}
-      <div>
+      {/* Bar 2 — glass container, different entrance direction (from right) */}
+      <div style={{
+        opacity: bar2Opacity,
+        transform: `translateX(${interpolate(bar2Progress, [0, 1], [30, 0])}px) translateY(${idleFloat2}px)`,
+      }}>
         <div style={{
           color: 'rgba(255, 255, 255, 0.95)',
-          fontSize: 32,
-          fontFamily: 'Sora',
-          marginBottom: 12,
+          fontSize: 32, fontFamily: 'Sora', marginBottom: 12,
         }}>
           Manual Editing
         </div>
         <div style={{
-          background: 'rgba(255, 255, 255, 0.06)',
-          borderRadius: 10,
-          height: 48,
-          overflow: 'hidden',
+          position: 'relative',
+          background: `linear-gradient(${90 + Math.sin((frame + 20) * 0.02) * 5}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 60, 0.4))`,
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 10, height: 48, overflow: 'hidden',
         }}>
           <div style={{
-            width: bar2Width,
-            height: '100%',
+            width: bar2Width, height: '100%',
             background: 'rgba(255, 255, 255, 0.2)',
             borderRadius: 10,
           }} />
         </div>
         <div style={{
-          color: 'rgba(255, 255, 255, 0.55)',
-          fontSize: 40,
-          fontWeight: 700,
-          marginTop: 8,
-          fontFamily: 'Sora',
+          color: 'rgba(255, 255, 255, 0.55)', fontSize: 40, fontWeight: 700,
+          marginTop: 8, fontFamily: 'Sora',
         }}>
-          {Math.round(interpolate(frame, [18, 48], [0, value2], {
-            extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-          }))}%
+          {Math.round(bar2Progress * value2)}%
         </div>
       </div>
     </div>
@@ -517,21 +527,30 @@ export default DataComparison;
 
 ### Example 3: Floating Label Overlay (Transparent)
 ```tsx
-import { useCurrentFrame, interpolate } from 'remotion';
+import { useCurrentFrame, useVideoConfig, interpolate, spring } from 'remotion';
 
 // This scene is meant to be used as a TRANSPARENT OVERLAY on top of speaker video.
 // No background — only the floating label renders.
 // Place in lower-right quadrant, AWAY from speaker face.
 
+const SPRINGS = {
+  SMOOTH: { damping: 28, mass: 1, stiffness: 120 },
+};
+
 const FloatingLabel: React.FC = () => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
-  const opacity = interpolate(frame, [0, 15], [0, 1], {
+  // Entrance with SMOOTH spring (supporting overlay element)
+  const entryProgress = spring({ frame, fps, config: SPRINGS.SMOOTH, delay: 0 });
+  const y = interpolate(entryProgress, [0, 1], [12, 0]);
+  // Opacity leads transform by 3 frames
+  const opacity = interpolate(frame, [0, 12], [0, 1], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
   });
-  const y = interpolate(frame, [0, 15], [12, 0], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
-  });
+
+  // Idle float after settling
+  const idleFloat = entryProgress >= 0.95 ? Math.sin(frame * 0.03) * 2 : 0;
 
   return (
     <div style={{
@@ -539,14 +558,14 @@ const FloatingLabel: React.FC = () => {
       bottom: 280,
       right: 48,
       opacity,
-      transform: `translateY(${y}px)`,
+      transform: `translateY(${y + idleFloat}px)`,
     }}>
       <div style={{
         background: `linear-gradient(${135 + Math.sin(frame * 0.02) * 10}deg, rgba(28, 28, 35, 0.6), rgba(45, 40, 65, 0.4), rgba(28, 28, 35, 0.55))`,
         border: '1px solid rgba(255, 255, 255, 0.08)',
         borderTop: '1px solid rgba(255, 255, 255, 0.12)',
         borderRadius: 14,
-        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.2)',
+        boxShadow: `0 8px 32px rgba(0,0,0,${0.35 * opacity}), 0 2px 8px rgba(0,0,0,${0.2 * opacity})`,
         padding: '16px 24px',
       }}>
         <div style={{
