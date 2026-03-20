@@ -771,16 +771,6 @@ export const useEditorStore = create<EditorStore>()(
           videoSettings: bridgeResult.videoSettings,
         };
 
-        // Extract caption preset from first caption item (temporary — Task 4 will move this to manifestToStore)
-        let captionPreset = DEFAULT_CAPTION_STYLE;
-        const firstCaption = Object.values(bridgeResult.items).find(item => item.type === 'caption');
-        if (firstCaption) {
-          const data = firstCaption.data as any;
-          if (data?.style) {
-            captionPreset = { ...DEFAULT_CAPTION_STYLE, ...data.style };
-          }
-        }
-
         set((state) => {
           state.project = project;
           state.tracks = bridgeResult.tracks;
@@ -788,7 +778,7 @@ export const useEditorStore = create<EditorStore>()(
           state.itemIds = bridgeResult.itemIds;
           state.duration = bridgeResult.duration;
           state.fps = bridgeResult.fps;
-          state.captionPreset = captionPreset;
+          state.captionPreset = bridgeResult.captionPreset;
           state.isLoading = false;
           state.currentTimeMs = 0;
           state.selectedIds = [];
@@ -836,8 +826,8 @@ export const useEditorStore = create<EditorStore>()(
 
         // Auto-load caption fonts
         const captionFonts = new Set<string>();
-        if (captionPreset.fontFamily) {
-          captionFonts.add(captionPreset.fontFamily.split(',')[0].trim());
+        if (bridgeResult.captionPreset.fontFamily) {
+          captionFonts.add(bridgeResult.captionPreset.fontFamily.split(',')[0].trim());
         }
         for (const family of captionFonts) {
           const entry = findFont(family);
@@ -2648,22 +2638,12 @@ export const useEditorStore = create<EditorStore>()(
         }
       }
 
-      // Extract caption preset from first caption item (temporary — Task 4 will move this to manifestToStore)
-      let remoteCaptionPreset = state.captionPreset;
-      const remoteFirstCaption = Object.values(bridgeResult.items).find(item => item.type === 'caption');
-      if (remoteFirstCaption) {
-        const remoteData = remoteFirstCaption.data as any;
-        if (remoteData?.style) {
-          remoteCaptionPreset = { ...DEFAULT_CAPTION_STYLE, ...remoteData.style };
-        }
-      }
-
       set((s) => {
         s.tracks = bridgeResult.tracks;
         s.items = bridgeResult.items;
         s.itemIds = bridgeResult.itemIds;
         s.duration = bridgeResult.duration;
-        s.captionPreset = remoteCaptionPreset;
+        s.captionPreset = bridgeResult.captionPreset;
         // Preserve presigned S3 URLs so syncWorkspaceManifest includes them
         // when rebuilding manifest after local edits
         if (manifest?.assets && typeof manifest.assets === 'object') {

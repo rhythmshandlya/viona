@@ -54,6 +54,7 @@ export interface ManifestToStoreResult {
   duration: number;
   fps: number;
   videoSettings: VideoSettings;
+  captionPreset: CaptionStyle;
 }
 
 export type StoreManifestOp =
@@ -90,8 +91,9 @@ export function manifestToStore(
     collapsed: false,
   }));
 
-  const captionStyle = manifest.captionStyle
-    ? convertManifestCaptionStyle(manifest.captionStyle)
+  const rawPreset = (manifest as any).captionPreset ?? (manifest as any).captionStyle;
+  const captionPreset = rawPreset
+    ? convertManifestCaptionStyle(rawPreset)
     : DEFAULT_CAPTION_STYLE;
   const items: Record<string, TimelineItem> = {};
   const itemIds: string[] = [];
@@ -103,7 +105,7 @@ export function manifestToStore(
   };
 
   for (const manifestItem of manifest.items) {
-    const storeItem = convertManifestItemV2(manifestItem, context, captionStyle, resolvedSrc);
+    const storeItem = convertManifestItemV2(manifestItem, context, resolvedSrc);
     items[storeItem.id] = storeItem;
     itemIds.push(storeItem.id);
   }
@@ -123,6 +125,7 @@ export function manifestToStore(
     duration: manifest.durationMs,
     fps: manifest.fps,
     videoSettings,
+    captionPreset,
   };
 }
 
@@ -142,7 +145,7 @@ export function storeToManifest(
     sourceHeight?: number;
     assets?: Record<string, string>;
   },
-  captionStyle: CaptionStyle,
+  captionPreset: CaptionStyle,
 ): Record<string, unknown> {
   const tracks = state.tracks.map((t) => ({
     id: t.id,
@@ -184,7 +187,7 @@ export function storeToManifest(
     tracks,
     items,
     assets: state.assets ?? {},
-    captionStyle: convertStoreCaptionStyle(captionStyle),
+    captionPreset: convertStoreCaptionStyle(captionPreset),
     videoSettings: {
       cropX: state.videoSettings.cropX,
       cropY: state.videoSettings.cropY,
@@ -223,7 +226,6 @@ export function extractCompositionId(sceneFile: string): string | undefined {
 function convertManifestItemV2(
   item: any,
   context: ManifestToStoreContext,
-  captionStyle: CaptionStyle,
   resolvedSrc: (key: string) => string,
 ): TimelineItem {
   const base: Partial<TimelineItem> = {
@@ -279,13 +281,14 @@ function convertManifestItemV2(
         // Convert absolute word timestamps to relative (matching store convention)
         startMs: w.startMs - item.startMs,
         endMs: w.endMs - item.startMs,
+        // Migrate classification → role
+        ...(w.role ? { role: w.role } : w.classification ? { role: w.classification } : {}),
         ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
       }));
       const text = words.map((w: any) => w.text).join(' ');
       const data: CaptionItemData = {
         text,
         words,
-        style: captionStyle,
       };
       return { ...base, data } as TimelineItem;
     }
@@ -411,6 +414,7 @@ function convertStoreItemData(item: TimelineItem): Record<string, unknown> {
         text: w.text,
         startMs: w.startMs + item.startMs,
         endMs: w.endMs + item.startMs,
+        ...(w.role ? { role: w.role } : {}),
         ...(w.styleOverrides ? { styleOverrides: w.styleOverrides } : {}),
       }));
       return { words };

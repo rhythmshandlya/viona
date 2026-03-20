@@ -207,6 +207,7 @@ export interface CaptionWord {
   text: string;
   startMs: number; // Relative to caption start
   endMs: number;   // Relative to caption start
+  role?: string;   // Word emphasis role (e.g. 'power', 'medium', 'filler')
   styleOverrides?: WordStyleOverrides;
 }
 
