@@ -51,6 +51,7 @@
 		"@remotion/noise": "4.0.422",
 		"@remotion/paths": "4.0.422",
 		"@remotion/player": "4.0.422",
+		"@remotion/preload": "4.0.422",
 		"@remotion/renderer": "4.0.422",
 		"@remotion/shapes": "4.0.422",
 		"@remotion/three": "4.0.422",

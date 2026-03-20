@@ -119,16 +119,18 @@ function createRequire(bundleBaseUrl: string) {
     }
 
     if (moduleName === 'remotion') {
-      // Cap premountFor to 10 frames (~333ms at 30fps). This gives the browser
-      // enough time to parse the blob container and init the decoder before
-      // the cut, but is short enough to avoid Chrome's power-saver which pauses
-      // offscreen videos after sustained background playback (the old 60-frame
-      // premount triggered it, causing AbortError).
+      // Cap premountFor to 18 frames (~600ms at 30fps).
+      // Blob-loaded video needs up to ~300ms for: container parse (~20ms) +
+      // decoder init (~50ms) + seek to non-keyframe (~200ms) + first frame
+      // decode (~30ms). 600ms covers worst case with margin.
+      // Chrome's power-saver only triggers after sustained (5s+) offscreen
+      // playback — 600ms is well under the threshold.
+      const PREMOUNT_CAP = 18;
       const CappedPremountSequence = (props: any) => {
         const { premountFor, ...rest } = props;
         return React.createElement(Remotion.Sequence, {
           ...rest,
-          premountFor: premountFor != null ? Math.min(premountFor, 10) : undefined,
+          premountFor: premountFor != null ? Math.min(premountFor, PREMOUNT_CAP) : undefined,
         });
       };
 

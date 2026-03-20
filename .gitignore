@@ -84,3 +84,6 @@ tests/e2e/output/
 
 # Obsidian vault (separate repo)
 docs/viona-notes/
+
+# Reference repos
+.reference/

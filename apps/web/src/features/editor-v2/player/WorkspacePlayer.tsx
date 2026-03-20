@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Player, type RenderLoading } from '@remotion/player';
 import { AbsoluteFill, prefetch } from 'remotion';
+import { preloadVideo, preloadAudio } from '@remotion/preload';
 import { useWorkspaceComposition, resolvePublicBase } from './useWorkspaceComposition';
 
 interface WorkspacePlayerProps {
@@ -43,6 +44,7 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
   // in useWorkspaceComposition, which is: `${publicBase}/${cleanPath}`
   // -----------------------------------------------------------------------
   const prefetchHandlesRef = useRef<Map<string, { free: () => void }>>(new Map());
+  const preloadHandlesRef = useRef<Map<string, () => void>>(new Map());
 
   useEffect(() => {
     const m = manifest as any;
@@ -50,23 +52,26 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
 
     const publicBase = resolvePublicBase(bundleUrl);
 
-    const currentSrcs = new Set<string>();
+    // Collect media URLs with their types
+    const currentMedia = new Map<string, 'video' | 'audio'>();
     for (const item of m.items) {
       if ((item.type === 'video' || item.type === 'audio') && item.data?.src) {
         const src = item.data.src as string;
+        let resolved: string;
         if (/^https?:\/\/|^blob:/.test(src)) {
-          // Absolute URL — prefetch as-is
-          currentSrcs.add(src);
+          resolved = src;
         } else {
-          // Relative path — resolve to same proxy URL that customStaticFile returns
           const cleanPath = src.startsWith('/') ? src.slice(1) : src;
-          currentSrcs.add(`${publicBase}/${cleanPath}`);
+          resolved = `${publicBase}/${cleanPath}`;
         }
+        currentMedia.set(resolved, item.type as 'video' | 'audio');
       }
     }
 
-    // Prefetch new sources
-    for (const url of currentSrcs) {
+    // Step 1: prefetch() — download as blob URL (guaranteed in-memory)
+    // Step 2: preloadVideo/Audio() — create hidden <video>/<audio> element
+    //         that pre-parses the container and warms the decoder
+    for (const [url, type] of currentMedia) {
       if (!prefetchHandlesRef.current.has(url)) {
         console.log('[WorkspacePlayer] prefetching:', url);
         const handle = prefetch(url, {
@@ -75,6 +80,13 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
         });
         handle.waitUntilDone().then(() => {
           console.log('[WorkspacePlayer] prefetch ready:', url);
+          // After blob is cached, preload to warm the decoder.
+          // Remotion intercepts this URL and uses the blob, so the hidden
+          // <video>/<audio> element decodes from memory — no extra fetch.
+          if (!preloadHandlesRef.current.has(url)) {
+            const freePreload = type === 'video' ? preloadVideo(url) : preloadAudio(url);
+            preloadHandlesRef.current.set(url, freePreload);
+          }
         }).catch((err) => {
           console.warn('[WorkspacePlayer] prefetch failed:', url, err);
         });
@@ -83,21 +95,28 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
     }
 
     // Free sources no longer in the manifest
+    const currentUrls = new Set(currentMedia.keys());
     for (const [url, handle] of prefetchHandlesRef.current) {
-      if (!currentSrcs.has(url)) {
+      if (!currentUrls.has(url)) {
         handle.free();
         prefetchHandlesRef.current.delete(url);
+        preloadHandlesRef.current.get(url)?.();
+        preloadHandlesRef.current.delete(url);
       }
     }
   }, [manifest, bundleUrl]);
 
-  // Cleanup all prefetches on unmount
+  // Cleanup all prefetches and preloads on unmount
   useEffect(() => {
     return () => {
       for (const [, handle] of prefetchHandlesRef.current) {
         handle.free();
       }
       prefetchHandlesRef.current.clear();
+      for (const [, free] of preloadHandlesRef.current) {
+        free();
+      }
+      preloadHandlesRef.current.clear();
     };
   }, []);
 

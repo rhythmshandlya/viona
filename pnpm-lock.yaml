@@ -190,6 +190,9 @@ importers:
       '@remotion/player':
         specifier: 4.0.422
         version: 4.0.422(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@remotion/preload':
+        specifier: 4.0.422
+        version: 4.0.422
       '@remotion/renderer':
         specifier: 4.0.422
         version: 4.0.422(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -3382,6 +3385,9 @@ packages:
     peerDependencies:
       react: '>=16.8.0'
       react-dom: '>=16.8.0'
+
+  '@remotion/preload@4.0.422':
+    resolution: {integrity: sha512-qO8gxxlpJlLa/Kw+N+zMv3turJ8GbmCL+q5xBUGT49NOgfGD/xcm2dTRxBxh1Ep+plSo7cmKIZGsuNLedowerg==}
 
   '@remotion/renderer@4.0.422':
     resolution: {integrity: sha512-o58v9yUjrg4b0JxXjTDP/bcgaERtRMAc/hnZJfY9IqcRxaxAz/Z0iIMKIXnNRFDgdrSmVvI6FyKSAiWGrSLlPw==}
@@ -12013,7 +12019,7 @@ snapshots:
       remotion: 4.0.422(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       source-map: 0.7.3
       style-loader: 4.0.0(webpack@5.105.0(esbuild@0.25.0))
-      webpack: 5.105.0(esbuild@0.24.2)
+      webpack: 5.105.0(esbuild@0.25.0)
     transitivePeerDependencies:
       - '@swc/core'
       - bufferutil
@@ -12035,7 +12041,7 @@ snapshots:
       remotion: 4.0.422(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       source-map: 0.7.3
       style-loader: 4.0.0(webpack@5.105.0(esbuild@0.25.0))
-      webpack: 5.105.0(esbuild@0.24.2)
+      webpack: 5.105.0(esbuild@0.25.0)
     transitivePeerDependencies:
       - '@swc/core'
       - bufferutil
@@ -12213,6 +12219,8 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
       remotion: 4.0.422(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+
+  '@remotion/preload@4.0.422': {}
 
   '@remotion/renderer@4.0.422(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
@@ -14322,7 +14330,7 @@ snapshots:
       postcss-value-parser: 4.2.0
       schema-utils: 3.3.0
       semver: 7.7.4
-      webpack: 5.105.0(esbuild@0.24.2)
+      webpack: 5.105.0(esbuild@0.25.0)
 
   css-select@5.2.2:
     dependencies:
@@ -18164,7 +18172,7 @@ snapshots:
 
   style-loader@4.0.0(webpack@5.105.0(esbuild@0.25.0)):
     dependencies:
-      webpack: 5.105.0(esbuild@0.24.2)
+      webpack: 5.105.0(esbuild@0.25.0)
 
   style-to-js@1.1.21:
     dependencies:
@@ -18268,16 +18276,16 @@ snapshots:
       yallist: 4.0.0
     optional: true
 
-  terser-webpack-plugin@5.3.16(esbuild@0.24.2)(webpack@5.105.0(esbuild@0.25.0)):
+  terser-webpack-plugin@5.3.16(esbuild@0.25.0)(webpack@5.105.0(esbuild@0.25.0)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       serialize-javascript: 6.0.2
       terser: 5.46.0
-      webpack: 5.105.0(esbuild@0.24.2)
+      webpack: 5.105.0(esbuild@0.25.0)
     optionalDependencies:
-      esbuild: 0.24.2
+      esbuild: 0.25.0
 
   terser@5.46.0:
     dependencies:
@@ -18894,7 +18902,7 @@ snapshots:
 
   webpack-sources@3.3.4: {}
 
-  webpack@5.105.0(esbuild@0.24.2):
+  webpack@5.105.0(esbuild@0.25.0):
     dependencies:
       '@types/eslint-scope': 3.7.7
       '@types/estree': 1.0.8
@@ -18918,7 +18926,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.0
-      terser-webpack-plugin: 5.3.16(esbuild@0.24.2)(webpack@5.105.0(esbuild@0.25.0))
+      terser-webpack-plugin: 5.3.16(esbuild@0.25.0)(webpack@5.105.0(esbuild@0.25.0))
       watchpack: 2.5.1
       webpack-sources: 3.3.4
     transitivePeerDependencies:
