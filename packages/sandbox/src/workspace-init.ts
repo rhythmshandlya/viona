@@ -1,4 +1,4 @@
-import { mkdir, writeFile, cp, access, symlink, readlink, copyFile, rm } from 'fs/promises';
+import { mkdir, writeFile, cp, access, symlink, readlink, copyFile, rm, readdir } from 'fs/promises';
 import { createWriteStream, cpSync, rmSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { pipeline } from 'stream/promises';
@@ -71,6 +71,105 @@ async function probeVideoDurationMs(filePath: string): Promise<number> {
 }
 
 /**
+ * Probe width and height of a video or image file using ffprobe.
+ * Returns { width, height } or null on failure.
+ */
+async function probeDimensions(filePath: string): Promise<{ width: number; height: number } | null> {
+  try {
+    const { stdout } = await execFileAsync('ffprobe', [
+      '-v', 'quiet',
+      '-print_format', 'json',
+      '-show_streams',
+      '-select_streams', 'v:0',
+      filePath,
+    ]);
+    const info = JSON.parse(stdout);
+    const stream = info.streams?.[0];
+    if (stream?.width && stream?.height) {
+      return { width: stream.width, height: stream.height };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+const VIDEO_EXTS = new Set(['.mp4', '.webm']);
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const AUDIO_EXTS = new Set(['.aac', '.mp3', '.wav', '.m4a']);
+
+const PROXY_SUFFIXES: Record<string, string> = {
+  '.mp4': '-proxy.mp4',  '.webm': '-proxy.mp4',
+  '.png': '-proxy.webp', '.jpg': '-proxy.webp', '.jpeg': '-proxy.webp', '.webp': '-proxy.webp',
+  '.aac': '-proxy.aac',  '.mp3': '-proxy.aac',  '.wav': '-proxy.aac',  '.m4a': '-proxy.aac',
+};
+
+/**
+ * Generate low-res proxy files for all media in the public directory.
+ * Video → 480p, Image → 960px wide WebP, Audio → 64kbps mono AAC.
+ * Skips files already below threshold or that already have a proxy.
+ * Failures are logged and silently skipped — editor falls back to originals.
+ */
+async function generateProxies(publicDir: string): Promise<void> {
+  const entries = await readdir(publicDir, { withFileTypes: true });
+  const files = entries.filter(e => e.isFile()).map(e => e.name);
+
+  for (const file of files) {
+    if (file.includes('-proxy.')) continue;
+
+    const ext = file.match(/\.\w+$/)?.[0]?.toLowerCase() || '';
+    const suffix = PROXY_SUFFIXES[ext];
+    if (!suffix) continue;
+
+    const base = file.replace(/\.\w+$/, '');
+    const input = join(publicDir, file);
+    const output = join(publicDir, `${base}${suffix}`);
+
+    try {
+      if (VIDEO_EXTS.has(ext)) {
+        const dims = await probeDimensions(input);
+        if (dims && dims.height <= 480) {
+          logger.info({ file }, 'Skipping proxy — already ≤480p');
+          continue;
+        }
+        await execFileAsync('ffmpeg', [
+          '-i', input,
+          '-vf', 'scale=-2:480',
+          '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+          '-c:a', 'aac', '-b:a', '128k',
+          '-y', output,
+        ], { timeout: 120_000 });
+        logger.info({ file, output: `${base}${suffix}` }, 'Video proxy generated');
+
+      } else if (IMAGE_EXTS.has(ext)) {
+        const dims = await probeDimensions(input);
+        if (dims && dims.width <= 960) {
+          logger.info({ file }, 'Skipping proxy — already ≤960px wide');
+          continue;
+        }
+        await execFileAsync('ffmpeg', [
+          '-i', input,
+          '-vf', "scale='min(960,iw)':-2",
+          '-q:v', '70',
+          '-y', output,
+        ], { timeout: 30_000 });
+        logger.info({ file, output: `${base}${suffix}` }, 'Image proxy generated');
+
+      } else if (AUDIO_EXTS.has(ext)) {
+        await execFileAsync('ffmpeg', [
+          '-i', input,
+          '-c:a', 'aac', '-ac', '1', '-b:a', '64k',
+          '-y', output,
+        ], { timeout: 60_000 });
+        logger.info({ file, output: `${base}${suffix}` }, 'Audio proxy generated');
+      }
+    } catch (err) {
+      logger.warn({ err, file }, 'Proxy generation failed — will use original');
+    }
+  }
+}
+
+/**
  * Check if workspace is already initialized (volume was restored from backup).
  */
 export async function isInitialized(): Promise<boolean> {
@@ -138,6 +237,9 @@ async function initWorkspaceInDir(payload: InitPayload, baseDir: string): Promis
     const audioStream = await minio.getObject(bucket, payload.audioUrl);
     await pipeline(audioStream, createWriteStream(audioPath));
   }
+
+  // Generate low-res proxy files for preview performance
+  await generateProxies(join(baseDir, 'public'));
 
   // Patch manifest with detected duration and fix video item endMs
   const manifest = payload.manifest as Record<string, any>;
