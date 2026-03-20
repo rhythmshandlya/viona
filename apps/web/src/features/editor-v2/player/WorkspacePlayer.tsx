@@ -68,9 +68,15 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
     // Prefetch new sources
     for (const url of currentSrcs) {
       if (!prefetchHandlesRef.current.has(url)) {
+        console.log('[WorkspacePlayer] prefetching:', url);
         const handle = prefetch(url, {
           method: 'blob-url',
           credentials: url.startsWith('/') ? 'include' : 'omit',
+        });
+        handle.waitUntilDone().then(() => {
+          console.log('[WorkspacePlayer] prefetch ready:', url);
+        }).catch((err) => {
+          console.warn('[WorkspacePlayer] prefetch failed:', url, err);
         });
         prefetchHandlesRef.current.set(url, handle);
       }

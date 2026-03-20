@@ -119,24 +119,18 @@ function createRequire(bundleBaseUrl: string) {
     }
 
     if (moduleName === 'remotion') {
-      // Wrap Sequence to enable premounting — the composition template uses
-      // layout="none" on all Sequences, which prevents premounting.
-      // By overriding layout to undefined for visual items and adding premountFor,
-      // Remotion pre-mounts <Video> elements ~1s before they become visible,
-      // eliminating the black flash at cut boundaries.
-      const PremountSequence = (props: any) => {
-        const { layout, premountFor, children, ...rest } = props;
-        // 60 frames ≈ 2s at 30fps — enough for video to load & seek from cache
-        return React.createElement(Remotion.Sequence, {
-          ...rest,
-          premountFor: premountFor ?? 60,
-          children,
-        });
+      // Disable premounting — blob prefetch already keeps all media in memory,
+      // so videos load from blob URLs in <1 frame. Premounting creates offscreen
+      // <video> elements that Chrome's power saver pauses, causing AbortError
+      // on play() and chunky lag.
+      const NoPremountSequence = (props: any) => {
+        const { premountFor, ...rest } = props;
+        return React.createElement(Remotion.Sequence, rest);
       };
 
       return {
         ...Remotion,
-        Sequence: PremountSequence,
+        Sequence: NoPremountSequence,
         Composition: () => null,
         staticFile: customStaticFile,
         // OffthreadVideo is for rendering; in the Player context, use Video
