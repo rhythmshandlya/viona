@@ -165,6 +165,7 @@ export function stopCheckpointWatcher(): void
 | `packages/sandbox/src/checkpoint.ts` | **Create** | Git operations, bundle creation, MinIO upload, API POST, debounce, watcher |
 | `packages/sandbox/src/workspace-init.ts` | Modify | Call `initGitRepo()` after workspace setup completes |
 | `packages/sandbox/src/entry.ts` | Modify | Replace `startCheckpointing()` with `startCheckpointWatcher()`, call `checkpoint()` on SIGTERM |
+| `packages/sandbox/src/agent-server.ts` | Modify | Update imports from `manifest-checkpoint` to `checkpoint`, replace `startCheckpointing()` with `startCheckpointWatcher()` |
 | `packages/sandbox/src/manifest-checkpoint.ts` | **Delete** | Replaced by `checkpoint.ts` |
 | `packages/sandbox/src/tools/manifest-ops.ts` | Modify | Remove `CHECKPOINT_EVERY_N_WRITES` write-count trigger (replaced by fs.watch) |
 | `packages/sandbox/src/orchestrator.ts` | Modify | Call `checkpoint()` (fire-and-forget with mutex) in `processStream()` after `activeSubagents.delete()` |
