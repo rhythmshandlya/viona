@@ -1,5 +1,6 @@
 import React from 'react';
-import { Audio, staticFile } from 'remotion';
+import { Audio } from 'remotion';
+import { resolveMediaSrc } from './resolveMediaSrc';
 
 interface AudioItemData {
   src: string;
@@ -15,16 +16,7 @@ interface AudioItemProps {
 }
 
 export const AudioItem: React.FC<AudioItemProps> = ({ data, assets, fps }) => {
-  // Resolve src: check assets map first, handle http(s)/blob URLs directly,
-  // fallback to staticFile for local paths
-  let src: string;
-  if (assets[data.src]) {
-    src = assets[data.src];
-  } else if (/^https?:\/\/|^blob:/.test(data.src)) {
-    src = data.src;
-  } else {
-    src = staticFile(data.src);
-  }
+  const src = resolveMediaSrc(data.src, assets);
 
   const startFrom =
     data.startFrom != null

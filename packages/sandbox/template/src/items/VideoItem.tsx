@@ -1,12 +1,6 @@
 import React from 'react';
-import { Video, staticFile } from 'remotion';
-
-/** Resolve media source: assets map → URL → staticFile fallback */
-export function resolveMediaSrc(src: string, assets: Record<string, string>): string {
-  if (assets[src]) return assets[src];
-  if (/^https?:\/\/|^blob:/.test(src)) return src;
-  return staticFile(src);
-}
+import { Video } from 'remotion';
+import { resolveMediaSrc } from './resolveMediaSrc';
 
 interface VideoCrop {
   x: number;
