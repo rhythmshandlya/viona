@@ -104,6 +104,18 @@ export const config = {
       apiToken: process.env.RAILWAY_API_TOKEN || '',
       projectId: process.env.RAILWAY_PROJECT_ID || '',
       environmentId: process.env.RAILWAY_ENVIRONMENT_ID || '',
+      repo: process.env.SANDBOX_REPO || 'rhythmshandlya/clippify',
+      branch: process.env.SANDBOX_BRANCH || 'main',
+    },
+    /** Callback URL that sandbox containers use to reach this API instance. */
+    get callbackUrl(): string {
+      if (process.env.RAILWAY_PRIVATE_DOMAIN) {
+        return `http://${process.env.RAILWAY_PRIVATE_DOMAIN}`;
+      }
+      if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+        return `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
+      }
+      return process.env.API_CALLBACK_URL || 'http://host.docker.internal:4000';
     },
   },
 } as const;

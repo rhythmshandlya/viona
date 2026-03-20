@@ -31,7 +31,9 @@ export class RailwaySandboxProvider implements SandboxProvider {
     let volumeId: string | undefined;
 
     try {
-      // 1. Create service
+      // 1. Create service — use image source if a custom SANDBOX_IMAGE is set,
+      //    otherwise build from the GitHub repo (no external registry needed)
+      const useImage = config.sandbox.image !== 'viona-sandbox:latest';
       const serviceResult = await railwayGql(`
         mutation($input: ServiceCreateInput!) {
           serviceCreate(input: $input) { id name }
@@ -41,16 +43,36 @@ export class RailwaySandboxProvider implements SandboxProvider {
           projectId: config.sandbox.railway.projectId,
           environmentId: config.sandbox.railway.environmentId,
           name: `sandbox-${projectId.slice(0, 8)}`,
-          source: { image: config.sandbox.image },
+          source: useImage
+            ? { image: config.sandbox.image }
+            : { repo: config.sandbox.railway.repo },
+          branch: config.sandbox.railway.branch,
         },
       });
       serviceId = serviceResult.serviceCreate.id;
+
+      // 1b. Configure build settings (Dockerfile path, health check)
+      await railwayGql(`
+        mutation($serviceId: String!, $environmentId: String!, $input: ServiceInstanceUpdateInput!) {
+          serviceInstanceUpdate(serviceId: $serviceId, environmentId: $environmentId, input: $input)
+        }
+      `, {
+        serviceId,
+        environmentId: config.sandbox.railway.environmentId,
+        input: {
+          ...(useImage ? {} : { dockerfilePath: 'packages/sandbox/Dockerfile' }),
+          healthcheckPath: '/health',
+          healthcheckTimeout: 60,
+          restartPolicyType: 'ON_FAILURE',
+          restartPolicyMaxRetries: 3,
+        },
+      });
 
       // 2. Set environment variables
       const allEnv: Record<string, string> = {
         SANDBOX_SECRET: secret,
         SANDBOX_ID: projectId,
-        API_CALLBACK_URL: process.env.RAILWAY_INTERNAL_URL || `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`,
+        API_CALLBACK_URL: config.sandbox.callbackUrl,
         CHECKPOINT_INTERVAL_MS: String(config.sandbox.checkpointIntervalMs),
         MINIO_ENDPOINT: process.env.BUCKET_ENDPOINT || '',
         MINIO_PORT: process.env.BUCKET_PORT || '443',
@@ -101,8 +123,9 @@ export class RailwaySandboxProvider implements SandboxProvider {
       });
 
       // 5. Wait for deployment and get volume instance ID
+      //    Repo-based builds take longer than image pulls — poll for up to 5 min
       let volumeInstanceId = '';
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 150; i++) {
         await new Promise(r => setTimeout(r, 2000));
 
         const volData = await railwayGql(`
@@ -121,7 +144,7 @@ export class RailwaySandboxProvider implements SandboxProvider {
       }
 
       if (!volumeInstanceId) {
-        throw new Error('Volume instance not created after 120s');
+        throw new Error('Volume instance not created after 300s');
       }
 
       // 6. Restore backup if provided
@@ -155,8 +178,8 @@ export class RailwaySandboxProvider implements SandboxProvider {
         status: 'ready',
       };
 
-      // 8. Wait for health check
-      await this.waitForReady(internalUrl, 120_000);
+      // 8. Wait for health check — repo builds take ~3-5 min, image pulls ~30s
+      await this.waitForReady(internalUrl, 300_000);
 
       return sandbox;
     } catch (err: any) {
