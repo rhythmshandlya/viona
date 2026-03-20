@@ -1,0 +1,35 @@
+import React from 'react';
+
+interface AirplaneIconProps {
+  x: number;
+  y: number;
+  angle: number;
+  size?: number;
+  color?: string;
+}
+
+const AirplaneIcon: React.FC<AirplaneIconProps> = ({
+  x,
+  y,
+  angle,
+  size = 24,
+  color = '#333333',
+}) => {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: x,
+        top: y,
+        transform: `translate(-50%, -50%) rotate(${angle}rad)`,
+        pointerEvents: 'none',
+      }}
+    >
+      <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z" />
+      </svg>
+    </div>
+  );
+};
+
+export default AirplaneIcon;

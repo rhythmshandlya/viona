@@ -1,0 +1,23 @@
+{
+  "slug": "globe-network",
+  "name": "Globe Network",
+  "description": "3D rotating globe with arcs connecting cities — global presence, network visualization, worldwide reach",
+  "category": "geographic",
+  "tags": [
+    "globe",
+    "network",
+    "3d",
+    "world",
+    "international",
+    "connections",
+    "global",
+    "business",
+    "tech",
+    "cinematic"
+  ],
+  "stylePreset": "modernTech",
+  "aspectRatio": "1:1",
+  "sceneCount": 1,
+  "estimatedDuration": "12s",
+  "thumbnail": "thumbnail.png"
+}

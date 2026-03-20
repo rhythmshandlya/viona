@@ -63,8 +63,13 @@ packages/worker/remotion-template/node_modules/
 # Worktrees
 .worktrees/
 
-# Worker generated files
-packages/worker/workspace/
+# Worker workspace — track source, ignore generated/build output
+packages/worker/workspace/node_modules/
+packages/worker/workspace/out/
+packages/worker/workspace/dist/
+packages/worker/workspace/bundle/
+packages/worker/workspace/src/proj-*/
+packages/worker/workspace/src/proj_*/
 packages/worker/bundles/
 
 # Conda environments
