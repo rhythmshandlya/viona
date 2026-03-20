@@ -90,7 +90,7 @@ interface CaptionPosition {
 }
 ```
 
-Note: The sandbox renderer (`CaptionItem.tsx`) currently only handles anchor mode. Free mode support (`x`/`y` positioning) is out of scope for this spec — the CaptionDragOverlay converts free-mode coordinates to `offsetX`/`offsetY` for the renderer. Full free-mode rendering can be added later.
+Note: The existing `CaptionPosition` type in `types.ts` has required fields (`anchor`, `offsetX`, etc.). The preset should accept `Partial<CaptionPosition>` with defaults resolved at the renderer boundary. The sandbox renderer (`CaptionItem.tsx`) currently only handles anchor mode. Free mode support (`x`/`y` positioning) is out of scope for this spec — the CaptionDragOverlay converts free-mode coordinates to `offsetX`/`offsetY` for the renderer. Full free-mode rendering can be added later.
 
 ### CaptionDisplayMode
 
