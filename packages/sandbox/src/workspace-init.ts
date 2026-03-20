@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { Client as MinioClient } from 'minio';
 import pino from 'pino';
 import { syncAssets } from './asset-sync.js';
+import { initGitRepo } from './checkpoint.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -390,6 +391,9 @@ export async function initWorkspace(payload: InitPayload): Promise<void> {
 
     // Asset sync runs after promotion — it reads/writes /workspace directly
     await syncAssets();
+
+    // Initialize git repo for checkpoint system
+    await initGitRepo();
 
     logger.info('Workspace initialized');
   } catch (err) {
