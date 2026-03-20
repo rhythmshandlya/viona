@@ -130,6 +130,13 @@ export const WorkspacePlayer = React.memo(function WorkspacePlayer({
   }, []);
 
   const inputProps = useMemo(() => {
+    // Strip sandbox assets map so resolveMediaSrc always falls through to
+    // staticFile(), returning the same proxy URL that prefetch() cached as blob.
+    const m = manifest as any;
+    if (m?.assets) {
+      const { assets: _a, ...rest } = m;
+      return { manifest: { ...rest, assets: {} } };
+    }
     return { manifest };
   }, [manifest]);
 
