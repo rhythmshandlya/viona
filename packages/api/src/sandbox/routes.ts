@@ -11,6 +11,7 @@ import { dbToManifest } from '@viona/shared';
 import { emitWorkspaceReady, emitBundleReady, emitManifestUpdated } from '../workspace/workspace-ws.js';
 import { sandboxSessions } from '../db/schema.js';
 import type { SandboxManager, InitData } from './manager.js';
+import { syncManifestToDb } from './sync.js';
 
 // ---------------------------------------------------------------------------
 // Factory: createSandboxRoutes(manager)
@@ -251,13 +252,18 @@ export function createSandboxRoutes(manager: SandboxManager) {
       return { ok: true };
     });
 
-    // POST /internal/sandbox/:id/checkpoint — Upload manifest checkpoint to S3
+    // POST /internal/sandbox/:id/checkpoint — Upload manifest checkpoint to S3 + sync to DB
     fastify.post('/internal/sandbox/:id/checkpoint', async (request, reply) => {
       const projectId = await validateInternalCallback(request, reply);
       if (!projectId) return;
       const body = request.body as { manifest?: any };
       if (body.manifest) {
+        // Upload to S3 (existing behavior)
         await manager.checkpoint(projectId, body.manifest);
+        // Sync to DB so saveProject from frontend has current data
+        await syncManifestToDb(projectId, body.manifest).catch(err => {
+          logger.error({ err, projectId }, 'syncManifestToDb failed during checkpoint');
+        });
       } else {
         logger.debug({ projectId }, 'Checkpoint received (no manifest payload)');
       }
