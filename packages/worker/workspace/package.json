@@ -35,11 +35,9 @@
     "@remotion/eslint-config-flat": "4.0.422",
     "@types/react": "19.2.7",
     "@types/web": "0.0.166",
-    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "9.19.0",
     "prettier": "3.6.0",
-    "typescript": "5.9.3",
-    "vite": "^8.0.1"
+    "typescript": "5.9.3"
   },
   "scripts": {
     "dev": "remotion studio",
@@ -48,8 +46,7 @@
     "render": "remotion render",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc",
-    "typecheck": "tsc --noEmit --pretty false",
-    "playground": "vite"
+    "typecheck": "tsc --noEmit --pretty false"
   },
   "sideEffects": [
     "*.css"
