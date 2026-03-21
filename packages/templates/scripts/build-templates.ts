@@ -149,6 +149,11 @@ async function buildTemplate(slug: string): Promise<ManifestEntry> {
     copyDirRecursive(libDir, join(resolvedDir, 'lib'));
   }
 
+  const magazineDir = join(SRC_DIR, 'magazine');
+  if (existsSync(magazineDir)) {
+    copyDirRecursive(magazineDir, join(resolvedDir, 'magazine'));
+  }
+
   // ── 2. Rewrite ../../ imports to ./ ───────────────────────────────
   rewriteRelativeImports(resolvedDir);
 

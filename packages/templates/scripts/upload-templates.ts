@@ -172,11 +172,10 @@ async function uploadTemplate(
   // ── 2b. Upload shared magazine library files (if template uses them) ─
   const magazineDir = join(SRC_DIR, 'magazine');
   if (existsSync(magazineDir)) {
-    // Check if any source file references ../../magazine/
     const sourceFiles2 = existsSync(sourceDir) ? getAllFiles(sourceDir) : [];
     const usesMagazine = sourceFiles2.some(fp => {
       const content = readFileSync(fp, 'utf-8');
-      return /from\s+['"]\.\.\/\.\.\/magazine\//.test(content);
+      return /from\s+['"](?:\.\.\/){2,}magazine\//.test(content);
     });
 
     if (usesMagazine) {
@@ -184,9 +183,15 @@ async function uploadTemplate(
       console.log(`  Uploading ${magazineFiles.length} shared magazine library files...`);
       for (const filePath of magazineFiles) {
         const relativePath = filePath.substring(magazineDir.length + 1);
-        const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/../../magazine/${relativePath}`);
+        const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/magazine/${relativePath}`);
         const contentType = getContentType(filePath);
         await uploadFileToS3(client, filePath, s3Key, contentType);
+      }
+      // Also upload fonts.ts (magazine library depends on it)
+      const fontsPath = join(SRC_DIR, 'fonts.ts');
+      if (existsSync(fontsPath)) {
+        const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/fonts.ts`);
+        await uploadFileToS3(client, fontsPath, s3Key, 'text/typescript');
       }
     }
   }
