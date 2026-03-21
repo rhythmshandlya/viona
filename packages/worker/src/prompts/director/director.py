@@ -456,7 +456,7 @@ Machine-readable v2 format with segments and beats:
 **CRITICAL: All positions use percentages or "center"/"auto". Never use pixel values.**
 
 **`suggestedTemplates` (studio preset only):**
-- An array of 1-2 template slug strings from the STUDIO_TEMPLATES.md catalog
+- An array of 1-2 template slug strings from the template library in src/.templates/
 - Only include this field when style_preset is "studio" AND a template matches the beat's purpose
 - The Animator will read the template source and use it as a starting point for the beat
 - If no template fits, omit this field entirely — the Animator will create custom visuals

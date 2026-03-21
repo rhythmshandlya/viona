@@ -38,8 +38,6 @@ Check src/.templates/ for pre-built template source code. Templates are availabl
 intros/outros, marketing, education. Templates are ONE tool — use when they fit, but do NOT
 force every scene into a template. Custom SVG animation is often more compelling.
 
-If a STUDIO_TEMPLATES.md file exists in the workspace src/ directory, READ IT FIRST.
-
 **TEMPLATE SUGGESTIONS:**
 For each scene, optionally add a "suggestedTemplates" array to scenes.json when a template fits.
 If a custom visual technique is better, describe the technique in the "visual" field instead.
