@@ -28,5 +28,7 @@
   "aspectRatio": "1:1",
   "sceneCount": 1,
   "estimatedDuration": "12s",
-  "thumbnail": "thumbnail.png"
+  "thumbnail": "thumbnail.png",
+  "type": "scene",
+  "themes": []
 }
