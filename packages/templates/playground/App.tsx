@@ -58,14 +58,19 @@ export function App() {
             onSelectTheme={(slug) => setView({ type: 'themes', themeSlug: slug })}
           />
         )}
-        {view.type === 'detail' && (
-          <TemplateDetail
-            template={templates.find((t) => t.id === view.templateId)!}
-            themes={themes}
-            onBack={() => setView({ type: 'gallery' })}
-            onSelectTheme={(slug) => setView({ type: 'themes', themeSlug: slug })}
-          />
-        )}
+        {view.type === 'detail' && (() => {
+          const template = templates.find((t) => t.id === view.templateId);
+          if (!template) return <div style={{ padding: 40, color: '#888' }}>Template not found</div>;
+          return (
+            <TemplateDetail
+              key={template.id}
+              template={template}
+              themes={themes}
+              onBack={() => setView({ type: 'gallery' })}
+              onSelectTheme={(slug) => setView({ type: 'themes', themeSlug: slug })}
+            />
+          );
+        })()}
         {view.type === 'themes' && (
           <ThemeBrowser
             themes={themes}

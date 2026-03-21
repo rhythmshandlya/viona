@@ -119,6 +119,7 @@ export function TemplateGallery({ templates, themes, onSelectTemplate, onSelectT
             template={template}
             themes={themes}
             onClick={() => onSelectTemplate(template.id)}
+            onSelectTheme={onSelectTheme}
           />
         ))}
         {filtered.length === 0 && (
@@ -135,10 +136,12 @@ function TemplateCard({
   template,
   themes,
   onClick,
+  onSelectTheme,
 }: {
   template: TemplateEntry;
   themes: ThemeDefinition[];
   onClick: () => void;
+  onSelectTheme: (slug: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -209,12 +212,14 @@ function TemplateCard({
           {themeNames.map((name, i) => (
             <span
               key={template.themes[i]}
+              onClick={(e) => { e.stopPropagation(); onSelectTheme(template.themes[i]); }}
               style={{
                 fontSize: 10,
                 background: '#8B5CF620',
                 borderRadius: 4,
                 padding: '2px 6px',
                 color: '#8B5CF6',
+                cursor: 'pointer',
               }}
             >
               {name}
