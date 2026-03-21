@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-collage",
+  "name": "Magazine Parallax Photo Collage",
+  "description": "Torn paper clippings scatter and drift with parallax depth, creating a scrapbook collage overlay",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "collage", "photo", "parallax", "scrapbook"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}
