@@ -273,6 +273,8 @@ async function buildTemplate(slug: string): Promise<ManifestEntry> {
       aspectRatio: meta.aspectRatio,
       estimatedDuration: meta.estimatedDuration,
       sceneCount: meta.sceneCount,
+      type: meta.type,
+      themes: meta.themes,
     },
     compositionMeta,
     defaultProps,
