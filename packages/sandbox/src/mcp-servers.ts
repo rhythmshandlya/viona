@@ -130,7 +130,7 @@ export function createMcpServers(
         'report_progress',
         'Report progress to the user during long-running operations. Shows a progress indicator with agent name, active track, and estimated time remaining.',
         {
-          phase: z.string().describe('Pipeline phase: trimming, planning, editing, generating, reviewing, assembling, complete'),
+          phase: z.string().describe('Pipeline phase: preparing, planning, setup, layout, generating, assembling, complete, error'),
           percent: z.number().optional().describe('Optional progress percentage (ignored by frontend)'),
           message: z.string().describe('Human-readable status message (Viona-centric, no internal agent names)'),
           agentName: z.string().optional().describe('Which agent is working: Trim Editor, Planner, Visual Editor, Animator, QC Reviewer'),
