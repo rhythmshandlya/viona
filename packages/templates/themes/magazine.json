@@ -1,0 +1,18 @@
+{
+  "slug": "magazine",
+  "name": "Magazine",
+  "description": "Editorial magazine style with serif typography, warm earth tones, and cinematic parallax motion",
+  "colorPalette": {
+    "primary": "#2D1B0E",
+    "secondary": "#8B6914",
+    "accent": "#C4A265",
+    "background": "#F5F0E8",
+    "text": "#1A1A1A"
+  },
+  "fontRecommendations": {
+    "heading": "Playfair Display",
+    "body": "Source Serif Pro",
+    "accent": "Cormorant Garamond"
+  },
+  "styleGuidance": "Magazine theme uses serif headlines with editorial grid layouts. Warm earth tones dominate with gold accents. Motion should be subtle and cinematic — parallax scrolling, gentle zoom, smooth reveals. Text should feel typeset, not animated. Prefer clean negative space over busy compositions. Photography-forward with minimal overlay text."
+}

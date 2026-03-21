@@ -20,6 +20,7 @@
     "templates:upload": "tsx scripts/upload-templates.ts",
     "templates:screenshots": "tsx scripts/generate-screenshots.ts",
     "templates:publish": "pnpm templates:build && pnpm templates:upload && pnpm templates:screenshots",
+    "themes:seed": "tsx scripts/seed-themes.ts",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit"
   },
