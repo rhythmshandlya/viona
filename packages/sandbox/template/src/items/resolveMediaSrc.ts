@@ -36,13 +36,15 @@ export function deriveProxyKey(src: string): string | null {
  * Resolve a media source path to a playable URL.
  *
  * In preview mode: prefers proxy variant if available in assets map.
- * In render mode (remotion render / remotion still): always uses original for full quality.
+ * In render mode (remotion render / remotion still): uses local staticFile.
+ *   Presigned URLs in the assets map are for browser access outside the
+ *   sandbox container — headless Chrome inside Docker can't reach them.
+ * In browser player: uses assets map for presigned URLs.
  *
- * Note: getRemotionEnvironment().isRendering is true for BOTH `remotion render` and
- * `remotion still`. This means QC screenshots also use originals. If QC speed matters
- * more than pixel accuracy, this gate can be refined later.
- *
- * Resolution order: proxy (if preview) → assets map → absolute URL → staticFile
+ * Resolution order:
+ *   Preview:  proxy → assets map → absolute URL → staticFile
+ *   Render:   absolute URL → staticFile (skip assets map)
+ *   Browser:  assets map → absolute URL → staticFile
  */
 export function resolveMediaSrc(
   src: string,
@@ -56,7 +58,15 @@ export function resolveMediaSrc(
     if (proxyKey && assets[proxyKey]) return assets[proxyKey];
   }
 
-  // Standard resolution: assets map → absolute URL → staticFile
+  // Inside sandbox render (remotion render / remotion still): use local files.
+  // The assets map contains presigned MinIO URLs meant for browser access
+  // outside the container. Headless Chrome inside Docker can't reach them.
+  if (isRendering) {
+    if (/^https?:\/\/|^blob:/.test(src)) return src;
+    return staticFile(src);
+  }
+
+  // Browser player: assets map → absolute URL → staticFile
   if (assets[src]) return assets[src];
   if (/^https?:\/\/|^blob:/.test(src)) return src;
   return staticFile(src);
