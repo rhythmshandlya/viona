@@ -135,6 +135,7 @@ The DATA object tells you the scene type. Here's how to think about each:
 - All text needs `textShadow` for readability over video
 - Glass cards use their own semi-transparent backgrounds (liquid glass still applies)
 - Animations should be subtle — overlays enhance, they don't compete with the speaker
+- **Before positioning overlay elements:** Call `get_speaker_position` with the scene's time range. Use the `safePlacements` rects for element positioning — these are concrete pixel rectangles that avoid the speaker. The `availableSpace` fields tell you exactly how much room is above, below, left, and right of the speaker.
 
 ### Stacked Scenes (split-screen)
 - **Background component included** — your scene occupies the top portion of the screen

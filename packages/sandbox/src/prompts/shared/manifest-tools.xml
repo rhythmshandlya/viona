@@ -24,7 +24,8 @@
 - download_file — Download a file from URL to workspace.
 - search_unsplash / search_pexels — Search stock photos.
 - download_stock_photo — Download stock photo to /workspace/public/assets/.
-- get_speaker_grid — Get speaker thumbnail grid.
+- get_speaker_position — Get speaker canvas-space position for a time range.
+- auto_center_speaker — Set optimal video crop to center the speaker's face.
 
 ## Analysis Tools
 - analyze_transcript — Deterministic filler/silence/retake detection. Returns structured analysis.

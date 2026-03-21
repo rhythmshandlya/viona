@@ -31,7 +31,7 @@ read_manifest → video track (trk-video) has 8 video items after Trim Editor (f
 
 Audio track (trk-audio) has matching segments.
 Read SCENE_PLAN.md → 4 scenes parsed
-Read speaker-grid.json → face at x:50%, y:30%
+get_speaker_position → face centered at x:50%, y:30%
 ```
 
 ### Step 2: Create scene track

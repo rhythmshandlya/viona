@@ -59,5 +59,7 @@ Example: `const MyScene: React.FC = () => { ... }; export default MyScene;`
 - Opacity and transform offsets: stagger by 3-5 frames (never start on same frame).
 
 ## Video Positioning
-- Video uses `objectFit: 'cover'` in the renderer — it automatically fills the canvas with no black bars.
-- No manual crop/zoom-to-fill is needed. The renderer handles it.
+- Video uses `objectFit: 'cover'` with optional `crop` settings (`objectPosition` + `scale`).
+- `auto_center_speaker` sets optimal crop values to center the speaker's face (called by Layout Editor).
+- `get_speaker_position` returns the speaker's exact canvas-space coordinates for a time range. Use this when placing overlay elements — it accounts for the cover crop transform and returns concrete `safePlacements` rects.
+- Do NOT read `speaker-grid.json` directly — use the tool instead.
