@@ -30,8 +30,25 @@ export interface InitPayload {
   };
   userBrief?: string;
   headTracking?: {
-    speakerGrid: number[][];
-    safePlacement: Array<{ x: number; y: number; width: number; height: number }>;
+    video?: { fps?: number; width?: number; height?: number; duration_ms?: number; total_frames?: number };
+    settings?: { sample_interval?: number; samples_count?: number };
+    metadata?: { detection_rate?: number; frames_processed?: number; frames_with_face?: number };
+    frames: Array<{
+      frame: number;
+      timestamp_ms: number;
+      face?: {
+        bbox: { x: number; y: number; width: number; height: number };
+        landmarks?: Record<string, { x: number; y: number }>;
+      };
+      body?: {
+        left_shoulder?: { x: number; y: number; visible?: boolean };
+        right_shoulder?: { x: number; y: number; visible?: boolean };
+        left_hand?: { x: number; y: number; visible?: boolean };
+        right_hand?: { x: number; y: number; visible?: boolean };
+      };
+      confidence?: number;
+      detection_failed?: boolean;
+    }>;
   };
   projectMeta?: {
     width: number;
@@ -172,10 +189,15 @@ async function generateProxies(publicDir: string): Promise<void> {
 
 /**
  * Check if workspace is already initialized (volume was restored from backup).
+ * Verifies both manifest AND media files exist — git bundle restores exclude
+ * gitignored media (source.mp4, audio.aac), so manifest alone is insufficient.
  */
 export async function isInitialized(): Promise<boolean> {
   try {
     await access(join(WORKSPACE, 'manifest.json'));
+    // Also verify at least the source video exists — git bundle restores
+    // don't include gitignored media files, leaving a "half-initialized" state
+    await access(join(WORKSPACE, 'public', 'source.mp4'));
     return true;
   } catch {
     return false;
