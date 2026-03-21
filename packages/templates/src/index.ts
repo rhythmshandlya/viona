@@ -34,3 +34,4 @@ import './templates/globe-spin/register';
 import './templates/watercolor-map/register';
 import './templates/country-highlight/register';
 import './templates/magazine-newspaper/register';
+import './templates/magazine-dossier/register';

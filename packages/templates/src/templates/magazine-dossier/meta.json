@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-dossier",
+  "name": "Magazine Dossier",
+  "description": "Classified dossier document slides in, stamps classification, then reveals redacted intel items",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "dossier", "classified", "intel", "document"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}
