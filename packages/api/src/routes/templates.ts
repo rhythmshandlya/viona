@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { eq, and, ilike, sql, desc } from 'drizzle-orm';
-import { db, templates, templateExports } from '../db/index.js';
+import { eq, and, ilike, sql, desc, inArray } from 'drizzle-orm';
+import { db, templates, templateExports, themes, templateThemes } from '../db/index.js';
 import { getPresignedDownloadUrl } from '../services/minio.js';
 import { queueRenderTemplateJob } from '../services/queue.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -13,6 +13,9 @@ const listQuerySchema = z.object({
   search: z.string().optional(),
   aspectRatio: z.string().optional(),
   tags: z.string().optional(), // comma-separated
+  theme: z.string().optional(),
+  type: z.enum(['scene', 'element']).optional(),
+  includeThemeContext: z.coerce.boolean().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(20),
 });
@@ -54,6 +57,33 @@ export async function templateRoutes(fastify: FastifyInstance) {
         }
       }
 
+      if (query.type) {
+        conditions.push(eq(templates.type, query.type));
+      }
+
+      // Theme filter — resolve theme slug to template IDs
+      let resolvedThemeRow: typeof themes.$inferSelect | undefined;
+      if (query.theme) {
+        resolvedThemeRow = await db.query.themes.findFirst({
+          where: eq(themes.slug, query.theme),
+        }) ?? undefined;
+        if (resolvedThemeRow) {
+          const themeTemplateIds = await db
+            .select({ templateId: templateThemes.templateId })
+            .from(templateThemes)
+            .where(eq(templateThemes.themeId, resolvedThemeRow.id));
+          const ids = themeTemplateIds.map(r => r.templateId);
+          if (ids.length > 0) {
+            conditions.push(inArray(templates.id, ids));
+          } else {
+            return { items: [], pagination: { page: query.page, limit: query.limit, total: 0, totalPages: 0 } };
+          }
+        } else {
+          // Theme slug doesn't exist — return empty
+          return { items: [], pagination: { page: query.page, limit: query.limit, total: 0, totalPages: 0 } };
+        }
+      }
+
       const whereClause = and(...conditions);
       const offset = (page - 1) * limit;
 
@@ -63,6 +93,7 @@ export async function templateRoutes(fastify: FastifyInstance) {
           slug: templates.slug,
           name: templates.name,
           description: templates.description,
+          type: templates.type,
           category: templates.category,
           tags: templates.tags,
           aspectRatio: templates.aspectRatio,
@@ -70,6 +101,8 @@ export async function templateRoutes(fastify: FastifyInstance) {
           fps: templates.fps,
           width: templates.width,
           height: templates.height,
+          propsSchema: templates.propsSchema,
+          defaultProps: templates.defaultProps,
           screenshotUrl: templates.screenshotUrl,
           createdAt: templates.createdAt,
         })
@@ -100,14 +133,50 @@ export async function templateRoutes(fastify: FastifyInstance) {
         })
       );
 
+      // Batch-fetch theme associations for all items
+      const templateIds = items.map(t => t.id);
+      const themeAssociations = templateIds.length > 0
+        ? await db
+            .select({ templateId: templateThemes.templateId, slug: themes.slug })
+            .from(templateThemes)
+            .innerJoin(themes, eq(templateThemes.themeId, themes.id))
+            .where(inArray(templateThemes.templateId, templateIds))
+        : [];
+
+      const themesByTemplate = new Map<string, string[]>();
+      for (const row of themeAssociations) {
+        const arr = themesByTemplate.get(row.templateId) || [];
+        arr.push(row.slug);
+        themesByTemplate.set(row.templateId, arr);
+      }
+
+      const itemsWithThemes = itemsWithUrls.map(item => ({
+        ...item,
+        themes: themesByTemplate.get(item.id) || [],
+      }));
+
+      // Optionally include theme context when filtering by theme (reuse already-fetched row)
+      let themeContext = undefined;
+      if (query.includeThemeContext && resolvedThemeRow) {
+        themeContext = {
+          slug: resolvedThemeRow.slug,
+          name: resolvedThemeRow.name,
+          description: resolvedThemeRow.description,
+          styleGuidance: resolvedThemeRow.styleGuidance,
+          colorPalette: resolvedThemeRow.colorPalette,
+          fontRecommendations: resolvedThemeRow.fontRecommendations,
+        };
+      }
+
       return {
-        items: itemsWithUrls,
+        items: itemsWithThemes,
         pagination: {
           page,
           limit,
           total,
           totalPages: Math.ceil(total / limit),
         },
+        themeContext,
       };
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -135,6 +204,123 @@ export async function templateRoutes(fastify: FastifyInstance) {
     } catch (err) {
       logger.error({ err }, 'Failed to list template categories');
       return reply.status(500).send({ error: 'Failed to list categories' });
+    }
+  });
+
+  // ─── GET /templates/themes — List all published themes with template counts (public) ───
+  // MUST be defined BEFORE /:slug to avoid param collision
+  fastify.get('/templates/themes', async (request, reply) => {
+    try {
+      const rows = await db
+        .select({
+          id: themes.id,
+          slug: themes.slug,
+          name: themes.name,
+          description: themes.description,
+          previewUrl: themes.previewUrl,
+          templateCount: sql<number>`(
+            SELECT COUNT(*) FROM template_themes
+            WHERE template_themes.theme_id = ${themes.id}
+          )`.as('template_count'),
+        })
+        .from(themes)
+        .where(eq(themes.isPublished, true))
+        .orderBy(themes.name);
+
+      const items = await Promise.all(
+        rows.map(async (row) => ({
+          slug: row.slug,
+          name: row.name,
+          description: row.description,
+          previewUrl: row.previewUrl
+            ? await getPresignedDownloadUrl('templates', row.previewUrl, 3600)
+            : null,
+          templateCount: Number(row.templateCount),
+        })),
+      );
+
+      return { themes: items };
+    } catch (err) {
+      logger.error({ err }, 'Failed to list themes');
+      return reply.status(500).send({ error: 'Failed to list themes' });
+    }
+  });
+
+  // ─── GET /templates/themes/:slug — Full theme detail with its templates (public) ───
+  fastify.get('/templates/themes/:slug', async (request, reply) => {
+    try {
+      const { slug } = z.object({ slug: z.string() }).parse(request.params);
+
+      const theme = await db.query.themes.findFirst({
+        where: eq(themes.slug, slug),
+      });
+
+      if (!theme) {
+        return reply.code(404).send({ error: 'Theme not found' });
+      }
+
+      const themeTemplates = await db
+        .select({
+          id: templates.id,
+          slug: templates.slug,
+          name: templates.name,
+          description: templates.description,
+          type: templates.type,
+          category: templates.category,
+          tags: templates.tags,
+          aspectRatio: templates.aspectRatio,
+          durationFrames: templates.durationFrames,
+          fps: templates.fps,
+          width: templates.width,
+          height: templates.height,
+          propsSchema: templates.propsSchema,
+          defaultProps: templates.defaultProps,
+          screenshotUrl: templates.screenshotUrl,
+        })
+        .from(templates)
+        .innerJoin(templateThemes, eq(templates.id, templateThemes.templateId))
+        .where(and(
+          eq(templateThemes.themeId, theme.id),
+          eq(templates.isPublished, true),
+        ));
+
+      // Resolve presigned URLs for theme preview and template screenshots
+      let themePreviewUrl: string | null = null;
+      if (theme.previewUrl) {
+        try {
+          themePreviewUrl = await getPresignedDownloadUrl('templates', theme.previewUrl, 3600);
+        } catch {
+          // Preview not available
+        }
+      }
+
+      const templatesWithUrls = await Promise.all(
+        themeTemplates.map(async (t) => {
+          let screenshotUrl: string | null = null;
+          if (t.screenshotUrl) {
+            try {
+              screenshotUrl = await getPresignedDownloadUrl('templates', t.screenshotUrl, 3600);
+            } catch {
+              // Screenshot not available
+            }
+          }
+          return { ...t, screenshotUrl };
+        }),
+      );
+
+      return {
+        slug: theme.slug,
+        name: theme.name,
+        description: theme.description,
+        colorPalette: theme.colorPalette,
+        fontRecommendations: theme.fontRecommendations,
+        styleGuidance: theme.styleGuidance,
+        previewUrl: themePreviewUrl,
+        templates: templatesWithUrls,
+      };
+    } catch (err) {
+      logger.error({ err }, 'Failed to get theme detail');
+      return reply.status(500).send({ error: 'Failed to get theme' });
     }
   });
 
