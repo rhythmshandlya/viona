@@ -31,7 +31,7 @@ src/magazine/
 #### `constants.ts`
 
 ```typescript
-import { FONTS } from '../../fonts';
+import { FONTS } from '../fonts';
 
 export const MAGAZINE_COLORS = {
   primary: '#2D1B0E',
@@ -73,7 +73,7 @@ All render as `<AbsoluteFill>` with `pointerEvents: 'none'` so they layer withou
 
 Edge and surface effects using SVG.
 
-- **`TornEdge`** — SVG clip-path with programmatically generated jagged path. Props: `edges: ('top' | 'bottom' | 'left' | 'right')[]`, `roughness: number` (0-1), `seed: number` (for deterministic randomness via Remotion's `random()`). Generates a polygon clip-path where specified edges have irregular offsets.
+- **`TornEdge`** — SVG clip-path with programmatically generated jagged path. Props: `edges: ('top' | 'bottom' | 'left' | 'right')[]`, `roughness: number` (0-1), `seed: number` (for deterministic randomness via `import { random } from 'remotion'`). Generates a polygon clip-path where specified edges have irregular offsets. Algorithm: ~20 points per edge, each offset perpendicular to the edge by `random(seed + pointIndex) * roughness * 15` pixels. Straight edges get 2 points (corners only).
 - **`FoldShadow`** — CSS linear gradient simulating a crease shadow. Props: `angle: number`, `position: number` (0-1 across the surface), `depth: number`.
 - **`BurnEdge`** — Dark vignette with irregular opacity along edges. SVG radial gradient with `feTurbulence` displacement for organic edge.
 - **`InkBleed`** — SVG filter combining `feGaussianBlur` (slight spread) + `feColorMatrix` (threshold to keep it dark) applied to text. Makes text edges look absorbed into paper. Used as a filter `id` applied to text elements via `style={{ filter: 'url(#inkBleed)' }}`.
@@ -113,8 +113,10 @@ export function paperSlide(frame: number, start: number, duration = 25, directio
   const rotation = interpolate(frame, [start, start + duration], [direction === 'left' ? -3 : 3, 0], {
     extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
   });
-  // Returns transform values based on direction
-  const offsets = { left: [-400, 0], right: [400, 0], up: [0, 400], down: [0, -400] };
+  // Direction = where the element enters FROM (opposite of motion).
+  // 'up' = enters from below (slides upward), 'right' = enters from right (slides left to center).
+  // Offsets scale with 1920px height / 1080px width for full off-screen displacement.
+  const offsets = { left: [-1200, 0], right: [1200, 0], up: [0, 2000], down: [0, -2000] };
   const [startX, startY] = offsets[direction];
   const translateX = interpolate(progress, [0, 1], [startX, 0]);
   const translateY = interpolate(progress, [0, 1], [startY, 0]);
@@ -123,7 +125,7 @@ export function paperSlide(frame: number, start: number, duration = 25, directio
 
 export function exitTear(frame: number, start: number, duration = 20) {
   const progress = interpolate(frame, [start, start + duration], [0, 1], {
-    extrapolateLeft: 'clamp', extrapolateRight: 'clamp',
+    extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: magazineEasing,
   });
   return { progress, opacity: 1 - progress };
 }
@@ -137,7 +139,40 @@ All 5 overlays live at `packages/templates/src/templates/magazine-{name}/` and s
 - 30fps
 - `themes: ["magazine"]` in `meta.json`
 - `type: "overlay"` in `meta.json`
+- Tags include `"magazine-theme"` (for registry tag-based filtering via `listTemplates({ theme: 'magazine' })`)
 - Category: `"overlay"` (new value added to `TemplateMeta` category union)
+- No `useScale()` — overlays are always 1080x1920, no responsive scaling needed
+
+**Example `meta.json` (magazine-newspaper):**
+```json
+{
+  "slug": "magazine-newspaper",
+  "name": "Magazine Newspaper",
+  "description": "Newspaper front page unfolds with 3D perspective, zooms into headline, then tears away",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "newspaper", "headline", "editorial", "paper", "serif"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "4s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}
+```
+
+**Example `metadata.json` (magazine-newspaper):**
+```json
+{
+  "compositionId": "magazine-newspaper",
+  "durationInFrames": 120,
+  "fps": 30,
+  "width": 1080,
+  "height": 1920
+}
+```
+
+Other overlays follow the same pattern with their own slug, name, description, tags, and duration (120 frames for 4s, 150 frames for 5s).
 
 ---
 
@@ -266,8 +301,8 @@ export const schema = z.object({
 
 **Components:**
 - `PaperMapBase.tsx` — `PaperTexture` background with faint cartography grid lines (thin rules at regular intervals, very low opacity, sepia-toned). This is the "paper" the map draws on.
-- `InkMapTiles.tsx` — Fetches map tiles from a tile server (same `MapTileGrid` pattern as watercolor-map) but applies SVG filters: `feColorMatrix` for sepia desaturation, blended with the paper texture using CSS `mix-blend-mode: multiply`. Tiles appear as if printed on the paper. Uses `delayRender()`/`continueRender()` for async tile loading.
-- `InkBorders.tsx` — Country/region borders rendered as SVG paths with `stroke-dasharray`/`stroke-dashoffset` animation, so borders "draw" themselves like an ink pen tracing them. Stroke has slight `InkBleed` filter for feathered edges.
+- `InkMapTiles.tsx` — Standalone tile-fetching component (does NOT import from other templates). Constructs tile URLs from `regionLat`/`regionLng`/`zoomLevel` using the same tile-math approach as watercolor-map: `https://tile.openstreetmap.org/{z}/{x}/{y}.png`. Uses Remotion's `<Img>` with `delayRender()`/`continueRender()` for async loading. Applies SVG filters: `<feColorMatrix>` for sepia desaturation, rendered with CSS `mix-blend-mode: multiply` against the paper texture so tiles look hand-drawn on paper.
+- `InkBorders.tsx` — Region borders rendered as SVG paths with `stroke-dasharray`/`stroke-dashoffset` animation, drawing like an ink pen. Border geometry is simplified — generated from tile boundaries and the `region` name rather than full country polygon data. Uses a pre-computed lookup of major region bounding outlines (stored as SVG path data in a `borders.ts` data file). Stroke has `InkBleed` filter for feathered edges.
 - `InkRoute.tsx` — If `routePoints` provided, draws an animated route between points. Same stroke-dashoffset technique but with a thicker, more prominent stroke. Small dot markers at each point.
 - `MapLabel.tsx` — The `label` text rendered with `SerifHeadline`, positioned below the map area. `Dateline`-style formatting.
 
@@ -335,13 +370,41 @@ category:
   | 'entertainment'
   | 'overlay';
 
-// Add optional type field
+// Add type and themes fields
 type?: 'scene' | 'overlay';
+themes?: string[];
 ```
+
+Also update `listTemplates()` in `registry.ts` to support filtering by the `themes` array in addition to the existing tag-based filter:
+
+```typescript
+if (filters.theme) {
+  entries = entries.filter((e) =>
+    e.meta.themes?.includes(filters.theme!) ||
+    e.meta.tags.includes(`${filters.theme}-theme`)
+  );
+}
+```
+
+## Theme JSON Update
+
+Update `themes/magazine.json` font recommendations to match the actually-loaded fonts:
+
+```json
+"fontRecommendations": {
+  "heading": "Playfair Display",
+  "body": "Lora",
+  "accent": "Merriweather"
+}
+```
+
+(Current file says "Source Serif Pro" and "Cormorant Garamond" which are not loaded in `fonts.ts`.)
 
 ## getFiles() Pattern
 
-Each overlay's `register.ts` returns its own files plus the shared magazine library. This means when the AI agent calls `getTemplateFiles('magazine-newspaper')`, it gets everything needed to render — overlay code and shared deps. No separate installation step.
+Each overlay's `register.ts` returns its own files plus the shared magazine library. Shared files use the same `../../magazine/` relative path structure so imports work identically in both the source tree and the AI workspace. This means when the AI agent calls `getTemplateFiles('magazine-newspaper')`, it gets everything needed to render — overlay code and shared deps. No separate installation step.
+
+The AI pipeline writes files using the `path` field relative to the template directory. Files with `../../magazine/` paths get written to the correct relative location so that `import { MAGAZINE_COLORS } from '../../magazine/constants'` resolves in both environments.
 
 ```typescript
 getFiles: async () => {
@@ -376,6 +439,8 @@ getFiles: async () => {
   return [...ownFiles, ...sharedFiles];
 }
 ```
+
+Note: The `../../magazine/` path prefix mirrors the actual source tree layout. The AI pipeline must preserve this relative structure when writing files to the workspace. If the pipeline flattens paths, an alternative is to copy shared files into a `magazine/` subfolder within the template directory and adjust imports to `./magazine/constants` — but this duplicates the shared code per template on disk.
 
 ## What This Does NOT Do
 
