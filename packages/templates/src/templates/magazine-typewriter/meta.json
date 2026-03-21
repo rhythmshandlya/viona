@@ -1,0 +1,14 @@
+{
+  "slug": "magazine-typewriter",
+  "name": "Magazine Typewriter",
+  "description": "Typewriter-style character-by-character text reveal on fresh paper with editorial styling",
+  "category": "overlay",
+  "tags": ["magazine-theme", "overlay", "typewriter", "text", "typing", "editorial"],
+  "stylePreset": "elegantEditorial",
+  "aspectRatio": "9:16",
+  "sceneCount": 1,
+  "estimatedDuration": "5s",
+  "thumbnail": "thumbnail.png",
+  "type": "overlay",
+  "themes": ["magazine"]
+}
