@@ -14,6 +14,12 @@
  * DB keys stored WITHOUT the `templates/` prefix (minio service prepends it).
  */
 
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env from the API package (has MINIO_* and DATABASE_URL)
+config({ path: resolve(import.meta.dirname, '../../api/.env') });
+
 import { Client as MinioClient } from 'minio';
 import pg from 'pg';
 import {
@@ -36,12 +42,12 @@ const MANIFEST_PATH = join(DIST_DIR, 'manifest.json');
 
 // ── Config from env ─────────────────────────────────────────────────────────
 
-const S3_ENDPOINT = process.env.S3_ENDPOINT || 'localhost';
-const S3_PORT = parseInt(process.env.S3_PORT || '9000', 10);
-const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || 'minioadmin';
-const S3_SECRET_KEY = process.env.S3_SECRET_KEY || 'minioadmin';
-const S3_BUCKET = process.env.S3_BUCKET || 'viona';
-const S3_USE_SSL = process.env.S3_USE_SSL === 'true';
+const S3_ENDPOINT = process.env.S3_ENDPOINT || process.env.MINIO_ENDPOINT || 'localhost';
+const S3_PORT = parseInt(process.env.S3_PORT || process.env.MINIO_PORT || '9000', 10);
+const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || process.env.MINIO_ACCESS_KEY || 'minioadmin';
+const S3_SECRET_KEY = process.env.S3_SECRET_KEY || process.env.MINIO_SECRET_KEY || 'minioadmin';
+const S3_BUCKET = process.env.S3_BUCKET || process.env.MINIO_BUCKET_UPLOADS || 'viona';
+const S3_USE_SSL = (process.env.S3_USE_SSL || process.env.MINIO_USE_SSL) === 'true';
 const DATABASE_URL =
   process.env.DATABASE_URL ||
   'postgresql://postgres:postgres@localhost:5432/viona';
@@ -160,6 +166,28 @@ async function uploadTemplate(
       const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/${relativePath}`);
       const contentType = getContentType(filePath);
       await uploadFileToS3(client, filePath, s3Key, contentType);
+    }
+  }
+
+  // ── 2b. Upload shared magazine library files (if template uses them) ─
+  const magazineDir = join(SRC_DIR, 'magazine');
+  if (existsSync(magazineDir)) {
+    // Check if any source file references ../../magazine/
+    const sourceFiles2 = existsSync(sourceDir) ? getAllFiles(sourceDir) : [];
+    const usesMagazine = sourceFiles2.some(fp => {
+      const content = readFileSync(fp, 'utf-8');
+      return /from\s+['"]\.\.\/\.\.\/magazine\//.test(content);
+    });
+
+    if (usesMagazine) {
+      const magazineFiles = getAllFiles(magazineDir);
+      console.log(`  Uploading ${magazineFiles.length} shared magazine library files...`);
+      for (const filePath of magazineFiles) {
+        const relativePath = filePath.substring(magazineDir.length + 1);
+        const s3Key = toS3Key(`${S3_PREFIX}${slug}/source/../../magazine/${relativePath}`);
+        const contentType = getContentType(filePath);
+        await uploadFileToS3(client, filePath, s3Key, contentType);
+      }
     }
   }
 

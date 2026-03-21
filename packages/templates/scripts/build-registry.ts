@@ -70,10 +70,43 @@ function detectSharedDeps(files: RegistryFile[]): string[] {
   const deps = new Set<string>();
   for (const f of files) {
     if (f.content.includes('use-scale')) deps.add('use-scale');
-    if (f.content.includes('fonts') && f.content.match(/from\s+['"]\.\.\/\.\.\/fonts['"]/)) deps.add('fonts');
+    if (f.content.match(/from\s+['"]\.\.?\/[^'"]*fonts['"]/)) deps.add('fonts');
+    // Match pre-rewritten paths: ./magazine/ or ../magazine/
+    if (f.content.match(/from\s+['"]\.\.?\/[^'"]*magazine\//)) deps.add('magazine');
   }
+  // Magazine shared library depends on fonts
+  if (deps.has('magazine')) deps.add('fonts');
   return Array.from(deps);
 }
+
+/**
+ * Read all files from the shared magazine library and return them with magazine/ paths.
+ * Uses `magazine/` prefix (NOT `../../magazine/`) so they get written inside the template's
+ * target directory when forked. The template source files' imports (`../../magazine/...`)
+ * are rewritten to `./magazine/...` by the fork tool's ../../ → ./ regex.
+ */
+function getMagazineSharedFiles(): RegistryFile[] {
+  const magazineDir = join(SRC_DIR, 'magazine');
+  if (!existsSync(magazineDir)) return [];
+  const files: RegistryFile[] = [];
+  for (const entry of readdirSync(magazineDir, { withFileTypes: true })) {
+    if (!entry.isFile()) continue;
+    // Rewrite internal imports: magazine files import from '../fonts' which becomes
+    // unreachable when inlined. Replace with inline constants or skip (fonts are
+    // already available in the workspace via the remotion workspace CLAUDE.md).
+    let content = readFileSync(join(magazineDir, entry.name), 'utf-8');
+    // ../fonts → ./fonts (will need fonts.ts alongside, but fonts is already a registryDep)
+    content = content.replace(/from\s+['"]\.\.\/fonts['"]/g, `from '../fonts'`);
+    files.push({
+      path: `magazine/${entry.name}`,
+      content,
+      type: 'registry:lib',
+    });
+  }
+  return files;
+}
+
+const magazineSharedFiles = getMagazineSharedFiles();
 
 const catalogItems: RegistryCatalogItem[] = [];
 let templateCount = 0;
@@ -97,14 +130,37 @@ for (const dir of readdirSync(TEMPLATES_DIR, { withFileTypes: true }).sort((a, b
   const filePaths = readDirRecursive(templateDir);
   const files: RegistryFile[] = filePaths.map(fp => {
     const relPath = relative(templateDir, fp).replace(/\\/g, '/');
+    let content = readFileSync(fp, 'utf-8');
+
+    // Pre-rewrite imports that escape the template directory (../../ or deeper).
+    // The fork tool does a naive ../../ → ./ rewrite which produces wrong paths
+    // for files in subdirectories (e.g. components/X.tsx). Pre-rewriting here
+    // with depth-aware paths means the fork tool's regex won't match them.
+    const depth = relPath.split('/').length - 1; // 0 for root files, 1 for components/X.tsx
+    const prefix = depth === 0 ? './' : '../'.repeat(depth);
+    // Match any chain of 2+ ../ (escapes template dir) and rewrite to flat relative path
+    content = content.replace(
+      /from\s+['"](?:\.\.\/){2,}([^'"]+)['"]/g,
+      (_match, path) => `from '${prefix}${path}'`,
+    );
+    content = content.replace(
+      /import\s+['"](?:\.\.\/){2,}([^'"]+)['"]/g,
+      (_match, path) => `import '${prefix}${path}'`,
+    );
+
     return {
       path: relPath,
-      content: readFileSync(fp, 'utf-8'),
+      content,
       type: classifyFile(relPath),
     };
   });
 
   const registryDeps = detectSharedDeps(files);
+
+  // Inline shared magazine library files for templates that depend on them
+  const allFiles = registryDeps.includes('magazine')
+    ? [...files, ...magazineSharedFiles]
+    : files;
 
   const item: RegistryItem = {
     name: meta.slug as string,
@@ -112,7 +168,7 @@ for (const dir of readdirSync(TEMPLATES_DIR, { withFileTypes: true }).sort((a, b
     description: (meta.description as string) || '',
     categories: [meta.category as string].filter(Boolean),
     registryDependencies: registryDeps,
-    files,
+    files: allFiles,
     meta: {
       stylePreset: meta.stylePreset,
       aspectRatio: meta.aspectRatio,

@@ -63,6 +63,112 @@
       }
     },
     {
+      "name": "magazine-collage",
+      "type": "registry:component",
+      "description": "Torn paper clippings scatter and drift with parallax depth, creating a scrapbook collage overlay",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "collage",
+        "photo",
+        "parallax",
+        "scrapbook"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-dossier",
+      "type": "registry:component",
+      "description": "Classified dossier document slides in, stamps classification, then reveals redacted intel items",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "dossier",
+        "classified",
+        "intel",
+        "document"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
+      "name": "magazine-inkmap",
+      "type": "registry:component",
+      "description": "Cartographic ink map with sepia-toned tiles, animated borders, and route tracing on aged paper",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "map",
+        "geographic",
+        "ink",
+        "cartography"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "magazine-newspaper",
+      "type": "registry:component",
+      "description": "Newspaper front page unfolds with 3D perspective, zooms into headline, then tears away",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "newspaper",
+        "headline",
+        "editorial",
+        "paper",
+        "serif"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "4s"
+      }
+    },
+    {
+      "name": "magazine-typewriter",
+      "type": "registry:component",
+      "description": "Typewriter-style character-by-character text reveal on fresh paper with editorial styling",
+      "categories": [
+        "overlay"
+      ],
+      "tags": [
+        "magazine-theme",
+        "overlay",
+        "typewriter",
+        "text",
+        "typing",
+        "editorial"
+      ],
+      "meta": {
+        "stylePreset": "elegantEditorial",
+        "aspectRatio": "9:16",
+        "estimatedDuration": "5s"
+      }
+    },
+    {
       "name": "watercolor-map",
       "type": "registry:component",
       "description": "Animated travel route between two locations on a watercolor-style map with markers and a connecting line",
