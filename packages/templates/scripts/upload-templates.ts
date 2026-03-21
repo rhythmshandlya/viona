@@ -217,9 +217,9 @@ async function upsertTemplate(
     INSERT INTO templates (
       slug, name, description, category, tags, aspect_ratio,
       duration_frames, fps, width, height, props_schema, default_props,
-      screenshot_url, bundle_key, source_key, version, is_published
+      screenshot_url, bundle_key, source_key, type, version, is_published
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 1, true)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 1, true)
     ON CONFLICT (slug) DO UPDATE SET
       name = EXCLUDED.name,
       description = EXCLUDED.description,
@@ -230,6 +230,7 @@ async function upsertTemplate(
       screenshot_url = EXCLUDED.screenshot_url,
       bundle_key = EXCLUDED.bundle_key,
       source_key = EXCLUDED.source_key,
+      type = EXCLUDED.type,
       version = templates.version + 1,
       updated_at = NOW()
   `;
@@ -250,9 +251,41 @@ async function upsertTemplate(
     null, // screenshot_url — deferred
     bundleKey,
     sourceKey,
+    (entry.meta.type as string) || 'scene',
   ];
 
   await dbClient.query(sql, values);
+
+  // Handle theme associations
+  const themeSlugs: string[] = ((entry.meta as any).themes as string[]) || [];
+  // Get template ID (needed for both add and clear cases)
+  const templateRow = await dbClient.query(
+    'SELECT id FROM templates WHERE slug = $1',
+    [entry.slug],
+  );
+  const templateId = templateRow.rows[0]?.id;
+  if (templateId) {
+    // Clear existing associations
+    await dbClient.query(
+      'DELETE FROM template_themes WHERE template_id = $1',
+      [templateId],
+    );
+    // Insert new associations
+    for (const themeSlug of themeSlugs) {
+      const themeRow = await dbClient.query(
+        'SELECT id FROM themes WHERE slug = $1',
+        [themeSlug],
+      );
+      if (themeRow.rows[0]) {
+        await dbClient.query(
+          'INSERT INTO template_themes (theme_id, template_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [themeRow.rows[0].id, templateId],
+        );
+      } else {
+        console.warn(`  Warning: Theme "${themeSlug}" not found in DB, skipping association`);
+      }
+    }
+  }
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
